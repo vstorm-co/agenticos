@@ -7,7 +7,8 @@ read is the skills *capability*.
 """
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Collection, Mapping, Sequence
+from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
@@ -16,31 +17,66 @@ from pydantic import StringConstraints, TypeAdapter
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.skills import SkillBody, SkillBodyFile
+from app.agents.spec import AgentSpec, SkillBindingSpec
 from app.core import catalog
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    InUseError,
+    NotFoundError,
+)
 from app.core.excerpt import excerpt
 from app.core.permissions import AuthContext, Perm
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
+from app.db.models.skill_proposal import ProposalStatus
+from app.db.models.skill_version import SkillVersion, SkillVersionSource
 from app.db.updates import writable
-from app.repositories import audit_log_repo, resource_grant_repo, skill_repo
+from app.repositories import (
+    agent_repo,
+    audit_log_repo,
+    resource_grant_repo,
+    skill_proposal_repo,
+    skill_repo,
+    skill_usage_repo,
+    skill_version_repo,
+)
 from app.repositories.skill import SkillSort
+from app.schemas.agent_run import RunSkillUseRead
 from app.schemas.skill import (
     GalleryIndustryRead,
     GalleryInstallResult,
+    GallerySkillPreview,
     GallerySkillRead,
     SkillGallery,
     SkillList,
+    SkillRead,
     SkillResourceUpdate,
     SkillSummary,
     SkillUpdate,
     skill_name_refusal,
 )
+from app.schemas.skill_usage import (
+    SkillUsageAgent,
+    SkillUsageDay,
+    SkillUsageRead,
+    SkillUsageVersion,
+)
 from app.services import skill_library
-from app.services.access import SKILL, accessible_ids, resolve_access, visible_resource_ids
-from app.services.resource_usage import agents_using, groups_sharing, shared_with_group
+from app.services.access import AGENT, SKILL, accessible_ids, resolve_access, visible_resource_ids
+from app.services.resource_usage import (
+    agents_serving_skills,
+    agents_using,
+    agents_using_skill,
+    groups_sharing,
+    in_use_by,
+    shared_with_group,
+)
 from app.services.sharing import SharingService
+from app.services.skill_versions import SkillVersionService
 
 logger = logging.getLogger(__name__)
 
@@ -58,8 +94,18 @@ SUGGESTED_CATEGORIES: tuple[str, ...] = catalog.load(
 # about and then cannot use.
 MAX_RESOURCE_BYTES = 512 * 1024
 
+SKILL_BODY_CHARS = 4000
+"""How much of one skill's body an agent's improver reads."""
 
-def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
+
+def improver_skill_chars(skills: Sequence[Skill], used: Mapping[UUID, set[UUID]]) -> int:
+    """How much skill text an agent's improver is shown: the bodies its evidence used."""
+    return sum(min(len(skill.content), SKILL_BODY_CHARS) for skill in skills if skill.id in used)
+
+
+def _summary(
+    skill: Skill, bundled_names: frozenset[str], architect_names: frozenset[str]
+) -> SkillSummary:
     """A skill as the listing shows it.
 
     `built_in` is a name match against the shipped library and gallery because that is
@@ -74,7 +120,9 @@ def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
         category=skill.category,
         visibility=skill.visibility,
         file_count=len(skill.resources),
+        version=skill.version,
         built_in=skill.name in bundled_names,
+        architect=skill.name in architect_names,
         excerpt=excerpt(skill.content),
     )
 
@@ -143,6 +191,8 @@ class LibraryRefresh(StrEnum):
     """Edited here since it was copied; left alone."""
     UNTRACKED = "untracked"
     """Copied before fingerprints were kept and different now; left alone."""
+    WAITING = "waiting"
+    """An update agents follow: it waits as a proposal until it is checked on them."""
 
 
 def _fingerprint_of(skill: Skill) -> str:
@@ -177,6 +227,7 @@ class SkillService:
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+        self.versions = SkillVersionService(db)
 
     async def get(
         self, ctx: AuthContext, skill_id: UUID, *, perm: Perm = Perm.SKILLS_VIEW
@@ -187,6 +238,83 @@ class SkillService:
         if not await resolve_access(self.db, ctx, skill, perm, resource_type=SKILL):
             raise NotFoundError(message="Skill not found", details={"skill_id": str(skill_id)})
         return skill
+
+    async def usage(self, ctx: AuthContext, skill_id: UUID, *, days: int) -> SkillUsageRead:
+        """How often each agent used the skill over the last `days`, as the skill page shows it.
+
+        Read off runs, so it needs `runs:view` as every run reader does. An agent
+        the caller may not see is counted in `hidden_*` and never named.
+
+        Raises:
+            NotFoundError: No such skill, or one the caller may not see.
+            AuthorizationError: A caller without `runs:view`.
+        """
+        skill = await self.get(ctx, skill_id)
+        if not ctx.has(Perm.RUNS_VIEW):
+            raise AuthorizationError(
+                message="Skill usage is read off runs, which needs runs:view",
+                details={"permission": Perm.RUNS_VIEW.value},
+            )
+        since = datetime.now(UTC) - timedelta(days=days)
+        rows = await skill_usage_repo.usage_by_agent(
+            self.db, organization_id=ctx.organization_id, skill_id=skill.id, since=since
+        )
+        agents = await agent_repo.get_many(
+            self.db, [row.agent_id for row in rows], organization_id=ctx.organization_id
+        )
+        visible = await accessible_ids(
+            self.db, ctx, agents.values(), Perm.AGENTS_VIEW, resource_type=AGENT
+        )
+        shown = [row for row in rows if row.agent_id in visible]
+        hidden = [row for row in rows if row.agent_id not in visible]
+        versions: dict[UUID, list[SkillUsageVersion]] = {}
+        for version in await skill_usage_repo.usage_by_version(
+            self.db,
+            organization_id=ctx.organization_id,
+            skill_id=skill.id,
+            since=since,
+            agent_ids=[row.agent_id for row in shown],
+        ):
+            versions.setdefault(version.agent_id, []).append(
+                SkillUsageVersion(skill_version_id=version.skill_version_id, loads=version.loads)
+            )
+        by_day: dict[UUID, dict[date, int]] = {}
+        for per_day in await skill_usage_repo.usage_by_day(
+            self.db,
+            organization_id=ctx.organization_id,
+            skill_id=skill.id,
+            since=since,
+            agent_ids=[row.agent_id for row in shown],
+        ):
+            by_day.setdefault(per_day.agent_id, {})[per_day.day] = per_day.loads
+        first = since.date()
+        window = [first + timedelta(days=offset) for offset in range(days + 1)]
+        return SkillUsageRead(
+            days=days,
+            since=since,
+            loads=sum(row.loads for row in shown),
+            agents=[
+                SkillUsageAgent(
+                    agent_id=row.agent_id,
+                    agent_name=agents[row.agent_id].name,
+                    slug=agents[row.agent_id].slug,
+                    has_avatar=agents[row.agent_id].has_avatar,
+                    avatar_color=agents[row.agent_id].avatar_color,
+                    loads=row.loads,
+                    resource_reads=row.resource_reads,
+                    workspace_reads=row.workspace_reads,
+                    last_loaded_at=row.last_loaded_at,
+                    versions=versions.get(row.agent_id, []),
+                    daily=[
+                        SkillUsageDay(date=day, loads=by_day.get(row.agent_id, {}).get(day, 0))
+                        for day in window
+                    ],
+                )
+                for row in shown
+            ],
+            hidden_agents=len(hidden),
+            hidden_loads=sum(row.loads for row in hidden),
+        )
 
     async def list_skills(
         self,
@@ -290,20 +418,31 @@ class SkillService:
         bundled_names = frozenset(entry.name for entry in skill_library.library()) | frozenset(
             skill.name for industry in skill_library.gallery() for skill in industry.skills
         )
-        used = await agents_using(
+        architect_names = skill_library.architect_names()
+        used = await agents_serving_skills(self.db, ctx, skill_ids=[skill.id for skill in items])
+        drafted = await agents_using(
             self.db, ctx, field="skill_ids", resource_ids=[skill.id for skill in items]
         )
         groups = await groups_sharing(
             self.db, ctx, resource_type=SKILL, resource_ids=[skill.id for skill in items]
         )
         editable = await accessible_ids(self.db, ctx, items, Perm.SKILLS_EDIT, resource_type=SKILL)
+        forks = await skill_version_repo.count_active_forks(
+            self.db, organization_id=ctx.organization_id, skill_ids=[skill.id for skill in items]
+        )
         return SkillList(
             items=[
-                _summary(skill, bundled_names).model_copy(
+                _summary(skill, bundled_names, architect_names).model_copy(
                     update={
                         "used_by": used[skill.id],
+                        "drafted_by": [
+                            agent
+                            for agent in drafted[skill.id]
+                            if agent.id not in {serving.id for serving in used[skill.id]}
+                        ],
                         "shared_groups": groups[skill.id],
                         "can_edit": skill.id in editable,
+                        "forks": forks[skill.id],
                     }
                 )
                 for skill in items
@@ -317,14 +456,26 @@ class SkillService:
         """Every distinct category in this organization, for the listing's filter."""
         return await skill_repo.list_categories(self.db, organization_id=ctx.organization_id)
 
-    async def resolve_for_agent(self, ctx: AuthContext, skill_ids: list[UUID]) -> list[Skill]:
-        """The skills an agent is bound to.
+    async def resolve_for_agent(
+        self,
+        ctx: AuthContext,
+        skill_ids: list[UUID],
+        *,
+        bindings: Sequence[SkillBindingSpec] = (),
+        projected: Mapping[UUID, SkillBody] | None = None,
+    ) -> list[Skill]:
+        """The skills an agent is bound to, each as the version its binding names.
+
+        A skill with no binding is its row, which is its main line's newest version;
+        one pinned to a main version or following a fork is a detached copy of that
+        version, text and files, so every reader below treats both alike. Each one's
+        `latest_version_id` is the version it serves.
 
         Scoped to the run's organization and **not** to the runner's own access,
         which is deliberate and is the same rule delegates and collections follow:
         the binding is checked once, against the publisher, when the agent is
         published, and the agent then reads it for everyone who may run it. See
-        `_skill_problems` in `app/services/agent_registry.py` for the check.
+        `skill_problems` in `app/services/agent_registry.py` for the check.
 
         Re-checking here would be wrong twice over. `resolve_access` refuses every
         context with no subject, so an API key, an embedded widget and a channel
@@ -343,10 +494,35 @@ class SkillService:
         """
         if not skill_ids:
             return []
-        found = await skill_repo.get_many(self.db, skill_ids, organization_id=ctx.organization_id)
+        virtual = {
+            key: body
+            for key, body in (projected or {}).items()
+            if body.name is not None and key in skill_ids
+        }
+        found = await skill_repo.get_many(
+            self.db,
+            [key for key in skill_ids if key not in virtual],
+            organization_id=ctx.organization_id,
+        )
+        pinned = {binding.skill_id: binding for binding in bindings}
         resolved = []
         for skill_id in skill_ids:
-            skill = found.get(skill_id)
+            body = virtual.get(skill_id)
+            skill = (
+                Skill(
+                    id=skill_id,
+                    organization_id=ctx.organization_id,
+                    name=body.name,
+                    description=body.description,
+                    content=body.content,
+                    resources=[],
+                    version=1,
+                    visibility=Visibility.PRIVATE.value,
+                    owner_user_id=ctx.user_id,
+                )
+                if body is not None
+                else found.get(skill_id)
+            )
             if skill is None:
                 logger.warning(
                     "Agent references skill %s which is deleted or not org %s's",
@@ -354,8 +530,88 @@ class SkillService:
                     ctx.organization_id,
                 )
                 continue
-            resolved.append(skill)
+            binding = pinned.get(skill_id) if body is None else None
+            served = skill if binding is None else await self._as_bound(skill, binding)
+            if served is None:
+                logger.warning(
+                    "Agent binds skill %s to a version or fork it no longer has", skill_id
+                )
+                continue
+            resolved.append(served)
         return resolved
+
+    async def read_by_improver(
+        self, ctx: AuthContext, agent_id: UUID, spec: AgentSpec, run_ids: Sequence[UUID]
+    ) -> tuple[list[Skill], dict[UUID, set[UUID]]]:
+        """The skills an agent's improver reads, and the runs that used each as the agent reads it.
+
+        A run served another version of a skill - before a pin moved, on an older
+        main or on another fork - does not count for it: the body the improver reads
+        is not the one that run answered with.
+
+        Unlike a run, the improver answers the person who started it, so a skill they
+        may not view is left out: its text would reach them through what is proposed.
+        """
+        bound = await self.resolve_for_agent(ctx, spec.skill_ids, bindings=spec.skill_bindings)
+        visible = await accessible_ids(self.db, ctx, bound, Perm.SKILLS_VIEW, resource_type=SKILL)
+        skills = [skill for skill in bound if skill.id in visible]
+        used = await skill_usage_repo.skills_in_runs(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=agent_id,
+            run_ids=run_ids,
+            versions={skill.id: skill.latest_version_id for skill in skills},
+        )
+        return skills, used
+
+    async def _as_bound(self, skill: Skill, binding: SkillBindingSpec) -> Skill | None:
+        """The skill as a pinned main version or a fork's newest says it, detached."""
+        if binding.version is not None:
+            version = (
+                await skill_version_repo.get_by_numbers(
+                    self.db,
+                    organization_id=skill.organization_id,
+                    skill_id=skill.id,
+                    fork_id=None,
+                    numbers=[binding.version],
+                )
+            ).get(binding.version)
+        else:
+            assert binding.fork_id is not None, "a binding names a version or a fork"
+            fork = await skill_version_repo.get_fork(
+                self.db,
+                binding.fork_id,
+                organization_id=skill.organization_id,
+                skill_id=skill.id,
+            )
+            latest = None if fork is None else fork.latest_version_id or fork.base_version_id
+            version = (
+                None
+                if latest is None
+                else (
+                    await skill_version_repo.get_versions(
+                        self.db, [latest], organization_id=skill.organization_id
+                    )
+                ).get(latest)
+            )
+        if version is None:
+            return None
+        files = await self.versions.files_of(version)
+        return Skill(
+            id=skill.id,
+            organization_id=skill.organization_id,
+            owner_user_id=skill.owner_user_id,
+            visibility=skill.visibility,
+            name=skill.name,
+            description=version.description,
+            content=version.content,
+            version=version.number,
+            latest_version_id=version.id,
+            resources=[
+                SkillResource(name=name, description=entry["description"], content=files[name])
+                for name, entry in sorted(version.resources.items())
+            ],
+        )
 
     async def create(
         self,
@@ -369,8 +625,13 @@ class SkillService:
         library_fingerprint: str | None = None,
         group_ids: list[UUID] | None = None,
         user_ids: list[UUID] | None = None,
+        source: SkillVersionSource | None = SkillVersionSource.CREATED,
+        proposal_id: UUID | None = None,
     ) -> Skill:
-        """Create a skill.
+        """Create a skill and its main v1.
+
+        `source` is what v1 records; `None` leaves v1 to a caller that adds files
+        first, so the skill's first version already carries them.
 
         Raises:
             BadRequestError: If the name is not one a model can load the skill
@@ -420,18 +681,37 @@ class SkillService:
                 group_ids=group_ids or [],
                 user_ids=user_ids or [],
             )
+        if source is not None:
+            await self.versions.record_main(ctx, skill, source=source, proposal_id=proposal_id)
         return skill
 
-    async def update(self, ctx: AuthContext, skill_id: UUID, data: SkillUpdate) -> Skill:
-        """Edit a skill, bumping its version.
+    async def update(
+        self,
+        ctx: AuthContext,
+        skill_id: UUID,
+        data: SkillUpdate,
+        *,
+        source: SkillVersionSource | None = SkillVersionSource.EDIT,
+        proposal_id: UUID | None = None,
+    ) -> Skill:
+        """Edit a skill's main line. A changed text or description is a new main version.
 
-        The version is informational - agents bind to a skill, not a version, so
-        an edit reaches every agent immediately. That is the point of skills:
-        fix the policy once.
+        Only the text and the description are what an agent reads, so a new
+        category changes no version. `source` is what the version records; `None`
+        leaves it to a caller about to change the files too, so one decision is one
+        version.
         """
         skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
-        update_data = {**writable(data, over=Skill), "version": skill.version + 1}
+        update_data = writable(data, over=Skill)
+        text_changed = any(
+            field in update_data and update_data[field] != getattr(skill, field)
+            for field in ("description", "content")
+        )
         updated = await skill_repo.update(self.db, skill=skill, update_data=update_data)
+        if text_changed and source is not None:
+            await self.versions.record_main(ctx, updated, source=source, proposal_id=proposal_id)
+        if text_changed:
+            await self._changed(updated)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -483,7 +763,14 @@ class SkillService:
             NotFoundError: If no such skill ships with this deployment.
         """
         bundled, existing = await self._library_pair(ctx, key)
-        return _refresh_plan(existing, bundled, replace_edited=replace_edited)
+        plan = _refresh_plan(existing, bundled, replace_edited=replace_edited)
+        if (
+            plan is LibraryRefresh.UPDATE
+            and existing is not None
+            and await self._followed(existing)
+        ):
+            return LibraryRefresh.WAITING
+        return plan
 
     async def refresh_from_library(
         self, ctx: AuthContext, key: str, *, replace_edited: bool = False
@@ -492,8 +779,10 @@ class SkillService:
 
         Missing, it is installed. An unedited copy of an earlier version - one
         that still matches the fingerprint it was written with - is replaced,
-        files and all, with its version bumped, because nobody chose what it
-        says: the platform did, and the platform now says something better. A
+        files and all, as a new main version, because nobody chose what it
+        says: the platform did, and the platform now says something better.
+        Unless agents follow its main line: then the update waits as a proposal,
+        and goes live once a check on those agents allows it. A
         copy edited here is the organization's and is left alone unless
         `replace_edited` says to take the bundled version over the edits, and so
         is one copied before fingerprints were kept, since nothing can tell
@@ -505,7 +794,9 @@ class SkillService:
                 and the copy - the listing's top-up, racing a seed.
         """
         bundled, existing = await self._library_pair(ctx, key)
-        return await self._refresh_bundled(ctx, bundled, existing, replace_edited=replace_edited)
+        return await self._refresh_bundled(
+            ctx, bundled, existing, replace_edited=replace_edited, wait_for_check=True
+        )
 
     async def synchronize_library(self, ctx: AuthContext) -> None:
         """Deliver new built-ins and untouched updates under the organization install lock.
@@ -523,12 +814,19 @@ class SkillService:
             )
             if existing is None and bundled.key in installed:
                 continue
-            await self._refresh_bundled(ctx, bundled, existing, replace_edited=False)
+            await self._refresh_bundled(
+                ctx, bundled, existing, replace_edited=False, wait_for_check=True
+            )
 
     async def refresh_gallery(
         self, ctx: AuthContext, key: str, *, dry_run: bool = False, replace_edited: bool = False
     ) -> LibraryRefresh:
-        """Refresh a gallery copy using the same edit protection as seeded skills."""
+        """Refresh a gallery copy using the same edit protection as seeded skills.
+
+        Written at once even when agents follow it: the one caller is the Architect's
+        refresh, whose guide travels with the platform's own template and has no
+        test questions an organization wrote.
+        """
         bundled = skill_library.gallery_get(key)
         if bundled is None:
             raise NotFoundError(message="No such gallery skill", details={"key": key})
@@ -539,7 +837,15 @@ class SkillService:
             await self.get(ctx, existing.id, perm=Perm.SKILLS_EDIT)
         if dry_run:
             return _refresh_plan(existing, bundled, replace_edited=replace_edited)
-        return await self._refresh_bundled(ctx, bundled, existing, replace_edited=replace_edited)
+        return await self._refresh_bundled(
+            ctx, bundled, existing, replace_edited=replace_edited, wait_for_check=False
+        )
+
+    async def _followed(self, skill: Skill) -> bool:
+        """Whether any agent's served version follows the skill's main line."""
+        from app.services.skill_agents import SkillAgentService
+
+        return bool(await SkillAgentService(self.db).line_agents(skill, None))
 
     async def _refresh_bundled(
         self,
@@ -548,16 +854,20 @@ class SkillService:
         existing: Skill | None,
         *,
         replace_edited: bool,
+        wait_for_check: bool,
     ) -> LibraryRefresh:
         if existing is not None:
             # Locked and re-read before deciding: an edit a member commits between
             # the lookup and the overwrite would otherwise be judged on the copy as
             # it was, found unedited, and replaced. Every edit writes the skill row
-            # (a file edit bumps its version), so the lock serializes with each.
+            # (a file edit records a version on it), so the lock serializes with each.
             existing = await skill_repo.lock(self.db, existing.id)
         plan = _refresh_plan(existing, bundled, replace_edited=replace_edited)
         if existing is None:
             await self._copy_library_skill(ctx, bundled, seeded=True)
+        elif plan is LibraryRefresh.UPDATE and wait_for_check and await self._followed(existing):
+            await self._propose_from_library(ctx, existing, bundled)
+            return LibraryRefresh.WAITING
         elif plan is LibraryRefresh.UPDATE:
             await self._overwrite_from_library(
                 ctx,
@@ -573,6 +883,71 @@ class SkillService:
                 self.db, skill=existing, update_data={"library_fingerprint": bundled.fingerprint}
             )
         return plan
+
+    async def _propose_from_library(
+        self, ctx: AuthContext, skill: Skill, bundled: skill_library.LibrarySkill
+    ) -> None:
+        """Leave the bundled version waiting as a proposal, once per bundled version.
+
+        An earlier bundled version still waiting is withdrawn: the newer one says
+        everything it did. One a person already decided is not offered again. The
+        category is metadata no agent reads, so it follows the library at once.
+        """
+        earlier = await skill_proposal_repo.from_source(
+            self.db,
+            organization_id=ctx.organization_id,
+            skill_id=skill.id,
+            source=SkillVersionSource.LIBRARY.value,
+        )
+        if skill.category != bundled.category:
+            unedited = _fingerprint_of(skill) == skill.library_fingerprint
+            skill = await skill_repo.update(
+                self.db, skill=skill, update_data={"category": bundled.category}
+            )
+            if unedited:
+                await skill_repo.update(
+                    self.db,
+                    skill=skill,
+                    update_data={"library_fingerprint": _fingerprint_of(skill)},
+                )
+        resources = {resource.name: resource.content for resource in bundled.resources}
+        if any(
+            (item.description, item.content, item.resources)
+            == (bundled.description, bundled.content, resources)
+            for item in earlier
+        ):
+            return
+        from app.services.skill_check import SkillCheckService
+
+        checks = SkillCheckService(self.db)
+        for item in earlier:
+            if item.status == ProposalStatus.PENDING.value:
+                await skill_proposal_repo.decide_if(
+                    self.db,
+                    proposal_id=item.id,
+                    organization_id=ctx.organization_id,
+                    revision=item.revision,
+                    status=ProposalStatus.DISCARDED,
+                    decided_by=None,
+                )
+                await checks.stop_for_proposal(ctx, skill.id, item.id)
+        proposal = await skill_proposal_repo.create(
+            self.db,
+            organization_id=ctx.organization_id,
+            skill_id=skill.id,
+            agent_id=None,
+            conversation_id=None,
+            name=skill.name,
+            description=bundled.description,
+            content=bundled.content,
+            resources=resources,
+            base_version=skill.version,
+            base_version_id=skill.latest_version_id,
+            fork_id=None,
+        )
+        await skill_proposal_repo.annotate(
+            self.db, proposal=proposal, values={"source": SkillVersionSource.LIBRARY.value}
+        )
 
     async def _library_pair(
         self, ctx: AuthContext, key: str
@@ -613,10 +988,11 @@ class SkillService:
                 "description": bundled.description,
                 "content": bundled.content,
                 "category": bundled.category,
-                "version": skill.version + 1,
                 "library_fingerprint": bundled.fingerprint,
             },
         )
+        await self.versions.record_main(ctx, updated, source=SkillVersionSource.LIBRARY)
+        await self._changed(updated)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -659,6 +1035,7 @@ class SkillService:
             category=bundled.category,
             visibility=Visibility.ORG,
             library_fingerprint=bundled.fingerprint,
+            source=None,
         )
         for resource in bundled.resources:
             await skill_repo.create_resource(
@@ -668,6 +1045,7 @@ class SkillService:
                 description=None,
                 content=resource.content,
             )
+        await self.versions.record_main(ctx, skill, source=SkillVersionSource.LIBRARY)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -692,7 +1070,7 @@ class SkillService:
         lands, so a renamed folder in a later release must not offer a second
         copy of a skill somebody is already editing.
         """
-        names = frozenset(await skill_repo.list_names(self.db, organization_id=ctx.organization_id))
+        ids = await skill_repo.ids_by_name(self.db, organization_id=ctx.organization_id)
         return SkillGallery(
             industries=[
                 GalleryIndustryRead(
@@ -703,13 +1081,58 @@ class SkillService:
                             name=entry.name,
                             description=entry.description,
                             category=entry.category,
-                            installed=entry.name in names,
+                            installed=entry.name in ids,
+                            installed_id=ids.get(entry.name),
                         )
                         for entry in industry.skills
                     ],
                 )
                 for industry in skill_library.gallery()
             ]
+        )
+
+    async def used_in_run(self, ctx: AuthContext, run_id: UUID) -> list[RunSkillUseRead]:
+        """The skills one run opened or read, by name and version, that the caller may see.
+
+        The caller's access to the run itself is the route's to check.
+        """
+        uses = await skill_usage_repo.skills_of_run(
+            self.db, organization_id=ctx.organization_id, run_id=run_id
+        )
+        skills = await skill_repo.get_many(
+            self.db, [use.skill_id for use in uses], organization_id=ctx.organization_id
+        )
+        visible = await accessible_ids(
+            self.db, ctx, list(skills.values()), Perm.SKILLS_VIEW, resource_type=SKILL
+        )
+        return [
+            RunSkillUseRead(
+                skill_id=use.skill_id,
+                name=use.name,
+                version=use.version,
+                fork=use.fork,
+                loaded=use.loaded,
+            )
+            for use in uses
+            if use.skill_id in visible
+        ]
+
+    async def gallery_preview(self, key: str) -> GallerySkillPreview:
+        """One gallery skill's body and files, read before it is installed.
+
+        Raises:
+            NotFoundError: No gallery skill has that key.
+        """
+        entry = skill_library.gallery_get(key)
+        if entry is None:
+            raise NotFoundError(message="No gallery skill has that key", details={"key": key})
+        return GallerySkillPreview(
+            key=entry.key,
+            name=entry.name,
+            description=entry.description,
+            category=entry.category,
+            content=entry.content,
+            files=[resource.name for resource in entry.resources],
         )
 
     async def install_gallery(self, ctx: AuthContext, keys: Sequence[str]) -> GalleryInstallResult:
@@ -779,9 +1202,9 @@ class SkillService:
         detail that would bury the instructions if it were inlined and that the
         model loads only when it decides it needs it.
 
-        Editing a skill bumps its version, and so does this: every bound agent
-        executes against the new set of files from its next run, which is the
-        same fact an edit to the body reports.
+        Editing a skill makes a new main version, and so does this: every agent
+        on main executes against the new set of files from its next run, which is
+        the same fact an edit to the body reports.
 
         Raises:
             AlreadyExistsError: If a file of that name is already attached. The
@@ -804,7 +1227,7 @@ class SkillService:
             description=description,
             content=content,
         )
-        await self._bump_version(skill)
+        await self._files_changed(ctx, skill)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -821,6 +1244,9 @@ class SkillService:
         ctx: AuthContext,
         skill_id: UUID,
         files: Sequence[tuple[str, bytes]],
+        *,
+        source: SkillVersionSource = SkillVersionSource.RESOURCES,
+        proposal_id: UUID | None = None,
     ) -> list[SkillResource]:
         """Write a set of files at once - an upload of a folder, or of several.
 
@@ -866,7 +1292,7 @@ class SkillService:
                 )
             )
 
-        await self._bump_version(skill)
+        await self._files_changed(ctx, skill, source=source, proposal_id=proposal_id)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -898,7 +1324,7 @@ class SkillService:
         updated = await skill_repo.update_resource(
             self.db, resource=resource, update_data=writable(data, over=SkillResource)
         )
-        await self._bump_version(skill)
+        await self._files_changed(ctx, skill)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -918,12 +1344,12 @@ class SkillService:
         name = resource.name
         await skill_repo.delete_resource(self.db, resource)
         # `skill.resources` was loaded with the skill and still holds the row just deleted;
-        # the version bump below refreshes the skill and SQLAlchemy refuses to refresh a
+        # recording the version below refreshes the skill and SQLAlchemy refuses to refresh a
         # collection carrying a deleted instance ("Instance ... has been deleted"), which
         # answered every DELETE of a resource with a 500 and rolled the delete back
         # (2026-09-14). Expiring the collection makes the refresh reload it from the table.
         self.db.expire(skill, ["resources"])
-        await self._bump_version(skill)
+        await self._files_changed(ctx, skill)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -934,18 +1360,259 @@ class SkillService:
             details={"name": skill.name, "resource": name},
         )
 
-    async def _bump_version(self, skill: Skill) -> None:
-        """Record that what bound agents execute has changed.
+    async def drop_resources(
+        self, ctx: AuthContext, skill_id: UUID, *, keep: Collection[str]
+    ) -> list[str]:
+        """Delete every file not named in `keep`, recording no version: the caller writes
+        the rest of the change and records it, so the set is one version.
+
+        For a library update, whose files are the whole set the skill should have.
+        """
+        skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
+        stale = [resource for resource in skill.resources if resource.name not in keep]
+        for resource in stale:
+            await skill_repo.delete_resource(self.db, resource)
+        if not stale:
+            return []
+        self.db.expire(skill, ["resources"])
+        names = sorted(resource.name for resource in stale)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="skill.resources_removed",
+            target_type="skill",
+            target_id=str(skill.id),
+            details={"name": skill.name, "resources": names},
+        )
+        return names
+
+    async def record_files(
+        self,
+        ctx: AuthContext,
+        skill_id: UUID,
+        *,
+        source: SkillVersionSource,
+        proposal_id: UUID | None,
+    ) -> None:
+        """Record the skill's files as they stand as a main version."""
+        skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
+        await self._files_changed(ctx, skill, source=source, proposal_id=proposal_id)
+
+    async def _files_changed(
+        self,
+        ctx: AuthContext,
+        skill: Skill,
+        *,
+        source: SkillVersionSource = SkillVersionSource.RESOURCES,
+        proposal_id: UUID | None = None,
+    ) -> None:
+        """Record the new set of files as a main version.
 
         A file is part of the skill as far as an agent is concerned, so adding,
         editing or removing one is the same kind of event as editing the body -
         and a version that only moved for the body would say an agent was
         unchanged when its reference table had been rewritten.
         """
-        await skill_repo.update(self.db, skill=skill, update_data={"version": skill.version + 1})
+        await self.versions.record_main(ctx, skill, source=source, proposal_id=proposal_id)
+        await self._changed(skill)
 
-    async def delete(self, ctx: AuthContext, skill_id: UUID) -> None:
+    async def _changed(self, skill: Skill) -> None:
+        """Queue the eval suites of the agents that read this skill.
+
+        A skill has no draft: an edit reaches every bound agent on its next run,
+        so the suites watching for that change are the only check it gets.
+        """
+        from app.services.eval_suite import EvalSuiteService
+
+        await EvalSuiteService(self.db).dependency_changed(
+            organization_id=skill.organization_id, kind="skill", resource_id=skill.id
+        )
+
+    async def restore_main(
+        self, ctx: AuthContext, skill: Skill, earlier: SkillVersion, files: dict[str, str]
+    ) -> SkillVersion:
+        """Make an earlier main version the newest one again, files and all.
+
+        `skill` is locked by the caller, which has checked the person read the newest
+        version. `files` are the earlier version's file bodies by name.
+        """
+        return await self._replace_main(
+            ctx,
+            skill,
+            description=earlier.description,
+            content=earlier.content,
+            files=[
+                SkillBodyFile(name=name, description=entry["description"], content=files[name])
+                for name, entry in sorted(earlier.resources.items())
+            ],
+            source=SkillVersionSource.RESTORE,
+            restored_from_id=earlier.id,
+            action="skill.restored",
+        )
+
+    async def take_in(
+        self,
+        ctx: AuthContext,
+        skill: Skill,
+        *,
+        description: str,
+        content: str,
+        files: Sequence[SkillBodyFile] | None,
+        merged_from_id: UUID,
+    ) -> SkillVersion:
+        """Make a fork's changes, merged with main, main's newest version.
+
+        `skill` is locked by the caller, which has checked main did not move since the
+        merge. `files` is the whole set main has afterwards; `None` keeps main's own.
+        """
+        return await self._replace_main(
+            ctx,
+            skill,
+            description=description,
+            content=content,
+            files=files,
+            source=SkillVersionSource.FROM_FORK,
+            merged_from_id=merged_from_id,
+            action="skill.fork_taken_in",
+        )
+
+    async def _replace_main(
+        self,
+        ctx: AuthContext,
+        skill: Skill,
+        *,
+        description: str,
+        content: str,
+        files: Sequence[SkillBodyFile] | None,
+        source: SkillVersionSource,
+        action: str,
+        restored_from_id: UUID | None = None,
+        merged_from_id: UUID | None = None,
+    ) -> SkillVersion:
+        if files is not None:
+            for resource in list(skill.resources):
+                await skill_repo.delete_resource(self.db, resource)
+            # See `remove_resource`: the loaded collection still holds the deleted rows.
+            self.db.expire(skill, ["resources"])
+            for item in files:
+                await skill_repo.create_resource(
+                    self.db,
+                    skill_id=skill.id,
+                    name=item.name,
+                    description=item.description,
+                    content=item.content,
+                )
+        await skill_repo.update(
+            self.db, skill=skill, update_data={"description": description, "content": content}
+        )
+        version = await self.versions.record_main(
+            ctx,
+            skill,
+            source=source,
+            restored_from_id=restored_from_id,
+            merged_from_id=merged_from_id,
+        )
+        await self._changed(skill)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action=action,
+            target_type="skill",
+            target_id=str(skill.id),
+            details={"name": skill.name, "fork": None, "version": version.number},
+        )
+        return version
+
+    async def read(self, ctx: AuthContext, skill: Skill) -> SkillRead:
+        """A skill as its page reads it: what the caller may do, and how many forks it has."""
+        forks = await skill_version_repo.count_active_forks(
+            self.db, organization_id=ctx.organization_id, skill_ids=[skill.id]
+        )
+        return SkillRead.model_validate(skill).model_copy(
+            update={
+                "can_edit": await resolve_access(
+                    self.db, ctx, skill, Perm.SKILLS_EDIT, resource_type=SKILL
+                ),
+                "forks": forks[skill.id],
+            }
+        )
+
+    async def delete(
+        self, ctx: AuthContext, skill_id: UUID, *, remove_from_agents: bool = False
+    ) -> None:
+        """Delete a skill nobody uses, with every version and fork it has.
+
+        With `remove_from_agents`, the skill is first taken out of every agent that
+        uses it, as :meth:`SkillAgentService.remove_skill` says, in the same
+        transaction: either every agent loses it and it is deleted, or nothing
+        changes.
+
+        Raises:
+            InUseError: A live agent's draft or a version an environment serves
+                binds it. Those agents name the versions they run, which must not
+                disappear from under them; the caller is told which agents, and
+                how many more they may not see. With `remove_from_agents`, also
+                which agents it could not be removed from, and why; or
+                `reason: agents_changed` when an agent started using it while the
+                agents were being locked.
+        """
         skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
+        locked: set[UUID] = set()
+        if remove_from_agents:
+            # The skill first, then its agents, then the skill for the delete: the order a
+            # check decision takes when it pins or moves an agent. A draft save locks its
+            # agent and then holds the skill shared, which this first lock leaves free, so
+            # the save finishes before the agent is locked here.
+            await skill_repo.lock(self.db, skill.id)
+            for agent in sorted(
+                await agents_using_skill(
+                    self.db, organization_id=ctx.organization_id, skill_id=skill.id
+                ),
+                key=lambda agent: agent.id,
+            ):
+                await agent_repo.get(
+                    self.db, agent.id, organization_id=ctx.organization_id, for_update=True
+                )
+                locked.add(agent.id)
+        # Locked before the in-use check: an agent binding the skill holds it shared
+        # (`skill_repo.hold`), so a binding is either seen here or written after it is gone.
+        await skill_repo.lock_for_delete(self.db, skill.id)
+        using = await agents_using_skill(
+            self.db, organization_id=ctx.organization_id, skill_id=skill.id
+        )
+        if using and remove_from_agents:
+            if {agent.id for agent in using} - locked:
+                raise InUseError(
+                    message=(
+                        f"Another agent started using '{skill.name}' while it was being "
+                        "removed. Nothing changed; try again."
+                    ),
+                    details={"reason": "agents_changed"},
+                )
+            # Imported here: the agent registry reads skills through this service.
+            from app.services.skill_agents import SkillAgentService
+
+            await SkillAgentService(self.db).remove_skill(ctx, skill, using)
+            using = await agents_using_skill(
+                self.db, organization_id=ctx.organization_id, skill_id=skill.id
+            )
+        if using:
+            visible = await accessible_ids(
+                self.db, ctx, using, Perm.AGENTS_VIEW, resource_type=AGENT
+            )
+            named = [agent for agent in using if agent.id in visible]
+            raise InUseError(
+                message=(
+                    f"'{skill.name}' is used by {in_use_by(named, len(using) - len(named))}. "
+                    "Remove it from them, or let their owners do it, before deleting it."
+                ),
+                details={
+                    "agents": [{"id": agent.id, "name": agent.name} for agent in named],
+                    "hidden": len(using) - len(named),
+                },
+            )
         await resource_grant_repo.delete_for_resource(
             self.db,
             organization_id=ctx.organization_id,

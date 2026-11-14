@@ -63,11 +63,19 @@ When the release workflow has a stable self-signed certificate (`scripts/create_
 
 ## Running it
 
-Before choosing a local installation or connecting to a server, the first-run wizard
-offers optional Screen Recording, Accessibility and Microphone permissions on macOS. Each button
-opens the relevant system settings; setup never captures the screen or controls the
-computer. Continue works without either permission. Returning from System Settings
-refreshes their status; macOS may require an app restart. Folder access remains requested when it is used. The Microphone prompt is a normal macOS one; the other two open System Settings. The first window opens at 80% of the screen, centred, and afterwards remembers its size and place.
+The first-run wizard starts with a language choice and whether to create a local
+workspace or connect to your organization's server. Screen Recording,
+Accessibility and Microphone are optional features offered through App readiness
+or when used, rather than a required step before choosing a connection.
+
+When connecting the desktop app, you can paste the original invitation link instead of only a server address. The app connects to that link’s server and opens the invitation, preserving its destination through sign-in. It does not accept the invitation automatically or store its token in native settings. Optional connection review waits until the invitation is finished.
+
+The native start and console support English, Polish, German and Turkish. Your
+native choice is carried to the console; an existing account's saved language
+still takes precedence. Local setup asks for one workspace name; a separate
+organization name is an advanced option. After connection review, **Get started**
+opens the common first-task flow. A local workspace can still send material to
+a remote AI provider; local installation alone does not mean offline AI.
 
 Rust from [rustup](https://rustup.rs) and the platform's webview - WebKit on macOS,
 WebView2 on Windows, WebKitGTK on Linux - are the prerequisites; Tauri's own
@@ -319,11 +327,12 @@ and shell tools - list, read, write, edit, run - reach that folder through the a
 
 **Link the computer once.** In the chat settings, choose **Work on → This computer**
 to link it directly. Confirm in the native dialog, then choose a folder and its
-access mode in the same panel. **Settings → Desktop app → This computer → Let
-agents work here** offers the same linking action. The app gets its own session
+access mode in the same panel. **Settings → Desktop app → This computer → Link
+this computer** offers the same linking action. The app gets its own session
 for this computer and keeps its refresh token in the system keychain. It holds one
 outbound WebSocket to the server's device hub (`/api/v1/ws/device`); nothing listens
-on the computer. **Unlink** ends that session.
+on the computer. **Unlink** ends that session; it asks first and lists what it
+clears.
 
 **Choose it per chat.** In the desktop app the chat's settings offer **Work on:
 Cloud / This computer**. Choosing this computer asks for a folder in the native

@@ -1,17 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { CodingAgentResult, parseCodingReport } from "./coding-agent";
 import type { ToolCall } from "@/types";
 
 vi.mock("./coding-changes", () => ({
-  TaskChanges: ({ changeId, fallback }: { changeId: string; fallback: ReactNode }) => (
-    <>
-      <p>{`changes ${changeId}`}</p>
-      <div data-testid="fallback">{fallback}</div>
-    </>
+  TaskChanges: ({ changeId, conversationId }: { changeId: string; conversationId?: string }) => (
+    <p data-origin={conversationId}>{`changes ${changeId}`}</p>
   ),
 }));
 
@@ -41,6 +37,17 @@ const REPORT = {
   refused: ["WebFetch"],
 };
 
+it("keeps undo bound to the coding task's recorded conversation file origin", () => {
+  render(
+    <CodingAgentResult
+      toolCall={call()}
+      resultText={JSON.stringify({ ...REPORT, changes_id: "change-1" })}
+      fileSource={{ kind: "conversation", id: "original-chat" }}
+    />,
+  );
+  expect(screen.getByText("changes change-1")).toHaveAttribute("data-origin", "original-chat");
+});
+
 describe("CodingAgentResult", () => {
   it("shows the harness, what it answered and the files it changed", async () => {
     render(<CodingAgentResult toolCall={call()} resultText={JSON.stringify(REPORT)} />);
@@ -61,8 +68,7 @@ describe("CodingAgentResult", () => {
     );
 
     expect(screen.getByText("changes c-1")).toBeInTheDocument();
-    // The names are handed over only as the fallback for a diff that cannot be read.
-    expect(screen.getByTestId("fallback")).toHaveTextContent("Changed 1 file:");
+    expect(screen.queryByText("Changed 1 file:")).not.toBeInTheDocument();
   });
 
   it("lists every step, a failed one marked as failed", async () => {

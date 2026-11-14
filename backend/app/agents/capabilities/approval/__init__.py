@@ -17,9 +17,12 @@ from app.agents.approval import (
 )
 from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.capabilities.approval._policy import (
+    always_asking_checks,
+    always_asking_tools,
     approval_describers,
     approval_required_tools,
     approval_tool_ids,
+    private_approval_fields,
     refuse_ungateable_approvals,
     tool_needs_approval,
     ungateable_tool_problems,
@@ -33,9 +36,12 @@ __all__ = [
     "ApprovalPending",
     "ApprovalRejected",
     "ApprovalRequest",
+    "always_asking_checks",
+    "always_asking_tools",
     "approval_describers",
     "approval_required_tools",
     "approval_tool_ids",
+    "private_approval_fields",
     "refusal",
     "refuse_ungateable_approvals",
     "tool_needs_approval",

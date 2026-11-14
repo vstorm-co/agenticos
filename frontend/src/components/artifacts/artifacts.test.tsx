@@ -1301,8 +1301,53 @@ describe("the public link settings", () => {
         onSave={onSave}
       />,
     );
+    fireEvent.click(screen.getByText("Link settings", { selector: "summary" }));
     return onSave;
   }
+
+  it("starts with optional settings collapsed and preserves drafts across toggles", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PublicLinkSettings
+        link={link({ password_protected: true, embed_origins: ["https://example.com"] })}
+        publicDataConfirmed={false}
+        versions={[version(1)]}
+        saving={false}
+        onSave={onSave}
+      />,
+    );
+    const disclosure = screen.getByText("Link settings", { selector: "summary" });
+    expect(disclosure.parentElement).not.toHaveAttribute("open");
+    expect(screen.getByText("Password protected")).toBeVisible();
+    expect(screen.getByText("1 embedding site")).toBeVisible();
+    await userEvent.click(disclosure);
+    await userEvent.type(screen.getByLabelText("Password"), "demo-draft");
+    await userEvent.click(disclosure);
+    expect(disclosure.parentElement).not.toHaveAttribute("open");
+    await userEvent.click(disclosure);
+    expect(screen.getByLabelText("Password")).toHaveValue("demo-draft");
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("freezes the options and keeps the disclosure open while saving", async () => {
+    const props = {
+      link: link(),
+      publicDataConfirmed: false,
+      versions: [version(1)],
+      onSave: vi.fn(),
+    };
+    const view = render(<PublicLinkSettings {...props} saving={false} />);
+    const disclosure = screen.getByText("Link settings", { selector: "summary" });
+    await userEvent.click(disclosure);
+    await userEvent.type(screen.getByLabelText("Sites that may embed it"), "https://example.com");
+    view.rerender(<PublicLinkSettings {...props} saving />);
+    expect(screen.getByLabelText("Sites that may embed it")).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Shows" })).toBeDisabled();
+    await userEvent.click(disclosure);
+    expect(disclosure.parentElement).toHaveAttribute("open");
+    view.rerender(<PublicLinkSettings {...props} saving={false} />);
+    expect(screen.getByLabelText("Sites that may embed it")).toHaveValue("https://example.com");
+  });
 
   it("saves the expiry, the pinned version and the embedding sites together", async () => {
     const onSave = renderSettings();

@@ -4138,8 +4138,12 @@ class ArtifactService:
                 raise AuthorizationError(
                     message="That password is not right.", details={"password_required": True}
                 )
+        org = await organization_repo.get_by_id(self.db, artifact.organization_id)
+        if org is None:
+            raise NotFoundError(message="App not found")
         await artifact_repo.count_public_view(self.db, artifact.id, at=datetime.now(UTC))
         return PublicArtifactRead(
+            show_agenticos_attribution=org.public_agenticos_attribution,
             title=artifact.title,
             published_at=artifact.published_at,
             # A stranger is nobody the data could be read as: the page is served with it

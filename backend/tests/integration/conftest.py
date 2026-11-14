@@ -26,6 +26,7 @@ import asyncio
 import os
 import re
 from collections.abc import AsyncGenerator, Iterator
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import text
@@ -320,6 +321,16 @@ async def engine(schema_url: str) -> AsyncGenerator[AsyncEngine]:
 
 
 @pytest.fixture
+def artifact_read_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep successful reads independent of runner scheduling, with real SQL limits.
+
+    Consent and confidentiality tests need the records to reach the page. Dedicated
+    deadline tests use their own clocks; PostgreSQL statement timeouts still apply.
+    """
+    monkeypatch.setattr("app.services.virtual_tables.deadline.monotonic", lambda: 0.0)
+
+
+@pytest.fixture
 async def db(engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
     """A session rolled back after each test, so tests cannot affect each other."""
     factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -329,3 +340,14 @@ async def db(engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
 
         discard_deferred(session)
         await session.rollback()
+
+
+@pytest.fixture
+def knowledge_search() -> Iterator[AsyncMock]:
+    """A knowledge base search that finds nothing, for a draft that searches its knowledge base.
+
+    Retrieval embeds the query with the collection's provider, which no test reaches.
+    """
+    found = AsyncMock(return_value="No relevant documents found in the knowledge base.")
+    with patch("app.services.knowledge_gaps.search_knowledge_base", new=found):
+        yield found

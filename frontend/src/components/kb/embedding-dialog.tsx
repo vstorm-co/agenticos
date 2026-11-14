@@ -130,61 +130,75 @@ export function EmbeddingDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!isSaving) onOpenChange(next);
+      }}
+    >
+      <DialogContent dismissible={!isSaving} className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
         <DialogHeader>
           <DialogTitle>{t("embeddings")}</DialogTitle>
           <DialogDescription>{t("providerMoveKeepsTheIndex")}</DialogDescription>
         </DialogHeader>
-        <div className={cn(DIALOG_BODY, "scrollbar-thin space-y-4")}>
-          <div className="border-border space-y-1 rounded-lg border p-3">
-            <p className="text-muted-foreground text-xs">{t("modelIsFixed")}</p>
-            <p className="font-mono text-sm">{kb.embedding_model}</p>
-            <p className="text-muted-foreground text-xs">
-              {t("dimensions", { count: kb.embedding_dim })}
-            </p>
-          </div>
-          {models === undefined ? (
-            unreadable ? (
-              <p className="text-destructive text-sm">{t("modelsUnreadable")}</p>
+        {/* Keep scrolling on the flex child; the fieldset retains its intrinsic height. */}
+        <div className={cn(DIALOG_BODY, "scrollbar-thin")}>
+          <fieldset disabled={isSaving} className="min-w-0 space-y-4">
+            <legend className="sr-only">{t("embeddings")}</legend>
+            <div className="border-border space-y-1 rounded-lg border p-3">
+              <p className="text-muted-foreground text-xs">{t("modelIsFixed")}</p>
+              <p className="font-mono text-sm">{kb.embedding_model}</p>
+              <p className="text-muted-foreground text-xs">
+                {t("dimensions", { count: kb.embedding_dim })}
+              </p>
+            </div>
+            {models === undefined ? (
+              unreadable ? (
+                <p className="text-destructive text-sm">{t("modelsUnreadable")}</p>
+              ) : (
+                <p className="text-muted-foreground text-sm">{t("loadingModels")}</p>
+              )
             ) : (
-              <p className="text-muted-foreground text-sm">{t("loadingModels")}</p>
-            )
-          ) : (
-            <>
-              <EmbeddingProviderFields
-                models={{ ...models, providers: usable }}
-                provider={provider}
-                secretId={secretId}
-                endpointId={endpointId}
-                baseUrl={baseUrl}
-                onBaseUrl={setBaseUrl}
-                onProvider={setProvider}
-                onSecretId={setSecretId}
-                onEndpointId={setEndpointId}
-                idPrefix="kb-embedding"
-              />
-              {endpointLacksModel && (
-                <p className="text-destructive text-xs">
-                  {t("endpointLacksCollectionModel", { model: kb.embedding_model })}
-                </p>
-              )}
-              {(errors.embedding_provider ??
-                errors.embedding_secret_id ??
-                errors.embedding_endpoint_id ??
-                errors.embedding_base_url) !== undefined && (
-                <p className="text-destructive text-xs">
-                  {errors.embedding_provider ??
-                    errors.embedding_secret_id ??
-                    errors.embedding_endpoint_id ??
-                    errors.embedding_base_url}
-                </p>
-              )}
-            </>
-          )}
+              <>
+                <EmbeddingProviderFields
+                  models={{ ...models, providers: usable }}
+                  provider={provider}
+                  secretId={secretId}
+                  endpointId={endpointId}
+                  baseUrl={baseUrl}
+                  onBaseUrl={setBaseUrl}
+                  onProvider={setProvider}
+                  onSecretId={setSecretId}
+                  onEndpointId={setEndpointId}
+                  idPrefix="kb-embedding"
+                />
+                {endpointLacksModel && (
+                  <p className="text-destructive text-xs">
+                    {t("endpointLacksCollectionModel", { model: kb.embedding_model })}
+                  </p>
+                )}
+                {(errors.embedding_provider ??
+                  errors.embedding_secret_id ??
+                  errors.embedding_endpoint_id ??
+                  errors.embedding_base_url) !== undefined && (
+                  <p className="text-destructive text-xs">
+                    {errors.embedding_provider ??
+                      errors.embedding_secret_id ??
+                      errors.embedding_endpoint_id ??
+                      errors.embedding_base_url}
+                  </p>
+                )}
+              </>
+            )}
+          </fieldset>
         </div>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isSaving}
+            onClick={() => onOpenChange(false)}
+          >
             {t("cancel")}
           </Button>
           <Button

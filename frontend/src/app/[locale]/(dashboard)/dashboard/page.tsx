@@ -7,7 +7,9 @@ import { ChevronDown, ChevronRight, LayoutGrid, MessageSquarePlus } from "lucide
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import { useStart } from "@/hooks/use-start";
+import { useSuggestions } from "@/hooks/use-suggestions";
 import { DashboardEditor } from "@/components/dashboard/dashboard-editor";
 import { DashboardPresetMenu } from "@/components/dashboard/dashboard-preset-menu";
 import { FilterRow } from "@/components/dashboard/filter-row";
@@ -109,6 +111,12 @@ export default function DashboardPage() {
   const { groups, isLoading: groupsLoading } = useGroups(activeOrgId ?? "");
   const viewParam = searchParams.get("view");
   const groupParam = searchParams.get("group");
+  const personal = viewParam === null || viewParam === "me";
+  const start = useStart(personal);
+  const briefing = useSuggestions(personal && can(Perm.agentsRun));
+  const openingLoading =
+    personal &&
+    ((activeOrgId !== null && start.isLoading) || (can(Perm.agentsRun) && briefing.isLoading));
 
   // can() answers false while permissions load; resolving the audience from
   // that would flash a viewer-shaped page at a steward. Wait for the saved
@@ -118,23 +126,14 @@ export default function DashboardPage() {
   // would open the organization's view for a moment and ask all of its
   // questions unnarrowed before the group arrived.
   if (isLoading || layoutLoading || (viewParam === "group" && groupsLoading)) {
-    const loadingAudience = resolveAudience(role, isAppAdmin);
-    const loadingView =
-      viewParam === "group"
-        ? "group"
-        : viewParam === "deployment" && isAppAdmin
-          ? "deployment"
-          : "me";
     return (
       <div className="space-y-4">
         <PageHeader title={t("title")} />
-        <DashboardSkeleton
-          sections={
-            viewParam === "org"
-              ? resolveEffectiveLayout(loadingAudience, storedEntries)
-              : viewLayout(loadingView, loadingAudience)
-          }
-        />
+        <div className="flex min-h-56 items-center justify-center">
+          <div role="status" aria-busy="true" aria-label={t("states.loading")}>
+            <Spinner className="text-muted-foreground size-5" aria-hidden />
+          </div>
+        </div>
       </div>
     );
   }
@@ -438,7 +437,7 @@ export default function DashboardPage() {
           own view or the organization's - not beside a group's or the host's
           numbers. */}
       {activeOrgId && view === "org" && <StartChecklist orgId={activeOrgId} />}
-      {view === "me" && <MeOpening orgId={activeOrgId} period={period} />}
+      {view === "me" && <MeOpening orgId={activeOrgId} period={period} pending={openingLoading} />}
       {view === "me" && <DiscoverTips />}
       {/* The bands own a rhythm of their own, four times the gap between two
           cards, which is what makes a band read as a band. The header and the

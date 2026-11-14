@@ -29,6 +29,7 @@ from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.security import (
     create_access_token,
+    create_magic_link_token,
     create_mfa_token,
     verify_special_token,
 )
@@ -323,6 +324,31 @@ async def test_a_magic_link_sign_in_with_a_second_factor_stops_at_a_challenge(
     body = response.json()
     assert body["mfa_required"] is True
     assert body["return_to"] == "/dashboard"
+
+
+async def test_a_magic_link_mfa_challenge_preserves_its_mailbox_proof(
+    client: AsyncClient,
+    mock_user: MockUser,
+    mock_session_service: SessionService,
+) -> None:
+    mock_user.totp_enabled = True
+    link = create_magic_link_token(
+        subject=str(mock_user.id), email=mock_user.email, return_to="/dashboard"
+    )
+    challenge = await client.post(
+        f"{settings.API_V1_STR}/auth/magic-link/verify", json={"token": link}
+    )
+    assert challenge.status_code == 200
+    mfa_token = challenge.json()["mfa_token"]
+    payload = verify_special_token(mfa_token, expected_type="mfa")
+    assert payload is not None and payload.get("mbp") is True
+
+    verified = await client.post(
+        _mfa_url("/verify"), json={"mfa_token": mfa_token, "code": "123456"}
+    )
+    assert verified.status_code == 200
+    session_args = mock_session_service.create_session.await_args.kwargs
+    assert session_args["proved_email"] == mock_user.email
 
 
 async def test_status_reports_whether_the_second_factor_is_on(

@@ -72,7 +72,7 @@ export function FormField({
       {label && (
         <Label
           htmlFor={controlId}
-          className={layout === "switch" ? "col-start-1 row-start-1" : undefined}
+          className={layout === "switch" ? "col-start-1 row-start-1" : "block"}
         >
           {label}
           {required && (

@@ -3675,6 +3675,113 @@ class TestAnAgentsOwnMonthlyCap:
         assert refused.value.scope is BudgetScope.ORGANIZATION
 
 
+class TestTheCurrentVersionSetsTheAgentsCap:
+    """A pinned version decides how the agent behaves, not what it may spend.
+
+    `docs/governance.md`: a version pin keeps its behaviour while "current
+    access, budgets and approvals still apply". The cap used to come from the
+    version being run, so a routine, an environment or a workflow step pinned to
+    a version published before the limit spent past it.
+    """
+
+    @staticmethod
+    async def _two_versions(
+        db, tenant: Tenant, *, first: AgentSpec, second: AgentSpec, spent: Decimal
+    ) -> tuple[Agent, uuid.UUID]:
+        """An agent whose v1 is `first` and current v2 is `second`, with `spent` booked."""
+        profile = await _keyed_model_profile(db, tenant)
+        agent = await _published_agent(db, tenant, spec=first)
+        assert agent.current_version_id is not None
+        pinned = agent.current_version_id
+        registry = AgentRegistryService(db)
+        await registry.save_draft(
+            tenant.ctx, agent.id, second.model_copy(update={"model_profile_id": profile.id})
+        )
+        await registry.publish(tenant.ctx, agent.id)
+        await db.refresh(agent)
+        assert agent.current_version_id != pinned
+        await _run_row(
+            db,
+            organization_id=tenant.organization.id,
+            agent_id=agent.id,
+            cost=spent,
+            started_at=datetime.now(UTC),
+        )
+        await db.commit()
+        return agent, pinned
+
+    async def test_a_run_pinned_to_an_older_version_is_held_to_the_current_cap(self, db) -> None:
+        tenant = await _tenant(db, name="Pinned")
+        agent, v1 = await self._two_versions(
+            db,
+            tenant,
+            first=AgentSpec(name="Support"),
+            second=AgentSpec(name="Support", budget={"monthly_usd": 5}),
+            spent=Decimal("6"),
+        )
+
+        prepared = await AgentRunnerService(db).prepare(tenant.ctx, agent.id, version_id=v1)
+
+        with pytest.raises(BudgetExceeded) as refused:
+            await _answer(prepared)
+
+        assert refused.value.scope is BudgetScope.AGENT
+        assert refused.value.limit_usd == Decimal("5")
+        assert refused.value.spent_usd == Decimal("6")
+
+    async def test_an_environment_on_an_older_version_is_held_to_the_current_cap(self, db) -> None:
+        tenant = await _tenant(db, name="Staged")
+        agent, v1 = await self._two_versions(
+            db,
+            tenant,
+            first=AgentSpec(name="Support"),
+            second=AgentSpec(name="Support", budget={"monthly_usd": 5}),
+            spent=Decimal("6"),
+        )
+        staging = await AgentEnvironmentService(db).create(
+            tenant.ctx, agent.id, EnvironmentCreate(name="staging", version_id=v1)
+        )
+        await db.commit()
+
+        prepared = await AgentRunnerService(db).prepare(
+            tenant.ctx, agent.id, environment_id=staging.id
+        )
+
+        with pytest.raises(BudgetExceeded) as refused:
+            await _answer(prepared)
+
+        assert refused.value.scope is BudgetScope.AGENT
+        assert refused.value.limit_usd == Decimal("5")
+
+    async def test_a_cap_the_current_version_dropped_no_longer_binds_an_older_one(self, db) -> None:
+        tenant = await _tenant(db, name="Lifted")
+        agent, v1 = await self._two_versions(
+            db,
+            tenant,
+            first=AgentSpec(name="Support", budget={"monthly_usd": 5}),
+            second=AgentSpec(name="Support"),
+            spent=Decimal("6"),
+        )
+
+        prepared = await AgentRunnerService(db).prepare(tenant.ctx, agent.id, version_id=v1)
+
+        assert await _answer(prepared) == "thirty days"
+
+    async def test_a_pinned_run_under_the_current_cap_answers(self, db) -> None:
+        tenant = await _tenant(db, name="Roomy")
+        agent, v1 = await self._two_versions(
+            db,
+            tenant,
+            first=AgentSpec(name="Support", budget={"monthly_usd": 5}),
+            second=AgentSpec(name="Support", budget={"monthly_usd": 50}),
+            spent=Decimal("6"),
+        )
+
+        prepared = await AgentRunnerService(db).prepare(tenant.ctx, agent.id, version_id=v1)
+
+        assert await _answer(prepared) == "thirty days"
+
+
 # -- grants -------------------------------------------------------------------
 
 

@@ -5,7 +5,7 @@ role scope and on what was shared with them, so `list_visible` takes the
 predicate pieces the access layer resolved rather than re-deriving them here.
 """
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from typing import Any, Literal
 from uuid import UUID
 
@@ -36,15 +36,47 @@ async def get_by_name(db: AsyncSession, name: str, *, organization_id: UUID) -> 
 
 
 async def lock(db: AsyncSession, skill_id: UUID) -> Skill | None:
-    """The skill locked until the transaction ends, read afresh with its files."""
+    """The skill locked against other writers until the transaction ends, read afresh
+    with its files.
+
+    `FOR NO KEY UPDATE`, the lock an update of the row takes anyway: it serializes
+    edits and decisions on the skill and leaves `hold` free, so an edit never waits on
+    an agent binding the skill, nor that agent's save on the edit.
+    """
     result = await db.execute(
         select(Skill)
         .where(Skill.id == skill_id)
         .options(selectinload(Skill.resources))
-        .with_for_update()
+        .with_for_update(key_share=True)
         .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
+
+
+async def lock_for_delete(db: AsyncSession, skill_id: UUID) -> None:
+    """Lock the skill as its delete will, before the delete's in-use check.
+
+    `FOR UPDATE` waits for every `hold`, so a binding written meanwhile is committed,
+    and seen by the check, before the check runs.
+    """
+    await db.execute(select(Skill.id).where(Skill.id == skill_id).with_for_update())
+
+
+async def hold(db: AsyncSession, skill_ids: Collection[UUID], *, organization_id: UUID) -> None:
+    """Keep these skills from being deleted until the transaction ends.
+
+    `FOR KEY SHARE`: a delete waits for it, and it waits for a delete in progress, so
+    a binding written now is either seen by the delete's in-use check or written
+    after the skill is gone. It does not wait for an edit of the skill. Ids that name
+    no skill of the organization are skipped.
+    """
+    if not skill_ids:
+        return
+    await db.execute(
+        select(Skill.id)
+        .where(Skill.id.in_(list(skill_ids)), Skill.organization_id == organization_id)
+        .with_for_update(read=True, key_share=True)
+    )
 
 
 async def get_many(
@@ -165,6 +197,14 @@ async def list_names(db: AsyncSession, *, organization_id: UUID) -> set[str]:
     """Every skill name in one organization - what the catalog top-up compares against."""
     result = await db.execute(select(Skill.name).where(Skill.organization_id == organization_id))
     return set(result.scalars().all())
+
+
+async def ids_by_name(db: AsyncSession, *, organization_id: UUID) -> dict[str, UUID]:
+    """Every skill in one organization, by its name, which is unique there."""
+    result = await db.execute(
+        select(Skill.name, Skill.id).where(Skill.organization_id == organization_id)
+    )
+    return dict(result.tuples().all())
 
 
 async def create(

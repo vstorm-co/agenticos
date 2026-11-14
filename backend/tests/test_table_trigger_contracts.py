@@ -384,6 +384,7 @@ async def test_hidden_only_link_changes_do_not_admit_a_trigger(monkeypatch, watc
         ("is_null", False, [_HIDDEN_AFTER], False),
         ("is_null", True, [_HIDDEN_AFTER], True),
     ],
+    ids=["hidden-destination", "readable-destination", "hidden-is-empty", "hidden-is-null"],
 )
 async def test_trigger_link_filters_only_examine_readable_destinations(
     monkeypatch, op, operand, links, fires

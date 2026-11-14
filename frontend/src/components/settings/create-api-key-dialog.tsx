@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
-import { DIALOG_BODY, DIALOG_COLUMN } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { ApiKeyCreateInput, ApiKeyCreated, ApiKeyScopeCatalog } from "@/types/api-keys";
 
@@ -77,14 +77,17 @@ export function CreateApiKeyDialog({
   // Opened from outside only - there is no trigger in here - so the dialog only
   // ever asks to close, and closing forgets the key it showed.
   const close = () => {
-    setName("");
-    choice.reset();
-    setExpiry("90");
-    setCreated(null);
-    onOpenChange(false);
+    if (!busy) {
+      setName("");
+      choice.reset();
+      setExpiry("90");
+      setCreated(null);
+      onOpenChange(false);
+    }
   };
 
   const submit = async () => {
+    if (busy || !name.trim() || scopes.length === 0) return;
     try {
       setCreated(await onCreate({ name: name.trim(), scopes, expires_at: expiresAt(expiry) }));
     } catch (error) {
@@ -94,70 +97,97 @@ export function CreateApiKeyDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className={DIALOG_COLUMN}>
+      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_FORM)} dismissible={!busy}>
         <DialogHeader>
           <DialogTitle>{created ? t("createdTitle") : t("createTitle")}</DialogTitle>
           <DialogDescription>{created ? t("createdWhy") : t("createWhy")}</DialogDescription>
         </DialogHeader>
-        {created ? (
-          <div className={cn(DIALOG_BODY, "space-y-4")}>
-            <SecretRevealField
-              id="api-key-secret"
-              secret={created.key}
-              label={created.name}
-              note={t("shownOnce")}
-            />
-            <div className="text-muted-foreground space-y-1 text-xs">
-              <p>{t("useItLikeThis")}</p>
-              {/* i18n-exempt: a command line, identical in every language */}
-              <code className="bg-muted block rounded px-2 py-1.5 font-mono break-all">
-                {`curl -H "Authorization: Bearer ${created.prefix}…" ${apiUrl}/api/v1/me/permissions`}
-              </code>
-            </div>
-          </div>
-        ) : (
-          <div className={cn(DIALOG_BODY, "space-y-4")}>
-            <div className="space-y-1.5">
-              <Label htmlFor="api-key-name">{t("name")}</Label>
-              <Input
-                id="api-key-name"
-                value={name}
-                maxLength={100}
-                placeholder={t("namePlaceholder")}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </div>
-            <ScopePicker catalog={catalog} choice={choice} id="api-key-preset" />
-            <div className="space-y-1.5">
-              <Label htmlFor="api-key-expiry">{t("expires")}</Label>
-              <Select value={expiry} onValueChange={(value) => setExpiry(value as Expiry)}>
-                <SelectTrigger id="api-key-expiry">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(EXPIRIES) as Expiry[]).map((choice) => (
-                    <SelectItem key={choice} value={choice}>
-                      {t(`expiry.${choice}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        )}
-        <DialogFooter>
+        <form
+          aria-label={created ? t("createdTitle") : t("createTitle")}
+          className="flex min-h-0 flex-col gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!created) void submit();
+          }}
+        >
           {created ? (
-            <Button onClick={close}>{t("done")}</Button>
+            <div className={cn(DIALOG_BODY, "space-y-4")}>
+              <SecretRevealField
+                id="api-key-secret"
+                secret={created.key}
+                label={created.name}
+                note={t("shownOnce")}
+              />
+              <div className="text-muted-foreground space-y-1 text-xs">
+                <p>{t("useItLikeThis")}</p>
+                {/* i18n-exempt: a command line, identical in every language */}
+                <code className="bg-muted block rounded px-2 py-1.5 font-mono break-all">
+                  {`curl -H "Authorization: Bearer ${created.prefix}…" ${apiUrl}/api/v1/me/permissions`}
+                </code>
+              </div>
+            </div>
           ) : (
-            <Button
-              loading={busy}
-              disabled={name.trim() === "" || scopes.length === 0}
-              onClick={() => void submit()}
-            >
-              {t("create")}
-            </Button>
+            <div className={DIALOG_BODY}>
+              <fieldset disabled={busy} className="min-w-0 space-y-5">
+                <legend className="sr-only">{t("createTitle")}</legend>
+                <div className="space-y-1.5">
+                  <Label htmlFor="api-key-name">{t("name")}</Label>
+                  <Input
+                    id="api-key-name"
+                    name="name"
+                    required
+                    value={name}
+                    maxLength={100}
+                    placeholder={t("namePlaceholder")}
+                    onChange={(event) => setName(event.target.value)}
+                  />
+                </div>
+                <ScopePicker
+                  catalog={catalog}
+                  choice={choice}
+                  id="api-key-preset"
+                  disabled={busy}
+                />
+                <div className="space-y-1.5">
+                  <Label htmlFor="api-key-expiry">{t("expires")}</Label>
+                  <Select
+                    value={expiry}
+                    disabled={busy}
+                    onValueChange={(value) => {
+                      if (value === "30" || value === "90") setExpiry(value);
+                    }}
+                  >
+                    <SelectTrigger id="api-key-expiry">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.keys(EXPIRIES).map((choice) => (
+                        <SelectItem key={choice} value={choice}>
+                          {t(`expiry.${choice}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </fieldset>
+            </div>
           )}
-        </DialogFooter>
+          <DialogFooter>
+            {created ? (
+              <Button type="button" onClick={close}>
+                {t("done")}
+              </Button>
+            ) : (
+              <Button
+                loading={busy}
+                disabled={name.trim() === "" || scopes.length === 0}
+                type="submit"
+              >
+                {t("create")}
+              </Button>
+            )}
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

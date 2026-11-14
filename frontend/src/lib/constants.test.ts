@@ -22,6 +22,9 @@ describe("ROUTES", () => {
     expect(ROUTES.WORKFLOW_RUN_DETAIL("wf-1", "run-9")).toBe("/workflows/wf-1/runs/run-9");
     expect(ROUTES.ORG_GROUPS("o1")).toBe("/orgs/o1/groups");
     expect(ROUTES.ORG_DIRECTORY("o1")).toBe("/orgs/o1/directory");
+    expect(ROUTES.SKILL_IMPROVE_FROM_RUN("s1", "run-9")).toBe(
+      "/skills/s1/improve/new?from_run=run-9",
+    );
     expect(ROUTES.PROJECT_CHAT("project-1")).toBe("/chat?project=project-1");
   });
 
@@ -32,6 +35,9 @@ describe("ROUTES", () => {
     expect(ROUTES.RAG_DETAIL("kb1").startsWith(`${ROUTES.RAG}/`)).toBe(true);
     expect(ROUTES.ORG_MEMBERS("o1").startsWith(`${ROUTES.ORGS}/`)).toBe(true);
     expect(ROUTES.WORKFLOW_DETAIL("wf-1").startsWith(`${ROUTES.WORKFLOWS}/`)).toBe(true);
+    expect(
+      ROUTES.SKILL_IMPROVE_FROM_RUN("s1", "r").startsWith(`${ROUTES.SKILL_DETAIL("s1")}/`),
+    ).toBe(true);
   });
 
   it("gives every static route an absolute path", () => {

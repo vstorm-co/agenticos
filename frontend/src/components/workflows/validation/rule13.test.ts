@@ -44,12 +44,29 @@ describe("rule 13 - names and switched-off steps", () => {
         { ...echo("c"), disabled: true },
         echo("d"),
       ],
+      edges: [edge("e1", "a", "out", "b", "in")],
       bindings: [nodeOutputBinding("d", "value", "c", "out", ["message"])],
     });
     expect(codes(g)).toEqual([
       ["a", "trigger-switched-off"],
       ["b", "control-switched-off"],
       ["d", "binding-reads-switched-off"],
+    ]);
+  });
+
+  it("lets a deciding step with no connection be switched off, never a loop's own steps", () => {
+    const g = graph({
+      entry: "a",
+      nodes: [
+        echo("a"),
+        { ...node("b", "logic.if"), disabled: true },
+        { ...node("item", "loop.item"), disabled: true },
+        { ...node("result", "loop.yield"), disabled: true },
+      ],
+    });
+    expect(codes(g)).toEqual([
+      ["item", "loop-part-switched-off"],
+      ["result", "loop-part-switched-off"],
     ]);
   });
 

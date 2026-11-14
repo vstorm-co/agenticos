@@ -216,6 +216,9 @@ export function QuickAsk({
   useEffect(() => {
     if (pendingComputerAccess) sendComputerAccessResponse(false);
   }, [pendingComputerAccess, sendComputerAccessResponse]);
+  // Remembered past the release, so the person still reads why access was refused.
+  const [accessRefused, setAccessRefused] = useState(false);
+  if (pendingComputerAccess && !accessRefused) setAccessRefused(true);
   const asked = messages.some((message) => message.role === "user");
   const signedOut = !isLoading && !isAuthenticated;
   useEffect(() => {
@@ -559,6 +562,7 @@ export function QuickAsk({
     clearMessages();
     scrolledUp.current = false;
     setConversationId(null);
+    setAccessRefused(false);
     setQuestion("");
     input.current?.focus();
   };
@@ -944,6 +948,11 @@ export function QuickAsk({
       {listening || phase === "transcribing" || noDictation ? (
         <p role="status" className="border-border text-muted-foreground border-t px-4 py-2 text-xs">
           {noDictation ? t("noDictation") : listening ? t("listening") : t("transcribing")}
+        </p>
+      ) : null}
+      {accessRefused ? (
+        <p role="status" className="border-border text-muted-foreground border-t px-4 py-2 text-xs">
+          {t("computerAccessInConsole")}
         </p>
       ) : null}
       {signedOut ? (

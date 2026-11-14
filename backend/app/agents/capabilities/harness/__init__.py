@@ -215,6 +215,7 @@ class HarnessConfig(BaseModel):
         CapabilityToolInfo(
             id="harness_sessions",
             description="List the harness sessions this conversation has open.",
+            read_only=True,
         ),
     ),
     config_schema=HarnessConfig,

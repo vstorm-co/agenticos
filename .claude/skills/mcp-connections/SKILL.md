@@ -137,12 +137,24 @@ policy trusts only `readOnlyHint: true`; missing or false hints require approval
 always enforces at least `writes`, with the explicit `UNGATED` exceptions in
 `services/platform_mcp/_tools.py`.
 
+An organization or personal binding's `tool_approval` overrides that per tool,
+keyed by the server's own tool name like `allowed_tools`: `required` asks and
+`never` runs, whatever the policy and the hint say (#2884). `approval_needed` in
+`app/agents/mcp.py` is the one copy of the rule, which `routine_actions` reuses
+for standing consent. `ApprovalMarked` reads it by the prefixed, fitted name the
+model calls, which `_make_toolset` computes. The field is left out of a dump
+while empty - routine source reviews and eval baselines fingerprint the dumped
+spec - and its keys are sorted, because the Builder compares drafts key by key
+and JSONB reorders them. The platform binding has no `tool_approval`: a `never`
+there would undercut its `writes` floor.
+
 Channel runs, including delegates and resumptions, enforce at least `writes` on
-all MCP bindings. Read-only calls no longer acquire an extra approval merely by
+all MCP bindings, and drop a tool's own `never`: there only `readOnlyHint` lets
+a tool run unasked. Read-only calls no longer acquire an extra approval merely by
 running in a chat app for a linked member. Unlinked room participants still
 require approval for every MCP call, including organization reads. Personal
 connections resolve for each message's linked sender, never the publisher or a
-different participant.
+different participant. A watch leaves out a read its binding asks before.
 
 Cost is the same story: what a server does on its own side is outside this platform's
 budget. Only model tokens are counted.

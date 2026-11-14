@@ -1868,9 +1868,10 @@ describe("the chat container - late transcript reconciliation", () => {
     );
     await act(async () => {});
     expect(useChatStore.getState().messages.at(-1)?.content).toContain("Unsaved answer");
-    expect(useChatStore.getState().messages.at(-1)?.content).toContain(
-      "Could not persist this answer",
-    );
+    expect(useChatStore.getState().messages.at(-1)).toMatchObject({
+      runFailed: true,
+      runError: "Could not persist this answer",
+    });
     expect(await screen.findByText(/Could not persist this answer/)).toBeVisible();
   });
 });
@@ -2113,6 +2114,9 @@ describe("the chat container - a conversation shared with the reader", () => {
     expect(
       await screen.findByText("Shared with you as read-only", undefined, SETTLE),
     ).toBeVisible();
+    expect(screen.queryByRole("textbox")).toBeNull();
+    receive("conversation_created", { conversation_id: "c-theirs" });
+    expect(useConversationStore.getState().createdConversationId).toBeNull();
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.queryByRole("button", { name: /regenerate/i })).toBeNull();
   });
@@ -2462,3 +2466,15 @@ it.each(["shared cache", "metadata"])(
     );
   },
 );
+
+it("keeps the same composer when the first turn learns its new conversation id", async () => {
+  const previous = get.getMockImplementation()!;
+  get.mockImplementation((url: string) =>
+    url === "/conversations/c-created/metadata" ? new Promise<never>(() => {}) : previous(url),
+  );
+  mount();
+  const composer = await screen.findByRole("textbox");
+  receive("conversation_created", { conversation_id: "c-created" });
+  expect(screen.queryByText("Checking conversation access…")).toBeNull();
+  expect(screen.getByRole("textbox")).toBe(composer);
+});

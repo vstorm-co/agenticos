@@ -94,7 +94,7 @@ const CATALOG = [
     id: "control.foreach",
     name: "Loop",
     kind: "control",
-    ports: [port("in", "input", null), port("body", "output", null), port("done", "output", null)],
+    ports: [port("in", "input", null), port("done", "output", null)],
   }),
   makeDefinition({
     id: "data.map",
@@ -388,21 +388,11 @@ describe("a node card", () => {
   });
 
   it("opens a loop body, counting its steps, without selecting the loop", () => {
-    seed([instance("f", "control.foreach"), instance("m", "data.map")], {
-      edges: [
-        {
-          id: "e",
-          source_node_id: "f",
-          source_port: "body",
-          target_node_id: "m",
-          target_port: "in",
-        },
-      ],
+    seed([instance("f", "control.foreach"), instance("m", "data.map", { scope_id: "f" })], {
       scopes: [
         {
           scope_node_id: "f",
           body_node_ids: ["m"],
-          entry_port: "body",
           exit_node_id: "f",
           exit_port: "done",
         },
@@ -1099,10 +1089,11 @@ describe("a resizable node card", () => {
       expect(floor(draw([sized(200)], ["a"]))).toBe("76");
     });
 
-    it("counts a loop's enter row, 45 px under its output rows", () => {
-      // The head and its summary line (76), two labelled outputs (13 + 32 + 2), the 45 px enter row.
+    it("counts a loop's enter row, 45 px under its head", () => {
+      // The head and its summary line (76) and the 45 px enter row; its one output, Done,
+      // takes no labelled row - the body is entered by that row, not by a port.
       const loop = instance("a", "control.foreach", { layout: { x: 0, y: 0, height: 300 } });
-      expect(floor(draw([loop], ["a"]))).toBe(String(76 + 47 + 45));
+      expect(floor(draw([loop], ["a"]))).toBe(String(76 + 45));
     });
 
     it("counts the policy badges, and the row they wrap onto", () => {

@@ -68,6 +68,8 @@ function environment(overrides: Partial<AgentEnvironment> = {}): AgentEnvironmen
     behind_by: 0,
     logfire_token_secret_id: null,
     service_name: null,
+    connections: [],
+    guard_suite_ids: [],
     created_at: "2026-07-01T00:00:00Z",
     ...overrides,
   };
@@ -109,7 +111,7 @@ describe("ExposuresPanel", () => {
     serve([exposure()], []);
     await mount();
 
-    expect(await screen.findByText("Slack - Acme Support")).toBeInTheDocument();
+    expect(await screen.findByText("Acme Support")).toBeInTheDocument();
   });
 
   it("says out loud that a paused binding answers nothing", async () => {
@@ -222,7 +224,7 @@ describe("ExposuresPanel", () => {
     serve([exposure()], [target({ id: "b2" })]);
     await mount({ canManage: false });
 
-    await screen.findByText("Slack - Acme Support");
+    await screen.findByText("Acme Support");
     expect(screen.queryByRole("group", { name: "Add to a chat app" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Pause on Acme Support" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Remove from Acme Support" })).toBeDisabled();
@@ -268,7 +270,7 @@ describe("ExposuresPanel", () => {
     serve([exposure()], [], [environment()]);
     await mount();
 
-    await screen.findByText("Slack - Acme Support");
+    await screen.findByText("Acme Support");
     expect(screen.queryByRole("combobox", { name: /Environment on/ })).not.toBeInTheDocument();
   });
 

@@ -1,0 +1,740 @@
+/* A sequential setup canvas, separate from the console's settings navigation. */
+.shell {
+  min-height: 100dvh;
+  background: var(--color-background);
+}
+.frame {
+  max-width: 1180px;
+  margin-inline: auto;
+  padding: 28px 48px 40px;
+}
+.topbar,
+.brand,
+.topActions,
+.topActions > a {
+  display: flex;
+  align-items: center;
+}
+.topbar {
+  justify-content: space-between;
+  gap: 20px;
+}
+.brand {
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.topActions {
+  gap: 24px;
+  font-size: 12px;
+  color: var(--color-muted-foreground);
+}
+.topActions > a {
+  gap: 8px;
+}
+.wizardHeader {
+  margin: 44px 0 32px;
+}
+.wizardMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--color-muted-foreground);
+  margin-bottom: 12px;
+}
+.progress {
+  display: flex;
+  gap: 8px;
+  list-style: none;
+}
+.progress li {
+  height: 4px;
+  border-radius: 99px;
+  flex: 1;
+  background: var(--color-border);
+}
+.progress li[data-current="true"] {
+  background: #9565ed;
+}
+.progress li[data-past="true"] {
+  background: var(--color-table-purple-foreground);
+  opacity: 0.5;
+}
+.content {
+  min-width: 0;
+}
+.content > section > h1 {
+  font-size: clamp(28px, 3vw, 40px);
+  font-weight: 550;
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+  max-width: 900px;
+  margin-bottom: 14px;
+  outline: none;
+}
+.stageHint {
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--color-muted-foreground);
+  max-width: 800px;
+  margin-bottom: 28px;
+}
+.workspaceList {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.workspaceList button {
+  width: 100%;
+  justify-content: flex-start;
+  min-height: 56px;
+}
+.workspaceList button svg:last-child {
+  margin-left: auto;
+}
+@media (max-width: 700px) {
+  .frame {
+    padding: 20px;
+  }
+  .topActions {
+    gap: 12px;
+  }
+  .wizardHeader {
+    margin-top: 28px;
+    margin-bottom: 28px;
+  }
+  .stageHint {
+    font-size: 13px;
+    margin-bottom: 24px;
+  }
+}
+.workspaceChoice {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.createWorkspace {
+  grid-column: 1 / -1;
+  max-width: 600px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-card);
+  padding: 28px;
+}
+.stageIcon {
+  color: var(--color-table-purple-foreground);
+  margin-bottom: 18px;
+}
+.createWorkspace h3 {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+.createWorkspace > p {
+  color: var(--color-muted-foreground);
+  font-size: 13px;
+  line-height: 1.7;
+  margin-bottom: 24px;
+}
+.explanation {
+  grid-column: 1 / -1;
+  max-width: 650px;
+  font-size: 12px;
+  line-height: 1.75;
+  color: var(--color-muted-foreground);
+}
+.personalChoice {
+  grid-column: 1 / -1;
+  max-width: 600px;
+  font-size: 13px;
+}
+.personalChoice summary {
+  cursor: pointer;
+  margin-bottom: 16px;
+  color: var(--color-muted-foreground);
+}
+.personalChoice label {
+  display: block;
+  margin-bottom: 8px;
+}
+.personalChoice select {
+  display: block;
+  max-width: 100%;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 12px;
+}
+.teamStage {
+  display: grid;
+  gap: 24px;
+  justify-items: start;
+  font-size: 14px;
+  line-height: 1.75;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.notice {
+  max-width: 700px;
+  padding: 16px 20px;
+  border-radius: 10px;
+  color: var(--color-warning-ink);
+  background: var(--color-table-yellow);
+  font-size: 13px;
+}
+.settingsLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+.settingsLinks a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.orgSettings {
+  min-width: 0;
+  margin-top: 24px;
+}
+.orgSettings > div[role="tablist"] {
+  display: flex;
+  justify-content: flex-start;
+  gap: 20px;
+  overflow-x: auto;
+}
+:global(html:not([data-motion="reduce"])) .createWorkspace {
+  animation: admin-arrive 240ms ease-out both;
+}
+@keyframes admin-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.workspaceStudio {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  align-items: stretch;
+  gap: 20px;
+}
+.workspaceStudio .createWorkspace {
+  grid-column: auto;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  padding: 32px;
+}
+.workspaceStudio .createWorkspace > form {
+  margin-top: auto;
+  padding-top: 16px;
+}
+.workspacePreview {
+  overflow: hidden;
+  position: relative;
+  border-radius: 16px;
+  padding: 24px;
+  background: #6d46d7;
+  color: #fff;
+  min-width: 0;
+}
+.previewLabel {
+  font-size: 11px;
+  color: #e7dcff;
+  margin-bottom: 14px;
+}
+.workspacePreview h3 {
+  font-size: clamp(22px, 2.1vw, 27px);
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+  font-weight: 550;
+  white-space: pre-line;
+}
+.workspaceMap {
+  position: relative;
+  height: 160px;
+  margin: 16px -8px 0;
+}
+.mapConnections {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 160px;
+  fill: none;
+  stroke: #c4acff;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.previewOrganization {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.workspaceMonogram {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 15px;
+  background: #faf7ff;
+  color: #5934b7;
+  box-shadow: 0 6px 0 #4f29ae;
+  font-size: 28px;
+  font-weight: 600;
+}
+.previewOrganization strong {
+  max-width: 100%;
+  padding: 3px 10px;
+  background: #6d46d7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+}
+.previewTeam,
+.previewAgents {
+  position: absolute;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.previewTeam {
+  left: calc(15% - 29px);
+}
+.previewAgents {
+  right: calc(15% - 29px);
+}
+.previewPeople,
+.previewFace {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #5f36c7;
+}
+.previewPeople {
+  color: #f0dcff;
+}
+.previewHint {
+  font-size: 12px;
+  line-height: 1.6;
+  margin-top: 16px;
+  max-width: 280px;
+}
+
+:global(html:not([data-motion="reduce"])) .workspacePreview {
+  animation: admin-arrive 360ms ease-out both;
+}
+:global(html:not([data-motion="reduce"])) .workspaceMonogram {
+  transition:
+    transform 200ms ease,
+    box-shadow 200ms ease;
+}
+:global(html:not([data-motion="reduce"])) .workspaceStudio:focus-within .workspaceMonogram {
+  transform: translateY(-4px) rotate(-3deg);
+  box-shadow: 0 10px 0 #4f29ae;
+}
+@media (max-width: 850px) {
+  .workspaceStudio {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .workspacePreview {
+    padding: 24px;
+  }
+  .workspaceMap {
+    max-width: 380px;
+    margin-inline: auto;
+  }
+  .workspaceStudio .createWorkspace {
+    padding: 24px;
+  }
+}
+.stageStudio {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
+  align-items: stretch;
+}
+.stageStudio > * {
+  min-width: 0;
+}
+.stageArtwork {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  position: relative;
+  border-radius: 16px;
+  background: #6d46d7;
+  color: #fff;
+  padding: 24px;
+}
+.stageArtwork h3 {
+  font-size: 24px;
+  font-weight: 550;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+.stageArtwork p {
+  font-size: 12px;
+  line-height: 1.75;
+  margin-top: 16px;
+  color: #f0e9ff;
+}
+.stageArtwork .artworkFootnote {
+  color: #dfd1ff;
+  font-size: 11px;
+  padding-top: 20px;
+  border-top: 1px solid #ad8eeb;
+  margin-top: auto;
+}
+:global(html:not([data-motion="reduce"])) .stageArtwork {
+  animation: admin-arrive 240ms ease-out both;
+}
+@media (max-width: 1100px) {
+  .stageStudio {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.content [data-guidance="true"] {
+  outline: 1px solid var(--color-table-purple-foreground);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 5px color-mix(in oklab, var(--color-table-purple-foreground) 12%, transparent);
+}
+:global(html:not([data-motion="reduce"])) .content > section:not([hidden]) {
+  animation: wizard-enter 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+:global(html:not([data-motion="reduce"]))
+  .frame[data-direction="back"]
+  .content
+  > section:not([hidden]) {
+  animation-name: wizard-back;
+}
+:global(html:not([data-motion="reduce"])) .content [data-guidance="true"] {
+  animation: guidance-pulse 1800ms ease-in-out 2;
+}
+:global(html:not([data-motion="reduce"])) .progress li {
+  transition:
+    background-color 220ms ease,
+    opacity 220ms ease;
+}
+@keyframes wizard-enter {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes wizard-back {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes guidance-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-table-purple-foreground) 10%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 7px color-mix(in oklab, var(--color-table-purple-foreground) 20%, transparent);
+  }
+}
+
+.stageArtwork > p:not(.artworkFootnote) {
+  margin-bottom: 24px;
+}
+.stageStudio > section[data-guided="true"] > div:last-child {
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+}
+.stageStudio > section[data-guided="true"] [data-continue] {
+  margin-top: 12px;
+  align-self: center;
+}
+
+.teamStage {
+  padding: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-card);
+}
+.teamStage > button:last-of-type {
+  margin-top: auto;
+}
+
+.wizardScope {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+.wizardScope > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.wizardBack {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 16px;
+  border-right: 1px solid var(--color-border);
+  color: var(--color-foreground);
+  flex-shrink: 0;
+}
+.wizardBack:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 4px;
+}
+@media (max-width: 700px) {
+  .wizardBack {
+    min-height: 32px;
+  }
+  .wizardMeta > span {
+    flex-shrink: 0;
+  }
+}
+
+/* A compact cast scene stays useful on phones instead of disappearing. */
+.stageDrawing {
+  position: relative;
+  flex-shrink: 0;
+  height: 190px;
+  margin-bottom: 20px;
+}
+.stageDrawing > div {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.drawingCenter {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  background: #faf7ff;
+  color: #5934b7;
+  top: 40%;
+  width: 70px;
+  height: 70px;
+  border-radius: 18px;
+  box-shadow: 0 6px 0 #4f29ae;
+}
+.drawingOrbit {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 1px dashed #bca0f7;
+  border-radius: 50%;
+  top: 42%;
+  width: 156px;
+  height: 156px;
+  border-style: dashed;
+}
+.stageArtwork[data-stage="profile"] {
+  background: #4852b9;
+}
+.stageArtwork[data-stage="context"] {
+  background: #34675f;
+}
+.stageArtwork[data-stage="team"] {
+  background: #704a93;
+}
+.stageArtwork[data-stage="deployment"] {
+  background: #3e526f;
+}
+.stageArtwork[data-stage="organization"] {
+  background: #5d49a4;
+}
+.artworkCopy {
+  min-width: 0;
+}
+.artworkCopy p {
+  margin-bottom: 24px;
+}
+.profileCard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+}
+.profileCard > div > section {
+  overflow: visible;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  background: transparent;
+}
+.profileCard > div > section > header {
+  padding: 0 0 12px;
+  border: 0;
+}
+.profileCard > div > section > div:last-child {
+  padding: 12px 0 20px;
+}
+.profileCard > div > [data-profile-actions] {
+  margin-top: auto;
+}
+.wideStage {
+  display: grid;
+  gap: 24px;
+}
+.wideStage > .stageArtwork {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px 28px;
+  padding: 20px 28px;
+}
+.wideStage .stageDrawing {
+  height: 150px;
+  margin: 0;
+  grid-row: span 2;
+}
+.wideStage .artworkCopy p {
+  margin-bottom: 0;
+}
+.wideStage .artworkFootnote {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.wideStage .orgSettings {
+  margin-top: 0;
+}
+.previewFace {
+  width: 110px;
+  background: transparent;
+}
+.previewFace > div {
+  transform: scale(0.62);
+}
+@media (max-width: 1100px) {
+  .stageArtwork,
+  .wideStage > .stageArtwork {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 16px;
+    padding: 18px;
+    order: -1;
+  }
+  .stageDrawing,
+  .wideStage .stageDrawing {
+    height: 112px;
+    margin: 0;
+    grid-row: auto;
+  }
+  .stageDrawing > div {
+    transform: translateX(-50%) scale(0.55);
+    bottom: -8px;
+  }
+  .drawingCenter {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+  }
+  .drawingCenter svg {
+    width: 24px;
+    height: 24px;
+  }
+  .drawingOrbit {
+    width: 96px;
+    height: 96px;
+  }
+  .stageArtwork h3 {
+    font-size: 20px;
+  }
+  .stageArtwork p {
+    margin: 8px 0 0;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  .stageArtwork .artworkFootnote {
+    display: none;
+  }
+  .profileCard {
+    padding: 20px;
+  }
+}
+@media (max-width: 480px) {
+  .stageArtwork,
+  .wideStage > .stageArtwork {
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+  }
+  .stageDrawing > div {
+    transform: translateX(-50%) scale(0.46);
+  }
+  .drawingOrbit {
+    width: 80px;
+    height: 80px;
+  }
+  .stageArtwork h3 {
+    font-size: 18px;
+  }
+  .teamStage {
+    padding: 20px;
+    gap: 20px;
+  }
+  .stageHint {
+    line-height: 1.6;
+  }
+}
+
+.governanceGrid {
+  display: grid;
+  gap: 20px;
+}
+.governanceGrid > .settingsLinks {
+  grid-column: 1 / -1;
+}
+@media (min-width: 1000px) {
+  .governanceGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.frame[data-focused="true"] .wizardHeader {
+  margin: 24px 0 16px;
+}

@@ -88,10 +88,15 @@ Two kinds of permission, and they behave differently.
 
 **Global** permissions are binary and org-wide: `members:view`, `members:manage`, `roles:manage`,
 `org:settings`, `org:delete`, `budgets:manage`, `approvals:decide`,
-`connections:view`, `connections:manage`, `channels:manage`,
+`promotions:override`, `connections:view`, `connections:manage`, `channels:manage`,
 `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`.
 
 Approving personal routines and watches requires the explicit `personal:consent` scope, selected under **Custom** when issuing a key or authorizing an MCP client. It is excluded from every preset, including **Full access**. The confirmation allows the credential to approve persistent routines and watches using your personal connections and data; ordinary `agents:run` and `runs:view` scopes do not. Existing keys and MCP authorizations gain no personal consent automatically.
+
+`promotions:override` promotes a version onto an
+[environment its eval suites guard](environments.md#guarding-a-promotion-with-evals)
+although they have not passed on it, and changes which suites guard one. Owners
+and admins hold it; promoting at all is still `agents:publish` on the agent.
 
 `api_keys:create` lets a member issue [API keys](api.md#organization-api-keys)
 for themselves; `api_keys:manage` lists and revokes everybody's. A key holds a
@@ -159,7 +164,7 @@ those shared with it; `ALL` sees every one.
 Ordered `NONE < OWN < SHARED < TEAM < ALL`.
 
 | Scope | Reaches |
-|---|---|
+| --- | --- |
 | `NONE` | nothing |
 | `OWN` | rows this person owns |
 | `SHARED` | their own, plus anything org-visible |
@@ -178,7 +183,7 @@ Ordered `NONE < OWN < SHARED < TEAM < ALL`.
 ### The built-in roles
 
 | Role | Idea | Agents | Secrets | Global |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `owner` | owns the organization | all `ALL` | `ALL` | everything, including `org:delete` |
 | `admin` | runs it day to day | all `ALL` | `ALL` | everything **except** `org:delete` |
 | `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
@@ -278,7 +283,7 @@ draft cannot run and no exposure reaches it either way, so what this decides is
 who can see it, not what it does.
 
 | Level | Allows |
-|---|---|
+| --- | --- |
 | `read` | see the configuration |
 | `use` | also run or attach it |
 | `edit` | also change it |
@@ -382,10 +387,17 @@ exactly the moment it should be narrowed to nothing.
 rows already loaded, it returns the subset the caller may exercise a permission
 on, applying the same `max(role scope, grant)` rule per row but reading every
 grant in one lookup rather than one per row (and none at all when the role
-reaches everything). It is what fills a listing's per-row capability flags -
-`AgentRead.can_run`, the floor for offering "new trigger" on a card - so a Viewer
-granted run on one agent sees the control there and nowhere else. A context with
-no subject, and an empty input, both resolve to the empty set before any query.
+reaches everything).
+
+`accessible_ids` is what fills a listing's per-row capability flags -
+`AgentRead.can_run`, the floor for offering "new trigger" on a card,
+`AgentRead.can_edit`, which the console reads for the agent page's edit
+controls, testing a draft and stopping an eval run, and `AgentRead.can_publish`,
+for publishing - so a Viewer granted run on one agent sees the control there and
+nowhere else.
+
+A context with no subject, and an empty input, both resolve to the empty set
+before any query.
 
 Context, skill and vault listings carry `can_edit` for each resource. The console
 uses that effective access for editing, deletion and sharing, and for rotating a
@@ -415,7 +427,8 @@ the caller cannot see answers exactly like a run that does not exist.
 cancel it while they may still run the workflow, and anyone who may edit the
 workflow may cancel any of its runs. A Member who can run an organization-visible
 workflow can stop their own runs, not a colleague's; seeing the run without
-either right is refused with `403`.
+either right is refused with `403`. Retrying a cancelled run takes the same right,
+so a run somebody stopped is not started again by a member who could not stop it.
 
 **A run acts as the person who started it, checked again at every node.** A
 node can be dispatched days after the run began, so each dispatch requires the
@@ -510,6 +523,21 @@ refusals.
     subjects expect is only defensible if they can find that out. A narrower answer
     would be a permission of its own, not a quieter route.
 
+### A system agent is an organization setting { #system-agents }
+
+A [system agent](concepts.md#system-agents) - a judge, a case generator, a gap
+drafter or classifier, the authoring assistant - grades, drafts or proposes for
+everyone who uses what it serves. So changing one takes `org:settings` on top of
+`agents:edit` or `agents:publish` on the row: its draft, a YAML import, a
+publish, a restore, archiving or deleting it, its environments. A Builder would
+otherwise reach the seeded ones through their organization-wide visibility.
+Reading, running and creating one keep their usual permissions; a judge a
+Builder makes for a dataset publishes at once, and later changes need an
+administrator.
+
+The check is in `AgentRegistryService.get`, so every write path holds it, and
+`can_edit`/`can_publish` read false for a caller without it.
+
 ## Delegation is not a privilege boundary
 
 An agent can [delegate to another agent](concepts.md#delegate-vs-inline-specialist),
@@ -599,7 +627,7 @@ created by somebody who did have a role.
 ## What the frontend reads
 
 | Endpoint | Answers |
-|---|---|
+| --- | --- |
 | `GET /me/permissions` | the caller's role, `is_app_admin`, and every permission with its scope |
 | `GET /roles/catalog` | the whole catalog and what each role bundles |
 

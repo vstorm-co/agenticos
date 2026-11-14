@@ -360,11 +360,14 @@ class MattermostAdapter(ChannelAdapter):
         bot_id = prompt.bot_id
         body: dict[str, Any] = {
             "channel_id": channel_id,
-            "message": prompt.text,
+            "message": "",
             "props": {
                 "attachments": [
                     {
-                        "text": "",
+                        "title": "Your response is needed",
+                        "text": prompt.text,
+                        "fallback": prompt.text,
+                        "color": "#6b7280",
                         "actions": [
                             {
                                 "id": f"aos{index}",
@@ -509,7 +512,19 @@ class MattermostAdapter(ChannelAdapter):
             response = await client.put(
                 f"{base_url}/api/v4/posts/{press.message_id}/patch",
                 headers=self._headers(bot_token),
-                json={"message": shown, "props": {"attachments": []}},
+                json={
+                    "message": "",
+                    "props": {
+                        "attachments": [
+                            {
+                                "title": text,
+                                "text": press.prompt_text or "",
+                                "fallback": shown,
+                                "color": "#6b7280",
+                            }
+                        ],
+                    },
+                },
             )
         response.raise_for_status()
 
@@ -1113,7 +1128,7 @@ class MattermostAdapter(ChannelAdapter):
             payload = json.loads(frame)
         except json.JSONDecodeError, TypeError:
             return
-        if payload.get("event") != "posted":
+        if payload.get("event") not in {"posted", "post_edited"}:
             return
 
         incoming = self.parse_incoming(payload, bot_id)
@@ -1160,7 +1175,7 @@ class MattermostAdapter(ChannelAdapter):
         under `data.post`, the webhook is flat - and everything downstream is
         shared, so the difference stops here.
         """
-        if raw_payload.get("event") == "posted":
+        if raw_payload.get("event") in {"posted", "post_edited"}:
             return self._from_socket(raw_payload, bot_id)
         return self._from_webhook(raw_payload, bot_id)
 
@@ -1187,6 +1202,21 @@ class MattermostAdapter(ChannelAdapter):
         # "D" is Mattermost's direct-message channel type; anything else is a
         # channel somebody put the bot in.
         channel_type = str(data.get("channel_type") or "")
+        addressed = self._direct_addressed(data, bot_id, text)
+        if payload.get("event") == "post_edited":
+            # Edit events need not repeat the original mention metadata. Only
+            # an explicit mention of this known bot may become a new request;
+            # the router's shared receipt admits previously ignored posts only.
+            own = self._own_names.get(bot_id)
+            if (
+                channel_type == "D"
+                or not own
+                or not re.search(
+                    rf"(?<!\w)@{re.escape(own)}(?![\w.-])", mentionable_text(text), re.I
+                )
+            ):
+                return None
+            addressed = True
 
         return IncomingMessage(
             platform=self.platform,
@@ -1208,7 +1238,7 @@ class MattermostAdapter(ChannelAdapter):
             message_id=post.get("id"),
             attachments=attachments,
             broadcast_mention=broadcast_mentioned(self.platform, text),
-            addressed=self._direct_addressed(data, bot_id, text),
+            addressed=addressed,
         )
 
     def _direct_addressed(self, data: dict[str, Any], bot_id: str, text: str) -> bool | None:

@@ -263,5 +263,5 @@ async def test_org_mcp_connection(connection_id: UUID, service: McpConnectionSvc
     return McpConnectionTestResult(
         ok=error is None,
         error=error,
-        tools=[McpToolRead(name=t.name, description=t.description) for t in tools],
+        tools=[McpToolRead.model_validate(t, from_attributes=True) for t in tools],
     )

@@ -26,7 +26,7 @@ cause of an agent that either ignores what it was told or reads nothing at all.
 |---|---|---|
 | **Context file** | Standing facts, small and stable — a glossary, a tone guide, an org chart | Always, or on demand — you choose |
 | **[Skill](skills.md)** | A procedure for one kind of task — how to handle a refund request | When the model decides that task is what is happening |
-| **[Knowledge collection](file-processing.md)** | A corpus too large to read — every policy document, every ticket | Only the chunks a search returns |
+| **[Knowledge collection](https://vstorm-co.github.io/agenticos/file-processing/)** | A corpus too large to read — every policy document, every ticket | Only the chunks a search returns |
 
 The rule of thumb: **if it is short and always relevant, it is a context file.
 If it is long, it is knowledge. If it is a procedure, it is a skill.**
@@ -92,16 +92,42 @@ You can also start from the file: **Add to an agent** on its card adds it to the
 agent's draft with the Context capability switched on, and the card says which
 agents carry it already. A knowledge base has the same action on its own page.
 
+## Changes the assistant proposes
+
+**Improve with the assistant**, in a file's editor, asks the
+[authoring assistant](authoring.md#context-files) for a better body, written from
+the runs of the agents that read the file. What it proposes is not applied: it
+waits above the list on the Context page, with why, the runs it rests on, and
+the agents bound to the file.
+
+Applying it is the same as editing the file by hand - live at once for every
+agent whose published version reads the file - so **Check with evals** comes
+first, on one of those agents. Beside **Apply** the change says what applying
+does: each agent and environment it goes live for, the eval suites it queues,
+and the guards that check it only at the agent's next promotion. A file
+somebody edited after the change was proposed refuses the change; the edit is
+never written over.
+
+Asking the assistant again rewrites the waiting change rather than adding a
+second one. A decision names the version of the change you read, so of two made
+at once only one counts, and a page opened before the rewrite is refused with
+"The proposal changed since you opened it" until you review the new version. A
+change that says what the file already says is not proposed at all.
+
+Any edit to a file - applied or made by hand - and deleting it queue the eval
+suites that run when a dependency changes, for every agent that reads it, and
+applying a change tells the owners of those agents.
+
 ## Access
 
 A context file has an owner and a visibility, like any other resource here, and
 `context:view` gates reading the catalog. A file somebody has not been granted
-is a file they cannot bind, and the [same three layers](permissions.md) decide
+is a file they cannot bind, and the [same three layers](https://vstorm-co.github.io/agenticos/permissions/) decide
 that as everywhere else.
 
 Anything genuinely secret does not go in one — a context file is text an agent
 reads out loud when asked the right question. Credentials belong in
-[the vault](secrets.md).
+[the vault](https://vstorm-co.github.io/agenticos/secrets/).
 
 ## Recap
 
@@ -111,5 +137,5 @@ reads out loud when asked the right question. Credentials belong in
 - A linked file is chosen by its **description**, so write that for the model.
 - Editing a file updates **every bound agent on its next run**, with nothing
   republished.
-- Short and always relevant → context. Long → [knowledge](file-processing.md).
+- Short and always relevant → context. Long → [knowledge](https://vstorm-co.github.io/agenticos/file-processing/).
   A procedure → [a skill](skills.md).
