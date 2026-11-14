@@ -8,7 +8,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { ApiKeyCard, STATUS_VARIANT } from "@/components/settings/api-key-card";
 import { CreateApiKeyDialog } from "@/components/settings/create-api-key-dialog";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState } from "@/components/states";
 import {
   Badge,
   Button,
@@ -17,6 +17,7 @@ import {
   ListCardEmpty,
   Pager,
   SearchInput,
+  Skeleton,
   useListControls,
   type Column,
 } from "@/components/ui";
@@ -179,7 +180,7 @@ export function ApiKeysManager() {
           />
         ) : (
           <div className="space-y-4 p-4 sm:p-6">
-            {keys.length > 0 && !error && (
+            {(isLoading || keys.length > 0) && !error && (
               <SearchInput
                 value={list.query}
                 onChange={list.setQuery}
@@ -193,7 +194,32 @@ export function ApiKeysManager() {
                 cta={{ label: tc("retry"), onClick: () => void refetch() }}
               />
             ) : isLoading ? (
-              <LoadingState variant="pending" />
+              <>
+                <DataTable
+                  className="hidden rounded-none border-0 md:block"
+                  columns={columns}
+                  rows={[]}
+                  getRowKey={(key) => key.id}
+                  loading
+                />
+                <div aria-busy="true" className="space-y-3 md:hidden">
+                  {[0, 1, 2].map((row) => (
+                    <div key={row} aria-hidden="true" className="rounded-xl border p-4">
+                      <div className="flex justify-between gap-3">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-5 w-16 rounded-full" />
+                      </div>
+                      <Skeleton className="mt-2 h-3 w-24" />
+                      <div className="mt-4 space-y-3">
+                        {Array.from({ length: manages ? 3 : 2 }, (_, index) => (
+                          <Skeleton key={index} className="h-3 w-full" />
+                        ))}
+                      </div>
+                      <Skeleton className="mt-4 h-8 w-full rounded-lg" />
+                    </div>
+                  ))}
+                </div>
+              </>
             ) : list.visible.length === 0 ? (
               <ListCardEmpty
                 onClearFilters={() => list.setQuery("")}

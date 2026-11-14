@@ -5,8 +5,9 @@ import { Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { LoadingForm } from "@/components/states/loading-form";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
-import { ErrorState, LoadingState } from "@/components/states";
+import { ErrorState } from "@/components/states";
 import {
   ListCardEmpty,
   Pager,
@@ -103,61 +104,61 @@ export function NotificationEventPreferences() {
               </SelectContent>
             </Select>
           </div>
-          {isLoading ? (
-            <LoadingState variant="pending" />
-          ) : list.visible.length === 0 ? (
-            <ListCardEmpty
-              onClearFilters={() => list.setQuery("")}
-              icon={Search}
-              title={t("notificationNoMatches")}
-              description={t("notificationSearchHint")}
-              cta={{ label: t("notificationClearSearch"), onClick: () => list.setQuery("") }}
-            />
-          ) : (
-            <ul ref={rows} className="scroll-mt-32 space-y-3 lg:scroll-mt-6">
-              {list.visible.map((event) => (
-                <li
-                  key={event.eventType}
-                  aria-label={t(event.words)}
-                  className="flex min-w-0 flex-col gap-4 rounded-xl border p-3 sm:p-4 lg:flex-row lg:items-center"
-                >
-                  <div className="flex min-w-0 flex-1 items-start gap-3">
-                    <span className="bg-muted text-muted-foreground grid size-9 shrink-0 place-items-center rounded-lg">
-                      <event.icon className="size-4" aria-hidden />
-                    </span>
-                    <div className="min-w-0 space-y-1">
-                      <h3 className="text-sm font-medium [overflow-wrap:anywhere]">
-                        {t(event.words)}
-                      </h3>
-                      <p className="text-muted-foreground text-xs leading-relaxed">
-                        {t(`${event.words}Trigger`)}
-                      </p>
+          <LoadingForm loading={isLoading}>
+            {list.visible.length === 0 ? (
+              <ListCardEmpty
+                onClearFilters={() => list.setQuery("")}
+                icon={Search}
+                title={t("notificationNoMatches")}
+                description={t("notificationSearchHint")}
+                cta={{ label: t("notificationClearSearch"), onClick: () => list.setQuery("") }}
+              />
+            ) : (
+              <ul ref={rows} className="scroll-mt-32 space-y-3 lg:scroll-mt-6">
+                {list.visible.map((event) => (
+                  <li
+                    key={event.eventType}
+                    aria-label={t(event.words)}
+                    className="flex min-w-0 flex-col gap-4 rounded-xl border p-3 sm:p-4 lg:flex-row lg:items-center"
+                  >
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                      <span className="bg-muted text-muted-foreground grid size-9 shrink-0 place-items-center rounded-lg">
+                        <event.icon className="size-4" aria-hidden />
+                      </span>
+                      <div className="min-w-0 space-y-1">
+                        <h3 className="text-sm font-medium [overflow-wrap:anywhere]">
+                          {t(event.words)}
+                        </h3>
+                        <p className="text-muted-foreground text-xs leading-relaxed">
+                          {t(`${event.words}Trigger`)}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:w-80 lg:shrink-0">
-                    {[...event.channels, chatChannel].map((channel) => (
-                      <label
-                        key={channel}
-                        className="bg-muted/40 flex min-w-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg px-2 py-1.5"
-                      >
-                        <span className="text-muted-foreground text-center text-xs [overflow-wrap:anywhere]">
-                          {t(CHANNEL_LABEL[channel])}
-                        </span>
-                        <Switch
-                          aria-label={`${t(event.words)} - ${t(CHANNEL_LABEL[channel])}`}
-                          checked={isEnabled(event.eventType, channel)}
-                          disabled={isLoading || pending.has(`${event.eventType}:${channel}`)}
-                          onCheckedChange={(enabled) =>
-                            void toggle(event.eventType, channel, enabled)
-                          }
-                        />
-                      </label>
-                    ))}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:w-80 lg:shrink-0">
+                      {[...event.channels, chatChannel].map((channel) => (
+                        <label
+                          key={channel}
+                          className="bg-muted/40 flex min-w-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg px-2 py-1.5"
+                        >
+                          <span className="text-muted-foreground text-center text-xs [overflow-wrap:anywhere]">
+                            {t(CHANNEL_LABEL[channel])}
+                          </span>
+                          <Switch
+                            aria-label={`${t(event.words)} - ${t(CHANNEL_LABEL[channel])}`}
+                            checked={isEnabled(event.eventType, channel)}
+                            disabled={isLoading || pending.has(`${event.eventType}:${channel}`)}
+                            onCheckedChange={(enabled) =>
+                              void toggle(event.eventType, channel, enabled)
+                            }
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </LoadingForm>
           <Pager
             page={list.page}
             pageCount={list.pageCount}
