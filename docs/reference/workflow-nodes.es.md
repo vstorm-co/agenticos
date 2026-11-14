@@ -1,5 +1,5 @@
 ---
-source_sha: "b4d9ec998c26"
+source_sha: "a9b67bff9ee7"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -312,9 +312,9 @@ conectado de la organización que encaja con todos los filtros puestos, leído e
 **Folder** y **Shared mailbox** son a la vez donde mira el poller y un filtro, y la
 primera lectura de una carpeta empieza en el momento en que se publicó o se encendió por última vez el workflow. Nombrar un
 buzón compartido que el grant de Microsoft de la organización pueda abrir exige el
-permiso para gestionar conexiones, como en los triggers de agente de Outlook; un workflow
-que ya escucha uno lo conserva en publicaciones posteriores, y cambiarlo exige el permiso
-otra vez.
+permiso para gestionar conexiones, como en los triggers de agente de Outlook; toda publicación que lo nombre lo exige, porque quien publica pasa a ser el miembro
+como el que se lee el buzón, y un mensaje que llega a un workflow cuyo publicador
+ya no lo tiene no inicia ningún run.
 **Sender contains** compara la dirección del remitente, como en Gmail, y exige correo
 que el dominio del remitente autenticó o que vino de dentro del tenant. Una carpeta o
 un buzón compartido que Outlook dice que no se pueden leer apaga el workflow, con
@@ -329,7 +329,8 @@ que ya no valida la omite el poller. Los adjuntos se guardan como en
 
 **Channel message.** Se inicia con un mensaje a uno de los bots de Slack,
 Mattermost o Telegram de la organización que el bot habría respondido con su propio
-agente y que encaja con el filtro del nodo. Publicarlo requiere `channels:manage`, y
+agente y que encaja con el filtro del nodo. Publicarlo requiere `channels:manage`,
+comprobado de nuevo en cada mensaje, y
 los mensajes de un bot inician como mucho un workflow. `triggered_by` es
 `channel_message`.
 Un bot de Teams se rechaza al publicar y en una ejecución de prueba; un oyente de
@@ -441,6 +442,8 @@ paleta dibuja el paso con un icono de diferencias, entre los pasos de datos.
 ::: app.workflows.nodes.text_compare._handler.TextCompareOutput
 
 ## html.parse { #html-parse }
+
+Desde la versión 1.72.0, los selectores del documento y la extracción de enlaces excluyen el contenido inerte de `<template>`. Seleccionar el propio elemento `template` sigue devolviendo su HTML y texto. Soup Sieve 4 ajusta los selectores de estado de formularios al comportamiento del navegador; al actualizar, revise los flujos que dependan de las reglas anteriores. La evaluación utiliza caché; los límites de tiempo y memoria del proceso lector siguen vigentes.
 
 **Parse HTML** lee HTML como su texto, sus enlaces y los elementos que elige un
 selector CSS. Sirve para el HTML con el que se topa un flujo: el cuerpo de un
@@ -1027,7 +1030,7 @@ Activity o por `GET /api/v1/workflow-approvals`. `approvers` nombra quién puede
 decidir, y esas personas reciben un aviso en la aplicación; vacío, puede
 cualquiera con `approvals:decide`. Pasado `timeout_hours` la solicitud caduca y el
 paso sale por `rejected` con `decision: "expired"`. Cancelar el run cancela lo que
-pidió. Cada ejecución del paso pregunta una vez, así que un reintento o una
+pidió, y también cancelar un workflow que llamó a ese run. Cada ejecución del paso pregunta una vez, así que un reintento o una
 iteración de un bucle nunca preguntan dos veces lo mismo.
 
 Los aprobadores nombrados deben ser miembros activos con `approvals:decide`. Se comprueba al publicar y de nuevo antes de pedir la aprobación. Si han perdido ese permiso, el paso falla con `APPROVER_UNAVAILABLE` en lugar de dejar una solicitud que nadie puede resolver.
@@ -1225,9 +1228,12 @@ fallar igual.
 `control.foreach` ejecuta su cuerpo una vez por cada elemento de una lista
 `items` enlazada, un elemento cada vez y en orden. Después continúa por su
 puerto `done` con `results` en el orden de entrada, `errors` y `count`. El
-cuerpo empieza en `loop.item`, conectado desde el puerto `body` del bucle, que
-ofrece `item`, `index` y `count`. Termina en `loop.yield`, cuyo `value` enlazado
-es el resultado de la iteración. Ninguna arista vuelve al bucle. Un paso del
+cuerpo son los pasos que nombran el bucle en `scope_id`; ninguna arista entra en
+él. Empieza en `loop.item`, que ofrece `item`, `index` y `count`, y cada paso del
+cuerpo debe alcanzarse desde `loop.item` por las aristas del propio cuerpo. Termina en `loop.yield`, cuyo `value` enlazado
+es el resultado de la iteración.
+
+Ninguna arista vuelve al bucle. Un paso del
 cuerpo puede enlazarse a cualquier cosa que se ejecutara antes del bucle, y nada
 fuera del cuerpo puede enlazarse a su interior.
 
@@ -1419,6 +1425,7 @@ de confianza.
 | El trabajo superó `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, la sesión purgada |
 | No hay una conexión `sandboxd` utilizable | `SANDBOX_UNAVAILABLE` |
 | Escribió más de 20 archivos o 100 MB, o imprimió más de 10 MB | `PYTHON_OUTPUT_TOO_LARGE`, medido en la sandbox antes de traer nada, y la sesión purgada |
+| El host respondió pero no pudo iniciar el sandbox: un directorio de workspace en el que no puede escribir, una imagen que no se pudo construir | `SANDBOX_START_FAILED` con un diagnóstico seguro; la salida sin procesar queda en los registros del host, se reintenta |
 | No se pudo alcanzar el host | `SANDBOX_UNREACHABLE`, se reintenta |
 
 ::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig

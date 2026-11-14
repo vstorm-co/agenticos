@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  useAgentAttention,
   usePeopleUsage,
   useRatingsSummary,
   useUsageByHour,
@@ -336,5 +337,32 @@ describe("dashboard freshness", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("useAgentAttention", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads the agents that need a look in the window, and nothing while held back", async () => {
+    const item = {
+      agent_id: "a1",
+      name: "Refund desk",
+      rated_down: 5,
+      failed_runs: 0,
+      failing_suites: 1,
+      can_edit: true,
+    };
+    vi.mocked(apiClient.get).mockResolvedValue({ from: PERIOD.from, to: PERIOD.to, items: [item] });
+    const { result } = renderHook(() => useAgentAttention(PERIOD), { wrapper });
+
+    await waitFor(() => expect(result.current.agents).toEqual([item]));
+    expect(apiClient.get).toHaveBeenCalledWith("/stats/attention", {
+      params: { from: PERIOD.from, to: PERIOD.to },
+    });
+
+    vi.mocked(apiClient.get).mockClear();
+    const held = renderHook(() => useAgentAttention(PERIOD, { enabled: false }), { wrapper });
+    expect(held.result.current.agents).toEqual([]);
+    expect(apiClient.get).not.toHaveBeenCalled();
   });
 });

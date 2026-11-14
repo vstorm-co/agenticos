@@ -2,7 +2,7 @@
 
 This is the residual of #179. That change added a publish-time check: binding a
 skill hands its body and its files to every run of the agent, so the publisher
-has to be able to read it themselves (`AgentRegistryService._skill_problems`).
+has to be able to read it themselves (`AgentRegistryService.skill_problems`).
 Validation on this platform runs at publish and never at run time, deliberately -
 `SkillService.resolve_for_agent` resolves a frozen spec's `skill_ids` with the
 tenant filter only, because a runner-scoped check would refuse every subject-less
@@ -122,7 +122,7 @@ def _bindings(spec: AgentSpec) -> list[SkillBinding]:
 
     A delegating agent carries specialists inside its delegation capability, and
     each specialist has its own `skill_ids` that publish validates through the
-    same `_skill_problems`. An agent that does not delegate - see
+    same `skill_problems`. An agent that does not delegate - see
     :func:`_delegation_config` - has no specialists, so only its own `skill_ids`
     are returned.
     """

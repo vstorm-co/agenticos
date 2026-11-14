@@ -837,14 +837,16 @@ class TestWebReach:
         instructions = Visuals().get_instructions()
         assert await instructions(_ctx(_deps(run_id=None))) == maps_line()
 
-    def test_without_map_tiles_the_model_is_told_a_map_is_an_outline(
+    def test_without_map_tiles_the_model_is_told_to_draw_a_geographic_svg_map(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(settings, "VISUAL_MAP_TILES", "")
         line = maps_line()
         assert "no map tiles" in line
-        # Told why and who can change it, in the answer rather than inside the
-        # drawing, where the first version hid it as a grey footnote (#2301).
+        assert "use `AOWorldMap.draw` by default" in line
+        assert "country outlines, pins and routes" in line
+        assert "Do not use Leaflet" in line
+        assert "Only if street detail is requested" in line
         assert "in your answer" in line
         assert "`VISUAL_MAP_TILES`" in line
 
@@ -853,7 +855,9 @@ class TestWebReach:
     ) -> None:
         monkeypatch.setattr(settings, "VISUAL_MAP_TILES", "usgs-topo")
         line = maps_line()
-        assert "USGS The National Map tiles" in line
+        assert "administrator enabled USGS The National Map tiles" in line
+        assert "If tiles fail to load" in line
+        assert "lightweight SVG map" in line
         assert "never present the line between stops as directions" in line
         assert "Admin → System" in line
 

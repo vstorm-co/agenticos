@@ -131,6 +131,7 @@ class TestWhatTheCatalogOffers:
         assert "default" not in body
 
 
+@pytest.mark.usefixtures("kb_contents_unread")
 class TestMovingACollection:
     async def test_a_provider_that_serves_the_model_is_accepted(
         self, client: AsyncClient, service: KnowledgeBase

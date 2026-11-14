@@ -21,6 +21,12 @@ describe("UsedBy", () => {
     expect(screen.getByText("Used by Billing, Sales and 1 more")).toBeInTheDocument();
   });
 
+  it("says where it was added when no published agent uses it yet", () => {
+    render(<UsedBy agents={[]} drafted={[agent("Support")]} />);
+    expect(screen.getByText("In the draft of Support, not published yet")).toBeInTheDocument();
+    expect(screen.queryByText("Not used by any agent yet")).toBeNull();
+  });
+
   it("names one agent alone", () => {
     render(<UsedBy agents={[agent("Support")]} />);
     expect(screen.getByText("Used by Support")).toBeInTheDocument();

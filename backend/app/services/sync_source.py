@@ -608,10 +608,11 @@ class SyncSourceService:
 
         Raises:
             NotFoundError: If sync source does not exist.
-            BadRequestError: If source has no assigned collection.
+            BadRequestError: If source is paused or has no assigned collection.
         """
 
         source = await self.get_source(source_id)
+        self.refuse_paused(source)
         if not source.collection_name:
             raise BadRequestError(
                 message="Cannot sync a source without an assigned knowledge base collection.",

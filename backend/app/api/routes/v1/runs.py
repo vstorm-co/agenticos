@@ -15,8 +15,10 @@ from app.api.deps import (
     ApprovalSvc,
     Auth,
     ConversationSvc,
+    EvalRunSvc,
     ParkedRunSvc,
     RunExportSvc,
+    SkillSvc,
     require,
 )
 from app.api.public_api import INTERNAL, PUBLIC
@@ -28,6 +30,7 @@ from app.db.models.agent_run import (
     ApprovalStatus,
     RunOrder,
     RunRating,
+    RunSource,
     RunStatus,
     RunSurface,
 )
@@ -58,6 +61,7 @@ from app.schemas.agent_run import (
 )
 from app.schemas.conversation import MessageList
 from app.schemas.run_manifest import RunManifestRead
+from app.services.approvals import withhold
 from app.services.channels.handback import continues_in_chat
 from app.services.parked_runs import waiting_update
 
@@ -67,6 +71,7 @@ router = APIRouter(dependencies=[PUBLIC])
 @router.get("/runs", response_model=AgentRunList, dependencies=[Depends(require(Perm.RUNS_VIEW))])
 async def list_runs(
     service: AgentRunnerSvc,
+    evals: EvalRunSvc,
     ctx: Auth,
     agent_id: UUID | None = Query(None),
     status: str | None = Query(
@@ -79,6 +84,9 @@ async def list_runs(
         False, description="Include delegated runs - what one agent itself did"
     ),
     surface: RunSurface | None = Query(None, description="Where the run came from"),
+    exclude_surface: RunSurface | None = Query(
+        None, description="Leave out runs from this surface - the eval traffic, say"
+    ),
     user_id: UUID | None = Query(None, description="Who the run ran as"),
     conversation_id: UUID | None = Query(
         None,
@@ -105,6 +113,14 @@ async def list_runs(
     modality: Literal["text", "voice"] | None = Query(None, description="Text runs or voice calls"),
     test: bool | None = Query(
         None, description="Only runs from the Builder's test panel, or only the rest"
+    ),
+    source: RunSource | None = Query(
+        None,
+        description=(
+            "Conversations, the organization's agents answering evals, or the "
+            "platform's own agents at work - the judge, the assistant, the "
+            "knowledge-gap and case helpers"
+        ),
     ),
     order_by: RunOrder = Query(
         RunOrder.STARTED_AT, description="Sort by start time, duration, cost or tokens"
@@ -158,6 +174,7 @@ async def list_runs(
         filters=RunFilters(
             statuses=RunStatus.parse_csv(status),
             surface=None if surface is None else surface.value,
+            exclude_surface=None if exclude_surface is None else exclude_surface.value,
             user_id=user_id,
             conversation_id=conversation_id,
             model_label=model_label,
@@ -170,6 +187,7 @@ async def list_runs(
             modality=modality,
             one_row_per_call=True,
             is_test=test,
+            source=source,
         ),
         order_by=order_by,
         descending=descending,
@@ -179,7 +197,21 @@ async def list_runs(
     down_rated = (
         await service.down_rated_run_ids(ctx, [run.id for run in items]) if items else set()
     )
+    # An eval run's answer keeps no conversation to preview; its case's question is it.
+    evaluated = [run.id for run in items if run.surface == RunSurface.EVAL.value]
+    links = await evals.case_links(ctx, evaluated)
+    origins = await service.origins(ctx, evaluated)
+    previews = await service.previews(
+        [run.id for run in items],
+        questions={run_id: link.case_input for run_id, link in links.items()},
+    )
     chains = await service.voice_chains(ctx, [run.id for run in items if run.modality == "voice"])
+    channel_runs = [
+        run.id
+        for run in items
+        if run.initiated_by_publisher_fallback and run.channel_identity_id is not None
+    ]
+    askers = await service.run_chat_askers(ctx, channel_runs) if channel_runs else {}
     return AgentRunList(
         items=[
             AgentRunRead.model_validate(run).model_copy(
@@ -187,6 +219,10 @@ async def list_runs(
                     "down_rated": run.id in down_rated,
                     "voice_chain": chains.get(run.id),
                     **waiting_update(run),
+                    "asked_in_chat": askers.get(run.id),
+                    "eval_case": links.get(run.id),
+                    "origin": origins.get(run.id),
+                    "preview": previews.get(run.id),
                 }
             )
             for run in items
@@ -210,6 +246,7 @@ async def export_runs(
     parent_run_id: UUID | None = Query(None),
     include_delegations: bool = Query(False),
     surface: RunSurface | None = Query(None),
+    exclude_surface: RunSurface | None = Query(None),
     user_id: UUID | None = Query(None),
     model_label: str | None = Query(None, max_length=255),
     environment_id: UUID | None = Query(None),
@@ -220,6 +257,7 @@ async def export_runs(
         None, description="Text runs or voice calls. Every run of a call is exported"
     ),
     test: bool | None = Query(None),
+    source: RunSource | None = Query(None),
 ) -> Any:
     """Run history as CSV, over exactly the rows `GET /runs` would list.
 
@@ -238,6 +276,7 @@ async def export_runs(
         filters=RunFilters(
             statuses=RunStatus.parse_csv(status),
             surface=None if surface is None else surface.value,
+            exclude_surface=None if exclude_surface is None else exclude_surface.value,
             user_id=user_id,
             model_label=model_label,
             started_from=started_from,
@@ -250,6 +289,7 @@ async def export_runs(
             # file has to add up to the bill (#54).
             modality=modality,
             is_test=test,
+            source=source,
         ),
     )
     return csv_response(result)
@@ -258,24 +298,41 @@ async def export_runs(
 @router.get(
     "/runs/{run_id}", response_model=AgentRunRead, dependencies=[Depends(require(Perm.RUNS_VIEW))]
 )
-async def get_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
+async def get_run(
+    run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, skills: SkillSvc, ctx: Auth
+) -> Any:
     """One run, its trace link, and its neighbours in its conversation.
 
     `logfire_url` is on this read and not on the list: resolving it needs the
     version's stored spec, because an agent may redirect its traces to a client's
     own Logfire project, and fifty rows have no use for fifty trace links.
     `prev_run_id`/`next_run_id` ride here for the same reason - a detail view
-    walks to its neighbours, a list already is the neighbours.
+    walks to its neighbours, a list already is the neighbours. `eval_case` names
+    the eval run and the case an eval run's answer belongs to, which is where its
+    answer and grade are read - such a run keeps no conversation. `skills_used`
+    names the skills it opened or read, at the version each was served.
     """
     run = await service.get_run(ctx, run_id)
+    evaluated = run.surface == RunSurface.EVAL.value
+    eval_case = await evals.case_link(ctx, run.id) if evaluated else None
+    origin = (await service.origins(ctx, [run.id])).get(run.id) if evaluated else None
     down_rated = await service.down_rated_run_ids(ctx, [run.id])
     prev_run_id, next_run_id = await service.neighbor_run_ids(ctx, run)
+    askers = (
+        await service.run_chat_askers(ctx, [run.id])
+        if run.initiated_by_publisher_fallback and run.channel_identity_id is not None
+        else {}
+    )
     return AgentRunRead.model_validate(run).model_copy(
         update={
+            "asked_in_chat": askers.get(run.id),
             "logfire_url": await service.trace_url(ctx, run),
             "down_rated": run.id in down_rated,
             "prev_run_id": prev_run_id,
             "next_run_id": next_run_id,
+            "eval_case": eval_case,
+            "origin": origin,
+            "skills_used": await skills.used_in_run(ctx, run.id),
             "continues_in_chat": continues_in_chat(run, ctx),
             **waiting_update(run),
         }
@@ -296,6 +353,10 @@ async def get_run_transcript(
             "thread it sits in, each turn carrying its `run_id` so a client can "
             "still tell which ones are this run's"
         ),
+    ),
+    for_model: bool = Query(
+        False,
+        description="Omit guardrail-refused turns before pagination and quoted reply excerpts",
     ),
 ) -> Any:
     """The turns one run produced, for a run detail view to render as steps.
@@ -319,14 +380,21 @@ async def get_run_transcript(
     that reads as "the run did nothing".
     """
     run, messages, total = await service.get_run_transcript(
-        ctx, run_id, skip=skip, limit=limit, whole_conversation=scope == "conversation"
+        ctx,
+        run_id,
+        skip=skip,
+        limit=limit,
+        whole_conversation=scope == "conversation",
+        for_model=for_model,
     )
     ratings = await service.transcript_ratings(ctx, [m.id for m in messages])
     return RunTranscript(
         run_id=run.id,
         conversation_id=run.conversation_id,
         items=[
-            RunTranscriptMessage.model_validate(m).model_copy(update=ratings[m.id])
+            RunTranscriptMessage.model_validate(m).model_copy(
+                update={**ratings[m.id], **({"reply_to": None} if for_model else {})}
+            )
             for m in messages
         ],
         total=total,
@@ -703,8 +771,15 @@ async def decide_approval(
         note=data.note,
         **({"remember_scope": data.remember_scope} if data.remember_scope else {}),
     )
-    return ApprovalRead.model_validate(decided.approval).model_copy(
-        update={"continues_in_chat": decided.continues_in_chat}
+    read = ApprovalRead.model_validate(decided.approval)
+    tool_args, context = withhold(decided.hidden, tool_args=read.tool_args, context=read.context)
+    return read.model_copy(
+        update={
+            "continues_in_chat": decided.continues_in_chat,
+            "tool_args": tool_args,
+            "context": context,
+            "content_hidden": bool(decided.hidden),
+        }
     )
 
 

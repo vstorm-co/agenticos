@@ -64,8 +64,21 @@ describe("withCapability", () => {
   it("adds a binding that publishing will accept", () => {
     const [added] = withCapability([], "charts", true);
 
-    expect(added).toMatchObject({ id: "charts", enabled: true, secret_id: null });
+    expect(added).toMatchObject({
+      id: "charts",
+      enabled: true,
+      secret_id: null,
+      approval: "required",
+    });
   });
+
+  it.each(["default", "never", "required"] as const)(
+    "preserves an existing %s approval",
+    (approval) => {
+      const configured = binding("charts", { approval });
+      expect(withCapability([configured], "charts", true)).toEqual([configured]);
+    },
+  );
 
   it("leaves a capability that is already on exactly as it was", () => {
     // Otherwise asking for a state it is already in would silently reset
@@ -88,7 +101,7 @@ describe("withCapability", () => {
 describe("enableMcpToolSearch", () => {
   it("adds an enabled Tool search binding configured to defer MCP tools", () => {
     expect(enableMcpToolSearch([])).toEqual([
-      binding("tool_search", { config: { defer_mcp_servers: true } }),
+      binding("tool_search", { config: { defer_mcp_servers: true }, approval: "required" }),
     ]);
   });
 

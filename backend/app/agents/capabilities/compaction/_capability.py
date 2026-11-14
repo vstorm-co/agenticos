@@ -35,12 +35,12 @@ window the gauge showed at 77% sat beside a trigger that had noticed nothing.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Literal, cast
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_ai.capabilities import AbstractCapability, WrapperCapability
-from pydantic_ai.messages import ModelMessage, ModelResponse
+from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, ToolReturnPart
 from pydantic_ai.models import Model, ModelRequestContext
 from pydantic_ai.tools import AgentDepsT, RunContext
 from pydantic_ai_harness.compaction import (
@@ -62,6 +62,7 @@ from app.agents.capabilities.budget import (
 )
 from app.agents.compaction_events import CompactionEvent
 from app.agents.observability import auxiliary_model
+from app.agents.tool_errors import controlled_tool_error
 
 logger = logging.getLogger(__name__)
 
@@ -290,6 +291,45 @@ class NotifyingSummarizingCompaction(SummarizingCompaction[AgentDepsT]):
                 )
 
 
+@dataclass
+class _ErrorPreservingClearToolResults(ClearToolResults[AgentDepsT]):
+    """Keep actionable failures when ordinary tool output is cleared.
+
+    A failed return does not spend the framework's retry budget, but unlike a
+    retried return the harness considers it clearable before the model has read
+    it. Preserve the small controlled envelope so its first correction and the
+    transcript cannot disappear at a zero-pair setting or in a batch of failures.
+    """
+
+    async def compact(
+        self, messages: list[ModelMessage], ctx: RunContext[AgentDepsT]
+    ) -> list[ModelMessage]:
+        protected = {
+            part.tool_call_id: part
+            for message in messages
+            for part in message.parts
+            if isinstance(part, ToolReturnPart) and controlled_tool_error(part) is not None
+        }
+        compacted = await super().compact(messages, ctx)
+        if not protected:
+            return compacted
+        # The harness clears by copying parts, leaving these originals intact.
+        return [
+            replace(
+                message,
+                parts=[
+                    protected.get(part.tool_call_id, part)
+                    if isinstance(part, ToolReturnPart)
+                    else part
+                    for part in message.parts
+                ],
+            )
+            if isinstance(message, ModelRequest)
+            else message
+            for message in compacted
+        ]
+
+
 def build_strategy(
     config: CompactionConfig,
     *,
@@ -339,7 +379,7 @@ def build_strategy(
     fallback = config.fallback_context_window
 
     def clearing() -> ClearToolResults[Any]:
-        return ClearToolResults(
+        return _ErrorPreservingClearToolResults(
             max_fraction=config.max_fraction,
             keep_pairs=config.keep_tool_pairs,
             context_window=window,

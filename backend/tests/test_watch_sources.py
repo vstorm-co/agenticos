@@ -255,6 +255,27 @@ async def test_only_read_tools_are_offered_and_a_successful_read_is_evidenced() 
         await bounded.call_tool("write", {}, ctx, original["write"])
 
 
+async def test_a_read_its_binding_asks_before_is_left_out_of_the_watch() -> None:
+    """Nobody is there to answer a watch's check, so a read the agent asks before
+    is not offered; the reads that run unasked still are (#2884)."""
+    from app.agents.mcp import ApprovalMarked
+
+    async def read() -> str:
+        return "items"
+
+    raw = FunctionToolset[object](
+        tools=[
+            Tool(read, name="search", metadata={"annotations": {"readOnlyHint": True}}),
+            Tool(read, name="fetch", metadata={"annotations": {"readOnlyHint": True}}),
+        ]
+    )
+    marked = ApprovalMarked(raw, policy="writes", tool_approval={"fetch": "required"})
+
+    tools = await WatchSourceTools(marked, receipt=WatchReadReceipt()).get_tools(_ctx())
+
+    assert set(tools) == {"search"}
+
+
 async def test_a_source_with_no_read_only_tools_is_an_explicit_failure() -> None:
     async def write() -> None:
         return None

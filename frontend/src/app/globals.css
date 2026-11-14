@@ -274,6 +274,45 @@
   --color-control-active: color-mix(in oklab, var(--color-card) 82%, var(--color-foreground));
   --color-field: color-mix(in oklab, var(--color-background) 80%, var(--color-card));
   --color-sidebar-secondary: color-mix(in oklab, var(--color-sidebar) 45%, var(--color-background));
+  /* Dataset accents follow the foreground lightness, keeping their hue visible in both themes. */
+  --color-dataset-blue-foreground: oklch(
+    from var(--color-foreground) calc(l * 0.4 + 0.38) 0.17 250
+  );
+  --color-dataset-blue: color-mix(
+    in oklab,
+    var(--color-card) 85%,
+    var(--color-dataset-blue-foreground)
+  );
+  --color-dataset-green-foreground: oklch(
+    from var(--color-foreground) calc(l * 0.4 + 0.38) 0.15 155
+  );
+  --color-dataset-green: color-mix(
+    in oklab,
+    var(--color-card) 85%,
+    var(--color-dataset-green-foreground)
+  );
+  --color-dataset-yellow-foreground: oklch(
+    from var(--color-foreground) calc(l * 0.4 + 0.38) 0.13 75
+  );
+  --color-dataset-yellow: color-mix(
+    in oklab,
+    var(--color-card) 85%,
+    var(--color-dataset-yellow-foreground)
+  );
+  --color-dataset-purple-foreground: oklch(
+    from var(--color-foreground) calc(l * 0.4 + 0.38) 0.18 295
+  );
+  --color-dataset-purple: color-mix(
+    in oklab,
+    var(--color-card) 85%,
+    var(--color-dataset-purple-foreground)
+  );
+  --color-dataset-red-foreground: oklch(from var(--color-foreground) calc(l * 0.4 + 0.38) 0.17 25);
+  --color-dataset-red: color-mix(
+    in oklab,
+    var(--color-card) 85%,
+    var(--color-dataset-red-foreground)
+  );
   /* Table labels inherit the app surface and ink, including an explicit Light
      choice on a dark OS. Mixing in hue keeps color secondary to readable text. */
   --color-table-blue: color-mix(in oklab, var(--color-card) 90%, oklch(60% 0.11 230));
@@ -554,6 +593,14 @@
     outline: 2px solid var(--color-ring);
     outline-offset: 2px;
     border-radius: 4px;
+  }
+  @media (forced-colors: active) {
+    /* Windows high contrast removes box-shadow rings. Override control utilities
+       that suppress outlines so keyboard focus still has a visible boundary. */
+    :focus-visible {
+      outline: 2px solid Highlight !important;
+      outline-offset: 2px;
+    }
   }
   /* Remove the default inner button focus ring on Firefox. */
   ::-moz-focus-inner {

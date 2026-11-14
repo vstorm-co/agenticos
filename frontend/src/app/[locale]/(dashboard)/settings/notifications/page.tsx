@@ -2,49 +2,28 @@
 
 import { useState } from "react";
 import {
-  Bell,
   ChevronRight,
   CircleDollarSign,
-  FileCheck2,
-  FileText,
-  FileX2,
   Hand,
   KeyRound,
-  Lightbulb,
   Mail,
-  Megaphone,
   PieChart,
-  Radar,
-  ServerCrash,
-  ServerCog,
-  Share2,
-  Sparkles,
   UserPlus,
-  GitPullRequest,
-  UserRoundCog,
-  XCircle,
+  type LucideIcon,
 } from "lucide-react";
-import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
-import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { Switch } from "@/components/ui";
-import { ErrorState } from "@/components/states";
 import { PhoneSettings } from "@/components/phone/phone-settings";
 import { NotificationRoutes } from "@/components/settings/notification-routes";
-import {
-  CHAT_NOTIFICATION_CHANNELS,
-  type ChatNotificationChannel,
-} from "@/lib/notification-preferences-api";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import { PushSettings } from "@/components/settings/push-settings";
+import { NotificationEventPreferences } from "@/components/settings/notification-event-preferences";
 import { SectionCard } from "@/components/settings/settings-section";
-import { useAuth, useNotificationPreferences } from "@/hooks";
+import { useAuth } from "@/hooks";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useAuthStore } from "@/stores";
 import type { User } from "@/types";
-import type { NotificationChannel } from "@/lib/notification-preferences-api";
 import { useTranslations } from "next-intl";
 
 /**
@@ -96,185 +75,20 @@ const SENT_EMAILS: readonly SentEmail[] = [
   { key: "invitation", words: "sentInvitation", icon: UserPlus },
 ];
 
-interface PreferenceEvent {
-  /** The backend's own `NotificationEventType` value. */
-  eventType: string;
-  /** Catalog key: the name, plus `Trigger` - the same suffix `OPTIONAL_EMAILS`
-   * uses, so the three events that reuse those keys need no key of their own. */
-  words: string;
-  icon: LucideIcon;
-  /** Which channels `GET /notifications/preferences` offers for this event -
-   * a subset of `["in_app", "email", "push"]`, per Decision 4's togglable-pairs rule. */
-  channels: readonly NotificationChannel[];
-}
-
-const CHANNEL_LABEL: Record<NotificationChannel, string> = {
-  in_app: "inAppChannel",
-  email: "emailChannel",
-  push: "pushChannel",
-  slack: "slackChannel",
-  telegram: "telegramChannel",
-  mattermost: "mattermostChannel",
-  teams: "teamsChannel",
-  sms: "smsChannel",
-  imessage: "imessageChannel",
-  discord: "discordChannel",
-};
-
-const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
-  {
-    eventType: "run_completed",
-    words: "prefRunCompleted",
-    icon: Bell,
-    channels: ["in_app", "email", "push"],
-  },
-  {
-    eventType: "run_failed",
-    words: "prefRunFailed",
-    icon: XCircle,
-    channels: ["in_app", "email", "push"],
-  },
-  {
-    eventType: "artifact_version_published",
-    words: "prefArtifactVersionPublished",
-    icon: FileText,
-    channels: ["in_app", "email", "push"],
-  },
-  {
-    eventType: "resource_shared",
-    words: "prefResourceShared",
-    icon: Share2,
-    channels: ["in_app", "email", "push"],
-  },
-  {
-    eventType: "budget_warning",
-    words: "prefBudgetWarning",
-    icon: CircleDollarSign,
-    channels: ["in_app", "email", "push"],
-  },
-  {
-    eventType: "mcp_server_down",
-    words: "prefMcpServerDown",
-    icon: ServerCrash,
-    channels: ["in_app", "email", "push"],
-  },
-  {
-    eventType: "mcp_server_recovered",
-    words: "prefMcpServerRecovered",
-    icon: ServerCog,
-    channels: ["in_app", "email", "push"],
-  },
-  {
-    eventType: "ingestion_completed",
-    words: "prefIngestionCompleted",
-    icon: FileCheck2,
-    channels: ["in_app", "email", "push"],
-  },
-  {
-    eventType: "ingestion_failed",
-    words: "prefIngestionFailed",
-    icon: FileX2,
-    channels: ["in_app", "email", "push"],
-  },
-  // These three reuse `OPTIONAL_EMAILS`' own catalog keys: same event, same
-  // name and trigger sentence, just this event's *in-app* channel rather
-  // than its email one - `notify_budget_alerts` and friends above already
-  // cover email, and `GET /notifications/preferences` never offers it again.
-  {
-    eventType: "budget_exceeded",
-    words: "optionalBudget",
-    icon: CircleDollarSign,
-    channels: ["in_app", "push"],
-  },
-  {
-    eventType: "approval_requested",
-    words: "optionalApprovals",
-    icon: Hand,
-    channels: ["in_app", "push"],
-  },
-  {
-    eventType: "usage_report",
-    words: "optionalUsage",
-    icon: PieChart,
-    channels: ["in_app", "push"],
-  },
-  {
-    eventType: "agent_usage_report",
-    words: "prefAgentUsageReport",
-    icon: PieChart,
-    channels: ["in_app", "push"],
-  },
-  {
-    eventType: "suggestion",
-    words: "prefSuggestion",
-    icon: Lightbulb,
-    channels: ["in_app", "email", "push"],
-  },
-  {
-    eventType: "finding",
-    words: "prefFinding",
-    icon: Radar,
-    channels: ["in_app", "email", "push"],
-  },
-  {
-    eventType: "capability_requested",
-    words: "prefCapabilityRequested",
-    icon: Sparkles,
-    channels: ["in_app", "email", "push"],
-  },
-  {
-    eventType: "announcement",
-    words: "prefAnnouncement",
-    icon: Megaphone,
-    channels: ["in_app", "email", "push"],
-  },
-  {
-    eventType: "workflow_notification",
-    words: "prefWorkflowNotification",
-    icon: Workflow,
-    channels: ["in_app", "email", "push"],
-  },
-  {
-    eventType: "workflow_log_alert",
-    words: "prefWorkflowLogAlert",
-    icon: Bell,
-    channels: ["in_app", "email", "push"],
-  },
-  {
-    eventType: "artifact_owner_changed",
-    words: "prefArtifactOwnerChanged",
-    icon: UserRoundCog,
-    channels: ["in_app", "email", "push"],
-  },
-  {
-    eventType: "artifact_share_requested",
-    words: "prefArtifactShareRequested",
-    icon: GitPullRequest,
-    channels: ["in_app", "email", "push"],
-  },
-];
-
 export default function NotificationsSettingsPage() {
   const tErrors = useTranslations("errors");
 
   const t = useTranslations("pages.settings");
-  const [chatChannel, setChatChannel] = useState<ChatNotificationChannel>("slack");
   const { user } = useAuth();
   const { setUser } = useAuthStore();
   const [saving, setSaving] = useState<PreferenceKey | null>(null);
-  const {
-    isEnabled,
-    setPreference,
-    isLoading: preferencesLoading,
-    error: preferencesError,
-  } = useNotificationPreferences();
-  const [pending, setPending] = useState<Set<string>>(new Set());
 
   if (!user) {
     return null;
   }
 
   const handleToggle = async (key: PreferenceKey, enabled: boolean) => {
+    if (saving !== null) return;
     setSaving(key);
     try {
       const updated = await apiClient.patch<User>("/users/me", { [key]: enabled });
@@ -288,44 +102,24 @@ export default function NotificationsSettingsPage() {
     }
   };
 
-  const handlePreferenceToggle = async (
-    eventType: string,
-    channel: NotificationChannel,
-    enabled: boolean,
-  ) => {
-    const pendingKey = `${eventType}:${channel}`;
-    setPending((prev) => new Set(prev).add(pendingKey));
-    try {
-      await setPreference(eventType, channel, enabled);
-    } catch (err) {
-      toast.error(
-        err instanceof ApiError ? getErrorMessage(err, tErrors) : t("failedSavePreference"),
-      );
-    } finally {
-      setPending((prev) => {
-        const next = new Set(prev);
-        next.delete(pendingKey);
-        return next;
-      });
-    }
-  };
-
   return (
     <div className="flex flex-1 flex-col space-y-6">
       <SectionCard title={t("agentActivity")} description={t("emailsAboutRunsNobody")}>
-        <ul className="divide-border divide-y">
+        <ul className="grid gap-3 md:grid-cols-3">
           {OPTIONAL_EMAILS.map((email) => (
-            <li key={email.key} className="flex items-start gap-3 py-4 first:pt-0 last:pb-0">
+            <li key={email.key} className="flex min-w-0 items-start gap-3 rounded-xl border p-3">
               <span className="bg-muted text-muted-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
                 <email.icon className="h-4 w-4" />
               </span>
               <div className="min-w-0 flex-1 space-y-1">
-                <p className="text-foreground text-sm font-medium">{t(email.words)}</p>
+                <p className="text-foreground text-sm font-medium [overflow-wrap:anywhere]">
+                  {t(email.words)}
+                </p>
                 <p className="text-muted-foreground text-xs leading-relaxed">
                   {t(`${email.words}Trigger`)}
                 </p>
                 <details className="group/audience text-muted-foreground pt-1 text-xs">
-                  <summary className="hover:text-foreground flex w-fit cursor-pointer list-none items-center gap-1 py-1 [&::-webkit-details-marker]:hidden">
+                  <summary className="hover:text-foreground touch:min-h-11 flex min-h-6 w-fit cursor-pointer list-none items-center gap-1 py-1 [&::-webkit-details-marker]:hidden">
                     <ChevronRight
                       className="h-3 w-3 transition-transform group-open/audience:rotate-90 motion-reduce:transition-none"
                       aria-hidden
@@ -346,85 +140,12 @@ export default function NotificationsSettingsPage() {
         </ul>
       </SectionCard>
 
-      <PushSettings />
-
-      <NotificationRoutes />
+      <NotificationEventPreferences />
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <PushSettings />
+        <NotificationRoutes />
+      </div>
       <PhoneSettings />
-
-      <SectionCard
-        title={t("notificationPreferences")}
-        description={t("notificationPreferencesDescription")}
-      >
-        {preferencesError ? (
-          // A failed read has no stored values either, and showing every
-          // switch as on regardless of what is actually saved is a refusal
-          // dressed as a preference (#32's shape).
-          <ErrorState description={preferencesError} />
-        ) : (
-          <>
-            <Select
-              value={chatChannel}
-              onValueChange={(value) => {
-                const channel = CHAT_NOTIFICATION_CHANNELS.find((item) => item === value);
-                if (channel) setChatChannel(channel);
-              }}
-            >
-              <SelectTrigger
-                aria-label={t("chatChannelPreferences")}
-                className="mb-4 w-full sm:w-56"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CHAT_NOTIFICATION_CHANNELS.map((channel) => (
-                  <SelectItem key={channel} value={channel}>
-                    {t(CHANNEL_LABEL[channel])}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <ul className="divide-border divide-y">
-              {PREFERENCE_EVENTS.map((event) => (
-                <li
-                  key={event.eventType}
-                  className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-3 py-4 first:pt-0 last:pb-0 sm:flex"
-                >
-                  <span className="bg-muted text-muted-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-                    <event.icon className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <p className="text-foreground text-sm font-medium">{t(event.words)}</p>
-                    <p className="text-muted-foreground text-xs leading-relaxed">
-                      {t(`${event.words}Trigger`)}
-                    </p>
-                  </div>
-                  <div className="col-start-2 flex shrink-0 flex-wrap items-center gap-6 sm:gap-4">
-                    {[...event.channels, chatChannel].map((channel) => {
-                      const pendingKey = `${event.eventType}:${channel}`;
-                      const label = `${t(event.words)} - ${t(CHANNEL_LABEL[channel])}`;
-                      return (
-                        <div key={channel} className="flex flex-col items-center gap-1">
-                          <span className="text-muted-foreground text-xs tracking-wide uppercase">
-                            {t(CHANNEL_LABEL[channel])}
-                          </span>
-                          <Switch
-                            aria-label={label}
-                            checked={isEnabled(event.eventType, channel)}
-                            disabled={preferencesLoading || pending.has(pendingKey)}
-                            onCheckedChange={(enabled) =>
-                              handlePreferenceToggle(event.eventType, channel, enabled)
-                            }
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </SectionCard>
 
       <SectionCard title={t("alwaysSent")} description={t("transactionalEmailsWhatTriggers")}>
         <ul className="divide-border divide-y">
@@ -434,7 +155,9 @@ export default function NotificationsSettingsPage() {
                 <email.icon className="h-4 w-4" />
               </span>
               <div className="min-w-0 space-y-1">
-                <p className="text-foreground text-sm font-medium">{t(email.words)}</p>
+                <p className="text-foreground text-sm font-medium [overflow-wrap:anywhere]">
+                  {t(email.words)}
+                </p>
                 <p className="text-muted-foreground text-xs leading-relaxed">
                   {t(`${email.words}Trigger`)}
                 </p>

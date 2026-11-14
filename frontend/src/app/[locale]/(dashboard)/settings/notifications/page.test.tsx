@@ -38,6 +38,7 @@ vi.mock("@/components/settings/notification-routes", () => ({ NotificationRoutes
 
 const setUser = vi.fn();
 const setPreference = vi.fn();
+const retryPreferences = vi.fn();
 let currentUser: Partial<User>;
 let currentPreferences: NotificationPreference[];
 let preferencesLoading: boolean;
@@ -56,6 +57,7 @@ vi.mock("@/hooks", () => ({
       return stored?.enabled ?? true;
     },
     setPreference,
+    retry: retryPreferences,
   }),
 }));
 
@@ -98,8 +100,16 @@ describe("the notifications settings page", () => {
     expect(screen.getByRole("switch", { name: "Usage reports" })).toBeInTheDocument();
   });
 
-  it("offers exactly the togglable pairs the backend produces", () => {
+  it("offers exactly the togglable pairs the backend produces", async () => {
     render(<NotificationsSettingsPage />);
+    const available = new Set<string>();
+    for (let page = 0; page < 5; page++) {
+      for (const item of screen.getAllByRole("switch"))
+        available.add(item.getAttribute("aria-label") ?? "");
+      const next = screen.getByRole("button", { name: "Next page" });
+      if (next.hasAttribute("disabled")) break;
+      await userEvent.click(next);
+    }
 
     // run_completed, run_failed, artifact_version_published, resource_shared,
     // budget_warning, mcp_server_down, mcp_server_recovered, ingestion_completed,
@@ -107,60 +117,43 @@ describe("the notifications settings page", () => {
     // and the four workflow/page events offer both channels (17*2 = 34); budget_exceeded, approval_requested,
     // usage_report and agent_usage_report offer only in-app (4*1 = 4). 34 + 4 =
     // 38; and all twenty-one offer push (#2097), 38 + 21 = 59; plus the three
-    // legacy email switches above = 62, plus 21 for the selected chat channel = 83.
-    expect(screen.getByRole("switch", { name: "Run completed - In-app" })).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "Run completed - Email" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("switch", { name: "Per-agent usage report - In-app" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("switch", { name: "Per-agent usage report - Email" }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "App updated - Email" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("switch", { name: "Shared with you or your group - Email" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("switch", { name: "Department budget at 80% - Email" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("switch", { name: "MCP server not answering - Email" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("switch", { name: "MCP server answering again - In-app" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("switch", { name: "Workflow notifications - Email" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("switch", { name: "Workflow log alerts - In-app" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "Workflow log alerts - Email" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("switch", { name: "Page ownership changes - In-app" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "Page requests - In-app" })).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "Page requests - Email" })).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "Run completed - Push" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("switch", { name: "Per-agent usage report - Push" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "Suggestions for you - Email" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("switch", { name: "A capability asked for - In-app" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("switch", { name: "Findings from your watches - In-app" }),
-    ).toBeInTheDocument();
+    // 76 email/in-app switches plus the 28 selected chat-channel switches.
+    expect(available.has("Run completed - In-app")).toBe(true);
+    expect(available.has("Run completed - Email")).toBe(true);
+    expect(available.has("Per-agent usage report - In-app")).toBe(true);
+    expect(available.has("Per-agent usage report - Email")).toBe(false);
+    expect(available.has("App updated - Email")).toBe(true);
+    expect(available.has("Shared with you or your group - Email")).toBe(true);
+    expect(available.has("Department budget at 80% - Email")).toBe(true);
+    expect(available.has("MCP server not answering - Email")).toBe(true);
+    expect(available.has("MCP server answering again - In-app")).toBe(true);
+    expect(available.has("Workflow notifications - Email")).toBe(true);
+    expect(available.has("Workflow log alerts - In-app")).toBe(true);
+    expect(available.has("Workflow log alerts - Email")).toBe(true);
+    expect(available.has("Page ownership changes - In-app")).toBe(true);
+    expect(available.has("Page requests - In-app")).toBe(true);
+    expect(available.has("Page requests - Email")).toBe(true);
+    expect(available.has("Run completed - Push")).toBe(true);
+    expect(available.has("Per-agent usage report - Push")).toBe(true);
+    expect(available.has("Suggestions for you - Email")).toBe(true);
+    expect(available.has("A capability asked for - In-app")).toBe(true);
+    expect(available.has("Findings from your watches - In-app")).toBe(true);
+    for (const event of [
+      "An eval suite failed",
+      "A promotion went past its evals",
+      "A change went live for your agent",
+    ]) {
+      expect(available.has(`${event} - Email`)).toBe(true);
+    }
     for (const event of [
       "Workflow notifications",
       "Workflow log alerts",
       "Page ownership changes",
       "Page requests",
     ]) {
-      expect(screen.getByRole("switch", { name: `${event} - Push` })).toBeInTheDocument();
+      expect(available.has(`${event} - Push`)).toBe(true);
     }
-    expect(screen.getAllByRole("switch")).toHaveLength(83);
+    expect(available.size).toBe(104);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {
@@ -251,11 +244,13 @@ describe("the notifications settings page", () => {
     expect(screen.getByRole("switch", { name: "Budget alerts" })).toBeInTheDocument();
   });
 
-  it("disables every preference switch while the list is still loading", () => {
+  it("shows placeholders instead of invented preference values while loading", () => {
     preferencesLoading = true;
     render(<NotificationsSettingsPage />);
 
-    expect(screen.getByRole("switch", { name: "Run completed - In-app" })).toBeDisabled();
+    expect(
+      screen.queryByRole("switch", { name: "Run completed - In-app" }),
+    ).not.toBeInTheDocument();
     // The legacy switches above answer to their own `saving` state, not this
     // one - they must not go dark for a request they have nothing to do with.
     expect(screen.getByRole("switch", { name: "Budget alerts" })).not.toBeDisabled();
@@ -284,6 +279,75 @@ describe("the notifications settings page", () => {
     ]) {
       expect(screen.queryByText(absent)).toBeNull();
     }
+  });
+
+  it("searches all pages and resets to the first after an unmatched search", async () => {
+    render(<NotificationsSettingsPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.queryByRole("switch", { name: "Run completed - Email" })).not.toBeInTheDocument();
+    const search = screen.getByPlaceholderText("Find notifications…");
+    await userEvent.type(search, "no-such-event");
+    expect(screen.getByText("No matching notifications")).toBeInTheDocument();
+    const [clear] = screen.getAllByRole("button", { name: "Clear search" });
+    if (!clear) throw new Error("Missing search reset");
+    await userEvent.click(clear);
+    expect(screen.getByRole("switch", { name: "Run completed - Email" })).toBeInTheDocument();
+  });
+
+  it("retries a failed read and then shows the server's disabled preference", async () => {
+    preferencesError = "Read refused";
+    const view = render(<NotificationsSettingsPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(retryPreferences).toHaveBeenCalledOnce();
+    preferencesError = null;
+    currentPreferences = [{ event_type: "run_completed", channel: "email", enabled: false }];
+    view.rerender(<NotificationsSettingsPage />);
+    expect(screen.getByRole("switch", { name: "Run completed - Email" })).not.toBeChecked();
+  });
+
+  it("keeps a pending chat write on its original channel and unlocks after refusal", async () => {
+    const held = Promise.withResolvers<void>();
+    setPreference.mockReturnValueOnce(held.promise);
+    render(<NotificationsSettingsPage />);
+    await userEvent.click(screen.getByRole("switch", { name: "Run completed - Slack" }));
+    expect(screen.getByRole("switch", { name: "Run completed - Slack" })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "Run completed - Email" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("combobox", { name: "Chat channel preferences" }));
+    await userEvent.click(screen.getByRole("option", { name: "Mattermost" }));
+    expect(screen.getByRole("switch", { name: "Run completed - Mattermost" })).toBeEnabled();
+    held.reject(new Error("refused"));
+    await waitFor(() =>
+      expect(setPreference).toHaveBeenCalledWith("run_completed", "slack", false),
+    );
+    await userEvent.click(screen.getByRole("combobox", { name: "Chat channel preferences" }));
+    await userEvent.click(screen.getByRole("option", { name: "Slack" }));
+    await waitFor(() =>
+      expect(screen.getByRole("switch", { name: "Run completed - Slack" })).toBeEnabled(),
+    );
+    expect(screen.getByRole("switch", { name: "Run completed - Slack" })).toBeChecked();
+  });
+
+  it("offers both channels for improvement completion and reviewed suite verdicts", async () => {
+    setPreference.mockResolvedValue(undefined);
+    render(<NotificationsSettingsPage />);
+    await userEvent.type(
+      screen.getByPlaceholderText("Find notifications…"),
+      "Improvement session finished",
+    );
+    expect(
+      screen.getByRole("switch", { name: "Improvement session finished - Email" }),
+    ).toBeInTheDocument();
+    await userEvent.clear(screen.getByPlaceholderText("Find notifications…"));
+    await userEvent.type(
+      screen.getByPlaceholderText("Find notifications…"),
+      "Suite result re-evaluated",
+    );
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Suite result re-evaluated - In-app" }),
+    );
+    await waitFor(() =>
+      expect(setPreference).toHaveBeenCalledWith("eval_suite_reevaluated", "in_app", false),
+    );
   });
 });
 

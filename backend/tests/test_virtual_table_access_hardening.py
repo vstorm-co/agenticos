@@ -1,15 +1,23 @@
 """Restricted linked data stays private in payloads, exports and legacy updates."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
 
+from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.virtual_table import VirtualTable, VirtualTableRecord
 from app.repositories import virtual_table_repo
-from app.schemas.virtual_table import CellValue, ColumnDef, RecordRead, RowPolicy
+from app.schemas.virtual_table import (
+    CellValue,
+    ColumnDef,
+    RecordBatchCreate,
+    RecordCreate,
+    RecordRead,
+    RowPolicy,
+)
 from app.services.virtual_tables import computed, records
 from app.services.virtual_tables._base import Operations
 from app.services.virtual_tables.exceptions import InvalidRecordError, InvalidRowPolicyError
@@ -22,7 +30,7 @@ from app.services.virtual_tables.row_policy import (
     visible_project_ids,
 )
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 ORG = UUID("00000000-0000-4000-8000-000000001001")
 USER = UUID("00000000-0000-4000-8000-000000001002")
@@ -169,6 +177,65 @@ async def test_invalid_source_policy_refuses_read_write_and_query(role: str):
             await operation(MagicMock(), context(role), source, [ASSIGNEE], {})
     with pytest.raises(InvalidRowPolicyError):
         await view_expression(MagicMock(), context(role), source, [ASSIGNEE])
+
+
+@pytest.mark.parametrize("operation", ["create", "write"])
+async def test_invalid_policy_refuses_batch_before_write_or_receipt(
+    operation: str, monkeypatch: pytest.MonkeyPatch
+):
+    source = table()
+    source.row_policy = {"rule": "unexpected"}
+    service = RecordOperations(MagicMock())
+    monkeypatch.setattr(service, "_load_table", AsyncMock(return_value=source))
+    replay = AsyncMock()
+    storage = AsyncMock()
+    monkeypatch.setattr(records, "run_once", replay)
+    monkeypatch.setattr(records.quotas, "lock_storage", storage)
+    batch = RecordBatchCreate(records=[RecordCreate(values={})])
+    action = service.create_records if operation == "create" else service.write_batch
+
+    with pytest.raises(InvalidRowPolicyError):
+        await action(context("owner"), source.id, batch)
+
+    replay.assert_not_awaited()
+    storage.assert_not_awaited()
+
+
+async def test_batch_import_hides_conflict_metadata_for_an_unreadable_external_id(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    source = table()
+    now = datetime.now(UTC)
+    hidden = VirtualTableRecord(
+        id=HIDDEN,
+        organization_id=ORG,
+        table_id=source.id,
+        external_id="known-external-id",
+        schema_version=1,
+        values={str(ASSIGNEE.id): str(OTHER)},
+        revision=7,
+        created_at=now,
+        updated_at=now,
+    )
+    service = RecordOperations(MagicMock())
+    monkeypatch.setattr(service, "_lookup", AsyncMock(return_value=hidden))
+    monkeypatch.setattr(service, "_columns", AsyncMock(return_value=[ASSIGNEE]))
+    apply = AsyncMock()
+    monkeypatch.setattr(service, "_apply", apply)
+    monkeypatch.setattr(records.quotas, "lock_record_count", AsyncMock())
+
+    with pytest.raises(NotFoundError) as refused:
+        await service._create_one(
+            context(),
+            source,
+            RecordCreate(external_id="known-external-id", values={}),
+            update=True,
+            as_of=now - timedelta(seconds=1),
+        )
+
+    assert refused.value.details == {"table_id": source.id}
+    assert str(HIDDEN) not in str(refused.value)
+    apply.assert_not_awaited()
 
 
 def test_invalid_policy_metadata_remains_available_for_authorized_repair():

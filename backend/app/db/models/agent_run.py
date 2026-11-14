@@ -29,7 +29,7 @@ from sqlalchemy import (
     Text,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -133,6 +133,8 @@ class RunSurface(enum.StrEnum):
     # schedule. The one member here assigned by a machine rather than a surface a
     # person reached the agent through (agenticos#44).
     SCHEDULE = "schedule"
+    # Kept apart so a filter can leave evaluation out of production traffic.
+    EVAL = "eval"
     # A workflow's `agent.run` step: the run a graph asked for, at the version the
     # step pins, as the workflow run's principal (#1789).
     WORKFLOW = "workflow"
@@ -196,6 +198,21 @@ class RunRating(enum.StrEnum):
     DOWN = "down"
 
 
+class RunSource(enum.StrEnum):
+    """Whose work a run was, as Activity's Source filter asks.
+
+    `CONVERSATION` is every surface a person, a client or a schedule reaches an
+    agent through. `EVALUATION` is one of the organization's agents answering an
+    eval case - an eval run, or Improve measuring a candidate. `SYSTEM` is a
+    platform agent (`AgentKind` other than `AGENT`) at work: the judge, the
+    improver, the knowledge-gap classifier and drafter, the case generator.
+    """
+
+    CONVERSATION = "conversation"
+    EVALUATION = "evaluation"
+    SYSTEM = "system"
+
+
 class AgentRun(Base, TimestampMixin):
     """One execution of one agent version."""
 
@@ -203,6 +220,12 @@ class AgentRun(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    improvement_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("improvement_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     organization_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -317,9 +340,21 @@ class AgentRun(Base, TimestampMixin):
     # continue on exactly what it was running.
     test_spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
+    # The skill versions this run served, its inline specialists' included; null for
+    # a run from before skills were versioned.
+    skill_version_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), nullable=True
+    )
+
     # Only a completed run that reached workspace attachment setup closes their window.
     earlier_attachments_checked: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    # Null until a run's finish records the skills it used; false for good once a
+    # segment's write failed, and for every run from before `run_skill_uses`. Only
+    # true says what the run used - the others are unknown, which is not none.
+    skill_uses_recorded: Mapped[bool | None] = mapped_column(
+        Boolean, nullable=True, default=True, server_default=text("true")
     )
 
     # The run this one was delegated from, and the delegation's own id inside it.
@@ -644,6 +679,14 @@ class ToolApproval(Base, TimestampMixin):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     remember_scope: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    always_asks: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    """Whether only a person's answer to this call could let it run, so it is never remembered.
+
+    Written when the call is parked rather than looked up from the tool later,
+    because a tool may ask always for some calls and not others.
+    """
 
     # How, not what. A row approved by a click and one granted in advance by a
     # conversation's approval mode are both `approved`, and telling them apart is

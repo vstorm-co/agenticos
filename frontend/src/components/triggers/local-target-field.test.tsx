@@ -35,18 +35,19 @@ beforeEach(() => {
   native.pick.mockReset();
   native.grants = [];
 });
-it("requires new consent when writes are removed and clears command access too", async () => {
+it("retains the receipt while reducing permissions and clears command access too", async () => {
   const onChange = vi.fn();
   render(<LocalTargetField value={target} onChange={onChange} visible />);
   await userEvent.click(screen.getByRole("checkbox", { name: "Write" }));
   expect(onChange).toHaveBeenCalledWith({
+    ...target,
     folder: "/work",
     device_id: "device",
     mode: "read_only",
     operations: { read: true, write: false, execute: false },
   });
 });
-it("command access includes write access but does not retain the old grant", async () => {
+it("command access includes write access while keeping the receipt for comparison", async () => {
   const onChange = vi.fn();
   render(
     <LocalTargetField
@@ -61,6 +62,7 @@ it("command access includes write access but does not retain the old grant", asy
   );
   await userEvent.click(screen.getByRole("checkbox", { name: "Run commands" }));
   expect(onChange).toHaveBeenCalledWith({
+    ...target,
     folder: "/work",
     device_id: "device",
     mode: "workspace_write",

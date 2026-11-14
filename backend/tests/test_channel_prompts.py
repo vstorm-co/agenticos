@@ -28,7 +28,6 @@ from app.services.channels.base import (
     read_press,
 )
 from app.services.channels.prompts import (
-    ALREADY,
     LINK_FIRST,
     NOT_ASKED,
     NOT_YOURS,
@@ -449,7 +448,9 @@ class TestPressingAnApproval:
         )
 
         decide.assert_not_awaited()
-        assert env.said() == [ALREADY]
+        assert env.said() == []
+        env.adapter.acknowledge.assert_awaited_once()
+        env.adapter.settle_prompt.assert_not_awaited()
 
 
 class TestSettlingAPress:
@@ -840,7 +841,7 @@ class TestAPressThatLostTheRace:
 
         assert approvals_service.return_value.decide.await_count == 1
         assert env.answered == [{"settled": "decided"}]
-        assert env.said() == ["This request was already approved", ALREADY]
+        assert env.said() == ["This request was already approved"]
 
     @pytest.mark.security
     async def test_a_refusal_for_another_reason_leaves_the_row_open(self):

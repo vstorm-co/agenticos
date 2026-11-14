@@ -1,6 +1,7 @@
 """Knowledge Base repository (PostgreSQL async)."""
 
 from collections.abc import Sequence
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import or_, select
@@ -61,6 +62,21 @@ async def get_by_ids(db: AsyncSession, ids: Sequence[UUID]) -> dict[UUID, Knowle
         return {}
     result = await db.execute(select(KnowledgeBase).where(KnowledgeBase.id.in_(ids)))
     return {kb.id: kb for kb in result.scalars()}
+
+
+async def get_in_organization(
+    db: AsyncSession, ids: Sequence[UUID], *, organization_id: UUID
+) -> list[KnowledgeBase]:
+    """The collections among `ids` that belong to this organization, in the order given."""
+    if not ids:
+        return []
+    result = await db.execute(
+        select(KnowledgeBase).where(
+            KnowledgeBase.id.in_(ids), KnowledgeBase.organization_id == organization_id
+        )
+    )
+    found = {kb.id: kb for kb in result.scalars()}
+    return [found[kb_id] for kb_id in ids if kb_id in found]
 
 
 async def get_accessible(
@@ -138,6 +154,8 @@ async def create(
     collection_name: str,
     scope: str,
     ingestion_config: dict[str, object],
+    gap_drafter_agent_id: UUID | None = None,
+    gap_classifier_agent_id: UUID | None = None,
     embedding_model: str,
     embedding_dim: int,
     embedding_provider: str,
@@ -169,6 +187,8 @@ async def create(
         organization_id=organization_id,
         is_default=is_default,
         ingestion_config=ingestion_config,
+        gap_drafter_agent_id=gap_drafter_agent_id,
+        gap_classifier_agent_id=gap_classifier_agent_id,
         embedding_model=embedding_model,
         embedding_dim=embedding_dim,
         embedding_provider=embedding_provider,
@@ -188,6 +208,8 @@ async def update(
     *,
     db_kb: KnowledgeBase,
     name: str | None = None,
+    system_agents: dict[Literal["gap_drafter_agent_id", "gap_classifier_agent_id"], UUID | None]
+    | None = None,
     description: str | None = None,
     ingestion_config: dict[str, object] | None = None,
     embedding_provider: str | None = None,
@@ -202,6 +224,8 @@ async def update(
     alone": a collection is never left without the one its provider needs,
     because there is nothing deployment-wide to fall back to.
     """
+    for field, selected in (system_agents or {}).items():
+        setattr(db_kb, field, selected)
     if name is not None:
         db_kb.name = name
     if description is not None:
@@ -301,7 +325,7 @@ async def list_personal_by_owner(db: AsyncSession, owner_user_id: UUID) -> list[
 
 
 async def list_by_collection_name(db: AsyncSession, collection_name: str) -> list[KnowledgeBase]:
-    """Every knowledge base claiming this collection name, oldest first.
+    """Every knowledge base claiming this collection name, ordered by creation time and id.
 
     Bases created together share a `created_at` (`now()` is the transaction's
     start), so `id` breaks the tie: without it the order, and with it the base a
@@ -377,16 +401,19 @@ def choose_for_collection(
 ) -> KnowledgeBase | None:
     """:func:`get_for_collection`'s choice among the bases claiming one name.
 
-    `candidates` are :func:`list_by_collection_name`'s rows, oldest first. Apart
-    so a caller resolving many rows against one name - a base's sync sources -
-    loads the candidates once and decides each row the way the sync does.
+    Choose the oldest base, breaking timestamp ties by id, regardless of input
+    order. A caller resolving many sources can load the candidates once and
+    decide each source the way the sync does.
 
     The fallback is an app-scoped base only. "No organization" is not enough: a
     personal base outside any organization has none either, and resolving to it
     would sync into and embed through one person's base for every organization
     without a base of its own (#2537).
     """
-    for kb in candidates:
-        if organization_id is None or kb.organization_id == organization_id:
-            return kb
-    return next((kb for kb in candidates if kb.scope == KBScope.APP.value), None)
+    own = [
+        kb for kb in candidates if organization_id is None or kb.organization_id == organization_id
+    ]
+    eligible = own or [kb for kb in candidates if kb.scope == KBScope.APP.value]
+    if not eligible:
+        return None
+    return min(eligible, key=lambda kb: (kb.created_at, kb.id))

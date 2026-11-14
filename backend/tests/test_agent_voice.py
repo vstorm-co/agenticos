@@ -253,9 +253,9 @@ def test_a_text_agent_working_for_a_call_settles_approvals_with_the_caller(anony
     found = _capabilities_of(built)
     assert any(isinstance(c, HandleDeferredToolCalls) for c in found)
     assert any(isinstance(c, WithoutApprovalTools) for c in found) is anonymous
-    # A text run in every other respect: its sandbox, and no realtime-only stand-ins.
+    # A text run in every other respect: its sandbox and structured tool failures.
     assert len(built.capabilities) == 1
-    assert not any(isinstance(c, AnswerUnknownTools) for c in found)
+    assert any(isinstance(c, AnswerUnknownTools) and c.structured for c in found)
     assert built.agent._system_prompts
 
 

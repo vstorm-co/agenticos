@@ -1,4 +1,3 @@
-
 name: CI
 
 # Work reaches `main` by pull request from a short-lived branch, so the pull
@@ -22,8 +21,9 @@ name: CI
 # `concurrency` group is keyed on `github.ref`, so a stacked branch cancels its own
 # superseded runs like any other.
 #
-# The `push` trigger stays pinned to `main`: a branch push is already covered by its
-# pull request, and widening it would run everything twice.
+# The `push` trigger covers the upstream branches and the fork's `t3` branch. Other
+# branch pushes are already covered by their pull requests, and widening it would
+# run those checks twice.
 on:
   push:
     branches: [main, master, t3]
@@ -359,6 +359,15 @@ jobs:
         env:
           PYTEST_ADDOPTS: "-q -q"
         run: make test COV_REPORT=xml
+
+      - name: Retain backend coverage diagnostics
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Report coverage of template-inherited code
         # Informational. Holding code we did not design to the platform bar
@@ -795,16 +804,17 @@ jobs:
         timeout-minutes: 10
         working-directory: frontend
 
-      - name: Start the agent worker
-        # The system pool reconciles a finished parked run and releases the
-        # next queued room request; the agent pool alone cannot advance it.
+      - name: Start the CI worker pools
+        # One worker serves agent, room reconciliation, eval, ingestion and
+        # workflow jobs so the E2E job has every required handler without
+        # starting overlapping worker processes.
         timeout-minutes: 3
         working-directory: backend
         env:
           WORKER_HEALTH_FILE: ${{ runner.temp }}/worker-alive
         run: |
           rm -f "$WORKER_HEALTH_FILE"
-          .venv/bin/python -m app.worker --pools agent,system \
+          .venv/bin/python -m app.worker --pools agent,eval,system,ingest,workflow \
             > "$RUNNER_TEMP/worker.log" 2>&1 &
           worker_pid=$!
           echo "$worker_pid" > "$RUNNER_TEMP/worker.pid"
@@ -838,7 +848,7 @@ jobs:
           # runs on every push instead of skipping itself in every environment
           # that had no key, which was all of them including this one.
 
-      - name: Stop the agent worker
+      - name: Stop the CI worker pools
         if: always()
         timeout-minutes: 2
         run: |
@@ -868,8 +878,8 @@ jobs:
       # report embeds most of it, but only for the runs it managed to finish -
       # a suite the runner killed leaves `test-results/` and no report at all,
       # which is the case #162 was diagnosed without.
-      - name: Upload the raw Playwright output when a journey fails
-        if: failure()
+      - name: Upload the raw Playwright output and evals screenshots
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-results-${{ matrix.shard }}
@@ -883,12 +893,16 @@ jobs:
         if: failure()
         run: cat "$RUNNER_TEMP/backend.log"
 
-      - name: Upload the worker log when a journey fails
-        if: failure()
+      # Keep backend and worker logs even when cancellation or a stall prevents the
+      # failure-only log step from running.
+      - name: Upload backend and worker logs
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: worker-log-${{ matrix.shard }}
-          path: ${{ runner.temp }}/worker.log
+          name: backend-and-worker-log-${{ matrix.shard }}
+          path: |
+            ${{ runner.temp }}/backend.log
+            ${{ runner.temp }}/worker.log
           retention-days: 7
           if-no-files-found: ignore
 

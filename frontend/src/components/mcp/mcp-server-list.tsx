@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeIdentifier } from "@/lib/normalize-identifier";
 import { useEffect, useMemo, useState } from "react";
 import { Plug, Plus, Settings2 } from "lucide-react";
 import { toast } from "sonner";
@@ -407,6 +408,7 @@ export function McpServerList({
           : connection.allowed_tools,
       ),
       appliesTo: "connection",
+      ...(scope === "organization" ? { trustReadOnlyHints: connection.trust_read_only_hints } : {}),
     });
   };
 
@@ -417,7 +419,7 @@ export function McpServerList({
     client?: McpOAuthClient,
     audience?: AudiencePayload,
     label?: string,
-  ) => {
+  ): Promise<boolean> => {
     setBusyId(row.key);
     try {
       const { authorization_url } = await startMcpOAuth(
@@ -434,7 +436,9 @@ export function McpServerList({
       rememberMcpOAuthReturn(serverReturn(row.key));
       // `assign`, not a write to `href`: the React compiler reads a property
       // write on `window` as mutating a value from outside the component.
+      // On success the browser navigates away - leave the row busy.
       window.location.assign(authorization_url);
+      return true;
     } catch (caught) {
       if (isGoogleAppMissing(caught)) {
         if (canManageOrganization) {
@@ -453,8 +457,8 @@ export function McpServerList({
         toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign")));
       }
       setBusyId(null);
+      return false;
     }
-    // On success the browser navigates away - leave the row busy.
   };
 
   // The key `?connect=` arrived with, read once. Lazily, so the server render -
@@ -553,7 +557,8 @@ export function McpServerList({
 
   const handleSubmit = async (values: ConnectionFormValues) => {
     if (!activeDraft) return;
-    const name = values.name.trim().toLowerCase();
+    const name =
+      values.name === activeDraft.existing?.name ? values.name : normalizeIdentifier(values.name);
     const label = values.label.trim();
     const url = values.url.trim();
     // Only a token connection carries one. Switching to OAuth or None and
@@ -594,6 +599,7 @@ export function McpServerList({
         canManageOrganization &&
         activeDraft.googleAppMissing === true &&
         needsGoogleOAuthClient(url);
+      setSubmitting(true);
       if (adminSavesOrgApp) {
         try {
           await saveOrgGoogleApp(
@@ -603,11 +609,11 @@ export function McpServerList({
           );
         } catch (caught) {
           toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign")));
+          setSubmitting(false);
           return;
         }
       }
-      closeDraft();
-      await handleOAuth(
+      const started = await handleOAuth(
         { ...row, url },
         name,
         scope,
@@ -615,6 +621,8 @@ export function McpServerList({
         scope === "organization" ? values.audience : undefined,
         label,
       );
+      if (started) closeDraft();
+      setSubmitting(false);
       return;
     }
 
@@ -700,16 +708,20 @@ export function McpServerList({
 
   const handleSaveTools = async () => {
     if (!toolPicker) return;
-    const { scope, connection, tools, checked } = toolPicker;
+    const { scope, connection, tools, checked, trustReadOnlyHints } = toolPicker;
     setSubmitting(true);
     try {
-      if (checked.size === tools.length) {
+      await api(scope).update(connection.id, {
         // Everything selected → store NULL, so tools the server adds later flow
         // through instead of silently staying off.
-        await api(scope).update(connection.id, { clear_allowed_tools: true });
-      } else {
-        await api(scope).update(connection.id, { allowed_tools: [...checked] });
-      }
+        ...(checked.size === tools.length
+          ? { clear_allowed_tools: true }
+          : { allowed_tools: [...checked] }),
+        ...(trustReadOnlyHints !== undefined &&
+        trustReadOnlyHints !== connection.trust_read_only_hints
+          ? { trust_read_only_hints: trustReadOnlyHints }
+          : {}),
+      });
       toast.success(t("toolSelectionSaved"));
       setToolPicker(null);
     } catch (caught) {

@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.60.1"
+version = "1.73.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -22,11 +22,11 @@ dependencies = [
     # quietly reverting - but only 0.141.1 has been run against this suite.
     "fastapi>=0.143.2",
     "uvicorn[standard]>=0.54.0",
-    "pydantic[email]>=2.14.1",
-    "pydantic-settings>=2.16.0",
-    "python-multipart>=0.0.20",
+    "pydantic[email]>=2.14.3",
+    "pydantic-settings>=2.16.2",
+    "python-multipart>=0.0.33",
     "logfire[fastapi,asyncpg,redis,httpx]>=5.4.0",
-    "sqlalchemy[asyncio]>=2.1.4",
+    "sqlalchemy[asyncio]>=2.1.8",
     "asyncpg>=0.32.0",
     # Alembic's, not the application's. Every application URL is
     # `postgresql+asyncpg`, so this reads as dead to a grep - but `alembic/env.py`
@@ -40,11 +40,11 @@ dependencies = [
     "greenlet>=3.5.5",
     "pyjwt>=2.15.1",
     "bcrypt>=4.0.0",
-    "authlib>=1.9.1",
+    "authlib>=1.9.5",
     # Imported at module scope in `app/services/rag_document.py`, and until #155
     # declared only in the `dev` group - so `uv sync --no-dev`, which is what the
     # image builds with, was relying on Starlette to pull it in.
-    "anyio>=4.15.1",
+    "anyio>=4.16.0",
     "redis>=8.1.0",
     "aiosmtplib>=5.1.3",
     # Starlette's requirement for `SessionMiddleware`, which `main.py` adds for
@@ -80,7 +80,7 @@ dependencies = [
     # search all build and send their own requests.
     "mcp>=2.3.0",
     # The platform's own MCP server and its OAuth endpoints (#2058, #2059).
-    "fastmcp>=4.1.2",
+    "fastmcp>=4.1.6",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the
@@ -89,8 +89,10 @@ dependencies = [
     # freeze the detectors and the model registry they read. Every agent also
     # wraps RepairToolArguments, whose json-repair dependency is selected by
     # its capability extra in the 0.64 release.
-    "pydantic-ai-harness[e2b,repair-tool-arguments]>=0.64.0",
-    "websockets>=15.0",
+    "pydantic-ai-harness[e2b,opensandbox,repair-tool-arguments]>=0.66.0",
+    # The provider adapter uses SDK 1.2 retry and transport configuration explicitly.
+    "opensandbox>=1.2.0,<2",
+    "websockets>=17.4",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
     # `numpy` (24 MB) is installed - a real cost, taken deliberately (#155).
@@ -103,18 +105,18 @@ dependencies = [
     "python-docx>=1.1.0",
     "openpyxl>=3.1.0",
     "llama-cloud>=2.18.0",
-    "liteparse>=2.16.0",
+    "liteparse>=2.18.0",
     # `html.parse` reads markup with bs4's standard-library parser and picks
     # elements with soupsieve. Both already ship through `pydantic-ai-slim`'s
     # web-fetch extra; declared here so a release of it cannot drop them.
     "beautifulsoup4>=4.15.0",
-    # GHSA-mmhr-3c5m-f64f: cache descendant matching for untrusted markup.
-    "soupsieve>=4.0.0",
+    # Patched selector matching for untrusted HTML (CVE-2026-126190).
+    "soupsieve>=4.1,<5",
     # Google Drive speaks plain REST through `app/services/rag/drive_api.py`;
     # `google-auth` only signs the service account's token, over `requests`.
     # `google-api-python-client` was 108 MB of discovery documents for four URLs.
-    "google-auth[requests]>=2.62.0",
-    "boto3>=1.43.114",
+    "google-auth[requests]>=2.62.1",
+    "boto3>=1.43.126",
     # Two HTTP libraries, deliberately. `httpx` is what fourteen modules build
     # and send their own requests with - the portals, the channels, the model
     # catalog, the web-research search - and `httpx2` is what the MCP SDK is
@@ -122,9 +124,9 @@ dependencies = [
     # because `app/core/pinned_http.py` imports it directly: the boundary is
     # wherever an object crosses into or out of a vendor SDK, and a library our
     # own code imports is one this manifest names (#1820).
-    "httpx[http2]>=0.28.0",
+    "httpx[http2]>=0.28.1",
     "httpx2>=2.13.1",
-    "click>=8.5.0",
+    "click>=8.5.1",
     # `cli/commands.py` renders every list the CLI prints. It has no import site
     # under `app/`, which is how it was briefly deleted as dead (#155) - the
     # `deptry` step reads `cli/` as well for exactly that reason.
@@ -134,7 +136,7 @@ dependencies = [
     "markdown-it-py>=4.0.0",
     "tqdm>=4.70.1",
     "tavily-python>=0.8.5",
-    "pydantic-monty>=1.1.0",
+    "pydantic-monty>=1.5.0",
     # Floors at 2.0, where each skill became its own deferred capability. The
     # platform's three skills tools collapsed to one: the catalog is the model's
     # own capability list, `load_capability` opens a skill, and only
@@ -173,7 +175,7 @@ dependencies = [
     "subagents-pydantic-ai>=0.2.25",
     "cryptography>=50.0.2",
     "aiogram>=3.31.0,<4.0",
-    "slack-sdk>=3.45.0",
+    "slack-sdk>=3.46.0",
     # What Slack Socket Mode actually needs. `app/services/channels/slack.py`
     # imports `slack_sdk.socket_mode.aiohttp` - the transport a bot uses when the
     # deployment exposes nothing - and slack-sdk keeps aiohttp behind an extra, so
@@ -208,13 +210,14 @@ dependencies = [
     # Checks an `agent.run` step's structured answer against the JSON Schema the
     # step declares, before anything downstream reads it (#1789). MIT; already
     # installed through the MCP SDK.
-    "jsonschema>=4.23.0",
-    # Keeps workflow trigger contracts self-contained, with no remote schema retrieval.
-    "referencing>=0.36.2",
+    "jsonschema>=4.26.0",
+    # An explicit registry disables remote reference fetching in MCP schemas.
+    "referencing>=0.37.0",
     # The `guardrails` phone detector, which the harness's PII patterns lack. The
     # lite build: the same `phonenumbers` module and numbering-plan metadata,
     # without the 20 MB of carrier, geocoding and time zone data nothing here reads.
-    "phonenumberslite>=9.0.41",
+    "phonenumberslite>=9.0.43",
+    "regex>=2026.9.10",
     # The ingest pool's memory watchdog (#2219): the resident size of a job's child
     # process and of whatever it starts - LibreOffice for a conversion - so a parse
     # that grows past its limit is stopped and the parent says why. `/proc` alone
@@ -273,12 +276,12 @@ mirage = [
 dev = [
     # The `mirage` extra's pin, for the suite - see the extra.
     "mirage-ai[pydantic-ai,ssh,mongodb,gridfs,postgres,redis,email,nextcloud,hf-buckets,chroma,mem0,langfuse,qdrant,lancedb]==0.0.8",
-    "pytest>=9.0.0",
-    "anyio[trio]>=4.15.1",
+    "pytest>=9.2.0",
+    "anyio[trio]>=4.16.0",
     "pytest-cov>=6.1.0",
     "httpx>=0.28.0",
-    "ruff>=0.17.1",
-    "ty>=0.0.88",
+    "ruff>=0.17.4",
+    "ty>=0.0.99",
     "pre-commit>=4.7.0",
     "pytest-xdist>=3.8.0",
     # Shuffles the suite every run and prints the seed, so an order-dependent
@@ -308,7 +311,7 @@ docs = [
     "mkdocs>=1.6.0",
     "mkdocs-glightbox>=0.5.2",
     "mkdocs-material>=9.5.0",
-    "mkdocstrings[python]>=1.0.7",
+    "mkdocstrings[python]>=1.0.8",
     # One build per locale from `<page>.<locale>.md` files sitting beside the
     # English source, so `/install/` keeps its URL and `/pl/install/` is added
     # rather than everything moving under `/en/`.
@@ -604,7 +607,7 @@ deprecated = "warn"
 # Optional deps imported inside try/except (pymupdf, docx, faker) and
 # feature-gated models referenced best-effort by the admin dashboard. These are
 # expected to be absent in some configs, so don't surface them at all.
-unresolved-import = "ignore"
+import-not-found = "ignore"
 # dict() overload matching on dynamic types from validators
 no-matching-overload = "warn"
 # Template uses mypy-style `# type: ignore` comments which ty doesn't recognize
@@ -648,6 +651,7 @@ include = [
     "app/core/claude_subscription.py",
     "app/schemas/claude_subscription.py",
     "app/api/routes/v1/personal_subscriptions.py",
+    "app/core/resource_icons.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
     "app/core/tool_identity.py",
@@ -743,6 +747,10 @@ include = [
     "app/repositories/local_service.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
+    "app/repositories/skill_usage.py",
+    "app/repositories/skill_check.py",
+    "app/repositories/skill_merge.py",
+    "app/repositories/skill_version.py",
     "app/services/attachments.py",
     # The one subprocess in the chat attachment feature (#1591): a managed,
     # killable `soffice` for DOC. Every branch is a refusal or a teardown - a
@@ -760,7 +768,11 @@ include = [
     # what stops an upload from writing outside its folder.
     "app/services/workspace_archive.py",
     "app/services/usage_report.py",
+    "app/services/skill_agents.py",
+    "app/services/skill_catch_up.py",
+    "app/services/skill_merge.py",
     "app/services/skill_proposal.py",
+    "app/services/skill_versions.py",
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/sms_media.py",
@@ -918,6 +930,7 @@ include = [
     # composition. Trust-boundary validation, gated where the rest of the RAG
     # pipeline is only reported.
     "app/services/rag/filters.py",
+    "app/services/rag/overlay.py",
     "app/services/rag/parent_context.py",
     # Whether a citation may name a page: a Markdown file was cited as "page 1" (#2489).
     "app/services/rag/citation.py",
@@ -929,6 +942,8 @@ include = [
     "app/services/spend.py",
     "app/services/stats.py",
     "app/services/transcript.py",
+    "app/db/models/agent_environment.py",
+    "app/schemas/agent_environment.py",
     "app/repositories/agent_environment.py",
     "app/repositories/agent_exposure.py",
     "app/repositories/agent_trigger.py",
@@ -937,6 +952,7 @@ include = [
     "app/repositories/mcp_server_check.py",
     "app/repositories/organization_secret.py",
     "app/repositories/secret_request.py",
+    "app/repositories/_visibility.py",
     "app/repositories/resource_grant.py",
     "app/api/routes/v1/_sharing_routes.py",
     "app/api/routes/v1/_sharing_loaders.py",
@@ -949,13 +965,20 @@ include = [
     "app/api/routes/v1/sandbox_connections.py",
     "app/api/routes/v1/skill_changes.py",
     "app/api/routes/v1/auto_skill_learning.py",
+    "app/api/routes/v1/skill_checks.py",
     "app/api/routes/v1/workspaces.py",
     "app/api/routes/v1/_workspace_bytes.py",
     "app/api/routes/v1/sharing.py",
     "app/api/routes/v1/stats.py",
     "app/repositories/run_manifest.py",
+    "app/db/models/intercepted_tool_call.py",
+    "app/repositories/intercepted_tool_call.py",
     "app/repositories/dashboard_layout.py",
     "app/services/dashboard_layout.py",
+    "app/schemas/onboarding.py",
+    "app/repositories/onboarding.py",
+    "app/services/onboarding.py",
+    "app/api/routes/v1/me_onboarding.py",
     "app/api/routes/v1/me_dashboard_layout.py",
     "app/repositories/dashboard_preset.py",
     "app/services/dashboard_preset.py",
@@ -973,6 +996,49 @@ include = [
     "app/db/models/agent_message.py",
     "app/schemas/agent_message.py",
     "app/api/routes/v1/context.py",
+    "app/db/models/dataset.py",
+    "app/schemas/dataset.py",
+    "app/schemas/dataset_helpers.py",
+    "app/repositories/dataset.py",
+    "app/repositories/_visibility.py",
+    "app/services/dataset.py",
+    "app/services/dataset_files.py",
+    "app/api/routes/v1/datasets.py",
+    "app/db/models/knowledge_gap.py",
+    "app/schemas/knowledge_gap.py",
+    "app/db/models/skill_usage.py",
+    "app/schemas/skill_usage.py",
+    "app/db/models/skill_check.py",
+    "app/db/models/skill_merge.py",
+    "app/services/skill_check_rules.py",
+    "app/schemas/skill_check.py",
+    "app/schemas/skill_merge.py",
+    "app/services/skill_check.py",
+    "app/repositories/knowledge_gap.py",
+    "app/services/knowledge_gaps.py",
+    "app/api/routes/v1/knowledge_gaps.py",
+    "app/services/system_agents.py",
+    "app/services/system_agent_runner.py",
+    "app/db/models/case_score.py",
+    "app/schemas/scoring.py",
+    "app/repositories/case_score.py",
+    "app/services/scorers.py",
+    "app/services/scoring.py",
+    "app/db/models/case_generation.py",
+    "app/schemas/case_generation.py",
+    "app/repositories/case_generation.py",
+    "app/services/case_generation/__init__.py",
+    "app/services/case_generation/facade.py",
+    "app/services/case_generation/sources.py",
+    "app/services/case_generation/drafts.py",
+    "app/services/case_generation/prompt.py",
+    "app/services/case_generation/estimate.py",
+    "app/services/case_generation/generation.py",
+    "app/services/case_generation/worker.py",
+    "app/api/routes/v1/dataset_generations.py",
+    "app/schemas/agent_test_set.py",
+    "app/services/agent_test_set.py",
+    "app/api/routes/v1/agent_test_sets.py",
     "app/db/models/artifact.py",
     "app/db/models/artifact_share_request.py",
     "app/schemas/artifact.py",
@@ -1104,6 +1170,63 @@ include = [
     "app/services/routine_delivery.py",
     "app/repositories/routine_delivery.py",
     "app/api/routes/v1/memory.py",
+    "app/db/models/eval_run.py",
+    "app/repositories/eval_run.py",
+    "app/services/eval_comparison.py",
+    "app/schemas/eval_threshold.py",
+    "app/schemas/eval_run.py",
+    "app/services/eval_run.py",
+    "app/services/eval_run_worker.py",
+    "app/api/routes/v1/eval_runs.py",
+    "app/core/cron.py",
+    "app/db/models/eval_suite.py",
+    "app/repositories/eval_suite.py",
+    "app/schemas/eval_suite.py",
+    "app/services/eval_suite_threshold.py",
+    "app/services/eval_suite.py",
+    "app/api/routes/v1/eval_suites.py",
+    "app/db/models/promotion_gate.py",
+    "app/repositories/promotion_gate.py",
+    "app/schemas/promotion_gate.py",
+    "app/services/promotion_gate.py",
+    # The authoring assistant: what it reads, what it proposes and how a person
+    # decides. Its evidence reads are the boundary that keeps it blind to evals.
+    "app/db/models/authoring.py",
+    "app/repositories/authoring.py",
+    "app/schemas/authoring.py",
+    "app/services/authoring_evidence.py",
+    "app/services/authoring_hunks.py",
+    "app/services/authoring_fields.py",
+    "app/services/authoring_config.py",
+    "app/services/authoring.py",
+    "app/services/authoring_worker.py",
+    "app/api/routes/v1/authoring.py",
+    "app/worker/tasks/authoring_tasks.py",
+    "app/worker/tasks/case_generation_tasks.py",
+    # Improvement sessions: the Improve pipeline run in the background up to a
+    # checked proposal.
+    "app/db/models/improvement.py",
+    "app/repositories/improvement.py",
+    "app/services/improvement_states.py",
+    "app/services/improvement_data.py",
+    "app/schemas/improvement.py",
+    "app/services/improvement_pipeline.py",
+    "app/services/improvement_skills.py",
+    "app/api/routes/v1/improvements.py",
+    "app/worker/tasks/improvement_tasks.py",
+    # Skill improvement sessions: the same steps on one line of a shared skill.
+    "app/db/models/skill_improvement.py",
+    "app/repositories/skill_improvement.py",
+    "app/schemas/skill_improvement.py",
+    "app/services/skill_improvement.py",
+    "app/api/routes/v1/skill_improvements.py",
+    "app/worker/tasks/skill_check_tasks.py",
+    "app/db/models/context_proposal.py",
+    "app/repositories/context_proposal.py",
+    "app/schemas/context_proposal.py",
+    "app/services/context_proposal.py",
+    "app/services/proposal_reach.py",
+    "app/api/routes/v1/context_changes.py",
     "app/api/routes/v1/primary_conversations.py",
     "app/api/routes/v1/outcomes.py",
     "app/api/routes/v1/system_agents.py",
@@ -1129,6 +1252,9 @@ include = [
     "app/schemas/coding_task_change.py",
     "app/repositories/coding_task_change.py",
     "app/services/coding_task_changes.py",
+    "app/services/_coding_task_revert.py",
+    "app/services/workspace_turn_guard.py",
+    "app/worker/tasks/coding_tasks.py",
     "app/db/models/coding_account.py",
     "app/schemas/coding_account.py",
     "app/repositories/coding_account.py",
@@ -1385,7 +1511,7 @@ unused-ignore-comment = "error"
 # faker), which are genuinely absent in some configurations. Nothing the
 # platform layer imports is optional, so here a name that does not resolve is a
 # typo or a dependency somebody dropped, and both should stop the build.
-unresolved-import = "error"
+import-not-found = "error"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -1432,6 +1558,7 @@ include = [
     "app/core/claude_subscription.py",
     "app/schemas/claude_subscription.py",
     "app/api/routes/v1/personal_subscriptions.py",
+    "app/core/resource_icons.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
     "app/core/tool_identity.py",
@@ -1530,6 +1657,10 @@ include = [
     "app/repositories/local_service.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
+    "app/repositories/skill_usage.py",
+    "app/repositories/skill_check.py",
+    "app/repositories/skill_merge.py",
+    "app/repositories/skill_version.py",
     "app/services/attachments.py",
     # The one subprocess in the chat attachment feature (#1591): a managed,
     # killable `soffice` for DOC. Every branch is a refusal or a teardown - a
@@ -1547,7 +1678,11 @@ include = [
     # what stops an upload from writing outside its folder.
     "app/services/workspace_archive.py",
     "app/services/usage_report.py",
+    "app/services/skill_agents.py",
+    "app/services/skill_catch_up.py",
+    "app/services/skill_merge.py",
     "app/services/skill_proposal.py",
+    "app/services/skill_versions.py",
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/sms_media.py",
@@ -1735,6 +1870,7 @@ include = [
     # composition. Trust-boundary validation, gated where the rest of the RAG
     # pipeline is only reported.
     "app/services/rag/filters.py",
+    "app/services/rag/overlay.py",
     "app/services/rag/parent_context.py",
     # Whether a citation may name a page: a Markdown file was cited as "page 1" (#2489).
     "app/services/rag/citation.py",
@@ -1746,6 +1882,8 @@ include = [
     "app/services/spend.py",
     "app/services/stats.py",
     "app/services/transcript.py",
+    "app/db/models/agent_environment.py",
+    "app/schemas/agent_environment.py",
     "app/repositories/agent_environment.py",
     "app/repositories/agent_exposure.py",
     "app/repositories/agent_trigger.py",
@@ -1754,6 +1892,7 @@ include = [
     "app/repositories/mcp_server_check.py",
     "app/repositories/organization_secret.py",
     "app/repositories/secret_request.py",
+    "app/repositories/_visibility.py",
     "app/repositories/resource_grant.py",
     "app/api/routes/v1/_sharing_routes.py",
     "app/api/routes/v1/_sharing_loaders.py",
@@ -1766,13 +1905,20 @@ include = [
     "app/api/routes/v1/sandbox_connections.py",
     "app/api/routes/v1/skill_changes.py",
     "app/api/routes/v1/auto_skill_learning.py",
+    "app/api/routes/v1/skill_checks.py",
     "app/api/routes/v1/workspaces.py",
     "app/api/routes/v1/_workspace_bytes.py",
     "app/api/routes/v1/sharing.py",
     "app/api/routes/v1/stats.py",
     "app/repositories/run_manifest.py",
+    "app/db/models/intercepted_tool_call.py",
+    "app/repositories/intercepted_tool_call.py",
     "app/repositories/dashboard_layout.py",
     "app/services/dashboard_layout.py",
+    "app/schemas/onboarding.py",
+    "app/repositories/onboarding.py",
+    "app/services/onboarding.py",
+    "app/api/routes/v1/me_onboarding.py",
     "app/api/routes/v1/me_dashboard_layout.py",
     "app/repositories/dashboard_preset.py",
     "app/services/dashboard_preset.py",
@@ -1790,6 +1936,49 @@ include = [
     "app/db/models/agent_message.py",
     "app/schemas/agent_message.py",
     "app/api/routes/v1/context.py",
+    "app/db/models/dataset.py",
+    "app/schemas/dataset.py",
+    "app/schemas/dataset_helpers.py",
+    "app/repositories/dataset.py",
+    "app/repositories/_visibility.py",
+    "app/services/dataset.py",
+    "app/services/dataset_files.py",
+    "app/api/routes/v1/datasets.py",
+    "app/db/models/knowledge_gap.py",
+    "app/schemas/knowledge_gap.py",
+    "app/db/models/skill_usage.py",
+    "app/schemas/skill_usage.py",
+    "app/db/models/skill_check.py",
+    "app/db/models/skill_merge.py",
+    "app/services/skill_check_rules.py",
+    "app/schemas/skill_check.py",
+    "app/schemas/skill_merge.py",
+    "app/services/skill_check.py",
+    "app/repositories/knowledge_gap.py",
+    "app/services/knowledge_gaps.py",
+    "app/api/routes/v1/knowledge_gaps.py",
+    "app/services/system_agents.py",
+    "app/services/system_agent_runner.py",
+    "app/db/models/case_score.py",
+    "app/schemas/scoring.py",
+    "app/repositories/case_score.py",
+    "app/services/scorers.py",
+    "app/services/scoring.py",
+    "app/db/models/case_generation.py",
+    "app/schemas/case_generation.py",
+    "app/repositories/case_generation.py",
+    "app/services/case_generation/__init__.py",
+    "app/services/case_generation/facade.py",
+    "app/services/case_generation/sources.py",
+    "app/services/case_generation/drafts.py",
+    "app/services/case_generation/prompt.py",
+    "app/services/case_generation/estimate.py",
+    "app/services/case_generation/generation.py",
+    "app/services/case_generation/worker.py",
+    "app/api/routes/v1/dataset_generations.py",
+    "app/schemas/agent_test_set.py",
+    "app/services/agent_test_set.py",
+    "app/api/routes/v1/agent_test_sets.py",
     "app/db/models/artifact.py",
     "app/db/models/artifact_share_request.py",
     "app/schemas/artifact.py",
@@ -1921,6 +2110,63 @@ include = [
     "app/services/routine_delivery.py",
     "app/repositories/routine_delivery.py",
     "app/api/routes/v1/memory.py",
+    "app/db/models/eval_run.py",
+    "app/repositories/eval_run.py",
+    "app/services/eval_comparison.py",
+    "app/schemas/eval_threshold.py",
+    "app/schemas/eval_run.py",
+    "app/services/eval_run.py",
+    "app/services/eval_run_worker.py",
+    "app/api/routes/v1/eval_runs.py",
+    "app/core/cron.py",
+    "app/db/models/eval_suite.py",
+    "app/repositories/eval_suite.py",
+    "app/schemas/eval_suite.py",
+    "app/services/eval_suite_threshold.py",
+    "app/services/eval_suite.py",
+    "app/api/routes/v1/eval_suites.py",
+    "app/db/models/promotion_gate.py",
+    "app/repositories/promotion_gate.py",
+    "app/schemas/promotion_gate.py",
+    "app/services/promotion_gate.py",
+    # The authoring assistant: what it reads, what it proposes and how a person
+    # decides. Its evidence reads are the boundary that keeps it blind to evals.
+    "app/db/models/authoring.py",
+    "app/repositories/authoring.py",
+    "app/schemas/authoring.py",
+    "app/services/authoring_evidence.py",
+    "app/services/authoring_hunks.py",
+    "app/services/authoring_fields.py",
+    "app/services/authoring_config.py",
+    "app/services/authoring.py",
+    "app/services/authoring_worker.py",
+    "app/api/routes/v1/authoring.py",
+    "app/worker/tasks/authoring_tasks.py",
+    "app/worker/tasks/case_generation_tasks.py",
+    # Improvement sessions: the Improve pipeline run in the background up to a
+    # checked proposal.
+    "app/db/models/improvement.py",
+    "app/repositories/improvement.py",
+    "app/services/improvement_states.py",
+    "app/services/improvement_data.py",
+    "app/schemas/improvement.py",
+    "app/services/improvement_pipeline.py",
+    "app/services/improvement_skills.py",
+    "app/api/routes/v1/improvements.py",
+    "app/worker/tasks/improvement_tasks.py",
+    # Skill improvement sessions: the same steps on one line of a shared skill.
+    "app/db/models/skill_improvement.py",
+    "app/repositories/skill_improvement.py",
+    "app/schemas/skill_improvement.py",
+    "app/services/skill_improvement.py",
+    "app/api/routes/v1/skill_improvements.py",
+    "app/worker/tasks/skill_check_tasks.py",
+    "app/db/models/context_proposal.py",
+    "app/repositories/context_proposal.py",
+    "app/schemas/context_proposal.py",
+    "app/services/context_proposal.py",
+    "app/services/proposal_reach.py",
+    "app/api/routes/v1/context_changes.py",
     "app/api/routes/v1/primary_conversations.py",
     "app/api/routes/v1/outcomes.py",
     "app/api/routes/v1/system_agents.py",
@@ -1946,6 +2192,9 @@ include = [
     "app/schemas/coding_task_change.py",
     "app/repositories/coding_task_change.py",
     "app/services/coding_task_changes.py",
+    "app/services/_coding_task_revert.py",
+    "app/services/workspace_turn_guard.py",
+    "app/worker/tasks/coding_tasks.py",
     "app/db/models/coding_account.py",
     "app/schemas/coding_account.py",
     "app/repositories/coding_account.py",
@@ -2198,6 +2447,7 @@ exclude_also = [
 ]
 
 [tool.uv]
+# CVE-2026-126360: bound untrusted traceparent parsing in the tracing stack.
 constraint-dependencies = [
     "dnspython>=2.9.2", # GHSA-vvf4-9x63-8xvv: bound WKS service bitmaps.
     "opentelemetry-api>=1.45.2", # GHSA-mf5v-w3w3-f6cg: bound traceparent parsing.
@@ -2213,4 +2463,4 @@ constraint-dependencies = [
 # CVE-2026-113725 only from 21.14.7, which needs packaging 26.3 - so the cap
 # held a known advisory in the lock. xai-sdk reads versions with packaging's
 # stable API; the xAI realtime tests exercise it. Drop this once xai-sdk allows 26.
-override-dependencies = ["pydantic[email]>=2.14.1", "packaging>=26.3"]
+override-dependencies = ["pydantic[email]>=2.14.3", "packaging>=26.3"]

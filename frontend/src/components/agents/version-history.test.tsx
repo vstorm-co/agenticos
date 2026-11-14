@@ -207,6 +207,39 @@ describe("the version timeline", () => {
   });
 });
 
+describe("a promotion past the evals", () => {
+  it("is shown on the version it promoted, saying who, past what and why", () => {
+    const override = {
+      id: "o-1",
+      environment_id: "production-id",
+      environment_name: "production",
+      user_id: "u-2",
+      reason: "Hotfix for the refund outage.",
+      created_at: "2026-10-21T10:00:00Z",
+      guards: [
+        { suite_id: "s1", suite_name: "Refunds", state: "failed" as const, result_id: "r1" },
+        { suite_id: "s2", suite_name: "Tone", state: "passed" as const, result_id: "r2" },
+      ],
+    };
+    mount({
+      versions: [
+        version(2, { overrides: [{ ...override, user_email: "admin@example.com" }] }),
+        version(1, { overrides: [{ ...override, id: "o-2", user_email: null }] }),
+      ],
+    });
+
+    const [newest, older] = screen.getAllByText("Overridden on production");
+    expect(newest).toHaveAttribute(
+      "title",
+      "admin@example.com promoted it past Refunds: Hotfix for the refund outage.",
+    );
+    expect(older).toHaveAttribute(
+      "title",
+      "Someone who has left promoted it past Refunds: Hotfix for the refund outage.",
+    );
+  });
+});
+
 describe("restoring", () => {
   it("is not offered for the version already running", () => {
     // A publish that changes nothing.
@@ -313,6 +346,40 @@ describe("the diff", () => {
 
     expect(screen.getByLabelText("Compare from")).toHaveTextContent("v2");
     expect(screen.getByLabelText("Compare to")).toHaveTextContent("Draft");
+  });
+
+  it("opens on the two versions a link asks for, once both are known", () => {
+    mount({ versions: [version(3), version(2), version(1)], compareFrom: 1, compareTo: 2 });
+
+    expect(screen.getByLabelText("Compare from")).toHaveTextContent("v1");
+    expect(screen.getByLabelText("Compare to")).toHaveTextContent("v2");
+  });
+
+  it("compares an asked-for version with the draft, and ignores one that does not exist", () => {
+    mount({ compareFrom: 1 });
+    expect(screen.getByLabelText("Compare from")).toHaveTextContent("v1");
+    expect(screen.getByLabelText("Compare to")).toHaveTextContent("Draft");
+  });
+
+  it("compares a version with the spec an eval run tested", () => {
+    mount({
+      compareFrom: 1,
+      compareTo: "tested",
+      testedSpec: { spec: spec({ instructions: "As tested." }), label: "Draft as tested" },
+    });
+    expect(screen.getByLabelText("Compare from")).toHaveTextContent("v1");
+    expect(screen.getByLabelText("Compare to")).toHaveTextContent("Draft as tested");
+    expect(screen.getByText(/As tested\./)).toBeInTheDocument();
+  });
+
+  it("waits for the tested spec before comparing with it", () => {
+    mount({ compareFrom: 1, compareTo: "tested" });
+    expect(screen.getByLabelText("Compare to")).toHaveTextContent("Draft");
+  });
+
+  it("keeps the default comparison when the asked-for version is not there", () => {
+    mount({ compareFrom: 9 });
+    expect(screen.getByLabelText("Compare from")).toHaveTextContent("v2");
   });
 
   it("says two identical specs are identical rather than showing an empty diff", () => {
@@ -472,4 +539,18 @@ describe("a history longer than a page", () => {
     expect(served.asked).toContain(10);
     expect(screen.getByLabelText("Compare from")).toHaveTextContent("v12");
   });
+});
+
+it("opens a frozen publication when a completion link names the same version on both sides", () => {
+  mount({
+    compareFrom: 1,
+    compareTo: 1,
+    draftSpec: spec({ instructions: "A later unpublished edit" }),
+  });
+  const snapshot = screen.getByRole("textbox", { name: "Published specification" });
+  expect(snapshot).toHaveAttribute("readonly");
+  if (!(snapshot instanceof HTMLTextAreaElement))
+    throw new Error("Expected a read-only spec field");
+  expect(snapshot.value).toContain("Be terse.");
+  expect(snapshot.value).not.toContain("A later unpublished edit");
 });

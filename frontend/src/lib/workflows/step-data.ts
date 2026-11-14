@@ -1,5 +1,11 @@
 import { entryGraph, entryNodes } from "./triggers";
-import { outputRefs, type Uuid, type WorkflowGraph, type WorkflowNodeRunRead } from "./types";
+import {
+  outputRefs,
+  type Uuid,
+  type WorkflowGraph,
+  type WorkflowNodeRunRead,
+  type WorkflowStepDecision,
+} from "./types";
 
 /** What one step did the last time a watched test run reached it. */
 export interface StepData {
@@ -7,6 +13,8 @@ export interface StepData {
   output: Record<string, unknown> | null;
   error: { code: string; message: string } | null;
   runId: string;
+  /** How an approval step was decided, when a run's own rows say so. */
+  approval?: WorkflowStepDecision;
 }
 
 /** How much data one step may have pinned, as compact UTF-8 JSON. Mirrors `MAX_PINNED_BYTES`. */
@@ -25,24 +33,113 @@ export function jsonBytes(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).length;
 }
 
+/** What one row did: its output once it succeeded, its error once it failed. */
+function rowData(runId: string, row: WorkflowNodeRunRead): StepData | null {
+  if (row.status === "succeeded" && row.output !== null) {
+    return row.approval
+      ? { output: row.output, error: null, runId, approval: row.approval }
+      : { output: row.output, error: null, runId };
+  }
+  // A run cancelled while a person was asked hands nothing on, but the request still says so.
+  if (row.status === "cancelled" && row.approval) {
+    return { output: null, error: null, runId, approval: row.approval };
+  }
+  if (row.status === "failed" && row.error !== null) {
+    return {
+      output: null,
+      error: { code: row.error.code, message: row.error.message },
+      runId,
+      ...(row.approval ? { approval: row.approval } : {}),
+    };
+  }
+  return null;
+}
+
 /**
  * What each step of a run did: its output once it succeeded, its error once it
- * failed. A step run once per loop item keeps its last item's.
+ * failed. A step run once per loop item keeps its last item's - what a step
+ * test pins for it.
  */
 export function stepDataOf(runId: string, rows: WorkflowNodeRunRead[]): Record<Uuid, StepData> {
   const data: Record<Uuid, StepData> = {};
   for (const row of rows) {
-    if (row.status === "succeeded" && row.output !== null) {
-      data[row.node_instance_id] = { output: row.output, error: null, runId };
-    } else if (row.status === "failed" && row.error !== null) {
-      data[row.node_instance_id] = {
-        output: null,
-        error: { code: row.error.code, message: row.error.message },
-        runId,
-      };
-    }
+    const done = rowData(runId, row);
+    if (done !== null) data[row.node_instance_id] = done;
   }
   return data;
+}
+
+/** The loop iteration a row ran in, as its item index in each enclosing loop. */
+export function iterationOf(row: WorkflowNodeRunRead): number[] {
+  return row.scope_path.map((scope) => scope.index);
+}
+
+/** Where one step's data in one loop iteration is kept. */
+function iterationKey(nodeId: Uuid, iteration: readonly number[]): string {
+  return [nodeId, ...iteration].join("/");
+}
+
+/**
+ * What each step of a run did in each loop iteration, for `stepDataAt`. A row
+ * with no result yet - pending, running, cancelled - is kept empty, so its
+ * iteration never shows another iteration's data.
+ */
+export function iterationDataOf(
+  runId: string,
+  rows: WorkflowNodeRunRead[],
+): Record<string, StepData> {
+  const data: Record<string, StepData> = {};
+  for (const row of rows) {
+    data[iterationKey(row.node_instance_id, iterationOf(row))] = rowData(runId, row) ?? {
+      output: null,
+      error: null,
+      runId,
+    };
+  }
+  return data;
+}
+
+/**
+ * The steps a run took, in the order they started: a step that never started -
+ * waiting its turn, skipped, cancelled first - is left out. The API lists rows
+ * in the order they were recorded, which a loop's item step breaks: it is
+ * recorded after the steps it started.
+ */
+export function stepsTaken(rows: WorkflowNodeRunRead[]): WorkflowNodeRunRead[] {
+  const notStarted = new Set(["pending", "skipped", "cancelled"]);
+  const at = (row: WorkflowNodeRunRead) => {
+    const time = row.started_at ?? row.ended_at;
+    return {
+      row,
+      millis: time === null ? Number.MAX_SAFE_INTEGER : Date.parse(time),
+      // Date.parse drops the microseconds PostgreSQL keeps on a fast step.
+      fraction: (time?.match(/\.(\d+)/)?.[1] ?? "").padEnd(6, "0"),
+    };
+  };
+  return rows
+    .filter((row) => row.started_at !== null || !notStarted.has(row.status))
+    .map(at)
+    .sort((a, b) => a.millis - b.millis || a.fraction.localeCompare(b.fraction))
+    .map(({ row }) => row);
+}
+
+/**
+ * What a step did as seen from one loop iteration: its row in that iteration -
+ * empty while it has no result - or in the nearest enclosing one for a step
+ * outside the loop, else its latest data. An empty iteration reads the latest
+ * data.
+ */
+export function stepDataAt(
+  stepData: Readonly<Record<Uuid, StepData>>,
+  iterations: Readonly<Record<string, StepData>>,
+  nodeId: Uuid,
+  iteration: readonly number[],
+): StepData | undefined {
+  for (let depth = iteration.length; depth > 0; depth--) {
+    const found = iterations[iterationKey(nodeId, iteration.slice(0, depth))];
+    if (found !== undefined) return found;
+  }
+  return stepData[nodeId];
 }
 
 /** The steps one step reads from: those its fields are bound to, then those wired into it. */
@@ -71,6 +168,8 @@ export function earlierSteps(
 ): Uuid[] {
   const steps = new Set([...reachable, ...sourcesOf(graph, nodeId)]);
   steps.delete(nodeId);
+  // A step switched off does nothing, so it has nothing to show or to read.
+  for (const node of graph.nodes) if (node.disabled === true) steps.delete(node.id);
   // How many connections back each step is, walking the wires upstream.
   const away = new Map<Uuid, number>([[nodeId, 0]]);
   const queue = [nodeId];

@@ -15,13 +15,21 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
-from app.api.deps import Auth, SkillSvc, require
+from app.api.deps import (
+    Auth,
+    SkillAgentSvc,
+    SkillCatchUpSvc,
+    SkillSvc,
+    SkillVersionSvc,
+    require,
+)
 from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
     GalleryInstallRequest,
     GalleryInstallResult,
+    GallerySkillPreview,
     SkillCreate,
     SkillGallery,
     SkillList,
@@ -31,6 +39,24 @@ from app.schemas.skill import (
     SkillResourceRead,
     SkillResourceUpdate,
     SkillUpdate,
+)
+from app.schemas.skill_usage import SkillUsageRead
+from app.schemas.skill_version import (
+    BehindMainList,
+    ReturnedToMain,
+    ReturnToMain,
+    SkillAgentList,
+    SkillBindingChange,
+    SkillBindingChanged,
+    SkillForkCreate,
+    SkillForkList,
+    SkillForkRead,
+    SkillForkUpdate,
+    SkillVersionCreate,
+    SkillVersionList,
+    SkillVersionRead,
+    SkillVersionRestore,
+    VersionResourceRead,
 )
 
 router = APIRouter(dependencies=[PUBLIC])
@@ -74,7 +100,7 @@ async def list_skills(
     dependencies=[Depends(require(Perm.SKILLS_EDIT))],
 )
 async def create_skill(data: SkillCreate, service: SkillSvc, ctx: Auth) -> Any:
-    return await service.create(
+    skill = await service.create(
         ctx,
         name=data.name,
         description=data.description,
@@ -84,6 +110,23 @@ async def create_skill(data: SkillCreate, service: SkillSvc, ctx: Auth) -> Any:
         group_ids=data.group_ids,
         user_ids=data.user_ids,
     )
+    return await service.read(ctx, skill)
+
+
+@router.get(
+    "/behind-main",
+    response_model=BehindMainList,
+    dependencies=[Depends(require(Perm.SKILLS_VIEW))],
+)
+async def skills_behind_main(service: SkillCatchUpSvc, ctx: Auth) -> Any:
+    """The pinned agents and the forks main has moved past, across the organization.
+
+    Nothing catches up by itself: each item is one a person may bring along. Skills
+    the caller may not view are left out, and pinned agents it may not view are
+    counted in `hidden`. Declared before `/{skill_id}`, which would read the path as
+    a malformed id.
+    """
+    return await service.behind_main(ctx)
 
 
 @router.get(
@@ -99,6 +142,19 @@ async def skill_gallery(service: SkillSvc, ctx: Auth) -> Any:
     than reaching here.
     """
     return await service.gallery(ctx)
+
+
+@router.get(
+    "/gallery/preview",
+    response_model=GallerySkillPreview,
+    dependencies=[Depends(require(Perm.SKILLS_VIEW))],
+)
+async def preview_gallery_skill(
+    service: SkillSvc, key: str = Query(..., description="`<industry>/<folder>`")
+) -> Any:
+    """One gallery skill's body and the names of its files, before installing it; 404
+    for a key the gallery does not hold. Declared before `/{skill_id}`, as the gallery is."""
+    return await service.gallery_preview(key)
 
 
 @router.post(
@@ -118,13 +174,34 @@ async def install_from_gallery(data: GalleryInstallRequest, service: SkillSvc, c
 
 @router.get("/{skill_id}", response_model=SkillRead)
 async def get_skill(skill_id: UUID, service: SkillSvc, ctx: Auth) -> Any:
-    return await service.get(ctx, skill_id)
+    return await service.read(ctx, await service.get(ctx, skill_id))
+
+
+@router.get("/{skill_id}/usage", response_model=SkillUsageRead)
+async def get_skill_usage(
+    skill_id: UUID,
+    service: SkillSvc,
+    ctx: Auth,
+    days: int = Query(30, ge=1, le=90, description="How far back to count"),
+) -> Any:
+    """How often each agent used this skill: opened it, or read one of its files.
+
+    Runs of evals and of the Builder's test panel are not counted, and a
+    delegate's use counts under the delegate. Needs `runs:view`; agents the
+    caller cannot see are a count, never named.
+    """
+    return await service.usage(ctx, skill_id, days=days)
 
 
 @router.patch("/{skill_id}", response_model=SkillRead)
 async def update_skill(skill_id: UUID, data: SkillUpdate, service: SkillSvc, ctx: Auth) -> Any:
-    """Edit a skill. Every agent bound to it is current on the next run."""
-    return await service.update(ctx, skill_id, data)
+    """Edit a skill's main line: a changed text is a new main version.
+
+    Agents on main read it from their next run; pinned agents and forks keep theirs.
+    `POST /skills/{skill_id}/versions` does the same with a check that nobody saved a
+    newer version since it was read.
+    """
+    return await service.read(ctx, await service.update(ctx, skill_id, data))
 
 
 @router.delete(
@@ -132,8 +209,21 @@ async def update_skill(skill_id: UUID, data: SkillUpdate, service: SkillSvc, ctx
     status_code=status.HTTP_204_NO_CONTENT,
     response_model=None,
 )
-async def delete_skill(skill_id: UUID, service: SkillSvc, ctx: Auth) -> None:
-    await service.delete(ctx, skill_id)
+async def delete_skill(
+    skill_id: UUID,
+    service: SkillSvc,
+    ctx: Auth,
+    remove_from_agents: bool = Query(
+        False,
+        description=(
+            "Take the skill out of every agent that uses it first, publishing a version "
+            "without it where an environment that follows publishes serves it; all or "
+            "nothing. Without it, a skill in use is refused with 409"
+        ),
+    ),
+) -> None:
+    """Delete a skill, with every version and fork it has."""
+    await service.delete(ctx, skill_id, remove_from_agents=remove_from_agents)
 
 
 @router.post(
@@ -211,3 +301,140 @@ async def update_resource(
 )
 async def remove_resource(skill_id: UUID, resource_id: UUID, service: SkillSvc, ctx: Auth) -> None:
     await service.remove_resource(ctx, skill_id, resource_id)
+
+
+@router.get("/{skill_id}/versions", response_model=SkillVersionList)
+async def list_versions(
+    skill_id: UUID,
+    service: SkillVersionSvc,
+    ctx: Auth,
+    fork_id: UUID | None = Query(None, description="A fork's own versions; unset lists main's"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """One line's versions, newest first, without their text."""
+    return await service.list_versions(ctx, skill_id, fork_id=fork_id, skip=skip, limit=limit)
+
+
+@router.post(
+    "/{skill_id}/versions",
+    response_model=SkillVersionRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_version(
+    skill_id: UUID, data: SkillVersionCreate, service: SkillVersionSvc, ctx: Auth
+) -> Any:
+    """Save an edit of the text and description as a new version of main or of a fork.
+
+    Refused with 409 when the line has a newer version than `base_version_id`, so an
+    edit made on an old text never replaces a newer one unseen.
+    """
+    return await service.edit(ctx, skill_id, data)
+
+
+@router.get("/{skill_id}/versions/{version_id}", response_model=SkillVersionRead)
+async def read_version(
+    skill_id: UUID, version_id: UUID, service: SkillVersionSvc, ctx: Auth
+) -> Any:
+    """One version with its text and the list of its files."""
+    return await service.read_version(ctx, skill_id, version_id)
+
+
+@router.get(
+    "/{skill_id}/versions/{version_id}/resources/{name:path}", response_model=VersionResourceRead
+)
+async def read_version_resource(
+    skill_id: UUID, version_id: UUID, name: str, service: SkillVersionSvc, ctx: Auth
+) -> Any:
+    """One file as that version had it."""
+    return await service.read_resource(ctx, skill_id, version_id, name)
+
+
+@router.post(
+    "/{skill_id}/versions/{version_id}/restore",
+    response_model=SkillVersionRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def restore_version(
+    skill_id: UUID,
+    version_id: UUID,
+    data: SkillVersionRestore,
+    service: SkillVersionSvc,
+    ctx: Auth,
+) -> Any:
+    """Bring an earlier version back as the newest version of its own line."""
+    return await service.restore(ctx, skill_id, version_id, data)
+
+
+@router.get("/{skill_id}/forks", response_model=SkillForkList)
+async def list_forks(
+    skill_id: UUID,
+    service: SkillVersionSvc,
+    ctx: Auth,
+    archived: bool = Query(False, description="List the archived forks instead"),
+) -> Any:
+    return await service.list_forks(ctx, skill_id, archived=archived)
+
+
+@router.post(
+    "/{skill_id}/forks",
+    response_model=SkillForkRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_fork(
+    skill_id: UUID, data: SkillForkCreate, service: SkillVersionSvc, ctx: Auth
+) -> Any:
+    """Start a fork from a main version; a fork of a fork is refused."""
+    return await service.create_fork(ctx, skill_id, data)
+
+
+@router.patch("/{skill_id}/forks/{fork_id}", response_model=SkillForkRead)
+async def rename_fork(
+    skill_id: UUID, fork_id: UUID, data: SkillForkUpdate, service: SkillVersionSvc, ctx: Auth
+) -> Any:
+    return await service.rename_fork(ctx, skill_id, fork_id, data)
+
+
+@router.post("/{skill_id}/forks/{fork_id}/archive", response_model=SkillForkRead)
+async def archive_fork(skill_id: UUID, fork_id: UUID, service: SkillVersionSvc, ctx: Auth) -> Any:
+    """Archive a fork. It keeps its versions; it is never deleted."""
+    return await service.archive_fork(ctx, skill_id, fork_id)
+
+
+@router.post("/{skill_id}/forks/{fork_id}/return-to-main", response_model=ReturnedToMain)
+async def return_fork_to_main(
+    skill_id: UUID, fork_id: UUID, data: ReturnToMain, service: SkillCatchUpSvc, ctx: Auth
+) -> Any:
+    """Move a fork's agents back to main's newest version, and archive the fork once
+    nobody reads it.
+
+    Each agent moves as Change version moves it, and one that cannot be moved stays on
+    the fork with the reason. Agents the caller may not see are counted and left alone.
+    """
+    return await service.return_to_main(ctx, skill_id, fork_id, data)
+
+
+@router.get("/{skill_id}/agents", response_model=SkillAgentList)
+async def list_skill_agents(skill_id: UUID, service: SkillAgentSvc, ctx: Auth) -> Any:
+    """The agents that use the skill, with the version each reads in each environment.
+
+    Agents the caller may not see are counted in `hidden` and not named.
+    """
+    return await service.agents(ctx, skill_id)
+
+
+@router.put("/{skill_id}/agents/{agent_id}/binding", response_model=SkillBindingChanged)
+async def change_skill_binding(
+    skill_id: UUID,
+    agent_id: UUID,
+    data: SkillBindingChange,
+    service: SkillAgentSvc,
+    ctx: Auth,
+) -> Any:
+    """Move an agent to main's newest version, a main version, or a fork of this skill.
+
+    With `agents:publish` on the agent, its published spec with only this binding
+    changed goes live as a new agent version and the draft takes the same change;
+    with `agents:edit` alone, only the draft changes and `published` is false.
+    """
+    return await service.change_binding(ctx, skill_id, agent_id, data)
