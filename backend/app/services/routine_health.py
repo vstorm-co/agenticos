@@ -11,12 +11,13 @@ from app.repositories import agent_trigger as trigger_repo
 from app.repositories import routine_health as health_repo
 from app.repositories import watch as watch_repo
 
-_TERMINAL = frozenset(
+# A budget stop is absent: a refused activation waits for the next one and says
+# nothing about whether the routine works.
+_JUDGED = frozenset(
     {
         RunStatus.COMPLETED.value,
         RunStatus.FAILED.value,
         RunStatus.LOOP_STOPPED.value,
-        RunStatus.BUDGET_EXCEEDED.value,
         RunStatus.GUARDRAIL_BLOCKED.value,
         RunStatus.TIMED_OUT.value,
     }
@@ -31,7 +32,7 @@ class RoutineHealthService:
         if (
             run.parent_run_id is not None
             or run.routine_origin_id is None
-            or run.status not in _TERMINAL
+            or run.status not in _JUDGED
         ):
             return
         activation = run.routine_activation_at or run.started_at
@@ -70,11 +71,9 @@ class RoutineHealthService:
         status: WatchAttemptStatus,
         run: AgentRun | None = None,
     ) -> None:
-        if status is WatchAttemptStatus.DELIVERY_UNAVAILABLE or (
-            status is WatchAttemptStatus.BUDGET_PAUSED and run is None
-        ):
+        if status in (WatchAttemptStatus.DELIVERY_UNAVAILABLE, WatchAttemptStatus.BUDGET_PAUSED):
             return
-        if run is not None and run.status not in _TERMINAL:
+        if run is not None and run.status not in _JUDGED:
             return
         current = await watch_repo.get_by_id(self.db, watch.id, fresh=True, for_update=True)
         if (

@@ -757,7 +757,7 @@ describe("useChat - the streamed answer", () => {
 });
 
 describe("useChat - failures and interruptions", () => {
-  it("writes the error into the message being streamed", () => {
+  it("keeps the error separate from the streamed answer", () => {
     renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("text_delta", { index: 0, content: "Let me check." });
@@ -765,7 +765,9 @@ describe("useChat - failures and interruptions", () => {
     receive("error", { message: "Budget exceeded" });
 
     expect(streaming()).toMatchObject({ isStreaming: false });
-    expect(streaming()?.content).toContain("❌ Error: Budget exceeded");
+    expect(streaming()?.content).not.toContain("Budget exceeded");
+    expect(streaming()?.runFailed).toBe(true);
+    expect(streaming()?.runError).toBe("Budget exceeded");
   });
 
   it("answers a refusal that came before the turn opened a message, instead of dropping it", () => {
@@ -776,7 +778,7 @@ describe("useChat - failures and interruptions", () => {
 
     const answer = useChatStore.getState().messages.at(-1);
     expect(answer).toMatchObject({ role: "assistant", isStreaming: false });
-    expect(answer?.content).toContain("This agent has no model");
+    expect(answer?.runError).toBe("This agent has no model");
     expect(result.current.isProcessing).toBe(false);
   });
 
@@ -786,7 +788,7 @@ describe("useChat - failures and interruptions", () => {
 
     receive("error", { message: "" });
 
-    expect(streaming()?.content).toContain("Unknown error");
+    expect(streaming()?.runError).toBe("Unknown error");
   });
 
   it("shows a late save failure on the stopped reply without restarting it", () => {
@@ -807,7 +809,7 @@ describe("useChat - failures and interruptions", () => {
 
     expect(streaming()).toMatchObject({ id: stoppedId, isStreaming: false, isTemporaryId: true });
     expect(streaming()?.content).toContain("Part of the answer.");
-    expect(streaming()?.content).toContain("The reply could not be saved.");
+    expect(streaming()?.runError).toBe("The reply could not be saved.");
     expect(streaming()?.content).not.toContain("Late text");
     expect(
       useChatStore.getState().messages.filter((message) => message.role === "assistant"),
@@ -836,7 +838,7 @@ describe("useChat - failures and interruptions", () => {
       .getState()
       .messages.filter((message) => message.role === "assistant");
     expect(replies[0]?.content).toBe("Stopped answer.");
-    expect(replies[1]?.content).toContain("The new reply was not saved.");
+    expect(replies[1]?.runError).toBe("The new reply was not saved.");
   });
 
   it("forgets the stopped reply when another conversation opens", () => {
@@ -881,7 +883,7 @@ describe("useChat - failures and interruptions", () => {
       .getState()
       .messages.filter((message) => message.role === "assistant");
     expect(replies[0]?.content).toBe("Stopped answer.");
-    expect(replies[1]?.content).toContain("The new reply was not saved.");
+    expect(replies[1]?.runError).toBe("The new reply was not saved.");
   });
 
   // Every ending ends the call that was already out too, not only the one still
@@ -1402,7 +1404,7 @@ describe("useChat - the conversation a turn belongs to", () => {
     receive("complete", { usage });
 
     expect(streaming()?.content).toContain("Two are open.");
-    expect(streaming()?.content).toContain(warning);
+    expect(streaming()?.runError).toBe(warning);
     expect(streaming()).toMatchObject({ isTemporaryId: true, isStreaming: false, usage });
     expect(result.current.lastUsage).toEqual(usage);
     expect(result.current.isProcessing).toBe(false);
@@ -5985,7 +5987,7 @@ describe("useChat - the outbox (#2097)", () => {
       expect(prompts).toHaveLength(1);
       expect(prompts[0]).toMatchObject({ id: messageId ?? prompt.id, renderKey: prompt.id });
       expect(streaming()?.content).toContain("The answer to second.");
-      expect(streaming()?.content).toContain("The reply could not be saved.");
+      expect(streaming()?.runError).toBe("The reply could not be saved.");
 
       receive("turn_followed_to_end", { conversation_id: "c-1" });
       await act(async () => vi.advanceTimersByTimeAsync(100));
@@ -6003,7 +6005,7 @@ describe("useChat - the outbox (#2097)", () => {
     receive("error", { message: "Pick an agent." });
 
     expect(result.current.queuedMessages).toEqual([]);
-    expect(useChatStore.getState().messages.at(-1)?.content).toContain("Pick an agent.");
+    expect(useChatStore.getState().messages.at(-1)?.runError).toBe("Pick an agent.");
   });
 
   it("takes the queue off the screen on a switch without dropping it from the device", () => {
@@ -7269,6 +7271,24 @@ describe("useChat - the floating assistant's submitted page and agent", () => {
   });
 });
 
+it("renders a setup reply as an AgenticOS message and receipt without inventing a run", () => {
+  renderHook(() => useChat(), { wrapper });
+  receive("model_setup_required", { agent_id: "starter", text: "Connect a model to continue." });
+  const reply = useChatStore.getState().messages.at(-1);
+  expect(reply).toMatchObject({
+    role: "assistant",
+    agentId: "starter",
+    content: "Connect a model to continue.",
+    animateSetupReply: true,
+    isStreaming: false,
+  });
+  expect(reply?.parts?.map((part) => part.type)).toEqual(["text", "model_setup"]);
+  expect(reply?.runId).toBeUndefined();
+  receive("message_saved", { message_id: "saved-setup" });
+  receive("complete", {});
+  expect(useChatStore.getState().messages.at(-1)?.id).toBe("saved-setup");
+});
+
 describe("useChat - computer access continues only its successful turn", () => {
   function asking() {
     useConversationStore.getState().setCurrentConversationId("c-1");
@@ -7455,6 +7475,63 @@ describe("explicit room thread stream scope", () => {
     conversation_id: "c-1",
     thread_root_message_id: root,
     ...rest,
+  });
+
+  it("keeps a setup reply in the main room after following a thread's answer", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    receive("turn_attached", scope("root-a"));
+    receive("model_request_start", scope("root-a"));
+    receive("text_delta", scope("root-a", { index: 0, content: "Thread answer" }));
+    receive(
+      "message_saved",
+      scope("root-a", {
+        message_id: "thread-answer",
+        run_id: "thread-run",
+        run_status: "completed",
+      }),
+    );
+    receive("complete", scope("root-a"));
+    receive("turn_followed_to_end", scope("root-a"));
+
+    // Foreground setup sends its main-room user_prompt before the unscoped setup frame.
+    receive("user_prompt", scope(null, { message_id: "main-question" }));
+    receive("model_setup_required", { agent_id: "starter", text: "Connect a model to continue." });
+    const reply = useChatStore.getState().messages.at(-1);
+    expect(reply).toMatchObject({
+      content: "Connect a model to continue.",
+      agentId: "starter",
+      animateSetupReply: true,
+      isStreaming: false,
+      threadRootMessageId: undefined,
+    });
+    expect(reply?.runId).toBeUndefined();
+    expect(result.current.activeThreadRootId).toBeNull();
+    expect(
+      useChatStore.getState().messages.find((message) => message.id === "thread-answer"),
+    ).toMatchObject({ content: "Thread answer", threadRootMessageId: "root-a" });
+  });
+
+  it("keeps a failed run's cause with its thread without changing the next main-room answer", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    receive("model_request_start", scope("root-a"));
+    receive("text_delta", scope("root-a", { index: 0, content: "Partial answer" }));
+    receive("error", scope("root-a", { message: "The model provider blocked this response." }));
+    expect(useChatStore.getState().messages.at(-1)).toMatchObject({
+      content: "Partial answer",
+      threadRootMessageId: "root-a",
+      runFailed: true,
+      runError: "The model provider blocked this response.",
+      isStreaming: false,
+    });
+    receive("complete", scope("root-a"));
+    receive("model_request_start", scope(null));
+    receive("text_delta", scope(null, { index: 0, content: "Main-room answer" }));
+    const main = useChatStore.getState().messages.at(-1);
+    expect(main).toMatchObject({ content: "Main-room answer", threadRootMessageId: undefined });
+    expect(main?.runFailed).toBeUndefined();
+    expect(main?.runError).toBeUndefined();
   });
 
   it("tags prompts and assistant rows before their first upsert and resets to main room explicitly", () => {
@@ -7679,4 +7756,20 @@ describe("explicit room thread stream scope", () => {
     expect(result.current.activeThreadRootId).toBe("root-b");
     expect(result.current.actionThreadRoots.questions).toBe("root-a");
   });
+});
+
+it.each([
+  null,
+  {},
+  { agent_id: "starter" },
+  { agent_id: 7, text: "Connect a model" },
+  { agent_id: "starter", text: 7 },
+])("ignores a malformed setup response without adding a transcript row: %j", (data) => {
+  renderHook(() => useChat(), { wrapper });
+  act(() =>
+    socket.onMessage?.(
+      new MessageEvent("message", { data: JSON.stringify({ type: "model_setup_required", data }) }),
+    ),
+  );
+  expect(useChatStore.getState().messages).toEqual([]);
 });

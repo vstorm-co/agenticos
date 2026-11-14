@@ -284,3 +284,17 @@ async def test_a_kind_that_never_died_reads_as_untouched(db: AsyncSession) -> No
         "reap-stale-runs", organization_id=None, actor_user_id=ADMIN
     )
     assert (resumed.consecutive_deaths, resumed.lease_lost) == (0, 0)
+
+
+@pytest.mark.parametrize("kind", ["run-eval", "move-project-workspace"])
+async def test_settled_domain_work_requires_a_new_request_not_a_queue_retry(db, kind):
+    job_id = await _job(db, kind=kind)
+    await job_repo.claim(db, pool="system", worker_id="w", lease=timedelta(seconds=-1))
+    await job_repo.rescue_expired(db, retry_in=timedelta(0))
+    service = BackgroundJobService(db)
+    (listed,) = (await service.list_jobs(kind=kind)).items
+    assert listed.retry_refusal is not None
+    with pytest.raises(BadRequestError, match="Start a new"):
+        await service.retry(job_id, actor_user_id=ADMIN)
+    assert (await job_repo.get(db, job_id)).status == "dead"
+    assert await _audited(db) == []

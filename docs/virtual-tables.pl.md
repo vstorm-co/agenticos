@@ -1,8 +1,10 @@
 ---
-source_sha: "96494123ddae"
+source_sha: "9bf7eb650d8e"
 ---
 
 # Virtual Tables { #virtual-tables }
+
+Ikonę tabeli wybierasz obok jej nazwy w szczegółach. Karta katalogu i wiersz dashboardu używają tego samego symbolu. **Użyj domyślnej ikony** resetuje wybór; kolumny, rekordy i wersje schematu pozostają bez zmian. Kontrolka respektuje prawo zarządzania tabelą, także ograniczenia tablic zadań.
 
 **Virtual table** to typowana tabela rekordów, którą organizacja trzyma dla swoich
 agentów, [workflow](workflows.md) i integracji: zamówienia do uzgodnienia, pliki do przetworzenia,
@@ -174,8 +176,12 @@ ją z bieżącymi kolumnami:
   i z powrotem, gdy jest całkowita; data staje się datą z czasem; jeden wybór staje się
   kilkoma i z powrotem, gdy jest jeden. Każda inna zmiana jest odrzucana, podobnie jak
   taka, której któraś wartość nie przetrwa - z liczbą i przykładem, a nic nie zostaje
-  zapisane. Coś, co używa kolumny, odrzuca zmianę tak jak archiwizację. Rewizja rekordu
-  idzie dalej, więc edycja według starej wartości jest konfliktem.
+  zapisane. Coś, co używa kolumny, odrzuca zmianę tak jak archiwizację. Rekord, którego
+  wartość w nowym typie brzmi inaczej, dostaje nową rewizję, więc edycja według starej
+  wartości jest konfliktem, a jego historia zapisuje zmianę pod osobą, która ją zrobiła;
+  wartość, której zmiana nie rusza, zostawia rewizję rekordu bez zmian. Zmiana typu nie
+  uruchamia żadnego [triggera](#triggers): jedna edycja schematu nie startuje workflowu
+  dla każdego rekordu.
 - Tekst staje się kolumną `email`, `url`, `phone` lub `rating`, gdy każda wartość
   się nią czyta, a liczba staje się oceną, gdy jest liczbą całkowitą od 1 do 5. Każda
   z nich wraca do tekstu, a ocena także do liczby.
@@ -195,7 +201,7 @@ ją z bieżącymi kolumnami:
   opcjami, nie zmienia niczego: nie powstaje wersja, a zwracana jest bieżąca tabela.
   Zmiana kolejności lub etykiety jest zmianą.
 
-Rekordy nie są przepisywane. Rekord zapisany w wersji 1 pozostaje czytelny i
+Poza zmianą typu rekordy nie są przepisywane. Rekord zapisany w wersji 1 pozostaje czytelny i
 edytowalny w wersji 4; wymagana kolumna, której nigdy nie miał, dostaje wartość
 domyślną przy najbliższej edycji rekordu.
 
@@ -325,7 +331,9 @@ nic nie zostaje zapisane, dopóki nie ma wszystkich wymaganych wartości.
 
 Każda edycja to jeden `PATCH` względem rewizji widocznej na ekranie, więc edycja, która
 przegrywa z nowszą zmianą, zostaje odrzucona, a nie zapisana na niej. Rekord otwiera się
-wtedy z odrzuconą wartością zachowaną obok **Reload and reapply**. Zaznaczenie wierszy
+wtedy z odrzuconą wartością zachowaną obok **Reload and reapply** i zostaje odczytany
+ponownie: pole mówi, co zawiera teraz, kto ostatnio zmienił rekord i kiedy, a tytuł
+panelu się odświeża. Zaznaczenie wierszy
 udostępnia **Delete** dla wszystkich naraz, każdy względem własnej rewizji: rekord,
 który ktoś w międzyczasie zmienił, zostaje, a konsola mówi, ile takich było. Panel
 rekordu usuwa pojedynczy rekord w ten sam sposób.
@@ -349,7 +357,11 @@ W **Columns** przełącznik **Required** sprawia, że kolumna wymaga wartości, 
 zarchiwizowana kolumna trafia do **Archived columns**, skąd **Restore** przywraca ją
 razem z jej wartościami.
 
+Odczyt porównania zachowuje niezapisane edycje innych pól i ich pierwotną rewizję. Kolejny konflikt odczytuje nowe porównanie; odpowiedź dla zamkniętego rekordu nie zamknie innego rekordu. Długie wartości mają skrócony podgląd.
+
 ### Import i eksport { #import-and-export }
+
+Podczas importu CSV przypisz każdą kolumnę tabeli, także **External id**, tylko raz. Powtórzone przypisania są oznaczone i blokują import do czasu wybrania innej kolumny docelowej lub pominięcia jednej z kolumn pliku.
 
 Eksport odczytuje najwyżej 4 MiB rozwiniętego JSON rekordów na stronę (albo jeden
 rekord), maksymalnie 500 rekordów naraz. Organizacja może przesyłać jeden eksport
@@ -377,9 +389,15 @@ nieudany wiersz z numerem linii. Każdy dodany rekord uruchamia wyzwalacze tabel
 każdy inny.
 
 Gdy zmapowane jest **External id**, **Update records already here** importuje plik
-ponownie, żeby zaktualizować tabelę: wiersz, którego zewnętrzne id tabela już ma, zmienia
-wskazane komórki tego rekordu zamiast zostać odrzucony jako zajęty (`update_existing` w
-partii), a import podaje, ile dodał i ile zaktualizował.
+ponownie, żeby zaktualizować tabelę: wiersz, którego zewnętrzne id tabela już ma,
+zmienia wskazane komórki tego rekordu zamiast zostać odrzucony jako zajęty
+(`update_existing` w partii), a import podaje, ile dodał i ile zaktualizował.
+
+Rekord, który ktoś zmienił po rozpoczęciu importu, zostaje bez zmian i trafia na listę
+jako `REVISION_CONFLICT`: pierwsza partia odpowiada `as_of`, czyli chwilą rozpoczęcia
+według zegara serwera, a kolejne go odsyłają. Wiersz powtarzający zewnętrzne id, które
+plik już podał, trafia na listę zamiast zostać wysłany, a partia odrzuca wiersz
+powtarzający id, które już zawiera, kodem `INVALID_RECORD`.
 
 **New table** zaczyna się od kolumny **Name**. Najpierw podaj nazwę tabeli i jej kolumny; opis oraz widoczność są pod **More options**, z domyślną widocznością prywatną. Zamiast tego może zacząć się od pliku:
 **Start from a CSV file** zamienia nagłówek na kolumny i daje każdej najwęższy typ, w którym dają się odczytać
@@ -397,7 +415,7 @@ Ponowienie z tym samym kluczem i tą samą treścią zwraca pierwszą odpowiedź
 międzyczasie. Ten sam klucz z inną treścią jest odrzucany kodem
 `IDEMPOTENCY_KEY_REUSED`.
 
-Nagłówek oznacza powtórzone create, update lub upsert. Powtórzone usunięcie odpowiada 204
+Nagłówek oznacza powtórzone create, update, upsert lub partię. Powtórzone usunięcie odpowiada 204
 jak za pierwszym razem i nie jest oznaczane.
 
 Klucz należy do wywołującego i do rodzaju zapisu, więc dwóch wywołujących może użyć
@@ -468,6 +486,8 @@ Właściciel widoku przełącza go między **Private** a **Shared** przyciskiem 
 **Rename**. Ktoś, kto zarządza widokiem innego członka, na przykład administrator, nie
 dostaje tego przełącznika: o udostępnieniu czyichś filtrów decyduje ich autor.
 
+Na telefonie menu **Views** zapisanego widoku zawiera zapis nowego widoku, zmianę nazwy, udostępnianie i usuwanie, zgodnie z tymi samymi uprawnieniami co kontrolki na komputerze.
+
 `GET/POST /tables/{id}/views` oraz `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 listują, tworzą, czytają, aktualizują i usuwają je. Lista jest stronicowana przez
 `skip` i `limit` (najwyżej 100): najpierw własne widoki wywołującego, potem
@@ -482,7 +502,7 @@ Obiekt `display` przechowuje `column_order`, `hidden_system_columns`, `wrap_text
 |---|---|
 | `kind` | `table`, `kanban` lub `list` - widok jest zapisany *dla* jednego rodzaju |
 | `visibility` | `private` (tylko właściciel) lub `shared` (każdy, kto widzi tabelę) |
-| `can_manage` | Czy ten wywołujący może zmienić nazwę, przekonfigurować lub udostępnić widok |
+| `can_manage` | Czy ten wywołujący może zmienić nazwę lub przekonfigurować widok; udostępnia go tylko właściciel |
 | `can_delete` | Czy ten wywołujący może usunąć widok |
 
 Listowanie, odczyt i usunięcie rozwiązują się względem tabeli (`tables:view`);
@@ -498,6 +518,12 @@ członka. Odmowa działa tak samo jak przy każdym innym zapisie na jednym zasob
 tutaj: `NOT_FOUND` (404), nigdy 403, który ujawniłby istnienie widoku wywołującemu,
 któremu go odmówiono. `can_manage` i `can_delete` mówią, co z tych dwóch ten
 wywołujący może zrobić.
+
+Prywatny widok innego członka jest jeszcze węższy: nawet wywołujący ze scope
+`ALL` może go tylko usunąć, nigdy zmienić ani odczytać, więc `PATCH` odpowiada
+`NOT_FOUND` tak, jak dla widoku, który nie istnieje. A `visibility` widoku
+zmienia tylko jego właściciel: każdy inny, kto wyśle inną wartość, dostaje
+odmowę `AUTHORIZATION_ERROR` (403), bo ten widok i tak ma już przed sobą.
 
 Zarchiwizowanie kolumny jest odrzucane z `SCHEMA_DEPENDENCY`, wskazując widok, gdy
 widok, który wywołujący może zarówno zobaczyć, jak i zmienić, nadal używa jej do
@@ -573,6 +599,12 @@ wartości jako `fields` według etykiet i `author_id`, a przy zmianie lub usuni�
 także `before` oraz kolumny `changed` według etykiet. **Triggers** na stronie tabeli
 wymienia workflow, które od niej startują, wstrzymuje i wznawia każdy z nich oraz
 otwiera jego historię.
+
+Wstrzymanie go tam wymaga `tables:edit` na tabeli. Wznowienie znowu uruchamia
+workflow jako osobę, która go opublikowała, więc wymaga też `workflows:edit` i
+`workflows:run` na tym workflow, tak jak własny przełącznik **Active** workflow;
+członek, który może edytować tabelę, ale nie workflow, dostaje odpowiedź, że
+workflow nie istnieje.
 
 Wyzwalacz startuje tylko dla rekordów dodanych, gdy jest włączony. Włączenie -
 publikacja albo wznowienie - bierze blokadę schematu tabeli, na którą czeka każdy zapis rekordu, więc żaden
@@ -801,15 +833,23 @@ Członkostwo w grupie pozwala czytać jej tablicę zadań; zapis wymaga dodatkow
 
 Zapis na projektowej tablicy zadań wymaga dostępu do projektu oraz uprawnienia edycji tabel lub jawnego grantu Edit do tabeli. Usunięcie projektu, grupy albo prywatnego właściciela anuluje zadania w kolejce, zamyka ich sprawy i usuwa zarządzaną tabelę tego zakresu wraz z rekordami, historią i mediami w tej samej transakcji. Pozostałe zakresy pozostają nienaruszone. Panel zadań wraca do dostępnej prywatnej tablicy, gdy wybrana tablica znika.
 
+Zmiana samej tablicy zadań jest węższa niż praca na niej. Zmiana nazwy tablicy, jej
+kolumn albo domyślnego widoku oraz jej archiwizacja albo przywrócenie wymagają
+`tables:edit` w scope `ALL` (owner albo admin) albo lidera scope tablicy: lidera grupy,
+właściciela projektu, osoby, do której należy prywatna tablica. Każdy inny z odbiorców
+tablicy nadal dodaje i edytuje zadania; `can_manage` tabeli mówi, co z tych dwóch może
+wywołujący, a konsola pokazuje kontrolki samej tablicy tylko wtedy, gdy to prawda. Próba
+bez tego kończy się odmową `AUTHORIZATION_ERROR` (403).
+
 ## Domyślny widok {#default-view}
 
-Edytor tabeli może wybrać **Ustaw jako domyślny** na pasku narzędzi. Bieżący układ, filtry i grupowanie zapisują się jako współdzielony widok. Otwiera się on przy wejściu bez jawnych parametrów `view` lub `viewId`. Nowe tabele zadań zaczynają od Kanbana. Domyślny widok musi należeć do tej tabeli i być współdzielony; przed ustawieniem go jako prywatny trzeba wybrać inny domyślny widok. Usunięcie przywraca zwykły układ tabeli. API używa `PATCH /tables/{id}` z `default_view_id`; null usuwa wybór.
+Edytor tabeli może wybrać **Ustaw jako domyślny** w **Ustawieniach widoku**. Bieżący układ, filtry i grupowanie zapisują się jako współdzielony widok. Otwiera się on przy wejściu bez jawnych parametrów `view` lub `viewId`. Nowe tabele zadań zaczynają od Kanbana. Domyślny widok musi należeć do tej tabeli i być współdzielony; przed ustawieniem go jako prywatny trzeba wybrać inny domyślny widok. Usunięcie przywraca zwykły układ tabeli. API używa `PATCH /tables/{id}` z `default_view_id`; null usuwa wybór.
 
 Notatki zadania są dokumentami rich text w Markdown, z edytorem i podglądem jak inne komórki dokumentowe. Osobne relacje **Osoba** i **Agent** mogą zachować człowieka odpowiedzialnego za zadanie i wykonującego je agenta. **Następny krok** wskazuje osobę albo agenta; po przygotowaniu wyniku wraca do osoby. Pracę agenta uruchamia odpowiedzialna osoba na własnym koncie. Przekazując zadanie, wybierz najpierw osobę jako następny krok i pozwól odbiorcy rozpocząć pracę na swoim koncie.
 
 
-**Group by** zapisuje się automatycznie, gdy edytor wybierze kolumnę. Zmiana aktualizuje zapisany widok Kanban, którym może zarządzać; bez takiego widoku tworzy i wybiera widok prywatny. Odmowa zapisu zachowuje poprzednie grupowanie. Czytelnik może zmienić grupowanie tymczasowo. **Set as default** na pasku narzędzi zapisuje bieżący format dla wszystkich; zwykłe tabele otwierają się jako Table, dopóki edytor nie wybierze innego widoku domyślnego.
+**Group by** zapisuje się automatycznie, gdy edytor wybierze kolumnę. Zmiana aktualizuje zapisany widok Kanban, którym może zarządzać; bez takiego widoku tworzy i wybiera widok prywatny. Odmowa zapisu zachowuje poprzednie grupowanie. Czytelnik może zmienić grupowanie tymczasowo. **Set as default** w **View settings** zapisuje bieżący format dla wszystkich; zwykłe tabele otwierają się jako Table, dopóki edytor nie wybierze innego widoku domyślnego.
 
 Nie można usunąć agenta, dopóki zarządzane zadanie zależy od jego zaplanowanego wykonania. Najpierw przepisz, ukończ lub anuluj te zadania; usunięcie agenta nie może po cichu porzucać ich wykonania.
 
-Przywrócenie zarchiwizowanej zarządzanej tablicy zadań ponownie kolejkuje zaplanowane przypomnienia dla osób, także te, których termin minął podczas archiwizacji. Dostarczenie nadal sprawdza aktualny dostęp pierwotnego autora i odbiorcy; przywrócenie tablicy nie upoważnia do nowej pracy agenta.
+Przywrócenie zarchiwizowanej zarządzanej tablicy zadań ponownie kolejkuje zaplanowane przypomnienia dla osób, także te, których termin minął podczas archiwizacji. Dostarczenie nadal sprawdza aktualny dostęp pierwotnego autora i odbiorcy; przywrócenie tablicy nie upoważnia do nowej pracy agenta. Zarchiwizowana tablica nie przyjmuje też zapisów od swoich zadań: sprawa rozstrzygnięta w tym czasie w Inbox zostawia zadanie bez zmian, a przywrócenie tablicy przenosi je wtedy do stanu zrobione lub anulowane. Ponowne otwarcie sprawy, której zadanie leży na zarchiwizowanej tablicy, jest odrzucane kodem `TABLE_ARCHIVED`.

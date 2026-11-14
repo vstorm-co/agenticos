@@ -1,5 +1,5 @@
 ---
-source_sha: "01366c03339c"
+source_sha: "158c11621790"
 ---
 
 # La API HTTP { #the-http-api }
@@ -17,8 +17,8 @@ publica su propia lista de rutas.
 
 Tres formas de entrar, para tres llamantes distintos.
 
-| | Cabecera | Para |
-|---|---|---|
+|  | Cabecera | Para |
+| --- | --- | --- |
 | **Clave de API de la organización** | `Authorization: Bearer aos_…` | Un script, un cliente HTTP como Postman o un cliente MCP. Actúa como el miembro que la emitió, limitada a los permisos con los que se emitió |
 | **JWT** | `Authorization: Bearer <access token>` | Una persona, o algo que actúa en su nombre. De vida corta, renovado con un refresh token |
 | **Cookie de sesión** | la pone la consola | Solo el navegador: el token es HttpOnly y nunca llega a JavaScript |
@@ -35,15 +35,15 @@ Una clave la emite un miembro, en una organización, desde **Settings → API**
 (o con `POST /api/v1/api-keys` desde una sesión iniciada). Lleva la autoridad de
 ese miembro, limitada dos veces:
 
-- **A los permisos con los que se emitió.** Elige una plantilla — *Read-only*,
-  *Knowledge ingest*, *Full access* — o marca permisos del
+- **A los permisos con los que se emitió.** Elige una plantilla — _Read-only_,
+  _Knowledge ingest_, _Full access_ — o marca permisos del
   [catálogo](permissions.md). Solo puedes conceder lo que tienes.
 - **A lo que el emisor puede hacer ahora.** Cada petición vuelve a leer la
   membresía del emisor, así que degradarlo limita al instante cada una de sus
   claves. Sacarlo de la organización, o que se vaya, revoca todas las claves que
   emitió y todas las apps que conectó - para siempre, así que volver a invitarlo no
   reactiva ninguna. Un
-  permiso concedido sobre un recurso amplía lo que una *persona* puede hacer con
+  permiso concedido sobre un recurso amplía lo que una _persona_ puede hacer con
   una fila; nunca amplía una clave más allá de sus permisos.
 
 La clave se muestra **una vez**, en la respuesta que la crea. Solo se guarda su
@@ -60,6 +60,17 @@ Revocarla (`DELETE /api/v1/api-keys/{id}`) surte efecto
 en su siguiente petición. Rotarla (`POST /api/v1/api-keys/{id}/rotate`) sustituye
 su secreto de inmediato: la clave antigua deja de funcionar y la respuesta
 contiene la nueva, una sola vez.
+
+La consola muestra las claves antes que la guía de conexión, con las activas
+primero. Busca por nombre, prefijo o emisor; las tarjetas del móvil conservan la
+caducidad y el último uso. En **Create key**, despliega los detalles de permisos
+de una plantilla o elige **Custom** para buscar permisos individuales. La búsqueda conserva la selección.
+Intro en el campo del nombre crea la clave; Intro en la búsqueda de permisos no envía el formulario.
+
+Durante la creación se bloquean los campos y el cierre. Si se rechaza, el borrador
+se conserva para reintentar. Copia la clave antes de cerrar; si el portapapeles
+falla, el valor sigue disponible para otro intento. Cerrar limpia el estado de
+creación. Si se rechaza una revocación, su confirmación sigue abierta para reintentar.
 
 **Una clave no es la persona que la emitió.** Un run que inicia pertenece a quien
 la emitió, cuenta en su presupuesto y en su auditoría, pero no alcanza nada
@@ -206,6 +217,20 @@ Renovar no abre una sesión nueva — el refresh token rota en su sitio y el acc
 token sigue nombrando la misma — así que una conexión de larga vida no se corta
 por una renovación rutinaria.
 
+### Trabajo que se ejecuta después de la petición { #work-that-runs-after-the-request }
+
+Una clave de la organización no puede iniciar un [eval run](evals.md) ni una petición al
+[asistente de autoría](authoring.md): esas rutas son para personas con sesión iniciada,
+y a una clave se le responde `403` en ellas. El trabajo que se ejecuta más tarde, en
+segundo plano, se ciñe a la autoridad de quien lo inició tal como está cuando el trabajo
+empieza - un rol perdido desde entonces lo detiene. Si alguna vez se dejara a una clave
+iniciar ese trabajo, lo mismo valdría para ella: sus permisos tal como estén entonces, y
+una clave revocada o eliminada desde entonces detendría el trabajo, con un motivo en el
+run o en la petición.
+
+La caducidad solo limita lo que una clave puede iniciar: el trabajo que inició siendo
+válida sigue después de que caduque.
+
 ## La cabecera de organización { #the-organization-header }
 
 **Una clave de API actúa en su propia organización** y no necesita cabecera.
@@ -341,7 +366,8 @@ superficie.
 Lo que se puede comprobar al momento se comprueba al momento: una conversación
 o un adjunto desconocidos son un `404` en el `POST`, no un fallo que haya que
 esperar. Los permisos de la clave se vuelven a comprobar cuando el run arranca,
-así que una clave revocada mientras su run esperaba no lo ejecuta. Solo quien lo
+así que una clave revocada mientras su run esperaba no lo ejecuta; una que solo
+caducó entretanto, sí. Solo quien lo
 pidió, o una clave suya, puede leer una petición de run; la de otro responde
 `404`. Un run asíncrono tiene un intento: un run que falla queda registrado con
 lo que gastó y no se reintenta para no gastarlo dos veces.
@@ -374,14 +400,17 @@ no puedes ver no aporta ninguna.
 
 ## Ejecutar un workflow { #running-a-workflow }
 
-Las claves de API de la organización pueden iniciar runs y leer su estado, grafo,
-pasos, archivos y eventos en `/api/v1/workflow-runs`. Iniciar requiere `workflows:run`,
-leer también `workflows:view`, y probar un borrador `workflows:edit`. El worker conserva
-el límite de permisos admitido y comprueba la clave y el emisor antes de cada paso,
-incluso tras una aprobación o espera. Revocar, caducar o eliminar la clave detiene
-trabajo nuevo con `PRINCIPAL_REVOKED`; reanudar nunca otorga el rol completo del emisor.
-Los runs iniciados con clave no acceden al estado personal del emisor. Editar un
-workflow sigue requiriendo una sesión.
+Las claves de API de la organización pueden iniciar runs y leer su estado, grafo, pasos,
+archivos y eventos en `/api/v1/workflow-runs`. Iniciar requiere `workflows:run`, leer
+también `workflows:view`, y probar un borrador `workflows:edit`. El worker conserva el
+límite de permisos admitido y comprueba la clave y el emisor antes de cada paso, incluso
+tras una aprobación o espera. Revocar o eliminar la clave detiene trabajo nuevo con
+`PRINCIPAL_REVOKED`; reanudar nunca otorga el rol completo del emisor.
+
+La caducidad no: una clave caducada no inicia nada, pero un run que inició siendo válida
+sigue, así que la hora de un token OAuth no corta una espera larga. Los runs iniciados
+con clave no acceden al estado personal del emisor. Editar un workflow sigue requiriendo
+una sesión.
 
 Las claves API pueden consultar ejecuciones de origen público, incluidas las
 iniciadas con claves. Las ejecuciones personales iniciadas por miembros devuelven
@@ -544,7 +573,6 @@ Publicar disparadores automáticos y cambiar su autoridad de ejecución requiere
 
 Los formularios públicos aplican el límite de bytes de entrada al leer el flujo de la solicitud, antes de analizar JSON o buscar el token. Los cuerpos demasiado grandes, declarados o enviados por fragmentos, devuelven `413`; JSON mal formado y campos no válidos devuelven `422`. Cada entrada de `details.problems` de un `422` es `{field, message, type}`, donde `type` es el tipo de error propio del validador (`missing`, `int_type`, `extra_forbidden`, ...), de modo que un formulario puede decir, respuesta por respuesta, qué necesitaba.
 
-
 Un workflow cuyo nodo trigger es un webhook o una programación recibe su exposure al
 publicarse esa versión, y la respuesta de la publicación la lleva como `exposure`. El
 secreto de firma de un webhook está en el `webhook_secret` de la publicación que lo
@@ -567,7 +595,8 @@ curl -X POST "$WEBHOOK_URL" \
 
 Responde `202` con `{"run_id": ..., "duplicate": false}` en cuanto el run queda
 admitido, sin esperar nunca al run en sí. Un id de entrega ya admitido responde
-`"duplicate": true` con el id del primer run. Una firma que no se verifica es un
+`"duplicate": true` con el id del primer run, igual que la misma solicitud firmada con
+otro id en 24 horas. Una firma que no se verifica es un
 `403`, una entrega sin id o con un cuerpo que no es un objeto JSON un `400`, y un
 webhook pausado o desconocido un `404`.
 
@@ -583,6 +612,8 @@ abre una URL de prueba para el borrador, devuelta como `url` con el `test_token`
 abierta para una llamada durante dos minutos. La llamada no necesita firma, recibe
 `{"captured": true}` y no inicia ningún run. `GET .../webhook-test/{token}` lee
 `state` (`listening`, `caught` o `expired`) y la `delivery` recibida.
+
+Las claves internas y OAuth caducadas se conservan mientras un workflow, una evaluación, una mejora, una solicitud de autoría, una comprobación de skills, una generación de casos o un trabajo en cola o en ejecución las necesite. Al terminar, la limpieza habitual puede eliminarlas.
 
 ## Trabajar con tablas { #working-with-tables }
 
@@ -613,6 +644,7 @@ por los registros de su tabla que se añaden, cambian o borran - según nombre s
 que empiezan por una tabla, `PATCH .../triggers/{trigger_id}` con `{"is_active": false}`
 pausa uno, y `GET .../triggers/{trigger_id}/admissions` lista lo que decidió sobre
 cada registro. Consulta [Triggers](virtual-tables.md#triggers).
+
 ## Agents por A2A { #agents-over-a2a }
 
 Un agent que su organización sirve por A2A responde JSON-RPC en
@@ -661,7 +693,7 @@ de la API en `$BASE`. Crea la clave en **Settings → API** con los permisos que
 nombra el ejemplo; la consola la muestra una vez.
 
 **Sube un documento a una base de conocimiento y búscalo** — una clave con
-`collections:view` y `collections:edit` (la plantilla *Knowledge ingest*). La
+`collections:view` y `collections:edit` (la plantilla _Knowledge ingest_). La
 ingesta corre en segundo plano, así que una búsqueda justo después de subirlo puede
 no encontrarlo todavía; `GET /api/v1/kb/$KB_ID/documents` muestra su estado, y
 `GET /api/v1/kb/$KB_ID/ingestion` responde `complete` cuando ya no se procesa ninguno.
@@ -756,7 +788,9 @@ autenticado igual, con la organización en `?organization_id=`, envía un frame 
 por cada escritura correcta a través de la API pública en esa organización —
 `resource`, `id`, `action` (`created`, `updated` o `deleted`), `surface`
 (`console`, `api_key`, `mcp` o `assistant`) y quién la hizo — y solo sobre filas
-que quien llama puede leer.
+que quien llama puede leer. Los cambios que nadie escribió llegan igual: `run`
+para un run que pasa por sus estados, y `system` para el trabajo programado de
+la propia plataforma, como un pase de agrupación de lagunas de conocimiento.
 
 ## Llamadas de voz { #voice-calls }
 
@@ -780,18 +814,18 @@ la sesión, así que una llamada no sobrevive a un cierre de sesión.
 **El cliente envía** frames JSON, y a través del relay también audio binario:
 
 | Frame | Campos | Cuándo |
-|---|---|---|
+| --- | --- | --- |
 | `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` y `resume_token` (una reconexión), `context` (las variables de un embed) | Primero, en 10 segundos como mucho |
 | `approval` | `id`, `decision` (`approve` o `deny`) | Al decidir una aprobación que la llamada está esperando |
 | `mute` | `muted` | El relay: el micrófono silenciado |
 | `played` | `bytes` | El relay: cuánto audio del agent se ha reproducido |
-| `end` | - | Colgar |
-| *binario* | PCM de 16 bits a la frecuencia de entrada del modelo | El relay: el audio de quien llama |
+| `end` | --- | Colgar |
+| _binario_ | PCM de 16 bits a la frecuencia de entrada del modelo | El relay: el audio de quien llama |
 
 **El servidor envía:**
 
 | Frame | Campos | Significa |
-|---|---|---|
+| --- | --- | --- |
 | `answer` | `sdp` | WebRTC: la respuesta del provider para la conexión peer del navegador |
 | `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `resume_token` | La llamada está establecida. `resume_token` se envía solo aquí, solo a quien llama; una reconexión lo devuelve |
 | `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Quién habla, o qué está haciendo el agent |
@@ -803,9 +837,9 @@ la sesión, así que una llamada no sobrevive a un cierre de sesión.
 | `approval_settled` | `id`, `outcome` (`approved`, `denied` o `expired`) | Cómo terminó una aprobación |
 | `notice` | `kind`, `message` (opcional) | Algo que decir con palabras: un guardrail que salta, un límite que se alcanza |
 | `limit` | `seconds_left` | El tiempo de la llamada casi se ha agotado |
-| `clear_playback` | - | El relay: descartar el audio del agent en cola |
+| `clear_playback` | --- | El relay: descartar el audio del agent en cola |
 | `ended` | `reason`, `message` | La llamada ha terminado |
-| *binario* | PCM de 16 bits a la frecuencia de salida del modelo | El relay: el audio del agent |
+| _binario_ | PCM de 16 bits a la frecuencia de salida del modelo | El relay: el audio del agent |
 
 **A un visitante de un widget o de una página alojada se le dice menos.** Su
 `ready` no incluye `run_id`; `cap_seconds` es el límite de la llamada - la
@@ -849,7 +883,7 @@ otro agent. Ningún frame lleva nunca una credencial del provider.
 La acompañan cinco rutas HTTP:
 
 | Ruta | Control | Responde |
-|---|---|---|
+| --- | --- | --- |
 | `GET /api/v1/agents/{agent_id}/voice` | `agents:run` sobre ese agent, grant incluido; `404` en caso contrario | Si una llamada empezaría, por qué no (`no_voice`, `not_offered` o `no_key`), el transporte y la llamada más larga |
 | `POST /api/v1/agents/{agent_id}/voice/preview` | `agents:edit` sobre ese agent, grant incluido; `404` en caso contrario | La voz del borrador de la sección Voice diciendo una frase fija, como `audio/wav`. En caché por voz e idioma; `RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE` por persona |
 | `GET /api/v1/providers/realtime-models` | `agents:view` | El catálogo en tiempo real del que elige la sección Voice |
@@ -923,8 +957,8 @@ ruta, el run asíncrono.
 
 ## Convenciones { #conventions }
 
-| | |
-|---|---|
+|  |  |
+| --- | --- |
 | Prefijo | `/api/v1` |
 | Crear | `POST`, `201` |
 | Actualización parcial | `PATCH` |
@@ -989,6 +1023,5 @@ solo avanza.
   que consultar, así que un run largo no mantiene una conexión abierta.
 - **La API pública está en `/api/v1/public/openapi.json`** y dentro de v1 solo
   cambia de forma aditiva, con 90 días de deprecación; todavía no hay SDK.
-
 
 Los skills cuya carga exige aprobación deben aprobarse de nuevo en cada turno; las cargas históricas nunca omiten ese control.

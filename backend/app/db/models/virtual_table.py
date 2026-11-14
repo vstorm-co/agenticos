@@ -41,12 +41,14 @@ from sqlalchemy import (
     LargeBinary,
     String,
     UniqueConstraint,
+    func,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.resource_icons import ResourceIconName
 from app.db.base import Base, TimestampMixin
 from app.db.models.resource_grant import Visibility
 
@@ -76,6 +78,7 @@ class VirtualTable(Base, TimestampMixin):
     )
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    icon: Mapped[ResourceIconName | None] = mapped_column(String(32), nullable=True)
     default_view_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey(
@@ -172,6 +175,12 @@ class VirtualTableRecord(Base, TimestampMixin):
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
     values: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # When the write ran, not when its transaction began, as `created_at` is written: a
+    # batch import compares it with the time it began, and an edit that waited on a lock
+    # until after that moment must read as later.
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.clock_timestamp(), nullable=True
+    )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -310,7 +319,7 @@ class VirtualTableReceipt(Base):
         Index("virtual_table_receipts_org_created_idx", "organization_id", "created_at"),
         CheckConstraint(
             "operation IN ('record.create', 'record.update', 'record.delete', 'record.upsert', "
-            "'table.create')",
+            "'record.batch', 'table.create')",
             name="operation",
         ),
     )

@@ -1,5 +1,5 @@
 ---
-source_sha: "a73281723216"
+source_sha: "4bd4dc67a376"
 ---
 
 # Departamentos y grupos { #departments-and-groups }
@@ -18,6 +18,10 @@ la vez con **Add departments**, que ofrece Sales, Finance, HR, Support,
 Engineering, Marketing, Legal y Operations, cada uno con un icono y una breve
 descripción. Después se pueden renombrar, cambiar de icono o borrar como
 cualquier otro grupo.
+
+Las tarjetas de departamento muestran el icono, la descripción y el número de
+miembros. Busca por nombre o descripción. En **Nuevo grupo**, elige el icono junto
+al nombre; el límite mensual opcional está en **Límite de presupuesto**.
 
 Las personas se añaden a un grupo desde su página, a mano, o mediante un
 [mapeo de grupo de directorio](directory.md#directory-group-mappings) si tu
@@ -81,6 +85,11 @@ por tipo - agents, bases de conocimiento, skills, contexto, aplicaciones y
 servidores MCP - con el nivel al que se compartió cada uno. Quien lee solo ve lo que podría abrir de todos
 modos, así que un miembro de Ventas que lee la página de Finanzas no se entera de
 lo que guarda Finanzas.
+
+Los recursos compartidos aparecen antes que los paneles de uso y calidad. En el
+móvil, abre las acciones adicionales de la página para editar el grupo. Mientras
+se guarda un cambio de miembros o permisos, los controles y el cierre están
+bloqueados; si se rechaza, la selección se conserva para reintentar.
 
 **Add to this group** comparte varias cosas a la vez: lista todo lo que quien lee
 puede editar y el grupo aún no tiene, con un buscador, una casilla por elemento y

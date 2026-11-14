@@ -47,8 +47,10 @@ from pathlib import PurePosixPath
 from typing import Any, Literal, cast
 from uuid import UUID, uuid4
 
+import anyio
 import httpx
 from PIL import Image, ImageOps
+from pydantic import SecretStr
 from pydantic_ai.workspaces import Workspace, WorkspaceRef
 from pydantic_ai_backends import FileData, FileInfo, StateBackend
 from pydantic_ai_backends.remote.archive import DEFAULT_TIMEOUT_SECONDS, WorkspaceArchiveError
@@ -70,6 +72,7 @@ from app.agents.capabilities.sandbox._identity import (
     WorkspaceScopeUnavailable,
     scope_key,
 )
+from app.agents.capabilities.sandbox._opensandbox import OpenSandboxWorkspace, OrgOpenSandboxBackend
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX
 from app.agents.spec import AgentSpec
@@ -102,8 +105,8 @@ from app.services.sandboxd_compat import explain_unavailable
 from app.services.skill_workspace import LEGACY_SKILLS_ROOT, RESERVED_SKILL_PREFIXES
 from app.services.workspace_archive import stream_zip, zip_folder, zip_members
 
-ServiceSandbox = SandboxdWorkspace | DaytonaWorkspace | E2BWorkspace
-"""What supplies a connection's sandboxes: a `sandboxd` host, Daytona or E2B."""
+ServiceSandbox = SandboxdWorkspace | DaytonaWorkspace | E2BWorkspace | OpenSandboxWorkspace
+"""What supplies a connection's sandboxes, on its explicitly resolved account."""
 
 logger = logging.getLogger(__name__)
 
@@ -516,6 +519,9 @@ class OpenWorkspace:
     sandbox: ServiceSandbox | None = None
     """What supplies a container-backed workspace, for removing a `run`-scoped one."""
 
+    close_transport: Callable[[], Awaitable[None]] | None = None
+    """Release a provider's local HTTP resources without deleting its remote files."""
+
     local: bool = False
     """On the person's own computer (#2305): nothing here stores it or tears it down.
 
@@ -686,6 +692,69 @@ class SandboxWorkspaceService:
         # Archives kept open for the length of `_sharing_archives`, one per host:
         # `None` outside it, where each read builds and closes its own.
         self._shared_archives: dict[UUID, Any] | None = None
+
+    async def recorded_for_task(
+        self, ctx: AuthContext, *, conversation_id: UUID, ref: WorkspaceRef
+    ) -> list[tuple[AgentWorkspace, UUID]]:
+        """The task's recorded containers this person may currently change.
+
+        Metadata only: reading a diff must not load a workspace credential or
+        construct a provider client. Shared-scope snapshots stay read-only.
+        """
+        from app.services.conversation import ConversationService
+
+        conversation = await ConversationService(self.db).get_conversation(
+            conversation_id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            for_write=True,
+            turn=True,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        rows = await workspace_repo.for_session(
+            self.db, organization_id=ctx.organization_id, session_id=ref.id
+        )
+        allowed: list[tuple[AgentWorkspace, UUID]] = []
+        for row in rows:
+            connection_id = row.connection_id
+            if connection_id is None or row.backend != "service":
+                continue
+            # A shared container can include another conversation's edits in the
+            # capture interval. Its diff is useful; it cannot prove task ownership.
+            if (
+                row.scope != "conversation"
+                or row.project_id is not None
+                or row.conversation_id != conversation.id
+            ):
+                continue
+            allowed.append((row, connection_id))
+        if not allowed:
+            raise NotFoundError(message="The task's original workspace is unavailable", details={})
+        return allowed
+
+    @asynccontextmanager
+    async def open_recorded(
+        self, ctx: AuthContext, *, conversation_id: UUID, ref: WorkspaceRef
+    ) -> AsyncGenerator[Workspace]:
+        """Attach the original container, never a replacement for a removed workspace."""
+        for row, connection_id in await self.recorded_for_task(
+            ctx, conversation_id=conversation_id, ref=ref
+        ):
+            resolved = await self._connection(ctx, connection_id)
+            sandbox = self._service_capability(
+                resolved, row.scope_key, tenant=str(ctx.organization_id)
+            )
+            if ref.provider != _provider(sandbox):
+                continue
+            backend = sandbox.backend(ref)
+            try:
+                yield Workspace(backend)
+            finally:
+                if isinstance(backend, OrgOpenSandboxBackend):
+                    await backend.aclose()
+            return
+        raise NotFoundError(message="The task's original workspace is unavailable", details={})
 
     async def open(
         self,
@@ -955,6 +1024,15 @@ class SandboxWorkspaceService:
         resolving can fail for reasons that were fine at publish time (a key
         rotated away, a host switched off) and each of those says which.
         """
+        if scope == "conversation" and identity.conversation_id is not None:
+            from app.services.workspace_turn_guard import admit
+
+            await admit(
+                self.db,
+                organization_id=identity.organization_id,
+                conversation_id=identity.conversation_id,
+                run_id=identity.run_id,
+            )
         briefing: str | None = None
         parses_documents = False
         notice = _OpeningNotice(on_wait) if on_wait is not None else None
@@ -981,13 +1059,15 @@ class SandboxWorkspaceService:
         # memory, gone on restart, so a sandbox that outlives the service's uptime
         # had no audit at all (#1061). Wrapping here rather than calling from each
         # tool is what makes it impossible to forget for the ninth tool.
+        backend = sandbox.backend(opened)
         recorder = RecordingWorkspace(
-            Workspace(sandbox.backend(opened)),
+            Workspace(backend),
             db=self.db,
             organization_id=identity.organization_id,
             session_key=key,
             agent_id=identity.agent_id,
             run_id=identity.run_id,
+            isolated_turn=scope == "conversation" and identity.run_id is not None,
             on_settled=notice.settled if notice is not None else None,
             explain_unavailable=(
                 partial(explain_unavailable, base_url=sandbox.service_url, client=_sandboxd_http())
@@ -998,6 +1078,7 @@ class SandboxWorkspaceService:
         return OpenWorkspace(
             workspace=recorder,
             sandbox=sandbox,
+            close_transport=backend.aclose if isinstance(backend, OrgOpenSandboxBackend) else None,
             kind="service",
             scope=scope,
             scope_key=key,
@@ -1024,6 +1105,18 @@ class SandboxWorkspaceService:
         while the other attaches - without this database recording a provider's
         id first.
         """
+        if resolved.kind == "opensandbox":
+            image = runtime or resolved.row.default_runtime
+            if not resolved.row.base_url or not image:
+                raise BadRequestError(
+                    message="An OpenSandbox connection needs its server address and sandbox image."
+                )
+            return OpenSandboxWorkspace(
+                server_url=resolved.row.base_url,
+                api_key=SecretStr(resolved.token),
+                image=image,
+                secure_access=resolved.row.secure_access is True,
+            )
         if resolved.kind == "e2b":
             # The template is the runtime: E2B's own `desktop` template is what
             # computer use's sandbox desktop drives, like the `desktop` runtime.
@@ -1194,13 +1287,18 @@ class SandboxWorkspaceService:
         if workspace is None or workspace.local:
             return None
         try:
-            if workspace.kind == "state":
-                async with self.db.begin_nested():
-                    return await self._flush_state(workspace, keep_spills=keep_spills)
-            if workspace.scope == "run":
-                await self._release(workspace)
-            elif not await self._settle_session(workspace) and not keep_spills:
-                await self._prune_spills(workspace)
+            try:
+                if workspace.kind == "state":
+                    async with self.db.begin_nested():
+                        return await self._flush_state(workspace, keep_spills=keep_spills)
+                if workspace.scope == "run":
+                    await self._release(workspace)
+                elif not await self._settle_session(workspace) and not keep_spills:
+                    await self._prune_spills(workspace)
+            finally:
+                if workspace.close_transport is not None:
+                    with anyio.fail_after(10, shield=True):
+                        await workspace.close_transport()
         except Exception:
             logger.exception("workspace_close_failed", extra={"scope_key": workspace.scope_key})
             return WorkspaceFlushFailure(
@@ -1387,8 +1485,10 @@ class SandboxWorkspaceService:
         the tool or the staging that hit it, and the turn after it should not hit
         it again.
 
-        A session on a service of another version is forgotten the same way,
-        though it is alive (see the branch below).
+        OpenSandbox is the exception: a known ref is retained even after a loss,
+        so only an explicit reset can replace its files with an empty workspace.
+        A session on a sandboxd service of another version is forgotten the same
+        way, though it is alive (see the branch below).
 
         Returns:
             Whether the session was lost or mismatched. Either way its spills are
@@ -1413,6 +1513,14 @@ class SandboxWorkspaceService:
                 await self._discard_lost_sandbox(
                     workspace.sandbox, row.session_id or workspace.scope_key
                 )
+            if isinstance(workspace.sandbox, OpenSandboxWorkspace):
+                # A missing or unreachable remote workspace must not become a
+                # fresh empty directory on the next turn. Also retain a ref the
+                # harness recovered after an ambiguous create response.
+                ref = workspace.workspace.ref
+                if ref is not None and ref.id != row.session_id:
+                    await workspace_repo.record_session(self.db, workspace=row, session_id=ref.id)
+                return True
             await workspace_repo.record_session(self.db, workspace=row, session_id=None)
             return True
         if isinstance(recorder, RecordingWorkspace) and recorder.mismatched:

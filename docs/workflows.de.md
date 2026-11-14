@@ -1,8 +1,10 @@
 ---
-source_sha: "fadba4d54af0"
+source_sha: "3dcf65276140"
 ---
 
 # Workflows { #workflows }
+
+Das Workflow-Symbol wählen Sie neben dem Namen im Editor. Dieselbe neutrale Kachel erscheint im Katalog. Die Auswahl bleibt nach dem Neuladen erhalten; **Standardsymbol verwenden** setzt sie zurück. Dies ändert Darstellungsmetadaten, weder die Entwurfsrevision noch den veröffentlichten Graphen.
 
 Ein **Workflow** verkettet Schritte zu einer Automatisierung, die Ihre Agents
 ausführen: eine [Tabelle](virtual-tables.md) lesen, einen Agent aufrufen, auf das
@@ -87,7 +89,11 @@ Neuladen oder ein geteilter Link dieselbe Liste zeigt.
 
 **More → Settings** enthält Name, Beschreibung, Tags und Laufzeiteinstellungen des Workflows; Änderungen werden automatisch gespeichert. Der Schritteditor nutzt das verfügbare Fenster: Input links, Parameters und Settings in der Mitte, Output rechts. Trigger haben zwei Bereiche, da sie keine eingehenden Daten haben. Auf großen Bildschirmen scrollt jeder Bereich separat, auf Telefonen gibt es eine Spalte. Gespeicherte Ausführungen zeigen ihre Parameter schreibgeschützt neben den Daten. Datensatzwerte verwenden die Spaltennamen der Tabelle. Notizen bieten Open note, Größen und Ziehgriffe.
 
-Die App-Auswahl zeigt MCP-Katalogserver bereits vor dem Verbinden; der allgemeine Eintrag Call an MCP tool ist ausgeblendet. Verbinde einen Dienst direkt und wähle anschließend eines seiner erkannten Werkzeuge. Die Werkzeug-Freigabeliste bleibt wirksam. Farbige Schritte und Minimap sind standardmäßig aktiv. KI-Modellschritte zeigen Anweisungen, Temperatur und Reasoning-Aufwand; leere Einstellungen behalten die Anbieterstandards. Jev zeigt Modell, Frage und Konfidenzschwelle. Send an email verwendet den Plattformabsender oder verbindet Gmail beziehungsweise Outlook und wechselt nach Bestätigung zum tatsächlichen MCP-Werkzeug des Postfachs. Dabei werden inkompatible Eingabezuordnungen entfernt; der Wechsel lässt sich rückgängig machen.
+Die App-Auswahl zeigt MCP-Katalogserver bereits vor dem Verbinden; der allgemeine Eintrag Call an MCP tool ist ausgeblendet, und Dienste, die niemand verbunden hat, warten unter **Apps zum Verbinden** am Ende ihres Abschnitts. Verbinde einen Dienst direkt und wähle anschließend eines seiner erkannten Werkzeuge. Die Werkzeug-Freigabeliste bleibt wirksam.
+
+Farbige Schritte und Minimap sind standardmäßig aktiv. Auf einem Telefon öffnet sich der Canvas mit dem ganzen Ablauf im Blick und ausgeblendeter Minimap; **Canvas options** blendet sie wieder ein.
+
+KI-Modellschritte zeigen Anweisungen, Temperatur und Reasoning-Aufwand; leere Einstellungen behalten die Anbieterstandards. **Decisions**-Schritte, die das Entscheidungsmodell Jev beantwortet, zeigen Modell, Frage und Konfidenzschwelle. Send an email verwendet den Plattformabsender oder verbindet Gmail beziehungsweise Outlook und wechselt nach Bestätigung zum tatsächlichen MCP-Werkzeug des Postfachs. Dabei werden inkompatible Eingabezuordnungen entfernt; der Wechsel lässt sich rückgängig machen.
 
 Der Schritt **Send an email** bietet auch **SMTP account → Neues SMTP-Konto**. Im Vault-Dialog werden Server, Port, Benutzername, Passwort und Absender gespeichert. STARTTLS nutzt meist 587, implizites TLS meist 465; beide prüfen Zertifikate. Im Workflow steht nur `smtp_secret_id`. **Plattformabsender** entfernt die Auswahl. Veröffentlichung und Ausführung prüfen den Secret-Zugriff; ein nicht verfügbares Konto stoppt den Schritt statt den Absender zu wechseln.
 
@@ -119,6 +125,8 @@ Aus Workflows aufgerufene Agenten können ihre AgenticOS-MCP-Werkzeuge sowohl im
 
 ## Die Zeichenfläche und das Hinzufügen von Schritten { #the-canvas-and-the-palette }
 
+Nach **Test draft** zeigt die Zeichenfläche den Status des Runs und die Anzahl abgeschlossener Schritte. **Open run** öffnet die Details. Auf schmalen Bildschirmen bricht die Statusleiste innerhalb der Zeichenfläche um, sodass der Link und die Schaltfläche zum Schließen erreichbar bleiben.
+
 Der Editor zeigt **Runs**, **Test draft** und **Publish** direkt. **More** enthält **Versions** und den Wechsel zwischen Bearbeiten und Ansicht. **Canvas options** enthält Minimap, Verbindungsstil und Tastenkürzel. Ein Schritt ohne eingehende Verbindung lässt das leere Input-Panel weg und gibt Parametern mehr Platz; **Expected output fields** öffnet das Ausgabeschema. **Review setup before testing** zeigt die unvollständige Einrichtung.
 
 Die **Zeichenfläche** ist der Ort, an dem die Schritte und Verbindungen eines
@@ -130,7 +138,7 @@ Jeder Knoten ist eine Karte mit dem Symbol des Schritts, seinem Namen und einer 
 darunter: was er tun soll - eine Bedingung, eine URL, die Zahl der zugeordneten
 Felder - danach der Agent, das Modell oder die Tabelle, mit denen er arbeitet. Ein
 Schritt mit mehr als einem Ausgang nennt seine Ports beim Namen: **true** und
-**false**, **Each item** und **Done** und einen roten **Error**-Port an einem
+**false**, das **Done** einer Schleife und einen roten **Error**-Port an einem
 Schritt, der seine Fehler behandelt. Ein Schritt, der das Veröffentlichen blockiert,
 trägt eine Einrichtungsmarkierung (rot nach einem Test- oder Veröffentlichungsversuch): Darüberfahren listet die ersten Angaben auf, und
 ein Klick darauf öffnet den Schritt.
@@ -141,7 +149,7 @@ sitzt in der Ecke.
 
 Schritte wählen Sie in der **Schrittauswahl**. Sie zeigt Abschnitte - **Start**,
 **AI**, **Flow**, **Data**, **Apps and the web** - mit den Gruppen darunter. Eine
-Gruppe wie **Slack**, **Tables** oder **Jev decisions** öffnet sich zu ihren
+Gruppe wie **Slack**, **Tables** oder **Decisions** öffnet sich zu ihren
 Schritten, und eine Gruppe mit einem Schritt ist dieser Schritt. **Search steps**
 findet jeden Schritt nach Namen, nach dem, was er tut, oder nach seiner Gruppe. Sie
 fügen einen Schritt auf vier Wegen hinzu:
@@ -190,11 +198,12 @@ die Zeichenfläche lassen sich nur die eigenen Zeilen eines Schritts ziehen.
 
 Ein neuer Schritt landet nie auf einem anderen, wird ausgewählt, öffnet seine
 Einstellungen, wenn er welche hat, und die Zeichenfläche scrollt zu ihm, wenn er
-außerhalb der Ansicht liegt. Im Körper einer Schleife wird jeder neue Schritt in den
-Körper verdrahtet, damit er dort bleibt. Die Auswahl zeigt, was an Ihrer Stelle
-gültig ist: **Loop item** und **Loop result** nur im Körper einer Schleife und eine
-Schleife, solange Schleifen nicht so tief verschachtelt sind, wie das Veröffentlichen
-erlaubt.
+außerhalb der Ansicht liegt. Ein Schritt, der im Körper einer Schleife hinzugefügt
+oder eingefügt wird, gehört zu diesem Körper: Er wird hinter dem letzten Schritt mit
+freiem Ausgang verdrahtet oder, wenn keiner einen hat, bleibt er zum Verbinden
+offen. Eine neue Schleife enthält bereits ihr **Loop item** und ihr **Loop result**,
+daher bietet die Auswahl sie nie an. Eine Schleife bietet die Auswahl an, solange Schleifen
+nicht so tief verschachtelt sind, wie das Veröffentlichen erlaubt.
 
 Ein Rechtsklick auf einen Schritt bietet **Open settings**, **Duplicate**, **Switch
 off** und **Delete step**. Sind mehrere Schritte ausgewählt, löscht eine
@@ -371,11 +380,26 @@ geändert ist.
 **Run this step** dort auszuschalten, oder **Switch off** in seinem Kontextmenü, lässt
 einen Schritt gedimmt auf der Zeichenfläche und überspringt ihn, wenn ein Lauf ihn
 erreicht: Er tut nichts und gibt weiter, was bei ihm ankam. Die Veröffentlichung lehnt
-einen abgeschalteten Trigger oder einen Schritt, der den Weg entscheidet, ab, und einen
+einen abgeschalteten Trigger oder einen verbundenen Schritt, der den Weg entscheidet, ab, und einen
 Schritt, der einen abgeschalteten liest, außer das, was bei ihm ankommt - über seine
 eine eingehende Verbindung, von einem eingeschalteten Schritt - hat das gelesene Feld,
 das er dann weitergibt. Alle drei werden im Graphen gespeichert, sodass Versionen sie
 behalten.
+
+Bei einem abgeschalteten Schritt, verbunden oder nicht, werden weder Eingaben noch
+Einstellungen geprüft: Er liest keine von beiden. Ihn wieder einzuschalten ist eine
+Änderung, die veröffentlicht werden muss, und die Veröffentlichung prüft sie dann.
+
+Ein abgeschalteter Schritt ganz ohne Verbindung ist beiseitegestellt: Er kann neben dem
+Workflow oder in einer Schleife stehen - etwa ein **Combine lists** mit Testdaten -,
+ohne erreichbar zu sein. Ein Run übergeht ihn, und er zählt nicht zum Schrittlimit des
+Runs. Wird er mit irgendetwas verbunden, muss er wieder erreichbar sein. Jeder Schritt
+lässt sich so beiseitestellen, auch einer, der den Weg
+entscheidet, etwa **If**: Ohne Verbindung hat er nichts zu wählen. Nur der Trigger
+sowie **Loop item** und **Loop result** einer Schleife bleiben immer eingeschaltet.
+
+
+Ein ausgeschalteter Schritt darf seine Fehlerstrategie und Datei- oder Tabellenbindungen behalten, auch wenn die Ressource nicht mehr zugänglich ist. Er liest nichts davon; beim erneuten Einschalten wird alles geprüft. Ein beiseitegelegter Schritt erscheint im Schritte-Tab als **Ausgeschaltet**, ohne Ausführungsdatensatz. Verbinden Sie ihn vor **Test step** mit einem Trigger.
 
 ### Die Daten eines Schritts, Testdaten und einen Schritt testen { #a-steps-data-pinning-and-testing-one-step }
 
@@ -569,10 +593,16 @@ Körper enthält, öffnet diese Ansicht, und die **Workflow scope**-Brotkrumen i
 Ecke der Zeichenfläche zeigen, wo Sie sind, von **Workflow** hinunter zur geöffneten
 Schleife. Jede Krume führt wieder hinaus.
 
-Ein Körper beginnt bei **Loop item**, mit
-dem der **Each item**-Port der Schleife verbunden ist, und endet bei **Loop result**;
-nichts darin führt zurück zur Schleife, die über **Done** weitergeht, sobald jedes
-Element den Körper durchlaufen hat. Die Schrittauswahl und die Binding-Quellen folgen dem Scope,
+Ein Körper beginnt bei **Loop item** und endet bei **Loop result**. Jeder Schritt
+merkt sich die Schleife, zu der er gehört, daher verschiebt das Entfernen einer
+Verbindung nie einen Schritt aus einem Körper; ein Schritt, zu dem **Loop item**
+nicht führt, wird gemeldet, bis Sie ihn verbinden. Keine Verbindung führt von der
+Schleife in ihren Körper oder zurück zur Schleife, die über **Done** weitergeht,
+sobald jedes Element den Körper durchlaufen hat. **Loop item** und **Loop result**
+verschwinden nur mit ihrer Schleife: Das Löschen der Schleife löscht ihren ganzen
+Körper, und das Kopieren kopiert den Körper mit.
+
+Die Schrittauswahl und die Binding-Quellen folgen dem Scope,
 in dem Sie sind, und ein Schritt im Körper darf alles lesen, was vor der Schleife
 lief. Was die Schleife tut, steht in der
 [Knoten-Referenz](reference/workflow-nodes.md#loops).
@@ -896,7 +926,13 @@ später geöffnete bleibt still. **Open loop body** zeigt die Iterationen einer 
 Die Antwort des Runs - sein Text, sein strukturiertes Ergebnis, die Passagen, auf
 die er sich stützte, und wie viele Dateien er erzeugt hat, mit dem JSON selbst unter
 **Raw output** - und jeder Schritt, den er gemacht hat, Iteration für Iteration,
-stehen daneben. Ein laufender Run aktualisiert sich alle paar Sekunden, und **Cancel
+stehen daneben.
+
+Die Liste enthält die Schritte, die begonnen haben, in der Reihenfolge ihres
+Starts. Fehler bleiben sichtbar, auch wenn ein Schritt vor dem Start fehlschlug.
+Andere Schritte, die noch nicht begonnen haben, erscheinen nur auf der Canvas;
+übersprungene Schritte erscheinen verblasst. Ein Klick auf die Zeile eines
+Schleifenschritts zeigt seine Eingabe und Ausgabe in dieser Iteration. Ein laufender Run aktualisiert sich alle paar Sekunden, und **Cancel
 run** stoppt ihn. Seine **Files** listen, was seine Schritte gespeichert haben - einen Download, eine
 gerenderte Seite, die Ausgabe eines Skripts -, jeweils zum Herunterladen.
 
@@ -910,6 +946,13 @@ weiter, sodass ein späterer Schritt sendet, was die Person freigegeben hat. Wer
 Schritt aber nicht genannt wird, sieht den Vorschlag schreibgeschützt, und eine mit
 einer geänderten Fassung entschiedene Anfrage trägt unter **Entschieden (Decided)** das Zeichen
 **Bearbeitet (Edited)**.
+
+Im Run selbst beginnt ein abgeschlossener Freigabeschritt damit, wer wann entschieden hat -
+**Genehmigt von** oder **Abgelehnt von** der Person mit der Uhrzeit - nur Entscheidung und
+Uhrzeit, wenn das Konto nicht mehr existiert oder die lesende Person keine Mitglieder sehen
+darf - über der Ausgabe des Schritts. Hat die
+freigebende Person den Vorschlag geändert, vergleicht **Änderungen anzeigen (Show changes)**
+beide Fassungen. Eine abgelaufene oder mit dem Run abgebrochene Anfrage sagt stattdessen das.
 
 Listet der Schritt **Ways to approve**, zeigt die Warteschlange statt **Approve** eine
 Schaltfläche je Weg, mit der Beschriftung, die ihr Autor geschrieben hat; **Reject**
@@ -953,7 +996,8 @@ Timer laufen also weiter.
 
 Einen Schritt klärt nur, wer den Run gestartet hat, oder ein Editor des Workflows,
 und in einem Test-Run darf nur ein Editor einen Schritt klären oder den Run
-wiederholen. Über die API dient dazu `POST
+wiederholen. Einen abgebrochenen Run wiederholt nur, wer ihn gestartet hat, oder ein
+Editor, also wer ihn hätte abbrechen können. Über die API dient dazu `POST
 /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` mit einem `choice`, und die
 Entscheidung wird auditiert. Ein abgebrochener oder fehlgeschlagener Run hat keinen
 Schritt mehr zu klären: **Retry from failed step** startet einen neuen Run. Ein
@@ -975,6 +1019,8 @@ geschrieben hat. In der Laufansicht stehen die Zeilen jedes Schritts unter ihm, 
 Reihenfolge des Schreibens. Ein Organisations-API-Schlüssel mit `workflows:view` liest
 sie ebenfalls, für Läufe öffentlichen Ursprungs: siehe [Das Log eines Workflows
 lesen](api.md#reading-a-workflows-log).
+
+Neue Quick-Log-Zeilen zeigen Standardnamen der Schritte in der Sprache des Lesers, auch im Dashboard. Der gespeicherte Run-Graph identifiziert Standardnamen, auch in älteren Zeilen. Eigene Bezeichnungen und Zeilen, deren gespeicherter Graph den Schritt nicht mehr identifiziert, behalten ihren gespeicherten Text.
 
 ### Alerts { #log-alerts }
 
@@ -1082,6 +1128,17 @@ Header funktionieren ebenfalls. Der Trigger gibt das JSON der Zustellung als `bo
 weiter, mit ihrer `delivery_id`. Ein Retry, der eine ID wiederholt, wird mit dem
 ersten Run beantwortet und startet nichts, weil die ID zusammen mit dem Run, den sie
 zugelassen hat, in einer Transaktion gespeichert wird.
+
+Die ID gehört nicht zu dem, was der Absender signiert, daher ist dieselbe signierte Anfrage
+unter einer anderen ID innerhalb von 24 Stunden ebenfalls eine Kopie: Sie wird mit dem
+ersten Run beantwortet und startet nichts, gleich in welchem der beiden Signatur-Header sie
+steckt. Derselbe Inhalt startet nach 24 Stunden wieder einen Run. Ein Absender, der
+denselben Body absichtlich öfter sendet, macht jeden unterscheidbar, mit eigener ID oder
+Zeit im Body, oder signiert die Zeit: Mit `X-Signature-Timestamp` (Unix-Sekunden) deckt
+die Signatur `{timestamp}.{body}` ab und wird abgelehnt, wenn sie mehr als fünf Minuten
+von der Serveruhr abweicht.
+
+Vor der Speicherung von Signatur-Digests angenommene Zustellungen bleiben über ihre Zustellungs-ID dedupliziert. Signierte Kopien unter einer anderen ID lassen sich aus diesen älteren Zeilen nicht erkennen; die signaturbasierte Erkennung beginnt mit von der neuen Version gespeicherten Zustellungen.
 
 Ein **Schedule**-Trigger läuft in einem festen Abstand, täglich zu einer festen
 Uhrzeit oder nach einem Cron-Ausdruck, in der Zeitzone des Workflows (UTC, sofern seine **Settings** keine andere nennen)
@@ -1214,10 +1271,39 @@ eingeschaltet wurde; Post, die schon dort liegt, startet nichts.
 
 Ein gemeinsames Postfach, das der Microsoft-Grant der Organisation öffnen kann, zu
 nennen, erfordert die Berechtigung, Verbindungen zu verwalten, wie bei Outlook-Agent-Triggern;
-ein Workflow, der schon eines liest, behält es bei späteren Veröffentlichungen, und es zu
-ändern erfordert die Berechtigung erneut. Meldet Outlook, dass der Ordner nicht
+jede Veröffentlichung, die eines nennt, braucht sie, weil die veröffentlichende
+Person zu dem Mitglied wird, als das das Postfach gelesen wird, und eine Nachricht
+an einen Workflow, dessen Veröffentlicher sie nicht mehr hat, startet keinen Run. Meldet Outlook, dass der Ordner nicht
 mehr gelesen werden kann, wird der Workflow ausgeschaltet, und das Audit-Log nennt
 den Grund.
+
+Ein Administrator kann die Outlook-Trigger, die das stoppt, vorher finden: jene, die
+ein geteiltes Postfach für einen Veröffentlicher lesen, der weder Owner noch Admin
+noch Builder ist und daher `mcp:manage` nicht hat. Jeder braucht eine erneute
+Veröffentlichung durch jemanden, der es hat, oder eine höhere Rolle des
+Veröffentlichers. Gegen die Datenbank der Bereitstellung ausführen:
+
+```sql
+SELECT o.name AS organization,
+       w.name AS workflow,
+       u.email AS publisher,
+       m.role AS publisher_role,
+       node -> 'config' ->> 'mailbox' AS shared_mailbox
+FROM workflow_exposures AS e
+JOIN workflow_versions AS v ON v.id = e.workflow_version_id
+JOIN workflows AS w ON w.id = e.workflow_id
+JOIN organizations AS o ON o.id = e.organization_id
+JOIN users AS u ON u.id = e.execution_principal_user_id
+LEFT JOIN organization_members AS m
+  ON m.organization_id = e.organization_id AND m.user_id = e.execution_principal_user_id
+CROSS JOIN LATERAL jsonb_array_elements(v.graph -> 'nodes') AS node
+WHERE e.adapter = 'outlook'
+  AND e.is_active
+  AND (node ->> 'id')::uuid = e.node_instance_id
+  AND coalesce(node -> 'config' ->> 'mailbox', '') <> ''
+  AND NOT u.is_app_admin
+  AND coalesce(m.role, '') NOT IN ('owner', 'admin', 'builder');
+```
 
 Der Lauf bekommt dieselben Felder wie ein Gmail-Lauf, wobei `labels` die
 Kategorien der Nachricht enthält und `mailbox` das gemeinsame Postfach, aus dem sie
@@ -1264,7 +1350,9 @@ Forenthemas.
 Ein **Send a message**-Schritt, der nach einem **Channel message**-Trigger hinzugefügt
 wird, startet als der Bot des Triggers, mit gebundenen `channel_id` und `thread_id`, wenn
 die Plattformen übereinstimmen. Die Nachrichten eines Bots starten höchstens einen
-Workflow, und das Zuhören braucht `channels:manage`. Eine Sprachnachricht kommt als Transkript an; andere
+Workflow, und das Zuhören braucht `channels:manage`, bei
+jeder Nachricht erneut geprüft: Verliert der Veröffentlicher es, antwortet der
+eigene Agent des Bots. Eine Sprachnachricht kommt als Transkript an; andere
 Anhänge werden nicht übergeben. Siehe
 [trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 
@@ -1289,12 +1377,18 @@ wird abgelehnt.
 Aufgerufene Workflows übernehmen das verbleibende Laufbudget des Aufrufers und
 die frühere Frist. Ihre Kosten zählen zum Gesamtbetrag des Aufrufers; `own_cost`
 enthält nur dessen direkte Gebühren, damit aggregierte Laufdaten nichts doppelt zählen.
-Bei begrenztem Budget muss das Warten auf den Abschluss aktiviert bleiben. Abbruch
-oder entzogene Berechtigungen des Aufrufers stoppen das Kind vor dem nächsten Schritt;
-eine laufende externe Anfrage kann noch enden. Ein erneuter Aufruf verwendet die
-erfolgreichen Schritte des ursprünglichen, eingefrorenen Kindes. Ein noch laufendes
-Kind muss zuerst enden oder gestoppt werden. Ergebnisdateien werden ausdrücklich in
-den Aufrufer importiert; beim Fortsetzen wird der Zugriff erneut geprüft.
+Bei begrenztem Budget muss das Warten auf den Abschluss aktiviert bleiben.
+
+Bricht der Aufrufer ab oder ist sein Budget erschöpft, wird jedes noch offene Kind, das
+er aufgerufen hat, und jedes von diesem aufgerufene abgebrochen, samt Freigabeanfragen
+und Fragen. Ein Kind, dessen Schritt gerade ausgeführt wird, stoppt vor dem nächsten
+Schritt, ebenso eines, dessen Aufrufer seine Berechtigungen verloren hat; eine laufende
+externe Anfrage kann noch enden.
+
+Ein erneuter Aufruf verwendet die erfolgreichen Schritte des ursprünglichen,
+eingefrorenen Kindes. Ein noch laufendes Kind muss zuerst enden oder gestoppt werden.
+Ergebnisdateien werden ausdrücklich in den Aufrufer importiert; beim Fortsetzen wird der
+Zugriff erneut geprüft.
 
 Tagesdiagramm und Schrittstatistiken des Aufrufers enthalten ebenfalls die Gebühren aufgerufener Läufe.
 
@@ -1359,7 +1453,7 @@ Idempotenzschlüssel. Das Wiederholungsversprechen jedes Schritts steht in der
 | Was Sie sehen | Warum | Was tun |
 |---|---|---|
 | **Braucht Aufmerksamkeit** | Ein Schritt, der gewirkt haben kann, wurde unterbrochen oder hat aufgehört zu warten, und nichts weckt ihn | Prüfen Sie, ob seine Wirkung eingetreten ist, und klären Sie den Schritt dann im Run mit **Resolve**: erneut ausführen, ein spät gemeldetes Ergebnis verwenden, seinen Fehlerpfad nehmen oder den Run fehlschlagen lassen. Den Run abzubrechen und dann **Retry from failed step** zu wählen, beginnt von vorn |
-| `PRINCIPAL_REVOKED` | Das Mitglied, als das der Run handelt, hat den Zugriff verloren oder sein Konto wurde deaktiviert | Ein Mitglied, das den Workflow ausführen darf, veröffentlicht ihn erneut, damit sein Trigger als es läuft |
+| `PRINCIPAL_REVOKED` | Das Mitglied, als das der Run handelt, hat den Zugriff verloren oder sein Konto wurde deaktiviert, oder der API-Schlüssel, der den Run gestartet hat, wurde widerrufen | Ein Mitglied, das den Workflow ausführen darf, veröffentlicht ihn erneut, damit sein Trigger als es läuft |
 | `WORKFLOW_TRIGGER_MISMATCH` | Der Run wurde über einen Weg angefordert, der nicht sein Live-Trigger ist: von Hand oder per API für einen Workflow, der mit einem Webhook startet, oder im Chat für einen, der nicht mit einer Chatnachricht startet | Starten Sie ihn so, wie sein Trigger es sagt, oder testen Sie den Draft, der jeden Trigger nimmt |
 | `INVALID_BINDING` | Ein Wert passte nicht zu dem Feld, an das er gebunden war | Der Fehler des Schritts nennt das Feld; korrigieren Sie die Bindung oder den Wert davor |
 | `REVISION_CONFLICT` | Jemand hat einen Datensatz geändert, nachdem der Schritt ihn gelesen hat | Leiten Sie den Fehler des Schritts mit `error.handle` zu einem frischen Lesen um |
@@ -1400,7 +1494,7 @@ Jedes Bearbeitungskürzel ist wirkungslos, solange der Editor schreibgeschützt 
 einer veröffentlichten Version oder im Modus **View only**; `Escape` bricht eine übrig
 gebliebene Verbindung weiterhin ab, und `?` zeigt weiterhin die Kürzel.
 
-Kopieren und Einfügen haben drei Grenzen:
+Kopieren und Einfügen haben vier Grenzen:
 
 - **Ein gebundener Schritt liest weiter von dort, wo er zuvor las.** Ein kopierter
   Schritt behält seine Bindings. Liest er von einem Schritt, den Sie nicht kopiert
@@ -1414,6 +1508,11 @@ Kopieren und Einfügen haben drei Grenzen:
   Zeichenfläche liegt, und ein Klick irgendwo darin — auf einen Schritt, die leere
   Fläche, eine Verbindung — hält ihn dort. Liegt der Fokus in den Einstellungen eines Schritts oder in der Schrittauswahl, bleiben die Tasten diesen Feldern, klicken Sie also die
   Zeichenfläche an, bevor Sie sie drücken.
+- **Eingefügt wird nur, wo die Palette es anbieten würde.** In einer Schleife wird
+  das Einfügen eines Triggers abgelehnt, ebenso eine Schleife, die mit den Schleifen,
+  die sie mitbringt, tiefer als drei Ebenen verschachtelt wäre. Abgelehnt wird das
+  ganze Einfügen, und die Zwischenablage behält es; öffnen Sie also die oberste Ebene
+  oder eine flachere Schleife und fügen Sie dort ein.
 
 Bildanhänge eines Agenten teilen sich ein Limit von 20 MB, geprüft vor jedem
 Dateizugriff, auch bei wiederholten Referenzen. MCP-Ergebnisse entfernen

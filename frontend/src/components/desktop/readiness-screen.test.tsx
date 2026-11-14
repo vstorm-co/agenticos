@@ -38,11 +38,12 @@ beforeEach(() => {
   env.finish.mockResolvedValue();
 });
 
-it("shows the browser explanation instead of native connection actions", () => {
+it("is one screen saying it opens in the desktop app, in a browser", () => {
   env.desktop = false;
   mount();
-  expect(screen.getByText("Permissions stay visible")).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
+  expect(screen.getByText("This opens in the AgenticOS desktop app.")).toBeVisible();
+  expect(screen.queryByText("Permissions stay visible")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Get started" })).toBeNull();
 });
 
 it("uses a content-free placeholder before client hydration", () => {
@@ -59,19 +60,19 @@ it("prepares the dashboard and keeps setup visible with immediate feedback until
       }),
   );
   mount();
-  expect(env.prefetch).toHaveBeenCalledWith("/dashboard");
-  await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+  expect(env.prefetch).toHaveBeenCalledWith("/onboarding");
+  await userEvent.click(screen.getByRole("button", { name: "Get started" }));
   expect(screen.getByRole("button", { name: "Opening your workspace…" })).toBeDisabled();
   expect(screen.getByText("Permissions stay visible")).toBeVisible();
   expect(env.replace).not.toHaveBeenCalled();
   await act(async () => finish?.());
-  await waitFor(() => expect(env.replace).toHaveBeenCalledWith("/dashboard"));
+  await waitFor(() => expect(env.replace).toHaveBeenCalledWith("/onboarding"));
 });
 it("retains a retryable screen when finishing fails", async () => {
   env.finish.mockRejectedValueOnce(new Error("Could not save"));
   mount();
-  await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+  await userEvent.click(screen.getByRole("button", { name: "Get started" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Please retry");
-  expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Get started" })).toBeEnabled();
   expect(env.replace).not.toHaveBeenCalled();
 });

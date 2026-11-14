@@ -1,5 +1,5 @@
 ---
-source_sha: "939263497b24"
+source_sha: "3849e81358a8"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1101,7 +1101,7 @@ enlace se escribe completo - y se corta hacia los 1.500 caracteres con un aviso 
 está en AgenticOS, así que una pregunta cuesta unos segmentos, no una docena. El SMS no puede
 transmitir en directo, editar un mensaje ni pulsar un botón, así que una aprobación o una pregunta
 llega como líneas numeradas y se responde enviando el número por SMS. Un solo número que nombre una
-opción de una pregunta enviada a ese número es la respuesta. Las preguntas que esperan a la vez nunca comparten números: la segunda sigue donde terminó la primera, así que tras 1 y 2 vienen 3 y 4, y decidir una deja abierta la otra. Una pregunta sigue abierta un día, así que una selección múltiple admite varios números; cualquier otro texto es un mensaje normal.
+opción de una pregunta enviada a ese número es la respuesta. Las preguntas que esperan a la vez nunca comparten números: la segunda sigue donde terminó la primera, así que tras 1 y 2 vienen 3 y 4, y decidir una deja abierta la otra. Una pregunta sigue abierta un día, así que una selección múltiple admite varios números; cualquier otro texto es un mensaje normal. Los números llegan hasta 999 y luego vuelven a empezar en 1, saltando los que siguen abiertos y los entregados en la última semana, así que una respuesta a un mensaje antiguo no puede decidir una pregunta más reciente salvo que llegue con más de una semana de retraso.
 
 Los archivos MMS entrantes, también sin texto, pasan por el procesamiento
 compartido de adjuntos tras verificar identidad y acceso. Se leen hasta diez
@@ -1953,6 +1953,9 @@ tenant.
 
 ## Reacciones y valoraciones { #reactions-and-ratings }
 
+Los bots nuevos confirman las preguntas con 👀 (`eyes`) en Slack, Telegram y Mattermost, o con el tapback nativo `emphasize` en iMessage. Las valoraciones empiezan desactivadas. Ambas opciones se pueden cambiar; los bots existentes conservan sus valores guardados. Las tarjetas de aprobación y preguntas de Mattermost conservan la solicitud y muestran la decisión tras retirar los botones. Los clics repetidos en solicitudes respondidas se confirman sin mensajes públicos. Una mención añadida al editar solo inicia un turno para un mensaje observado e ignorado durante los últimos 15 minutos. Las ediciones de mensajes antiguos o ya atendidos no inician otro turno; sin recibos compartidos no se admiten ediciones.
+
+
 Dos detalles que comparte cada plataforma de chat aquí, ambos en los ajustes del
 bot:
 
@@ -2364,7 +2367,9 @@ para mostrar diferencias entre la consola y Mattermost.
     Teams necesita instalar o actualizar el paquete de la aplicación en el equipo o chat de destino, con consentimiento del propietario para `ChannelMessage.Read.Group` y `ChatMessage.Read.Chat`. El paquete los solicita solo con el interruptor activado. Telegram usa los alias de texto `@all`, `@here`, `@channel` y `@everyone`; no notifican al grupo. El bot debe recibir mensajes del grupo; compruebe el modo de privacidad en BotFather. Las menciones, los comandos y las respuestas se verifican contra la identidad real del bot de Telegram. Discord cuenta `@everyone` y `@here` solo cuando el remitente tiene permiso para usarlos, es decir, cuando Discord notifica de verdad a la sala.
 
 - **Enviar archivos del workspace bajo petición también requiere aprobación.** Conceder `send_channel_file` habilita la herramienta; publicar los bytes sigue esperando una confirmación explícita.
-- **Las lecturas MCP de remitentes vinculados siguen la política de aprobación del vínculo; las escrituras siguen requiriendo aprobación.** Una herramienta de solo lectura no pide permiso únicamente por ejecutarse en una app de chat. Las herramientas sin `readOnlyHint: true` siguen pidiéndolo, y una política explícita `all` incluye las lecturas. Se aplica a conexiones personales, de organización y de plataforma, delegados y llamadas reanudadas. Las conexiones personales siguen siendo del remitente actual, nunca del publicador ni de otro participante.
+- **Los remitentes vinculados usan los mismos ajustes de aprobación MCP que en el chat web.** Se aplican la política del vínculo y la configuración de cada herramienta, incluido Run freely sin declaración de solo lectura. Las aprobaciones obligatorias siguen pidiéndose. Las conexiones de plataforma conservan su política mínima global. Se aplica a conexiones personales y de organización, delegados y llamadas reanudadas. Las conexiones personales pertenecen al remitente actual; vincular la cuenta no concede permisos adicionales. Los participantes no vinculados siguen aprobando cada llamada MCP. Los metadatos del canal se envían después de los resultados de herramientas, también tras reanudaciones sucesivas.
+
+Se conserva todo el historial de la sala, incluidos mensajes de otros participantes. Run freely también permite llamadas a herramientas influidas por ese contexto; úsalo solo con herramientas y salas de confianza, y Ask first cuando cada escritura necesite confirmación.
 
 Los mensajes de canal guardan solo el texto del remitente. Las etiquetas del autor se resuelven desde las identidades de canal justo antes de enviar la solicitud al modelo, fuera de las instrucciones del sistema. La consola y las acciones de copiar, fijar y crear atajos reciben el texto original. Los historiales guardados y las ejecuciones pausadas conservan referencias opacas; los manifiestos omiten las partes de referencia del canal añadidas. Al eliminar la cuenta se borran sus identidades, por lo que las solicitudes futuras no pueden resolver sus etiquetas; se conservan los mensajes compartidos.
 

@@ -9,12 +9,10 @@ content goes to (#2127).
 """
 
 from dataclasses import dataclass, field, replace
-from typing import Any
 
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.models import Model, ModelRequestContext
-from pydantic_ai.tools import AgentDepsT, RunContext
-from pydantic_ai.toolsets import AbstractToolset
+from pydantic_ai.tools import AgentDepsT, RunContext, ToolDefinition
 
 from app.agents.capabilities.browser_use._history import (
     BROWSER_REPORT_TOOLS,
@@ -23,7 +21,12 @@ from app.agents.capabilities.browser_use._history import (
 from app.agents.capabilities.browser_use._loop import LoopPolicy
 from app.agents.capabilities.browser_use._page import PagePolicy
 from app.agents.capabilities.browser_use._route import BrowserRoute
-from app.agents.capabilities.browser_use._toolset import PageFactory, build_toolset
+from app.agents.capabilities.browser_use._toolset import (
+    BROWSER_TAB_REQUIREMENT,
+    BrowserToolset,
+    PageFactory,
+    build_toolset,
+)
 
 _INSTRUCTIONS = (
     "You can use a real web browser two ways. Drive it yourself with browser_open, then "
@@ -93,9 +96,7 @@ class WebBrowser(AbstractCapability[AgentDepsT]):
     page_factory: PageFactory | None = field(default=None, repr=False, compare=False)
     """The browser seam; `None` reaches the real `cdp-use`. A test substitutes it."""
 
-    _toolset: AbstractToolset[Any] | None = field(
-        default=None, init=False, repr=False, compare=False
-    )
+    _toolset: BrowserToolset | None = field(default=None, init=False, repr=False, compare=False)
 
     def get_instructions(self) -> str:
         """Static guidance: which way to drive the browser, and to distrust its output."""
@@ -118,6 +119,26 @@ class WebBrowser(AbstractCapability[AgentDepsT]):
             "Read the page again before using element numbers."
         )
 
+    async def prepare_tools(
+        self, ctx: RunContext[AgentDepsT], tool_defs: list[ToolDefinition]
+    ) -> list[ToolDefinition]:
+        """Offer tab actions only while a tab is held; restoration remains available."""
+        has_tabs = self._toolset is not None and bool(self._toolset.sessions())
+        has_active = self._toolset is not None and self._toolset.session is not None
+        offered: list[ToolDefinition] = []
+        for tool in tool_defs:
+            requirement = (
+                (tool.metadata or {}).get(BROWSER_TAB_REQUIREMENT)
+                if tool.capability_id == self.id
+                else None
+            )
+            if requirement == "active" and not has_active:
+                continue
+            if requirement == "any" and not has_tabs:
+                continue
+            offered.append(tool)
+        return offered
+
     async def before_model_request(
         self, ctx: RunContext[AgentDepsT], request_context: ModelRequestContext
     ) -> ModelRequestContext:
@@ -127,7 +148,7 @@ class WebBrowser(AbstractCapability[AgentDepsT]):
             messages=compact_browser_tables(request_context.messages, self.report_tool_names),
         )
 
-    def get_toolset(self) -> AbstractToolset[Any]:
+    def get_toolset(self) -> BrowserToolset:
         """The toolset providing `browse_web` (built once, then reused)."""
         if self._toolset is None:
             self._toolset = build_toolset(

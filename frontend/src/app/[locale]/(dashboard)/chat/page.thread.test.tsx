@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useConversationStore } from "@/stores";
@@ -7,6 +8,7 @@ import ChatPage from "./page";
 
 let queryString = "";
 const push = vi.fn();
+const runExample = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(queryString),
@@ -22,15 +24,18 @@ vi.mock("@/components/chat", () => ({
     requestedThreadRootId,
     onOpenThread,
     onCloseThread,
+    emptyState,
   }: {
     requestedConversationId: string | null;
     requestedThreadRootId: string | null;
     onOpenThread: (root: string) => void;
     onCloseThread: () => void;
+    emptyState?: (onPick: (prompt: string) => void) => ReactNode;
   }) => (
     <main>
       <output aria-label="Requested room">{requestedConversationId ?? "none"}</output>
       <output aria-label="Requested thread">{requestedThreadRootId ?? "none"}</output>
+      {emptyState?.(runExample)}
       <button type="button" onClick={() => onOpenThread("root-b")}>
         Open thread B
       </button>
@@ -50,6 +55,13 @@ vi.mock("@/components/chat", () => ({
 vi.mock("@/components/chat/phone-chat-bar", () => ({ PhoneChatBar: () => null }));
 vi.mock("@/hooks", () => ({ useMcpOAuthOutcome: () => undefined }));
 vi.mock("@/hooks/use-chat-with", () => ({ useChatWith: () => undefined }));
+vi.mock("@/components/onboarding/start-example", () => ({
+  StartExample: ({ goal, onRun }: { goal: string; onRun: (prompt: string) => void }) => (
+    <button type="button" onClick={() => onRun(`Example for ${goal}`)}>
+      Run {goal} example
+    </button>
+  ),
+}));
 
 function destination() {
   const [url, options] = push.mock.calls.at(-1)!;
@@ -59,11 +71,22 @@ function destination() {
 
 beforeEach(() => {
   push.mockClear();
+  runExample.mockClear();
   queryString = "id=room-a&thread=root-a&keep=present";
   useConversationStore.setState({ currentConversationId: "room-a" });
 });
 
 describe("thread URLs on the chat page", () => {
+  it("keeps the selected onboarding example and its send callback alongside thread navigation", async () => {
+    queryString = "id=room-a&example=meeting&thread=root-a";
+    render(<ChatPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Run meeting example" }));
+    expect(runExample).toHaveBeenCalledWith("Example for meeting");
+    await userEvent.click(screen.getByRole("button", { name: "Open thread B" }));
+    expect(destination().searchParams.get("example")).toBe("meeting");
+    expect(destination().searchParams.get("thread")).toBe("root-b");
+  });
+
   it("restores a direct link and follows browser navigation back to the main room", () => {
     const { rerender } = render(<ChatPage />);
     expect(screen.getByLabelText("Requested room")).toHaveTextContent("room-a");

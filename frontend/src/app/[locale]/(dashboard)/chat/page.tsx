@@ -8,12 +8,15 @@ import { PhoneChatBar } from "@/components/chat/phone-chat-bar";
 import { useMcpOAuthOutcome } from "@/hooks";
 import { useChatWith } from "@/hooks/use-chat-with";
 import { SAFE_AREA_CLEARANCE } from "@/lib/page-clearance";
+import { StartExample } from "@/components/onboarding/start-example";
+import { startGoal } from "@/lib/onboarding-api";
 import { cn } from "@/lib/utils";
 import { usePathname, useRouter } from "@/lib/locale-navigation";
 import { useConversationStore } from "@/stores";
 
 export default function ChatPage() {
   const params = useSearchParams();
+  const example = startGoal(params.get("example"));
   const requestedConversationId = params.get("id");
   const requestedThreadRootId = params.get("thread");
   const router = useRouter();
@@ -64,6 +67,11 @@ export default function ChatPage() {
           onCloseThread={() => {
             changeThread(null);
           }}
+          emptyState={
+            example
+              ? (onPick) => <StartExample key={example} goal={example} onRun={onPick} />
+              : undefined
+          }
         />
       </div>
     </div>

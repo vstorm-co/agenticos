@@ -287,6 +287,7 @@ async def provider_callback(
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("User-Agent"),
             session_id=session_id,
+            proved_email=email,
         )
         return RedirectResponse(url=_return_url(request, code))
 

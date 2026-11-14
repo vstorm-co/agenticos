@@ -1,13 +1,13 @@
 "use client";
 
+import { canonicalJson, sameJson } from "@/lib/canonical-json";
 import { MoreOptions } from "@/components/ui/more-options";
 
 import { useResourceCreation, mergeResourceChoices } from "@/components/agents/resource-creation";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
-  AlertCircle,
   Bug,
   SlidersHorizontal,
   Wrench,
@@ -15,16 +15,20 @@ import {
   Archive,
   ArchiveRestore,
   Copy,
+  Database,
   Download,
   FlaskConical,
   History,
+  Lock,
   ImagePlus,
   MoreHorizontal,
   Network,
   Plug,
   Trash2,
+  TrendingUp,
   Upload,
   Radio,
+  SearchX,
   UserPlus,
   X,
 } from "lucide-react";
@@ -35,6 +39,9 @@ import {
 
 import { PinAgentButton } from "@/components/agents/pin-agent-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { StartImprovementDialog } from "@/components/improvement/start-improvement-dialog";
+import { ImprovementHistory } from "@/components/improvement/improvement-history";
+import { JudgeDatasetsCard } from "@/components/agents/judge-datasets-card";
 import {
   AgentMap,
   capabilityMark,
@@ -59,11 +66,13 @@ import { usableForAgents } from "@/lib/model-profiles";
 import { glideOrJump } from "@/lib/motion";
 import { insertVariable } from "@/lib/variable-completion";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
+import { AssistantStrip } from "@/components/authoring/assistant-strip";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
 import { LoopGuardFields } from "@/components/agents/loop-guard-fields";
 import { ReviewersCard } from "@/components/agents/reviewers-card";
 import { CodeModeField } from "@/components/agents/code-mode-field";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
+import type { AgentResources } from "@/components/agents/capability-resources";
 import { A2aPanel } from "@/components/agents/a2a-panel";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
@@ -87,17 +96,32 @@ import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ObservabilityCard } from "@/components/agents/observability-card";
 import { VoiceCard } from "@/components/agents/voice-card";
 import { PublishDialog } from "@/components/agents/publish-dialog";
+import { PublishRefusal } from "@/components/agents/publish-refusal";
 import { PublishState } from "@/components/agents/publish-state";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { AnswerFormatForm } from "@/components/agents/answer-format-form";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
+import { useGuardedPromotion } from "@/components/agents/promotion-dialog";
+import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
+import { DraftEvalNote } from "@/components/evals/draft-eval-note";
+import { EvalsPanel } from "@/components/evals/evals-panel";
+import { EvalSuitesCard } from "@/components/evals/suites/eval-suites-card";
+import { useDraftEvalRuns, useEvalArmSpec, useRunsADataset } from "@/hooks/use-eval-runs";
+import { StartEvalDialog } from "@/components/evals/start-eval-dialog";
 import { TestPanel } from "@/components/agents/test-panel/test-panel";
 import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcut";
 import { VersionHistory } from "@/components/agents/version-history";
 import { FailureLearningTab } from "@/components/failure-learning/failure-learning-tab";
-import { ErrorState } from "@/components/states";
+import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
+import { gapStatus } from "@/lib/knowledge-gap-status";
+import { ImproveButton, ImproveLink } from "@/components/agents/improve-link";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ErrorState } from "@/components/states";
+import {
+  ResourceUnavailable,
+  RunsPermissionNotice,
+} from "@/components/states/resource-unavailable";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import {
   Badge,
@@ -154,6 +178,7 @@ import {
   useSkills,
   useUrlState,
 } from "@/hooks";
+import { useUrlOverlay } from "@/hooks/use-url-state";
 import {
   readSubagentsConfig,
   PERSONAL_CAPABILITIES,
@@ -168,13 +193,18 @@ import {
   VISUALS_ID,
 } from "@/lib/agent-spec";
 import { useContextFiles } from "@/hooks/use-context";
+import type { SpecRefusal } from "@/hooks/use-agents";
 import { ApiError, getErrorMessage, type FieldProblem } from "@/lib/api-error";
+import { applySpecFix, type SpecFix } from "@/lib/spec-fixes";
 import { toolsForBinding } from "@/lib/binding-tools";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
-import { cn } from "@/lib/utils";
+import { cn, setUrlParam } from "@/lib/utils";
 import type { AgentSpec, CapabilityBindingSpec, McpServerRef } from "@/types/agents";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
+import { forSystemAgent, isSystemAgent, verdictKind } from "@/lib/system-agents";
+// The module, not the `@/stores` barrel, which this page's tests stub in part.
+import { useOnboardingStore } from "@/stores/onboarding-store";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -219,17 +249,6 @@ function toolChoice(
   };
 }
 
-/** The Builder's tabs, as `?tab=` names them; anything else is the first. */
-const BUILDER_TABS = new Set([
-  "build",
-  "toolbox",
-  "mcp",
-  "limits",
-  "availability",
-  "history",
-  "failure-learning",
-]);
-
 export default function AgentBuilderPage({ params }: PageProps) {
   const t = useTranslations("pages.agents");
   const tMenu = useTranslations("agents");
@@ -240,8 +259,18 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tSharing = useTranslations("sharing");
   const tAgents = useTranslations("agents");
   const tErrors = useTranslations("errors");
+  const tGaps = useTranslations("knowledgeGaps");
   const tAnswer = useTranslations("answerFormat");
   const { id } = use(params);
+  // A link from an eval run lands on the tab it names: its Evals, the History
+  // comparing the two versions it measured, or Build with the publish asked for.
+  const searchParams = useSearchParams();
+  const compareFrom = Number(searchParams.get("from")) || null;
+  const testedRun = searchParams.get("run");
+  const testedArm = searchParams.get("arm");
+  const compareTo = testedRun ? "tested" : Number(searchParams.get("to")) || "draft";
+  const { spec: testedSpec } = useEvalArmSpec(testedRun, testedArm);
+  const publishAsked = searchParams.get("publish") === "1";
   const router = useRouter();
   const {
     agent,
@@ -256,7 +285,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
     setAvatar,
     setColor,
   } = useAgent(id);
-  const { environments, promote } = useAgentEnvironments(id);
+  const { environments } = useAgentEnvironments(id);
+  const promotion = useGuardedPromotion(id, environments);
   const { agents, clone, archive, unarchive, remove } = useAgents();
   const { capabilities } = useCapabilityCatalog();
   const { variables: promptVariables } = usePromptVariables();
@@ -328,13 +358,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // configuration was refused marks the box rather than only saying so in
   // the list above the form (#882).
   const [configProblems, setConfigProblems] = useState<FieldProblem[]>([]);
+  const [fixes, setFixes] = useState<SpecFix[]>([]);
+  const [fixing, setFixing] = useState(false);
   const [confirming, setConfirming] = useState<"archive" | "delete" | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   // In the address, so a reload or a shared link lands on the same tab.
   const [tabParam, changeTab] = useUrlState("tab");
-  const tab = tabParam !== null && BUILDER_TABS.has(tabParam) ? tabParam : "build";
+  const [gapTopic, gapTopicView] = useUrlOverlay("topic");
+  const [improveMode, improveView] = useUrlOverlay("improve");
+  const [gapStatusParam, setGapStatusParam] = useUrlState("status");
   const setTab = (next: string) => changeTab(next === "build" ? null : next);
   // The Model card, which "No model selected" takes its reader to (#2483).
   // From another tab the card mounts a render after the tab changes, so the
@@ -380,6 +414,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [avatarVersion, setAvatarVersion] = useState(0);
   const avatarInput = useRef<HTMLInputElement>(null);
 
+  // A system agent's stored draft can hold what its save refuses and its page
+  // cannot show, so none of that is adopted, compared or sent.
+  const storedDraft = useMemo(
+    () =>
+      agent?.draft_spec && isSystemAgent(agent.kind)
+        ? forSystemAgent(agent.draft_spec)
+        : agent?.draft_spec,
+    [agent?.draft_spec, agent?.kind],
+  );
+
   // Adopt the server's draft whenever there is nothing local, and not
   // otherwise: every autosave invalidates the agent query, and re-adopting the
   // answer would overwrite whatever was typed while the save was in flight.
@@ -388,20 +432,74 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // draft. Rolling back to a version structurally equal to the current draft
   // leaves React Query holding the same reference, and gating on the reference
   // moving left the page on its skeleton with no way out.
-  if (agent?.draft_spec && spec === null) {
-    setSpec(agent.draft_spec);
+  if (storedDraft && spec === null) {
+    setSpec(storedDraft);
   }
 
-  // A workflow step's own agent is changed in that step, so nothing here edits it.
+  // This caller on this agent, not their role: a grant widens what the role
+  // allows, and a role that may edit agents may still not reach this one. A
+  // workflow step's own agent is changed in that step, so nothing here edits it.
   const ownedByWorkflow = agent?.workflow_id ?? null;
-  const canEdit = can(Perm.agentsEdit) && ownedByWorkflow === null;
-  const canPublish = can(Perm.agentsPublish) && ownedByWorkflow === null;
+  const canEdit = agent?.can_edit === true && ownedByWorkflow === null;
+  const canPublish = agent?.can_publish === true && ownedByWorkflow === null;
+  // Duplicating creates an agent, which only the role allows - a grant on this
+  // one never does.
+  const canDuplicate = can(Perm.agentsEdit);
+  const duplicate = () =>
+    clone.mutate(id, { onSuccess: (created) => router.push(ROUTES.AGENT_DETAIL(created.id)) });
+  // Only the platform runs a system agent - nobody chats with it, gives it tools
+  // or exposes it - so its page holds what changes how it works, and nothing else.
+  const isSystem = isSystemAgent(agent?.kind);
+  // Its "?" walks the stops this page renders for a system agent, which its path
+  // cannot tell the walk.
+  const setSystemAgentPage = useOnboardingStore((state) => state.setSystemAgentPage);
+  useEffect(() => {
+    setSystemAgentPage(isSystem);
+    return () => setSystemAgentPage(false);
+  }, [isSystem, setSystemAgentPage]);
+  // Changing a system agent takes `org:settings`, so an editor of agents may still
+  // only read this one: the server answers `can_edit: false`, and this says why.
+  const systemReadOnly = isSystem && !canEdit && can(Perm.agentsEdit) && !can(Perm.orgSettings);
+  const isJudge = agent?.kind === "judge";
+  const canViewRuns = can(Perm.runsView);
+  const { runs: publishTests } = useDraftEvalRuns(canViewRuns && !isSystem ? id : null, {
+    enabled: publishOpen,
+  });
+  const { suites: publishSuites } = useAgentEvalSuites(id, {
+    enabled:
+      publishOpen &&
+      canViewRuns &&
+      !isSystem &&
+      environments.some((environment) => environment.guard_suite_ids.length > 0),
+  });
+  // The Builder's tabs, as `?tab=` names them, for this caller and this agent; a
+  // link naming one they lack - Evals without runs:view, a judge's MCP servers -
+  // opens the first.
+  const tabs = [
+    "build",
+    "toolbox",
+    ...(isSystem ? [] : ["mcp", "availability"]),
+    "limits",
+    ...(isJudge ? ["datasets"] : []),
+    ...(!isSystem ? ["evals"] : []),
+    ...(canViewRuns && !isSystem ? ["gaps"] : []),
+    "history",
+  ];
+  const tab = tabParam !== null && tabs.includes(tabParam) ? tabParam : "build";
+  // An eval needs a dataset with a case this caller may run - a grant on one is
+  // enough - asked only for who may start one.
+  const couldStartEvals = !isSystem && agent?.can_run === true;
+  const runsADataset = useRunsADataset({ enabled: couldStartEvals && (canViewRuns || canEdit) });
+  const canStartEvals = canViewRuns && couldStartEvals && runsADataset;
+  // Testing the draft runs it - the editors' work in progress - on a dataset.
+  const canTestDraft = canStartEvals && canEdit;
+  const [testingDraft, setTestingDraft] = useState(false);
   const resourceCreation = useResourceCreation({
     mayCreateSkill: canEdit && can(Perm.skillsEdit),
     mayCreateContext: canEdit && can(Perm.contextEdit),
     setSpec,
   });
-  useTestShortcut(canEdit, () => toggleTesting(!testing));
+  useTestShortcut(canEdit && !isSystem, () => toggleTesting(!testing));
 
   // The stale-reference check reads a reference as dead when its id is absent
   // from a list, so it must not run until every list it consults has *succeeded*:
@@ -435,10 +533,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   // A draft differs from what is live the moment anything is edited. Showing
   // that difference is what stops someone testing a change that never shipped.
-  const isDirty = useMemo(
-    () => JSON.stringify(spec) !== JSON.stringify(agent?.draft_spec),
-    [spec, agent?.draft_spec],
-  );
+  const isDirty = useMemo(() => !sameJson(spec, storedDraft), [spec, storedDraft]);
 
   // The draft stores itself. A Builder with a Save button is a Builder where
   // the tab closed on twenty minutes of instructions; the debounce means a
@@ -468,7 +563,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     resource: "agent",
     id,
     local: spec,
-    stored: agent?.draft_spec,
+    stored: storedDraft,
     fetchedAt,
     adopt: setSpec,
   });
@@ -479,14 +574,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
     if (
       !canEdit ||
       !spec ||
-      !agent?.draft_spec ||
+      !storedDraft ||
       !isDirty ||
       storing ||
       remote.held ||
       !spec.name.trim()
     )
       return;
-    const payload = JSON.stringify(spec);
+    const payload = canonicalJson(spec);
     if (payload === attempts.current.payload && attempts.current.tries >= 2) return;
     const timer = setTimeout(() => {
       attempts.current =
@@ -495,10 +590,29 @@ export default function AgentBuilderPage({ params }: PageProps) {
           : { payload, tries: 1 };
       // Errors already toast in the hook; the badge only needs to keep saying
       // "unsaved", which `isDirty` staying true does on its own.
-      void storeDraft(spec).catch(() => null);
+      void storeDraft(spec)
+        .then((saved) => {
+          setSpec((current) =>
+            sameJson(current, spec)
+              ? isSystem
+                ? forSystemAgent(saved.draft_spec)
+                : saved.draft_spec
+              : current,
+          );
+        })
+        .catch(() => null);
     }, 1200);
     return () => clearTimeout(timer);
-  }, [spec, agent?.draft_spec, isDirty, canEdit, storeDraft, storing, remote.held]);
+  }, [spec, storedDraft, isDirty, canEdit, storeDraft, storing, remote.held, isSystem]);
+
+  // Asked once per visit, and only of someone who may publish: the dialog still
+  // validates first and still asks before anything goes live.
+  const publishOffered = useRef(false);
+  useEffect(() => {
+    if (!publishAsked || publishOffered.current || !agent || !spec || !canPublish) return;
+    publishOffered.current = true;
+    void handlePublish();
+  });
 
   // Names, never ids: the map exists to be read, and a row of uuids is the
   // thing it replaces. Anything the spec references but the organization no
@@ -798,26 +912,34 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // halves of the decision. That tab is gone: the gallery is in this capability's
   // panel, so switching it off is exactly what unpicking every skill already did,
   // and there was no way to grant the tools without picking one first.
+  //
   const grantable = useMemo(
     () => capabilities.filter((entry) => entry.id !== THINKING_ID),
     [capabilities],
   );
 
   if (isLoading) return <BuilderSkeleton />;
-  if (agentError || !agent) {
-    const unavailable =
-      agentError instanceof ApiError && (agentError.status === 404 || agentError.status === 403);
+  if (agentError instanceof ApiError && (agentError.status === 404 || agentError.status === 403))
+    return (
+      <div role="alert" className="space-y-3">
+        <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />
+        <div className="flex justify-center">
+          <Button variant="outline" onClick={() => void refetchAgent()}>
+            {tAgents("retryLoad")}
+          </Button>
+        </div>
+      </div>
+    );
+  if (!agent)
     return (
       <ErrorState
-        title={tAgents(unavailable ? "unavailableTitle" : "loadFailedTitle")}
-        description={
-          unavailable ? tAgents("unavailableDescription") : getErrorMessage(agentError, tErrors)
-        }
+        title={tAgents("loadFailedTitle")}
+        description={getErrorMessage(agentError, tErrors)}
         cta={{ label: tAgents("retryLoad"), onClick: () => void refetchAgent() }}
       />
     );
-  }
   if (!spec) return <BuilderSkeleton />;
+  if (isSystem) return <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />;
 
   const isPublished = agent.status === "published";
 
@@ -853,6 +975,27 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const setSkills = (skillIds: string[]) => update(withSkills(spec, skillIds));
   const setContext = (contextIds: string[]) => update(withContextFiles(spec, contextIds));
+  // What the agent is *given*, picked in the panel of the capability that reads
+  // it. Each setter switches that capability on with the first pick, because bound
+  // without it the resources are resolved and then discarded.
+  const offeredContext = { items: contextFiles, total: contextCount };
+  const offeredSkills = { items: skills, total: skillCount };
+  const resources: AgentResources = {
+    contextFiles: mergeResourceChoices(offeredContext.items, resourceCreation.context),
+    onCreateContext: resourceCreation.createContext,
+    contextTotal: offeredContext.total,
+    contextIds: spec.context_ids,
+    onContextToggle: (fileId: string) => setContext(toggleId(spec.context_ids, fileId)),
+    collections,
+    collectionIds: spec.collection_ids,
+    onCollectionToggle: (collectionId: string) =>
+      update({ collection_ids: toggleId(spec.collection_ids, collectionId) }),
+    skills: mergeResourceChoices(offeredSkills.items, resourceCreation.skills),
+    onCreateSkill: resourceCreation.createSkill,
+    skillTotal: offeredSkills.total,
+    skillIds: spec.skill_ids,
+    onSkillToggle: (skillId: string) => setSkills(toggleId(spec.skill_ids, skillId)),
+  };
 
   /**
    * Store the draft, and stop if it did not store.
@@ -879,9 +1022,30 @@ export default function AgentBuilderPage({ params }: PageProps) {
   async function handlePublish() {
     if (!(await persist())) return;
     const found = await validate();
+    showRefusal(found);
+    if (found.problems.length === 0) setPublishOpen(true);
+  }
+
+  function showRefusal(found: SpecRefusal) {
     setProblems(found.problems);
     setConfigProblems(found.fields);
-    if (found.problems.length === 0) setPublishOpen(true);
+    setFixes(found.fixes);
+  }
+
+  /** Rewrite the draft as the refusal offered, save it and check it again - publishing stays a click of its own. */
+  async function handleFix(fix: SpecFix) {
+    if (!spec) return;
+    const next = applySpecFix(spec, fix);
+    setSpec(next);
+    setFixing(true);
+    try {
+      await saveDraft.mutateAsync(next);
+      showRefusal(await validate());
+    } catch {
+      // `saveDraft` has already said what went wrong.
+    } finally {
+      setFixing(false);
+    }
   }
 
   // What the next publish will be called. The server owns the number; this
@@ -936,8 +1100,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
   return (
     // Beside the Builder rather than over it: the test panel shares the width
     // (#2074), so the Builder stays usable while the agent is being tried.
-    <div className="flex items-start gap-4">
-      <div className="min-w-0 flex-1 space-y-3 sm:space-y-4">
+    <div className="flex flex-1 items-start gap-4">
+      <div className="flex min-w-0 flex-1 flex-col gap-3 self-stretch sm:gap-4">
+        {agentError && (
+          <ErrorState
+            title={tAgents("loadFailedTitle")}
+            description={getErrorMessage(agentError, tErrors)}
+            cta={{ label: tAgents("retryLoad"), onClick: () => void refetchAgent() }}
+          />
+        )}
         <PageHeader
           title={
             <span className="flex min-w-0 items-center gap-3">
@@ -974,14 +1145,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
           badges={
             <>
               <AgentStatusBadge status={agent.status} />
+              {false}
               {/* Two badges, two different questions. This one: is the stored
-                draft what published surfaces are answering with - computed
-                from the server's copies, so the autosave settling cannot clear
-                it into a page that reads as finished while every channel is
-                still on the old version (#519). */}
+                draft a published version, and which one production runs -
+                computed from the server's copies, so the autosave settling
+                cannot clear it into a page that reads as finished. */}
               <PublishState
                 agentId={id}
-                currentVersionId={agent.current_version_id}
+                production={environments.find((environment) => environment.is_default)}
                 draftSpec={agent.draft_spec}
               />
               {/* And this one: is my edit stored. The draft saves itself; this
@@ -1062,10 +1233,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
               {/* Beside the chat button rather than in the overflow menu: the
                 map answers "what is this agent" and that question comes up
                 before publishing, not after somebody goes looking for it. */}
-              <Button variant="outline" onClick={() => setMapOpen(true)}>
-                <Network className="h-4 w-4" />
-                {t("visualMap")}
-              </Button>
+              {
+                <Button variant="outline" onClick={() => setMapOpen(true)}>
+                  <Network className="h-4 w-4" />
+                  {t("visualMap")}
+                </Button>
+              }
               {/* For whoever cannot open the overflow menu, which is where an
                   editor finds the export - a header of six buttons asked for
                   every decision at once. */}
@@ -1075,6 +1248,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     <Download className="h-4 w-4" />
                     {t("exportYaml")}
                   </a>
+                </Button>
+              )}
+              {!canEdit && canDuplicate && (
+                <Button variant="outline" onClick={duplicate} disabled={clone.isPending}>
+                  <Copy className="h-4 w-4" />
+                  {t("duplicate")}
                 </Button>
               )}
               {/* Who reaches this agent, the way a document is shared: one
@@ -1101,20 +1280,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
                         />
                       </a>
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className={DESCRIBED_ITEM}
-                      onSelect={() =>
-                        clone.mutate(id, {
-                          onSuccess: (created) => router.push(ROUTES.AGENT_DETAIL(created.id)),
-                        })
-                      }
-                    >
-                      <Copy className="h-4 w-4" />
-                      <DropdownMenuItemText
-                        label={t("duplicate")}
-                        description={tMenu("menuDuplicateHint")}
-                      />
-                    </DropdownMenuItem>
+                    {canDuplicate && (
+                      <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={duplicate}>
+                        <Copy className="h-4 w-4" />
+                        <DropdownMenuItemText
+                          label={t("duplicate")}
+                          description={tMenu("menuDuplicateHint")}
+                        />
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                       className={DESCRIBED_ITEM}
                       onSelect={() => avatarInput.current?.click()}
@@ -1137,41 +1311,47 @@ export default function AgentBuilderPage({ params }: PageProps) {
                         disabled={setColor.isPending}
                       />
                     </div>
-                    <DropdownMenuSeparator />
-                    {agent.status === "archived" ? (
-                      <DropdownMenuItem
-                        className={DESCRIBED_ITEM}
-                        onSelect={() => unarchive.mutate(id)}
-                      >
-                        <ArchiveRestore className="h-4 w-4" />
-                        <DropdownMenuItemText
-                          label={t("restore")}
-                          description={tMenu("menuRestoreHint")}
-                        />
-                      </DropdownMenuItem>
-                    ) : (
-                      <DropdownMenuItem
-                        className={DESCRIBED_ITEM}
-                        onSelect={() => setConfirming("archive")}
-                      >
-                        <Archive className="h-4 w-4" />
-                        <DropdownMenuItemText
-                          label={t("archive")}
-                          description={tMenu("menuArchiveHint")}
-                        />
-                      </DropdownMenuItem>
+                    {/* A seeded system agent is the platform's own: archiving or
+                      deleting it is refused, whatever the caller holds. */}
+                    {!agent.system_key && (
+                      <>
+                        <DropdownMenuSeparator />
+                        {agent.status === "archived" ? (
+                          <DropdownMenuItem
+                            className={DESCRIBED_ITEM}
+                            onSelect={() => unarchive.mutate(id)}
+                          >
+                            <ArchiveRestore className="h-4 w-4" />
+                            <DropdownMenuItemText
+                              label={t("restore")}
+                              description={tMenu("menuRestoreHint")}
+                            />
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem
+                            className={DESCRIBED_ITEM}
+                            onSelect={() => setConfirming("archive")}
+                          >
+                            <Archive className="h-4 w-4" />
+                            <DropdownMenuItemText
+                              label={t("archive")}
+                              description={tMenu("menuArchiveHint")}
+                            />
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className={cn(DESCRIBED_ITEM, "text-destructive focus:text-destructive")}
+                          onSelect={() => setConfirming("delete")}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <DropdownMenuItemText
+                            label={t("deletePermanently")}
+                            description={tMenu("menuDeleteHint")}
+                          />
+                        </DropdownMenuItem>
+                      </>
                     )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className={cn(DESCRIBED_ITEM, "text-destructive focus:text-destructive")}
-                      onSelect={() => setConfirming("delete")}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <DropdownMenuItemText
-                        label={t("deletePermanently")}
-                        description={tMenu("menuDeleteHint")}
-                      />
-                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
@@ -1204,6 +1384,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
             onReload={remote.reload}
             onKeepMine={remote.keepMine}
           />
+        )}
+
+        {systemReadOnly && (
+          <div className="border-border bg-muted/40 flex items-center gap-3 rounded-xl border px-4 py-3">
+            <Lock className="text-muted-foreground size-4 shrink-0" aria-hidden />
+            <p className="min-w-0 flex-1 text-sm">{t("systemAgentReadOnly")}</p>
+          </div>
         )}
 
         <Dialog open={shareOpen} onOpenChange={setShareOpen}>
@@ -1307,6 +1494,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
           version={nextVersion}
           environments={environments}
           publishing={publish.isPending}
+          draftBreaks={(publishTests[0]?.outcome?.regressions_confirmed ?? 0) > 0}
+          guardNames={Object.fromEntries(publishSuites.map((suite) => [suite.id, suite.name]))}
+          onTest={
+            canTestDraft
+              ? () => {
+                  setPublishOpen(false);
+                  setTestingDraft(true);
+                }
+              : undefined
+          }
           onConfirm={async () => {
             try {
               await publish.mutateAsync(null);
@@ -1317,7 +1514,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
               // the retry is one click rather than a re-run of validation.
             }
           }}
-        />
+        >
+          {canViewRuns && (
+            <DraftEvalNote
+              agentId={id}
+              onTest={() => {
+                setPublishOpen(false);
+                setTestingDraft(true);
+              }}
+            />
+          )}
+        </PublishDialog>
+        {testingDraft && (
+          <StartEvalDialog agentId={id} target="compare" onOpenChange={setTestingDraft} />
+        )}
 
         {confirming === "archive" && (
           <ConfirmDialog
@@ -1352,35 +1562,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
         )}
 
         {problems.length > 0 && (
-          <Card className="border-destructive/40 bg-destructive/5">
-            <CardContent className="space-y-2 p-4">
-              <p className="flex items-center gap-2 text-sm font-medium">
-                <AlertCircle className="h-4 w-4" />
-                {t("agentCannotBePublished")}
-              </p>
-              <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
-                {problems.map((problem) => (
-                  <li key={problem}>
-                    {problem}
-                    {/* Publish marks the missing model on its field, and the
-                        field lives on a tab the reader may not be on. */}
-                    {configProblems.some(
-                      (found) => found.field === "model_profile_id" && found.message === problem,
-                    ) && (
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="ml-2 h-auto p-0"
-                        onClick={goToModel}
-                      >
-                        {t("goToModel")}
-                      </Button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          <PublishRefusal
+            problems={problems}
+            fixes={fixes}
+            canEdit={canEdit}
+            onFix={handleFix}
+            fixing={fixing}
+            isModelProblem={(problem) =>
+              configProblems.some(
+                (found) => found.field === "model_profile_id" && found.message === problem,
+              )
+            }
+            onGoToModel={goToModel}
+          />
         )}
 
         {/* Tabs, because the alternative was a single column of eleven cards and
@@ -1422,11 +1616,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <Button
               size="sm"
               onClick={() => {
-                setTab("availability");
+                improveView.open("baseline");
                 setFirstPublished(false);
               }}
             >
-              {t("openAvailability")}
+              {t("setBaseline")}
             </Button>
             <IconButton aria-label={tc("dismiss")} onClick={() => setFirstPublished(false)}>
               <X />
@@ -1434,7 +1628,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </div>
         )}
 
-        <Tabs value={tab} onValueChange={setTab}>
+        <Tabs value={tab} onValueChange={setTab} className="flex flex-1 flex-col">
           <TabsList>
             <TabsTrigger value="build" data-tour="agent-tab-build">
               <SlidersHorizontal className="mr-1.5 size-4 shrink-0" aria-hidden />
@@ -1444,18 +1638,40 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <Wrench className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("toolbox")}
             </TabsTrigger>
-            <TabsTrigger value="mcp" data-tour="agent-tab-mcp">
-              <Plug className="mr-1.5 size-4 shrink-0" aria-hidden />
-              {t("mcpServers")}
-            </TabsTrigger>
+            {
+              <TabsTrigger value="mcp" data-tour="agent-tab-mcp">
+                <Plug className="mr-1.5 size-4 shrink-0" aria-hidden />
+                {t("mcpServers")}
+              </TabsTrigger>
+            }
             <TabsTrigger value="limits" data-tour="agent-tab-limits">
               <ShieldCheck className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("limits")}
             </TabsTrigger>
-            <TabsTrigger value="availability" data-tour="agent-tab-availability">
-              <Radio className="mr-1.5 size-4 shrink-0" aria-hidden />
-              {t("availability")}
-            </TabsTrigger>
+            {
+              <TabsTrigger value="availability" data-tour="agent-tab-availability">
+                <Radio className="mr-1.5 size-4 shrink-0" aria-hidden />
+                {t("availability")}
+              </TabsTrigger>
+            }
+            {(canViewRuns || tab === "evals") && (
+              <TabsTrigger value="evals" data-tour="agent-tab-evals">
+                <FlaskConical className="mr-1.5 size-4 shrink-0" aria-hidden />
+                {t("evals")}
+              </TabsTrigger>
+            )}
+            {canViewRuns && (
+              <TabsTrigger value="gaps" data-tour="agent-tab-gaps">
+                <SearchX className="mr-1.5 size-4 shrink-0" aria-hidden />
+                {tGaps("tab")}
+              </TabsTrigger>
+            )}
+            {isJudge && (
+              <TabsTrigger value="datasets">
+                <Database className="mr-1.5 size-4 shrink-0" aria-hidden />
+                {t("judgeDatasets")}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="history" data-tour="agent-tab-history">
               <History className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("history")}
@@ -1552,6 +1768,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     value={spec.model_settings}
                     onChange={(model_settings) => update({ model_settings })}
                     disabled={!canEdit}
+                    verdict={verdictKind(agent.kind)}
                   />
                 </MoreOptions>
                 <ThinkingSetting
@@ -1564,33 +1781,37 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </CardContent>
             </Card>
 
-            <Card data-tour="agent-answer-format">
-              <CardHeader>
-                <CardTitle>{tAnswer("title")}</CardTitle>
-                <CardDescription>{tAnswer("description")}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <AnswerFormatForm
-                  value={spec.output_schema ?? null}
-                  onChange={(output_schema) => update({ output_schema })}
+            {
+              <>
+                <Card data-tour="agent-answer-format">
+                  <CardHeader>
+                    <CardTitle>{tAnswer("title")}</CardTitle>
+                    <CardDescription>{tAnswer("description")}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <AnswerFormatForm
+                      value={spec.output_schema ?? null}
+                      onChange={(output_schema) => update({ output_schema })}
+                      disabled={!canEdit}
+                    />
+                  </CardContent>
+                </Card>
+
+                <VoiceCard
+                  value={spec.speech_to_text}
+                  onChange={(speech_to_text) => update({ speech_to_text })}
+                  conversation={{
+                    agentId: id,
+                    value: spec.voice,
+                    onChange: (voice) => update({ voice }),
+                    hasGuardrails: spec.capabilities.some(
+                      (binding) => binding.id === "guardrails" && binding.enabled !== false,
+                    ),
+                  }}
                   disabled={!canEdit}
                 />
-              </CardContent>
-            </Card>
-
-            <VoiceCard
-              value={spec.speech_to_text}
-              onChange={(speech_to_text) => update({ speech_to_text })}
-              conversation={{
-                agentId: id,
-                value: spec.voice,
-                onChange: (voice) => update({ voice }),
-                hasGuardrails: spec.capabilities.some(
-                  (binding) => binding.id === "guardrails" && binding.enabled !== false,
-                ),
-              }}
-              disabled={!canEdit}
-            />
+              </>
+            }
 
             <StartersPanel
               starters={spec.starters ?? []}
@@ -1603,8 +1824,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
             />
 
             {/* Discovery metadata, not the spec: it autosaves at once like the
-              avatar, so it hangs off the same role-level `canEdit` every other
-              editing control on this page does. */}
+              avatar, so it hangs off the same `canEdit` every other editing
+              control on this page does. */}
             {canEdit && (
               <Card>
                 <CardHeader>
@@ -1684,33 +1905,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   onSubagentsChange={(subagents) => update({ subagents })}
                   externalAgents={spec.external_agents ?? []}
                   onExternalAgentsChange={(external_agents) => update({ external_agents })}
-                  // What the agent is *given*, picked in the panel of the
-                  // capability that reads it. Each setter switches that capability
-                  // on with the first pick, because bound without it the resources
-                  // are resolved and then discarded.
-                  resources={{
-                    contextFiles: mergeResourceChoices(contextFiles, resourceCreation.context),
-                    onCreateContext: resourceCreation.createContext,
-                    contextTotal: contextCount,
-                    contextIds: spec.context_ids,
-                    onContextToggle: (fileId: string) =>
-                      setContext(toggleId(spec.context_ids, fileId)),
-                    collections,
-                    collectionIds: spec.collection_ids,
-                    onCollectionToggle: (collectionId: string) =>
-                      update({ collection_ids: toggleId(spec.collection_ids, collectionId) }),
-                    skills: mergeResourceChoices(skills, resourceCreation.skills),
-                    onCreateSkill: resourceCreation.createSkill,
-                    skillTotal: skillCount,
-                    skillIds: spec.skill_ids,
-                    onSkillToggle: (skillId: string) =>
-                      setSkills(toggleId(spec.skill_ids, skillId)),
-                  }}
+                  resources={resources}
                   // So promoting a specialist that runs on the parent's model can
                   // resolve one for the standalone agent it becomes.
                   modelProfileId={spec.model_profile_id ?? null}
                   disabled={!canEdit}
                   configProblems={configProblems}
+                  system={undefined}
                 />
               </CardContent>
             </Card>
@@ -1857,51 +2058,63 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     {t("monthlyUsdHint")}
                   </p>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="max-steps">{t("maxStepsPerRun")}</Label>
-                  <Input
-                    id="max-steps"
-                    type="number"
-                    step="1"
-                    min="1"
-                    max="200"
-                    value={spec.max_steps ?? ""}
-                    disabled={!canEdit}
-                    onChange={(event) =>
-                      update({ max_steps: event.target.value ? Number(event.target.value) : null })
-                    }
-                    placeholder={t("n100Default")}
-                    aria-describedby="max-steps-hint"
-                  />
-                  <p id="max-steps-hint" className="text-muted-foreground text-xs">
-                    {t("howManyModelRequests")}
-                  </p>
-                </div>
-                <LoopGuardFields
-                  value={spec.loop_guard}
-                  onChange={(loop_guard) => update({ loop_guard })}
-                  disabled={!canEdit}
-                />
-                <CodeModeField
-                  value={spec.code_mode}
-                  onChange={(code_mode) => update({ code_mode })}
-                  disabled={!canEdit}
-                />
+                {/* A system agent calls no tool but its knowledge search, whose
+                  steps are set in that capability's panel, so loops and scripts
+                  are not limits it can reach. */}
+                {
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="max-steps">{t("maxStepsPerRun")}</Label>
+                      <Input
+                        id="max-steps"
+                        type="number"
+                        step="1"
+                        min="1"
+                        max="200"
+                        value={spec.max_steps ?? ""}
+                        disabled={!canEdit}
+                        onChange={(event) =>
+                          update({
+                            max_steps: event.target.value ? Number(event.target.value) : null,
+                          })
+                        }
+                        placeholder={t("n100Default")}
+                        aria-describedby="max-steps-hint"
+                      />
+                      <p id="max-steps-hint" className="text-muted-foreground text-xs">
+                        {t("howManyModelRequests")}
+                      </p>
+                    </div>
+                    <LoopGuardFields
+                      value={spec.loop_guard}
+                      onChange={(loop_guard) => update({ loop_guard })}
+                      disabled={!canEdit}
+                    />
+                    <CodeModeField
+                      value={spec.code_mode}
+                      onChange={(code_mode) => update({ code_mode })}
+                      disabled={!canEdit}
+                    />
+                  </>
+                }
               </CardContent>
             </Card>
             {/* Beside the budget rather than in a settings page of its own: the two
               questions are "how much may this agent spend" and "who is told when
               it stops", and answering the first without the second is how a run
               stops quietly. */}
-            <ReviewersCard
-              value={spec.reviewers}
-              onChange={(reviewers) => update({ reviewers })}
-              disabled={!canEdit}
-            />
+            {
+              <ReviewersCard
+                value={spec.reviewers}
+                onChange={(reviewers) => update({ reviewers })}
+                disabled={!canEdit}
+              />
+            }
             <AlertsPanel
               value={spec.notifications}
               onChange={(notifications) => update({ notifications })}
               disabled={!canEdit}
+              approvals
             />
             <ObservabilityCard
               value={spec.observability}
@@ -1951,7 +2164,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   <CardDescription>{t("namedPointersAtPublished")}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <EnvironmentsPanel agentId={id} canManage={canPublish} />
+                  <EnvironmentsPanel agentId={id} canManage={canPublish} system={false} />
                 </CardContent>
               </Card>
             )}
@@ -1965,6 +2178,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <CardDescription>{t("eachPublishFreezesSpec")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
+                {promotion.dialog}
                 <VersionHistory
                   agentId={id}
                   currentVersionId={agent.current_version_id}
@@ -1977,19 +2191,95 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   }
                   restoring={rollback.isPending}
                   environments={environments}
-                  onPromote={(environmentId, versionId) =>
-                    promote.mutate({ environmentId, versionId })
-                  }
-                  promoting={promote.isPending}
+                  onPromote={promotion.request}
+                  promoting={promotion.promoting}
+                  compareFrom={compareFrom}
+                  compareTo={compareTo}
+                  testedSpec={testedSpec ? { spec: testedSpec, label: t("draftAsTested") } : null}
                 />
               </CardContent>
             </Card>
+            {canViewRuns && <ImprovementHistory agentId={id} />}
           </TabsContent>
           <TabsContent value="failure-learning" className="mt-4 space-y-4">
             <FailureLearningTab agentId={id} />
           </TabsContent>
+
+          {
+            <TabsContent value="evals" className="mt-6 flex flex-1 flex-col gap-6">
+              {canViewRuns ? (
+                <>
+                  {canEdit && (
+                    <AssistantStrip
+                      agentId={id}
+                      storedDraft={agent.draft_spec}
+                      canCheck={canTestDraft}
+                      persist={persist}
+                      onDraft={setSpec}
+                    />
+                  )}
+                  <EvalsPanel
+                    agentId={id}
+                    canStart={canStartEvals}
+                    actions={
+                      canEdit ? (
+                        <ImproveButton
+                          agentId={id}
+                          persist={persist}
+                          onStart={() => improveView.open("new")}
+                          tour="agent-improve"
+                        />
+                      ) : undefined
+                    }
+                  />
+                  <EvalSuitesCard agentId={id} canManage={canStartEvals && canEdit} />
+                </>
+              ) : (
+                <RunsPermissionNotice />
+              )}
+            </TabsContent>
+          }
+          {isJudge && (
+            <TabsContent value="datasets" className="mt-6 flex flex-1 flex-col gap-6">
+              <JudgeDatasetsCard judgeId={id} />
+            </TabsContent>
+          )}
+          {canViewRuns && (
+            <TabsContent value="gaps" className="mt-6 flex flex-1 flex-col">
+              <div data-tour="agent-gaps" className="flex flex-1 flex-col gap-4">
+                {canEdit && (
+                  <ImproveLink
+                    agentId={id}
+                    className="inline-flex items-center gap-1.5 text-sm underline underline-offset-4"
+                  >
+                    <TrendingUp className="h-4 w-4" aria-hidden />
+                    {t("improveFromGaps")}
+                  </ImproveLink>
+                )}
+                <KnowledgeGapsPanel
+                  scope={{ kind: "agent", id }}
+                  topicId={gapTopic}
+                  onTopicChange={(topic) =>
+                    topic === null ? gapTopicView.close() : gapTopicView.open(topic)
+                  }
+                  status={gapStatus(gapStatusParam)}
+                  onStatusChange={(next) => setGapStatusParam(next === "open" ? null : next)}
+                />
+              </div>
+            </TabsContent>
+          )}
         </Tabs>
       </div>
+      {improveMode !== null && (
+        <StartImprovementDialog
+          agent={agent}
+          allowed={canEdit && canViewRuns}
+          onClose={() => {
+            setUrlParam("improveDataset", null);
+            improveView.close();
+          }}
+        />
+      )}
       {resourceCreation.dialogs}
       {testing && canEdit && (
         <TestPanel
@@ -2009,7 +2299,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
  * The Builder's own skeleton.
  *
  * None of the shared variants fit: this page is a breadcrumbed header with four
- * actions, a seven-tab strip, and a card whose body is dominated by a ten-row
+ * actions, an eight-tab strip, and a card whose body is dominated by a ten-row
  * textarea. Approximating that with a card grid would move the tab strip the
  * moment the agent arrived, which is the jump the skeleton exists to prevent.
  * `ConversationSkeleton` in `chat-container.tsx` is the same argument.
@@ -2017,7 +2307,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
 function BuilderSkeleton() {
   const t = useTranslations("pages.agents");
   return (
-    <div role="status" aria-label={t("loading")} className="space-y-6">
+    <div role="status" aria-label={t("loading")} className="min-w-0 space-y-6">
       <div className="mb-6 md:mb-8">
         <div className="bg-foreground/8 mb-3 h-3 w-40 animate-pulse rounded" />
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -2025,7 +2315,7 @@ function BuilderSkeleton() {
             <div className="bg-foreground/10 h-5 w-52 animate-pulse rounded" />
             <div className="bg-foreground/8 h-3.5 w-80 max-w-full animate-pulse rounded" />
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             {["w-32", "w-28", "w-24", "w-20"].map((width, index) => (
               <div
                 key={index}
@@ -2039,9 +2329,12 @@ function BuilderSkeleton() {
       {/* Tab strip - one placeholder per tab, at the width its label takes.
           Keyed by position rather than by the width class: the classes repeat,
           which React reported as duplicate keys on every load of this page. */}
-      <div className="bg-muted inline-flex h-9 items-center gap-1 rounded-lg p-1">
-        {["w-12", "w-20", "w-28", "w-16", "w-24", "w-16"].map((width, index) => (
-          <div key={index} className={cn("bg-foreground/10 h-7 animate-pulse rounded-md", width)} />
+      <div className="border-border touch:min-h-11 flex h-9 max-w-full min-w-0 items-center gap-3 overflow-hidden border-b px-2">
+        {["w-12", "w-20", "w-28", "w-16", "w-24", "w-16", "w-12"].map((width, index) => (
+          <div
+            key={index}
+            className={cn("bg-foreground/10 h-4 shrink-0 animate-pulse rounded-md", width)}
+          />
         ))}
       </div>
 

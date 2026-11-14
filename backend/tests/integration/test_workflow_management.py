@@ -407,6 +407,30 @@ class TestPinnedDataAndAStepTest:
         pinned = WorkflowGraph.model_validate(workflow.draft_graph).node_by_id[step.id]
         assert pinned.pinned_output == {"values": {"a": "pinned"}}
 
+    async def test_a_step_set_aside_reserves_no_node_work(self, db, tenant):
+        """It never gets a row, so it takes nothing from the admission quota (#1907)."""
+        ctx, workflow = tenant
+        graph, _entry, _step = _pinned_line()
+        parked = NodeInstance(
+            id=uuid.uuid4(),
+            definition_id="data.combine",
+            definition_version=1,
+            config={},
+            layout=NodePosition(x=0, y=0),
+            disabled=True,
+        )
+        workflow.draft_graph = graph.model_copy(
+            update={"nodes": (*graph.nodes, parked)}
+        ).model_dump(mode="json")
+        await db.flush()
+
+        started = await WorkflowExecutionService(db).start(
+            ctx, workflow.id, mode=WorkflowRunMode.TEST
+        )
+
+        run = await db.get(WorkflowRun, started.id)
+        assert run is not None and run.node_count == 3
+
     async def test_a_step_test_runs_the_step_and_what_leads_to_it(self, db, tenant):
         ctx, workflow = tenant
         graph, entry, step = _pinned_line()

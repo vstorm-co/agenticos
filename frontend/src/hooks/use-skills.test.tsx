@@ -138,9 +138,9 @@ describe("useSkills", () => {
     expect(cancelOrder).toBeLessThan(invalidateOrder);
   });
 
-  it("says an edit reaches every agent at once", async () => {
-    // Skills are bound by reference. That is the whole point, and the person
-    // editing one should know it before they hit save.
+  it("says an edit reaches the agents on main and leaves pinned agents and forks", async () => {
+    // An edit is a new main version: the person saving it should know which agents
+    // read it next and which keep what they read.
     vi.mocked(apiClient.patch).mockResolvedValue({ name: "refunds" });
     const { result } = renderHook(() => useSkills(), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -148,16 +148,7 @@ describe("useSkills", () => {
     await result.current.update.mutateAsync({ id: "s1", content: "# Refunds v2" });
 
     expect(apiClient.patch).toHaveBeenCalledWith("/skills/s1", { content: "# Refunds v2" });
-    expect(toastSuccess.mock.calls.at(-1)?.[0]).toMatch(/every agent/i);
-  });
-
-  it("deletes a skill", async () => {
-    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
-    const { result } = renderHook(() => useSkills(), { wrapper });
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    await result.current.remove.mutateAsync("s1");
-    expect(apiClient.delete).toHaveBeenCalledWith("/skills/s1");
+    expect(toastSuccess.mock.calls.at(-1)?.[0]).toMatch(/agents on main.*pinned agents and forks/i);
   });
 });
 
@@ -167,6 +158,7 @@ const BODY = {
   description: "How refunds work",
   content: "# Refunds",
   version: 1,
+  latest_version_id: "v1",
   visibility: "organization",
   owner_user_id: null,
 };
@@ -205,7 +197,38 @@ describe("useSkill", () => {
       content: "# Refunds v2",
       category: null,
     });
-    expect(toastSuccess.mock.calls.at(-1)?.[0]).toMatch(/every agent/i);
+    expect(toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("deletes the skill", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const scoped = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useSkill("s1"), { wrapper: scoped });
+    await waitFor(() => expect(result.current.skill).toEqual(BODY));
+
+    await result.current.remove.mutateAsync();
+    expect(apiClient.delete).toHaveBeenCalledWith("/skills/s1");
+    expect(toastSuccess).toHaveBeenCalled();
+    await result.current.remove.mutateAsync(true);
+    expect(apiClient.delete).toHaveBeenCalledWith("/skills/s1?remove_from_agents=true");
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["agents"] });
+  });
+
+  it("reads who uses the skill again when a delete is refused", async () => {
+    vi.mocked(apiClient.delete).mockRejectedValue(new Error("In use"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const scoped = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useSkill("s1"), { wrapper: scoped });
+
+    await expect(result.current.remove.mutateAsync(true)).rejects.toThrow("In use");
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["skills", "s1", "agents"] });
   });
 });
 
@@ -255,13 +278,13 @@ describe("useSkills failures", () => {
     expect(toastError).toHaveBeenCalledWith("conflict");
   });
 
-  it("reports a failed delete", async () => {
+  it("leaves a refused delete to the dialog that asked for it", async () => {
     vi.mocked(apiClient.delete).mockRejectedValue(new Error("in use by an agent"));
-    const { result } = renderHook(() => useSkills(), { wrapper });
+    const { result } = renderHook(() => useSkill("s1"), { wrapper });
 
-    await expect(result.current.remove.mutateAsync("s1")).rejects.toThrow();
+    await expect(result.current.remove.mutateAsync()).rejects.toThrow("in use by an agent");
 
-    expect(toastError).toHaveBeenCalledWith("in use by an agent");
+    expect(toastError).not.toHaveBeenCalled();
   });
 });
 
@@ -390,22 +413,14 @@ describe("useSkill files", () => {
     expect(toastError).toHaveBeenCalledWith("disk full");
   });
 
-  it("reports a failed body save", async () => {
+  it("leaves a failed save for the editor to report", async () => {
     vi.mocked(apiClient.patch).mockRejectedValue(new Error("stale"));
     const { result } = renderHook(() => useSkill("s1"), { wrapper });
     await waitFor(() => expect(result.current.skill).toEqual(BODY));
 
-    // The whole editable set, because that is what `SkillEdit` is - a partial
-    // would silently reset whatever it omitted.
-    await expect(
-      result.current.save.mutateAsync({
-        description: "d",
-        content: "x",
-        category: null,
-      }),
-    ).rejects.toThrow();
+    await expect(result.current.save.mutateAsync({ category: "support" })).rejects.toThrow();
 
-    expect(toastError).toHaveBeenCalledWith("stale");
+    expect(toastError).not.toHaveBeenCalled();
   });
 });
 

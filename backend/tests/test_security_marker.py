@@ -41,6 +41,13 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/api/test_workflow_run_routes.py::TestNodesRoute::test_an_approval_step_says_who_decided_and_when": "decision metadata serialization, not an authorization refusal",
+    "tests/test_sandbox_workspace.py::TestRecordedTaskWorkspace::test_reading_undo_permissions_never_opens_a_provider_client": "authorized metadata reads must not create a provider client; no access refusal",
+    "tests/test_coverage_edges.py::TestRunNotifications::test_a_budget_stop_hands_its_limit_and_spend_to_the_notification": "budget notification values, not spend enforcement",
+    "tests/test_notification_params.py::test_a_budget_stop_hands_over_its_numbers_and_none_of_the_rest": "budget notification allowlist, not spend enforcement",
+    "tests/test_notification_params.py::test_a_department_s_budget_stop_names_the_department": "budget notification wording, not spend enforcement",
+    "tests/test_notification_params.py::test_an_approval_request_hands_over_only_the_agent_name": "approval notification allowlist, not an authorization refusal",
+    "tests/test_authoring_fields.py::TestSet::test_a_tool_approval_set_back_to_none_is_removed": "undoing a tightened tool approval restores the spec, no refusal",
     "tests/test_workflow_execution_approval_wake.py::TestWakeAfterApprovalDecision::test_an_answered_or_ended_question_wakes_its_owning_step": "'approval' names the wake module; an accepted question continuation, not an authorization refusal",
     "tests/test_workflow_run_status.py::test_a_question_is_visible_beside_running_approval_and_retry_siblings": "'approval' names a waiting status; severity reporting, not an authorization refusal",
     "tests/integration/test_artifact_log_bindings.py::TestReading::test_the_lines_are_cut_to_the_pages_byte_budget": "'budget' names the page's byte allowance for log lines, a size cut, not a spend cap or a refusal",
@@ -164,6 +171,8 @@ EXEMPT: dict[str, str] = {
     "tests/test_agent_session.py::TestTellingThePersonWhoLeft::test_a_turn_that_parked_on_an_approval_says_nothing_more": "a parked turn sends no away notice; notification wording, no approval decision",
     "tests/test_agent_session.py::TestATurnThatDidNotFinish::test_a_budget_stop_says_why_the_answer_stopped": "surfaces an error frame explaining the budget stop, display, no enforcement",
     "tests/test_agent_spec_and_factory.py::TestBudgetComposition::test_an_agent_with_no_budget_under_an_uncapped_org_is_unlimited": "no budget under an uncapped org yields no limit, config, no refusal",
+    "tests/test_agent_spec_and_factory.py::TestSpecContract::test_an_mcp_binding_stored_before_per_tool_approval_dumps_unchanged": "a stored binding re-dumps byte for byte, compatibility, no refusal",
+    "tests/test_agent_spec_and_factory.py::TestSpecContract::test_per_tool_mcp_approval_is_stored_sorted_and_only_where_decided": "how per-tool approval is serialized, format, no refusal",
     "tests/test_agent_spec_and_factory.py::TestBudgetComposition::test_budgets_are_decimal_not_float": "budgets are stored as exact Decimal, precision, no refusal",
     "tests/test_agent_templates.py::TestWhatAManifestMayCarry::test_a_budget_that_is_not_a_number_is_dropped_rather_than_guessed": "a non-numeric template budget is dropped, manifest parsing, no security refusal",
     "tests/test_capability_edges.py::TestFactoryHelpers::test_a_float_budget_becomes_an_exact_decimal": "a float budget becomes an exact Decimal, precision helper, no refusal",
@@ -238,6 +247,8 @@ EXEMPT: dict[str, str] = {
     "tests/test_workflow_joins.py::test_a_condition_comparison_without_a_budget_is_exact": "Budget names the bounded graph-analysis work, not a financial spend cap.",
     "tests/test_workflow_run_status.py::test_an_approval_wait_outranks_a_running_sibling": "Approval names the run status being prioritized; reporting, no refusal.",
     "tests/test_workflow_run_status.py::test_a_retry_wait_outranks_a_running_sibling_but_not_an_approval": "Approval names the run status being prioritized; reporting, no refusal.",
+    "tests/test_tool_errors.py::test_invalid_uuid_names_the_field_and_lookup_before_approval": "'approval' names validation ordering; this tests an argument schema, not an authorization decision",
+    "tests/test_tool_errors.py::test_repeated_unknown_names_are_unavailable_without_permission_claims": "'permission' names a diagnostic wording assertion; this tests tool registration, not permission enforcement",
 }
 
 

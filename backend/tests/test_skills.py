@@ -13,13 +13,14 @@ from uuid import UUID
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, Skills
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, SkillBody, Skills
+from app.core.exceptions import AlreadyExistsError, BadRequestError, InUseError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.skill import Skill
+from app.db.models.skill_version import SkillVersionSource
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
-from app.services import skill_library
+from app.services import agent_templates, skill_library
 from app.services.skill_library import LibraryResource, LibrarySkill
 from app.services.skills import (
     MAX_RESOURCE_BYTES,
@@ -39,8 +40,37 @@ def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
     async def nowhere(*_args: object, resource_ids: list[UUID], **_kwargs: object):
         return {resource_id: [] for resource_id in resource_ids}
 
-    monkeypatch.setattr("app.services.skills.agents_using", nowhere)
+    async def no_skill_agents(*_args: object, skill_ids: list[UUID], **_kwargs: object):
+        return {skill_id: [] for skill_id in skill_ids}
+
+    async def no_forks(*_args: object, skill_ids: list[UUID], **_kwargs: object):
+        return dict.fromkeys(skill_ids, 0)
+
+    monkeypatch.setattr("app.services.skills.agents_serving_skills", no_skill_agents)
     monkeypatch.setattr("app.services.skills.groups_sharing", nowhere)
+    monkeypatch.setattr("app.services.skills.agents_using", nowhere)
+    monkeypatch.setattr("app.services.skills.agents_using_skill", AsyncMock(return_value=[]))
+    monkeypatch.setattr(
+        "app.services.skills.skill_version_repo.count_active_forks", AsyncMock(side_effect=no_forks)
+    )
+
+
+@pytest.fixture(autouse=True)
+def recorded(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """Every new version, recorded as the service asked for it.
+
+    What a version holds and how it is numbered is `integration/test_skill_versions`'s,
+    against a real database; here it is enough to know which writes made one.
+    """
+    record = AsyncMock()
+    monkeypatch.setattr("app.services.skill_versions.SkillVersionService.record_main", record)
+    return record
+
+
+@pytest.fixture(autouse=True)
+def _no_suites(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No eval suite watches a skill here; `integration/test_eval_suites` covers that."""
+    monkeypatch.setattr("app.services.eval_suite.EvalSuiteService.dependency_changed", AsyncMock())
 
 
 def _ctx(role: str = OrgRoleName.OWNER, *, org_id=None, user_id=None) -> AuthContext:
@@ -82,6 +112,7 @@ def _row(name: str) -> Skill:
         content="---\nname: x\n---\n\n# Refunds\n\nCheck the order first.",
         category=None,
         visibility="org",
+        version=1,
         resources=[],
     )
 
@@ -142,6 +173,19 @@ class TestCatalogConstruction:
         assert skill.get_description() == "How refunds are handled."
         assert "Check the order first." in "".join(skill.get_instructions())
 
+    def test_a_proposed_body_is_served_in_place_of_the_stored_one(self):
+        """How an eval checks a skill change: the agent is the same, the skill is not."""
+        stored = _skill()
+        leaves = []
+        Skills(
+            skills=[stored],
+            bodies={stored.id: SkillBody(description="Refunds, revised.", content="Say 30 days.")},
+        ).apply(leaves.append)
+
+        (skill,) = [leaf for leaf in leaves if leaf.id == "refunds"]
+        assert skill.get_description() == "Refunds, revised."
+        assert "Say 30 days." in "".join(skill.get_instructions())
+
     def test_script_execution_is_not_exposed(self):
         """Without a sandbox, run_skill_script is remote code execution."""
         toolset = Skills(skills=[_skill(resources=[_resource()])]).get_toolset()
@@ -199,7 +243,7 @@ class TestAgentBinding:
         could not open in the UI. The agent still reads it, exactly as it still
         searches a collection nobody shared with the person asking: the publisher
         was checked when the version was frozen
-        (`AgentRegistryService._skill_problems`), and re-checking per runner would
+        (`AgentRegistryService.skill_problems`), and re-checking per runner would
         make one published version answer differently for two colleagues.
         """
         ctx = _ctx(OrgRoleName.MEMBER)
@@ -365,10 +409,15 @@ class TestSkillManagement:
                 new=AsyncMock(return_value={"refunds", "agent-budgets", "our-own-thing"}),
             ),
             patch(f"{SKILLS_PATH}.skill_library.library", return_value=[bundled]),
+            patch(
+                f"{SKILLS_PATH}.skill_library.architect_names",
+                return_value=frozenset({"our-own-thing"}),
+            ),
         ):
             listing = await SkillService(_db()).list_readable(ctx)
 
         assert [item.built_in for item in listing.items] == [True, True, False]
+        assert [item.architect for item in listing.items] == [False, False, True]
         # The card peeks at the body without the listing carrying it: front
         # matter is dropped, because the card already shows the name.
         assert listing.items[0].excerpt == "# Refunds\n\nCheck the order first."
@@ -613,8 +662,8 @@ class TestSkillManagement:
         assert create.call_args.kwargs["category"] == "support"
 
     @pytest.mark.anyio
-    async def test_an_edit_bumps_the_version_agents_are_told_about(self):
-        """Agents bind to a skill, not a version, so the bump is how an edit is noticed."""
+    async def test_an_edit_of_the_text_is_a_new_main_version(self, recorded):
+        """The row takes the new text, and the row as it then stands is recorded."""
         ctx = _ctx()
         skill = _skill(ctx=ctx)
 
@@ -628,12 +677,29 @@ class TestSkillManagement:
                 ctx, skill.id, SkillUpdate(content="# New policy")
             )
 
-        assert update.call_args.kwargs["update_data"] == {
-            "content": "# New policy",
-            "version": skill.version + 1,
-        }
-        assert update.call_args.kwargs["skill"] is skill
+        assert update.call_args.kwargs["update_data"] == {"content": "# New policy"}
+        recorded.assert_awaited_once_with(
+            ctx, skill, source=SkillVersionSource.EDIT, proposal_id=None
+        )
         assert updated is skill
+
+    @pytest.mark.anyio
+    async def test_a_new_category_alone_is_no_new_version(self, recorded):
+        """An agent reads the text and the description; the shelf a person files it on
+        changes nothing it executes."""
+        ctx = _ctx()
+        skill = _skill(ctx=ctx)
+
+        with (
+            patch("app.services.skills.skill_repo.get", new=AsyncMock(return_value=skill)),
+            patch("app.services.skills.skill_repo.update", new=AsyncMock(return_value=skill)),
+            patch("app.services.skills.record_audit", new=AsyncMock()),
+        ):
+            await SkillService(_db()).update(
+                ctx, skill.id, SkillUpdate(category="support", content=skill.content)
+            )
+
+        recorded.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_an_edit_is_audited_with_what_changed(self):
@@ -703,6 +769,64 @@ class TestSkillManagement:
         assert delete.call_args.args[1] is skill
         assert audit.call_args.kwargs["action"] == "skill.deleted"
         assert audit.call_args.kwargs["target_id"] == str(skill.id)
+
+    @pytest.mark.anyio
+    async def test_a_skill_an_agent_uses_is_not_deleted(self):
+        """Its agents name the versions they run, which must not vanish from under them.
+        The refusal names the agents the caller may see and counts the rest."""
+        ctx = _ctx()
+        skill = _skill(ctx=ctx)
+        seen, unseen = MagicMock(id=uuid.uuid4()), MagicMock(id=uuid.uuid4())
+        seen.name = "Refund desk"
+
+        with (
+            patch("app.services.skills.skill_repo.get", new=AsyncMock(return_value=skill)),
+            patch(
+                "app.services.skills.agents_using_skill",
+                new=AsyncMock(return_value=[seen, unseen]),
+            ),
+            patch("app.services.skills.accessible_ids", new=AsyncMock(return_value={seen.id})),
+            patch("app.services.skills.skill_repo.delete", new=AsyncMock()) as delete,
+            pytest.raises(InUseError) as refused,
+        ):
+            await SkillService(_db()).delete(ctx, skill.id)
+
+        assert refused.value.details == {
+            "agents": [{"id": seen.id, "name": "Refund desk"}],
+            "hidden": 1,
+        }
+        assert "'Refund desk' and 1 more you cannot see" in refused.value.message
+        delete.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_removing_it_from_agents_locks_them_before_the_skill(self):
+        """A draft save locks its agent, then holds the skill: the other order deadlocks."""
+        ctx = _ctx()
+        skill = _skill(ctx=ctx)
+        first, second = MagicMock(id=uuid.UUID(int=1)), MagicMock(id=uuid.UUID(int=2))
+        order: list[object] = []
+
+        async def lock_agent(_db, agent_id, **_kwargs):
+            order.append(agent_id)
+
+        async def lock_skill(_db, skill_id):
+            order.append(skill_id)
+
+        with (
+            patch("app.services.skills.skill_repo.get", new=AsyncMock(return_value=skill)),
+            patch(
+                "app.services.skills.agents_using_skill",
+                new=AsyncMock(side_effect=[[second, first], [second, first], []]),
+            ),
+            patch("app.services.skills.agent_repo.get", new=AsyncMock(side_effect=lock_agent)),
+            patch("app.services.skills.skill_repo.lock_for_delete", new=lock_skill),
+            patch("app.services.skill_agents.SkillAgentService.remove_skill", new=AsyncMock()),
+            patch("app.services.skills.skill_repo.delete", new=AsyncMock()) as delete,
+        ):
+            await SkillService(_db()).delete(ctx, skill.id, remove_from_agents=True)
+
+        assert order == [first.id, second.id, skill.id]
+        delete.assert_awaited_once()
 
 
 class TestTheListingOnlyReads:
@@ -1083,8 +1207,8 @@ class TestSkillFiles:
     # -- attaching one file ---------------------------------------------
 
     @pytest.mark.anyio
-    async def test_attaching_a_file_bumps_the_version_and_names_it_in_the_audit(
-        self, service, ctx, repo, audit, skill
+    async def test_attaching_a_file_is_a_new_version_and_named_in_the_audit(
+        self, service, ctx, repo, audit, skill, recorded
     ):
         """A file is part of the skill as far as a bound agent is concerned, so
         adding one is the same kind of event as rewriting the body. A version
@@ -1099,7 +1223,9 @@ class TestSkillFiles:
 
         assert created is stored
         assert repo.create_resource.await_args.kwargs["skill_id"] == skill.id
-        assert repo.update.await_args.kwargs["update_data"] == {"version": skill.version + 1}
+        recorded.assert_awaited_once_with(
+            ctx, skill, source=SkillVersionSource.RESOURCES, proposal_id=None
+        )
         recorded = audit.await_args.kwargs
         assert recorded["action"] == "skill.resource_added"
         assert recorded["details"] == {"name": skill.name, "resource": "template.md"}
@@ -1177,16 +1303,14 @@ class TestSkillFiles:
 
     @pytest.mark.anyio
     async def test_the_version_moves_once_for_the_whole_upload(
-        self, service, ctx, repo, audit, skill
+        self, service, ctx, repo, audit, skill, recorded
     ):
         """Three files dropped in together are one edit. A bump per file would
         make the version a count of files rather than a mark that what bound
         agents execute has changed."""
         await service.put_resources(ctx, skill.id, [("a.md", b"a"), ("b.md", b"b"), ("c.md", b"c")])
 
-        repo.update.assert_awaited_once_with(
-            service.db, skill=skill, update_data={"version": skill.version + 1}
-        )
+        recorded.assert_awaited_once()
 
     @pytest.mark.anyio
     async def test_a_path_that_steps_outside_the_skill_never_reaches_the_repository(
@@ -1298,8 +1422,8 @@ class TestSkillFiles:
         assert refused.value.details == {"resource_id": str(resource_id)}
 
     @pytest.mark.anyio
-    async def test_editing_a_file_bumps_the_version_and_is_audited(
-        self, service, ctx, repo, audit, skill
+    async def test_editing_a_file_is_a_new_version_and_is_audited(
+        self, service, ctx, repo, audit, skill, recorded
     ):
         stored = _resource(name="checklist.md")
         repo.get_resource.return_value = stored
@@ -1311,7 +1435,9 @@ class TestSkillFiles:
 
         assert updated is stored
         assert repo.update_resource.await_args.kwargs["update_data"] == {"content": "# New"}
-        assert repo.update.await_args.kwargs["update_data"] == {"version": skill.version + 1}
+        recorded.assert_awaited_once_with(
+            ctx, skill, source=SkillVersionSource.RESOURCES, proposal_id=None
+        )
         recorded = audit.await_args.kwargs
         assert recorded["action"] == "skill.resource_updated"
         assert recorded["details"] == {"name": skill.name, "resource": "checklist.md"}
@@ -1332,8 +1458,8 @@ class TestSkillFiles:
         audit.assert_not_awaited()
 
     @pytest.mark.anyio
-    async def test_removing_a_file_bumps_the_version_and_names_it_in_the_audit(
-        self, service, ctx, repo, audit, skill
+    async def test_removing_a_file_is_a_new_version_and_named_in_the_audit(
+        self, service, ctx, repo, audit, skill, recorded
     ):
         """The name is read before the row goes. Taken afterwards it would be
         gone, and the entry would say which skill lost a file without saying
@@ -1344,7 +1470,9 @@ class TestSkillFiles:
         await service.remove_resource(ctx, skill.id, stored.id)
 
         assert repo.delete_resource.await_args.args[1] is stored
-        assert repo.update.await_args.kwargs["update_data"] == {"version": skill.version + 1}
+        recorded.assert_awaited_once_with(
+            ctx, skill, source=SkillVersionSource.RESOURCES, proposal_id=None
+        )
         recorded = audit.await_args.kwargs
         assert recorded["action"] == "skill.resource_removed"
         assert recorded["details"] == {"name": skill.name, "resource": "checklist.md"}
@@ -1383,20 +1511,38 @@ class TestSkillGallery:
         industry.id = "healthcare"
         industry.skills = [_bundled("patient-enquiry-triage"), _bundled("consent-explainer")]
 
+        installed = uuid.uuid4()
         with (
             patch(
-                f"{SKILLS_PATH}.skill_repo.list_names",
-                new=AsyncMock(return_value={"consent-explainer"}),
+                f"{SKILLS_PATH}.skill_repo.ids_by_name",
+                new=AsyncMock(return_value={"consent-explainer": installed}),
             ),
             patch(f"{SKILLS_PATH}.skill_library.gallery", return_value=[industry]),
         ):
             gallery = await SkillService(_db()).gallery(_ctx())
 
         assert [i.id for i in gallery.industries] == ["healthcare"]
-        assert [(s.name, s.installed) for s in gallery.industries[0].skills] == [
-            ("patient-enquiry-triage", False),
-            ("consent-explainer", True),
+        assert [(s.name, s.installed, s.installed_id) for s in gallery.industries[0].skills] == [
+            ("patient-enquiry-triage", False, None),
+            ("consent-explainer", True, installed),
         ]
+
+    @pytest.mark.anyio
+    async def test_a_gallery_skill_is_read_before_it_is_installed(self):
+        entry = _bundled("consent-explainer", resources=("form.md",))
+        with patch(
+            f"{SKILLS_PATH}.skill_library.gallery_get",
+            side_effect=lambda key: entry if key == "healthcare/consent" else None,
+        ):
+            preview = await SkillService(_db()).gallery_preview("healthcare/consent")
+            with pytest.raises(NotFoundError):
+                await SkillService(_db()).gallery_preview("healthcare/missing")
+
+        assert (preview.name, preview.content, preview.files) == (
+            "consent-explainer",
+            "# consent-explainer",
+            ["form.md"],
+        )
 
     @pytest.mark.anyio
     async def test_installing_a_shelf_skips_what_is_there_and_reports_the_rest(self):
@@ -1513,6 +1659,14 @@ class TestTheGalleryOnDisk:
     by, or a name colliding with the auto-seeded library are all silent until an
     install produces the wrong thing in somebody's organization.
     """
+
+    def test_the_architect_s_skills_are_named_from_its_template(self):
+        """Every skill the Architect's template binds resolves to a shipped name."""
+        names = skill_library.architect_names()
+        template = agent_templates.get(agent_templates.ARCHITECT_KEY)
+        assert template is not None
+        assert len(names) == len(template.skills)
+        assert {"visual-design", "platform-agents"} <= names
 
     def test_every_shipped_gallery_skill_parses(self):
         from app.services import skill_library

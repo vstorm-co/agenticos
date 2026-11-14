@@ -34,6 +34,7 @@ __all__ = [
         CapabilityToolInfo(
             id="proof_scenario_verdict",
             description="Report which changed files have observed proof, and which do not.",
+            read_only=True,
         ),
     ),
     scopes=(),

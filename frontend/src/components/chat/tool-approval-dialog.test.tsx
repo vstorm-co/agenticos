@@ -361,3 +361,56 @@ it("does not offer remembered approval for delegates or mixed tools", () => {
   );
   expect(screen.queryByRole("button", { name: "More approval options" })).toBeNull();
 });
+
+it("shows the fact share_memory would share, and offers no way to remember the answer", () => {
+  render(
+    <ToolApprovalDialog
+      actionRequests={[
+        action("a-1", {
+          tool_name: "share_memory",
+          capability_tool_id: "share_memory",
+          args: { claim_id: "c-1", to: "project" },
+          context: { claim: "Piotr takes over invoices", audience: "project" },
+          can_remember: false,
+        }),
+      ]}
+      reviewConfigs={[]}
+      onDecisions={vi.fn()}
+      mayRemember
+    />,
+  );
+
+  expect(
+    screen.getByText("Share with the project: “Piotr takes over invoices”"),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "More approval options" })).toBeNull();
+});
+
+it("offers only Reject on a call this person may not approve unread", async () => {
+  const onDecisions = vi.fn();
+  render(
+    <ToolApprovalDialog
+      actionRequests={[
+        action("a-1", {
+          tool_name: "share_memory",
+          capability_tool_id: "share_memory",
+          args: { claim_id: "c-1", to: "organization" },
+          context: { audience: "organization" },
+          content_hidden: true,
+          always_asks: true,
+          can_remember: false,
+        }),
+      ]}
+      reviewConfigs={[]}
+      onDecisions={onDecisions}
+      mayRemember
+    />,
+  );
+
+  expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  expect(
+    screen.getByText("Only somebody who can see the run can approve this. You can reject it."),
+  ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+  expect(onDecisions).toHaveBeenCalledWith([{ type: "reject" }]);
+});

@@ -69,6 +69,13 @@ interface OnboardingState {
    * the coach from the builder URL and cleared at every flow start.
    */
   flowAgentId: string | null;
+  /**
+   * Whether the page on screen is a system agent's builder, which its path cannot
+   * say: the "?" walks that page's own stops and offers it no flow. Set by the
+   * builder while it is mounted.
+   */
+  systemAgentPage: boolean;
+  setSystemAgentPage: (systemAgentPage: boolean) => void;
   /** The first-run walkthrough, from the top — the auto-start and a full replay. */
   openTour: () => void;
   /** The current page's highlights only — the header "?" button. */
@@ -121,6 +128,8 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
   offerFromTour: false,
   choices: {},
   flowAgentId: null,
+  systemAgentPage: false,
+  setSystemAgentPage: (systemAgentPage) => set({ systemAgentPage }),
   openTour: () => set({ isOpen: true, index: 0, mode: "tour", flowId: null }),
   openPage: () => set({ isOpen: true, index: 0, mode: "page", flowId: null }),
   openFlow: (flowId) =>

@@ -119,3 +119,15 @@ it("identifies E2B as a cloud connection without showing a fake address", () => 
   expect(screen.getByText("E2B cloud")).toBeVisible();
   expect(screen.getByText("their API")).toBeVisible();
 });
+
+it("names an OpenSandbox server and shows its configured address", () => {
+  mount([
+    connection({
+      kind: "opensandbox",
+      base_url: "https://sandbox.example",
+      default_runtime: "python:3.12-slim",
+    }),
+  ]);
+  expect(screen.getByText("OpenSandbox")).toBeInTheDocument();
+  expect(screen.getByText("https://sandbox.example")).toBeInTheDocument();
+});

@@ -145,6 +145,15 @@ _TOO_LARGE: dict[int | str, dict[str, Any]] = {
     413: {"model": ErrorEnvelope, "description": "More records match than one export writes"},
 }
 _STORING_REFUSALS: dict[int | str, dict[str, Any]] = {**_WRITE_REFUSALS, **_QUOTA}
+# Changing a task board itself is narrower than working on it: a caller who reaches the
+# table, and so learns nothing from a refusal, may still not rename, reshape or archive it.
+_BOARD_REFUSALS: dict[int | str, dict[str, Any]] = {
+    **_WRITE_REFUSALS,
+    403: {
+        "model": ErrorEnvelope,
+        "description": "A task board this caller may work on but not change",
+    },
+}
 
 _GATED_REFUSALS: dict[int | str, dict[str, Any]] = {
     403: {
@@ -201,7 +210,7 @@ async def describe_table(table_id: UUID, service: VirtualTableSvc, ctx: Auth) ->
 @router.patch(
     "/{table_id}",
     response_model=TableRead,
-    responses=_WRITE_REFUSALS,
+    responses=_BOARD_REFUSALS,
     dependencies=[Depends(limit_table_write)],
 )
 async def update_table(
@@ -214,7 +223,7 @@ async def update_table(
 @router.post(
     "/{table_id}/archive",
     response_model=TableRead,
-    responses=_WRITE_REFUSALS,
+    responses=_BOARD_REFUSALS,
     dependencies=[Depends(limit_table_write)],
 )
 async def archive_table(table_id: UUID, service: VirtualTableSvc, ctx: Auth) -> Any:
@@ -227,7 +236,7 @@ async def archive_table(table_id: UUID, service: VirtualTableSvc, ctx: Auth) -> 
     response_model=TableRead,
     responses={
         400: {"model": ErrorEnvelope, "description": "`BAD_REQUEST`: the table is not archived"},
-        **_WRITE_REFUSALS,
+        **_BOARD_REFUSALS,
     },
     dependencies=[Depends(limit_table_write)],
 )
@@ -244,7 +253,7 @@ async def unarchive_table(table_id: UUID, service: VirtualTableSvc, ctx: Auth) -
 @router.put(
     "/{table_id}/schema",
     response_model=TableRead,
-    responses=_WRITE_REFUSALS,
+    responses=_BOARD_REFUSALS,
     dependencies=[Depends(limit_table_write)],
 )
 async def change_schema(
@@ -391,15 +400,28 @@ async def create_record(
     dependencies=[Depends(limit_table_write)],
 )
 async def create_records(
-    table_id: UUID, data: RecordBatchCreate, service: VirtualTableSvc, ctx: Auth
+    table_id: UUID,
+    data: RecordBatchCreate,
+    response: Response,
+    service: VirtualTableSvc,
+    ctx: Auth,
+    idempotency_key: IdempotencyKey = None,
 ) -> Any:
     """Create up to 200 records, each on its own - what a CSV import sends.
 
     A record that is refused is listed in `failed` with the code a single create
     would answer (`INVALID_RECORD`, `ALREADY_EXISTS`, `QUOTA_EXCEEDED`...), and the
-    others are written. The whole batch counts once against the write rate limit.
+    others are written. A row repeating an external id the batch already named is
+    `INVALID_RECORD`. With `update_existing`, a record changed after `as_of` is left
+    as it is and listed as `REVISION_CONFLICT`; the first batch of an import omits
+    `as_of` and sends the one it is answered with on the rest. The whole batch counts
+    once against the write rate limit, and with an `Idempotency-Key` a batch sent
+    again answers what it did the first time.
     """
-    return await service.create_records(ctx, table_id, data)
+    result, replayed = await service.write_batch(ctx, table_id, data, operation_key=idempotency_key)
+    if replayed:
+        response.headers["Idempotent-Replayed"] = "true"
+    return result
 
 
 @router.post(
