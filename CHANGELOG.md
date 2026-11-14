@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep pending skill updates fresh after decisions in other sessions, recover from stale proposals, and present compact update rows with readable instruction comparisons and reference-file previews.
+
 ## [1.74.0] - 2026-11-14
 
 ### Added

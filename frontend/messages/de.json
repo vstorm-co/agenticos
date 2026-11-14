@@ -8945,8 +8945,6 @@
     "category2": "Kategorie",
     "changeApplied": "Auf {name} übernommen",
     "changeDiscarded": "Änderung an {name} verworfen",
-    "changesAgentProposed": "Änderungen, die ein Agent vorgeschlagen hat",
-    "changesWaitingDetail": "{count, plural, =1 {1 Änderung wartet} other {# Änderungen warten}}. Eine anzunehmen schreibt den Skill um, was jeden daran gebundenen Agent beim nächsten Run erreicht.",
     "close": "Schließen",
     "create": "Erstellen",
     "created": "{name} erstellt",
@@ -9370,12 +9368,28 @@
       },
       "nobody": "Keiner dieser Agents lässt sich prüfen, die Prüfung würde also nichts messen. Füge Testfragen hinzu, damit sie es kann, oder mach ohne Prüfung weiter und bestätige, dass niemand geprüft wurde.",
       "startUnchecked": "Ohne Prüfung weiter",
-      "noReaders": "Kein Agent liest diese Linie, also gibt es niemanden zu prüfen. Weitermachen übernimmt die Änderung sofort."
+      "noReaders": "Kein Agent liest diese Linie, also gibt es niemanden zu prüfen. Weitermachen übernimmt die Änderung sofort.",
+      "proposalGoneTitle": "Diese Aktualisierung wartet nicht mehr",
+      "proposalGoneDescription": "Sie wurde in einer anderen Sitzung angewendet, verworfen oder ersetzt. Die Liste wurde aktualisiert.",
+      "backToChanges": "Zurück zu Aktualisierungen"
     },
     "savedMainVersion": "Als neue Main-Version gespeichert. Agents auf main lesen sie ab ihrem nächsten Run; festgesetzte Agents und Forks behalten ihre.",
     "instructions": "Anweisungen",
     "architect": "Architekt",
-    "architectHint": "Für den KI-Architekten installiert, der ihn liest. Eine Änderung verändert, wie der Architekt arbeitet."
+    "architectHint": "Für den KI-Architekten installiert, der ihn liest. Eine Änderung verändert, wie der Architekt arbeitet.",
+    "reviewUpdates": {
+      "title": "Skill-Aktualisierungen",
+      "summary": "{count, plural, =1 {1 Aktualisierung zur Prüfung} other {# Aktualisierungen zur Prüfung}}",
+      "agents": "{count, plural, =1 {1 betroffener Agent} other {# betroffene Agenten}}",
+      "files": "{count, plural, =1 {1 Referenzdatei} other {# Referenzdateien}}",
+      "library": "Bibliotheksaktualisierung",
+      "impact": "Betroffene Agenten",
+      "instructions": "Vorgeschlagene Anweisungen",
+      "close": "Prüfung schließen",
+      "preview": "Vorschau",
+      "compare": "Mit aktuellem Skill vergleichen",
+      "compareFailed": "Der aktuelle Skill konnte nicht geladen werden. Öffne die Prüfung erneut."
+    }
   },
   "states": {
     "loading": "Wird geladen"

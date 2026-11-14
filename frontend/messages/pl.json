@@ -7961,8 +7961,6 @@
     "category2": "Kategoria",
     "changeApplied": "Zastosowano w {name}",
     "changeDiscarded": "Odrzucono zmianę w {name}",
-    "changesAgentProposed": "Zmiany zaproponowane przez agenta",
-    "changesWaitingDetail": "{count, plural, one {1 zmiana czeka} few {# zmiany czekają} many {# zmian czeka} other {# zmiany czeka}}. Przyjęcie jednej przepisuje skill, co dosięga każdego związanego z nim agenta przy jego następnym runie.",
     "close": "Zamknij",
     "create": "Utwórz",
     "created": "Utworzono {name}",
@@ -8386,12 +8384,28 @@
       },
       "nobody": "Żadnego z tych agentów nie da się sprawdzić, więc sprawdzenie niczego by nie zmierzyło. Dodaj pytania testowe, żeby mogło, albo przejdź dalej bez sprawdzenia i potwierdź, że nikogo nie sprawdzono.",
       "startUnchecked": "Dalej bez sprawdzenia",
-      "noReaders": "Żaden agent nie czyta tej linii, więc nie ma kogo sprawdzić. Dalej zmiana od razu zostanie zastosowana."
+      "noReaders": "Żaden agent nie czyta tej linii, więc nie ma kogo sprawdzić. Dalej zmiana od razu zostanie zastosowana.",
+      "proposalGoneTitle": "Ta aktualizacja już nie oczekuje na decyzję",
+      "proposalGoneDescription": "Została zastosowana, odrzucona lub zastąpiona w innej sesji. Lista została odświeżona.",
+      "backToChanges": "Wróć do aktualizacji"
     },
     "savedMainVersion": "Zapisano jako nową wersję main. Agenci na main czytają ją od następnego uruchomienia; przypięci agenci i forki zostają przy swoich.",
     "instructions": "Instrukcje",
     "architect": "Architekt",
-    "architectHint": "Zainstalowany dla Architekta AI, który go czyta. Zmiana tego skilla zmienia sposób pracy Architekta."
+    "architectHint": "Zainstalowany dla Architekta AI, który go czyta. Zmiana tego skilla zmienia sposób pracy Architekta.",
+    "reviewUpdates": {
+      "title": "Aktualizacje skilli",
+      "summary": "{count, plural, one {1 aktualizacja do sprawdzenia} few {# aktualizacje do sprawdzenia} many {# aktualizacji do sprawdzenia} other {# aktualizacji do sprawdzenia}}",
+      "agents": "{count, plural, one {1 powiązany agent} few {# powiązanych agentów} many {# powiązanych agentów} other {# powiązanych agentów}}",
+      "files": "{count, plural, one {1 plik referencyjny} few {# pliki referencyjne} many {# plików referencyjnych} other {# plików referencyjnych}}",
+      "library": "Aktualizacja biblioteki",
+      "impact": "Powiązani agenci",
+      "instructions": "Proponowane instrukcje",
+      "close": "Zamknij podgląd",
+      "preview": "Podgląd",
+      "compare": "Porównaj z obecnym skillem",
+      "compareFailed": "Nie udało się wczytać obecnego skilla. Otwórz podgląd ponownie, aby spróbować jeszcze raz."
+    }
   },
   "settings": {
     "builtCommands": "Wbudowane polecenia",

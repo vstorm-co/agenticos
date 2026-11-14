@@ -627,8 +627,6 @@
     "category2": "Kategori",
     "changeApplied": "{name} öğesine uygulandı",
     "changeDiscarded": "{name} için yapılan değişiklikten vazgeçildi",
-    "changesAgentProposed": "Agent'ın önerdiği değişiklikler",
-    "changesWaitingDetail": "{count, plural, =1 {1 değişiklik bekliyor} other {# değişiklik bekliyor}}. Birini kabul etmek skill'i yeniden yazar; bir sonraki çalıştırmada bu skill'e bağlı her Agent'a ulaşır.",
     "close": "Kapat",
     "create": "Oluştur",
     "created": "{name} oluşturuldu",
@@ -720,6 +718,24 @@
         "files": "Dosyalar",
         "noFiles": "Dosya yok."
       }
+    },
+    "reviewUpdates": {
+      "title": "Skill güncellemeleri",
+      "summary": "{count, plural, =1 {İncelenecek 1 güncelleme} other {İncelenecek # güncelleme}}",
+      "agents": "{count, plural, =1 {Etkilenen 1 Agent} other {Etkilenen # Agent}}",
+      "files": "{count, plural, =1 {1 başvuru dosyası} other {# başvuru dosyası}}",
+      "library": "Kütüphane güncellemesi",
+      "impact": "Etkilenen Agentlar",
+      "instructions": "Önerilen talimatlar",
+      "close": "İncelemeyi kapat",
+      "preview": "Önizleme",
+      "compare": "Mevcut skill ile karşılaştır",
+      "compareFailed": "Mevcut skill yüklenemedi. Tekrar denemek için incelemeyi yeniden açın."
+    },
+    "check": {
+      "proposalGoneTitle": "Bu güncelleme artık beklemede değil",
+      "proposalGoneDescription": "Başka bir oturumda uygulandı, reddedildi veya değiştirildi. Liste yenilendi.",
+      "backToChanges": "Güncellemelere dön"
     }
   },
   "workflows": {

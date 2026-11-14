@@ -9066,8 +9066,6 @@
     "category2": "Category",
     "changeApplied": "Applied to {name}",
     "changeDiscarded": "Discarded the change to {name}",
-    "changesAgentProposed": "Changes an agent proposed",
-    "changesWaitingDetail": "{count, plural, =1 {1 change is waiting} other {# changes are waiting}}. Accepting one rewrites the skill, which reaches every agent bound to it on its next run.",
     "close": "Close",
     "create": "Create",
     "created": "Created {name}",
@@ -9491,12 +9489,28 @@
       },
       "nobody": "None of these agents can be checked, so the check would measure nothing. Add test questions so it can, or go on without a check and confirm that nobody was checked.",
       "startUnchecked": "Go on without a check",
-      "noReaders": "No agent reads this line, so there is nobody to check. Going on applies the change at once."
+      "noReaders": "No agent reads this line, so there is nobody to check. Going on applies the change at once.",
+      "proposalGoneTitle": "This update is no longer pending",
+      "proposalGoneDescription": "It was applied, discarded or replaced in another session. The list has been refreshed.",
+      "backToChanges": "Back to updates"
     },
     "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs.",
     "instructions": "Instructions",
     "architect": "Architect",
-    "architectHint": "Installed for the AI Architect, which reads it. Editing it changes how the Architect works."
+    "architectHint": "Installed for the AI Architect, which reads it. Editing it changes how the Architect works.",
+    "reviewUpdates": {
+      "title": "Skill updates",
+      "summary": "{count, plural, =1 {1 update ready to review} other {# updates ready to review}}",
+      "agents": "{count, plural, =1 {1 affected agent} other {# affected agents}}",
+      "files": "{count, plural, =1 {1 reference file} other {# reference files}}",
+      "library": "Library update",
+      "impact": "Affected agents",
+      "instructions": "Proposed instructions",
+      "close": "Close review",
+      "preview": "Preview",
+      "compare": "Compare with current skill",
+      "compareFailed": "The current skill could not be loaded. Reopen the review to try again."
+    }
   },
   "states": {
     "loading": "Loading"

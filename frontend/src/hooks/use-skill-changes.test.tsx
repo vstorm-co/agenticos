@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useSkillChanges, useSkillProposalsAwaiting } from "./use-skill-changes";
+import { qk } from "@/lib/query-keys";
 import * as api from "@/lib/skill-changes-api";
 import type { SkillChangeRecord } from "@/lib/skill-changes-api";
 
@@ -146,4 +147,19 @@ describe("useSkillProposalsAwaiting", () => {
     expect(off.result.current.changes).toEqual([]);
     expect(api.listSkillChanges).not.toHaveBeenCalled();
   });
+});
+
+it("revalidates a pending proposal cached before another session decided it", async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 60000 } },
+  });
+  client.setQueryData(qk.skillChanges.list("pending"), [change()]);
+  vi.mocked(api.listSkillChanges).mockResolvedValue([]);
+  const { result } = renderHook(() => useSkillChanges(), {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+  await waitFor(() => expect(api.listSkillChanges).toHaveBeenCalledWith("pending"));
+  await waitFor(() => expect(result.current.changes).toEqual([]));
 });

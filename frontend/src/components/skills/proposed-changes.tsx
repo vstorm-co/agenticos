@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ChevronDown, GitPullRequest, X } from "lucide-react";
+import { Check, ArrowRight, BookOpen, GitPullRequest, Users, X } from "lucide-react";
 
 import {
   Badge,
@@ -11,6 +11,17 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  Skeleton,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui";
 import { EvidenceList, RationaleText } from "@/components/authoring/evidence-list";
 import { GoesLive } from "@/components/authoring/goes-live";
@@ -19,6 +30,10 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/types/permissions";
 import { ROUTES } from "@/lib/constants";
 import type { SkillChangeRecord } from "@/lib/skill-changes-api";
+import { DIALOG_BROAD, DIALOG_COLUMN, DIALOG_BODY } from "@/lib/dialog-sizes";
+import { useSkill } from "@/hooks/use-skills";
+import { DiffView } from "@/components/authoring/diff-view";
+import { MarkdownContent } from "@/components/chat/markdown-content";
 import { SkillCheckDialog } from "./skill-check-dialog";
 import { useTranslations } from "next-intl";
 
@@ -59,14 +74,14 @@ export function ProposedChanges({ canEdit }: ProposedChangesProps) {
         <div className="space-y-1">
           <CardTitle className="flex items-center gap-2 text-sm">
             <GitPullRequest className="h-4 w-4" aria-hidden />
-            {t("changesAgentProposed")}
+            {t("reviewUpdates.title")}
           </CardTitle>
           <CardDescription className="text-xs">
-            {t("changesWaitingDetail", { count: changes.length })}
+            {t("reviewUpdates.summary", { count: changes.length })}
           </CardDescription>
         </div>
       </CardHeader>
-      <CardContent className="divide-border divide-y p-0">
+      <CardContent className="divide-border @container divide-y p-0">
         {changes.map((change) => (
           <ChangeRow
             key={change.id}
@@ -99,12 +114,13 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
   const [open, setOpen] = useState(false);
   const [checking, setChecking] = useState(false);
   const resources = Object.keys(change.resources);
+  const current = useSkill(open ? change.skill_id : null);
   // A change to a skill agents already use goes live only through a check on them.
   const skillId = change.skill_id;
 
   return (
-    <div className="space-y-3 px-5 py-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="grid gap-3 px-5 py-4 @3xl:grid-cols-[minmax(0,1fr)_auto] @3xl:items-center">
+      <div className="min-w-0 space-y-2">
         <div className="min-w-0 space-y-1">
           <div className="flex items-center gap-2">
             <span className="font-mono text-sm">{change.name}</span>
@@ -114,14 +130,24 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
               <Badge variant="outline">{t("edit")}</Badge>
             )}
           </div>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">
             {change.description || t("noDescriptionWorthAdding")}
           </p>
-          <GoesLive
-            reaches={change.reaches}
-            hidden={change.reaches_hidden}
-            afterCheck={change.skill_id !== null}
-          />
+          <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+            <span className="inline-flex items-center gap-1.5">
+              <Users className="size-3.5" aria-hidden />
+              {t("reviewUpdates.agents", { count: change.reaches.length + change.reaches_hidden })}
+            </span>
+            {resources.length > 0 && (
+              <span>{t("reviewUpdates.files", { count: resources.length })}</span>
+            )}
+            {change.source === "library" && (
+              <span className="inline-flex items-center gap-1.5">
+                <BookOpen className="size-3.5" aria-hidden />
+                {t("reviewUpdates.library")}
+              </span>
+            )}
+          </div>
           {change.conversation_id !== null && (
             <a
               className="text-muted-foreground text-xs underline"
@@ -131,92 +157,160 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
             </a>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+      </div>
+      <div className="flex shrink-0 flex-wrap items-center gap-1 @3xl:justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          aria-label={t("showWhatChangedIn", { name: change.name })}
+        >
+          <ArrowRight className="h-4 w-4" aria-hidden />
+          {t("review")}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={disabled}
+          onClick={onDiscard}
+          aria-label={t("discardChangeTo", { name: change.name })}
+        >
+          <X className="h-4 w-4" aria-hidden />
+          {t("discard")}
+        </Button>
+        {skillId === null ? (
           <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setOpen(!open)}
-            aria-expanded={open}
-            aria-label={t("showWhatChangedIn", { name: change.name })}
-          >
-            <ChevronDown className="h-4 w-4" aria-hidden />
-            {open ? t("hide") : t("review")}
-          </Button>
-          <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             disabled={disabled}
-            onClick={onDiscard}
-            aria-label={t("discardChangeTo", { name: change.name })}
+            onClick={onApply}
+            aria-label={t("applyChangeTo", { name: change.name })}
           >
-            <X className="h-4 w-4" aria-hidden />
-            {t("discard")}
+            <Check className="h-4 w-4" aria-hidden />
+            {t("apply")}
           </Button>
-          {skillId === null ? (
+        ) : (
+          <>
             <Button
               variant="outline"
               size="sm"
               disabled={disabled}
-              onClick={onApply}
-              aria-label={t("applyChangeTo", { name: change.name })}
+              onClick={() => setChecking(true)}
+              aria-label={t("checkChangeTo", { name: change.name })}
             >
               <Check className="h-4 w-4" aria-hidden />
-              {t("apply")}
+              {t("checkOnAgents")}
             </Button>
-          ) : (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={disabled}
-                onClick={() => setChecking(true)}
-                aria-label={t("checkChangeTo", { name: change.name })}
-              >
-                <Check className="h-4 w-4" aria-hidden />
-                {t("checkOnAgents")}
-              </Button>
-              {checking && (
-                <SkillCheckDialog
-                  skillId={skillId}
-                  change={{ proposalId: change.id }}
-                  forkId={change.fork_id}
-                  onOpenChange={setChecking}
-                />
-              )}
-            </>
-          )}
-        </div>
+            {checking && (
+              <SkillCheckDialog
+                skillId={skillId}
+                change={{ proposalId: change.id }}
+                forkId={change.fork_id}
+                onOpenChange={setChecking}
+              />
+            )}
+          </>
+        )}
       </div>
 
       {open && (
-        <div className="space-y-3">
-          {change.rationale && (
-            <RationaleText text={change.rationale} evidence={change.evidence ?? []} />
-          )}
-          {change.expected_effect && (
-            <p className="text-sm">
-              <span className="font-medium">{t("expectedEffect")}</span> {change.expected_effect}
-            </p>
-          )}
-          {change.authoring_request_id != null && (
-            <EvidenceList items={change.evidence ?? []} dropped={change.evidence_dropped ?? 0} />
-          )}
-          <pre className="bg-muted max-h-80 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
-            {change.content}
-          </pre>
-          {resources.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-xs font-medium">{t("files2")}</p>
-              <ul className="text-muted-foreground space-y-0.5 text-xs">
-                {resources.map((name) => (
-                  <li key={name} className="font-mono">
-                    {name}
-                  </li>
-                ))}
-              </ul>
+        <Dialog open onOpenChange={setOpen}>
+          <DialogContent className={`${DIALOG_BROAD} ${DIALOG_COLUMN}`}>
+            <DialogHeader>
+              <DialogTitle>{change.name}</DialogTitle>
+              <DialogDescription>
+                {change.description || t("noDescriptionWorthAdding")}
+              </DialogDescription>
+            </DialogHeader>
+            <div className={`${DIALOG_BODY} space-y-4`}>
+              <div className="bg-muted/40 rounded-lg border p-3">
+                <p className="mb-2 text-xs font-medium">{t("reviewUpdates.impact")}</p>
+                <GoesLive
+                  reaches={change.reaches}
+                  hidden={change.reaches_hidden}
+                  afterCheck={skillId !== null}
+                />
+              </div>
+              {change.rationale && (
+                <RationaleText text={change.rationale} evidence={change.evidence ?? []} />
+              )}
+              {change.expected_effect && (
+                <p className="text-sm">
+                  <span className="font-medium">{t("expectedEffect")}</span>{" "}
+                  {change.expected_effect}
+                </p>
+              )}
+              {change.authoring_request_id != null && (
+                <EvidenceList
+                  items={change.evidence ?? []}
+                  dropped={change.evidence_dropped ?? 0}
+                />
+              )}
+              <div className="min-w-0 rounded-lg border p-4 text-sm">
+                <p className="text-muted-foreground mb-3 text-xs font-medium">
+                  {t("reviewUpdates.instructions")}
+                </p>
+                <Tabs defaultValue="preview">
+                  <TabsList>
+                    <TabsTrigger value="preview">{t("reviewUpdates.preview")}</TabsTrigger>
+                    {skillId !== null && (
+                      <TabsTrigger value="changes">{t("reviewUpdates.compare")}</TabsTrigger>
+                    )}
+                  </TabsList>
+                  <TabsContent value="preview">
+                    <MarkdownContent content={change.content} inertImages highlightVariables />
+                  </TabsContent>
+                  {skillId !== null && (
+                    <TabsContent value="changes">
+                      {current.error ? (
+                        <p role="alert" className="text-destructive text-sm">
+                          {t("reviewUpdates.compareFailed")}
+                        </p>
+                      ) : current.isLoading || !current.skill ? (
+                        <Skeleton className="h-40 w-full" />
+                      ) : (
+                        <DiffView before={current.skill.content} after={change.content} />
+                      )}
+                    </TabsContent>
+                  )}
+                </Tabs>
+              </div>
+              {resources.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium">{t("files2")}</p>
+                  <ul className="text-muted-foreground space-y-0.5 text-xs">
+                    {resources.map((name) => (
+                      <li key={name}>
+                        <details className="rounded-md border">
+                          <summary className="cursor-pointer px-3 py-2 font-mono">{name}</summary>
+                          <pre className="bg-muted/30 max-h-64 overflow-auto border-t p-3 font-mono text-xs break-words whitespace-pre-wrap">
+                            {change.resources[name]}
+                          </pre>
+                        </details>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+            <DialogFooter className="border-t pt-4">
+              <Button variant="outline" onClick={() => setOpen(false)}>
+                {t("reviewUpdates.close")}
+              </Button>
+              <Button
+                disabled={disabled}
+                onClick={() => {
+                  setOpen(false);
+                  if (skillId === null) onApply();
+                  else setChecking(true);
+                }}
+              >
+                {skillId === null ? t("apply") : t("checkOnAgents")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
