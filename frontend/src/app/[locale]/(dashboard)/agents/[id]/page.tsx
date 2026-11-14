@@ -115,6 +115,7 @@ import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-p
 import { gapStatus } from "@/lib/knowledge-gap-status";
 import { ImproveButton, ImproveLink } from "@/components/agents/improve-link";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/states";
 import {
   ResourceUnavailable,
@@ -2305,28 +2306,41 @@ function BuilderSkeleton({ tab }: { tab: string }) {
       aria-label={t("loading")}
       className="min-w-0 space-y-6"
     >
-      <div aria-hidden="true" className="mb-6 md:mb-8">
-        <div className="bg-foreground/8 mb-3 h-3 w-40 animate-pulse rounded" />
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
-            <div className="bg-muted size-12 shrink-0 animate-pulse rounded-full" />
-            <div className="min-w-0 flex-1 space-y-2">
-              <div className="bg-foreground/10 h-7 w-52 max-w-full animate-pulse rounded" />
-              <div className="bg-foreground/8 h-5 w-32 max-w-full animate-pulse rounded-full" />
-            </div>
+      <PageHeader
+        title={
+          <span className="flex items-center gap-3">
+            <Skeleton className="size-12 rounded-full" />
+            <Skeleton className="h-8 w-52 max-w-full" />
+          </span>
+        }
+        breadcrumbs={[{ label: t("agents"), href: ROUTES.AGENTS }, { label: "…" }]}
+        badges={
+          <>
+            <Skeleton className="h-5 w-20 rounded-full" />
+            <Skeleton className="h-5 w-40 rounded-full" />
+          </>
+        }
+        actions={
+          <div aria-hidden="true" className="flex flex-wrap gap-2">
+            {["w-20", "w-36", "w-56", "w-32", "w-24", "w-9", "w-28"].map((width, index) => (
+              <Skeleton
+                key={index}
+                className={cn(
+                  "touch:min-h-11 h-10 rounded-lg",
+                  width,
+                  index > 1 && "hidden md:block",
+                )}
+              />
+            ))}
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <div className="bg-foreground/10 h-9 w-20 animate-pulse rounded-lg" />
-            <div className="bg-foreground/10 h-9 w-28 animate-pulse rounded-lg" />
-          </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* Tab strip - one placeholder per tab, at the width its label takes.
           Keyed by position rather than by the width class: the classes repeat,
           which React reported as duplicate keys on every load of this page. */}
       <div className="border-border touch:min-h-11 flex h-9 max-w-full min-w-0 items-center gap-3 overflow-hidden border-b px-2">
-        {["w-12", "w-20", "w-28", "w-16", "w-24", "w-16", "w-12"].map((width, index) => (
+        {["w-12", "w-20", "w-28", "w-16", "w-24", "w-16", "w-28", "w-16"].map((width, index) => (
           <div
             key={index}
             className={cn("bg-foreground/10 h-4 shrink-0 animate-pulse rounded-md", width)}
@@ -2335,18 +2349,13 @@ function BuilderSkeleton({ tab }: { tab: string }) {
       </div>
 
       {tab === "build" ? (
-        <Card>
-          <CardHeader className="space-y-2">
-            <div className="bg-foreground/10 h-4 w-28 animate-pulse rounded" />
-            <div className="bg-foreground/8 h-3 w-full max-w-xl animate-pulse rounded" />
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* The instructions textarea: rows={10} at the same border and radius. */}
-            <div className="border-input bg-foreground/[0.04] h-52 animate-pulse rounded-md border" />
-            <div className="space-y-2">
-              <div className="bg-foreground/10 h-3 w-16 animate-pulse rounded" />
-              <div className="border-input bg-foreground/[0.04] h-9 w-full animate-pulse rounded-md border" />
+        <Card aria-hidden="true">
+          <CardContent className="space-y-2 p-4 sm:p-5">
+            <div className="flex h-9 items-center justify-between">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-8 w-24 rounded-lg" />
             </div>
+            <Skeleton className="border-input h-64 w-full rounded-xl border" />
           </CardContent>
         </Card>
       ) : (
