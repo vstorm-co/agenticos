@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
+  Skeleton,
   type Column,
 } from "@/components/ui";
 import { useAgents, useSandboxPolicy, useSandboxSessions } from "@/hooks";
@@ -383,6 +384,57 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
             </div>
           </DialogContent>
         </Dialog>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Reserve the running-sessions frame before the host list can select a connection. */
+export function SessionsPanelLoading() {
+  const t = useTranslations("sandboxes.sessions");
+  const ts = useTranslations("states");
+  const columns: Column<SandboxSession>[] = [
+    "session",
+    "runtime",
+    "sharedBy",
+    "state",
+    "idle",
+    "memory",
+    "activity",
+  ].map((key) => ({
+    key,
+    header: t(key),
+    cell: () => null,
+  }));
+  return (
+    <Card
+      role="status"
+      aria-label={ts("loading")}
+      aria-busy="true"
+      className="flex flex-1 flex-col"
+    >
+      <CardHeader
+        aria-hidden="true"
+        className="flex-row items-center justify-between space-y-0 border-b px-5 py-4"
+      >
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-3 w-48 max-w-full" />
+        </div>
+        <Skeleton className="h-8 w-32 max-w-full" />
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col p-0">
+        <ListCardControlsRow>
+          <Skeleton aria-hidden="true" className="h-9 w-64 max-w-full" />
+        </ListCardControlsRow>
+        <DataTable
+          columns={columns}
+          rows={[]}
+          getRowKey={(session) => session.session_id}
+          loading
+          skeletonRows={3}
+          className="rounded-none border-0 bg-transparent"
+        />
       </CardContent>
     </Card>
   );

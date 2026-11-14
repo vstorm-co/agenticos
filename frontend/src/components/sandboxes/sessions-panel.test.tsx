@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SessionsPanel } from "./sessions-panel";
+import { SessionsPanel, SessionsPanelLoading } from "./sessions-panel";
 import type {
   SandboxConnectionRecord,
   SandboxOperation,
@@ -128,6 +128,14 @@ function log(items: SandboxOperation[], total = items.length, operations: string
 }
 
 describe("SessionsPanel", () => {
+  it("reserves the actual session columns before the host list is available", () => {
+    render(<SessionsPanelLoading />);
+    expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getAllByRole("columnheader")).toHaveLength(7);
+    expect(screen.getAllByRole("row")).toHaveLength(4);
+    expect(screen.queryByText(/no container connection/i)).not.toBeInTheDocument();
+  });
+
   it("explains that nothing can be listed without a container connection", () => {
     render(<SessionsPanel connections={[]} />);
 

@@ -8,13 +8,12 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { ConnectionDialog } from "@/components/sandboxes/connection-dialog";
 import { ConnectionsTable } from "@/components/sandboxes/connections-table";
 import { PolicyPanel } from "@/components/sandboxes/policy-panel";
-import { SessionsPanel } from "@/components/sandboxes/sessions-panel";
+import { SessionsPanel, SessionsPanelLoading } from "@/components/sandboxes/sessions-panel";
 import {
   Button,
   ConfirmDialog,
   ListCard,
   ListCardEmpty,
-  Skeleton,
   Tabs,
   TabsContent,
   TabsList,
@@ -151,11 +150,7 @@ export default function SandboxesPage() {
 
         <TabsContent value="running" className="flex flex-1 flex-col">
           {isLoading ? (
-            <div className="space-y-3 p-5">
-              {[0, 1].map((row) => (
-                <Skeleton key={row} className="h-10 w-full" />
-              ))}
-            </div>
+            <SessionsPanelLoading />
           ) : error !== null ? (
             // With the list refused, "no container connection registered" would
             // state as fact something the request never answered.
