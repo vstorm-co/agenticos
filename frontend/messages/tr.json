@@ -368,8 +368,8 @@
     "nextPage": "Sonraki sayfa",
     "noResults": "Sonuç yok.",
     "nothingWrittenYet": "Henüz bir şey yazılmadı.",
-    "pagerAll": "{counted} · sayfa {page} / {pageCount}",
-    "pagerMatched": "{counted} içinden {matched} · sayfa {page} / {pageCount}",
+    "pagerAll": "{counted}",
+    "pagerMatched": "{counted} içinden {matched}",
     "preview": "Önizleme",
     "previousMonths": "Önceki aylar",
     "previousPage": "Önceki sayfa",
@@ -2361,7 +2361,6 @@
     },
     "memory": {
       "showing": "{total} kayıttan {from}–{to} arası gösteriliyor",
-      "newer": "Daha yeni",
       "older": "Daha eski",
       "title": "Belleğiniz",
       "description": "Buradaki agentların sizin hakkınızda not ettikleri ve bu notlarla ilgili yapabilecekleriniz.",

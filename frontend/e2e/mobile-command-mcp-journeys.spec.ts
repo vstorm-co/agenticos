@@ -43,7 +43,9 @@ test("phone command editing guards drafts, serializes writes and confirms remova
       .boundingBox();
     expect(createBounds).not.toBeNull();
     expect(createBounds!.x + createBounds!.width).toBeLessThanOrEqual(320);
-    await expect(page.getByRole("heading", { name: "Slash commands", exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Settings", level: 1, exact: true }),
+    ).toBeVisible();
     const rowBounds = await row.boundingBox();
     expect(rowBounds).not.toBeNull();
     expect(createBounds!.y).toBeLessThan(rowBounds!.y);
