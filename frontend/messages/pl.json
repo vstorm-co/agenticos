@@ -2377,7 +2377,7 @@
       "addTagPlaceholder": "Dodaj tag",
       "removeTag": "Usuń tag {value}",
       "history": "Historia",
-      "howAgentAsksIts": "Jak ten agent prosi swój model o zachowanie, ponad to, co ustawia już profil modelu. Ustawienie, którego nikt nie ruszał, w ogóle nie jest wysyłane - celowo, nie dla porządku: modele rozumujące odrzucają temperaturę od razu, więc agent, który jej nie wybrał, nie może jej mieć wysłanej w swoim imieniu. Provider, który nie obsługuje ustawienia, je ignoruje. Samo rozumowanie to capability, poniżej.",
+      "howAgentAsksIts": "Dostosuj sposób odpowiadania agenta. Niezmienione ustawienia korzystają z wartości profilu modelu.",
       "howManyModelRequests": "Ile żądań do modelu może zrobić jeden run. Pętla narzędzi trafia na ten limit na długo przed tym, zanim kosztuje dość, by trafić na budget.",
       "instructions": "Instrukcje",
       "instructions2": "Instrukcje",
@@ -7116,7 +7116,7 @@
       },
       "agent-share": {
         "title": "Udostępnij go",
-        "body": "Dodaj osobę lub grupę i wybierz, co mogą robić, albo otwórz go całej organizacji. Właściciel zawsze ma dostęp."
+        "body": "Otwórz Więcej akcji i wybierz Udostępnij, aby dodać osobę lub grupę oraz określić ich uprawnienia. Właściciel zawsze zachowuje dostęp."
       },
       "skills-groups": {
         "title": "Po dziale",

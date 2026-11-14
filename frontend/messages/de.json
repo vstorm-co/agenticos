@@ -5406,7 +5406,7 @@
       },
       "agent-share": {
         "title": "Teilen",
-        "body": "Fügen Sie eine Person oder Gruppe hinzu und wählen Sie, was sie darf, oder öffnen Sie ihn für die ganze Organisation. Der Besitzer behält immer Zugriff."
+        "body": "Öffne Weitere Aktionen und wähle Teilen, um eine Person oder Gruppe hinzuzufügen und ihre Berechtigungen festzulegen. Der Eigentümer behält immer Zugriff."
       },
       "skills-groups": {
         "title": "Nach Abteilung",
@@ -6340,7 +6340,7 @@
       "addTagPlaceholder": "Tag hinzufügen",
       "removeTag": "Tag {value} entfernen",
       "history": "Historie",
-      "howAgentAsksIts": "Wie dieser Agent sein Modell zu verhalten bittet, zusätzlich zu dem, was das Modellprofil ohnehin setzt. Eine Einstellung, die niemand anfasst, wird gar nicht gesendet – das ist Absicht, nicht Ordnungsliebe: Reasoning-Modelle weisen eine Temperatur rundheraus zurück, ein Agent, der nie eine gewählt hat, darf also keine in seinem Namen gesendet bekommen. Ein Provider, der eine Einstellung nicht umsetzt, ignoriert sie. Reasoning selbst ist eine Capability, weiter unten.",
+      "howAgentAsksIts": "Passe die Antworten des Agenten an. Unveränderte Einstellungen verwenden die Standardwerte des Modellprofils.",
       "howManyModelRequests": "Wie viele Modellanfragen ein Run machen darf. Eine Tool-Schleife erreicht das lange, bevor sie genug kostet, um an ein Budget zu stoßen.",
       "instructions": "Instruktionen",
       "instructions2": "Instruktionen",
