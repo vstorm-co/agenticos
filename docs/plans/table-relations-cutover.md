@@ -57,7 +57,14 @@ record removes its edges. Deleting a table removes its corresponding definitions
 and edges; a reference does not give another table a second copy of a record.
 
 Relationship definitions, edges and retained evidence count against organization
-storage usage and the existing record-mutation quota transaction.
+storage usage. Table creation, schema changes and record writes share the same
+storage admission lock, acquired before table or record locks. A schema change
+and any type conversion share one savepoint, including definitions and history;
+table creation includes its completed receipt. Storage is checked before the
+ordinary table audit because a refusal audits in a separate transaction. A
+refused operation leaves only that content-free refusal audit, even if its
+caller catches the error and commits the surrounding transaction. Receipt
+replays and unchanged schemas remain available above a lowered ceiling.
 
 ## Read-only reverse traversal
 
@@ -109,11 +116,9 @@ source table still removes that table's data.
    implementation with canonical read/write baselines and authorized edge
    predicates; keep the combined permission regressions in the required CI
    run. Finish the updated-`t3` rebase and migration reconciliation above.
-   Also add a schema-definition storage gate to the
-   pre-existing table-create/schema-update paths: acquire storage before table
-   locks and enforce before the table audit, since quota refusals audit in a
-   separate transaction. The definition quota gate and upstream migration
-   integration remain unfinished; this draft is not ready for activation.
+   Keep the schema-definition quota, refusal rollback and concurrent lock-order
+   regressions in that run. Upstream migration integration remains unfinished;
+   this draft is not ready for activation.
 2. On a disposable copy, rehearse the migration and inspect invalid definitions,
    evidence counts and storage growth. Check valid edge counts and ordered
    destinations against source values; resolve invalid definitions before

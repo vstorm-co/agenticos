@@ -1,5 +1,5 @@
 ---
-source_sha: "9669b329ffaf"
+source_sha: "9c50f7e46528"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -692,9 +692,11 @@ escritura lo superaría.
 | `TABLES_MAX_PER_ORGANIZATION` | 200 | Tablas de una organización. Las archivadas cuentan, porque una tabla nunca se borra |
 | `TABLES_MAX_RECORDS_PER_TABLE` | 100.000 | Registros en una tabla. Actualizar un registro en una tabla llena está permitido |
 | `TABLES_MAX_RECORD_BYTES` | 1.000.000 | Los valores serializados de un registro, en bytes |
-| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Bytes JSONB almacenados en PostgreSQL por organización entre registros, historial, recibos y outbox; el espacio de tablas e índices se cuenta aparte |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Bytes JSONB de registros, historial, recibos y outbox, bytes de imágenes y filas de definiciones de relaciones, enlaces y evidencia conservada por organización; los índices y demás sobrecarga física se cuentan aparte |
 
 El límite total se comprueba en el savepoint de la modificación, bajo un bloqueo de la organización, antes del commit. Superarlo revierte el registro y todas sus copias, también en una fila de importación; las filas restantes se informan como rechazadas. Repetir un recibo, escribir sin cambios, leer y borrar siguen funcionando tras reducir el límite. La retención libera los bytes eliminados.
+
+La creación de tablas y los cambios de esquema usan el mismo límite de almacenamiento. Un rechazo revierte conjuntamente la nueva tabla o versión del esquema, las definiciones de relaciones, los valores reescritos y su historial, y cualquier recibo nuevo de creación. La auditoría normal de la tabla se registra solo después de comprobar el almacenamiento; la auditoría independiente del rechazo por cuota permanece tras la reversión.
 
 El rechazo nombra el límite y su techo en `details` (`{"quota": "records", "limit":
 100000}`), nunca el contenido, y escribe una entrada `table.quota_refused` en el

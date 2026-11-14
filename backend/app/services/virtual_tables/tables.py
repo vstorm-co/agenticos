@@ -55,7 +55,7 @@ from app.services.virtual_tables.exceptions import (
     SchemaVersionConflictError,
 )
 from app.services.virtual_tables.principals import principal_problems
-from app.services.virtual_tables.quotas import enforce_table_count
+from app.services.virtual_tables.quotas import enforce_storage, enforce_table_count, lock_storage
 from app.services.virtual_tables.receipts import run_once
 from app.services.virtual_tables.row_policy import parse_policy, view_expression
 from app.services.virtual_tables.schema import SchemaDiff, build_columns, diff
@@ -108,7 +108,7 @@ class TableOperations(Operations):
         Raises:
             AuthorizationError: The caller lacks `tables:create`.
             AlreadyExistsError: A live table already has this name.
-            QuotaExceededError: The organization already has as many tables as it may.
+            QuotaExceededError: The organization has reached its table count or storage limit.
             InvalidSchemaError: The columns are inconsistent.
             IdempotencyKeyReuseError: The key was used before for a different table.
         """
@@ -137,15 +137,6 @@ class TableOperations(Operations):
                 columns=_dump(columns),
                 created_by=ctx.subject_id,
             )
-            await record_audit(
-                self.db,
-                actor_user_id=ctx.subject_id,
-                organization_id=ctx.organization_id,
-                action="table.created",
-                target_type="table",
-                target_id=str(table.id),
-                details={"name": table.name, "columns": len(columns)},
-            )
             return self._read(table, columns, can_edit=await self._can_edit(ctx, table))
 
         payload = data.model_dump(mode="json")
@@ -154,15 +145,31 @@ class TableOperations(Operations):
         for column in payload["columns"]:
             if column.get("link_limit") is None:
                 column.pop("link_limit", None)
-        created, _replayed = await run_once(
-            self.db,
-            ctx,
-            operation="table.create",
-            operation_key=_checked_key(operation_key),
-            payload=payload,
-            outcome_type=TableRead,
-            action=action,
-        )
+        operation_key = _checked_key(operation_key)
+        await lock_storage(self.db, ctx)
+        async with self.db.begin_nested():
+            created, replayed = await run_once(
+                self.db,
+                ctx,
+                operation="table.create",
+                operation_key=operation_key,
+                payload=payload,
+                outcome_type=TableRead,
+                action=action,
+            )
+            if not replayed:
+                # Count definitions and the completed receipt before taking the audit
+                # chain lock: a quota refusal audits in an independent transaction.
+                await enforce_storage(self.db, ctx, created.id)
+                await record_audit(
+                    self.db,
+                    actor_user_id=ctx.subject_id,
+                    organization_id=ctx.organization_id,
+                    action="table.created",
+                    target_type="table",
+                    target_id=str(created.id),
+                    details={"name": created.name, "columns": len(created.columns)},
+                )
         return created
 
     async def list_tables(
@@ -401,7 +408,10 @@ class TableOperations(Operations):
             InvalidSchemaError: The columns are inconsistent, or a column that already
                 has empty cells was made required.
             SchemaDependencyError: Something depends on a column this archives.
+            QuotaExceededError: The schema's definitions or rewritten values would
+                take the organization past its table storage limit.
         """
+        await lock_storage(self.db, ctx)
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         self._ensure_live(table)
         if data.expected_version != table.schema_version:
@@ -422,29 +432,31 @@ class TableOperations(Operations):
         change = diff(previous, columns)
         self._refuse_policy_column_change(table, columns, change)
         await self._refuse_dependents(ctx, table, column_ids=change.archived | change.retyped)
-        columns = await self._retype(table, previous, columns, change.retyped)
-        await self._refuse_empty_required(table, columns, change.required)
-        await self._refuse_link_limits(ctx, table, previous, columns)
-        version = table.schema_version + 1
-        await virtual_table_repo.add_schema_version(
-            self.db,
-            table_id=table.id,
-            version=version,
-            columns=_dump(columns),
-            created_by=ctx.subject_id,
-        )
-        table = await virtual_table_repo.update_table(
-            self.db, table=table, update_data={"schema_version": version}
-        )
-        await record_audit(
-            self.db,
-            actor_user_id=ctx.subject_id,
-            organization_id=ctx.organization_id,
-            action="table.schema_changed",
-            target_type="table",
-            target_id=str(table.id),
-            details={"version": version, "archived_columns": len(change.archived)},
-        )
+        async with self.db.begin_nested():
+            columns = await self._retype(table, previous, columns, change.retyped)
+            await self._refuse_empty_required(table, columns, change.required)
+            await self._refuse_link_limits(ctx, table, previous, columns)
+            version = table.schema_version + 1
+            await virtual_table_repo.add_schema_version(
+                self.db,
+                table_id=table.id,
+                version=version,
+                columns=_dump(columns),
+                created_by=ctx.subject_id,
+            )
+            table = await virtual_table_repo.update_table(
+                self.db, table=table, update_data={"schema_version": version}
+            )
+            await enforce_storage(self.db, ctx, table.id)
+            await record_audit(
+                self.db,
+                actor_user_id=ctx.subject_id,
+                organization_id=ctx.organization_id,
+                action="table.schema_changed",
+                target_type="table",
+                target_id=str(table.id),
+                details={"version": version, "archived_columns": len(change.archived)},
+            )
         return self._read(table, columns, can_edit=True)
 
     async def _refuse_link_limits(

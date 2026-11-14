@@ -1,5 +1,5 @@
 ---
-source_sha: "9669b329ffaf"
+source_sha: "9c50f7e46528"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -736,9 +736,11 @@ die Nutzung eines Tenants nie auf einen anderen angerechnet wird, und wird mit
 | `TABLES_MAX_PER_ORGANIZATION` | 200 | Tabellen einer Organisation. Archivierte zählen mit, weil eine Tabelle nie gelöscht wird |
 | `TABLES_MAX_RECORDS_PER_TABLE` | 100.000 | Datensätze in einer Tabelle. Ein Update eines Datensatzes in einer vollen Tabelle ist erlaubt |
 | `TABLES_MAX_RECORD_BYTES` | 1.000.000 | Die serialisierten Werte eines Datensatzes in Bytes |
-| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Gespeicherte PostgreSQL-JSONB-Nutzdaten je Organisation über Datensätze, Historie, Quittungen und Outbox; Tabellen- und Index-Overhead zählt separat |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Gespeicherte JSONB-Bytes für Datensätze, Historie, Quittungen und Outbox, Bildbytes sowie Zeilen für Beziehungsdefinitionen, Kanten und aufbewahrte Quelldaten je Organisation; Indizes und sonstiger physischer Overhead zählen separat |
 
 Die Gesamtgrenze wird im Savepoint der Änderung unter einer Organisationssperre vor dem Commit geprüft. Eine Überschreitung rollt den Datensatz und alle Kopien zurück, auch eine Importzeile; übrige Zeilen werden als abgelehnt gemeldet. Quittungswiederholungen, unveränderte Schreibvorgänge, Lesen und Löschen bleiben nach einer Absenkung möglich. Die Aufbewahrungsbereinigung gibt entfernte Bytes frei.
+
+Das Erstellen von Tabellen und Schemaänderungen unterliegen derselben Speichergrenze. Eine Ablehnung rollt die neue Tabelle oder Schemaversion, Beziehungsdefinitionen, umgeschriebene Werte samt Historie und eine neue Erstellungsquittung gemeinsam zurück. Der normale Tabellenaudit wird erst nach der Speicherprüfung geschrieben; der separate Audit der Quotenablehnung bleibt nach dem Rollback erhalten.
 
 Die Ablehnung nennt das Limit und seine Obergrenze in `details` (`{"quota": "records",
 "limit": 100000}`), nie den Inhalt, und schreibt einen Eintrag `table.quota_refused` in das

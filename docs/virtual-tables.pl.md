@@ -1,5 +1,5 @@
 ---
-source_sha: "9669b329ffaf"
+source_sha: "9c50f7e46528"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -688,9 +688,11 @@ przekroczył.
 | `TABLES_MAX_PER_ORGANIZATION` | 200 | Tabele organizacji. Zarchiwizowane się liczą, bo tabela nigdy nie jest usuwana |
 | `TABLES_MAX_RECORDS_PER_TABLE` | 100 000 | Rekordy w jednej tabeli. Aktualizacja rekordu w pełnej tabeli jest dozwolona |
 | `TABLES_MAX_RECORD_BYTES` | 1 000 000 | Zserializowane wartości jednego rekordu, w bajtach |
-| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Bajty danych JSONB PostgreSQL na organizację łącznie dla rekordów, historii, potwierdzeń i outboxa; narzut tabel i indeksów jest osobny |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Bajty JSONB rekordów, historii, potwierdzeń i outboxa, bajty obrazów oraz wiersze definicji relacji, krawędzi i zachowanych danych źródłowych na organizację; indeksy i pozostały narzut fizyczny są osobne |
 
 Łączny limit jest sprawdzany w savepoincie zmiany, pod blokadą organizacji, przed commitem. Przekroczenie cofa rekord i wszystkie zachowane kopie, także dla wiersza importu; pozostałe wiersze są raportowane jako odrzucone. Ponowienie z potwierdzenia, zapis bez zmian, odczyt i usuwanie nadal działają po obniżeniu limitu. Retencja zwalnia usuwane bajty.
+
+Tworzenie tabel i zmiany schematu podlegają temu samemu limitowi przechowywania. Odmowa cofa razem nową tabelę lub wersję schematu, definicje relacji, przepisane wartości z ich historią oraz nowe potwierdzenie utworzenia. Zwykły wpis audytowy tabeli powstaje dopiero po sprawdzeniu limitu; osobny wpis odmowy z powodu limitu pozostaje po wycofaniu transakcji.
 
 Odmowa nazywa limit i jego pułap w `details` (`{"quota": "records", "limit": 100000}`),
 nigdy treść, i zapisuje wpis `table.quota_refused` w [audit log](governance.md) z tymi

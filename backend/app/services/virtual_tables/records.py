@@ -946,16 +946,16 @@ class RecordOperations(Operations):
             NotFoundError: The table is out of reach.
             TableArchivedError: The table is archived.
         """
+        await quotas.lock_storage(self.db, ctx)
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
         self._ensure_live(table)
-        await quotas.lock_storage(self.db, ctx)
         created = updated = 0
         failed: list[RecordBatchFailure] = []
         for index, record in enumerate(data.records):
             try:
                 async with self.db.begin_nested():
                     made = await self._create_one(ctx, table, record, update=data.update_existing)
-                    await quotas.enforce_storage(self.db, ctx, table)
+                    await quotas.enforce_storage(self.db, ctx, table.id)
             except _Unchanged:
                 # Already holds what the row says: nothing written, nothing to report.
                 continue
@@ -1122,6 +1122,7 @@ class RecordOperations(Operations):
             TableArchivedError: The table is archived.
         """
         operation_key = _operation_key(operation_key)
+        await quotas.lock_storage(self.db, ctx)
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
 
         async def action() -> WriteOutcome:
@@ -1210,6 +1211,7 @@ class RecordOperations(Operations):
         link_changes: dict[UUID, RecordLinkChange] | None = None,
     ) -> RecordWrite:
         operation_key = _operation_key(operation_key)
+        await quotas.lock_storage(self.db, ctx)
         table = await self._load_table(
             ctx, table_id, Perm.TABLES_EDIT, share=True, alternative_perm=Perm.TABLES_VIEW
         )
@@ -1302,6 +1304,7 @@ class RecordOperations(Operations):
     ) -> RecordWrite:
         external_id = _external_id(external_id)
         operation_key = _operation_key(operation_key)
+        await quotas.lock_storage(self.db, ctx)
         table = await self._load_table(
             ctx, table_id, Perm.TABLES_EDIT, share=True, alternative_perm=Perm.TABLES_VIEW
         )
@@ -1436,7 +1439,6 @@ class RecordOperations(Operations):
         parse_policy(table.row_policy)
         try:
             async with self.db.begin_nested():
-                await quotas.lock_storage(self.db, ctx)
                 outcome, replayed = await run_once(
                     self.db,
                     ctx,
@@ -1447,7 +1449,7 @@ class RecordOperations(Operations):
                     action=action,
                 )
                 if not replayed:
-                    await quotas.enforce_storage(self.db, ctx, table)
+                    await quotas.enforce_storage(self.db, ctx, table.id)
         except _Unchanged as unchanged:
             return RecordWrite(
                 record=await self._read_through(ctx, table, unchanged.record),

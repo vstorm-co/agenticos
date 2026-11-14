@@ -653,9 +653,11 @@ against another's, and is refused with `QUOTA_EXCEEDED` (402) when a write would
 | `TABLES_MAX_PER_ORGANIZATION` | 200 | Tables an organization has. Archived ones count, because a table is never deleted |
 | `TABLES_MAX_RECORDS_PER_TABLE` | 100,000 | Records in one table. Updating a record in a full table is allowed |
 | `TABLES_MAX_RECORD_BYTES` | 1,000,000 | The serialized values of one record, in bytes |
-| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Stored PostgreSQL JSONB payload bytes per organization across records, history, receipts and outbox; physical table/index overhead is separate |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Stored record, history, receipt and outbox JSONB bytes, image bytes, and relationship definition, edge and evidence rows per organization; indexes and other physical overhead are separate |
 
 The aggregate ceiling is checked inside the mutation savepoint, under an organization lock, before commit. An over-limit write rolls back its record and every retained copy, including a batch row; remaining batch rows are reported as refused. Receipt replay, unchanged writes, reads and deletion remain available after a limit is lowered. Retention releases the bytes it removes.
+
+Table creation and schema changes use the same storage ceiling. A refusal rolls back the new table or schema version, relationship definitions, rewritten values and their history, and any new creation receipt together. The ordinary table audit is recorded only after storage admission; the separate quota-refusal audit survives the rollback.
 
 The refusal names the quota and its ceiling in `details` (`{"quota": "records", "limit":
 100000}`), never the content, and writes a `table.quota_refused` entry to the
