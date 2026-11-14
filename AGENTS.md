@@ -243,6 +243,7 @@ retranslated is how a stale translation stops being visible.
 | Every component a deployment is made of, and the release SBOM | `docs/reference/components.md` |
 | Threat model, data flow, at-rest, the controls matrix | `docs/security.md` |
 | Skills — format, library, skills vs knowledge | `docs/skills.md` |
+| Browser teaching and site procedural memory proposal | `docs/design/browser-teaching-site-memory.md` (repo only; not implemented) |
 | Context files — standing knowledge bound to agents | `docs/context.md` |
 | Datasets — versioned eval cases, import/export, Add to dataset | `docs/datasets.md` |
 | Eval runs — estimate, isolation, baselines, confirmed regressions, model comparison | `docs/evals.md` |
