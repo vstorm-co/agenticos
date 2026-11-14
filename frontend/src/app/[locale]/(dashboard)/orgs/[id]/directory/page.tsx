@@ -60,7 +60,7 @@ export default function DirectoryPage({ params }: PageProps) {
   // retention page's reasoning (#1420 review).
   if (permissionsError || !isLoaded || !canRead) {
     return (
-      <div className="space-y-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         {header}
         {permissionsError ? (
           <ErrorState />
@@ -73,13 +73,8 @@ export default function DirectoryPage({ params }: PageProps) {
     );
   }
 
-  const confirmDelete = async (mapping: DirectoryMapping) => {
-    await remove.mutateAsync(mapping.id).catch(() => undefined);
-    setDeleting(null);
-  };
-
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       {header}
 
       <DirectoryMappingList
@@ -101,7 +96,7 @@ export default function DirectoryPage({ params }: PageProps) {
           confirmLabel={t("delete")}
           destructive
           loading={remove.isPending}
-          onConfirm={() => confirmDelete(deleting)}
+          onConfirm={() => remove.mutate(deleting.id, { onSuccess: () => setDeleting(null) })}
         />
       )}
     </div>

@@ -41,6 +41,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Align organization role, directory and retention views with shared list layouts: searchable permission matrices with sticky labels, responsive retention fields and matching loading states, disabled unchanged saves, and retryable directory deletion refusals.
+
 - Share pagination controls and loading/boundary states across catalogs, record tables and memory. Disable unchanged participation settings, organize background-service cards, and retain the full file-reader footprint while previews load.
 - Keep switches visible when wrapped in action tooltips; tooltip state no longer overrides checked-state styling.
 - Forward image-proxy requests from their URL and headers without rewrapping the runtime's Request object.

@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
  * palette and property panel scroll inside a workspace that fills the window.
  */
 const OWN_SCROLL_PANE =
-  /\/(?:chat|runs|projects\/[^/]+)(?:\/|$)|\/admin\/(?:users|organizations)\/?$|\/workflows\/[^/]+$/;
+  /\/(?:chat|runs|projects\/[^/]+)(?:\/|$)|\/admin\/(?:users|organizations)\/?$|\/workflows\/[^/]+$|\/orgs\/[^/]+\/roles\/?$/;
 
 /**
  * Routes that place their own room under themselves, lower down.

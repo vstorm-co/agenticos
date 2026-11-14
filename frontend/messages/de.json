@@ -6743,6 +6743,8 @@
       "termsOfService": "Nutzungsbedingungen"
     },
     "orgs": {
+      "searchPermissions": "Berechtigungen suchen…",
+      "noPermissionsMatch": "Keine Berechtigungen passen zur Suche",
       "retention": "Aufbewahrung",
       "active": "Aktiv",
       "all": "alle",

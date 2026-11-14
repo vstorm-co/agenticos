@@ -7470,6 +7470,8 @@
       "termsOfService": "Terms of Service"
     },
     "orgs": {
+      "searchPermissions": "Search permissions…",
+      "noPermissionsMatch": "No permissions match your search",
       "retention": "Retention",
       "active": "Active",
       "all": "all",

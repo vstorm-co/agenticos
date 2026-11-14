@@ -2746,6 +2746,8 @@
       "moreUploads": "Yükleme kuyruğunda {count, plural, one {# dosya daha} other {# dosya daha}}"
     },
     "orgs": {
+      "searchPermissions": "İzinlerde ara…",
+      "noPermissionsMatch": "Aramanızla eşleşen izin yok",
       "retention": "Saklama süresi",
       "active": "Etkin",
       "all": "tümü",
