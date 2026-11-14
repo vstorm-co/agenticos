@@ -6026,7 +6026,6 @@
     },
     "memory": {
       "showing": "{from}–{to} von {total} werden angezeigt",
-      "newer": "Neuere",
       "older": "Ältere",
       "title": "Ihr Gedächtnis",
       "description": "Sehen Sie, was Ihre Agents gespeichert haben, woher es stammt und wer es nutzen kann.",
@@ -6064,7 +6063,6 @@
           "retracted": "Zurückgezogen"
         },
         "showing": "{from}–{to} von {total}",
-        "newer": "Neuer",
         "older": "Älter",
         "episode": {
           "situation": "Situation",
@@ -9624,8 +9622,8 @@
     "nextPage": "Nächste Seite",
     "noResults": "Keine Ergebnisse.",
     "nothingWrittenYet": "Noch nichts geschrieben.",
-    "pagerAll": "{counted} · Seite {page} von {pageCount}",
-    "pagerMatched": "{matched} von {counted} · Seite {page} von {pageCount}",
+    "pagerAll": "{counted}",
+    "pagerMatched": "{matched} von {counted}",
     "preview": "Vorschau",
     "previousMonths": "Vorherige Monate",
     "previousPage": "Vorherige Seite",

@@ -2062,7 +2062,6 @@
     },
     "memory": {
       "showing": "Pokazane {from}–{to} z {total}",
-      "newer": "Nowsze",
       "older": "Starsze",
       "title": "Twoja pamięć",
       "description": "Sprawdź, co zapamiętali Twoi agenci, skąd to wiedzą i kto może z tego korzystać.",
@@ -2100,7 +2099,6 @@
           "retracted": "Wycofane"
         },
         "showing": "Pokazano {from}–{to} z {total}",
-        "newer": "Nowsze",
         "older": "Starsze",
         "episode": {
           "situation": "Sytuacja",
@@ -5759,8 +5757,8 @@
     "nextPage": "Następna strona",
     "noResults": "Brak wyników.",
     "nothingWrittenYet": "Nic jeszcze nie napisano.",
-    "pagerAll": "{counted} · strona {page} z {pageCount}",
-    "pagerMatched": "{matched} z {counted} · strona {page} z {pageCount}",
+    "pagerAll": "{counted}",
+    "pagerMatched": "{matched} z {counted}",
     "preview": "Podgląd",
     "previousMonths": "Poprzednie miesiące",
     "previousPage": "Poprzednia strona",

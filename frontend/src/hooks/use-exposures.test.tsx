@@ -3,6 +3,8 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { toast } from "sonner";
+
 import { useExposures } from "./use-exposures";
 import { apiClient } from "@/lib/api-client";
 import type { Exposure } from "@/types/exposures";
@@ -230,4 +232,23 @@ describe("useExposures", () => {
       prompt_replaces_defaults: true,
     });
   });
+});
+
+it("saves only participation configuration and surfaces a refused update", async () => {
+  vi.mocked(apiClient.patch).mockResolvedValue(exposure());
+  const result = await hook();
+  const observation = {
+    enabled: false,
+    model_profile_id: null,
+    instructions: "Focus",
+    unmentioned_interval_minutes: 20,
+    mentioned_interval_minutes: 1,
+  };
+  await result.current.setObservation.mutateAsync({ exposureId: "e1", observation });
+  expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/exposures/e1", { observation });
+  vi.mocked(apiClient.patch).mockRejectedValueOnce(new Error("Denied"));
+  await expect(
+    result.current.setObservation.mutateAsync({ exposureId: "e1", observation }),
+  ).rejects.toThrow("Denied");
+  expect(toast.error).toHaveBeenCalled();
 });

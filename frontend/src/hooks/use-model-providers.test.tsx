@@ -641,3 +641,17 @@ it("does not send an Otari key anywhere before its destination is chosen", () =>
   renderHook(() => useProviderModels("otari", undefined, "self-hosted-key"), { wrapper });
   expect(apiClient.get).not.toHaveBeenCalled();
 });
+
+it("keeps native decision suggestions separate from chat models in the query cache", async () => {
+  vi.clearAllMocks();
+  const native = { id: "jev", name: "Jev", chat_capable: false, apis: ["decisions"] };
+  vi.mocked(apiClient.get).mockResolvedValue({ items: [native], total: 1, source: "live" });
+  const { result } = renderHook(() => useProviderModels("typesafe", undefined, "key-1", true), {
+    wrapper,
+  });
+  await waitFor(() => expect(result.current.models).toEqual([native]));
+  expect(apiClient.get).toHaveBeenCalledWith(
+    "/providers/typesafe/models?api=decisions&secret_id=key-1",
+  );
+  expect(result.current.refused).toEqual([]);
+});

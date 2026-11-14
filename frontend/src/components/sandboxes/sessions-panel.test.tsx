@@ -132,7 +132,7 @@ describe("SessionsPanel", () => {
     render(<SessionsPanelLoading />);
     expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
     expect(screen.getAllByRole("columnheader")).toHaveLength(7);
-    expect(screen.getAllByRole("row")).toHaveLength(4);
+    expect(screen.getAllByRole("row")).toHaveLength(7);
     expect(screen.queryByText(/no container connection/i)).not.toBeInTheDocument();
   });
 
@@ -736,4 +736,13 @@ describe("what the row says about a sandbox", () => {
       "/chat?id=c-9",
     );
   });
+});
+
+it("clears an unmatched session query without losing the selected host", async () => {
+  render(<SessionsPanel connections={[connection()]} />);
+  const input = screen.getByRole("textbox", { name: /Search sessions/ });
+  await userEvent.type(input, "unmatched");
+  await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  expect(input).toHaveValue("");
+  expect(screen.getByText("xc-1")).toBeInTheDocument();
 });

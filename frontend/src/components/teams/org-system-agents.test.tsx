@@ -106,7 +106,8 @@ describe("OrgSystemAgents", () => {
     state.held = [Perm.budgetsManage];
     state.roles = undefined;
     state.loading = true;
-    expect(render(<OrgSystemAgents org={ORG} />).container).toBeEmptyDOMElement();
+    render(<OrgSystemAgents org={ORG} />);
+    expect(screen.getByRole("status", { name: "loading" })).toHaveAttribute("aria-busy", "true");
   });
 
   it("says so when the roles could not be loaded, rather than reading as no settings", () => {
@@ -141,6 +142,10 @@ describe("OrgSystemAgents", () => {
     expect(card).toHaveTextContent("managedIn:Sonnet");
     expect(card).toHaveTextContent("on");
     expect(card.querySelector("button")).toBeNull();
+    expect(screen.getByRole("link", { name: "tabProactivity" })).toHaveAttribute(
+      "href",
+      "/orgs/o1/members?tab=proactivity",
+    );
   });
 
   it("keeps service configuration collapsed while its usage stays visible", async () => {
@@ -275,4 +280,15 @@ describe("OrgSystemAgents", () => {
     await waitFor(() => expect(toastSuccess).not.toHaveBeenCalled());
     await waitFor(() => expect(state.mutateAsync).toHaveBeenCalled());
   });
+});
+
+it("keeps Save disabled until the role configuration changes and after it is restored", async () => {
+  render(<OrgSystemAgents org={ORG} />);
+  await userEvent.click(screen.getByText("configure"));
+  const save = screen.getByRole("button", { name: "save" });
+  expect(save).toBeDisabled();
+  await userEvent.type(screen.getByLabelText("budget"), "5");
+  expect(save).toBeEnabled();
+  await userEvent.clear(screen.getByLabelText("budget"));
+  expect(save).toBeDisabled();
 });

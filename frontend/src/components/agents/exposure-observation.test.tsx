@@ -57,13 +57,13 @@ describe("automatic channel participation", () => {
         name: messages.agents.observationUnmentioned,
       }),
     ).toHaveAccessibleDescription(messages.agents.observationUnmentionedHint);
-    await userEvent.click(screen.getByRole("button", { name: "Save participation settings" }));
-    expect(save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        enabled: false,
-        instructions: messages.agents.observationDefaultInstructions,
-      }),
-    );
+    const submit = screen.getByRole("button", { name: "Save participation settings" });
+    expect(submit).toBeDisabled();
+    fireEvent.change(screen.getByRole("slider"), { target: { value: "65" } });
+    expect(submit).toBeEnabled();
+    fireEvent.change(screen.getByRole("slider"), { target: { value: "80" } });
+    expect(submit).toBeDisabled();
+    expect(save).not.toHaveBeenCalled();
   });
 
   it("preserves previously authored focus instructions", async () => {
@@ -143,4 +143,22 @@ describe("automatic channel participation", () => {
       "Keep my edits",
     );
   });
+});
+
+it("changes the decision engine and retains both edited polling intervals", async () => {
+  const save = await mount();
+  await userEvent.click(screen.getByRole("combobox", { name: "Decision engine" }));
+  await userEvent.click(screen.getByRole("option", { name: /native probabilities/ }));
+  const cold = screen.getByRole("spinbutton", { name: messages.agents.observationUnmentioned });
+  const warm = screen.getByRole("spinbutton", { name: messages.agents.observationMentioned });
+  fireEvent.change(cold, { target: { value: "30" } });
+  fireEvent.change(warm, { target: { value: "2" } });
+  await userEvent.click(screen.getByRole("button", { name: "Save participation settings" }));
+  expect(save).toHaveBeenCalledWith(
+    expect.objectContaining({
+      decision_mode: "native",
+      unmentioned_interval_minutes: 30,
+      mentioned_interval_minutes: 2,
+    }),
+  );
 });

@@ -120,7 +120,7 @@ describe("Pager", () => {
       />,
     );
 
-    expect(screen.getByText("3 of 40 umiejętności · page 1 of 2")).toBeInTheDocument();
+    expect(screen.getByText("3 of 40 umiejętności")).toBeInTheDocument();
   });
 
   it("moves a page when asked", async () => {

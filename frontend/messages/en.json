@@ -6753,7 +6753,6 @@
     },
     "memory": {
       "showing": "Showing {from}–{to} of {total}",
-      "newer": "Newer",
       "older": "Older",
       "title": "Your memory",
       "description": "See what your agents remember, where it came from and who can use it.",
@@ -6791,7 +6790,6 @@
           "retracted": "Retracted"
         },
         "showing": "Showing {from}–{to} of {total}",
-        "newer": "Newer",
         "older": "Older",
         "episode": {
           "situation": "Situation",
@@ -9744,8 +9742,8 @@
     "nextPage": "Next page",
     "noResults": "No results.",
     "nothingWrittenYet": "Nothing written yet.",
-    "pagerAll": "{counted} · page {page} of {pageCount}",
-    "pagerMatched": "{matched} of {counted} · page {page} of {pageCount}",
+    "pagerAll": "{counted}",
+    "pagerMatched": "{matched} of {counted}",
     "preview": "Preview",
     "previousMonths": "Previous months",
     "previousPage": "Previous page",

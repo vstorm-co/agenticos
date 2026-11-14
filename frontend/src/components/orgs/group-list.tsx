@@ -98,7 +98,6 @@ export function GroupList({
           icon={Search}
           title={t("noMatches")}
           description={t("searchHint")}
-          cta={{ label: t("clearSearch"), onClick: () => list.setQuery("") }}
         />
       ) : (
         <div className="space-y-4">

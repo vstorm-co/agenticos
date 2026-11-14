@@ -65,7 +65,6 @@ export function MyNotes() {
           icon={FileText}
           title={view(q ? "noMatches" : "emptyNotes")}
           description={view(q ? "tryFilters" : "emptyNotesHint")}
-          {...(q ? { cta: { label: view("clearFilters"), onClick: () => setQ("") } } : {})}
         />
       ) : (
         <ul className="divide-foreground/5 divide-y px-2">

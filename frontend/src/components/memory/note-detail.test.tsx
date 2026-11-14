@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
+import { act } from "@testing-library/react";
 import { NoteDetail } from "./note-detail";
 import { saveBlob } from "@/lib/file-access";
 import type { MemoryNote } from "@/lib/memory-api";
@@ -62,4 +64,58 @@ it("keeps a refused correction open and saves against the original revision", as
   expect(close).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(close).toHaveBeenCalledOnce());
+});
+
+it("closes an unchanged note without saving", async () => {
+  const close = vi.fn();
+  const update = vi.fn();
+  render(
+    <NoteDetail note={note} onClose={close} setActive={vi.fn()} remove={vi.fn()} update={update} />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(close).toHaveBeenCalled();
+  expect(update).not.toHaveBeenCalled();
+});
+
+it.each(["save", "discard"] as const)(
+  "protects a corrected note during navigation: %s",
+  async (decision) => {
+    useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
+    const close = vi.fn();
+    const update = vi.fn().mockResolvedValue(true);
+    render(
+      <NoteDetail
+        note={note}
+        onClose={close}
+        setActive={vi.fn()}
+        remove={vi.fn()}
+        update={update}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Source" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Note content" }), {
+      target: { value: "Corrected" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(close).not.toHaveBeenCalled();
+    await act(() => useUnsavedChangesStore.getState().answer(decision));
+    expect(close).toHaveBeenCalled();
+    if (decision === "save") expect(update).toHaveBeenCalledWith(note, "Corrected");
+    else expect(update).not.toHaveBeenCalled();
+  },
+);
+
+it("closes an unchanged note from the dialog escape key", async () => {
+  const close = vi.fn();
+  render(
+    <NoteDetail
+      note={note}
+      onClose={close}
+      setActive={vi.fn()}
+      remove={vi.fn()}
+      update={vi.fn()}
+    />,
+  );
+  await userEvent.keyboard("{Escape}");
+  expect(close).toHaveBeenCalled();
 });

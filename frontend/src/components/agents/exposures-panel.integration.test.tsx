@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -478,4 +478,18 @@ describe("ExposuresPanel", () => {
 
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
+});
+
+it("persists participation changes for the selected bot only", async () => {
+  serve([exposure()], []);
+  vi.mocked(apiClient.patch).mockResolvedValue(exposure());
+  await mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Configure" }));
+  fireEvent.change(screen.getByRole("slider"), { target: { value: "65" } });
+  await userEvent.click(screen.getByRole("button", { name: "Save participation settings" }));
+  await waitFor(() =>
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
+      observation: expect.objectContaining({ threshold_percent: 65, enabled: false }),
+    }),
+  );
 });

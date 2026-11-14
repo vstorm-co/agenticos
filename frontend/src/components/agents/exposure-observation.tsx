@@ -91,15 +91,21 @@ function ObservationForm({
   const { profiles, profilesStatus } = useModelProviders();
   const { can } = usePermissions();
   const [creatingModel, setCreatingModel] = useState(false);
-  const [config, setConfig] = useState(() => ({
+  const [original] = useState(() => ({
     ...initial,
     instructions: initial.instructions || t("observationDefaultInstructions"),
   }));
+  const [config, setConfig] = useState(original);
   const [coldInterval, setColdInterval] = useState(String(initial.unmentioned_interval_minutes));
   const [warmInterval, setWarmInterval] = useState(String(initial.mentioned_interval_minutes));
   const [threshold, setThreshold] = useState(initial.threshold_percent ?? 80);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const changed =
+    JSON.stringify(config) !== JSON.stringify(original) ||
+    coldInterval !== String(initial.unmentioned_interval_minutes) ||
+    warmInterval !== String(initial.mentioned_interval_minutes) ||
+    threshold !== (initial.threshold_percent ?? 80);
   return (
     <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
       <DialogHeader>
@@ -268,7 +274,7 @@ function ObservationForm({
           </p>
         )}
         <DialogFooter>
-          <Button type="submit" disabled={disabled || saving || creatingModel}>
+          <Button type="submit" disabled={!changed || disabled || saving || creatingModel}>
             {t("observationSave")}
           </Button>
         </DialogFooter>
