@@ -1,5 +1,5 @@
 ---
-source_sha: "63fad5394956"
+source_sha: "e468d58b1325"
 ---
 
 # Die Konsole { #the-console }
@@ -1241,3 +1241,6 @@ Mitgliederverwalter können prüfen, ob sie und ein bestehendes Mitglied einen g
 Abgeschlossene Chat-Turns zeigen den vor einer Agentenfrage gelieferten Text neben der abschließenden Antwort, auch nach Ablehnung der Frage oder Fortsetzung des Runs. Tool-Ergebnisse und Überlegungen bleiben im aufklappbaren Arbeitsverlauf. Dies gilt für gespeicherte und geteilte Chats; die Textlänge entscheidet nicht über die Einordnung.
 
 Der Run-Verlauf unterscheidet die anfragende Person vom Herausgeber, dessen Berechtigung eine externe Anfrage zulässt. Nicht verknüpfte Kanalabsender erscheinen auf Desktop und Mobilgeräten als ausdrücklich unbestätigte Chat-Konten; anonyme Anfragen erhalten keine erfundene Mitgliedsidentität. Die Run-API behält `user_id` als Berechtigungskontext und ergänzt `initiated_by_publisher_fallback` und `asked_in_chat` für eine korrekte Zuordnung. Die Anzeige verknüpft keine Konten und gewährt keinen Zugriff auf persönliche Verbindungen des Herausgebers.
+
+
+Die Zeitraumwahl steht neben den Dashboard-Ansichten. Zuletzt erstellte Visualisierungen bevorzugen gespeicherte Vorschaubilder. Fehlt eines, wird die Zeichnung für ihren Besitzer rekonstruiert und in einem isolierten Rahmen gerendert, sobald sich die Kachel dem sichtbaren Bereich nähert. Dafür ist kein Browser auf dem Server erforderlich.

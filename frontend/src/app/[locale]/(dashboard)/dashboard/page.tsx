@@ -425,13 +425,15 @@ export default function DashboardPage() {
         groups={groups}
         groupId={group?.id ?? null}
         onGroupChange={changeGroup}
-      />
-      <FilterRow
-        period={period}
-        onPeriodChange={changePeriod}
-        sections={visible}
-        selectedSections={selectedSections}
-        onSectionsChange={changeSections}
+        actions={
+          <FilterRow
+            period={period}
+            onPeriodChange={changePeriod}
+            sections={visible}
+            selectedSections={selectedSections}
+            onSectionsChange={changeSections}
+          />
+        }
       />
       {/* Setting the organization up belongs where somebody acts on it - their
           own view or the organization's - not beside a group's or the host's

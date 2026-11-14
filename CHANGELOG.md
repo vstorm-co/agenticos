@@ -29,6 +29,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Render recent dashboard visuals in an isolated client preview when no server thumbnail is available, and place period controls beside the dashboard view tabs.
+
 - Keep pending skill updates fresh after decisions in other sessions, recover from stale proposals, and present compact update rows with readable instruction comparisons and reference-file previews.
 
 ## [1.74.0] - 2026-11-14

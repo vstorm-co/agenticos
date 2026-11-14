@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,6 +9,16 @@ import type { VisualListItem } from "@/lib/visuals-api";
 import { RecentVisualsWidget } from "./recent-visuals";
 
 const useRecentVisualsMock = vi.fn();
+const previewMock = vi.fn();
+vi.mock("@/lib/visuals-api", async (original) => ({
+  ...(await original<typeof import("@/lib/visuals-api")>()),
+  getVisualPreview: (...args: unknown[]) => previewMock(...args),
+}));
+vi.mock("@/components/chat/visual-frame", () => ({
+  VisualFrame: ({ content }: { content: string }) => (
+    <div data-testid="visual-frame">{content}</div>
+  ),
+}));
 vi.mock("@/hooks/use-recent-visuals", () => ({
   useRecentVisuals: (...args: unknown[]) => useRecentVisualsMock(...args),
 }));
@@ -37,14 +48,50 @@ function visual(overrides: Partial<VisualListItem> = {}): VisualListItem {
 
 function widget() {
   return render(
-    <TooltipProvider>
-      <RecentVisualsWidget title="Recent visuals" hint="Drawn lately" period={PERIOD} />
-    </TooltipProvider>,
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <TooltipProvider>
+        <RecentVisualsWidget title="Recent visuals" hint="Drawn lately" period={PERIOD} />
+      </TooltipProvider>
+    </QueryClientProvider>,
   );
 }
 
 describe("RecentVisualsWidget", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it("renders a drawing without a server thumbnail in the isolated frame", async () => {
+    const observer = vi.fn();
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: (entries: { isIntersecting: boolean }[]) => void) {
+          callback([{ isIntersecting: true }]);
+        }
+        observe = observer;
+        unobserve = vi.fn();
+        disconnect = vi.fn();
+      },
+    );
+    previewMock.mockResolvedValue({
+      kind: "html",
+      title: "Order flow",
+      content: "<h1>Actual visual</h1>",
+    });
+    useRecentVisualsMock.mockReturnValue({
+      visuals: [visual({ has_thumbnail: false })],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    widget();
+    await waitFor(() =>
+      expect(screen.getByTestId("visual-frame")).toHaveTextContent("Actual visual"),
+    );
+    expect(previewMock).toHaveBeenCalledWith("v1");
+    vi.unstubAllGlobals();
+  });
 
   it("shows each drawing as a tile that opens its conversation", () => {
     useRecentVisualsMock.mockReturnValue({

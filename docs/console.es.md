@@ -1,5 +1,5 @@
 ---
-source_sha: "63fad5394956"
+source_sha: "e468d58b1325"
 ---
 
 # La consola { #the-console }
@@ -1185,3 +1185,6 @@ Quienes gestionan miembros pueden comprobar si ellos y otro miembro pueden ejecu
 Los turnos de chat completados mantienen visible el texto entregado antes de una pregunta del agente junto a la respuesta final, incluso tras rechazar la pregunta o reanudar la ejecución. Los resultados de herramientas y el razonamiento permanecen en el historial desplegable. Se aplica a chats guardados y compartidos; no clasifica las respuestas por su longitud.
 
 El historial distingue a quien pregunta del publicador cuya autoridad admite una solicitud externa. Los remitentes de canales sin vincular aparecen como cuentas de chat explícitamente no verificadas, tanto en escritorio como en móvil; una solicitud anónima no recibe una identidad de miembro inventada. La API conserva `user_id` como contexto de autoridad y expone `initiated_by_publisher_fallback` y `asked_in_chat` para atribuir correctamente la solicitud. Esta presentación no vincula cuentas ni concede acceso a conexiones personales del publicador.
+
+
+El selector de período aparece junto a las pestañas del panel. Las visualizaciones recientes prefieren miniaturas guardadas; si no hay una disponible, el dibujo se reconstruye para su propietario y se muestra en un marco aislado cuando la tarjeta se acerca al área visible. Esta vista no requiere un navegador en el servidor.

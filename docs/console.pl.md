@@ -1,5 +1,5 @@
 ---
-source_sha: "63fad5394956"
+source_sha: "e468d58b1325"
 ---
 
 # Konsola { #the-console }
@@ -1151,3 +1151,6 @@ Osoby zarządzające członkami mogą sprawdzić, czy wraz z wybranym członkiem
 Zakończone tury chatu pokazują tekst przekazany przed pytaniem agenta obok końcowej odpowiedzi, także po odmowie odpowiedzi na pytanie lub wznowieniu runu. Wyniki narzędzi i rozumowanie pozostają w rozwijanej historii pracy. Dotyczy to zapisanych rozmów i udostępnionych widoków; długość tekstu nie decyduje o jego klasyfikacji.
 
 Historia runów rozróżnia osobę pytającą od publikującego, którego uprawnienia dopuszczają zewnętrzne zapytanie. Niepowiązany nadawca z kanału jest pokazany jako jawnie niezweryfikowane konto chatu, na komputerze i telefonie; anonimowe zapytanie nie otrzymuje wymyślonej tożsamości członka. API zachowuje `user_id` jako kontekst uprawnień i udostępnia `initiated_by_publisher_fallback` oraz `asked_in_chat` do poprawnego przypisania nadawcy. Ten widok nie łączy kont ani nie udostępnia osobistych połączeń publikującego.
+
+
+Wybór okresu znajduje się obok zakładek widoku dashboardu. Ostatnie wizualizacje korzystają najpierw z zapisanych miniatur; gdy miniatura jest niedostępna, rysunek jest odtwarzany dla właściciela i renderowany w izolowanej ramce, gdy karta zbliża się do widocznego obszaru. Ten podgląd nie wymaga przeglądarki na serwerze.
