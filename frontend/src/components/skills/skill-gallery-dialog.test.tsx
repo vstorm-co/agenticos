@@ -85,6 +85,57 @@ describe("SkillGalleryDialog", () => {
     expect(screen.getAllByRole("button", { name: "Install" })).toHaveLength(1);
   });
 
+  it("opens an installed skill, and previews one before installing it", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.startsWith("/skills/gallery/preview")
+        ? {
+            key: "healthcare/patient-enquiry-triage",
+            name: "Patient enquiry triage",
+            description: "d",
+            category: null,
+            content: "Answer only booking questions.",
+            files: ["routes.md", "scripts.md"],
+          }
+        : {
+            industries: [
+              {
+                ...GALLERY.industries[0],
+                skills: [
+                  GALLERY.industries[0]!.skills[0],
+                  { ...GALLERY.industries[0]!.skills[1], installed_id: "k9" },
+                ],
+              },
+            ],
+          },
+    );
+    open();
+    await userEvent.click(await screen.findByText("Healthcare"));
+
+    expect(screen.getByRole("link", { name: "Installed" })).toHaveAttribute("href", "/skills/k9");
+    await userEvent.click(screen.getAllByRole("button", { name: "Preview" })[0]!);
+    expect(await screen.findByText("Answer only booking questions.")).toBeVisible();
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/skills/gallery/preview?key=healthcare%2Fpatient-enquiry-triage",
+    );
+    expect(screen.getByText("Comes with 2 files: routes.md, scripts.md")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Hide preview" }));
+    expect(screen.queryByText("Answer only booking questions.")).toBeNull();
+  });
+
+  it("says when a preview cannot be read", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.startsWith("/skills/gallery/preview")) {
+        throw new ApiError(404, "Gone", { error: { code: "NOT_FOUND", message: "Gone" } });
+      }
+      return GALLERY;
+    });
+    open();
+    await userEvent.click(await screen.findByText("Healthcare"));
+    await userEvent.click(screen.getAllByRole("button", { name: "Preview" })[0]!);
+
+    expect(await screen.findByText("Gone")).toBeInTheDocument();
+  });
+
   it("installs one skill by its key", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({
       installed: ["Patient enquiry triage"],

@@ -355,6 +355,13 @@ media/
 SSE-S3 by default, SSE-KMS with a key the deployment names. See
 [configuration](configuration.md#uploaded-files-at-rest) for the settings.
 
+Knowledge-base ingestion with local storage still needs the API and worker to
+share `MEDIA_DIR/_rag_tmp`. With S3, each worker execution downloads its own
+stored object and removes the temporary copy on completion, parser failure or
+cancellation. No API scratch volume is shared between pods; see
+[Kubernetes deployment](kubernetes.md). A killed child can leave a temporary copy
+until the pod is replaced.
+
 !!! info "Which backend to run, and what each one asks of you"
 
     Local is the honest answer for a single host: encrypt the volume, and the

@@ -93,7 +93,7 @@ export function useMembers(orgId: string) {
   );
 
   const removeMember = useCallback(
-    async (userId: string) => {
+    async (userId: string): Promise<boolean> => {
       try {
         await apiClient.delete(`/orgs/${orgId}/members/${userId}`);
         writeCache((prev) => ({
@@ -101,8 +101,10 @@ export function useMembers(orgId: string) {
           total: prev.total - 1,
         }));
         toast.success(t("memberRemoved"));
+        return true;
       } catch {
         toast.error(t("failedRemove"));
+        return false;
       }
     },
     [orgId, writeCache, t],

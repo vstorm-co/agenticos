@@ -109,6 +109,68 @@ it("leaves a final answer without prior work directly visible", async () => {
   ).toBeNull();
 });
 
+it("keeps a report delivered before a question visible after the run resumes", async () => {
+  const { foldWork, runsOf } = await import("./turn-parts");
+  const report: MessagePart = { id: "report", type: "text", content: "Audit findings." };
+  const conclusion: MessagePart = { id: "conclusion", type: "text", content: "No changes made." };
+  const split = foldWork(
+    runsOf([
+      tool("inspect", "read_file"),
+      report,
+      tool("question", "ask_user_question"),
+      tool("follow-up", "read_file"),
+      conclusion,
+    ]),
+  );
+  expect(split?.shown.flatMap((run) => (run.kind === "other" ? [run.part.id] : []))).toEqual([
+    "report",
+    "conclusion",
+  ]);
+  expect(split?.steps).toBe(3);
+  expect(split?.folded.every((run) => run.kind === "tools")).toBe(true);
+});
+
+it("recognizes renamed questions without trusting an external tool with the same name", async () => {
+  const { foldWork, runsOf } = await import("./turn-parts");
+  const report: MessagePart = { id: "report", type: "text", content: "Audit findings." };
+  const question = tool("question", "clarify");
+  question.toolCall = { ...question.toolCall!, tool_id: "ask_user_question" };
+  expect(foldWork(runsOf([report, question]))?.shown).toHaveLength(1);
+  const external = tool("external", "ask_user_question");
+  external.toolCall = { ...external.toolCall!, presentation_kind: "generic" };
+  expect(foldWork(runsOf([report, external]))?.shown).toEqual([]);
+});
+
+it("retains an already delivered report when later work is stopped", async () => {
+  const { foldWork, runsOf } = await import("./turn-parts");
+  const split = foldWork(
+    runsOf([
+      tool("inspect", "read_file"),
+      { id: "report", type: "text", content: "Completed audit." },
+      tool("question", "ask_user_question"),
+      tool("later", "read_file"),
+    ]),
+    true,
+  );
+  expect(split?.shown.map((run) => run.kind === "other" && run.part.id)).toEqual(["report"]);
+});
+
+it("keeps text before a stored question visible and leaves reasoning folded", async () => {
+  const { foldWork, runsOf } = await import("./turn-parts");
+  const split = foldWork(
+    runsOf([
+      { id: "thinking", type: "thinking", content: "Private reasoning." },
+      { id: "report", type: "text", content: "Audit findings." },
+      { id: "question", type: "ask_user", question: "Apply changes?", answer: "Later" },
+    ]),
+  );
+  expect(split?.shown.map((run) => run.kind === "other" && run.part.id)).toEqual(["report"]);
+  expect(split?.folded.map((run) => run.kind === "other" && run.part.type)).toEqual([
+    "thinking",
+    "ask_user",
+  ]);
+});
+
 it("keeps a telephone receipt visible as a result of the turn", () => {
   render(
     createElement(TurnParts, {

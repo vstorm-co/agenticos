@@ -8,7 +8,13 @@ from sqlalchemy import Text, and_, case, cast, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
-from app.db.models.organization import Invitation, InvitationStatus, OrgRole
+from app.db.models.organization import (
+    Invitation,
+    InvitationStatus,
+    Organization,
+    OrganizationMember,
+    OrgRole,
+)
 
 _INVITE_TTL_DAYS = 7
 
@@ -288,3 +294,36 @@ async def record_use(
     await db.flush()
     await db.refresh(invite)
     return invite
+
+
+async def received(
+    db: AsyncSession,
+    *,
+    email: str,
+    user_id: UUID,
+    skip: int = 0,
+    limit: int = 50,
+    invitation_id: UUID | None = None,
+) -> list[tuple[Invitation, Organization]]:
+    """Live addressed invitations for this account, excluding existing memberships."""
+    query = (
+        select(Invitation, Organization)
+        .join(Organization, Organization.id == Invitation.organization_id)
+        .where(
+            func.lower(Invitation.email) == email.strip().lower(),
+            Invitation.status == InvitationStatus.PENDING.value,
+            Invitation.expires_at > datetime.now(UTC),
+            Invitation.organization_id.not_in(
+                select(OrganizationMember.organization_id).where(
+                    OrganizationMember.user_id == user_id
+                )
+            ),
+        )
+        .order_by(Invitation.created_at.desc(), Invitation.id)
+        .offset(skip)
+        .limit(limit)
+    )
+    if invitation_id is not None:
+        query = query.where(Invitation.id == invitation_id)
+    result = await db.execute(query)
+    return [(invite, organization) for invite, organization in result.all()]

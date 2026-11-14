@@ -47,3 +47,17 @@ export function useSaveProactiveOptOut(): (optOut: boolean) => Promise<User> {
     [setUser],
   );
 }
+
+/** Upload the account portrait through the shared authenticated transport. */
+export function useUploadAccountAvatar(): (file: File) => Promise<void> {
+  const setUser = useAuthStore((state) => state.setUser);
+  const bumpAvatarVersion = useAuthStore((state) => state.bumpAvatarVersion);
+  return useCallback(
+    async (file: File) => {
+      const updated = await apiClient.upload<User>("/users/me/avatar", file);
+      setUser(updated);
+      bumpAvatarVersion();
+    },
+    [setUser, bumpAvatarVersion],
+  );
+}

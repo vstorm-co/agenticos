@@ -9,16 +9,41 @@ from app.agents.capabilities._registry import (
 )
 from app.agents.capabilities.skills._capability import (
     SAFE_SKILL_TOOLS,
+    SKILL_BODIES_RESOURCE,
     SKILL_TEXTS,
+    SkillBody,
+    SkillBodyFile,
     Skills,
+    served_files,
     to_toolkit_skill,
 )
+from app.agents.capabilities.skills._log import (
+    SKILL_USE_LOG_RESOURCE,
+    ServedSkill,
+    SkillUseLog,
+    served_skills,
+    tool_identities,
+)
 
-__all__ = ["SAFE_SKILL_TOOLS", "Skills", "to_toolkit_skill"]
+__all__ = [
+    "SAFE_SKILL_TOOLS",
+    "SKILL_BODIES_RESOURCE",
+    "SKILL_USE_LOG_RESOURCE",
+    "ServedSkill",
+    "SkillBody",
+    "SkillBodyFile",
+    "SkillUseLog",
+    "Skills",
+    "served_files",
+    "served_skills",
+    "to_toolkit_skill",
+    "tool_identities",
+]
 
 
 @register(
     id="skills",
+    read_only=True,
     name="Skills",
     category="knowledge",
     description="Load the organization's written know-how on demand, one skill at a time.",
@@ -51,4 +76,8 @@ def _build(ctx: CapabilityBuildContext) -> Skills | None:
     skills = ctx.resources.get("skills") or []
     if not skills:
         return None
-    return Skills(skills=skills)
+    return Skills(
+        skills=skills,
+        bodies=ctx.resources.get(SKILL_BODIES_RESOURCE),
+        log=ctx.resources.get(SKILL_USE_LOG_RESOURCE),
+    )

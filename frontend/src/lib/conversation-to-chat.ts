@@ -26,8 +26,17 @@ export interface RawToolCall {
 
 /** One entry of a stored timeline - see `MessagePart` in the backend schemas. */
 export interface RawMessagePart {
+  setup_agent_id?: string | null;
   type:
-    "text" | "thinking" | "tool" | "ask_user" | "steer" | "mention" | "workflow_run" | "phone_call";
+    | "text"
+    | "thinking"
+    | "tool"
+    | "ask_user"
+    | "steer"
+    | "mention"
+    | "workflow_run"
+    | "phone_call"
+    | "model_setup";
   file_source?: TurnFileSource | null;
   text?: string | null;
   /** For a `mention` entry on a user turn (#2189). */
@@ -57,6 +66,7 @@ export interface RawMessage {
   /** The run that produced this turn. Null for a turn written outside one. */
   run_id?: string | null;
   run_status?: string | null;
+  run_error?: string | null;
   run_duration_ms?: number | null;
   run_started_at?: string | null;
   /** The version number of the frozen spec that produced it. */
@@ -120,6 +130,15 @@ export function replayStoredParts(
         question: entry.question ?? "",
         answer: entry.answer ?? "",
         ...(entry.asked_by ? { askedBy: entry.asked_by } : {}),
+      });
+      return;
+    }
+    if (entry.type === "model_setup") {
+      parts.push({
+        id: `${msgId}-setup-${index}`,
+        type: "model_setup",
+        content: entry.text ?? "",
+        setupAgentId: entry.setup_agent_id ?? undefined,
       });
       return;
     }
@@ -256,6 +275,10 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     // Only the one worth drawing. A completed run needs no marker, and a run
     // still going has no answer on screen to mark.
     wasStopped: msg.run_status === "cancelled",
+    runFailed: ["failed", "budget_exceeded", "guardrail_blocked", "loop_stopped"].includes(
+      msg.run_status ?? "",
+    ),
+    runError: msg.run_status === "failed" ? (msg.run_error ?? undefined) : undefined,
     turnId: msg.turn_id ?? undefined,
     interrupted: msg.interrupted === true || undefined,
     runDurationMs: msg.run_duration_ms ?? undefined,

@@ -4,7 +4,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.virtual_table import VirtualTable
 from app.repositories import virtual_table_repo
@@ -81,7 +81,34 @@ class Operations:
         """
         if table.archived_at is None:
             return False
-        return await resolve_access(self.db, ctx, table, Perm.TABLES_EDIT, resource_type=TABLE)
+        return await resolve_access(
+            self.db, ctx, table, Perm.TABLES_EDIT, resource_type=TABLE
+        ) and await self._manages_board(ctx, table)
+
+    async def _board_manager(self, ctx: AuthContext, table: VirtualTable) -> bool | None:
+        """Whether this caller may change the task board behind `table`; None when it is none."""
+        from app.services.task_access import manages_table
+
+        return await manages_table(self.db, ctx, table.id)
+
+    async def _manages_board(self, ctx: AuthContext, table: VirtualTable) -> bool:
+        """False only for a task board this caller may work on but not change."""
+        return await self._board_manager(ctx, table) is not False
+
+    async def _ensure_manages_board(self, ctx: AuthContext, table: VirtualTable) -> None:
+        """Refuse changing a task board itself to anyone but an administrator or its leader.
+
+        Raises:
+            AuthorizationError: The table is a task board this caller may add and edit
+                tasks on, but not rename, reshape, archive or restore.
+        """
+        if not await self._manages_board(ctx, table):
+            raise AuthorizationError(
+                message="Only an administrator or the leader of this board's group, project "
+                "or person can change, archive or restore the board itself. Adding and "
+                "editing tasks stays open.",
+                details={"table_id": table.id},
+            )
 
     async def _columns(
         self, table: VirtualTable, *, deadline: ReadDeadline | None = None
@@ -105,11 +132,13 @@ class Operations:
         *,
         can_edit: bool,
         can_restore: bool = False,
+        can_manage: bool | None = None,
     ) -> TableRead:
         return TableRead(
             id=table.id,
             name=table.name,
             description=table.description,
+            icon=table.icon,
             visibility=as_visibility(table.visibility),
             owner_user_id=table.owner_user_id,
             schema_version=table.schema_version,
@@ -120,5 +149,6 @@ class Operations:
             can_edit=can_edit,
             can_restore=can_restore,
             row_policy=parse_policy(table.row_policy),
+            can_manage=can_edit if can_manage is None else can_manage,
             columns=columns,
         )

@@ -1,5 +1,5 @@
 ---
-source_sha: "a1c685490bed"
+source_sha: "dd46ea746100"
 ---
 
 # Aplicaciones { #artifacts }
@@ -15,6 +15,10 @@ workspace ya tienen su sitio en el chat y en el [workspace](sandbox.md). Una
 aplicación es lo que se *sirve*: tiene un propietario, una visibilidad y grants
 como un agent o un skill, y se le puede dar un enlace público para alguien sin
 cuenta.
+
+## Identificación de páginas compartidas { #shared-page-attribution }
+
+Los visores públicos de aplicaciones muestran por defecto una insignia flotante con el logotipo de AgenticOS y un enlace a GitHub. Las conversaciones compartidas muestran la misma insignia debajo de la conversación. Un Owner o Admin puede ocultar el pie para toda la organización en **Configuración de la organización → Gobernanza → AgenticOS en páginas compartidas**. La siguiente carga de la página usa la configuración actual. Las aplicaciones protegidas con contraseña muestran el pie solo después de desbloquearlas. El pie pertenece al visor; no se modifican los archivos descargados ni el contenido de la aplicación incrustada.
 
 ## Apariencia de la app { #app-appearance }
 
@@ -1013,7 +1017,7 @@ un servidor de mapas conectado y que un administrador activa los mapas reales co
 este ajuste. La imagen de un mapa en una app de chat se
 dibuja terminada, con todas las chinchetas en su sitio.
 
-**Los mapas del mundo no necesitan ninguno.** Para todo lo que trate de países - clientes por país, oficinas, una ruta entre dos ciudades - `AOWorldMap` dibuja un mapa en SVG a partir de contornos de países que el despliegue sirve por sí mismo: sin servidor de teselas, sin red y sin contenedor adicional. El agente lo prefiere; el mapa de teselas queda para el nivel de calle.
+**Los mapas del mundo no necesitan ninguno.** Para todo lo que trate de países - clientes por país, oficinas, una ruta entre dos ciudades - `AOWorldMap` dibuja un mapa en SVG a partir de contornos de países que el despliegue sirve por sí mismo: sin servidor de teselas, sin red y sin contenedor adicional. Es la opción predeterminada para mapas nuevos, incluidos itinerarios entre ciudades. El agente carga los contornos de países incluidos y dibuja puntos y rutas sin configuración adicional. El administrador puede activar el mapa de calles mediante `VISUAL_MAP_TILES`; si las teselas no están disponibles, el agente debe usar este mapa SVG.
 
 **Elegir la forma.** El skill `visual-design` le dice al agent cuándo un dibujo es
 siquiera la respuesta correcta: texto para un dato o un consejo, una tabla Markdown

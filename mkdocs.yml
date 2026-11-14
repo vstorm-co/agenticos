@@ -337,6 +337,10 @@ nav:
           - burst.md
           - proof-scenario.md
           - context.md
+          - datasets.md
+          - evals.md
+          - authoring.md
+          - knowledge-gaps.md
           - virtual-tables.md
           - workflows.md
           - file-processing.md
@@ -354,6 +358,7 @@ nav:
           - rollout.md
           - deployment.md
           - deploy.md
+          - kubernetes.md
           - scaling.md
       - Keep it under control:
           - permissions.md

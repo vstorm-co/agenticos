@@ -229,20 +229,10 @@ let colleagueContext: BrowserContext | undefined;
 /** The colleague's own signed-in context, made once and closed at the teardown. */
 async function asColleague(browser: Browser): Promise<BrowserContext> {
   if (colleagueContext) return colleagueContext;
-  colleagueContext = await signInAs(browser, COLLEAGUE_EMAIL, COLLEAGUE_PASSWORD);
+  colleagueContext = await signInAs(browser, COLLEAGUE_EMAIL, COLLEAGUE_PASSWORD, fixture.orgId);
   const page = await colleagueContext.newPage();
   try {
     await page.goto("/chat");
-    const organizations = await rowsAt(page.request, "/api/orgs");
-    const organizationIndex = organizations.findIndex((row) => row.id === fixture.orgId);
-    expect(
-      organizationIndex,
-      "the colleague lost the artifact organization",
-    ).toBeGreaterThanOrEqual(0);
-    await page.locator('[data-tour="organization-switcher"]').click();
-    // Personal organizations can have the same name. The menu follows the
-    // authenticated organization list, so select the row with the fixture's ID.
-    await page.getByRole("menuitem").nth(organizationIndex).click();
     const [permissions] = await Promise.all([
       page.waitForResponse(
         (response) =>

@@ -83,6 +83,9 @@ its budget, and it starts again on the first with nothing to resume by hand. It 
 and the organization's limits. A fire already running when the limit is crossed finishes, because the
 limit is on what has been spent, not on a forecast.
 
+A fire parked on an approval has not started its continuation: approved once the routine's month is
+spent, it ends `budget_exceeded` without calling the model.
+
 ## Where they live in the product, and what to call them
 
 **Routines** is the umbrella - the nav, the page, the agent's own panel, the chat

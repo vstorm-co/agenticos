@@ -60,6 +60,9 @@ async def _export(*_args: Any) -> RecordExport:
     return RecordExport(filename="Orders.csv", lines=lines())
 
 
+_AS_OF = datetime(2026, 11, 12, 9, 0, tzinfo=UTC)
+
+
 def _record(revision: int = 1) -> RecordRead:
     return RecordRead(
         id=_RECORD,
@@ -99,7 +102,9 @@ def service() -> MagicMock:
         list_schema_versions=AsyncMock(return_value={"items": []}),
         list_records=AsyncMock(return_value=RecordList(items=[], skip=0, limit=50, has_more=False)),
         count_records=AsyncMock(return_value=RecordCount(count=3, capped=False)),
-        create_records=AsyncMock(return_value=RecordBatchResult(created=1, failed=[])),
+        write_batch=AsyncMock(
+            return_value=(RecordBatchResult(created=1, failed=[], as_of=_AS_OF), False)
+        ),
         export_records=AsyncMock(side_effect=_export),
         record_exists=AsyncMock(return_value=True),
         get_record=AsyncMock(return_value=_record()),
@@ -326,9 +331,43 @@ async def test_a_batch_hands_the_service_at_most_two_hundred_records(client, ser
         too_many = await http.post(_records("/batch"), json={"records": [{"values": {}}] * 201})
 
     assert written.status_code == 200
-    assert written.json() == {"created": 1, "updated": 0, "failed": []}
+    assert written.json() == {
+        "created": 1,
+        "updated": 0,
+        "failed": [],
+        "as_of": _AS_OF.isoformat().replace("+00:00", "Z"),
+    }
+    assert "idempotent-replayed" not in written.headers
     assert (empty.status_code, too_many.status_code) == (422, 422)
-    assert len(service.create_records.await_args.args[2].records) == 1
+    assert len(service.write_batch.await_args.args[2].records) == 1
+    assert service.write_batch.await_args.kwargs["operation_key"] is None
+
+
+async def test_a_batch_naming_a_time_without_a_zone_is_refused(client, service):
+    async with client() as http:
+        naive = await http.post(
+            _records("/batch"),
+            json={"records": [{"values": {}}], "as_of": "2026-11-12T09:00:00"},
+        )
+
+    assert naive.status_code == 422
+    service.write_batch.assert_not_awaited()
+
+
+async def test_a_batch_sent_again_under_its_key_says_it_was_replayed(client, service):
+    service.write_batch.return_value = (
+        RecordBatchResult(created=1, failed=[], as_of=_AS_OF),
+        True,
+    )
+    async with client() as http:
+        replayed = await http.post(
+            _records("/batch"),
+            json={"records": [{"values": {}}]},
+            headers={"Idempotency-Key": "import-1"},
+        )
+
+    assert replayed.headers["idempotent-replayed"] == "true"
+    assert service.write_batch.await_args.kwargs["operation_key"] == "import-1"
 
 
 async def test_an_export_answers_a_csv_file_named_after_its_table(client, service):
@@ -565,7 +604,21 @@ def test_the_openapi_document_lists_403_on_the_gated_routes_and_only_on_them():
 
     with_403 = {key for key, operation in table_routes.items() if "403" in operation["responses"]}
 
-    assert with_403 == {(prefix, "get"), (prefix, "post")}
+    # The collection's role gate, and refusals about something the caller can already
+    # see, so answered outright rather than as a 404: changes to a task board itself, a
+    # view's visibility, which only its owner changes, and resuming a table trigger
+    # without the right to run its workflow.
+    assert with_403 == {
+        (prefix, "get"),
+        (prefix, "post"),
+        (f"{prefix}/{{table_id}}", "patch"),
+        (f"{prefix}/{{table_id}}/archive", "post"),
+        (f"{prefix}/{{table_id}}/unarchive", "post"),
+        (f"{prefix}/{{table_id}}/schema", "put"),
+        (f"{prefix}/{{table_id}}/triggers/{{trigger_id}}", "patch"),
+        (f"{prefix}/{{table_id}}/views/{{view_id}}", "patch"),
+        (f"{prefix}/{{table_id}}/views/{{view_id}}", "delete"),
+    }
     refusal = table_routes[(prefix, "post")]["responses"]["403"]
     assert refusal["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/ErrorEnvelope"

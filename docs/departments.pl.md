@@ -1,5 +1,5 @@
 ---
-source_sha: "a73281723216"
+source_sha: "4bd4dc67a376"
 ---
 
 # Działy i grupy { #departments-and-groups }
@@ -17,6 +17,10 @@ zostaje otwarte dla całej organizacji.
 przyciskiem **Dodaj działy**, który proponuje Sprzedaż, Finanse, HR, Wsparcie,
 Inżynierię, Marketing, Dział prawny i Operacje, każdy z ikoną i krótkim opisem.
 Potem można zmienić im nazwę, ikonę albo je usunąć jak każdą inną grupę.
+
+Działy mają karty z ikoną, opisem i liczbą członków. Wyszukuj je po nazwie
+lub opisie. W formularzu **Nowa grupa** wybierz ikonę obok nazwy; opcjonalny
+miesięczny limit znajdziesz pod **Limitem budżetu**.
 
 Ludzi dodaje się do grupy na jej stronie, ręcznie, albo przez
 [mapowanie grupy katalogowej](directory.md#directory-group-mappings), jeśli firma
@@ -77,6 +81,11 @@ według rodzaju - agenci, bazy wiedzy, skille, kontekst, aplikacje i serwery MCP
 z poziomem udostępnienia każdego. Czytający widzi tylko to, co i tak mógłby
 otworzyć, więc członek Sprzedaży czytający stronę Finansów nie dowie się, co
 Finanse trzymają.
+
+Współdzielone zasoby są przed panelami użycia i jakości odpowiedzi. Na telefonie
+edycję grupy znajdziesz w dodatkowych akcjach strony. Podczas zapisywania zmian
+członkostwa lub udostępniania pola i zamknięcie okna są zablokowane. Odmowa
+zachowuje wybory, żeby można było ponowić zapis.
 
 **Dodaj do tej grupy** udostępnia kilka rzeczy naraz: pokazuje wszystko, co
 czytający może edytować, a czego grupa jeszcze nie ma, z wyszukiwarką, polem do

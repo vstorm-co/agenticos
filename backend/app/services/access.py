@@ -71,6 +71,7 @@ WORKFLOW = ResourceType(key="workflow", view=Perm.WORKFLOWS_VIEW, edit=Perm.WORK
 # permission that gated the entire vault.
 SECRET = ResourceType(key="secret", view=Perm.SECRETS_VIEW, edit=Perm.SECRETS_EDIT)
 ARTIFACT = ResourceType(key="artifact", view=Perm.ARTIFACTS_VIEW, edit=Perm.ARTIFACTS_EDIT)
+DATASET = ResourceType(key="dataset", view=Perm.DATASETS_VIEW, edit=Perm.DATASETS_EDIT)
 PROJECT = ResourceType(key="project", view=Perm.PROJECTS_VIEW, edit=Perm.PROJECTS_EDIT)
 # A connection may be selected without handing over its credentials, endpoint
 # settings or sharing. Existing use grants remain usable; administration needs edit.
@@ -103,6 +104,9 @@ _PERM_MIN_GRANT: dict[Perm, GrantLevel] = {
     Perm.SECRETS_EDIT: GrantLevel.EDIT,
     Perm.ARTIFACTS_VIEW: GrantLevel.READ,
     Perm.ARTIFACTS_EDIT: GrantLevel.EDIT,
+    Perm.DATASETS_VIEW: GrantLevel.READ,
+    Perm.DATASETS_RUN: GrantLevel.USE,
+    Perm.DATASETS_EDIT: GrantLevel.EDIT,
     Perm.PROJECTS_VIEW: GrantLevel.READ,
     # Working in a project - a chat, a file added - is `use`, the level a
     # project shared with a group grants, so a group can work in it without

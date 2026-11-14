@@ -1243,7 +1243,7 @@ class UserService:
         user = await user_repo.get_by_email(self.db, email)
         if user is None or not user.is_active:
             return None
-        token = create_magic_link_token(subject=str(user.id), return_to=return_to)
+        token = create_magic_link_token(subject=str(user.id), return_to=return_to, email=user.email)
         return user, token
 
     async def consume_magic_link_token(self, token: str) -> tuple[User, str | None]:

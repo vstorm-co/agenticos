@@ -32,6 +32,29 @@ class ShippedAgentService:
         self.db = db
         self.registry = AgentRegistryService(db)
 
+    async def setup_candidate(self, ctx: AuthContext, agent_id: UUID | None) -> Agent | None:
+        """A setup reply belongs only to the shipped starter or the enabled Architect.
+
+        This grants no draft execution. Ordinary, renamed lookalikes, archived or
+        published agents always take the normal publication and run checks.
+        """
+        agent = await agent_repo.get_shipped_starter(self.db, organization_id=ctx.organization_id)
+        # An explicit Architect selection is authenticated by the organization row,
+        # never by its display name or a client-supplied template marker.
+        if agent_id is not None and (agent is None or agent.id != agent_id):
+            assistant = await organization_assistant_repo.get(self.db, ctx.organization_id)
+            if assistant is None or not assistant.enabled or assistant.agent_id != agent_id:
+                return None
+            agent = await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        if (
+            agent is None
+            or (agent_id is not None and agent.id != agent_id)
+            or agent.status != AgentStatus.DRAFT.value
+            or agent.current_version_id is not None
+        ):
+            return None
+        return await self.registry.get(ctx, agent.id, perm=Perm.AGENTS_RUN)
+
     async def ensure_skills(self, organization_id: UUID) -> None:
         """Seed deployment-owned know-how without borrowing the current member's rights."""
         await organization_assistant_repo.lock_for_install(self.db, organization_id)
@@ -210,7 +233,13 @@ class ShippedAgentService:
             if key == ARCHITECT:
                 variants.append(
                     [
-                        *agent_templates.for_this_deployment(tuple(row.capabilities)),
+                        *[
+                            binding
+                            for binding in agent_templates.for_this_deployment(
+                                tuple(row.capabilities)
+                            )
+                            if binding["id"] != "sandbox"
+                        ],
                         {
                             "id": "sandbox",
                             "config": {"backend": "service", "include_execute": True},

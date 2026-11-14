@@ -16,7 +16,7 @@ import contextlib
 import logging
 import re
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 from uuid import UUID
@@ -28,7 +28,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import prompt_variables
 from app.agents.capabilities import (
-    FRAMEWORK_TOOL_NAMES,
     TOOL_NAME_PATTERN,
     CapabilityDef,
     all_capabilities,
@@ -42,16 +41,19 @@ from app.agents.capabilities.browser_use import (
     validate_cdp_url,
 )
 from app.agents.capabilities.browser_use._route import check_address
+from app.agents.capabilities.channel_tools import CHANNEL_TOOLS_CAPABILITY_ID
 from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentConfig
 from app.agents.capabilities.computer_use import (
     COMPUTER_USE_ID,
     ComputerUseConfig,
     validate_daemon_url,
 )
+from app.agents.capabilities.context import ContextBody
 from app.agents.capabilities.follow_ups import FollowUpsConfig
 from app.agents.capabilities.mirage import MirageConfig, OrganizationAccount
 from app.agents.capabilities.mirage import backend as mirage_backend
 from app.agents.capabilities.sandbox import SandboxConfig
+from app.agents.capabilities.skills import SkillBody
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
 from app.agents.model_resolver import lacks_key
@@ -64,11 +66,19 @@ from app.agents.spec import (
     OrgMcpServerRef,
     PersonalMcpServerRef,
     PlatformMcpServerRef,
+    SkillBindingSpec,
     SpecialistSpec,
     SpeechToTextSpec,
     SubagentRef,
     VoiceSpec,
 )
+from app.agents.system_agents import (
+    SpecPart,
+    incomplete_parts,
+    refuse_system_agent,
+    unusable_parts,
+)
+from app.agents.tool_names import PLATFORM_TOOL_NAMES, taken_tool_names
 from app.core.audit import current_impersonator, record_audit
 from app.core.claude_subscription import CLAUDE_SUBSCRIPTION_PROVIDER
 from app.core.config import settings
@@ -82,7 +92,9 @@ from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
 from app.core.secret_kinds import SecretKind
 from app.db.locks import LockScope, hold_subject, hold_subject_shared
-from app.db.models.agent import Agent, AgentStatus, AgentVersion
+from app.db.models.agent import Agent, AgentKind, AgentStatus, AgentVersion
+from app.db.models.agent_environment import AgentEnvironment
+from app.db.models.authoring import BatchStatus
 from app.db.models.credential import ModelProfile
 from app.db.models.resource_grant import Visibility
 from app.db.models.sandbox_connection import SandboxConnection
@@ -92,6 +104,7 @@ from app.repositories import (
     agent_exposure_repo,
     agent_repo,
     agent_trigger_repo,
+    authoring_repo,
     context_repo,
     credential_repo,
     external_agent_repo,
@@ -100,9 +113,11 @@ from app.repositories import (
     member_repo,
     organization_assistant_repo,
     organization_secret_repo,
+    promotion_gate_repo,
     resource_grant_repo,
     sandbox_connection_repo,
     skill_repo,
+    skill_version_repo,
     user_repo,
 )
 from app.repositories import workflow as workflow_repo
@@ -124,9 +139,12 @@ from app.schemas.agent import (
     TemplateInstallResult,
     normalize_labels_query,
 )
+from app.schemas.context import ContextFileCreate
+from app.schemas.skill import SkillCreate
 from app.schemas.telephony import PhoneCallsConfig
 from app.services import (
     agent_templates,
+    authoring_fields,
     mcp_catalog,
     provider_keys,
     realtime_models,
@@ -145,6 +163,7 @@ from app.services.access import (
     resolve_access,
     visible_resource_ids,
 )
+from app.services.agent_defaults import ARCHITECT
 from app.services.channels.base import ROOM_HANDLES
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import (
@@ -153,6 +172,7 @@ from app.services.file_storage import (
     avatar_filename,
     get_file_storage,
 )
+from app.services.mcp_connection import presented_tool_names
 from app.services.mirage_mounts import address_fields, default_address, hosts_of
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.model_profile import (
@@ -235,6 +255,36 @@ _MAX_COPIES = 50
 # rather than the suffix keeps "(copy 3)" readable - it is the part that says
 # which one this is.
 _NAME_LIMIT = 128
+
+
+@dataclass(frozen=True)
+class PublishedCandidate:
+    """A published version to run, whichever version an environment pins."""
+
+    version_id: UUID
+    skill_bodies: Mapping[UUID, SkillBody] = field(default_factory=dict)
+    context_bodies: Mapping[UUID, ContextBody] = field(default_factory=dict)
+    """Proposed skill bodies served in place of the stored ones, by skill id."""
+
+    instructions: str | None = None
+    """Dataset-owned pipeline instructions; the published identity remains auditable."""
+
+
+@dataclass(frozen=True)
+class UnpublishedCandidate:
+    """A spec nobody published - a draft, or one with proposals applied.
+
+    Frozen by whoever holds it, so every case of an eval runs the same content
+    however the draft moves meanwhile.
+    """
+
+    spec: AgentSpec
+    skill_bodies: Mapping[UUID, SkillBody] = field(default_factory=dict)
+    context_bodies: Mapping[UUID, ContextBody] = field(default_factory=dict)
+    """Proposed skill bodies served in place of the stored ones, by skill id."""
+
+
+type Candidate = PublishedCandidate | UnpublishedCandidate
 
 
 def _copy_name(base: str, attempt: int) -> str:
@@ -427,7 +477,49 @@ def _inheriting(spec: AgentSpec, shared: list[CapabilityBindingSpec]) -> AgentSp
 
 
 _READ_PERMS = frozenset({Perm.AGENTS_VIEW, Perm.AGENTS_RUN})
-"""What `get` may be asked for on the assistant by anyone who reaches it."""
+"""What `get` may be asked for on the assistant, or a system agent, by anyone who reaches it."""
+
+
+def _may_change_system_agent(ctx: AuthContext, agent: Agent) -> bool:
+    """Whether the caller may change this agent as far as being a system agent goes.
+
+    A system agent grades, drafts or proposes for everyone who uses what it
+    serves, so changing one is an organization setting, whoever owns the row: a
+    Builder reaches the seeded ones through their organization-wide visibility.
+    """
+    return agent.kind == AgentKind.AGENT.value or ctx.has(Perm.ORG_SETTINGS)
+
+
+def _refuse_system_agent_change(agent: Agent) -> None:
+    """Refuse changing a system agent without `org:settings`.
+
+    Raises:
+        AuthorizationError: The agent is a system agent.
+    """
+    if agent.kind != AgentKind.AGENT.value:
+        raise AuthorizationError(
+            message=(
+                f"'{agent.name}' is a system agent the platform runs for the whole "
+                "organization - only an administrator can change it"
+            ),
+            details={"agent_id": agent.id, "kind": agent.kind},
+        )
+
+
+def _refuse_system_parts(parts: Sequence[SpecPart]) -> None:
+    """Refuse a system agent's spec that holds what the platform never lets it use.
+
+    Raises:
+        BadRequestError: In `validate_spec`'s shape - every part as a line and as a field.
+    """
+    if parts:
+        raise BadRequestError(
+            message="A system agent cannot hold this",
+            details={
+                "problems": [part.message for part in parts],
+                "fields": [{"field": part.field, "message": part.message} for part in parts],
+            },
+        )
 
 
 async def _browser_problems(config: BaseModel | None, *, has_secret: bool) -> list[str]:
@@ -503,6 +595,47 @@ def _variable_problems(spec: AgentSpec) -> _SpecProblems:
     return problems
 
 
+def _rename_clash_problems(spec: AgentSpec) -> list[str]:
+    """Each rename onto a tool name another of the agent's capabilities offers (#2890).
+
+    `_tool_override_problems` sees one binding at a time, so a rename onto a name
+    another binding's capability already has publishes, and every turn then
+    aborts on the duplicate. Renames only, as there: which names the registry's
+    capabilities declare is the registry's to keep apart. A capability the
+    registry does not hold is refused on its own and left out here. The channel
+    tools count although no published spec binds them: a channel adds them per
+    run (`agent_runner._with_channel_tools`), and a rename onto one of their names
+    aborts every turn there.
+    """
+    known = {definition.id: definition for definition in all_capabilities()}
+    offered: dict[str, set[str]] = {
+        CHANNEL_TOOLS_CAPABILITY_ID: {
+            tool.name for tool in known[CHANNEL_TOOLS_CAPABILITY_ID].tools
+        }
+    }
+    for binding in spec.capabilities:
+        definition = known.get(binding.id)
+        if definition is not None and binding.enabled:
+            names = {tool.name for tool in definition.effective_tools(binding.tool_overrides)}
+            offered.setdefault(binding.id, set()).update(names)
+    problems: list[str] = []
+    for binding in spec.capabilities:
+        if binding.id not in offered:
+            continue
+        for override in binding.tool_overrides.values():
+            holders = sorted(
+                other
+                for other, names in offered.items()
+                if other != binding.id and override.name in names
+            )
+            problems.extend(
+                f"Capability '{binding.id}' renames a tool to {override.name}, which "
+                f"capability '{holder}' also offers - two tools of that name abort the turn"
+                for holder in holders
+            )
+    return problems
+
+
 def _tool_override_problems(binding: CapabilityBindingSpec, definition: CapabilityDef) -> list[str]:
     """Everything wrong with how a binding renames its capability's tools.
 
@@ -541,13 +674,14 @@ def _tool_override_problems(binding: CapabilityBindingSpec, definition: Capabili
 
     # The count above only sees this capability's own tools, and the framework
     # adds its own beside them: a run with any deferred capability carries
-    # `load_capability`, so a *rename* onto that name is a duplicate Pydantic AI
-    # refuses mid-turn rather than a collision this loop can see. Renames only -
-    # `skills` declares `load_capability` itself, because that call is where an
-    # approval on opening a skill has to sit.
+    # `load_capability`, nearly every agent `request_capability`, so a *rename*
+    # onto one of those is a duplicate Pydantic AI refuses mid-turn rather than a
+    # collision this loop can see (#2890). Renames only - `skills` declares
+    # `load_capability` itself, because that call is where an approval on opening
+    # a skill has to sit.
     taken = sorted(
         {override.name for override in binding.tool_overrides.values() if override.name is not None}
-        & FRAMEWORK_TOOL_NAMES
+        & PLATFORM_TOOL_NAMES
     )
     if taken:
         problems.append(
@@ -571,6 +705,11 @@ def _tool_override_problems(binding: CapabilityBindingSpec, definition: Capabili
     return problems
 
 
+# What a publish refusal can offer to fix in one click, in `details.fixes`.
+USE_STATE_WORKSPACE = "use_state_workspace"
+STOP_SHARING_UNBOUND = "stop_sharing_unbound"
+
+
 @dataclass
 class _SpecProblems:
     """Everything wrong with a spec: a line to read, and where to put it.
@@ -590,15 +729,20 @@ class _SpecProblems:
 
     messages: list[str] = field(default_factory=list)
     fields: list[dict[str, str]] = field(default_factory=list)
+    fixes: list[str] = field(default_factory=list)
+    """The codes of the fixes a click can apply to this spec to clear some of it."""
 
     @classmethod
     def at(cls, field_name: str, message: str) -> _SpecProblems:
         """One problem with an input to mark, said as a line too."""
         return cls([message], [{"field": field_name, "message": message}])
 
-    def add(self, messages: Sequence[str]) -> None:
-        """Problems with nothing to mark - a broken reference."""
+    def add(self, messages: Sequence[str], *, fix: str | None = None) -> None:
+        """Problems with nothing to mark - a broken reference, a missing model -
+        and the fix that clears them, when one does."""
         self.messages.extend(messages)
+        if messages and fix is not None and fix not in self.fixes:
+            self.fixes.append(fix)
 
     def refuse(self, field_name: str, message: str) -> None:
         """A problem with an input to mark: the line, and the same line on the field."""
@@ -608,6 +752,7 @@ class _SpecProblems:
     def merge(self, other: _SpecProblems) -> None:
         self.messages.extend(other.messages)
         self.fields.extend(other.fields)
+        self.fixes.extend(code for code in other.fixes if code not in self.fixes)
 
     def within_specialist(self, name: str) -> _SpecProblems:
         """The same problems, said about a specialist defined inside this agent.
@@ -745,6 +890,13 @@ def delegation_binding(spec: AgentSpec) -> CapabilityBindingSpec | None:
         if binding.id == DELEGATION_CAPABILITY_ID and binding.enabled:
             return binding
     return None
+
+
+def bound_skill_ids(spec: AgentSpec) -> set[UUID]:
+    """Every skill a spec binds, its inline specialists' included."""
+    config = _subagents_config(spec)
+    inline = [] if config is None else config.inline
+    return set(spec.skill_ids).union(*(specialist.skill_ids for specialist in inline))
 
 
 def _subagents_config(spec: AgentSpec) -> SubagentsConfig | None:
@@ -1137,6 +1289,7 @@ class AgentRegistryService:
                 raise NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
         if perm not in _READ_PERMS and not ctx.has(Perm.ORG_SETTINGS):
             await self._refuse_the_assistant(agent)
+            _refuse_system_agent_change(agent)
         return agent
 
     async def _workflow_allows(
@@ -1191,6 +1344,18 @@ class AgentRegistryService:
         the layering every other per-resource decision here already follows.
         """
         return await resolve_access(self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT)
+
+    async def may_edit(self, ctx: AuthContext, agent: Agent) -> bool:
+        """Whether this caller may edit this agent - `may_run`'s counterpart for edit."""
+        return _may_change_system_agent(ctx, agent) and await resolve_access(
+            self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT
+        )
+
+    async def may_publish(self, ctx: AuthContext, agent: Agent) -> bool:
+        """Whether this caller may publish this agent - `may_run`'s counterpart for publish."""
+        return _may_change_system_agent(ctx, agent) and await resolve_access(
+            self.db, ctx, agent, Perm.AGENTS_PUBLISH, resource_type=AGENT
+        )
 
     async def _visible_scope(
         self, ctx: AuthContext, *, shared_with_me: bool
@@ -1264,7 +1429,12 @@ class AgentRegistryService:
             cursor = page[-1].id
 
     async def list_labels(
-        self, ctx: AuthContext, *, shared_with_me: bool = False, include_archived: bool = False
+        self,
+        ctx: AuthContext,
+        *,
+        shared_with_me: bool = False,
+        include_archived: bool = False,
+        kind: AgentKind = AgentKind.AGENT,
     ) -> tuple[list[str], list[str]]:
         """The categories and tags the listing can be filtered to, for the caller.
 
@@ -1279,6 +1449,7 @@ class AgentRegistryService:
             shared_ids=grant_ids,
             shared_with_me=shared_with_me,
             include_archived=include_archived,
+            kind=kind,
         )
 
     async def list_agents(
@@ -1287,6 +1458,7 @@ class AgentRegistryService:
         *,
         shared_with_me: bool = False,
         include_archived: bool = False,
+        kind: AgentKind = AgentKind.AGENT,
         categories: Sequence[str] = (),
         tags: Sequence[str] = (),
         skip: int = 0,
@@ -1295,7 +1467,8 @@ class AgentRegistryService:
         """Agents visible to the caller under their role scope and grants.
 
         `shared_with_me` narrows to what was deliberately shared with them -
-        org-visible or explicitly granted, and not their own.
+        org-visible or explicitly granted, and not their own. One `kind` is
+        listed at a time: the agents people use, or the judges.
 
         `categories`/`tags` are the raw discovery-filter query params. They are
         folded once here with the tolerant query normalizer (over-length items
@@ -1321,6 +1494,7 @@ class AgentRegistryService:
             shared_ids=grant_ids,
             shared_with_me=shared_with_me,
             include_archived=include_archived,
+            kind=kind,
             categories=norm_categories,
             tags=norm_tags,
             skip=skip,
@@ -1365,8 +1539,23 @@ class AgentRegistryService:
         # floor for offering "new trigger" on a card. A grant widens it per row, so
         # a Viewer shared run on one agent sees the control there and nowhere else.
         runnable = await accessible_ids(self.db, ctx, agents, Perm.AGENTS_RUN, resource_type=AGENT)
+        changeable = [agent for agent in agents if _may_change_system_agent(ctx, agent)]
+        editable = await accessible_ids(
+            self.db, ctx, changeable, Perm.AGENTS_EDIT, resource_type=AGENT
+        )
+        publishable = await accessible_ids(
+            self.db, ctx, changeable, Perm.AGENTS_PUBLISH, resource_type=AGENT
+        )
         groups = await groups_sharing(
             self.db, ctx, resource_type=AGENT, resource_ids=[agent.id for agent in agents]
+        )
+        assistant = (
+            await organization_assistant_repo.get(self.db, ctx.organization_id)
+            if any(
+                agent.shipped_template and agent.shipped_template.get("key") == ARCHITECT
+                for agent in agents
+            )
+            else None
         )
         rows = [
             AgentRead(
@@ -1378,11 +1567,33 @@ class AgentRegistryService:
                 visibility=agent.visibility,
                 owner_user_id=agent.owner_user_id,
                 current_version_id=agent.current_version_id,
+                system_key=agent.system_key,
+                kind=AgentKind(agent.kind),
                 has_avatar=agent.has_avatar,
                 avatar_color=agent.avatar_color,
                 categories=agent.categories,
                 tags=agent.tags,
                 can_run=agent.id in runnable,
+                can_edit=agent.id in editable,
+                can_publish=agent.id in publishable,
+                is_starter=bool(
+                    agent.shipped_template
+                    and agent.shipped_template.get("key") == agent_templates.STARTER_TEMPLATE
+                ),
+                setup_required=bool(
+                    agent.shipped_template
+                    and (
+                        agent.shipped_template.get("key") == agent_templates.STARTER_TEMPLATE
+                        or (
+                            agent.shipped_template.get("key") == ARCHITECT
+                            and assistant is not None
+                            and assistant.enabled
+                            and assistant.agent_id == agent.id
+                        )
+                    )
+                    and agent.status == AgentStatus.DRAFT.value
+                    and agent.current_version_id is None
+                ),
                 shared_user_count=shared_counts.get(agent.id, 0),
                 shared_groups=groups[agent.id],
                 channels=surfaces.get(agent.id, []),
@@ -1573,7 +1784,13 @@ class AgentRegistryService:
             else template.instructions
         }
         if not spec.capabilities:
-            update["capabilities"] = list(agent_templates.starter_capabilities().values())
+            update["capabilities"] = list(
+                agent_templates.starter_capabilities(
+                    container_workspace=await SandboxConnectionService(self.db).can_provide(
+                        ctx.organization_id
+                    )
+                ).values()
+            )
         if not spec.mcp_servers:
             update["mcp_servers"] = list(template.mcp_servers)
         if not spec.skill_ids:
@@ -1626,7 +1843,12 @@ class AgentRegistryService:
             name=template.name,
             description=template.description,
             instructions=template.instructions,
-            capabilities=agent_templates.for_this_deployment(template.capabilities),
+            capabilities=agent_templates.for_this_deployment(
+                template.capabilities,
+                container_workspace=await SandboxConnectionService(self.db).can_provide(
+                    ctx.organization_id
+                ),
+            ),
             mcp_servers=list(template.mcp_servers),
             skill_ids=[row.id for row in rows],
             budget=(
@@ -1680,6 +1902,7 @@ class AgentRegistryService:
         user_ids: list[UUID] | None = None,
         from_starter: bool = False,
         choose_model: bool = True,
+        pipeline_kind: AgentKind | None = None,
     ) -> Agent:
         """Create an agent in draft.
 
@@ -1706,7 +1929,10 @@ class AgentRegistryService:
                 deployment that has never set one has - see
                 `DeploymentSettings.max_agents_per_organization`.
         """
-        await self._refuse_past_the_ceiling(ctx)
+        if pipeline_kind is None:
+            await self._refuse_past_the_ceiling(ctx)
+        elif pipeline_kind == AgentKind.AGENT:
+            raise ValueError("A pipeline identity must have a helper kind")
         if from_starter:
             spec = await self._from_the_starter(ctx, spec)
         elif not spec.instructions.strip():
@@ -1730,6 +1956,9 @@ class AgentRegistryService:
                 details={"slug": slug},
             )
 
+        # As a draft save does: a delete of a skill this agent binds either finishes first
+        # or waits for this agent and then sees it.
+        await skill_repo.hold(self.db, bound_skill_ids(spec), organization_id=ctx.organization_id)
         agent = await agent_repo.create(
             self.db,
             organization_id=ctx.organization_id,
@@ -1743,6 +1972,10 @@ class AgentRegistryService:
             categories=categories or [],
             tags=tags or [],
         )
+        if pipeline_kind is not None:
+            agent = await agent_repo.update(
+                self.db, agent=agent, update_data={"kind": pipeline_kind.value}
+            )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -1905,10 +2138,19 @@ class AgentRegistryService:
 
         Deliberately does not validate references: half-finished configuration
         must be saveable, or the Builder becomes a form you cannot leave.
-        Validation is publish's job.
+        Validation is publish's job. A system agent's draft is the exception in
+        one respect: what it may never use is refused here, since no amount of
+        finishing would make it publishable; what it still lacks - instructions,
+        room for its answer - waits for publish like any other gap.
+
+        Raises:
+            BadRequestError: A system agent's spec holds what it may never use.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
         spec = _without_unselectable(spec)
+        await skill_repo.hold(self.db, bound_skill_ids(spec), organization_id=ctx.organization_id)
+        if agent.kind != AgentKind.AGENT.value:
+            _refuse_system_parts(unusable_parts(spec))
         return await agent_repo.update(
             self.db,
             agent=agent,
@@ -1964,12 +2206,20 @@ class AgentRegistryService:
                 reference, and a `fields` list for those a form can mark. A
                 capability's configuration is the one part of a spec rendered as
                 a generated form, so its refusals name the input rather than
-                only the capability (#882).
+                only the capability (#882). And a `fixes` list, when a click can
+                clear some of them, each a code:
+                `use_state_workspace` turns the workspace into the files-only one,
+                which needs no sandbox connection; `stop_sharing_unbound` removes
+                from `share_with_delegates` what this agent cannot share - an id
+                it does not hold, and delegation itself. A client ignores a code
+                it does not know.
         """
+        await skill_repo.hold(self.db, bound_skill_ids(spec), organization_id=ctx.organization_id)
         problems = _SpecProblems()
 
         for binding in spec.capabilities:
             problems.merge(await self._binding_problems(ctx, binding))
+        problems.add(_rename_clash_problems(spec))
 
         # A model, named. There is no organization-wide default to fall back
         # on: a model an agent did not choose is one somebody else's change can
@@ -1992,19 +2242,32 @@ class AgentRegistryService:
                 problems.add([f"Reviewer '{reviewer.name}': say what it looks for"])
 
         problems.add(await self._collection_problems(ctx, spec.collection_ids))
-        problems.add(await self._skill_problems(ctx, spec.skill_ids))
+        problems.add(await self.skill_problems(ctx, spec.skill_ids, spec.skill_bindings))
         problems.add(await self._context_problems(ctx, spec.context_ids))
 
-        problems.add(await self._mcp_problems(ctx, spec.mcp_servers))
+        problems.add(await self._mcp_problems(ctx, spec.mcp_servers, taken=taken_tool_names(spec)))
         problems.add(await self._observability_problems(ctx, spec))
         problems.add(await self._speech_to_text_problems(ctx, spec.speech_to_text))
         problems.add(await self._voice_problems(ctx, spec.voice))
         problems.merge(_variable_problems(spec))
 
-        problems.add(await _sandbox_problems(self.db, ctx, spec))
+        problems.add(await _sandbox_problems(self.db, ctx, spec), fix=USE_STATE_WORKSPACE)
         problems.add(_coding_agent_problems(spec))
         problems.add(await _computer_use_sandbox_problems(self.db, ctx, spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
+        owner = (
+            None
+            if agent_id is None
+            else await agent_repo.get(self.db, agent_id, organization_id=ctx.organization_id)
+        )
+        if owner is not None and owner.kind != AgentKind.AGENT.value:
+            for part in [
+                *unusable_parts(spec),
+                *incomplete_parts(spec, owner.kind),
+                *await self._narrowly_shared(ctx, spec),
+            ]:
+                problems.messages.append(part.message)
+                problems.fields.append({"field": part.field, "message": part.message})
         problems.merge(await self._sign_in_problems(ctx, spec))
 
         if problems.messages:
@@ -2014,7 +2277,69 @@ class AgentRegistryService:
             details: dict[str, Any] = {"problems": problems.messages}
             if problems.fields:
                 details["fields"] = problems.fields
+            if problems.fixes:
+                details["fixes"] = problems.fixes
             raise BadRequestError(message="This agent cannot be published yet", details=details)
+
+    async def _narrowly_shared(self, ctx: AuthContext, spec: AgentSpec) -> list[SpecPart]:
+        """A system agent's context files and skills not shared with the whole organization.
+
+        What it reads can reach whoever reads what it answers - a dataset's
+        readers, a knowledge base's editors - so it reads only what they all may.
+        """
+        contexts = await context_repo.get_many(
+            self.db, list(spec.context_ids), organization_id=ctx.organization_id
+        )
+        skills = await skill_repo.get_many(
+            self.db, list(spec.skill_ids), organization_id=ctx.organization_id
+        )
+        return [
+            SpecPart(
+                field,
+                f"'{row.name}' is not shared with the whole organization, and a system agent "
+                "reads only what everyone who reads its answers may",
+            )
+            for field, rows in (("context_ids", contexts), ("skill_ids", skills))
+            for row in rows.values()
+            if row.visibility != Visibility.ORG.value
+        ]
+
+    async def reference_problems(
+        self, ctx: AuthContext, spec: AgentSpec, *, path: str, op: str
+    ) -> list[str]:
+        """What a proposed change to `path` adds that the caller may not grant.
+
+        `spec` is the draft with the change already made. Only what the change
+        adds is asked about - a capability, its new configuration, a collection,
+        a context file, a model, the tools an MCP binding now reaches - with the
+        same checks `validate_spec` makes at publish, so a proposal never widens
+        access beyond the person accepting it. Removing, narrowing and rewording
+        grant nothing and are never refused here.
+        """
+        address = authoring_fields.parse(path)
+        if address is None or op == "remove":
+            return []
+        pattern = address.pattern
+        if pattern in ("capabilities", "capabilities/{capability}/config"):
+            # An added binding is appended; a reconfigured one keeps its id.
+            bindings = (
+                spec.capabilities[-1:]
+                if pattern == "capabilities"
+                else [binding for binding in spec.capabilities if binding.id == address.capability]
+            )
+            problems = _SpecProblems()
+            for binding in bindings:
+                problems.merge(await self._binding_problems(ctx, binding))
+            return problems.messages
+        if pattern == "collection_ids":
+            return await self._collection_problems(ctx, spec.collection_ids[-1:])
+        if pattern == "context_ids":
+            return await self._context_problems(ctx, spec.context_ids[-1:])
+        if pattern == "model_profile_id" and spec.model_profile_id is not None:
+            return await self.model_profile_problems(ctx, spec.model_profile_id)
+        if pattern == "mcp_servers/{server}/allowed_tools":
+            return await self._mcp_problems(ctx, spec.mcp_servers, taken=taken_tool_names(spec))
+        return []
 
     async def _binding_problems(
         self, ctx: AuthContext, binding: CapabilityBindingSpec
@@ -2409,6 +2734,42 @@ class AgentRegistryService:
                 details={"problems": problems.messages, "version_id": version.id},
             )
 
+    async def refuse_archived_forks(self, ctx: AuthContext, version: AgentVersion) -> None:
+        """Refuse to put a version in front of people that reads a skill fork archived since.
+
+        An archived fork takes no fixes, and archiving one is refused only while an
+        agent's draft or a served version reads it; an older version of the agent
+        may still name it. Promoting that version is refused here rather than
+        quietly reading main instead: the person promoting decides where it goes.
+
+        Raises:
+            BadRequestError: With the forks, when the version reads an archived one.
+        """
+        spec = AgentSpec.model_validate(version.spec)
+        config = _subagents_config(spec)
+        bindings = [*spec.skill_bindings]
+        bindings += [
+            b for specialist in (config.inline if config else []) for b in specialist.skill_bindings
+        ]
+        # Held, not only read: an archive or a delete in progress finishes first and is seen
+        # here, and one started now waits for this version to be served and then sees it.
+        await skill_repo.hold(self.db, bound_skill_ids(spec), organization_id=ctx.organization_id)
+        forks = await skill_version_repo.hold_forks(
+            self.db,
+            {binding.fork_id for binding in bindings if binding.fork_id is not None},
+            organization_id=ctx.organization_id,
+        )
+        archived = sorted(fork.name for fork in forks.values() if fork.archived_at is not None)
+        if archived:
+            raise BadRequestError(
+                message=(
+                    f"Version {version.version} reads the archived skill fork "
+                    f"{', '.join(repr(name) for name in archived)}. Move it to another "
+                    "version and promote the version that publishes."
+                ),
+                details={"forks": archived, "version_id": version.id},
+            )
+
     async def _collection_problems(
         self, ctx: AuthContext, collection_ids: Sequence[UUID]
     ) -> list[str]:
@@ -2433,8 +2794,17 @@ class AgentRegistryService:
                 problems.append(f"Collection not found: {collection_id}")
         return problems
 
-    async def _skill_problems(self, ctx: AuthContext, skill_ids: Sequence[UUID]) -> list[str]:
-        """Skills the publisher cannot lend out.
+    async def skill_problems(
+        self,
+        ctx: AuthContext,
+        skill_ids: Sequence[UUID],
+        bindings: Sequence[SkillBindingSpec] = (),
+    ) -> list[str]:
+        """Skills the publisher cannot lend out, and versions or forks that do not exist.
+
+        A binding names a version of that skill's main line by its number, or a fork
+        of that skill that is not archived; anything else - another skill's fork,
+        another organization's, one archived since - is "not found" the same way.
 
         The same rule as a collection, for the same reason: a bound skill is read
         by every run of the agent, so binding one shares it - its body, and the
@@ -2459,6 +2829,7 @@ class AgentRegistryService:
             self.db, list(skill_ids), organization_id=ctx.organization_id
         )
         problems: list[str] = []
+        lent: set[UUID] = set()
         registered = {definition.id for definition in all_capabilities()}
         for skill_id in skill_ids:
             skill = found.get(skill_id)
@@ -2468,6 +2839,7 @@ class AgentRegistryService:
             if not reachable:
                 problems.append(f"Skill not found: {skill_id}")
                 continue
+            lent.add(skill_id)
             # Each skill is a deferred capability now, filed under its own name,
             # and the platform's capabilities are filed under theirs - in one
             # namespace. A skill called `planning` on an agent that also has the
@@ -2478,9 +2850,34 @@ class AgentRegistryService:
                     f"Skill '{skill.name}' has the name of a capability this platform "
                     "offers, and each skill is a capability now - rename the skill"
                 )
+        for binding in bindings:
+            skill = found.get(binding.skill_id)
+            if skill is None or skill.id not in lent:
+                continue
+            if binding.version is not None:
+                versions = await skill_version_repo.get_by_numbers(
+                    self.db,
+                    organization_id=ctx.organization_id,
+                    skill_id=skill.id,
+                    fork_id=None,
+                    numbers=[binding.version],
+                )
+                if binding.version not in versions:
+                    problems.append(f"Skill '{skill.name}' has no version {binding.version}")
+            else:
+                assert binding.fork_id is not None, "a binding names a version or a fork"
+                fork = (
+                    await skill_version_repo.hold_forks(
+                        self.db, [binding.fork_id], organization_id=ctx.organization_id
+                    )
+                ).get(binding.fork_id)
+                if fork is None or fork.skill_id != skill.id or fork.archived_at is not None:
+                    problems.append(f"Skill fork not found: {binding.fork_id}")
         return problems
 
-    async def _mcp_problems(self, ctx: AuthContext, refs: Sequence[McpServerRef]) -> list[str]:
+    async def _mcp_problems(
+        self, ctx: AuthContext, refs: Sequence[McpServerRef], *, taken: Mapping[str, str]
+    ) -> list[str]:
         """Every way a set of MCP bindings can be unpublishable.
 
         An organization binding must name one of the organization's own
@@ -2491,8 +2888,18 @@ class AgentRegistryService:
         raise on the duplicate tool names and abort every turn. All of it asked
         here, where somebody can still change the binding, rather than at run
         time where the only options are to guess or to quietly drop a server.
+
+        A prefix keeps one server's tools apart from another's, not from the
+        agent's other tools: `taken`, from :func:`taken_tool_names`, holds a
+        capability's tools and the platform's own. So each organization
+        connection's tools, as its last check listed them, must not land on one
+        of those (#2890). A member's own account is not known here, and the run
+        leaves out a server that clashes.
         """
         problems: list[str] = []
+        # Each connection once, however often it is bound: binding one twice is
+        # refused as a prefix collision below already.
+        presented: dict[str, list[tuple[str, str]]] = {}
         # What each binding would call its tools by, as the toolset builder derives
         # it - `notion-` and `notion` are one prefix. Paired with a label so the
         # same `prefix_collisions` the run uses catches a clash here, where somebody
@@ -2544,12 +2951,24 @@ class AgentRegistryService:
                 )
                 continue
             prefixed.append((connection.name, f"the connection {connection.name!r}"))
+            presented.setdefault(
+                connection.name, presented_tool_names(connection, ref.allowed_tools)
+            )
         for prefix, holders in prefix_collisions(prefixed).items():
             problems.append(
                 f"Two bindings would present their tools under the prefix {prefix!r}: "
                 f"{' and '.join(holders)}. The model would see every tool twice, which "
                 "aborts the turn - bind one of them, or rename the connection."
             )
+        problems.extend(
+            f"The connection {name!r} presents its tool {tool!r} as {model_name!r}, the "
+            f"name of a tool {taken[model_name]} already gives this agent. Two tools of one "
+            "name abort the turn, so the server would be left out of every run - rename "
+            "the connection, or narrow its tools."
+            for name, tools in presented.items()
+            for tool, model_name in tools
+            if model_name in taken
+        )
         return problems
 
     async def _context_problems(self, ctx: AuthContext, context_ids: Sequence[UUID]) -> list[str]:
@@ -2858,7 +3277,7 @@ class AgentRegistryService:
         for specialist in config.inline:
             names.append(specialist.name)
             problems.merge(await self._specialist_problems(ctx, specialist, shared=shared))
-        problems.add(_share_problems(spec, config))
+        problems.add(_share_problems(spec, config), fix=STOP_SHARING_UNBOUND)
 
         pins = await self._resolve_pins(ctx, spec.subagents)
         problems.add(pins.problems)
@@ -2877,6 +3296,17 @@ class AgentRegistryService:
                         "too, or stop sharing 'computer_use'."
                     ]
                 )
+            # What it is lent can clash with its own tools' names too (#2890).
+            # Only that half: its own clashes are its author's, refused at its
+            # own publish, and a parent cannot fix them.
+            own = set(_rename_clash_problems(delegate.spec))
+            problems.add(
+                [
+                    f"Delegate '{delegate.spec.name}', with what this agent shares: {problem}"
+                    for problem in _rename_clash_problems(_inheriting(delegate.spec, shared))
+                    if problem not in own
+                ]
+            )
         # A delegate's handle is its row's slug; a specialist's is the name as
         # typed, which is already constrained to what a tool argument can carry.
         # Both are what the runtime hands the model, which is the only namespace
@@ -2947,7 +3377,9 @@ class AgentRegistryService:
         for binding in specialist.capabilities:
             problems.merge(await self._binding_problems(ctx, binding))
         problems.add(await self._collection_problems(ctx, specialist.collection_ids))
-        problems.add(await self._skill_problems(ctx, specialist.skill_ids))
+        problems.add(
+            await self.skill_problems(ctx, specialist.skill_ids, specialist.skill_bindings)
+        )
         problems.add(await self._context_problems(ctx, specialist.context_ids))
         # A specialist naming no profile runs on the parent's, which publish has
         # already checked - so only a profile it *did* name is a reference that
@@ -2961,6 +3393,8 @@ class AgentRegistryService:
         problems.add(
             await _computer_use_sandbox_problems(self.db, ctx, _inheriting(as_agent, shared))
         )
+        # Its own renames and what it inherits run in one agent, as the parent's do.
+        problems.add(_rename_clash_problems(_inheriting(as_agent, shared)))
         return problems.within_specialist(specialist.name)
 
     async def _resolve_pins(self, ctx: AuthContext, refs: Sequence[SubagentRef]) -> _ResolvedPins:
@@ -3002,6 +3436,11 @@ class AgentRegistryService:
             if delegate.status == AgentStatus.ARCHIVED.value:
                 problems.append(
                     f"Agent '{delegate.name}' is archived, so nothing can delegate to it"
+                )
+                continue
+            if delegate.kind != AgentKind.AGENT.value:
+                problems.append(
+                    f"Agent '{delegate.name}' is a {delegate.kind}, so nothing can delegate to it"
                 )
                 continue
             resolved = await self._resolve_pin(ctx, ref)
@@ -3113,13 +3552,53 @@ class AgentRegistryService:
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH, for_update=True)
         spec = AgentSpec.model_validate(agent.draft_spec)
         await self.validate_spec(ctx, spec, agent_id=agent.id)
+        version = await self._freeze(ctx, agent, spec, note=note, draft=spec)
+        # The authoring assistant's suggestions were for the draft just frozen:
+        # their decisions are final now, and Undo would edit a published version.
+        batch = await authoring_repo.get_open_batch(
+            self.db, organization_id=ctx.organization_id, agent_id=agent.id, lock=True
+        )
+        if batch is not None:
+            await authoring_repo.close_batch(self.db, batch=batch, status=BatchStatus.PUBLISHED)
+        return version
 
+    async def publish_spec(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        spec: AgentSpec,
+        *,
+        draft: AgentSpec,
+        note: str | None = None,
+    ) -> AgentVersion:
+        """Publish a spec that is not the draft, and leave `draft` as the agent's draft.
+
+        For a change made to what is published rather than to what is being edited:
+        the published spec with one thing changed goes live, and the draft takes the
+        same change and keeps the rest of its unfinished edits. Its open authoring
+        suggestions stay open, because the draft they were made for was not frozen.
+        """
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH, for_update=True)
+        await self.validate_spec(ctx, spec, agent_id=agent.id)
+        return await self._freeze(ctx, agent, spec, note=note, draft=draft)
+
+    async def _freeze(
+        self,
+        ctx: AuthContext,
+        agent: Agent,
+        spec: AgentSpec,
+        *,
+        note: str | None,
+        draft: AgentSpec,
+    ) -> AgentVersion:
+        """Freeze a validated spec as the agent's next version, and move what follows it."""
         # Publish is where the spec is confirmed against this deployment's own
         # registry and models, so the frozen copy carries this deployment's spec
         # version - not whatever an imported draft claimed. Otherwise the number
         # is write-only: a `spec_version: 3` YAML publishes carrying constructs
         # this code understands and stays labelled 3.
         spec.spec_version = SPEC_VERSION
+        draft.spec_version = SPEC_VERSION
         frozen = spec.model_dump(mode="json")
 
         number = await agent_repo.next_version_number(self.db, agent_id=agent.id)
@@ -3138,12 +3617,18 @@ class AgentRegistryService:
         await agent_repo.update(
             self.db,
             agent=agent,
-            update_data={"status": AgentStatus.PUBLISHED.value, "draft_spec": frozen},
+            update_data={
+                "status": AgentStatus.PUBLISHED.value,
+                "draft_spec": frozen if draft is spec else draft.model_dump(mode="json"),
+            },
         )
         # `current_version_id` is the default environment's pointer, so the step
         # that moves environments is the step that moves it - see below.
         await self._move_environments_that_follow(ctx, agent=agent, version=version)
         await self.withdraw_creator_consent(ctx, agent)
+        from app.services.eval_suite import EvalSuiteService
+
+        await EvalSuiteService(self.db).version_published(ctx, agent=agent, version=version)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -3255,10 +3740,28 @@ class AgentRegistryService:
                 tracks_latest=True,
                 created_by_user_id=ctx.user_id,
             )
+        elif agent.kind != AgentKind.AGENT.value:
+            # A system agent runs on its default environment alone, so a publish
+            # always moves it, pinned or not.
+            default = await agent_environment_repo.update(
+                self.db,
+                environment=default,
+                update_data={"version_id": version.id, "tracks_latest": True},
+            )
         else:
-            for environment in await agent_environment_repo.following_latest(
+            following = await agent_environment_repo.following_latest(
                 self.db, agent_id=agent.id, organization_id=ctx.organization_id
-            ):
+            )
+            # One that names guards waits for them to pass on the new version -
+            # `PromotionGateService.follow` moves it then.
+            guarded = await promotion_gate_repo.guards_for(
+                self.db,
+                [environment.id for environment in following],
+                organization_id=ctx.organization_id,
+            )
+            for environment in following:
+                if environment.id in guarded:
+                    continue
                 await agent_environment_repo.update(
                     self.db, environment=environment, update_data={"version_id": version.id}
                 )
@@ -3311,6 +3814,11 @@ class AgentRegistryService:
         # version back in front of people directly is one click on the history
         # row - promote - rather than two here.
         await self._move_environments_that_follow(ctx, agent=agent, version=version)
+        from app.services.eval_suite import EvalSuiteService
+
+        # A rollback is a publish: the suites a publish runs - a guarded
+        # follower's guards among them - run on the version it minted.
+        await EvalSuiteService(self.db).version_published(ctx, agent=agent, version=version)
         await self.withdraw_creator_consent(ctx, agent)
         await record_audit(
             self.db,
@@ -3330,6 +3838,7 @@ class AgentRegistryService:
         keep the trail. Real deletion is a separate, deliberate act.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
+        await self._refuse_retiring_system_agent(ctx, agent, action="archived")
         if await organization_assistant_repo.for_agent(self.db, agent.id) is not None:
             # Archived, it would still read as ready in the corner and refuse every
             # run; switching it off is the way to retire it.
@@ -3349,6 +3858,41 @@ class AgentRegistryService:
             target_id=str(agent.id),
         )
         return updated
+
+    async def _refuse_retiring_system_agent(
+        self, ctx: AuthContext, agent: Agent, *, action: str
+    ) -> None:
+        """Refuse archiving or deleting a system agent something still runs on.
+
+        The organization's default of a kind is what every dataset, knowledge base
+        and session that picked none falls back to, so it is never retired; one
+        the organization made is, once nothing names it or is busy with it.
+
+        Raises:
+            BadRequestError: The agent is a default, or is still in use.
+        """
+        if agent.kind == AgentKind.AGENT.value:
+            return
+        if agent.system_key is not None:
+            raise BadRequestError(
+                message=(
+                    f"'{agent.name}' is the organization's default {agent.kind}, which "
+                    f"everything that picked no other runs on, so it cannot be {action}. "
+                    "Change its instructions or model instead."
+                ),
+                details={"agent_id": agent.id, "system_key": agent.system_key},
+            )
+        uses = await agent_repo.system_agent_uses(
+            self.db, agent.id, organization_id=ctx.organization_id
+        )
+        if uses:
+            raise BadRequestError(
+                message=(
+                    f"'{agent.name}' is still used by {', '.join(uses)}. Pick another "
+                    f"{agent.kind} there, or let it finish, before it is {action}."
+                ),
+                details={"agent_id": agent.id, "uses": uses},
+            )
 
     async def unarchive(self, ctx: AuthContext, agent_id: UUID) -> Agent:
         """Bring a retired agent back.
@@ -3459,6 +4003,8 @@ class AgentRegistryService:
         agent with no published version cannot be served - it has nothing to run.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH)
+        if enabled:
+            refuse_system_agent(agent, action="serving over A2A")
         if enabled and agent.current_version_id is None:
             raise BadRequestError(
                 message="Publish the agent before serving it over A2A",
@@ -3512,6 +4058,7 @@ class AgentRegistryService:
                 published.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
+        await self._refuse_retiring_system_agent(ctx, agent, action="deleted")
         if draft_only and (
             agent.owner_user_id != ctx.subject_id or agent.current_version_id is not None
         ):
@@ -3596,6 +4143,11 @@ class AgentRegistryService:
             organization_id=ctx.organization_id,
             user_ids=[v.published_by_user_id for v in versions if v.published_by_user_id],
         )
+        from app.services.promotion_gate import PromotionGateService
+
+        overrides = await PromotionGateService(self.db).overrides(
+            ctx, [version.id for version in versions]
+        )
         return [
             AgentVersionRead(
                 id=version.id,
@@ -3606,6 +4158,7 @@ class AgentRegistryService:
                 if version.published_by_user_id
                 else None,
                 created_at=version.created_at,
+                overrides=overrides.get(version.id, []),
             )
             for version in versions
         ], total
@@ -4031,9 +4584,11 @@ class AgentRegistryService:
             )
         draft = AgentSpec.model_validate(agent.draft_spec)
         unchanged = await self._is_published_as_is(agent)
-        recommended = agent_templates.starter_capabilities().get(
-            capability_id, {"id": capability_id}
-        )
+        recommended = agent_templates.starter_capabilities(
+            container_workspace=await SandboxConnectionService(self.db).can_provide(
+                ctx.organization_id
+            )
+        ).get(capability_id, {"id": capability_id})
         # A binding switched off keeps its place and its config; only a missing one is added.
         if any(binding.id == capability_id for binding in draft.capabilities):
             bindings = [
@@ -4118,12 +4673,7 @@ class AgentRegistryService:
                 approved.
             NotFoundError: If the named environment is not this agent's.
         """
-        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
-        await self.refuse_a_switched_off_assistant(agent.id)
-        if agent.status == AgentStatus.ARCHIVED.value:
-            raise BadRequestError(
-                message=f"Agent '{agent.name}' is archived", details={"agent_id": str(agent.id)}
-            )
+        agent = await self._runnable(ctx, agent_id)
         if agent.current_version_id is None:
             raise BadRequestError(
                 message=f"Agent '{agent.name}' has not been published yet",
@@ -4132,15 +4682,7 @@ class AgentRegistryService:
 
         version_id = agent.current_version_id
         if environment_id is not None:
-            environment = await agent_environment_repo.get(
-                self.db, environment_id, organization_id=ctx.organization_id
-            )
-            if environment is None or environment.agent_id != agent.id:
-                raise NotFoundError(
-                    message="Environment not found",
-                    details={"environment_id": str(environment_id)},
-                )
-            version_id = environment.version_id
+            version_id = (await self._environment_of(ctx, agent, environment_id)).version_id
 
         version = await agent_repo.get_version(
             self.db, version_id, organization_id=ctx.organization_id
@@ -4151,3 +4693,119 @@ class AgentRegistryService:
                 details={"agent_id": str(agent.id)},
             )
         return agent, AgentSpec.model_validate(version.spec), version.id
+
+    async def get_candidate_spec(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        candidate: Candidate,
+        *,
+        environment_id: UUID | None = None,
+    ) -> tuple[Agent, AgentSpec, UUID | None]:
+        """The spec an eval runs in place of the one an environment pins.
+
+        A published candidate resolves to its frozen spec and keeps its version
+        id, so the run is attributed to the version that answered. An unpublished
+        one - a draft, or a draft with proposals applied - is checked against the
+        caller's own access first: it skipped `validate_spec` when it was saved,
+        and everything downstream of a run trusts that a binding it is handed was
+        already authorized at publish. It is attributed to no version.
+
+        `environment_id` only has to belong to the agent; it supplies the run's
+        connections and tracing, never its spec.
+
+        Raises:
+            BadRequestError: If the agent is archived, the version is not this
+                agent's, or the unpublished spec does not validate for the caller.
+            NotFoundError: If the agent or the environment cannot be reached.
+        """
+        agent = await self._runnable(ctx, agent_id)
+        if environment_id is not None:
+            await self._environment_of(ctx, agent, environment_id)
+        if isinstance(candidate, UnpublishedCandidate):
+            virtual_contexts = {
+                key: body
+                for key, body in candidate.context_bodies.items()
+                if body.name is not None and key in candidate.spec.context_ids
+            }
+            for body in virtual_contexts.values():
+                ContextFileCreate.model_validate(
+                    {
+                        "name": body.name,
+                        "description": body.description,
+                        "content": body.content,
+                    }
+                )
+            virtual = {
+                key: body
+                for key, body in candidate.skill_bodies.items()
+                if body.name is not None and key in candidate.spec.skill_ids
+            }
+            for body in virtual.values():
+                SkillCreate.model_validate(
+                    {"name": body.name, "description": body.description, "content": body.content}
+                )
+            validation = candidate.spec.model_copy(
+                update={
+                    "skill_ids": [key for key in candidate.spec.skill_ids if key not in virtual],
+                    "context_ids": [
+                        key for key in candidate.spec.context_ids if key not in virtual_contexts
+                    ],
+                }
+            )
+            await self.validate_spec(ctx, validation, agent_id=agent.id)
+            if virtual_contexts:
+                stored_contexts = await context_repo.get_many(
+                    self.db, validation.context_ids, organization_id=ctx.organization_id
+                )
+                context_names = [file.name for file in stored_contexts.values()] + [
+                    body.name for body in virtual_contexts.values()
+                ]
+                if len(context_names) != len(set(context_names)):
+                    raise BadRequestError(
+                        message="Projected context files must have distinct names"
+                    )
+            if virtual:
+                stored = await skill_repo.get_many(
+                    self.db, validation.skill_ids, organization_id=ctx.organization_id
+                )
+                names = [skill.name for skill in stored.values()] + [
+                    body.name for body in virtual.values()
+                ]
+                if len(names) != len(set(names)):
+                    raise BadRequestError(message="Projected skills must have distinct names")
+            return agent, candidate.spec, None
+        version = await agent_repo.get_version(
+            self.db, candidate.version_id, organization_id=ctx.organization_id
+        )
+        if version is None or version.agent_id != agent.id:
+            raise BadRequestError(
+                message=f"That version is not one of agent '{agent.name}'s",
+                details={"agent_id": agent.id, "version_id": candidate.version_id},
+            )
+        spec = AgentSpec.model_validate(version.spec)
+        if candidate.instructions is not None:
+            spec = spec.model_copy(update={"instructions": candidate.instructions})
+        return agent, spec, version.id
+
+    async def _runnable(self, ctx: AuthContext, agent_id: UUID) -> Agent:
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        await self.refuse_a_switched_off_assistant(agent.id)
+        if agent.status == AgentStatus.ARCHIVED.value:
+            raise BadRequestError(
+                message=f"Agent '{agent.name}' is archived", details={"agent_id": str(agent.id)}
+            )
+        return agent
+
+    async def _environment_of(
+        self, ctx: AuthContext, agent: Agent, environment_id: UUID
+    ) -> AgentEnvironment:
+        environment = await agent_environment_repo.get(
+            self.db, environment_id, organization_id=ctx.organization_id
+        )
+        if environment is None or environment.agent_id != agent.id:
+            raise NotFoundError(
+                message="Environment not found",
+                details={"environment_id": str(environment_id)},
+            )
+        return environment

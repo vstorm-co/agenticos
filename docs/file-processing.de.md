@@ -1,5 +1,5 @@
 ---
-source_sha: "1aaedaaa4081"
+source_sha: "1555844ea407"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -406,6 +406,13 @@ unter `FILE_STORAGE_S3_PREFIX`, und bittet den Speicher, jeden davon zu
 verschlüsseln — SSE-S3 als Vorgabe, SSE-KMS mit einem Schlüssel, den das
 Deployment benennt. Die Einstellungen stehen in der
 [Konfiguration](configuration.md#uploaded-files-at-rest).
+
+Bei lokalem Speicher müssen API und Worker für die Wissensbasis-Ingestion
+weiterhin `MEDIA_DIR/_rag_tmp` teilen. Mit S3 lädt jede Worker-Ausführung eine
+eigene Kopie des gespeicherten Objekts und entfernt sie bei Abschluss, Parserfehler
+oder Abbruch. Pods teilen kein API-Scratch-Volume; siehe
+[Kubernetes-Deployment](kubernetes.md). Ein getöteter Kindprozess kann bis zum
+Ersetzen des Pods eine temporäre Kopie hinterlassen.
 
 !!! info "Welches Backend, und was jedes von Ihnen verlangt"
 

@@ -28,6 +28,7 @@ from app.api.deps import AgentTriggerSvc, Auth, require
 from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.schemas.agent_trigger import (
+    TriggerAttemptList,
     TriggerCreate,
     TriggerCreateRead,
     TriggerList,
@@ -267,3 +268,24 @@ async def replace_routine_sources(
 ) -> Any:
     """Accept a freshly reviewed source ceiling. Only the console owner may consent."""
     return await service.set_source_consents(ctx, agent_id, trigger_id, data)
+
+
+@router.get(
+    "/{agent_id}/triggers/{trigger_id}/attempts",
+    response_model=TriggerAttemptList,
+    dependencies=[PUBLIC],
+)
+async def trigger_attempts(
+    agent_id: UUID,
+    trigger_id: UUID,
+    ctx: Auth,
+    service: AgentTriggerSvc,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """Blocked or failed activations before an agent run existed, newest first.
+
+    These records carry bounded reason codes, never prompts, provider errors or
+    credentials. Reading delegates to the agent's resource access checks.
+    """
+    return await service.attempts(ctx, agent_id, trigger_id, skip=skip, limit=limit)

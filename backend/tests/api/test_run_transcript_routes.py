@@ -208,3 +208,22 @@ async def test_a_run_with_no_conversation_says_so_rather_than_an_empty_list() ->
     assert body["conversation_id"] is None
     assert body["items"] == []
     assert body["total"] == 0
+
+
+@pytest.mark.security
+async def test_model_mode_is_forwarded_and_omits_previously_loaded_reply_quotes() -> None:
+    from app.schemas.conversation import MessageRead, MessageReplyRef
+
+    run = MagicMock(id=uuid4(), conversation_id=uuid4())
+    message = MessageRead.model_validate(_message(run_id=run.id, content="Visible answer"))
+    message.reply_to = MessageReplyRef(message_id=uuid4(), role="user", excerpt="Untrusted quote")
+    service = MagicMock(
+        get_run_transcript=AsyncMock(return_value=(run, [message], 1)),
+        transcript_ratings=AsyncMock(return_value={message.id: _NO_RATING}),
+    )
+    async with _client(service) as client:
+        response = await client.get(f"/api/v1/runs/{run.id}/transcript", params={"for_model": True})
+    assert response.status_code == 200, response.text
+    assert service.get_run_transcript.await_args.kwargs["for_model"] is True
+    assert response.json()["items"][0]["reply_to"] is None
+    assert message.reply_to.excerpt == "Untrusted quote"

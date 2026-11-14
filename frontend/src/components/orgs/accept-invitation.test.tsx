@@ -67,7 +67,6 @@ describe("somebody who is not signed in", () => {
 
 describe("somebody who is signed in", () => {
   it("accepts the token it was given and sends them to their organizations", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
     acceptInvitation.mockResolvedValue("org-acme");
     useOrgStore.setState({ activeOrgId: "org-personal" });
 
@@ -79,8 +78,7 @@ describe("somebody who is signed in", () => {
     // Where they were invited to work, not still their personal organization (#2156).
     expect(useOrgStore.getState().activeOrgId).toBe("org-acme");
 
-    vi.advanceTimersByTime(2000);
-    expect(push).toHaveBeenCalledWith("/orgs");
+    expect(push).toHaveBeenCalledWith("/onboarding?welcome=1&entry=joined");
   });
 
   it("says a refused invitation was refused, and offers a way off the page", async () => {
@@ -90,8 +88,8 @@ describe("somebody who is signed in", () => {
     screen.getByRole("button", { name: /accept/i }).click();
 
     await screen.findByText(/failed/i);
-    screen.getByRole("button", { name: /dashboard/i }).click();
-    expect(push).toHaveBeenCalledWith("/dashboard");
+    screen.getByRole("button", { name: /get started/i }).click();
+    expect(push).toHaveBeenCalledWith("/onboarding");
   });
 
   it("disables the button while the accept is out, so one click is one accept", async () => {

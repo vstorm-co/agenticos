@@ -205,3 +205,38 @@ async def test_a_delete_over_http_keeps_the_history_and_retries_cleanly(http):
     async with factory() as check:
         assert await check.scalar(select(func.count()).select_from(VirtualTableRecord)) == 0
         assert await check.scalar(select(func.count()).select_from(VirtualTableRecordHistory)) == 2
+
+
+async def test_a_value_keyed_by_a_column_label_is_told_the_column_id(http):
+    client, *_ = http
+    table = await _table(client)
+    customer = table["columns"][0]["id"]
+
+    refused = await client.post(
+        _url(f"/{table['id']}/records"), json={"values": {"customer": "Acme", "Region": "EU"}}
+    )
+
+    assert refused.status_code == 422
+    fields = {f["field"]: f["message"] for f in refused.json()["error"]["details"]["fields"]}
+    assert "keyed by column id" in fields["values.customer"]
+    assert customer in fields["values.customer"]
+    assert "keyed by column id" in fields["values.Region"]
+    assert customer not in fields["values.Region"]
+
+
+async def test_a_write_with_many_unknown_keys_names_only_the_first_few(http):
+    client, *_ = http
+    table = await _table(client)
+
+    refused = await client.post(
+        _url(f"/{table['id']}/records"),
+        json={"values": {f"nope-{n}": n for n in range(5000)}},
+    )
+
+    assert refused.status_code == 422
+    fields = refused.json()["error"]["details"]["fields"]
+    assert len(fields) == 21
+    assert fields[-1] == {
+        "field": "values",
+        "message": "4980 more keys name no column of this table",
+    }

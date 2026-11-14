@@ -57,7 +57,11 @@ export default defineConfig({
         "src/stores/**",
         "src/hooks/**",
         "src/components/agents/**/*.{ts,tsx}",
+        "src/components/authoring/**/*.tsx",
+        "src/components/improvement/**/*.tsx",
+        "src/components/skill-improvement/**/*.tsx",
         "src/components/triggers/source-consents-panel.tsx",
+        "src/components/triggers/action-selection.tsx",
         "src/components/triggers/routine-options.tsx",
         "src/components/chat/tool-results/memory.tsx",
         "src/components/projects/project-tracking-control.tsx",
@@ -83,7 +87,7 @@ export default defineConfig({
         // The agent messages card.
         "src/components/dashboard/widgets/agent-messages.tsx",
         // What the nightly look proposed (#2301).
-        "src/components/dashboard/widgets/suggestions.tsx",
+        "src/components/dashboard/widgets/authoring-suggestions.tsx",
         "src/components/dashboard/widgets/recent-visuals.tsx",
         "src/components/dashboard/widgets/recent-failures.tsx",
         // The notifications card (#1598).
@@ -101,6 +105,17 @@ export default defineConfig({
         "src/components/dashboard/agent-face.tsx",
         "src/components/dashboard/me-header.tsx",
         "src/components/dashboard/widgets/artifacts.tsx",
+        "src/components/dashboard/widgets/datasets.tsx",
+        "src/components/dashboard/widgets/review-queue.tsx",
+        "src/components/dashboard/widgets/eval-runs.tsx",
+        "src/components/dashboard/widgets/eval-suites.tsx",
+        "src/components/dashboard/widgets/suggestions.tsx",
+        "src/components/evals/**/*.{ts,tsx}",
+        "src/components/datasets/**/*.{ts,tsx}",
+        "src/components/dashboard/widgets/knowledge-gaps.tsx",
+        "src/components/dashboard/widgets/needs-attention.tsx",
+        "src/components/dashboard/widgets/improvements-waiting.tsx",
+        "src/components/knowledge-gaps/**/*.tsx",
         "src/components/dashboard/widgets/voice-minutes.tsx",
         "src/components/dashboard/widgets/projects.tsx",
         // Department budgets (#2072): the dashboard card and the group page's.
@@ -146,6 +161,8 @@ export default defineConfig({
         "src/components/projects/**/*.tsx",
         "src/components/layout/project-rows.tsx",
         "src/components/layout/navigation-progress.tsx",
+        // Asks before leaving drops a change somebody has not saved.
+        "src/components/layout/unsaved-changes-guard.tsx",
         // The offline strip in the apps (#2097).
         "src/components/layout/offline-banner.tsx",
         "src/components/layout/app-update-banner.tsx",
@@ -174,6 +191,7 @@ export default defineConfig({
         "src/components/ui/voice-glow.tsx",
         "src/components/layout/account-preferences.tsx",
         "src/components/layout/account-locale.tsx",
+        "src/components/layout/account-notices.tsx",
         "src/components/layout/account-time-zone.tsx",
         "src/components/settings/appearance-settings.tsx",
         // The desktop app's pages and the console's half of it (#2305): blobby,
@@ -335,15 +353,16 @@ export default defineConfig({
         "src/components/teams/org-voice-settings.tsx",
         // Its voice-call section (#54), new and so inside the gate too.
         "src/components/teams/org-voice-conversations.tsx",
+        // The link that lands on the AI assistance switch, new and so inside the gate.
+        "src/components/teams/enable-ai-assistance-link.tsx",
         // The deployment's switch for compressed dictation audio (#1797), new and
         // so inside the gate, like the Voice card above.
         "src/components/admin/dictation-audio-card.tsx",
         // The one key field every speech-to-text level names its key with
         // (#1797), new and so inside the gate.
         "src/components/vault/speech-key-field.tsx",
-        // The connected accounts a virtual terminal reads as (#2191), new and so
-        // inside the gate.
-        "src/components/vault/connected-accounts-card.tsx",
+        // Keys and connected accounts share the vault inventory and its coverage gate.
+        "src/components/vault/vault-table.tsx",
       ],
       exclude: [
         "node_modules",

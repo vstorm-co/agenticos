@@ -918,8 +918,28 @@ it("cancels selected native files across logout and refuses parallel attachment 
   expect(env.chat.sendMessage).not.toHaveBeenCalled();
 });
 
-it("declines computer access instead of waiting on a dialog outside Quick Ask", async () => {
+it("drops the refusal notice when the person starts a new conversation", async () => {
+  env.chat.pendingComputerAccess = { reason: "Read local files" };
+  const view = render(<QuickAsk />);
+  const notice =
+    "Quick Ask declined this request for access to this computer. To allow it, ask again in the console.";
+  expect(screen.getByText(notice)).toBeInTheDocument();
+  env.chat.pendingComputerAccess = null;
+  view.rerender(<QuickAsk />);
+  expect(screen.getByText(notice)).toBeInTheDocument();
+
+  question().focus();
+  await userEvent.keyboard("{Control>}n{/Control}");
+  expect(screen.queryByText(notice)).toBeNull();
+});
+
+it("declines computer access instead of waiting on a dialog outside Quick Ask, and says why", async () => {
   env.chat.pendingComputerAccess = { reason: "Read local files" };
   render(<QuickAsk />);
   await waitFor(() => expect(env.chat.sendComputerAccessResponse).toHaveBeenCalledWith(false));
+  expect(
+    screen.getByText(
+      "Quick Ask declined this request for access to this computer. To allow it, ask again in the console.",
+    ),
+  ).toBeInTheDocument();
 });

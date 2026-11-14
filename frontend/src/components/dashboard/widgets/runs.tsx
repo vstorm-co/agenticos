@@ -30,7 +30,7 @@ export function RunsWidget({ title, hint, period, seeAll, options }: DashboardWi
           return (
             <div className="flex h-full flex-col gap-3">
               <Figure
-                value={total.toLocaleString()}
+                value={total.toLocaleString(locale)}
                 unit={t("unit")}
                 delta={delta !== null ? <DeltaChip delta={delta} label={t("delta")} /> : undefined}
               />

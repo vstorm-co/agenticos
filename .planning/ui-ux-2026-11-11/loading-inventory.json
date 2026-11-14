@@ -1,0 +1,3346 @@
+{
+  "sourceFiles": 1370,
+  "files": 242,
+  "sites": 477,
+  "entries": [
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/admin/organizations/[id]/page.tsx",
+      "line": 49,
+      "tag": "Skeleton",
+      "props": "className=\"h-7 w-64\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/admin/organizations/[id]/page.tsx",
+      "line": 53,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-20\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/admin/organizations/[id]/page.tsx",
+      "line": 54,
+      "tag": "Skeleton",
+      "props": "className=\"h-5 w-28\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/admin/organizations/[id]/page.tsx",
+      "line": 59,
+      "tag": "Skeleton",
+      "props": "className=\"h-5 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/admin/organizations/[id]/page.tsx",
+      "line": 61,
+      "tag": "Skeleton",
+      "props": "key={member} className=\"h-12 w-full rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/admin/system/page.tsx",
+      "line": 121,
+      "tag": "Skeleton",
+      "props": "className=\"h-10 w-10 rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/admin/system/page.tsx",
+      "line": 123,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/admin/system/page.tsx",
+      "line": 124,
+      "tag": "Skeleton",
+      "props": "className=\"h-6 w-48\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/admin/system/page.tsx",
+      "line": 128,
+      "tag": "Skeleton",
+      "props": "className=\"h-8 w-28\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/admin/system/page.tsx",
+      "line": 129,
+      "tag": "Skeleton",
+      "props": "className=\"h-8 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/admin/system/page.tsx",
+      "line": 213,
+      "tag": "Skeleton",
+      "props": "className=\"mt-0.5 h-9 w-9 shrink-0 rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/admin/system/page.tsx",
+      "line": 215,
+      "tag": "Skeleton",
+      "props": "className=\"h-5 w-2/3\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/admin/system/page.tsx",
+      "line": 216,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-1/2\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/admin/system/page.tsx",
+      "line": 218,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-16\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/agents/[id]/page.tsx",
+      "line": 919,
+      "tag": "BuilderSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/agents/[id]/page.tsx",
+      "line": 939,
+      "tag": "BuilderSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/agents/[id]/page.tsx",
+      "line": 2303,
+      "tag": "div",
+      "props": "className=\"bg-foreground/8 mb-3 h-3 w-40 animate-pulse rounded\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/agents/[id]/page.tsx",
+      "line": 2306,
+      "tag": "div",
+      "props": "className=\"bg-foreground/10 h-5 w-52 animate-pulse rounded\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/agents/[id]/page.tsx",
+      "line": 2307,
+      "tag": "div",
+      "props": "className=\"bg-foreground/8 h-3.5 w-80 max-w-full animate-pulse rounded\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/agents/[id]/page.tsx",
+      "line": 2311,
+      "tag": "div",
+      "props": "key={index} className={cn(\"bg-foreground/10 h-9 animate-pulse rounded-md\", width)}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/agents/[id]/page.tsx",
+      "line": 2325,
+      "tag": "div",
+      "props": "key={index} className={cn(\"bg-foreground/10 h-4 shrink-0 animate-pulse rounded-md\", width)}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/agents/[id]/page.tsx",
+      "line": 2334,
+      "tag": "div",
+      "props": "className=\"bg-foreground/10 h-4 w-28 animate-pulse rounded\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/agents/[id]/page.tsx",
+      "line": 2335,
+      "tag": "div",
+      "props": "className=\"bg-foreground/8 h-3 w-full max-w-xl animate-pulse rounded\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/agents/[id]/page.tsx",
+      "line": 2339,
+      "tag": "div",
+      "props": "className=\"border-input bg-foreground/[0.04] h-52 animate-pulse rounded-md border\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/agents/[id]/page.tsx",
+      "line": 2341,
+      "tag": "div",
+      "props": "className=\"bg-foreground/10 h-3 w-16 animate-pulse rounded\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/agents/[id]/page.tsx",
+      "line": 2342,
+      "tag": "div",
+      "props": "className=\"border-input bg-foreground/[0.04] h-9 w-full animate-pulse rounded-md border\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/agents/page.tsx",
+      "line": 264,
+      "tag": "Skeleton",
+      "props": "className=\"h-10 w-10 shrink-0 rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/agents/page.tsx",
+      "line": 266,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-32\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/agents/page.tsx",
+      "line": 267,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/agents/page.tsx",
+      "line": 268,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/apps/page.tsx",
+      "line": 165,
+      "tag": "CatalogLoading",
+      "props": "kind=\"document\"",
+      "family": "catalog slots and breakpoints"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/browse/[runId]/[callId]/page.tsx",
+      "line": 47,
+      "tag": "PageHeader",
+      "props": "className=\"mb-0 md:mb-0\" title={t(\"title\")} description={ <span aria-hidden className=\"bg-muted inline-block h-4 w-2/3 animate-pulse rounded-md\" /> }",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/browse/[runId]/[callId]/page.tsx",
+      "line": 51,
+      "tag": "span",
+      "props": "aria-hidden className=\"bg-muted inline-block h-4 w-2/3 animate-pulse rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/browse/[runId]/[callId]/page.tsx",
+      "line": 57,
+      "tag": "Skeleton",
+      "props": "className=\"min-h-0 w-full flex-1 rounded-2xl border shadow-sm\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/channels/page.tsx",
+      "line": 93,
+      "tag": "Skeleton",
+      "props": "className=\"h-8 w-8 shrink-0 rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/channels/page.tsx",
+      "line": 95,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-40\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/channels/page.tsx",
+      "line": 96,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-72 max-w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/context/page.tsx",
+      "line": 227,
+      "tag": "CatalogLoading",
+      "props": "kind=\"document\"",
+      "family": "catalog slots and breakpoints"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/context/page.tsx",
+      "line": 368,
+      "tag": "EditorLoading",
+      "props": "kind=\"context\" canEdit={selected.can_edit === true}",
+      "family": "editor geometry"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/datasets/[id]/page.tsx",
+      "line": 167,
+      "tag": "DatasetLoading",
+      "props": "",
+      "family": "dataset header and tabs"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/datasets/page.tsx",
+      "line": 97,
+      "tag": "CatalogLoading",
+      "props": "kind=\"resource\"",
+      "family": "catalog slots and breakpoints"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/evals/page.tsx",
+      "line": 76,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={4}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/groups/[id]/page.tsx",
+      "line": 93,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-32\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/groups/[id]/page.tsx",
+      "line": 94,
+      "tag": "Skeleton",
+      "props": "className=\"h-9 w-64\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/groups/[id]/page.tsx",
+      "line": 98,
+      "tag": "Skeleton",
+      "props": "className=\"h-64 w-full rounded-2xl\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/groups/[id]/page.tsx",
+      "line": 99,
+      "tag": "Skeleton",
+      "props": "className=\"h-64 w-full rounded-2xl\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/groups/[id]/page.tsx",
+      "line": 103,
+      "tag": "ResourceSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/groups/[id]/page.tsx",
+      "line": 164,
+      "tag": "ResourceSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/groups/[id]/page.tsx",
+      "line": 248,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-32\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/groups/[id]/page.tsx",
+      "line": 250,
+      "tag": "Skeleton",
+      "props": "key={row} className=\"h-7 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/link/[token]/page.tsx",
+      "line": 111,
+      "tag": "Skeleton",
+      "props": "className=\"h-12 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/link/[token]/page.tsx",
+      "line": 112,
+      "tag": "Skeleton",
+      "props": "className=\"h-10 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/mcp-servers/page.tsx",
+      "line": 58,
+      "tag": "Skeleton",
+      "props": "className=\"mt-0.5 h-6 w-6 shrink-0 rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/mcp-servers/page.tsx",
+      "line": 60,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/mcp-servers/page.tsx",
+      "line": 61,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/mcp-servers/page.tsx",
+      "line": 65,
+      "tag": "Skeleton",
+      "props": "className=\"h-8 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/orgs/[id]/directory/page.tsx",
+      "line": 68,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-table\" columns={3} rows={4}",
+      "family": "table"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/orgs/[id]/retention/page.tsx",
+      "line": 71,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-table\" columns={3} rows={6}",
+      "family": "table"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/orgs/[id]/retention/page.tsx",
+      "line": 95,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-table\" columns={3} rows={6}",
+      "family": "table"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/orgs/[id]/roles/page.tsx",
+      "line": 70,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-table\" columns={7} rows={12}",
+      "family": "table"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/orgs/page.tsx",
+      "line": 42,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/orgs/page.tsx",
+      "line": 98,
+      "tag": "Skeleton",
+      "props": "className=\"h-11 w-11 shrink-0 rounded-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/orgs/page.tsx",
+      "line": 100,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-32\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/orgs/page.tsx",
+      "line": 101,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/orgs/page.tsx",
+      "line": 104,
+      "tag": "Skeleton",
+      "props": "className=\"h-8 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/projects/[id]/page.tsx",
+      "line": 54,
+      "tag": "PageHeader",
+      "props": "className=\"mb-0 shrink-0 md:mb-0\" breadcrumbs={[ { label: t(\"title\"), href: ROUTES.PROJECTS }, { label: project?.name ?? t(\"title\") }, ]} title={ <span className=\"flex items-center gap-3\"> {project ? ( <ProjectAvatar name={project",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/projects/[id]/page.tsx",
+      "line": 65,
+      "tag": "Skeleton",
+      "props": "className=\"size-10 rounded-xl\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/projects/[id]/page.tsx",
+      "line": 68,
+      "tag": "span",
+      "props": "aria-hidden className=\"bg-muted inline-block h-7 w-48 animate-pulse rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/projects/[id]/page.tsx",
+      "line": 80,
+      "tag": "Skeleton",
+      "props": "className=\"h-5 w-20\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/projects/[id]/page.tsx",
+      "line": 117,
+      "tag": "Skeleton",
+      "props": "className=\"h-9 w-28\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/projects/[id]/page.tsx",
+      "line": 161,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={3}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/projects/[id]/page.tsx",
+      "line": 168,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-cards\" className=\"grid-cols-1 sm:grid-cols-1 md:grid-cols-2\"",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/projects/[id]/page.tsx",
+      "line": 180,
+      "tag": "Skeleton",
+      "props": "className=\"h-80 w-full rounded-2xl\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/projects/[id]/page.tsx",
+      "line": 181,
+      "tag": "Skeleton",
+      "props": "className=\"h-64 w-full rounded-2xl\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/projects/page.tsx",
+      "line": 102,
+      "tag": "CatalogLoading",
+      "props": "kind=\"project\"",
+      "family": "catalog slots and breakpoints"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/rag/[id]/page.tsx",
+      "line": 202,
+      "tag": "KBDetailSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/rag/page.tsx",
+      "line": 152,
+      "tag": "Skeleton",
+      "props": "className=\"h-48 w-full rounded-xl\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/rag/page.tsx",
+      "line": 184,
+      "tag": "Skeleton",
+      "props": "className=\"h-9 w-9 rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/rag/page.tsx",
+      "line": 185,
+      "tag": "Skeleton",
+      "props": "className=\"mt-4 h-4 w-32\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/rag/page.tsx",
+      "line": 186,
+      "tag": "Skeleton",
+      "props": "className=\"mt-2 h-3 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/rag/page.tsx",
+      "line": 187,
+      "tag": "Skeleton",
+      "props": "className=\"mt-5 h-3 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/remote-agents/page.tsx",
+      "line": 56,
+      "tag": "Skeleton",
+      "props": "key={row} className=\"h-12 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/runs/page.tsx",
+      "line": 194,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/sandboxes/page.tsx",
+      "line": 129,
+      "tag": "Skeleton",
+      "props": "key={row} className=\"h-10 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/sandboxes/page.tsx",
+      "line": 161,
+      "tag": "Skeleton",
+      "props": "key={row} className=\"h-10 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/skills/page.tsx",
+      "line": 166,
+      "tag": "CatalogLoading",
+      "props": "kind=\"document\"",
+      "family": "catalog slots and breakpoints"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/tables/[id]/page.tsx",
+      "line": 263,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/tables/page.tsx",
+      "line": 155,
+      "tag": "CatalogLoading",
+      "props": "kind=\"resource\"",
+      "family": "catalog slots and breakpoints"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/work/page.tsx",
+      "line": 77,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={3}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/workflows/[id]/form-preview/page.tsx",
+      "line": 30,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\" className=\"mx-auto w-full max-w-xl\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/workflows/[id]/page.tsx",
+      "line": 163,
+      "tag": "Skeleton",
+      "props": "className=\"h-8 w-64\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/workflows/[id]/page.tsx",
+      "line": 164,
+      "tag": "Skeleton",
+      "props": "className=\"h-96 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/workflows/[id]/runs/[runId]/page.tsx",
+      "line": 159,
+      "tag": "Skeleton",
+      "props": "className=\"h-8 w-64\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/workflows/[id]/runs/[runId]/page.tsx",
+      "line": 160,
+      "tag": "Skeleton",
+      "props": "className=\"h-96 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/workflows/[id]/runs/[runId]/page.tsx",
+      "line": 339,
+      "tag": "Skeleton",
+      "props": "className=\"h-full w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/workflows/[id]/runs/page.tsx",
+      "line": 95,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/app/[locale]/(dashboard)/workflows/page.tsx",
+      "line": 309,
+      "tag": "CatalogLoading",
+      "props": "kind=\"resource\"",
+      "family": "catalog slots and breakpoints"
+    },
+    {
+      "file": "frontend/src/components/admin/background-jobs/activity-cards.tsx",
+      "line": 53,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/admin/background-jobs/activity-cards.tsx",
+      "line": 54,
+      "tag": "Skeleton",
+      "props": "className=\"h-8 w-20\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/admin/background-jobs/activity-cards.tsx",
+      "line": 55,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-28\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/admin/background-jobs/activity-cards.tsx",
+      "line": 59,
+      "tag": "Skeleton",
+      "props": "className=\"h-56 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/admin/background-jobs/activity-cards.tsx",
+      "line": 77,
+      "tag": "Skeleton",
+      "props": "key={row} className=\"h-8 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/admin/background-jobs/job-counts.tsx",
+      "line": 47,
+      "tag": "Skeleton",
+      "props": "className=\"h-8 w-12\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/admin/background-jobs/workers-and-schedules.tsx",
+      "line": 87,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-36\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/admin/background-jobs/workers-and-schedules.tsx",
+      "line": 88,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-2/3\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/admin/deployment-settings-form.tsx",
+      "line": 165,
+      "tag": "LoadingForm",
+      "props": "loading={isLoading}",
+      "family": "real form layout"
+    },
+    {
+      "file": "frontend/src/components/admin/user-detail-drawer.tsx",
+      "line": 243,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={2}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/admin/user-detail-drawer.tsx",
+      "line": 292,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={1}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/admin/user-detail-drawer.tsx",
+      "line": 312,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={3}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/agents/agent-template-dialog.tsx",
+      "line": 107,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-tiles\"",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/agents/embeds-panel.tsx",
+      "line": 72,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/agents/exposures-panel.tsx",
+      "line": 91,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/agents/judge-dataset-row.tsx",
+      "line": 56,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={2}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/agents/judge-datasets-card.tsx",
+      "line": 56,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={2}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/agents/model-profile-picker.tsx",
+      "line": 237,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={2}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/agents/platform-server-card.tsx",
+      "line": 202,
+      "tag": "Skeleton",
+      "props": "className=\"h-32 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/agents/test-panel/draft-changes.tsx",
+      "line": 54,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={4}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/agents/version-history.tsx",
+      "line": 275,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={3}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/agents/version-history.tsx",
+      "line": 443,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={4}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/agents/workflows-section.tsx",
+      "line": 96,
+      "tag": "Skeleton",
+      "props": "className=\"h-12 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/agents/workflows-section.tsx",
+      "line": 97,
+      "tag": "Skeleton",
+      "props": "className=\"h-12 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/artifacts/agent-filter.tsx",
+      "line": 31,
+      "tag": "Skeleton",
+      "props": "aria-hidden className=\"h-8 w-full sm:w-48\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/artifacts/artifact-frame.tsx",
+      "line": 508,
+      "tag": "Skeleton",
+      "props": "role=\"status\" aria-label={ts(\"loading\")} className={cn(\"h-full min-h-[32rem] w-full rounded-lg border\", className)}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/artifacts/artifact-viewer.tsx",
+      "line": 175,
+      "tag": "Skeleton",
+      "props": "role=\"status\" aria-label={ts(\"loading\")} className=\"h-full min-h-0 w-full flex-1 rounded-none\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/artifacts/confirm-data-dialog.tsx",
+      "line": 108,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/artifacts/data-change-review.tsx",
+      "line": 204,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/artifacts/public-data-dialog.tsx",
+      "line": 126,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/assistant/assistant-settings.tsx",
+      "line": 42,
+      "tag": "LoadingForm",
+      "props": "loading={isLoading}",
+      "family": "real form layout"
+    },
+    {
+      "file": "frontend/src/components/browser/my-sign-ins.tsx",
+      "line": 54,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={2}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/channels/discord-role-mappings-dialog.tsx",
+      "line": 67,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/chat/agent-picker.tsx",
+      "line": 137,
+      "tag": "Skeleton",
+      "props": "data-testid=\"agent-picker-loading-icon\" className=\"size-6 shrink-0 rounded-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/agent-picker.tsx",
+      "line": 158,
+      "tag": "Skeleton",
+      "props": "data-testid=\"agent-picker-loading-name\" className=\"h-3.5 w-20 rounded\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/chart-message.tsx",
+      "line": 40,
+      "tag": "div",
+      "props": "className=\"bg-foreground/10 mb-3 h-4 w-32 animate-pulse rounded\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/chart-message.tsx",
+      "line": 41,
+      "tag": "div",
+      "props": "className=\"bg-foreground/5 h-[300px] w-full animate-pulse rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/chat-container.tsx",
+      "line": 1491,
+      "tag": "ConversationSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/chat-container.tsx",
+      "line": 2007,
+      "tag": "div",
+      "props": "className=\"bg-foreground/10 h-8 w-8 shrink-0 animate-pulse rounded-full sm:h-9 sm:w-9\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/chat-container.tsx",
+      "line": 2009,
+      "tag": "div",
+      "props": "className=\"bg-foreground/10 h-4 w-1/3 animate-pulse rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/chat-container.tsx",
+      "line": 2010,
+      "tag": "div",
+      "props": "className=\"bg-foreground/8 h-4 w-4/5 animate-pulse rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/chat-container.tsx",
+      "line": 2011,
+      "tag": "div",
+      "props": "className=\"bg-foreground/8 h-4 w-2/3 animate-pulse rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/chat-container.tsx",
+      "line": 2015,
+      "tag": "div",
+      "props": "className=\"bg-foreground/10 h-8 w-8 shrink-0 animate-pulse rounded-full sm:h-9 sm:w-9\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/chat-container.tsx",
+      "line": 2017,
+      "tag": "div",
+      "props": "className=\"bg-foreground/10 h-4 w-1/4 animate-pulse rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/chat-container.tsx",
+      "line": 2018,
+      "tag": "div",
+      "props": "className=\"bg-foreground/8 h-4 w-3/5 animate-pulse rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/chat-container.tsx",
+      "line": 2022,
+      "tag": "div",
+      "props": "className=\"bg-foreground/10 h-8 w-8 shrink-0 animate-pulse rounded-full sm:h-9 sm:w-9\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/chat-container.tsx",
+      "line": 2024,
+      "tag": "div",
+      "props": "className=\"bg-foreground/8 h-4 w-3/4 animate-pulse rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/chat-container.tsx",
+      "line": 2025,
+      "tag": "div",
+      "props": "className=\"bg-foreground/8 h-4 w-1/2 animate-pulse rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/chat-empty-state.tsx",
+      "line": 150,
+      "tag": "Skeleton",
+      "props": "className=\"size-14 rounded-full\" data-testid=\"welcome-agent-loading\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/chat-input.tsx",
+      "line": 1055,
+      "tag": "MicOff",
+      "props": "className=\"text-destructive h-4 w-4 animate-pulse\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/chat-welcome.tsx",
+      "line": 77,
+      "tag": "span",
+      "props": "className=\"bg-muted size-4 animate-pulse rounded\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/chat-welcome.tsx",
+      "line": 78,
+      "tag": "span",
+      "props": "className=\"bg-muted h-3 w-48 animate-pulse rounded\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/compaction-notice.tsx",
+      "line": 67,
+      "tag": "Shrink",
+      "props": "className=\"h-3 w-3 animate-pulse\" aria-hidden",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/conversation-sidebar.tsx",
+      "line": 760,
+      "tag": "Skeleton",
+      "props": "key={i} className=\"h-9 w-full rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/delegate-face.tsx",
+      "line": 25,
+      "tag": "span",
+      "props": "role=\"img\" aria-label={who.name} className={cn( \"bg-foreground text-background grid shrink-0 place-items-center rounded-full\", thinking && \"animate-pulse\", className, )}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/dictation-bar.tsx",
+      "line": 160,
+      "tag": "span",
+      "props": "className=\"font-medium motion-safe:animate-pulse\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/model-setup-reply.tsx",
+      "line": 27,
+      "tag": "span",
+      "props": "aria-hidden className=\"stream-cursor ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-current\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/sandbox-preparing-notice.tsx",
+      "line": 34,
+      "tag": "Icon",
+      "props": "className=\"h-3 w-3 animate-pulse\" aria-hidden",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/suggestion-actions.tsx",
+      "line": 141,
+      "tag": "Skeleton",
+      "props": "aria-hidden className=\"size-4\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/chat/turn-parts.tsx",
+      "line": 419,
+      "tag": "span",
+      "props": "className=\"stream-cursor ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-current\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/active-sessions.tsx",
+      "line": 165,
+      "tag": "div",
+      "props": "key={i} className=\"bg-muted h-14 animate-pulse rounded-xl\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/primitives/donut-chart.tsx",
+      "line": 13,
+      "tag": "div",
+      "props": "className=\"bg-muted h-full w-full animate-pulse rounded-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/primitives/ratings-trend.tsx",
+      "line": 14,
+      "tag": "div",
+      "props": "className=\"bg-muted h-full w-full animate-pulse rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/primitives/stacked-bars.tsx",
+      "line": 11,
+      "tag": "div",
+      "props": "className=\"bg-muted h-full w-full animate-pulse rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/primitives/trend-chart.tsx",
+      "line": 9,
+      "tag": "div",
+      "props": "className=\"bg-muted h-full w-full animate-pulse rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/start-checklist.tsx",
+      "line": 26,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widget-states.tsx",
+      "line": 31,
+      "tag": "div",
+      "props": "role=\"status\" aria-label={t(\"loading\")} className={cn( \"flex min-h-0 flex-1 animate-pulse flex-col gap-4 py-1 motion-reduce:animate-none\", className, )}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/activity-rhythm.tsx",
+      "line": 45,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"chart\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/approval-outcomes.tsx",
+      "line": 41,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/approvals.tsx",
+      "line": 34,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/artifacts.tsx",
+      "line": 33,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/authoring-suggestions.tsx",
+      "line": 44,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/background-jobs.tsx",
+      "line": 26,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"chart\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/background-tasks.tsx",
+      "line": 16,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/budget-headroom.tsx",
+      "line": 68,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"chart\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/channels.tsx",
+      "line": 34,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/conversations.tsx",
+      "line": 26,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/datasets.tsx",
+      "line": 77,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/department-quality.tsx",
+      "line": 35,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"bars\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/department-spend.tsx",
+      "line": 35,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"bars\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/eval-runs.tsx",
+      "line": 42,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/eval-suites.tsx",
+      "line": 42,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/health.tsx",
+      "line": 79,
+      "tag": "WidgetSkeleton",
+      "props": "variant={style === \"list\" ? \"list\" : \"services\"}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/improvements-waiting.tsx",
+      "line": 167,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/knowledge-freshness.tsx",
+      "line": 25,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/knowledge-gaps.tsx",
+      "line": 32,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/knowledge.tsx",
+      "line": 35,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"metrics\" columns={3}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/mcp-health.tsx",
+      "line": 29,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/members.tsx",
+      "line": 56,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"chart\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/my-activity.tsx",
+      "line": 34,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"chart\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/my-agents.tsx",
+      "line": 41,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/my-quality.tsx",
+      "line": 24,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"chart\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/my-summary.tsx",
+      "line": 53,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"metrics\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/my-top-agents.tsx",
+      "line": 24,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"bars\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/needs-attention.tsx",
+      "line": 35,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/notifications.tsx",
+      "line": 37,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/org-ratings.tsx",
+      "line": 26,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"chart\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/phone-calls.tsx",
+      "line": 16,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/platform-ratings.tsx",
+      "line": 27,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"chart\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/platform.tsx",
+      "line": 21,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"metrics\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/projects.tsx",
+      "line": 37,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/recent-failures.tsx",
+      "line": 122,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/recent-visuals.tsx",
+      "line": 34,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"gallery\" rows={6}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/review-queue.tsx",
+      "line": 68,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/routines.tsx",
+      "line": 63,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/sandbox-activity.tsx",
+      "line": 32,
+      "tag": "WidgetSkeleton",
+      "props": "rows={2} className=\"py-0\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/sandbox-capacity.tsx",
+      "line": 39,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"bars\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/sandbox-capacity.tsx",
+      "line": 97,
+      "tag": "WidgetSkeleton",
+      "props": "rows={1} className=\"py-0\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/sandbox-policy.tsx",
+      "line": 41,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/sandbox-policy.tsx",
+      "line": 62,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/sandbox-sessions.tsx",
+      "line": 46,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/sandbox-sessions.tsx",
+      "line": 98,
+      "tag": "WidgetSkeleton",
+      "props": "rows={3}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/shared-with-you.tsx",
+      "line": 30,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/suggestions.tsx",
+      "line": 34,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/tables-widget.tsx",
+      "line": 39,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/top-orgs.tsx",
+      "line": 19,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"table\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/top-people.tsx",
+      "line": 51,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"table\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/usage-body.tsx",
+      "line": 64,
+      "tag": "WidgetSkeleton",
+      "props": "variant={loadingVariant}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/version-compare.tsx",
+      "line": 40,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"table\" columns={3}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/voice-minutes.tsx",
+      "line": 36,
+      "tag": "WidgetSkeleton",
+      "props": "variant=\"chart\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/workflow-logs.tsx",
+      "line": 36,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/dashboard/widgets/workflows-widget.tsx",
+      "line": 31,
+      "tag": "WidgetSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/datasets/dataset-loading.tsx",
+      "line": 22,
+      "tag": "Skeleton",
+      "props": "className=\"h-7 w-56 max-w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/datasets/dataset-loading.tsx",
+      "line": 24,
+      "tag": "Skeleton",
+      "props": "className=\"size-9 rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/datasets/dataset-loading.tsx",
+      "line": 43,
+      "tag": "Skeleton",
+      "props": "className=\"size-6 rounded-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/datasets/proposed-cases.tsx",
+      "line": 95,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={3}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/datasets/review-panel.tsx",
+      "line": 175,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/desktop/quick-ask.tsx",
+      "line": 865,
+      "tag": "Mic",
+      "props": "className=\"text-destructive mb-2 size-4 shrink-0 animate-pulse\" aria-label={t(\"listening\")}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/evals/case-table.tsx",
+      "line": 243,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={4}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/evals/dataset-evals-panel.tsx",
+      "line": 108,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={3}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/evals/eval-run-view.tsx",
+      "line": 98,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/evals/evals-panel.tsx",
+      "line": 74,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={3}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/evals/pass-rate-chart.tsx",
+      "line": 21,
+      "tag": "div",
+      "props": "className=\"bg-muted h-full w-full animate-pulse rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/evals/suites/eval-suites-card.tsx",
+      "line": 51,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={2}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/evals/suites/suite-results-sheet.tsx",
+      "line": 73,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-table\" columns={1} rows={4} className=\"m-5\"",
+      "family": "table"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 38,
+      "tag": "Skeleton",
+      "props": "className=\"touch:min-h-11 h-8 w-28 rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 39,
+      "tag": "Skeleton",
+      "props": "className=\"touch:min-h-11 h-8 w-20 rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 51,
+      "tag": "Skeleton",
+      "props": "className=\"touch:min-h-11 h-10 w-full rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 65,
+      "tag": "Skeleton",
+      "props": "className=\"touch:min-h-11 h-10 w-full rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 82,
+      "tag": "Skeleton",
+      "props": "key={key} className=\"touch:min-h-11 h-8 rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 87,
+      "tag": "Skeleton",
+      "props": "className=\"h-8 w-full rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 91,
+      "tag": "FileEditorLoading",
+      "props": "",
+      "family": "editor geometry"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 95,
+      "tag": "Skeleton",
+      "props": "className=\"inline-flex rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 102,
+      "tag": "Skeleton",
+      "props": "className=\"inline-flex rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 110,
+      "tag": "Skeleton",
+      "props": "className=\"inline-flex rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 118,
+      "tag": "Skeleton",
+      "props": "className=\"inline-flex rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 125,
+      "tag": "Skeleton",
+      "props": "className=\"inline-flex rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 133,
+      "tag": "Skeleton",
+      "props": "className=\"inline-flex rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 153,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-28\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 154,
+      "tag": "Skeleton",
+      "props": "className=\"touch:min-h-11 ml-auto h-9 w-24 rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 155,
+      "tag": "Skeleton",
+      "props": "className=\"touch:min-h-11 h-9 w-9 rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 165,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-3/5\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 166,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-4/5\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/editor-loading.tsx",
+      "line": 167,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-2/3\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/file-content.tsx",
+      "line": 46,
+      "tag": "Skeleton",
+      "props": "className=\"h-24 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/files/file-content.tsx",
+      "line": 69,
+      "tag": "Skeleton",
+      "props": "className=\"h-64 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/groups/add-to-group-dialog.tsx",
+      "line": 137,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/groups/department-quality.tsx",
+      "line": 45,
+      "tag": "Skeleton",
+      "props": "className=\"h-8 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/groups/department-quality.tsx",
+      "line": 46,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-40\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/groups/department-quality.tsx",
+      "line": 50,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-32\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/groups/department-quality.tsx",
+      "line": 51,
+      "tag": "Skeleton",
+      "props": "className=\"h-12 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/groups/group-filter.tsx",
+      "line": 43,
+      "tag": "Skeleton",
+      "props": "aria-hidden className=\"h-8 w-full sm:w-48\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/hosted/hosted-chat.tsx",
+      "line": 975,
+      "tag": "MicOff",
+      "props": "className=\"text-destructive h-4 w-4 animate-pulse\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/improvement/improvement-history.tsx",
+      "line": 97,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={2}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/improvement/improvement-page.tsx",
+      "line": 39,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/improvement/improvement-page.tsx",
+      "line": 99,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/improvement/improvement-start-redirect.tsx",
+      "line": 26,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/improvement/outcome.tsx",
+      "line": 147,
+      "tag": "Skeleton",
+      "props": "className=\"h-12 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/improvement/outcome.tsx",
+      "line": 148,
+      "tag": "Skeleton",
+      "props": "className=\"h-12 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/improvement/session-decision.tsx",
+      "line": 34,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={2}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/inbox/inbox-page.tsx",
+      "line": 141,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={3} className=\"p-5\"",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/inbox/inbox-page.tsx",
+      "line": 187,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={3} className=\"p-5\"",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/inbox/suggestion-rows.tsx",
+      "line": 109,
+      "tag": "Skeleton",
+      "props": "aria-hidden className=\"h-4 w-32\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/kb/local-services.tsx",
+      "line": 78,
+      "tag": "Skeleton",
+      "props": "className=\"size-8 shrink-0 rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/kb/local-services.tsx",
+      "line": 80,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-2/3\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/kb/local-services.tsx",
+      "line": 81,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-4/5\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/kb/reusable-integrations.tsx",
+      "line": 123,
+      "tag": "Skeleton",
+      "props": "className=\"size-8 shrink-0 rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/kb/reusable-integrations.tsx",
+      "line": 125,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-2/3\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/kb/reusable-integrations.tsx",
+      "line": 126,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-4/5\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/knowledge-gaps/knowledge-gap-dialog.tsx",
+      "line": 54,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={3}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/knowledge-gaps/knowledge-gaps-panel.tsx",
+      "line": 106,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={3}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/layout/notification-bell.tsx",
+      "line": 230,
+      "tag": "PanelSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/layout/notification-bell.tsx",
+      "line": 271,
+      "tag": "div",
+      "props": "role=\"status\" aria-label={t(\"loading\")} className=\"animate-pulse space-y-3 p-2\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/mcp/mcp-call-log.tsx",
+      "line": 55,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={4}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/memory/my-claims.tsx",
+      "line": 66,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={4}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/memory/my-notes.tsx",
+      "line": 57,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={3}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/oauth/consent-screen.tsx",
+      "line": 39,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-administration.tsx",
+      "line": 184,
+      "tag": "StartSkeleton",
+      "props": "fullPage={false}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-administration.tsx",
+      "line": 334,
+      "tag": "StartSkeleton",
+      "props": "fullPage={false} view=\"tasks\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-deployment.tsx",
+      "line": 49,
+      "tag": "StartSkeleton",
+      "props": "view=\"deployment\" question={question} fullPage={false}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-entry.tsx",
+      "line": 38,
+      "tag": "StartSkeleton",
+      "props": "view={ search.has(\"start-step\") ? startLoadingView(search.get(\"start-step\"), search.get(\"question\")) : appAdmin ? \"workspace\" : \"welcome\" } question={search.get(\"question\")} workspaceCount={organizations.data?.filter((org) => !org",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-hub.tsx",
+      "line": 53,
+      "tag": "StartSkeleton",
+      "props": "view=\"welcome\" steps={4}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-hub.tsx",
+      "line": 71,
+      "tag": "StartSkeleton",
+      "props": "view=\"welcome\" steps={4}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-organization-settings.tsx",
+      "line": 55,
+      "tag": "StartSkeleton",
+      "props": "fullPage={false} view={budgetDone ? \"organization\" : \"budget\"}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 15,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 16,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-4/5\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 23,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-28\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 24,
+      "tag": "Skeleton",
+      "props": "className={tall ? \"h-24 w-full\" : \"h-10 w-full\"}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 31,
+      "tag": "Skeleton",
+      "props": "className=\"h-10 w-40\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 32,
+      "tag": "Skeleton",
+      "props": "className=\"ml-auto h-10 w-44\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 46,
+      "tag": "WorkspaceSkeleton",
+      "props": "workspaceCount={workspaceCount}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 48,
+      "tag": "ProfileSkeleton",
+      "props": "view={view}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 49,
+      "tag": "TasksSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 50,
+      "tag": "WelcomeSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 51,
+      "tag": "QuestionSkeleton",
+      "props": "view={view} question={question}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 59,
+      "tag": "Skeleton",
+      "props": "className=\"mb-5 size-6\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 60,
+      "tag": "Skeleton",
+      "props": "className=\"mb-4 h-5 w-56 max-w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 68,
+      "tag": "Skeleton",
+      "props": "className=\"size-8 rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 69,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-1/2\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 70,
+      "tag": "Skeleton",
+      "props": "className=\"ml-auto size-4\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 75,
+      "tag": "Skeleton",
+      "props": "className=\"mt-auto h-10 w-40\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 79,
+      "tag": "Skeleton",
+      "props": "className=\"mt-2 h-4 w-64 max-w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 98,
+      "tag": "Skeleton",
+      "props": "className=\"mx-auto size-24 rounded-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 99,
+      "tag": "Skeleton",
+      "props": "className=\"mx-auto h-9 w-48\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 102,
+      "tag": "Skeleton",
+      "props": "key={i} className=\"size-7 rounded-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 110,
+      "tag": "Skeleton",
+      "props": "className=\"h-5 w-2/3\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 118,
+      "tag": "Skeleton",
+      "props": "className=\"h-10 w-44\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 119,
+      "tag": "Skeleton",
+      "props": "className=\"h-10 w-32\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 131,
+      "tag": "Skeleton",
+      "props": "className=\"mb-5 h-4 w-40\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 134,
+      "tag": "Skeleton",
+      "props": "className=\"size-5 shrink-0\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 136,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-4/5\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 144,
+      "tag": "Skeleton",
+      "props": "className=\"h-8 w-32\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 145,
+      "tag": "Skeleton",
+      "props": "className=\"h-8 w-28\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 147,
+      "tag": "Skeleton",
+      "props": "className=\"mb-6 h-7 w-3/4\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 163,
+      "tag": "Skeleton",
+      "props": "className=\"h-32 w-full rounded-3xl\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 164,
+      "tag": "Skeleton",
+      "props": "className=\"mx-auto mt-8 h-10 w-4/5\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 168,
+      "tag": "Skeleton",
+      "props": "className=\"mx-auto h-10 w-40\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 178,
+      "tag": "Skeleton",
+      "props": "className=\"h-36 w-full rounded-3xl\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 180,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-full rounded-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 181,
+      "tag": "Skeleton",
+      "props": "className=\"absolute -top-1 left-1/5 size-5 rounded-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 185,
+      "tag": "Skeleton",
+      "props": "key={i} className=\"h-10 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 195,
+      "tag": "Skeleton",
+      "props": "className=\"mb-4 h-4 w-40\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 198,
+      "tag": "Skeleton",
+      "props": "className=\"my-6 h-3 w-4/5\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 202,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-2/3\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 215,
+      "tag": "Skeleton",
+      "props": "key={i} className=\"h-9 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 219,
+      "tag": "Skeleton",
+      "props": "className=\"min-h-40 w-full rounded-2xl\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 228,
+      "tag": "Skeleton",
+      "props": "className=\"size-9 shrink-0 rounded-xl\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 229,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-2/3\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 234,
+      "tag": "Skeleton",
+      "props": "className=\"mt-4 h-4 w-48 max-w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 244,
+      "tag": "Skeleton",
+      "props": "className=\"size-10 rounded-xl\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 245,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-3/4\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 250,
+      "tag": "Skeleton",
+      "props": "className=\"mt-5 h-20 w-full rounded-2xl\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 265,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 266,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-36\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton-body.tsx",
+      "line": 268,
+      "tag": "Skeleton",
+      "props": "className=\"h-14 w-4/5 sm:h-9\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton.tsx",
+      "line": 57,
+      "tag": "Skeleton",
+      "props": "className=\"h-16 w-3/4 max-w-2xl sm:h-10\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton.tsx",
+      "line": 58,
+      "tag": "Skeleton",
+      "props": "className=\"mt-4 h-4 w-full max-w-3xl\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton.tsx",
+      "line": 59,
+      "tag": "Skeleton",
+      "props": "className={`mt-2 h-4 w-2/3 max-w-xl ${view === \"workspace\" ? \"\" : \"sm:hidden\"}`}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton.tsx",
+      "line": 66,
+      "tag": "Skeleton",
+      "props": "className={`${guided.face} shrink-0`}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton.tsx",
+      "line": 68,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-36\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton.tsx",
+      "line": 69,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-full max-w-2xl\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton.tsx",
+      "line": 70,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-4/5 max-w-xl\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton.tsx",
+      "line": 71,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-3/5 sm:hidden\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton.tsx",
+      "line": 75,
+      "tag": "StartSkeletonBody",
+      "props": "view={view} question={question} workspaceCount={workspaceCount}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton.tsx",
+      "line": 99,
+      "tag": "Skeleton",
+      "props": "className=\"size-8 rounded-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton.tsx",
+      "line": 100,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton.tsx",
+      "line": 105,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-48\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton.tsx",
+      "line": 106,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-20\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/onboarding/start-skeleton.tsx",
+      "line": 110,
+      "tag": "Skeleton",
+      "props": "key={index} className=\"h-1 flex-1 rounded-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/orgs/group-list.tsx",
+      "line": 84,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-cards\" rows={3}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/orgs/group-members-dialog.tsx",
+      "line": 73,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/projects/project-apps.tsx",
+      "line": 33,
+      "tag": "CatalogLoading",
+      "props": "kind=\"document\"",
+      "family": "catalog slots and breakpoints"
+    },
+    {
+      "file": "frontend/src/components/projects/project-chats.tsx",
+      "line": 57,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={3}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/projects/project-picker-dialog.tsx",
+      "line": 80,
+      "tag": "Skeleton",
+      "props": "className=\"h-12 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/rag/kb-detail-skeleton.tsx",
+      "line": 11,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-40\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/rag/kb-detail-skeleton.tsx",
+      "line": 12,
+      "tag": "Skeleton",
+      "props": "className=\"h-7 w-56\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/rag/kb-detail-skeleton.tsx",
+      "line": 13,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-72\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/rag/kb-detail-skeleton.tsx",
+      "line": 16,
+      "tag": "Skeleton",
+      "props": "className=\"h-9 w-24 rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/rag/kb-detail-skeleton.tsx",
+      "line": 17,
+      "tag": "Skeleton",
+      "props": "className=\"h-9 w-24 rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/rag/kb-detail-skeleton.tsx",
+      "line": 21,
+      "tag": "Skeleton",
+      "props": "className=\"mb-6 h-4 w-64\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/rag/kb-detail-skeleton.tsx",
+      "line": 23,
+      "tag": "Skeleton",
+      "props": "className=\"mb-3 h-4 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/rag/kb-detail-skeleton.tsx",
+      "line": 27,
+      "tag": "Skeleton",
+      "props": "className=\"h-8 w-8 shrink-0 rounded-lg\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/rag/kb-detail-skeleton.tsx",
+      "line": 28,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 flex-1\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/rag/kb-detail-skeleton.tsx",
+      "line": 29,
+      "tag": "Skeleton",
+      "props": "className=\"h-5 w-20 rounded-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/rag/search-tab.tsx",
+      "line": 215,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-40 max-w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/rag/search-tab.tsx",
+      "line": 216,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/rag/search-tab.tsx",
+      "line": 217,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-3/4\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/rag/upload-progress-list.tsx",
+      "line": 47,
+      "tag": "Progress",
+      "props": "aria-label={up.filename} value={up.percent ?? undefined} className={cn(up.percent === null && \"animate-pulse\")}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/runs/approvals-tab.tsx",
+      "line": 147,
+      "tag": "Skeleton",
+      "props": "className=\"h-24 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/runs/approvals-tab.tsx",
+      "line": 148,
+      "tag": "Skeleton",
+      "props": "className=\"h-24 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/runs/focused-run.tsx",
+      "line": 173,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-table\" columns={6} rows={2}",
+      "family": "table"
+    },
+    {
+      "file": "frontend/src/components/runs/run-history-tab.tsx",
+      "line": 291,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-table\" columns={7} rows={6} className=\"m-5\"",
+      "family": "table"
+    },
+    {
+      "file": "frontend/src/components/runs/run-manifest.tsx",
+      "line": 44,
+      "tag": "Skeleton",
+      "props": "className=\"h-5 w-40\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/runs/run-manifest.tsx",
+      "line": 45,
+      "tag": "Skeleton",
+      "props": "className=\"h-32 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/runs/run-timeline.tsx",
+      "line": 67,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-48\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/runs/run-timeline.tsx",
+      "line": 68,
+      "tag": "Skeleton",
+      "props": "className=\"h-16 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/runs/scheduled-tab.tsx",
+      "line": 71,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-table\" columns={1} rows={4} className=\"m-5\"",
+      "family": "table"
+    },
+    {
+      "file": "frontend/src/components/runs/spend-by-person.tsx",
+      "line": 45,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\" className=\"m-5\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/runs/spend-skeleton.tsx",
+      "line": 20,
+      "tag": "FigureCard",
+      "props": "key={label} label={t(label)} value={ <span aria-hidden className=\"bg-muted inline-block h-8 w-24 animate-pulse rounded-md\" /> } caption={ <span aria-hidden className=\"bg-muted inline-block h-4 w-32 animate-pulse rounded-md\" /> }",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/runs/spend-skeleton.tsx",
+      "line": 24,
+      "tag": "span",
+      "props": "aria-hidden className=\"bg-muted inline-block h-8 w-24 animate-pulse rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/runs/spend-skeleton.tsx",
+      "line": 30,
+      "tag": "span",
+      "props": "aria-hidden className=\"bg-muted inline-block h-4 w-32 animate-pulse rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/runs/spend-skeleton.tsx",
+      "line": 44,
+      "tag": "Skeleton",
+      "props": "className=\"h-40 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/runs/spend-skeleton.tsx",
+      "line": 50,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-32\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/runs/spend-skeleton.tsx",
+      "line": 54,
+      "tag": "Skeleton",
+      "props": "className=\"h-8 w-64 max-w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/runs/spend-skeleton.tsx",
+      "line": 56,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-table\" columns={4} rows={6} className=\"px-5\"",
+      "family": "table"
+    },
+    {
+      "file": "frontend/src/components/runs/spend-tab.tsx",
+      "line": 180,
+      "tag": "SpendSkeleton",
+      "props": "",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/runs/standalone-run-timeline.tsx",
+      "line": 20,
+      "tag": "Skeleton",
+      "props": "className=\"h-16 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/runs/standalone-run-timeline.tsx",
+      "line": 21,
+      "tag": "Skeleton",
+      "props": "className=\"h-32 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/runs/version-strip.tsx",
+      "line": 58,
+      "tag": "Skeleton",
+      "props": "className=\"h-28 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/sandboxes/activity-log.tsx",
+      "line": 178,
+      "tag": "Skeleton",
+      "props": "className=\"h-24 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/sandboxes/policy-panel.tsx",
+      "line": 84,
+      "tag": "Skeleton",
+      "props": "className=\"h-32 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/sandboxes/workspace-browser.tsx",
+      "line": 135,
+      "tag": "Skeleton",
+      "props": "className=\"m-5 h-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/sandboxes/workspace-explorer.tsx",
+      "line": 330,
+      "tag": "Skeleton",
+      "props": "className=\"h-8 w-64 max-w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/sandboxes/workspace-explorer.tsx",
+      "line": 438,
+      "tag": "Skeleton",
+      "props": "key={row} className=\"h-8 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/sandboxes/workspace-explorer.tsx",
+      "line": 584,
+      "tag": "Skeleton",
+      "props": "className=\"h-24 w-32 rounded-xl\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/sandboxes/workspace-explorer.tsx",
+      "line": 585,
+      "tag": "Skeleton",
+      "props": "className=\"h-5 w-32\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/settings/api-keys-manager.tsx",
+      "line": 177,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/settings/api-reference/api-reference-intro.tsx",
+      "line": 24,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-64 max-w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/settings/api-reference/api-reference.tsx",
+      "line": 44,
+      "tag": "Skeleton",
+      "props": "className=\"h-9 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/settings/api-reference/api-reference.tsx",
+      "line": 46,
+      "tag": "Skeleton",
+      "props": "key={group} className=\"h-7 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/settings/api-reference/api-reference.tsx",
+      "line": 55,
+      "tag": "Skeleton",
+      "props": "className=\"h-5 w-40\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/settings/api-reference/api-reference.tsx",
+      "line": 57,
+      "tag": "Skeleton",
+      "props": "key={row} className=\"h-10 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/settings/chat-accounts.tsx",
+      "line": 89,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/settings/notification-event-preferences.tsx",
+      "line": 106,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/settings/notification-routes.tsx",
+      "line": 96,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/sharing/sharing-panel.tsx",
+      "line": 115,
+      "tag": "Skeleton",
+      "props": "className=\"h-10 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/sharing/sharing-panel.tsx",
+      "line": 117,
+      "tag": "Skeleton",
+      "props": "className=\"h-5 w-32\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/sharing/sharing-panel.tsx",
+      "line": 121,
+      "tag": "Skeleton",
+      "props": "className=\"size-8 shrink-0 rounded-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/sharing/sharing-panel.tsx",
+      "line": 122,
+      "tag": "Skeleton",
+      "props": "className=\"h-5 flex-1\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/sharing/sharing-panel.tsx",
+      "line": 123,
+      "tag": "Skeleton",
+      "props": "className=\"h-5 w-16\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/sharing/sharing-panel.tsx",
+      "line": 129,
+      "tag": "Skeleton",
+      "props": "className=\"h-5 w-32\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/sharing/sharing-panel.tsx",
+      "line": 130,
+      "tag": "Skeleton",
+      "props": "className=\"h-12 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/skill-improvement/merge-changes.tsx",
+      "line": 32,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/skill-improvement/merge-start.tsx",
+      "line": 58,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/skill-improvement/merge-start.tsx",
+      "line": 73,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/skill-improvement/skill-improvement-page.tsx",
+      "line": 70,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/skill-improvement/skill-improvement-page.tsx",
+      "line": 148,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/skill-improvement/skill-start.tsx",
+      "line": 65,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/skill-improvement/skill-start.tsx",
+      "line": 82,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/skills/check-plan.tsx",
+      "line": 77,
+      "tag": "div",
+      "props": "className=\"bg-primary h-full animate-pulse transition-[width] duration-500 motion-reduce:animate-none\" style={{ width: `${Math.max(4, (done / agents.length) * 100)}%` }}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/skills/edit-skill-dialog.tsx",
+      "line": 199,
+      "tag": "EditorLoading",
+      "props": "kind=\"skill\" canEdit={skill.can_edit === true} files={false} fullView={onOpenFull !== undefined}",
+      "family": "editor geometry"
+    },
+    {
+      "file": "frontend/src/components/skills/improve-sessions.tsx",
+      "line": 74,
+      "tag": "Skeleton",
+      "props": "className=\"m-4 h-16\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/skills/skill-check-dialog.tsx",
+      "line": 178,
+      "tag": "Skeleton",
+      "props": "className=\"h-24 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/skills/skill-checks.tsx",
+      "line": 54,
+      "tag": "Skeleton",
+      "props": "className=\"m-4 h-16\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/skills/skill-content.tsx",
+      "line": 34,
+      "tag": "Skeleton",
+      "props": "className=\"h-40 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/skills/skill-detail-dialog.tsx",
+      "line": 45,
+      "tag": "EditorLoading",
+      "props": "kind=\"skill\" canEdit={skill?.can_edit ?? canEdit} fullView",
+      "family": "editor geometry"
+    },
+    {
+      "file": "frontend/src/components/skills/skill-details.tsx",
+      "line": 86,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/skills/skill-gallery-dialog.tsx",
+      "line": 100,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-tiles\"",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/skills/skill-gallery-dialog.tsx",
+      "line": 250,
+      "tag": "Skeleton",
+      "props": "className=\"h-24 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/skills/skill-history.tsx",
+      "line": 105,
+      "tag": "Skeleton",
+      "props": "className=\"m-4 h-32\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/skills/skill-test-questions.tsx",
+      "line": 56,
+      "tag": "Skeleton",
+      "props": "className=\"h-10 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/skills/skill-usage.tsx",
+      "line": 81,
+      "tag": "Skeleton",
+      "props": "className=\"m-4 h-16\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/skills/usage-chart.tsx",
+      "line": 17,
+      "tag": "div",
+      "props": "className=\"bg-muted h-full w-full animate-pulse rounded-md\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/skills/version-diff.tsx",
+      "line": 55,
+      "tag": "Skeleton",
+      "props": "className=\"h-24 w-full\" aria-label={t(\"loadingChanges\")}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/states/catalog-loading.tsx",
+      "line": 29,
+      "tag": "Skeleton",
+      "props": "className=\"h-32 w-full rounded-none max-sm:hidden\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/states/catalog-loading.tsx",
+      "line": 31,
+      "tag": "Skeleton",
+      "props": "className=\"size-10 shrink-0 rounded-xl\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/states/catalog-loading.tsx",
+      "line": 33,
+      "tag": "Skeleton",
+      "props": "className=\"h-5 w-3/5\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/states/catalog-loading.tsx",
+      "line": 34,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-2/5\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/states/catalog-loading.tsx",
+      "line": 36,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/states/catalog-loading.tsx",
+      "line": 37,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-4/5\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/states/catalog-loading.tsx",
+      "line": 43,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/states/catalog-loading.tsx",
+      "line": 52,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-28\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/states/catalog-loading.tsx",
+      "line": 53,
+      "tag": "Skeleton",
+      "props": "className={ kind === \"document\" ? \"touch:min-h-11 h-8 w-28 rounded-lg\" : \"size-7 rounded-md\" }",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/states/loading-form.tsx",
+      "line": 11,
+      "tag": "div",
+      "props": "inert={loading} aria-hidden={loading || undefined} className={cn( loading && [ \"[&_p[id$=-desc]]:bg-muted [&_p[id$=-desc]]:animate-pulse [&_p[id$=-desc]]:text-transparent! [&_svg]:invisible\", \"[&_input]:bg-muted [&_input]:animate-",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/states/loading-state.tsx",
+      "line": 88,
+      "tag": "div",
+      "props": "className={cn(\"bg-foreground/10 animate-pulse rounded\", className)}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/tables/table-kanban-view.tsx",
+      "line": 279,
+      "tag": "Skeleton",
+      "props": "className=\"h-16 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/tables/table-list-view.tsx",
+      "line": 46,
+      "tag": "Skeleton",
+      "props": "key={row} className=\"h-14 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/tables/triggers/table-triggers-panel.tsx",
+      "line": 51,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/tables/triggers/table-triggers-panel.tsx",
+      "line": 159,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/tasks/tasks-panel.tsx",
+      "line": 104,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={3}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/triggers/portal-catalog.tsx",
+      "line": 180,
+      "tag": "LoadingState",
+      "props": "variant={compact ? \"skeleton-list\" : \"skeleton-cards\"} rows={compact ? 8 : 6}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/triggers/routines-list.tsx",
+      "line": 85,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-list\" rows={4}",
+      "family": "collection"
+    },
+    {
+      "file": "frontend/src/components/triggers/trigger-runs-view.tsx",
+      "line": 169,
+      "tag": "LoadingState",
+      "props": "variant=\"skeleton-table\" columns={1} rows={4} className=\"m-5\"",
+      "family": "table"
+    },
+    {
+      "file": "frontend/src/components/triggers/triggers-panel.tsx",
+      "line": 55,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    },
+    {
+      "file": "frontend/src/components/ui/data-table.tsx",
+      "line": 303,
+      "tag": "div",
+      "props": "className=\"bg-foreground/10 h-4 w-2/3 animate-pulse rounded\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/ui/list-card.tsx",
+      "line": 98,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/ui/list-card.tsx",
+      "line": 131,
+      "tag": "Skeleton",
+      "props": "className=\"h-3 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/ui/progress.tsx",
+      "line": 24,
+      "tag": "ProgressPrimitive.Indicator",
+      "props": "className=\"bg-brand h-full w-full flex-1 transition-transform duration-[var(--duration-base)] ease-out data-[state=indeterminate]:animate-pulse data-[state=indeterminate]:opacity-40\" style={ measured === null ? undefined : { trans",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/ui/skeleton.tsx",
+      "line": 5,
+      "tag": "div",
+      "props": "className={cn(\"bg-muted max-w-full animate-pulse rounded-md\", className)} {...props}",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/voice/voice-captions.tsx",
+      "line": 75,
+      "tag": "span",
+      "props": "className=\"bg-destructive h-1.5 w-1.5 rounded-full motion-safe:animate-pulse\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/watches/watches-card.tsx",
+      "line": 107,
+      "tag": "Skeleton",
+      "props": "className=\"h-5 w-1/3\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/watches/watches-card.tsx",
+      "line": 108,
+      "tag": "Skeleton",
+      "props": "className=\"h-4 w-2/3\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/watches/watches-card.tsx",
+      "line": 110,
+      "tag": "Skeleton",
+      "props": "className=\"h-8 w-24\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/workflows/editor/version-history.tsx",
+      "line": 222,
+      "tag": "Skeleton",
+      "props": "className=\"h-6 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/workflows/editor/version-history.tsx",
+      "line": 223,
+      "tag": "Skeleton",
+      "props": "className=\"h-6 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/workflows/pickers/workflow-connections-dialog.tsx",
+      "line": 22,
+      "tag": "Skeleton",
+      "props": "className=\"h-40 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/workflows/property-panel/portal-account.tsx",
+      "line": 54,
+      "tag": "Skeleton",
+      "props": "className=\"h-14 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/workflows/property-panel/reply-mailbox-picker.tsx",
+      "line": 28,
+      "tag": "Skeleton",
+      "props": "className=\"h-10 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/workflows/runs/workflow-stats.tsx",
+      "line": 75,
+      "tag": "Skeleton",
+      "props": "key={key} className=\"h-28 w-full\"",
+      "family": "local placeholder; check parent layout"
+    },
+    {
+      "file": "frontend/src/components/workflows/triggers/trigger-panel.tsx",
+      "line": 229,
+      "tag": "LoadingState",
+      "props": "variant=\"pending\"",
+      "family": "unknown layout, reserved loader"
+    }
+  ]
+}

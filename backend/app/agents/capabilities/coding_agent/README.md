@@ -101,13 +101,72 @@ folders are left out - a spill in a shared workspace is another person's tool
 result. A snapshot that cannot be taken - no `git`, a timeout - costs the diff,
 never the task.
 
+The panel and message footer use that stored file list, including changes made
+through the shell. Without a change set, a new report uses the harness's list,
+with paths relative to the workspace.
+
+## Reverting a task (#2743)
+
+New tasks also keep the bounded patch as lossless bytes (base64), each file's
+before/after Git blob and mode, and the original workspace reference. The
+temporary snapshot store still goes away. Older rows remain readable and cannot
+offer undo: their display patch alone cannot establish the complete file state.
+
+Undo is offered only for a conversation-scoped container whose capture was
+isolated from other platform writers. Conversation workspace admission refuses
+overlapping runs, and the recording wrapper keeps other tools outside the coding
+task's whole snapshot interval. Project-, agent-, channel- and user-scoped
+snapshots remain readable without undo: a diff can include another chat's work.
+
+The request requires current conversation edit access and queues its job and
+workspace reservation in one transaction. New runs and other reverts cannot
+enter the reserved workspace. The worker rechecks current membership and access,
+then releases its connection and row locks before the workspace command.
+It checks every affected regular file's complete content and mode,
+including absent rename destinations, before reversing the patch in a separate
+Git index. That index must exactly match the recorded before manifest; only then
+does `git apply --reverse --index` write the files. The user's repository, index
+and history are never used. A later edit anywhere in an affected file refuses
+the whole operation. Unrelated files stay as they are.
+
+Truncated or redacted patches, symlinks, hard-linked current files and files over
+2 MiB cannot be restored. The runtime needs Git and Python 3. The worker records
+the success marker and audit event together. If its response or final transaction
+is lost, the reservation survives: another attempt checks the full before/after
+states under a nonblocking workspace file lock. Already restored files are not
+reverted again. A mixed or unknown state stays reserved for reconciliation;
+the panel shows pending, failed or unknown outcomes. Repeating a completed
+revert returns its timestamp. This restores files, not conversation history or external
+effects such as commits, network requests or database writes.
+Manual queue retry is disabled: retrying from the conversation creates a new claim
+without resetting an old attempt's fence.
+A copied report without its original conversation file origin does not offer undo.
+
+The private snapshot and revert indexes disable checkout conversions from `.gitattributes`.
+Line endings, working-tree encodings and expanded identifiers are captured and restored
+as bytes, independently of the repository's Git settings.
+
+### Harness research behind the design
+
+- [OpenCode snapshots](https://opencode.ai/docs/snapshots) record before/after
+  steps in a separate object database and restore selected paths. Its documented
+  overwrite behavior is why this implementation additionally checks the entire
+  post-task file state.
+- [Gemini CLI checkpointing](https://geminicli.com/docs/cli/checkpointing/) uses a
+  shadow repository without changing the user's repository. Its whole-project
+  restoration is broader than this task-scoped undo.
+- [Aider's undo](https://github.com/Aider-AI/aider/blob/main/aider/commands.py#L560)
+  refuses later uncommitted changes to affected files. Here file fingerprints
+  provide that protection without requiring user-repository commits.
+- [Claude Code checkpointing](https://code.claude.com/docs/en/checkpointing)
+  follows editing tools, so shell-only changes can escape it. Keeping the
+  platform's workspace snapshots makes shell edits visible across harnesses.
+
 ## What it does not do
 
 - Forward the harness's own permission prompts.
 - Run Codex read-only inside a container; local ACP tasks support its native read-only mode.
 - Run on the `state` workspace, which has no shell.
-- Revert a task: its store is gone once the diff is read, and a reverse patch
-  applied after later edits could undo work that is not the task's.
 - Keep a diff for a task on this computer, or one at `read_only`.
 
 ## On the person's own computer (#2576)

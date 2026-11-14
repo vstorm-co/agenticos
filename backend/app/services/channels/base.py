@@ -83,13 +83,6 @@ DEFAULT_USAGE_REPORTING: dict[str, Any] = {
     "every_n": 10,
 }
 
-# JSON-serialised form used by SQLite model defaults (stored as TEXT).
-DEFAULT_ACCESS_POLICY_JSON: str = (
-    '{"mode":"open","whitelist":[],"allowed_groups":[],'
-    '"require_link":false,"respond_to_broadcasts":false,"rate_limit_rpm":10,'
-    '"denied_message":"You are not authorised to use this bot."}'
-)
-
 
 def channel_key(platform_chat_id: str) -> str:
     """The chat a message arrived in, with any thread stripped.
@@ -248,6 +241,9 @@ class IncomingMessage:
     platform_username: str | None = None
     platform_display_name: str | None = None
     message_id: str | None = None
+    dedupe_claimed: bool = False
+    """Request-only evidence that shared Redis admitted this delivery, not a fail-open path."""
+
     broadcast_mention: bool = False
     addressed: bool | None = None
     """Whether this message named the bot, where the platform says.

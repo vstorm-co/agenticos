@@ -1,5 +1,5 @@
 ---
-source_sha: "271f866901a1"
+source_sha: "5f01365cb00a"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -99,6 +99,9 @@ ejecuciones que inició. Cuando se agota, sus disparos se omiten antes de abrir 
 aparece pausada por su presupuesto y vuelve a empezar el día uno sin nada que reanudar a mano. Solo
 estrecha los límites del agente y de la organización. Un disparo que ya está en curso cuando se cruza el
 límite termina, porque el límite es sobre lo gastado, no sobre una previsión.
+
+Un disparo aparcado en una aprobación no ha empezado su continuación: si se aprueba cuando el mes de la
+rutina ya está gastado, termina como `budget_exceeded` sin llamar al modelo.
 
 ## Dónde viven en el producto, y cómo llamarlos { #where-they-live-in-the-product-and-what-to-call-them }
 

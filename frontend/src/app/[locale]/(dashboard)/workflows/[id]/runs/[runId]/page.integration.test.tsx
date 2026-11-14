@@ -159,6 +159,21 @@ describe("who sees Retry", () => {
     ).toBeInTheDocument();
   });
 
+  it("hides Retry on a cancelled run from someone who could not have cancelled it", async () => {
+    seed({ status: "cancelled", mode: "real", can_cancel: false }, "failed");
+    await renderPage();
+    await screen.findByRole("heading", { name: "Flow" });
+    expect(screen.queryByRole("button", { name: "Retry from failed step" })).toBeNull();
+  });
+
+  it("shows Retry on a cancelled run to its starter or an editor", async () => {
+    seed({ status: "cancelled", mode: "real", can_cancel: true }, "failed");
+    await renderPage();
+    expect(
+      await screen.findByRole("button", { name: "Retry from failed step" }),
+    ).toBeInTheDocument();
+  });
+
   it("keeps Retry on a real run for anyone who may run it", async () => {
     seed({ status: "failed", mode: "real" }, "failed");
     await renderPage();
@@ -262,5 +277,51 @@ describe("questions inside a workflow agent step", () => {
     await waitFor(() => expect(runsApi.listWorkflowRunQuestions).toHaveBeenCalledWith("r1"));
     expect(screen.queryByText("Your agent needs an answer to continue")).toBeNull();
     expect(runsApi.answerWorkflowRunQuestions).not.toHaveBeenCalled();
+  });
+});
+
+describe("the step list", () => {
+  it("opens a loop step at the iteration its row ran in", async () => {
+    seed({ status: "succeeded" }, "succeeded");
+    vi.mocked(runsApi.listWorkflowRunNodes).mockResolvedValue({
+      items: [0, 1].map((index) => ({
+        ...step("succeeded"),
+        id: `n${index}`,
+        scope_path: [{ loop_node_id: "l", index }],
+        output: { item: index },
+      })),
+      total: 2,
+    });
+    await renderPage();
+    await screen.findByText("Iteration 1");
+    const rows = await screen.findAllByRole("button", { name: /act/ });
+
+    fireEvent.click(rows[0] as HTMLElement);
+
+    const store = useWorkflowEditorStore.getState();
+    expect(store.editingNodeId).toBe("a");
+    expect(store.editingIteration).toEqual([0]);
+    expect(store.iterationData["a/0"]?.output).toEqual({ item: 0 });
+    expect(store.iterationData["a/1"]?.output).toEqual({ item: 1 });
+    // A step test still pins the last item's data.
+    expect(store.stepData["a"]?.output).toEqual({ item: 1 });
+  });
+
+  it("leaves steps that never started out of the list and the count", async () => {
+    seed({ status: "succeeded" }, "succeeded");
+    vi.mocked(runsApi.listWorkflowRunNodes).mockResolvedValue({
+      items: [
+        step("succeeded"),
+        { ...step("skipped"), id: "n2", node_instance_id: "b" },
+        { ...step("pending"), id: "n3", node_instance_id: "c" },
+      ],
+      total: 3,
+    });
+    await renderPage();
+
+    expect(await screen.findByText("Succeeded")).toBeInTheDocument();
+    expect(screen.queryByText("Skipped")).toBeNull();
+    expect(screen.queryByText("Pending")).toBeNull();
+    expect(screen.getByText("1 of 1")).toBeInTheDocument();
   });
 });

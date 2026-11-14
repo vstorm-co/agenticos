@@ -757,7 +757,7 @@ async def _connect(endpoint: str) -> CdpConnection:
     try:
         # ty: `cdp-use` arrives with the `browser` extra, which a default install
         # and CI do not have; the `except` is what such a deployment gets.
-        from cdp_use import CDPClient  # ty: ignore[unresolved-import]
+        from cdp_use import CDPClient  # ty: ignore[import-not-found]
     except ImportError as missing:
         raise ConfigurationError(message=NO_EXTRA) from missing
     try:

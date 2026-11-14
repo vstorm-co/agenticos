@@ -18,6 +18,9 @@ export interface ConversationState {
   // (qk.conversations.list). This store holds the current selection, the
   // loaded messages for that selection, and the fetch/select status.
   currentConversationId: string | null;
+  /** The fresh conversation confirmed by this scope's authenticated socket. */
+  createdConversationId: string | null;
+  adoptCreatedConversation: (id: string) => void;
   /** Advances even when the same conversation is selected again. */
   selectionVersion: number;
   loadedTranscript: TranscriptIdentity | null;
@@ -71,6 +74,7 @@ export interface ConversationState {
 
 const initialState = {
   currentConversationId: null,
+  createdConversationId: null,
   selectionVersion: 0,
   loadedTranscript: null,
   composerFocusRequest: 0,
@@ -88,9 +92,11 @@ const conversationState: StateCreator<ConversationState> = (set) => ({
   setCurrentConversationId: (id) =>
     set((state) => ({
       currentConversationId: id,
+      createdConversationId: state.createdConversationId === id ? id : null,
       selectionVersion: state.selectionVersion + 1,
       loadedTranscript: null,
     })),
+  adoptCreatedConversation: (id) => set({ currentConversationId: id, createdConversationId: id }),
   requestComposerFocus: () =>
     set((state) => ({ composerFocusRequest: state.composerFocusRequest + 1 })),
 

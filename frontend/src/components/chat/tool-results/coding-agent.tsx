@@ -176,7 +176,10 @@ function Report({ report, fileSource }: { report: CodingReport; fileSource?: Tur
         )}
       {/* The diff, where one was kept, says everything the list of names did. */}
       {report.changes_id !== undefined ? (
-        <TaskChanges changeId={report.changes_id} fallback={names} />
+        <TaskChanges
+          changeId={report.changes_id}
+          conversationId={fileSource?.kind === "conversation" ? fileSource.id : undefined}
+        />
       ) : (
         names
       )}

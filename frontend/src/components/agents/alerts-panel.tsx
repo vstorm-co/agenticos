@@ -29,6 +29,8 @@ interface AlertsPanelProps {
   value: NotificationSpec | undefined;
   onChange: (notifications: NotificationSpec) => void;
   disabled?: boolean;
+  /** Whether the agent can wait on an approval at all; a system agent never does. */
+  approvals?: boolean;
 }
 
 /**
@@ -104,7 +106,7 @@ const ALERTS: readonly AlertKindMeta[] = [
  * settings, and an agent's author cannot raise it - so its alert goes to the
  * people who can, and no agent can redirect or silence it.
  */
-export function AlertsPanel({ value, onChange, disabled }: AlertsPanelProps) {
+export function AlertsPanel({ value, onChange, disabled, approvals = true }: AlertsPanelProps) {
   const t = useTranslations("agents");
   /* v8 ignore next -- the selector never runs: every test here mocks the store */
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -131,7 +133,7 @@ export function AlertsPanel({ value, onChange, disabled }: AlertsPanelProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {ALERTS.map((meta) => (
+        {ALERTS.filter((meta) => approvals || meta.key !== "approvals").map((meta) => (
           <AlertRow
             key={meta.key}
             meta={meta}

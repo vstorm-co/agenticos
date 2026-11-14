@@ -48,12 +48,19 @@ def production() -> Handlers:
     from app.services.sandbox_workspace import retry_pending_destroys
     from app.worker.tasks import (
         approval_tasks,
+        authoring_tasks,
+        case_generation_tasks,
         channel_tasks,
+        coding_tasks,
         conversation_tasks,
         diagnostics_tasks,
+        eval_suite_tasks,
+        eval_tasks,
         failure_learning_tasks,
         generated_media_tasks,
+        improvement_tasks,
         invitation_tasks,
+        knowledge_gap_tasks,
         mcp_tasks,
         memory_tasks,
         notification_tasks,
@@ -62,6 +69,7 @@ def production() -> Handlers:
         report_tasks,
         room_tasks,
         run_tasks,
+        skill_check_tasks,
         task_tasks,
         teardown_tasks,
         trigger_tasks,
@@ -80,6 +88,21 @@ def production() -> Handlers:
             Handler(jobs.WAKE_TASK, task_tasks.wake_task),
             Handler(jobs.DELIVER_ROUTINE_ANSWER, trigger_tasks.deliver_routine_answer),
             Handler(jobs.RUN_AGENT, run_tasks.run_agent),
+            Handler(jobs.REVERT_CODING_TASK, coding_tasks.revert_coding_task),
+            Handler(jobs.RUN_EVAL, eval_tasks.run_eval),
+            Handler(jobs.RUN_AUTHORING, authoring_tasks.run_authoring),
+            Handler(jobs.ADVANCE_IMPROVEMENT, improvement_tasks.advance_improvement),
+            Handler(jobs.SWEEP_IMPROVEMENTS, _each_tick(improvement_tasks.sweep_improvements)),
+            Handler(jobs.ADVANCE_SKILL_IMPROVEMENT, improvement_tasks.advance_skill_improvement),
+            Handler(
+                jobs.SWEEP_SKILL_IMPROVEMENTS,
+                _each_tick(improvement_tasks.sweep_skill_improvements),
+            ),
+            Handler(jobs.ADVANCE_SKILL_CHECK, skill_check_tasks.advance_skill_check),
+            Handler(jobs.SWEEP_SKILL_CHECKS, _each_tick(skill_check_tasks.sweep_skill_checks)),
+            Handler(jobs.CLASSIFY_GAPS, knowledge_gap_tasks.classify_knowledge_gaps),
+            Handler(jobs.DRAFT_TOPIC, knowledge_gap_tasks.draft_knowledge_gap),
+            Handler(jobs.GENERATE_CASES, case_generation_tasks.generate_cases),
             Handler(jobs.RUN_CONVERSATION_TASK, conversation_tasks.run_task),
             Handler(jobs.RETURN_CONVERSATION_TASK, conversation_tasks.return_task),
             Handler(jobs.RUN_ROOM_REQUEST, room_tasks.run_request),
@@ -123,6 +146,11 @@ def production() -> Handlers:
             Handler(jobs.DIAL_PHONE, voice_tasks.dial_phone),
             Handler(jobs.END_PHONE, voice_tasks.end_phone),
             Handler(jobs.REAP_VOICE_CALLS, _each_tick(voice_tasks.reap_voice_calls)),
+            Handler(jobs.CHECK_EVAL_SUITES, _each_tick(eval_suite_tasks.check_eval_suites)),
+            Handler(jobs.REAP_ABANDONED_EVALS, _each_tick(run_tasks.reap_abandoned_evals)),
+            Handler(
+                jobs.GROUP_KNOWLEDGE_GAPS, _each_tick(knowledge_gap_tasks.group_knowledge_gaps)
+            ),
             Handler(jobs.WORKFLOW_DISPATCH_POLL, _each_tick(workflow_tasks.poll_due_dispatches)),
             Handler(jobs.WORKFLOW_RECONCILE, _each_tick(workflow_tasks.reconcile)),
             Handler(
@@ -162,7 +190,15 @@ def _settler[P: Payload](task: Task[P], settle: Callable[[P, str], Awaitable[Non
 
 @cache
 def _settlers() -> dict[str, Settler]:
-    from app.worker.tasks import conversation_tasks, project_tasks, rag_tasks, room_tasks
+    from app.worker.tasks import (
+        authoring_tasks,
+        case_generation_tasks,
+        conversation_tasks,
+        eval_tasks,
+        project_tasks,
+        rag_tasks,
+        room_tasks,
+    )
 
     return {
         jobs.RUN_ROOM_REQUEST.kind: _settler(jobs.RUN_ROOM_REQUEST, room_tasks.settle_lost_request),
@@ -172,6 +208,9 @@ def _settlers() -> dict[str, Settler]:
         jobs.RETURN_CONVERSATION_TASK.kind: _settler(
             jobs.RETURN_CONVERSATION_TASK, conversation_tasks.settle_lost_return
         ),
+        jobs.GENERATE_CASES.kind: _settler(
+            jobs.GENERATE_CASES, case_generation_tasks.settle_lost_generation
+        ),
         jobs.MOVE_PROJECT_WORKSPACE.kind: _settler(
             jobs.MOVE_PROJECT_WORKSPACE, project_tasks.settle_project_copies
         ),
@@ -180,6 +219,10 @@ def _settlers() -> dict[str, Settler]:
             jobs.SYNC_COLLECTION, rag_tasks.settle_lost_collection_sync
         ),
         jobs.SYNC_SOURCE.kind: _settler(jobs.SYNC_SOURCE, rag_tasks.settle_lost_source_sync),
+        jobs.RUN_EVAL.kind: _settler(jobs.RUN_EVAL, eval_tasks.settle_lost_eval),
+        jobs.RUN_AUTHORING.kind: _settler(
+            jobs.RUN_AUTHORING, authoring_tasks.settle_lost_authoring
+        ),
     }
 
 
@@ -188,8 +231,10 @@ async def settle_ended(kind: str, payload: dict[str, JsonValue], why: str) -> No
 
     The ingestion kinds leave a document `processing` or a sync log `running`
     when their process dies - the handler never reaches its own cleanup - and
-    nothing else would ever finish them (Codex, #2248). Every other kind leaves
-    nothing behind.
+    nothing else would ever finish them (Codex, #2248); a case generation is
+    left `running` the same way. An eval run or an authoring request left live
+    would hold its suite, its gate and its eval slots until a sweep gave up on
+    it. Every other kind leaves nothing behind.
     """
     settle = _settlers().get(kind)
     if settle is not None:
