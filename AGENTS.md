@@ -231,6 +231,7 @@ retranslated is how a stale translation stops being visible.
 | What ships as a capability, its tools and config | `docs/reference/capabilities.md` |
 | The agent spec, field by field | `docs/reference/spec.md` |
 | Every workflow node: config, ports, errors, retries | `docs/reference/workflow-nodes.md` |
+| Image, Video and Asset workflow node proposal | `docs/design/media-workflow-nodes.md` (repo only; not implemented) |
 | What the console calls each thing, and its name in the API and spec | `docs/reference/glossary.md` |
 | MCP connections, the server catalog, OAuth, managed Composio apps | `docs/mcp.md` |
 | Providers, model profiles, fallbacks, cost | `docs/models.md` |
