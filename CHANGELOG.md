@@ -23,6 +23,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 - README links to RepoCloud and Railway hosting templates in all four languages, with provider configuration and version limitations.
 
+## [1.76.0] - 2026-11-15
+
+### Added
+
+- Native Linear webhook triggers verify signed deliveries and start agent routines directly.
+
 ## [1.75.0] - 2026-11-15
 
 ### Added
@@ -21755,7 +21761,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.75.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.76.0...HEAD
+[1.76.0]: https://github.com/vstorm-co/agenticos/compare/v1.75.0...v1.76.0
 [1.75.0]: https://github.com/vstorm-co/agenticos/compare/v1.74.0...v1.75.0
 [1.74.0]: https://github.com/vstorm-co/agenticos/compare/v1.73.0...v1.74.0
 [1.73.0]: https://github.com/vstorm-co/agenticos/compare/v1.72.0...v1.73.0

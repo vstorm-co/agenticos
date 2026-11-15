@@ -31,6 +31,7 @@ export type EventSource =
   | "google_calendar"
   | "google_drive"
   | "hubspot"
+  | "linear"
   | "microsoft_files"
   | "outlook"
   | "outlook_calendar"

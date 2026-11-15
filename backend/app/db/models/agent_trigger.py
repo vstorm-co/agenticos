@@ -171,6 +171,7 @@ class EventSource(enum.StrEnum):
     GOOGLE_CALENDAR = "google_calendar"
     GOOGLE_DRIVE = "google_drive"
     HUBSPOT = "hubspot"
+    LINEAR = "linear"
     MICROSOFT_FILES = "microsoft_files"
     OUTLOOK = "outlook"
     OUTLOOK_CALENDAR = "outlook_calendar"
@@ -493,7 +494,7 @@ class AgentTrigger(Base, TimestampMixin):
         CheckConstraint(
             "event_source IS NULL OR event_source IN "
             "('github', 'gmail', 'google_calendar', 'google_drive', 'hubspot', "
-            "'microsoft_files', 'outlook', 'outlook_calendar', 'webhook', 'zendesk')",
+            "'linear', 'microsoft_files', 'outlook', 'outlook_calendar', 'webhook', 'zendesk')",
             name="ck_trigger_event_source",
         ),
         # The discriminator across both concepts, in one constraint so a row can
