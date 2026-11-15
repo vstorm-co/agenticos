@@ -3583,6 +3583,40 @@
       }
    },
    "chat" : {
+      "workspace" : {
+         "rail" : "Workspace",
+         "browser" : "Browser",
+         "computer" : "Computer",
+         "openBrowser" : "Browser öffnen",
+         "openComputer" : "Computer öffnen",
+         "close" : "Workspace-Panel schließen",
+         "resize" : "Größe des Workspace-Panels ändern",
+         "computerMenu" : "Computer-Optionen",
+         "computerWaiting" : "Warten auf das Bildschirmfoto des Computers…",
+         "computerWatching" : "Computer-Vorschau",
+         "computerControlling" : "Interaktive Computeransicht",
+         "computerImage" : "Bildschirmfoto des Computers des Agents",
+         "browserEmpty" : "Geben Sie eine Website ein und bitten Sie den Agent, seinen gehosteten Browser zu öffnen. Das Öffnen dieses Panels startet keine Sitzung.",
+         "computerEmpty" : "Bitten Sie den Agent, seinen gehosteten Computer zu starten und den Desktop zu zeigen. Das Öffnen dieses Panels startet keine Sitzung.",
+         "startBrowser" : "Agent bitten, den Browser zu öffnen",
+         "startComputer" : "Agent bitten, den Computer zu starten",
+         "browserPrompt" : "Öffne {url} in deinem gehosteten Browser und zeige die Seite. Greife nicht auf meinen lokalen Browser oder Computer zu.",
+         "computerPrompt" : "Starte deinen gehosteten Computer und zeige mir ein Bildschirmfoto seines Desktops, sobald dieser bereit ist. Greife nicht auf meinen lokalen Computer zu.",
+         "lastView" : "Letzte Ansicht",
+         "lastViewHint" : "Dies ist die zuletzt aufgenommene Ansicht. Bitten Sie den Agent um eine neue Ansicht, um fortzufahren.",
+         "unknown" : "Die veröffentlichte Werkzeugkonfiguration des Agents ist noch nicht verfügbar.",
+         "browserUnavailable" : "Dieser Agent ist nicht für einen gehosteten Browser konfiguriert. Aktualisieren und veröffentlichen Sie seine Browser-Einstellungen, um ihn hier zu starten.",
+         "computerUnavailable" : "Dieser Agent ist nicht für einen gehosteten Computer konfiguriert. Aktualisieren und veröffentlichen Sie seine Computer-Einstellungen, um ihn hier zu starten.",
+         "localSelected" : "Dieser Chat verwendet Werkzeuge auf Ihrem eigenen Computer. Schalten Sie diese in den Chat-Einstellungen aus, bevor Sie hier eine gehostete Sitzung starten.",
+         "chooseAgent" : "Wählen Sie einen Agent, um eine gehostete Sitzung zu starten.",
+         "readOnly" : "Sie können diese Unterhaltung ansehen, aber hier keine Sitzung starten.",
+         "roomComposer" : "Wählen Sie im Nachrichtenfeld des Raums einen Agenten aus und bitten Sie ihn, den Browser oder Computer zu öffnen.",
+         "busy" : "Warten Sie, bis der aktuelle Turn beendet ist, bevor Sie eine Sitzung starten.",
+         "disconnected" : "Verbinden Sie den Chat erneut, bevor Sie eine Sitzung starten.",
+         "website" : "Website-Adresse",
+         "websitePlaceholder" : "https://example.com",
+         "websiteInvalid" : "Geben Sie eine Website-Adresse ein, die mit https:// oder http:// beginnt und keine Anmeldedaten enthält."
+      },
       "accessChanged" : "Zugriff geändert",
       "accessChecking" : "Zugriff auf die Unterhaltung wird geprüft…",
       "accessFailed" : "Der Zugriff auf diese Unterhaltung konnte nicht geprüft werden",
@@ -10089,6 +10123,10 @@
          "channels-phone" : {
             "body" : "Wähle einen Twilio-SMS-Bot, eine öffentliche Sprachoberfläche für eingehende Anrufe, Grenzen und erlaubte Weiterleitungskontakte. Kopiere die Webhook-URLs nach Twilio. Mitglieder stimmen separat zu.",
             "title" : "Telefonrouting einrichten"
+         },
+         "chat-workspace" : {
+            "title" : "Ihren Workspace öffnen",
+            "body" : "Öffnen Sie Browser, Computer oder Dateien neben dem Chat. Bitten Sie den ausgewählten Agent, ein konfiguriertes gehostetes Werkzeug zu starten. Das Öffnen eines Panels allein startet keine Sitzung."
          },
          "chat-agent-picker" : {
             "body" : "Wechseln Sie hier zwischen Ihren Agents. Jeder bringt eigene Instruktionen, Tools und Wissen mit, dieselbe Frage kann also eine sehr andere Antwort bekommen.",

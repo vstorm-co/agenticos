@@ -36,7 +36,7 @@ import { ChatEmptyState } from "./chat-empty-state";
 import { ChatRoomBar } from "./chat-room-bar";
 import { TeamRoomHeader, TeamRoomEmpty } from "./team-room-header";
 import { TeamRoomComposer } from "./team-room-composer";
-import { useRoomSync } from "@/hooks/use-room";
+import { useRoomRequests, useRoomSync } from "@/hooks/use-room";
 import { TypingIndicator } from "./typing-indicator";
 import { useProjectMentions } from "@/hooks/use-project-mentions";
 import type { PageComment } from "./browser-comment";
@@ -45,12 +45,12 @@ import { ComposerStatus } from "./composer-status";
 import { OutcomeCards } from "./outcome-cards";
 import { ProjectChip } from "./project-chip";
 import { UsageMeter } from "./usage-meter";
-import { WorkspaceFiles } from "./workspace-files";
 import { FilePreviewDialog } from "./file-preview-dialog";
 import type { Browse } from "@/lib/browse";
-import { BrowserPanelAutoOpen, LiveBrowsesProvider } from "./browser-card";
+import { LiveBrowsesProvider } from "./browser-card";
 import { ConversationVisualsProvider } from "./visual-panel";
-import { BrowserPanel } from "./browser-panel";
+import { WorkspacePanels } from "./workspace-panels";
+import { browseSurfaces } from "@/lib/workspace-panels";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList, coalesceActivity } from "./message-list";
 import { TurnRail } from "./turn-rail";
@@ -991,6 +991,13 @@ export function ChatContainer({
         lastUsage={lastUsage ?? latestUsage(currentMessages, currentConversationId)}
         contextWindow={contextWindow}
         agentCapabilities={agentCapabilities}
+        agentHostedCapabilities={selectedAgent?.published_hosted_capabilities ?? null}
+        workspaceCanRun={
+          selectedAgent?.can_run === true && !selectedWorkflow && !testing && !holdSending
+        }
+        agentUsesLocalTools={Boolean(
+          selectedAgent?.local_workspace || selectedAgent?.local_coding_agent,
+        )}
         agentModel={agentModel}
         // Only for the thread that is actually open. The store keeps the transcript
         // it last loaded, so between clicking another conversation and its messages
@@ -1115,6 +1122,9 @@ interface ChatUIProps {
   /** The selected agent's published model, shown as current in the model picker. */
   agentModel: PublishedModel | null;
   agentCapabilities: string[] | null;
+  agentHostedCapabilities?: string[] | null;
+  workspaceCanRun?: boolean;
+  agentUsesLocalTools?: boolean;
   /**
    * The turn's delegations, drawn under the transcript.
    *
@@ -1234,6 +1244,9 @@ function ChatUI({
   contextWindow,
   agentModel,
   agentCapabilities,
+  agentHostedCapabilities = null,
+  workspaceCanRun = false,
+  agentUsesLocalTools = false,
   delegations,
   browses,
   conversationId,
@@ -1294,6 +1307,7 @@ function ChatUI({
   const t = useTranslations("chat");
   const tDictation = useTranslations("chat.dictation");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const roomRequests = useRoomRequests(roomProjectId === null ? null : conversationId);
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
   const {
     status,
@@ -1513,9 +1527,8 @@ function ChatUI({
   const plan = useMemo(() => dockedPlan(messages), [messages]);
   const [homeHintsSlot, setHomeHintsSlot] = useState<HTMLDivElement | null>(null);
   const [attachmentSlot, setAttachmentSlot] = useState<HTMLDivElement | null>(null);
-  // Where the files button sits: among the composer's own controls, rather than
-  // in a strip of its own down the conversation's right edge.
-  const [filesSlot, setFilesSlot] = useState<HTMLSpanElement | null>(null);
+  // Real tool identities keep desktop frames separate from browser pages.
+  const surfaces = useMemo(() => browseSurfaces(messages), [messages]);
   const dockRef = useRef<HTMLDivElement | null>(null);
   const [dockHeight, setDockHeight] = useState(0);
   useLayoutEffect(() => {
@@ -1585,7 +1598,6 @@ function ChatUI({
           )}
         >
           {!compact && <TurnRail entries={railEntries} />}
-          <BrowserPanelAutoOpen browses={browses} />
           <div
             ref={scrollContainerRef}
             data-chat-scroller
@@ -1647,7 +1659,7 @@ function ChatUI({
                   )}
                 </div>
               ) : (
-                <LiveBrowsesProvider value={{ browses, onComment: commentOnPage }}>
+                <LiveBrowsesProvider value={{ browses, surfaces, onComment: commentOnPage }}>
                   <ConversationVisualsProvider
                     messages={messages}
                     conversationId={conversationId}
@@ -1881,7 +1893,6 @@ function ChatUI({
                   conversationId={conversationId}
                   readOnly={roomReadOnly}
                   onTyping={onTyping}
-                  actionsSlot={<span ref={setFilesSlot} className="hidden lg:contents" />}
                 />
               ) : (viewOnly || accessState) && !onCall ? (
                 <ConversationAccessNotice state={accessState ?? "view"} onRetry={onRetryAccess} />
@@ -2092,7 +2103,6 @@ function ChatUI({
                             actionsSlot={
                               <span className="contents max-md:hidden">
                                 {/* Wide screens only, as is the panel it opens. */}
-                                <span ref={setFilesSlot} className="hidden lg:contents" />
                                 <UsageMeter
                                   usage={lastUsage}
                                   workspace={workspace}
@@ -2137,10 +2147,35 @@ function ChatUI({
         </div>
         <FilePreviewDialog />
         {/* The browser shares the chat's width; a narrow chat opens it full screen. */}
-        <BrowserPanel
+        <WorkspacePanels
+          teamRoom={roomProjectId !== null}
+          compact={compact}
           browses={browses}
+          surfaces={surfaces}
           onComment={commentOnPage}
-          onResume={() => sendMessage(t("browserResumePrompt"))}
+          onSend={sendMessage}
+          agentId={selectedAgentId}
+          hostedCapabilities={agentHostedCapabilities}
+          canRun={workspaceCanRun}
+          agentUsesLocalTools={agentUsesLocalTools}
+          conversationId={conversationId}
+          revision={turns}
+          attachments={attachments}
+          busy={
+            isProcessing ||
+            sandboxPreparing ||
+            isStopping ||
+            onCall ||
+            !!pendingApproval ||
+            !!pendingQuestions?.length
+          }
+          connected={isConnected}
+          readOnly={
+            roomProjectId !== null
+              ? roomReadOnly || roomRequests.isError || roomRequests.data?.can_post !== true
+              : readOnly || sendDisabled
+          }
+          loading={Boolean(isLoadingConversation)}
         />
       </div>
       {/* Beside the transcript rather than under it: what the agent is holding is
@@ -2151,15 +2186,6 @@ function ChatUI({
           ones where the agent keeps nothing. Hidden on a narrow screen, where there
           is no room for it. */}
       <SourcesPanel contained={compact} conversationId={conversationId} />
-      <div className="hidden h-full min-h-0 shrink-0 lg:block">
-        <WorkspaceFiles
-          conversationId={conversationId}
-          revision={turns}
-          attachments={attachments}
-          buttonSlot={filesSlot}
-          overlay={compact}
-        />
-      </div>
     </div>
   );
 }

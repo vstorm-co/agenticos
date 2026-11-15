@@ -409,6 +409,54 @@ describe("the chat container - project room workspace", () => {
     expect(composer).toBeEnabled();
   });
 
+  it.each([true, false])(
+    "keeps room workspace panes available and directs requests through the room composer (can post: %s)",
+    async (canPost) => {
+      savedProjectRoom(canPost);
+      mount();
+      const composer = canPost
+        ? await screen.findByRole("textbox", { name: "Message to the team" })
+        : null;
+      if (composer) await userEvent.type(composer, "An unsent room draft");
+      else
+        await screen.findByText(
+          "You can read this room. Posting requires permission to use its project.",
+        );
+      const postsBefore = vi.mocked(apiClient.post).mock.calls.length;
+      const promptsBefore = socket.send.mock.calls.filter(([frame]) => frame.message).length;
+
+      for (const [opener, action] of [
+        ["Open Browser", "Ask agent to open browser"],
+        ["Open Computer", "Ask agent to start computer"],
+      ]) {
+        await userEvent.click(screen.getByRole("button", { name: opener }));
+        const guidance = canPost
+          ? "Choose a responder in the room composer and ask them to open the browser or computer."
+          : "You can view this conversation, but cannot start a session here.";
+        expect(screen.getByText(guidance)).toBeVisible();
+        if (canPost) {
+          const start = screen.getByRole("button", { name: action });
+          expect(start).toBeDisabled();
+          fireEvent.submit(start.closest("form")!);
+        } else expect(screen.queryByRole("button", { name: action })).toBeNull();
+        if (composer) {
+          expect(composer).toHaveValue("An unsent room draft");
+          expect(composer).toBeEnabled();
+        }
+      }
+      expect(apiClient.post).toHaveBeenCalledTimes(postsBefore);
+      expect(socket.send.mock.calls.filter(([frame]) => frame.message)).toHaveLength(promptsBefore);
+      expect(
+        screen.queryByText(
+          canPost
+            ? "You can view this conversation, but cannot start a session here."
+            : "Choose a responder in the room composer and ask them to open the browser or computer.",
+        ),
+      ).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Close workspace panel" }));
+    },
+  );
+
   it("keeps project-room files reachable for a reader who cannot post", async () => {
     savedProjectRoom(false);
     mount();
@@ -595,6 +643,80 @@ describe("the chat container - Stop without a restored decision card", () => {
       await userEvent.click(stop);
       await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/runs/parked-run/cancel"));
       await waitFor(() => expect(useChatStore.getState().messages[0]?.wasStopped).toBe(true));
+    },
+  );
+});
+
+describe("the chat container - hosted workspace with a restored decision", () => {
+  it.each(["awaiting_answer", "awaiting_approval"] as const)(
+    "refuses a hosted start while %s is restored without an active turn",
+    async (status) => {
+      const fallback = get.getMockImplementation()!;
+      get.mockImplementation((url: string) => {
+        if (url === "/agents")
+          return Promise.resolve({
+            items: [
+              {
+                id: "hosted-agent",
+                slug: "hosted-agent",
+                name: "Hosted agent",
+                status: "published",
+                can_run: true,
+                published_capabilities: ["browser_use", "computer_use"],
+                published_hosted_capabilities: ["browser_use", "computer_use"],
+                local_workspace: false,
+                local_coding_agent: null,
+              },
+            ],
+            total: 1,
+          });
+        if (url === "/me/permissions")
+          return Promise.resolve({
+            organization_id: "org-1",
+            role: "admin",
+            is_app_admin: false,
+            permissions: [{ permission: "approvals:decide", scope: "all" }],
+          });
+        if (url.endsWith("/can-stop")) return Promise.resolve(true);
+        if (url === "/runs/parked-run/parked")
+          return Promise.resolve([
+            { id: "approval", tool_call_id: "call", tool_name: "execute", tool_args: {} },
+          ]);
+        if (url === "/runs/parked-run/questions")
+          return Promise.resolve([
+            {
+              tool_call_id: "call",
+              questions: [
+                { question: "How formal?", options: [{ label: "Casual" }], allow_custom: true },
+              ],
+            },
+          ]);
+        return fallback(url);
+      });
+      useAgentSelectionStore.setState({ selectedAgentId: "hosted-agent" });
+      mount();
+      await userEvent.click(await screen.findByRole("button", { name: "Open Computer" }));
+      const start = screen.getByRole("button", { name: "Ask agent to start computer" });
+      await waitFor(() => expect(start).toBeEnabled());
+
+      act(() =>
+        useChatStore.getState().addMessage({
+          id: "parked-message",
+          role: "assistant",
+          content: "Waiting",
+          timestamp: new Date(),
+          runId: "parked-run",
+          toolCalls: [{ id: "call", name: "execute", args: {}, status }],
+        }),
+      );
+      await screen.findByRole("button", {
+        name: status === "awaiting_approval" ? "Approve" : /Casual/,
+      });
+      await waitFor(() => expect(start).toBeDisabled());
+      const promptsBefore = socket.send.mock.calls.filter(([frame]) => frame.message).length;
+      fireEvent.submit(start.closest("form")!);
+      expect(socket.send.mock.calls.filter(([frame]) => frame.message)).toHaveLength(promptsBefore);
+      await userEvent.click(screen.getByRole("button", { name: "Close workspace panel" }));
     },
   );
 });

@@ -162,6 +162,16 @@ describe("pageKey", () => {
     expect(pageKey("/projects/abc-123")).toBe(PROJECT_DETAIL);
   });
 
+  it("offers a table's own help stops without adding them to the catalog walkthrough", () => {
+    expect(
+      stepsForPage(ROUTES.TABLE_DETAIL("table-123"), () => true).map((step) => step.id),
+    ).toEqual(["table-columns", "table-triggers", "table-view-tabs"]);
+    expect(stepsForPage(ROUTES.TABLES, () => true).map((step) => step.id)).toEqual([
+      "tables-catalog",
+      "tables-new",
+    ]);
+  });
+
   it("collapses one workflow's runs, but not every workflow's runs, onto its identity", () => {
     expect(pageKey(ROUTES.WORKFLOW_RUNS("wf-1"))).toBe(WORKFLOW_RUNS_DETAIL);
     expect(pageKey(ROUTES.WORKFLOW_ALL_RUNS)).toBe(ROUTES.WORKFLOW_ALL_RUNS);
@@ -286,6 +296,7 @@ describe("stepsForPage", () => {
       "chat-start",
       "chat-agent-picker",
       "chat-composer",
+      "chat-workspace",
       "chat-team-room",
       "chat-team-composer",
       "chat-local-skills",

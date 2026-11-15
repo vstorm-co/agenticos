@@ -3595,6 +3595,40 @@
       }
    },
    "chat" : {
+      "workspace" : {
+         "rail" : "Workspace",
+         "browser" : "Browser",
+         "computer" : "Computer",
+         "openBrowser" : "Open Browser",
+         "openComputer" : "Open Computer",
+         "close" : "Close workspace panel",
+         "resize" : "Resize workspace panel",
+         "computerMenu" : "Computer options",
+         "computerWaiting" : "Waiting for the computer’s screenshot…",
+         "computerWatching" : "Computer preview",
+         "computerControlling" : "Interactive computer view",
+         "computerImage" : "Screenshot of the agent’s computer",
+         "browserEmpty" : "Enter a website and ask the agent to open its hosted browser. Opening this panel does not start a session.",
+         "computerEmpty" : "Ask the agent to start its hosted computer and show the desktop. Opening this panel does not start a session.",
+         "startBrowser" : "Ask agent to open browser",
+         "startComputer" : "Ask agent to start computer",
+         "browserPrompt" : "Open {url} in your hosted browser and show the page. Do not access my local browser or computer.",
+         "computerPrompt" : "Start your hosted computer and show me a screenshot of its desktop once it is ready. Do not access my local computer.",
+         "lastView" : "Last view",
+         "lastViewHint" : "This is the last captured view. Ask the agent for a fresh view to continue.",
+         "unknown" : "The agent’s published tool configuration is not available yet.",
+         "browserUnavailable" : "This agent is not configured for hosted browser use. Update and publish its Browser settings to start it here.",
+         "computerUnavailable" : "This agent is not configured for hosted computer use. Update and publish its Computer settings to start it here.",
+         "localSelected" : "This chat is using tools on your own computer. Switch those off in Chat controls before starting a hosted session here.",
+         "chooseAgent" : "Select an agent to start a hosted session.",
+         "readOnly" : "You can view this conversation, but cannot start a session here.",
+         "roomComposer" : "Choose a responder in the room composer and ask them to open the browser or computer.",
+         "busy" : "Wait for the current turn to finish before starting a session.",
+         "disconnected" : "Reconnect to the chat before starting a session.",
+         "website" : "Website address",
+         "websitePlaceholder" : "https://example.com",
+         "websiteInvalid" : "Enter a website address starting with https:// or http://, without sign-in details."
+      },
       "accessChanged" : "Access changed",
       "accessChecking" : "Checking conversation access…",
       "accessFailed" : "Could not verify access to this conversation",
@@ -10549,6 +10583,10 @@
          "channels-phone" : {
             "body" : "Choose a Twilio SMS bot, a public voice exposure for inbound calls, limits and authorized transfer contacts. Copy the webhook URLs into Twilio. Member phone consent is separate.",
             "title" : "Set up telephone routing"
+         },
+         "chat-workspace" : {
+            "title" : "Open your workspace",
+            "body" : "Open Browser, Computer or Files beside the chat. Ask the selected agent to start a hosted tool when it is configured; opening a panel alone starts no session."
          },
          "chat-agent-picker" : {
             "body" : "Switch between your agents right here. Each brings its own instructions, tools and knowledge, so the same question can get a very different answer.",

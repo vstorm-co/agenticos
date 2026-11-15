@@ -4,17 +4,22 @@ import { create, createStore, type StateCreator } from "zustand";
 
 import { scopedStore } from "./chat-scope-context";
 
+export type WorkspaceSurface = "browser" | "computer" | "files";
+export type BrowseSurface = Exclude<WorkspaceSurface, "files">;
+
 export interface BrowserPanelState {
+  /** The person's choice, including a pane opened before any tool has run. */
+  surface: WorkspaceSurface | null;
   /**
-   * Which browse is expanded, by `call_id`, or `null` for none.
+   * An explicitly selected visit, or null to follow the latest view in the chosen pane.
    *
    * An id rather than a boolean, because a turn can browse twice and both have
    * a card. "Open" is not a property of the panel, it is a property of one
-   * browse - and a panel that showed "the running one" would swap page under
-   * somebody reading it the moment the other browse advanced.
+   * browse. Explicitly opening a historical visit must not jump to another one.
    */
   openCallId: string | null;
-  open: (callId: string) => void;
+  open: (callId: string, surface?: BrowseSurface) => void;
+  openSurface: (surface: WorkspaceSurface) => void;
   close: () => void;
 }
 
@@ -26,9 +31,11 @@ export interface BrowserPanelState {
  * window. The selected browse stays independent of the last one that emitted an event.
  */
 const browserPanelState: StateCreator<BrowserPanelState> = (set) => ({
+  surface: null,
   openCallId: null,
-  open: (callId) => set({ openCallId: callId }),
-  close: () => set({ openCallId: null }),
+  open: (callId, surface = "browser") => set({ surface, openCallId: callId }),
+  openSurface: (surface) => set({ surface, openCallId: null }),
+  close: () => set({ surface: null, openCallId: null }),
 });
 
 /** A copy of its own, for a conversation in a scope - see `ChatScope`. */
