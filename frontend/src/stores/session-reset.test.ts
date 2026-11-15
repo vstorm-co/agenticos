@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { resetSessionState, resetTenantState } from "./session-reset";
 import { useOnboardingStore } from "./onboarding-store";
 import { useOrgStore } from "./org-store";
+import { useBrowserPanelStore } from "./browser-panel-store";
 import { useTableViewStore } from "./table-view-store";
 import { addVisualImages, useVisualImagesStore } from "./visual-stream-store";
 import { useUnsavedChangesStore } from "./unsaved-changes-store";
@@ -64,6 +65,14 @@ describe("resetTenantState", () => {
 });
 
 describe("resetTenantState and visuals", () => {
+  it.each(["browser", "computer", "files"] as const)(
+    "forgets an idle %s pane on tenant reset",
+    (surface) => {
+      useBrowserPanelStore.getState().openSurface(surface);
+      resetTenantState();
+      expect(useBrowserPanelStore.getState()).toMatchObject({ surface: null, openCallId: null });
+    },
+  );
   it("forgets the previous tenant's pictures, keyed by a call id the next may reuse", () => {
     addVisualImages("call_0", { logo: "data:previous-tenant" });
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "1488eff9ea76"
+source_sha: "a0384ef79df4"
 ---
 
 # La consola { #the-console }
@@ -40,7 +40,7 @@ al micrófono.
 
 Las listas de recursos, incluidas Inbox y Routines, ocupan la altura restante de la página incluso cuando están vacías. Las plantillas de Routines siguen en el formulario de creación, sin un panel de ideas aparte.
 
-El chat usa retratos de agentes más grandes y sin marcos. El control Files permanece en el cuadro de mensaje al abrir y cerrar el panel; la animación respeta la preferencia de movimiento reducido. Los ajustes del chat muestran primero el modelo actual. **Change model** abre el formulario del proveedor y del modelo ya rellenados; el cambio solo se aplica al confirmarlo. Las tarjetas de adjuntos aparecen sobre el cuadro de mensaje sin otro panel con sombra.
+El chat usa retratos de agentes más grandes y sin marcos. El control Files permanece en los controles de la derecha al abrir y cerrar el panel; la animación respeta la preferencia de movimiento reducido. Los ajustes del chat muestran primero el modelo actual. **Change model** abre el formulario del proveedor y del modelo ya rellenados; el cambio solo se aplica al confirmarlo. Las tarjetas de adjuntos aparecen sobre el cuadro de mensaje sin otro panel con sombra.
 
 Las introducciones de páginas y explicaciones de ajustes están en el icono de información junto al encabezado. Los resúmenes actuales y avisos de acciones destructivas siguen visibles.
 
@@ -675,11 +675,27 @@ publicación - como una tarjeta en su respuesta. Cada parte tiene su propio icon
 copiar, que copia texto plano; varias variantes de un borrador son pestañas en la
 misma tarjeta. El **Copiar** propio de un mensaje incluye también sus borradores.
 
+**Navegador (Browser), Equipo (Computer) y Archivos (Files).** Los controles a la
+derecha de cada chat abren un panel de navegador, equipo o archivos. Puedes abrir
+los paneles de navegador y equipo antes de que el agent los use. Abrir un panel
+vacío no inicia ningún run ni sesión alojada. Introduce la dirección de la página
+en el panel Navegador antes de iniciarlo. Si el agent seleccionado tiene la
+capability alojada correspondiente y puedes ejecutarlo, una acción explícita de
+inicio le pide que abra el navegador o capture el escritorio. De lo contrario,
+el panel explica qué no está disponible. Siguen vigentes la configuración
+publicada y los controles de acceso del agent. En las salas de equipo, elige quién
+debe responder en el cuadro de mensaje de la sala y pídele que abra el navegador
+o el equipo. Los paneles siguen disponibles para verlos.
+
+Las vistas de navegador y equipo permanecen separadas. Los paneles empiezan
+cerrados; al cerrar uno, permanece cerrado cuando llegan nuevos resultados de
+herramientas. En pantallas estrechas, el panel seleccionado ocupa toda la pantalla.
+Tras un run, la imagen terminada lleva la etiqueta **Última vista (Last view)**;
+no es un escritorio en directo. Pide otra captura para actualizar la vista del equipo.
+
 **Ver un recorrido.** El [navegador web](reference/capabilities.md#browser-automation)
-se abre automáticamente en un panel lateral a toda altura junto al chat.
-En pantallas estrechas ocupa toda la pantalla. Al cerrar el panel queda
-un enlace compacto en la conversación para volver a abrirlo. Las tarjetas de
-páginas visitadas muestran el icono del sitio, el dominio y el título, también
+aparece en su propio panel junto al chat. Las tarjetas de páginas visitadas
+vuelven a abrir el panel del navegador y muestran el icono del sitio, el dominio y el título, también
 al volver a abrir la conversación. Cada respuesta conserva una tarjeta por pestaña
 del navegador; los clics, las nuevas lecturas y volver atrás actualizan esa tarjeta.
 La barra de pestañas del panel cambia de página. Al terminar queda la última imagen. **Reanudar sesión** pide al
