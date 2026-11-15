@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Generic API webhook triggers can verify raw-body HMAC-SHA256 signatures in a configured header, with hex or base64 encoding.
+
 ## [1.74.0] - 2026-11-14
 
 ### Added

@@ -1,5 +1,5 @@
 ---
-source_sha: "e665c681d628"
+source_sha: "d1613f7df550"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -169,11 +169,15 @@ flowchart TD
 
   GitHub, HubSpot und Zendesk signieren ihre Zustellungen selbst, Sie geben dem
   Provider also das Secret - oder übernehmen bei HubSpot und Zendesk das, das er
-  ausgestellt hat - und er signiert. Die Quelle API verwendet das Schema von
+  ausgestellt hat - und er signiert. Die Quelle API verwendet standardmäßig das Schema von
   GitHub unter `X-Signature-256`, das setzen muss, was immer Sie auf die URL
   richten. Eine **abgefragte** Quelle signiert nichts und hält kein Secret: sie
   wurde nicht adressiert, sondern gelesen, und die eigene OAuth-Zustimmung des
   Kontos hat das Lesen autorisiert.
+
+Der generische `webhook` verwendet standardmäßig die obige Signatur. Beim Erstellen oder Ändern per API setzt `event_config` mit `{"signature_scheme":"hmac-sha256-base64","signature_header":"X-Shopify-Hmac-Sha256"}` das Shopify-Verfahren; für Hookdecks Standardsignatur dient `X-Hookdeck-Signature`. `hmac-sha256-hex` erwartet einen Hex-Digest ohne Präfix. Beide signieren den unveränderten Body und benötigen das Secret des Providers als `event_secret`; Headernamen unterscheiden keine Groß- und Kleinschreibung.
+
+Diese Verfahren authentifizieren keinen Zeitstempel; abgefangene Anfragen sind erneut abspielbar. Der generische Delivery-ID-Header ist nicht signiert und lässt sich ändern. Filtern Sie beim Provider und verwenden Sie eine eigene Integration, wenn dessen Vertrag Zeitstempelprüfungen, einen anderen Erfolgsstatus oder ein anderes Signaturverfahren verlangt. Insbesondere implementieren diese Optionen nicht den Linear-Webhook-Vertrag. Die Konsole erstellt derzeit das Standardverfahren; Alternativen werden per API konfiguriert.
 
 !!! danger "Die Signatur ist keine Zierde"
 

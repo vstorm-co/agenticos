@@ -7,9 +7,9 @@ decision to fire and the model owns only the row. Three questions, each dispatch
 on the source:
 
 * :func:`verify_signature` - is this delivery authentic? Every source signs the raw
-  body with HMAC-SHA256 under the trigger's per-trigger secret; they differ only in
-  the header the signature rides in (GitHub's own `X-Hub-Signature-256`, or the
-  `X-Signature-256` a relay is configured to send). The comparison is
+  body with a source-specific scheme under the trigger's per-trigger secret.
+  The generic source supports a configured raw-body HMAC header and encoding.
+  The comparison is
   constant-time, and an absent or malformed signature is a plain `False`, never an
   exception the caller must remember to catch.
 * :func:`event_matches` - does this delivery pass the trigger's filter? A GitHub
@@ -45,6 +45,7 @@ from app.schemas.agent_trigger import (
     HubspotTriggerConfig,
     MicrosoftFilesTriggerConfig,
     OutlookTriggerConfig,
+    WebhookTriggerConfig,
     ZendeskTriggerConfig,
 )
 from app.services.portals import files_place, outlook_place
@@ -158,6 +159,7 @@ def verify_signature(
     headers: Mapping[str, str],
     url: str | None = None,
     now: float | None = None,
+    config: Mapping[str, Any] | None = None,
 ) -> bool:
     """Whether `body` was signed with `secret` for this source, in constant time.
 
@@ -173,8 +175,9 @@ def verify_signature(
     replay it fails too, since the signature no longer covers the bare body. A
     sender that sends no timestamp is verified as before.
 
-    Both sources sign the exact request bytes with HMAC-SHA256 and send
-    `sha256=<hex>`; only the header name differs. A missing or malformed signature
+    GitHub and the default generic scheme send `sha256=<hex>`; the generic source
+    can instead accept a configured header containing a raw-body hex or base64
+    digest. These alternative modes do not check a timestamp. A missing or malformed signature
     is `False`, not an error - the caller turns a `False` into one 403 and does
     not otherwise distinguish "no signature" from "wrong signature", which would
     tell an attacker which of the two they achieved. The comparison is over bytes,
@@ -188,6 +191,17 @@ def verify_signature(
         return _hubspot_verified(secret, body=body, headers=headers, url=url, now=moment)
     if source == EventSource.ZENDESK.value:
         return _zendesk_verified(secret, body=body, headers=headers, now=moment)
+    if source == EventSource.WEBHOOK.value:
+        webhook = WebhookTriggerConfig.model_validate(config or {})
+        if webhook.signature_scheme != "legacy":
+            assert webhook.signature_header is not None
+            digest = hmac.new(secret.encode(), body, hashlib.sha256).digest()
+            expected = (
+                digest.hex()
+                if webhook.signature_scheme == "hmac-sha256-hex"
+                else base64.b64encode(digest).decode("ascii")
+            )
+            return _same(expected, headers.get(webhook.signature_header, ""))
     signature = headers.get(_SIGNATURE_HEADER[source], "")
     if not signature.startswith("sha256="):
         return False
