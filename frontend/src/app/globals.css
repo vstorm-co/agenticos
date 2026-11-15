@@ -177,9 +177,9 @@
   --color-track: oklch(95% 0.022 277);
 
   /* Neutral page chrome. Page, card and floating surfaces have separate roles;
-     fields use the page surface as a well inside a card or dialog. */
+     fields share the raised surface so they stay legible on the page and in dialogs. */
   --color-sidebar: #f5f5f2;
-  --color-background: #fafaf8;
+  --color-background: #fbfbf9;
   --color-foreground: #242428;
   --color-card: oklch(100% 0 0);
   --color-card-foreground: #242428;
@@ -202,15 +202,15 @@
   --color-action-foreground: #f7f7f9;
   --color-action-hover: #3b3b3b;
   --color-action-active: #232323;
-  --color-secondary: #eeeef1;
+  --color-secondary: #efefeb;
   --color-secondary-foreground: oklch(22% 0.004 265);
-  --color-muted: #eeeef1;
+  --color-muted: #efefeb;
   --color-muted-foreground: #63635f;
   /* Deeper than `muted`, where the two used to be the same value. `accent` is
      what paints a selected nav row and a hover, and the sidebar it paints them
      on is now a tinted surface of its own - at the muted step the selected row
      was a 1.01:1 difference from the column behind it, which is no difference. */
-  --color-accent: #e5e5ea;
+  --color-accent: #e6e6e0;
   --color-accent-foreground: oklch(22% 0.004 265);
   /* Washed from `oklch(57.7% 0.245 27.325)`, which was the loudest thing on
      any page it appeared on. At this chroma the fill still carries white text
@@ -250,7 +250,7 @@
      the shadow only lifts the surface off the page - and a heavier one for
      things that float (menus, dialogs). */
   --shadow-card: 0 1px 2px 0 oklch(0% 0 0 / 0.05), 0 1px 3px 0 oklch(0% 0 0 / 0.03);
-  --shadow-float: 0 4px 6px -2px oklch(0% 0 0 / 0.05), 0 10px 15px -3px oklch(0% 0 0 / 0.08);
+  --shadow-float: 0 1px 2px 0 oklch(0% 0 0 / 0.05), 0 8px 24px -4px oklch(0% 0 0 / 0.1);
 
   /* Typography */
   --font-display: var(--font-display), "Bricolage Grotesque", system-ui, sans-serif;
@@ -266,14 +266,14 @@
 }
 
 /* Dark surfaces rise from navigation to page, cards and floating panels.
-   Input wells use the page surface. Their edge stays stronger than decorative
+   Fields use the card surface. Their edge stays stronger than decorative
    card borders. Keep both root dark mappings aligned. */
 @theme inline {
   /* Neutral controls resolve against the current look, not whatever sits behind them. */
   --color-control: color-mix(in oklab, var(--color-card) 92%, var(--color-foreground));
   --color-control-hover: color-mix(in oklab, var(--color-card) 87%, var(--color-foreground));
   --color-control-active: color-mix(in oklab, var(--color-card) 82%, var(--color-foreground));
-  --color-field: color-mix(in oklab, var(--color-background) 80%, var(--color-card));
+  --color-field: var(--color-card);
   --color-sidebar-secondary: color-mix(in oklab, var(--color-sidebar) 45%, var(--color-background));
   /* Dataset accents follow the foreground lightness, keeping their hue visible in both themes. */
   --color-dataset-blue-foreground: oklch(
