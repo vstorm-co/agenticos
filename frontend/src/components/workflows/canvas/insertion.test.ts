@@ -8,7 +8,7 @@ import type {
   WorkflowGraph,
 } from "@/lib/workflows/types";
 
-import { clearOf, planInsertion, withLiveScopes } from "./insertion";
+import { clearOf, loopStepsOf, planInsertion, withLiveScopes } from "./insertion";
 import { NODE_HEIGHT, NODE_WIDTH } from "./node-size";
 
 const OBJECT = { type: "object", properties: { text: { type: "string" } } };
@@ -39,19 +39,33 @@ function def(id: string, ports: Port[], overrides: Partial<NodeDefinition> = {})
 const INPUT = def("core.input", [port("out", "output")], { input_schema: null });
 const STEP = def("step", [port("in", "input"), port("out", "output")]);
 const SINK = def("sink", [port("in", "input", { type: "array" })]);
-const LOOP = def(
-  "control.foreach",
-  [port("in", "input", null), port("body", "output", null), port("done", "output", null)],
-  { kind: "control" },
-);
+const LOOP = def("control.foreach", [port("in", "input", null), port("done", "output", null)], {
+  kind: "control",
+});
+const ITEM = def("loop.item", [port("out", "output")], {
+  kind: "control",
+  input_schema: null,
+  loop_body_only: true,
+});
+const RESULT = def("loop.yield", [port("in", "input", null)], {
+  kind: "control",
+  loop_body_only: true,
+});
 
-function node(id: string, definition: NodeDefinition, x = 0, y = 0): NodeInstance {
+function node(
+  id: string,
+  definition: NodeDefinition,
+  x = 0,
+  y = 0,
+  scopeId: string | null = null,
+): NodeInstance {
   return {
     id,
     definition_id: definition.id,
     definition_version: 1,
     config: {},
     layout: { x, y },
+    ...(scopeId !== null ? { scope_id: scopeId } : {}),
   };
 }
 
@@ -85,7 +99,14 @@ const MANUAL = def("core.input", [port("out", "output")], {
   category: "triggers",
 });
 
-const BY_ID = { "core.input": INPUT, step: STEP, sink: SINK, "control.foreach": LOOP };
+const BY_ID = {
+  "core.input": INPUT,
+  step: STEP,
+  sink: SINK,
+  "control.foreach": LOOP,
+  "loop.item": ITEM,
+  "loop.yield": RESULT,
+};
 
 function plan(
   g: WorkflowGraph,
@@ -237,20 +258,72 @@ describe("planInsertion", () => {
     });
   });
 
-  it("wires every step added inside a loop body, so it stays in the body", () => {
-    const loopOnly = graph([node("f", LOOP)]);
-    const inEmptyBody = plan(loopOnly, STEP, { scopePath: ["f"] });
-    expect(inEmptyBody.edge).toMatchObject({ source_node_id: "f", source_port: "body" });
+  it("puts every step added inside a loop body in that body, after its loop item", () => {
+    const fresh = graph([
+      node("f", LOOP),
+      node("i", ITEM, 0, 0, "f"),
+      node("r", RESULT, 900, 0, "f"),
+    ]);
+    const first = plan(fresh, STEP, { scopePath: ["f"] });
+    expect(first.node.scope_id).toBe("f");
+    expect(first.edge).toMatchObject({ source_node_id: "i", source_port: "out" });
 
-    const withBody = graph([node("f", LOOP), node("b", STEP, RIGHT, 0)], [edge("f", "body", "b")]);
+    const withBody = graph(
+      [node("f", LOOP), node("i", ITEM, 0, 0, "f"), node("b", STEP, RIGHT, 0, "f")],
+      [edge("i", "out", "b")],
+    );
     const dropped = plan(withBody, STEP, { scopePath: ["f"], dropAt: { x: 500, y: 300 } });
     expect(dropped.edge).toMatchObject({ source_node_id: "b" });
-    expect(dropped.node.layout).toEqual({ x: 500, y: 300 });
+    expect(dropped.node).toMatchObject({ scope_id: "f", layout: { x: 500, y: 300 } });
     // A starting step inside a body is neither the start nor wired to it.
     expect(plan(withBody, INPUT, { scopePath: ["f"] })).toMatchObject({
+      node: { scope_id: "f" },
       edge: null,
       becomesEntry: false,
     });
+  });
+
+  it("never wires a step from the loop itself, even when every way out in the body is taken", () => {
+    const full = graph(
+      [node("f", LOOP), node("i", ITEM, 0, 0, "f"), node("r", RESULT, RIGHT, 0, "f")],
+      [edge("i", "out", "r")],
+    );
+    const planned = plan(full, STEP, { scopePath: ["f"] });
+    expect(planned.edge).toBeNull();
+    expect(planned.node.scope_id).toBe("f");
+  });
+
+  it("puts a new loop's item and result steps inside it, and only a loop's", () => {
+    const loopSteps = { item: ITEM, result: RESULT };
+    const added = plan(graph([node("a", INPUT)]), LOOP, { loopSteps });
+    expect(added.companions).toHaveLength(2);
+    expect(added.companions).toEqual([
+      expect.objectContaining({ definition_id: "loop.item", scope_id: "new" }),
+      expect.objectContaining({ definition_id: "loop.yield", scope_id: "new" }),
+    ]);
+    expect(plan(graph([node("a", INPUT)]), STEP, { loopSteps }).companions).toBeUndefined();
+    expect(plan(graph([node("a", INPUT)]), LOOP).companions).toBeUndefined();
+  });
+
+  it("puts a new loop's item and result steps inside it when it is dropped onto a wire", () => {
+    const line = graph([node("a", INPUT), node("b", STEP, 640, 0)], [edge("a", "out", "b")]);
+    const split = plan(line, LOOP, {
+      between: edge("a", "out", "b"),
+      loopSteps: { item: ITEM, result: RESULT },
+    });
+    expect(split.split).toBeDefined();
+    expect(split.companions?.map((step) => step.scope_id)).toEqual(["new", "new"]);
+  });
+
+  it("takes the catalog's newest loop item and result, and none when either is missing", () => {
+    const newer = { ...ITEM, version: 2 };
+    expect(loopStepsOf([ITEM, newer, RESULT])).toEqual({ item: newer, result: RESULT });
+    expect(loopStepsOf([newer, ITEM, RESULT])).toEqual({ item: newer, result: RESULT });
+    expect(loopStepsOf([ITEM])).toBeUndefined();
+  });
+
+  it("leaves a step added at the top level in no loop", () => {
+    expect(plan(graph([node("a", INPUT)]), STEP).node.scope_id).toBeUndefined();
   });
 
   it("adds a step inside a body of a loop that no longer exists unwired", () => {
@@ -335,8 +408,8 @@ describe("planInsertion with triggers", () => {
 });
 
 describe("withLiveScopes", () => {
-  it("derives the loop bodies from the wires as they are now", () => {
-    const g = graph([node("f", LOOP), node("b", STEP)], [edge("f", "body", "b")]);
+  it("derives the loop bodies from the loop each step names", () => {
+    const g = graph([node("f", LOOP), node("b", STEP, 0, 0, "f")]);
     const [scope] = withLiveScopes(g, definitionsOf(g, BY_ID)).scopes;
     expect(scope).toMatchObject({ scope_node_id: "f", body_node_ids: ["b"] });
   });

@@ -25,7 +25,7 @@ AgenticOS feature statements refreshed on 2 November 2026 against v1.35.0. The v
 | Spend control | Provider billing, or Cloud message credits | A monthly budget per agent and per organization, checked before each model request |
 | Human approval | A Human Input node in a workflow | Approval per capability and per tool, and an approval policy per MCP connection (none, writes or all); the run parks until someone decides |
 | Surfaces | Web app, embed, API, MCP server; Slack through a plugin | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
-| Kubernetes | Community Helm charts; official high availability is Enterprise | Docker Compose on one host; an external Postgres and more API hosts and workers are [documented](../scaling.md), with no Kubernetes manifests |
+| Kubernetes | Community Helm charts; official high availability is Enterprise | [Maintained Helm chart](../kubernetes.md) for API, worker and console with external data services; OpenShift unvalidated |
 
 ## Where AgenticOS goes further
 

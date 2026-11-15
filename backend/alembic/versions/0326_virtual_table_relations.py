@@ -1,7 +1,7 @@
 """Normalize virtual-table links without rewriting record history.
 
 Revision ID: 0326_virtual_table_relations
-Revises: 0311_room_submissions
+Revises: 0325_merge_t3_rooms_v173
 
 This migration takes a write barrier while it copies the current schema and
 records. Deploy with table writers stopped, migrate, then start only the new
@@ -19,7 +19,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0326_virtual_table_relations"
-down_revision: str | None = "0311_room_submissions"
+down_revision: str | None = "0325_merge_t3_rooms_v173"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

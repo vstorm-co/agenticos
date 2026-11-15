@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { usePanZoom } from "@/hooks/use-pan-zoom";
+
 /**
  * Which side of the agent a box hangs off (#518). Each answers its own
  * question: left is what reaches the agent, top is what it runs as, right is
@@ -21,10 +23,6 @@ export interface MapEdge {
   path: string;
 }
 
-/** How far the wheel and the buttons may take the scale, either way. */
-const MIN_SCALE = 0.15;
-const MAX_SCALE = 2.5;
-
 /** A cubic curve between two points, flat at both ends so it meets the box square-on. */
 function curve(from: { x: number; y: number }, to: { x: number; y: number }): string {
   const bend = Math.max(32, Math.abs(to.x - from.x) / 2);
@@ -38,7 +36,7 @@ function verticalCurve(from: { x: number; y: number }, to: { x: number; y: numbe
 }
 
 /**
- * The map's geometry: where the edges land, and how pan and zoom move it.
+ * The map's geometry: where the edges land, under the pan and zoom of `usePanZoom`.
  *
  * Its own hook because it is the half of the map that is not React - refs to real
  * elements, a ResizeObserver, and one transform standing in for a re-layout - and
@@ -50,24 +48,20 @@ function verticalCurve(from: { x: number; y: number }, to: { x: number; y: numbe
  * attached a fourth skill - or a second delegate.
  */
 export function useMapView(edgeInputs: EdgeInput[]) {
-  const viewport = useRef<HTMLDivElement>(null);
   const container = useRef<HTMLDivElement>(null);
   const hub = useRef<HTMLDivElement>(null);
   const boxes = useRef(new Map<string, HTMLElement>());
   const [edges, setEdges] = useState<MapEdge[]>([]);
 
-  // Pan and zoom as one transform on the content. The edges are measured in
-  // the content's own coordinates, so the same transform carries them along
-  // and nothing has to be re-measured while somebody drags.
-  const [view, setView] = useState({ x: 0, y: 0, scale: 1 });
-  // Mirrored into a ref so `measure` can read the newest scale without listing
-  // `view` as a dependency - it does, and re-creating it would re-subscribe the
-  // ResizeObserver on every step of a pinch.
-  const viewRef = useRef(view);
-  useLayoutEffect(() => {
-    viewRef.current = view;
-  }, [view]);
-  const drag = useRef<{ pointerId: number; startX: number; startY: number } | null>(null);
+  // Named as a ref so the compiler reads `.current` below as one, not as a dependency.
+  const {
+    viewport: viewportRef,
+    view,
+    setView,
+    viewRef,
+    zoomFromCentre,
+    panHandlers,
+  } = usePanZoom();
 
   /** A stable ref-setter per key, registering and forgetting the box it draws to. */
   const registerBox = useCallback(
@@ -137,7 +131,7 @@ export function useMapView(edgeInputs: EdgeInput[]) {
     }
 
     setEdges(paths);
-  }, [edgeInputs]);
+  }, [edgeInputs, viewRef]);
 
   useLayoutEffect(measure, [measure]);
 
@@ -151,29 +145,9 @@ export function useMapView(edgeInputs: EdgeInput[]) {
     return () => observer.disconnect();
   }, [measure]);
 
-  /** Zoom keeping the given viewport point still - the cursor, or the centre. */
-  const zoomAt = useCallback((point: { x: number; y: number }, factor: number) => {
-    setView((current) => {
-      const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, current.scale * factor));
-      const ratio = scale / current.scale;
-      return {
-        scale,
-        x: point.x - (point.x - current.x) * ratio,
-        y: point.y - (point.y - current.y) * ratio,
-      };
-    });
-  }, []);
-
-  const zoomFromCentre = useCallback(
-    (factor: number) => {
-      const box = viewport.current?.getBoundingClientRect();
-      if (box) zoomAt({ x: box.width / 2, y: box.height / 2 }, factor);
-    },
-    [zoomAt],
-  );
-
+  // Fit on opening and on actual layout changes, never while the person pans.
   const resetView = useCallback(() => {
-    const frame = viewport.current;
+    const frame = viewportRef.current;
     const content = container.current;
     if (!frame || !content || !frame.clientWidth || !content.offsetHeight) {
       setView({ x: 0, y: 0, scale: 1 });
@@ -189,66 +163,18 @@ export function useMapView(edgeInputs: EdgeInput[]) {
       x: (frame.clientWidth - content.offsetWidth * scale) / 2,
       y: (frame.clientHeight - content.offsetHeight * scale) / 2,
     });
-  }, []);
+  }, [viewportRef, setView]);
 
-  // Fit on opening and actual layout changes, never while the person pans.
   useLayoutEffect(() => {
     resetView();
     const observer = new ResizeObserver(resetView);
-    if (viewport.current) observer.observe(viewport.current);
+    if (viewportRef.current) observer.observe(viewportRef.current);
     if (container.current) observer.observe(container.current);
     return () => observer.disconnect();
-  }, [resetView]);
-
-  // The wheel listener is attached by hand: React registers `onWheel` as
-  // passive, and a passive listener cannot stop the dialog behind the map from
-  // scrolling while somebody zooms.
-  useEffect(() => {
-    const element = viewport.current;
-    /* v8 ignore next -- as above: the ref is set before this effect */
-    if (!element) return;
-    const onWheel = (event: WheelEvent) => {
-      event.preventDefault();
-      const box = element.getBoundingClientRect();
-      zoomAt(
-        { x: event.clientX - box.left, y: event.clientY - box.top },
-        event.deltaY < 0 ? 1.15 : 1 / 1.15,
-      );
-    };
-    element.addEventListener("wheel", onWheel, { passive: false });
-    return () => element.removeEventListener("wheel", onWheel);
-  }, [zoomAt]);
-
-  const panHandlers = {
-    onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => {
-      // Capturing a node's pointer retargets its click to the canvas, hiding details.
-      if (event.target instanceof Element && event.target.closest("button, a")) return;
-      drag.current = {
-        pointerId: event.pointerId,
-        startX: event.clientX - view.x,
-        startY: event.clientY - view.y,
-      };
-      event.currentTarget.setPointerCapture(event.pointerId);
-    },
-    onPointerMove: (event: React.PointerEvent<HTMLDivElement>) => {
-      const active = drag.current;
-      if (!active || active.pointerId !== event.pointerId) return;
-      setView((current) => ({
-        ...current,
-        x: event.clientX - active.startX,
-        y: event.clientY - active.startY,
-      }));
-    },
-    onPointerUp: () => {
-      drag.current = null;
-    },
-    onPointerCancel: () => {
-      drag.current = null;
-    },
-  };
+  }, [viewportRef, resetView]);
 
   return {
-    viewport,
+    viewport: viewportRef,
     container,
     hub,
     registerBox,

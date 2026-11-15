@@ -29,13 +29,16 @@ def _channel() -> ApprovalChannel:
     return ApprovalChannel(organization_id=uuid4(), agent_id=uuid4(), run_id=uuid4())
 
 
-async def _park(channel: ApprovalChannel, tool_call_id: str, args: dict) -> None:
+async def _park(
+    channel: ApprovalChannel, tool_call_id: str, args: dict, *, always_asks: bool = False
+) -> None:
     decision = await channel(
         ApprovalRequest(
             capability_id="email",
             tool_name="send_invoice",
             tool_call_id=tool_call_id,
             tool_args=args,
+            always_asks=always_asks,
         )
     )
     assert isinstance(decision, ApprovalPending)
@@ -144,6 +147,24 @@ async def test_a_caller_who_cannot_approve_is_told_at_once_and_the_tool_is_denie
     assert "text chat" in results.approvals["call_1"].message
     assert frames == [("approval_unavailable", {"tool": "send_invoice", "args": {"a": 1}})]
     _rows.expired.assert_awaited_once()
+
+
+async def test_a_call_that_always_asks_is_left_to_text_even_for_a_caller_who_may_decide(_rows):
+    """A voice card shows the arguments, not the fact the call would share, so it is no
+    place to approve one."""
+    channel = _channel()
+    await _park(channel, "call_1", {"claim_id": "c-1"}, always_asks=True)
+    bridge, frames = _bridge(channel)
+
+    results = await bridge(MagicMock(), _requests("call_1", {"claim_id": "c-1"}))
+
+    assert isinstance(results.approvals["call_1"], ToolDenied)
+    assert "text chat" in results.approvals["call_1"].message
+    assert frames == [
+        ("approval_unavailable", {"tool": "send_invoice", "args": {"claim_id": "c-1"}})
+    ]
+    assert "in text" in _rows.expired.await_args.kwargs["note"]
+    _rows.decided.assert_not_awaited()
 
 
 async def test_a_decision_for_an_approval_this_call_is_not_waiting_on_is_ignored(_rows):

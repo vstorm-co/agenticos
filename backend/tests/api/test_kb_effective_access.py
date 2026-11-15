@@ -25,6 +25,7 @@ pytestmark = pytest.mark.anyio
         ("app", "owner", None, False),
     ],
 )
+@pytest.mark.usefixtures("kb_contents_unread")
 async def test_detail_serializes_effective_access(
     client: AsyncClient,
     mock_db_session: AsyncMock,

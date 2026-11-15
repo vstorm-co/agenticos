@@ -55,8 +55,8 @@ const PROVIDER_LABEL = "OpenAI";
 const PROVIDER_MODEL = "gpt-4.1-mini";
 
 /**
- * One turn here is three model requests and a second agent's whole run inside the
- * middle of it, so the assertions that wait on it get the journey's timeout rather
+ * One turn here includes tool discovery, delegation and a second agent's whole run
+ * inside it, so the assertions that wait on it get the journey's timeout rather
  * than the one meant for clicks.
  */
 const TURN_TIMEOUT = 120_000;

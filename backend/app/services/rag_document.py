@@ -214,6 +214,7 @@ class RAGDocumentService:
         embedding_model: str | None = None,
         organizational_unit: str | None = None,
         initiated_by_user_id: UUID | None = None,
+        knowledge_gap_topic_id: UUID | None = None,
         writer_kind: VectorWriterKind = VectorWriterKind.DOCUMENT,
     ) -> RAGDocument:
         """Create a new RAG document tracking record.
@@ -246,6 +247,8 @@ class RAGDocumentService:
         the row is opened claimed by it: that claim is what lets a later run of
         the source remove it once it is no longer listed (`unlisted_by_source`).
 
+        `knowledge_gap_topic_id` is the knowledge gap topic a person wrote the
+        document for, when they added it from the topic.
         The previous attempts retired are those in the new row's own scope - the
         base it is filed under, else the unfiled rows of `organization_id` - and
         never another tenant's or another base's at the same path (#2747).
@@ -284,6 +287,7 @@ class RAGDocumentService:
             embedding_model=embedding_model,
             organizational_unit=organizational_unit,
             initiated_by_user_id=initiated_by_user_id,
+            knowledge_gap_topic_id=knowledge_gap_topic_id,
             writer_kind=writer_kind,
         )
 
@@ -312,6 +316,7 @@ class RAGDocumentService:
         organization_id: UUID | None = None,
         knowledge_base_id: UUID | None = None,
         organizational_unit: str | None = None,
+        knowledge_gap_topic_id: UUID | None = None,
     ) -> RAGIngestResponse:
         """Validate, persist, and queue an uploaded file for ingestion.
 
@@ -400,6 +405,7 @@ class RAGDocumentService:
             embedding_model=collection.embedding_model,
             organizational_unit=blank_is_absent(organizational_unit),
             initiated_by_user_id=ctx.user_id,
+            knowledge_gap_topic_id=knowledge_gap_topic_id,
         )
         doc_id = rag_doc.id
 
@@ -442,10 +448,10 @@ class RAGDocumentService:
         through to `complete_ingestion`/`fail_ingestion` at settlement, per
         Decision 1's "threaded through the call, not read back" rule.
 
-        The copy under `MEDIA_DIR/_rag_tmp` is what the flow opens: permanent
-        storage may be somewhere the worker container cannot reach, and the
-        directory is shared between the two. One file per dispatch, removed by
-        the job once no attempt of it is coming (`app.services.rag_scratch`).
+        Local storage uses a shared copy under `MEDIA_DIR/_rag_tmp`, one per
+        dispatch, removed once no attempt remains (`app.services.rag_scratch`).
+        S3 needs no shared filesystem: the worker downloads the stored object
+        into a private temporary directory for each execution.
 
         Queued as an `ingest-document` job in this request's transaction: the job
         reads this document by id on a session of its own, and the two commit
@@ -455,12 +461,11 @@ class RAGDocumentService:
         is stopped there and written down on the job, not in the API.
         """
         scratch = rag_scratch.scratch_path(doc_id, attempt=attempt, filename=filename)
-        scratch.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = str(scratch)
-        # anyio, not open(): an upload can be tens of megabytes, and writing it
-        # synchronously stalls every other request on this worker until it lands.
-        async with await anyio.open_file(tmp_path, "wb") as f:
-            await f.write(file_data)
+        if settings.FILE_STORAGE_BACKEND == "local":
+            scratch.parent.mkdir(parents=True, exist_ok=True)
+            async with await anyio.open_file(tmp_path, "wb") as file:
+                await file.write(file_data)
         await enqueue(
             self.db,
             INGEST_DOCUMENT,
@@ -540,6 +545,7 @@ class RAGDocumentService:
                 keep_id=doc.id,
                 source_path=doc.source_path,
             )
+        await self._content_changed(doc)
         # No notification on the way out. A document that indexed cleanly is
         # not news: the collection already shows its status, and one row per
         # file made the ordinary case - thirty files dropped in at once -
@@ -568,6 +574,22 @@ class RAGDocumentService:
                 knowledge_base_id=scope.knowledge_base_id,
             ),
             organization_id=scope.tenant,
+        )
+
+    async def _content_changed(self, doc: RAGDocument) -> None:
+        """Queue the eval suites of the agents that search this document's knowledge base.
+
+        What a collection holds is what its agents answer from, and it changes
+        with no publish - so the suites watching for that change are what notice.
+        """
+        if doc.organization_id is None or doc.knowledge_base_id is None:
+            return
+        from app.services.eval_suite import EvalSuiteService
+
+        await EvalSuiteService(self.db).dependency_changed(
+            organization_id=doc.organization_id,
+            kind="knowledge_base",
+            resource_id=doc.knowledge_base_id,
         )
 
     async def _retire_superseded(
@@ -807,6 +829,7 @@ class RAGDocumentService:
         # settlement deletes the settled row. A row still without one belongs to an
         # ingest whose settlement removes its own chunks (#2565).
         deleted = await rag_document_repo.delete_with_vectors(self.db, doc.id)
+        await self._content_changed(doc)
 
         from app.core.background import spawn_after_commit
 
@@ -935,7 +958,11 @@ class RAGDocumentService:
         failed vector delete leaves the row for the next run to try again,
         rather than vectors nothing tracks. A synced document stores no file.
         """
-        await rag_document_repo.delete(self.db, UUID(doc_id))
+        doc = await rag_document_repo.get_by_id(self.db, UUID(doc_id))
+        if doc is None:
+            return
+        await rag_document_repo.delete(self.db, doc.id)
+        await self._content_changed(doc)
 
     async def get_parsed_content(
         self, doc_id: str, vector_store: BaseVectorStore

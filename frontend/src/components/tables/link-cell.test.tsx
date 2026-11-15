@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -117,6 +117,19 @@ describe("LinkCell", () => {
     await user.click(screen.getByRole("button", { name: "Not linked" }));
 
     expect(await screen.findByText("No records match.")).toBeVisible();
+  });
+
+  it("rechecks the link limit when a previously available choice is selected", async () => {
+    const selected: string[] = [];
+    const onChange = renderCell(selected, vi.fn(), { ...items, link_limit: 1 });
+    await userEvent.click(screen.getByRole("button", { name: "Not linked" }));
+    const addQuill = await screen.findByLabelText("Quill");
+    expect(addQuill).toBeEnabled();
+
+    selected.push("r1");
+    fireEvent.click(addQuill);
+
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("keeps unlinking available at a single-target limit and disables another addition", async () => {

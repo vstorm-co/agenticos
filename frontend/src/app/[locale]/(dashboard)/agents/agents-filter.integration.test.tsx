@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -30,6 +30,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
   // The header's "?" reads the path to decide whether this page has tips.
   usePathname: () => "/agents",
+  // The System agents band opens for `?section=system`.
+  useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
 
@@ -89,8 +91,12 @@ beforeEach(() => {
         tags: [],
       });
     }
+    if (path === "/stats/attention") {
+      return Promise.resolve({ from: "", to: "", items: attention.items });
+    }
     return Promise.resolve({ items: [], total: 0 });
   });
+  attention.items = [];
 });
 
 /** Tick one category in the facet menu - the choices are the server's, never typed. */
@@ -107,13 +113,36 @@ async function pickCategory(name: string) {
 
 /** The status Select, which has no `htmlFor` label of its own. */
 function statusFilter() {
-  const toggle = screen.getByRole("button", { name: /^Filters/ });
-  if (toggle.getAttribute("aria-expanded") === "false") fireEvent.click(toggle);
   return screen.getByRole("combobox", { name: "Filter by status" });
 }
 
+const attention = { items: [] as unknown[] };
+
+describe("the agents gallery's attention badge", () => {
+  it("flags an agent with answers rated down lately, and no other", async () => {
+    attention.items = [
+      {
+        agent_id: "Live-id",
+        name: "Live",
+        rated_down: 2,
+        failed_runs: 0,
+        failing_suites: 0,
+        can_edit: false,
+      },
+    ];
+    render(<AgentsPage />, { wrapper });
+
+    expect(await screen.findByText("Needs attention")).toHaveAttribute(
+      "title",
+      "2 answers rated down",
+    );
+    expect(screen.getAllByText("Needs attention")).toHaveLength(1);
+    expect(vi.mocked(apiClient.get)).toHaveBeenCalledWith("/stats/attention", expect.anything());
+  });
+});
+
 describe("the agents gallery filter", () => {
-  it("keeps the selected status when the filters are collapsed and reopened", async () => {
+  it("keeps status visible while secondary label filters are collapsed and reopened", async () => {
     render(<AgentsPage />, { wrapper });
     await screen.findByText("Live");
     const toggle = screen.getByRole("button", { name: "Filters" });
@@ -124,7 +153,8 @@ describe("the agents gallery filter", () => {
     await userEvent.click(screen.getByRole("option", { name: "Drafts" }));
     await userEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(toggle).toHaveTextContent("1");
+    expect(toggle).not.toHaveTextContent("1");
+    expect(statusFilter()).toBeVisible();
     await userEvent.click(toggle);
     expect(statusFilter()).toHaveTextContent("Drafts");
     expect(screen.getByText("Draft")).toBeVisible();

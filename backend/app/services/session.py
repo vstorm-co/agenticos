@@ -88,6 +88,7 @@ class SessionService:
         credential_version: int,
         ip_address: str | None = None,
         user_agent: str | None = None,
+        proved_email: str | None = None,
     ) -> tuple[str, str]:
         """The token pair for a sign-in that has cleared every factor.
 
@@ -103,6 +104,7 @@ class SessionService:
             refresh_token=refresh_token,
             ip_address=ip_address,
             user_agent=user_agent,
+            proved_email=proved_email,
         )
         return (
             create_access_token(
@@ -121,6 +123,7 @@ class SessionService:
         user_agent: str | None = None,
         *,
         session_id: UUID | None = None,
+        proved_email: str | None = None,
     ) -> Session:
         """The row a sign-in is tracked by, whose id the access token names in `sid`.
 
@@ -144,6 +147,22 @@ class SessionService:
             ip_address=ip_address,
             user_agent=user_agent,
             session_id=session_id,
+            proved_email=proved_email,
+        )
+
+    async def has_mailbox_proof(self, user_id: UUID, email: str, session_id: UUID | None) -> bool:
+        """Proof belongs to a live sign-in and its exact address, never just an account."""
+        if session_id is None:
+            return False
+        session = await session_repo.get_by_id(self.db, session_id)
+        return bool(
+            session is not None
+            and session.user_id == user_id
+            and session.is_active
+            and session.expires_at > datetime.now(UTC)
+            and session.impersonator_user_id is None
+            and session.proved_email is not None
+            and session.proved_email.lower() == email.lower()
         )
 
     async def rotate_session(

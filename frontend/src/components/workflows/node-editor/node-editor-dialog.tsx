@@ -52,6 +52,7 @@ import { usePanelStore } from "@/components/workflows/property-panel/store-bridg
 import { validateGraph } from "@/components/workflows/validation";
 import { DIALOG_COLUMN, DIALOG_FORM, DIALOG_WINDOW } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
+import { canSwitchOff } from "@/lib/workflows/switch-off";
 import { isTrigger } from "@/lib/workflows/triggers";
 import type { NodeCatalog, NodeDefinition } from "@/lib/workflows/types";
 import { MODEL_STEPS, StepEvals } from "./step-evals";
@@ -203,8 +204,7 @@ export function NodeEditorDialog({
   );
   // How the step runs rather than what it does - n8n's Settings tab: whether it
   // runs at all, what happens when it is slow or fails, and a note.
-  const switchable =
-    definition !== null && node.id !== graph.entry_node_id && definition.kind !== "control";
+  const switchable = definition !== null && canSwitchOff(graph, node, definition);
   const withPolicy =
     definition !== null && node.definition_id !== "loop.item" && !isTrigger(definition);
   const customised = node.disabled === true || node.policy != null || Boolean(node.notes);
@@ -429,7 +429,8 @@ export function NodeEditorDialog({
           )}
         </div>
         <footer className="border-border flex items-center justify-between gap-2 border-t px-3 py-3 sm:px-6 sm:py-4">
-          {readOnly ? (
+          {/* A loop's Loop item and Loop result go only with their loop. */}
+          {readOnly || definition?.loop_body_only === true ? (
             <span />
           ) : (
             <Button

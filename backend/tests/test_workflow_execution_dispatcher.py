@@ -615,6 +615,7 @@ def repo():
     mocked.list_live_node_runs.return_value = []
     # No other step is live, so a run reads as running, unless a test says so.
     mocked.list_live_node_states.return_value = []
+    mocked.list_called_run_ids.return_value = []
     mocked.list_node_runs_at.return_value = []
     mocked.count_node_runs.return_value = 0
     mocked.get_latest_attempts.return_value = {}
@@ -3045,6 +3046,8 @@ class TestLoopsWithoutADatabase:
             ),
             "yield": _node_instance("loop.yield"),
         }
+        for name in ("item", "plain", "routed", "yield"):
+            nodes[name] = nodes[name].model_copy(update={"scope_id": nodes["loop"].id})
 
         def edge(a: str, b: str, port: str = "out") -> Edge:
             return Edge(
@@ -3060,7 +3063,6 @@ class TestLoopsWithoutADatabase:
             nodes=tuple(nodes.values()),
             edges=(
                 edge("entry", "loop"),
-                edge("loop", "item", "body"),
                 edge("item", "plain"),
                 edge("plain", "routed"),
                 edge("routed", "yield"),

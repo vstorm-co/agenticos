@@ -145,6 +145,10 @@ async def test_a_thread_opened_by_its_link_carries_its_drawings(mock_redis: Magi
                 "app.services.conversation_share.conversation_repo.get_conversation_by_id",
                 new=AsyncMock(return_value=conversation),
             ),
+            patch(
+                "app.services.conversation_share.organization_repo.get_by_id",
+                new=AsyncMock(return_value=SimpleNamespace(public_agenticos_attribution=True)),
+            ),
         ):
             response = await _call("GET", f"{settings.API_V1_STR}/conversations/shared/tok")
     finally:

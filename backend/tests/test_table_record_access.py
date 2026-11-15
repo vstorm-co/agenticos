@@ -8,14 +8,23 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from app.core.exceptions import AuthorizationError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.resource_grant import GrantLevel
 from app.schemas.table_record_access import RecordGrantUpdate
-from app.schemas.virtual_table import ColumnDef, RecordRead, RowPolicyUpdate
+from app.schemas.virtual_table import (
+    ColumnDef,
+    RecordBatchCreate,
+    RecordBatchFailure,
+    RecordBatchResult,
+    RecordCreate,
+    RecordRead,
+    RowPolicyUpdate,
+)
 from app.services.virtual_tables import record_access, row_policy
+from app.services.virtual_tables.records import RecordOperations
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 @pytest.fixture
@@ -199,3 +208,89 @@ def test_the_public_contract_accepts_read_or_write_and_exactly_one_subject():
     assert RowPolicyUpdate(rule="grants").view_column_id is None
     with pytest.raises(ValidationError):
         RowPolicyUpdate(rule="grants", view_column_id=user)
+
+
+@pytest.mark.parametrize("malformed", [False, True])
+async def test_a_batch_receipt_refuses_missing_or_malformed_error_record_ids(
+    access, monkeypatch, malformed
+):
+    db, ctx, table, row_id, _ = access
+    service = RecordOperations(db)
+    monkeypatch.setattr(service, "_columns", AsyncMock(return_value=[]))
+    monkeypatch.setattr(
+        record_access.virtual_table_repo, "get_record", AsyncMock(return_value=None)
+    )
+    result = RecordBatchResult(
+        created=0,
+        failed=[
+            RecordBatchFailure(
+                index=0,
+                code="REVISION_CONFLICT",
+                message="Changed",
+                details={
+                    "record_id": "invalid" if malformed else str(row_id),
+                    "current_revision": 2,
+                },
+            )
+        ],
+        as_of=datetime.now(UTC),
+    )
+    with pytest.raises(NotFoundError) as refused:
+        await service._authorize_batch_replay(
+            ctx, table, RecordBatchCreate(records=[RecordCreate(values={})]), result
+        )
+    assert refused.value.details == {"table_id": table.id}
+
+
+async def test_a_batch_receipt_reauthorizes_cached_error_ids_without_an_external_id(
+    access, monkeypatch
+):
+    db, ctx, table, row_id, grants = access
+    service = RecordOperations(db)
+    monkeypatch.setattr(service, "_columns", AsyncMock(return_value=[]))
+    monkeypatch.setattr(
+        record_access.virtual_table_repo,
+        "get_record",
+        AsyncMock(return_value=SimpleNamespace(id=row_id, values={})),
+    )
+    result = RecordBatchResult(
+        created=0,
+        failed=[
+            RecordBatchFailure(index=0, code="INVALID_RECORD", message="Invalid", details=None),
+            RecordBatchFailure(index=1, code="INVALID_RECORD", message="Invalid", details={}),
+            RecordBatchFailure(
+                index=2,
+                code="REVISION_CONFLICT",
+                message="Changed",
+                details={"record_id": str(row_id), "current_revision": 2},
+            ),
+        ],
+        as_of=datetime.now(UTC),
+    )
+    data = RecordBatchCreate(records=[RecordCreate(values={}) for _ in range(3)])
+    grants.return_value = {row_id: GrantLevel.EDIT}
+    await service._authorize_batch_replay(ctx, table, data, result)
+    grants.return_value = {row_id: GrantLevel.READ}
+    with pytest.raises(NotFoundError) as refused:
+        await service._authorize_batch_replay(ctx, table, data, result)
+    assert refused.value.details == {"table_id": table.id}
+
+
+async def test_a_batch_receipt_keeps_aggregate_counts_when_an_external_id_no_longer_exists(
+    access, monkeypatch
+):
+    db, ctx, table, _, grants = access
+    service = RecordOperations(db)
+    monkeypatch.setattr(service, "_columns", AsyncMock(return_value=[]))
+    lookup = AsyncMock(return_value=None)
+    monkeypatch.setattr(record_access.virtual_table_repo, "get_record_by_external_id", lookup)
+    result = RecordBatchResult(created=1, failed=[], as_of=datetime.now(UTC))
+    original = result.model_dump()
+    await service._authorize_batch_replay(
+        ctx, table, RecordBatchCreate(records=[RecordCreate(external_id="removed")]), result
+    )
+    assert result.model_dump() == original
+    lookup.assert_awaited_once_with(
+        db, "removed", table_id=table.id, organization_id=ctx.organization_id
+    )
+    grants.assert_not_awaited()

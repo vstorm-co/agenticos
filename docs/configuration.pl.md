@@ -1,5 +1,5 @@
 ---
-source_sha: "7fdd043a03a1"
+source_sha: "aa79e2a8a321"
 ---
 
 # Konfiguracja { #configuration }
@@ -43,7 +43,7 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 ## Ustawienia projektu { #project-settings }
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `PROJECT_NAME` | `agenticos` | Nazwa wyświetlana projektu |
 | `API_V1_STR` | `/api/v1` | Prefiks wersji API |
 | `DEBUG` | `false` | Włącza tryb debugowania (szczegółowe błędy, auto-reload) |
@@ -56,7 +56,7 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 | `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | Co **obcy** może przesłać na hostowaną stronę. Sufit nałożony na `CHAT_MAX_UPLOAD_SIZE_MB`, nigdy sposób na jego obejście |
 | `ML_MAX_UPLOAD_SIZE_MB` | `25` | Ile może wysłać jedno wywołanie [usług ML](ml-services.md) — dokument do sparsowania, skan do rozpoznania, nagranie do transkrypcji. Własne ustawienie, bo bajty są parsowane albo wysyłane do silnika w obrębie jednego żądania, a nie zapisywane, więc limit dotyczy tego, ile może zająć pojedyncze synchroniczne wywołanie. Stoi na 25 MB klienta transkrypcji, najniższym limicie silnika za tą powierzchnią |
 | `ML_MAX_CONCURRENT_PARSES` | `4` | Ile dokumentów jeden worker parsuje naraz na potrzeby [usług ML](ml-services.md). Limit tempa liczy starty i nie widzi tego, co wciąż trwa, więc bez tego minutowy przydział wywołań OCR to tyle samo rozpoznawań w locie. Powyżej tej liczby wywołujący dostaje odmowę z `Retry-After`, a nie miejsce w kolejce |
-| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na których agent może prowadzić Chromium. `cdp_url` pochodzi ze speca agenta, który pisze każdy z uprawnieniem `edit` na tym agencie, więc adres jest kontrolowany przez tenanta, a żądanie wykonuje to wdrożenie — powód, dla którego jest to allowlista, a nie guard SSRF, przez który przechodzi każdy inny adres podany przez tenanta. Ten guard dopuszcza wyłącznie adresy *publiczne*, więc odrzuca izolowaną usługę przeglądarki w sieci samego wdrożenia, którą [capability](reference/capabilities.md#browser-automation) każe uruchomić, a przyjmuje debugger CDP wystawiony do internetu, co jest gorsze. Dopasowanie jest dokładne i niewrażliwe na wielkość liter, bez globów. Pusta wartość odrzuca automatyzację przeglądarki całkowicie |
+| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na których agent może prowadzić Chromium. `cdp_url` pochodzi ze speca agenta, który pisze każdy z uprawnieniem `edit` na tym agencie, więc adres jest kontrolowany przez tenanta, a żądanie wykonuje to wdrożenie — powód, dla którego jest to allowlista, a nie guard SSRF, przez który przechodzi każdy inny adres podany przez tenanta. Ten guard dopuszcza wyłącznie adresy _publiczne_, więc odrzuca izolowaną usługę przeglądarki w sieci samego wdrożenia, którą [capability](reference/capabilities.md#browser-automation) każe uruchomić, a przyjmuje debugger CDP wystawiony do internetu, co jest gorsze. Dopasowanie jest dokładne i niewrażliwe na wielkość liter, bez globów. Pusta wartość odrzuca automatyzację przeglądarki całkowicie |
 | `SMS_LINK_MAX_AGE_DAYS` | `90` | Jak długo numer telefonu pozostaje powiązany z kontem, zanim osoba musi go połączyć ponownie. Numer można przepisać lub przejąć, więc powiązanie SMS wygasa; `0` zostawia powiązania na zawsze. |
 | `MIRAGE_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, z którymi folder [wirtualnego terminala](reference/capabilities.md#mirage) może się połączyć, gdy autor wpisuje adres: serwer SSH, host w DSN Postgresa albo MongoDB, serwer IMAP. Adres pochodzi ze speca agenta albo z sekretu, który spec wskazuje, a połączenie nawiązuje to wdrożenie. Dopasowanie jest dokładne i niewrażliwe na wielkość liter. Publikacja sprawdza wpisany host, a każdy run sprawdza hosty w sekretach. Pusta wartość nie dopuszcza żadnego wpisanego adresu. Usługi ze stałym API, takie jak Dysk, GitHub i Notion, nie potrzebują wpisu |
 | `COMPUTER_DAEMON_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na których agent z [obsługą komputera](reference/capabilities.md#computer-use) może prowadzić pulpit `computerd`. `daemon_url` jest w specu agenta, a run wysyła token daemona pod adres, który on wskazuje, więc to ta sama lista dozwolonych co `BROWSER_CDP_ALLOWED_HOSTS`: dokładne dopasowanie bez rozróżniania wielkości liter, bez globów. Sprawdzana przy publikacji i ponownie za każdym razem, gdy run otwiera daemona, więc usunięcie hosta zatrzymuje agentów już opublikowanych. Token nie jest ustawieniem: należy do organizacji i leży w jej vaulcie, więc każda organizacja może wskazać dozwolony host, a wejdzie tylko ta, która ma token tego pulpitu. Pusta odmawia backendu daemon; pulpit w sandboksie agenta nie potrzebuje wpisu |
@@ -94,7 +94,7 @@ Renderer nie publikuje portu i nie ma dostępu do internetu, obsługuje API i wo
 ### Rozmiar żądania, a nie rozmiar pliku { #the-size-of-a-request-as-opposed-to-the-size-of-a-file }
 
 Każdy limit powyżej jest mierzony na bajtach, które już dotarły. FastAPI parsuje
-treść multipart, żeby rozwiązać parametr `UploadFile`, *zanim* uruchomi się
+treść multipart, żeby rozwiązać parametr `UploadFile`, _zanim_ uruchomi się
 handler, więc zanim któryś z tych sufitów zostanie porównany z `len(data)`, treść
 jest już zbuforowana do pliku tymczasowego i wczytana do pamięci. Za sesją nie
 jest to duże ryzyko; na `POST /api/v1/embed/{key}/files`, do którego może sięgnąć
@@ -118,7 +118,7 @@ limitu.
 ### JWT { #jwt }
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `SECRET_KEY` | (insecure default) | Klucz podpisujący JWT. **Musi** zostać zmieniony w produkcji. Wygeneruj: `openssl rand -hex 32` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Czas życia access tokena |
 | `REFRESH_TOKEN_EXPIRE_MINUTES` | `10080` | Czas życia refresh tokena (7 dni) |
@@ -137,14 +137,14 @@ z właściciela** (organizacji albo członka, do którego należy osobiste poł�
 Szyfrogram jest więc bezużyteczny poza tenantem, dla którego go zapieczętowano.
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `VAULT_MASTER_KEY` | (empty, falls back to `SECRET_KEY`) | Klucz główny vaultu sekretów — skrót na wersję 1 z `VAULT_MASTER_KEYS`. Wymagany poza `local`/`development` (o ile nie ustawiono mapy poniżej), żeby vault na stagingu nie mógł wstać zapieczętowany pod opublikowaną wartością domyślną `SECRET_KEY`. Wygeneruj: `openssl rand -hex 32` |
 | `VAULT_MASTER_KEYS` | `{}` | Każdy klucz główny nadal w użyciu, po wersjach, jako JSON — `{"1": "<old>", "2": "<new>"}`. Najwyższa wersja pieczętuje nowe sekrety; starsze trzymają istniejące wiersze czytelnymi, dopóki `agenticos cmd vault-rotate` nie przepakuje ich na nowo. Kiedy jest ustawiona, jest całą prawdą: `VAULT_MASTER_KEY` musi być wtedy pusty. Zobacz [Sekrety](secrets.md#operations) |
 
 ### Klucz API { #api-key }
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `API_KEY` | `change-me-in-production` | Współdzielony klucz API do dostępu programistycznego |
 | `API_KEY_HEADER` | `X-API-Key` | Nazwa nagłówka HTTP dla klucza API |
 
@@ -154,7 +154,7 @@ Walidacja produkcyjna: `API_KEY` nie może używać wartości domyślnej przy
 ### OAuth2 (Google) { #oauth2-google }
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `GOOGLE_CLIENT_ID` | (empty) | Client ID Google OAuth2 — logowanie **oraz** zgoda dla triggera Gmail |
 | `GOOGLE_CLIENT_SECRET` | (empty) | Client secret Google OAuth2 |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/google/callback` | URL callbacku OAuth2 |
@@ -176,7 +176,6 @@ dostępu serwera frontendu i do `Referer` następnego żądania same-origin, a r
 token jest ważny przez tydzień. Frontend wymienia kod na parę tokenów
 serwer–serwer pod `POST /api/v1/oauth/exchange`, które realizuje go dokładnie raz.
 
-
 ### Logowanie jednokrotne (generyczne OIDC) { #single-sign-on-generic-oidc }
 
 Dowolny dostawca tożsamości publikujący dokument discovery: Microsoft Entra ID,
@@ -186,7 +185,7 @@ haseł swoim pracownikom — bez tego jej MFA i jej offboarding są rozwiązywan
 dwa razy.
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `OIDC_ISSUER` | (puste) | URL issuera. Puste znaczy brak SSO, a callback odpowiada 404 |
 | `OIDC_CLIENT_ID` | (puste) | Klient, którego dostawca wydał dla tego wdrożenia |
 | `OIDC_CLIENT_SECRET` | (puste) | Jego sekret |
@@ -208,7 +207,7 @@ pełni zgodnego dostawcę o jedno żądanie od poprawnej tożsamości.
 Dwa przyciski po stronie frontendu, konfigurowane tam:
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `OAUTH_PROVIDERS` | `google` | Dodaj `oidc`, żeby pokazać przycisk SSO; samo `oidc` daje wyłącznie SSO. `ldap` dodaje formularz katalogowy, a `kerberos` przycisk logowania Windows, opisane niżej |
 | `OIDC_DISPLAY_NAME` | `SSO` | Jak przycisk nazywa dostawcę: `Acme SSO`, `Okta` |
 | `OIDC_ICON` | (puste) | `google`, `github` albo `microsoft` — znaki, które strona logowania już wozi. Cokolwiek innego rysuje zwykły klucz |
@@ -216,7 +215,7 @@ Dwa przyciski po stronie frontendu, konfigurowane tam:
 Gdzie mieszka który issuer i co zarejestrować:
 
 | Dostawca | Issuer | Redirect URI rejestruj jako |
-|----------|--------|------------------------------|
+| --- | --- | --- |
 | **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Redirect URI platformy **Web** w rejestracji aplikacji. Nadaj `openid`, `email`, `profile` w API permissions |
 | **Okta** | `https://<org>.okta.com` (albo `/oauth2/<id>` własnego serwera autoryzacji) | Sign-in redirect URI w aplikacji typu **Web** |
 | **Keycloak** | `https://<host>/realms/<realm>` | Valid redirect URI w kliencie confidential z włączonym standard flow |
@@ -265,7 +264,7 @@ Logowanie kontem Active Directory, OpenLDAP albo FreeIPA przez bind jako to kont
 jak czytane są grupy. Puste `LDAP_URL` je wyłącza, a route odpowiada 404.
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `LDAP_URL` | (puste) | `ldaps://host[:port]` albo `ldap://` ze StartTLS |
 | `LDAP_START_TLS` | `false` | Podnosi połączenie `ldap://` do TLS przed bindem |
 | `LDAP_ALLOW_PLAINTEXT` | `false` | Akceptuje `ldap://` bez StartTLS, co wysyła hasła otwartym tekstem. W przeciwnym razie odrzucane przy starcie |
@@ -291,7 +290,7 @@ przez powyższy katalog — więc wymaga `LDAP_URL` i obrazu zbudowanego z extra
 `kerberos`. Zobacz [Zintegrowane logowanie Windows](directory.md#integrated-windows-sign-in-kerberos).
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `KERBEROS_ENABLED` | `false` | Oferuje logowanie Kerberos. Odrzucane przy starcie bez `LDAP_URL` |
 | `KERBEROS_KEYTAB` | (puste) | Keytab z kluczem usługi. Puste używa domyślnego keytabu (`KRB5_KTNAME`, a w przeciwnym razie `/etc/krb5.keytab`) |
 | `KERBEROS_SERVICE_PRINCIPAL` | (puste) | `HTTP/<api host>@<REALM>`. Puste akceptuje bilet dla dowolnego principala z keytabu |
@@ -303,7 +302,7 @@ według `KERBEROS_DISPLAY_NAME` (domyślnie `Kerberos`).
 ## Baza danych (PostgreSQL) { #database-postgresql }
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `POSTGRES_HOST` | `localhost` | Host PostgreSQL |
 | `POSTGRES_PORT` | `5432` | Port PostgreSQL |
 | `POSTGRES_USER` | `postgres` | Użytkownik PostgreSQL |
@@ -315,6 +314,7 @@ według `KERBEROS_DISPLAY_NAME` (domyślnie `Kerberos`).
 | `DB_POOL_TIMEOUT` | `5` | Ile sekund żądanie czeka na wolne połączenie, zanim dostanie `503` z `Retry-After`. Celowo krótko: żądanie, które czekało 30 s, i tak było stracone, a kolejka czekających trzymała pulę pełną jeszcze po burście |
 
 Właściwości wyliczane:
+
 - `DATABASE_URL` -- asynchroniczny connection string (`postgresql+asyncpg://...`)
 - `DATABASE_URL_SYNC` -- synchroniczny connection string dla Alembica
 
@@ -339,7 +339,7 @@ zabrało ze sobą każdą usługę czekającą na cache. Zarządzana instancja, 
 utrwala dane, jest w porządku; platforma tak czy inaczej na tym nie polega.
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `REDIS_HOST` | `localhost` | Host Redisa |
 | `REDIS_PORT` | `6379` | Port Redisa |
 | `REDIS_PASSWORD` | (none) | Hasło Redisa (opcjonalne) |
@@ -418,7 +418,7 @@ się zatrzymuje i żaden z nich tego nie oznajmia:
   informacja wysyłana, gdy administrator działa jako inne konto.
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `SMTP_HOST` | `localhost` | Host serwera SMTP |
 | `SMTP_PORT` | `587` | Port serwera SMTP. `587` i `25` negocjują STARTTLS; `465` otwiera TLS od początku |
 | `SMTP_USER` | (empty) | Nazwa użytkownika, którą uwierzytelnia się relay, obok `SMTP_PASSWORD`. Zostaw pustą dla relaya bez uwierzytelniania |
@@ -449,9 +449,10 @@ trzeba go skierować, ani klucza: worker sięga do tej samej bazy co API. Każde
 ustawienie poniżej dotyczy jednego procesu workera.
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
-| `WORKER_POOLS` | `agent,ingest,system,workflow` | Pule obsługiwane przez ten proces. Uruchom drugiego workera z `ingest`, żeby parsowanie miało własny host. Do listy ustawionej, zanim pula `workflow` istniała, trzeba ją dopisać, inaczej żaden worker nie wykona węzłów workflowów |
+| --- | --- | --- |
+| `WORKER_POOLS` | `agent,eval,ingest,system,workflow` | Pule obsługiwane przez ten proces. Uruchom drugiego workera z `ingest`, żeby parsowanie miało własny host. Do listy ustawionej, zanim pula `workflow` istniała, trzeba ją dopisać, inaczej żaden worker nie wykona węzłów workflowów |
 | `WORKER_AGENT_CONCURRENCY` | `10` | Runy agentów i odpalenia triggerów naraz |
+| `WORKER_EVAL_CONCURRENCY` | `4` | Eval runy naraz. Każdy trzyma swój slot przez cały run, więc evale mają własną pulę i nigdy nie zajmują slotu potrzebnego runowi agenta |
 | `WORKER_WORKFLOW_CONCURRENCY` | `5` | Węzły workflowów naraz. Dobierz pamięć workera do tylu węzłów trzymających największy plik, jaki węzeł może trzymać |
 | `WORKER_SYSTEM_CONCURRENCY` | `4` | Sprzątanie, porządki i raporty naraz |
 | `WORKER_INGEST_CHILDREN` | `2` (`1` w dostarczanych plikach compose) | Procesy potomne do parsowania i embeddingów, każdy z jednym zadaniem naraz |
@@ -505,7 +506,7 @@ alarmem dla drugiego, więc każda definicja usługi niesie własną.
 ### Wygasanie zatwierdzeń { #approval-expiry }
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `APPROVAL_EXPIRY_HOURS` | `72` | Jak długo zaparkowane wywołanie narzędzia czeka, zanim cogodzinne zamiatanie odrzuci je przez timeout |
 | `QUESTION_EXPIRY_HOURS` | `24` | Jak długo run czeka na odpowiedź na pytanie agenta, zanim to samo zamiatanie go zakończy |
 | `QUESTION_NUDGE_HOURS` | `12` | Po jakim czasie od wstrzymania na pytaniu przegląd przypomina raz na czacie, że nadal potrzebna jest odpowiedź |
@@ -521,7 +522,7 @@ rozstrzyga i co celowo zostawia w spokoju.
 ### Zbieranie porzuconych runów { #stale-run-reaping }
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `RUN_HEARTBEAT_SECONDS` | `15` | Jak często proces wykonujący run oznacza go jako żywy, gdy model pracuje |
 | `STALE_RUN_REAPED_AFTER_SECONDS` | `120` | Jak długo run w stanie `running` może nie dawać znaku życia, zanim zamiatanie co minutę uzna, że jego proces umarł, i zakończy go jako `failed`. Co najmniej trzy `RUN_HEARTBEAT_SECONDS`, co sprawdza start; zero lub mniej wyłącza zamiatanie |
 
@@ -535,7 +536,7 @@ najdłuższym uprawnionym runem i nie bliżej. Zobacz
 ### Runy workflowów { #workflow-runs }
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `WORKFLOW_RUN_MAX_INPUT_BYTES` | `262144` | Największy ładunek, z jakim można uruchomić run, jako zwarty JSON. Jest przechowywany w runie dla jego węzła `core.input`, więc większy zostaje odrzucony z `413`, zanim run zostanie przyjęty |
 | `WORKFLOW_RUN_MAX_FILE_BYTES` | `1073741824` | Najwięcej bajtów plików, jakie może zapisać jeden run, wszystkie jego kroki plikowe razem. Krok, którego plik by go przekroczył, kończy się błędem `FILE_QUOTA_EXCEEDED` i niczego nie zapisuje |
 | `WORKFLOW_ORG_MAX_FILE_BYTES` | `21474836480` | To samo dla jednej organizacji, we wszystkich runach, które nadal przechowują swoje pliki |
@@ -599,7 +600,7 @@ Anulowania zakolejkowanego joba węzła tam nie ma: anuluj run.
 ### Tura czatu zostawiona w trakcie { #a-chat-turn-left-running }
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `CHAT_DETACHED_TURN_MINUTES` | `60` | Jak długo tura czatu trwa po tym, jak osoba, która pytała, wyszła - zamknięta karta, zamknięta aplikacja, zerwane połączenie - zanim zostanie zatrzymana; najwyżej `120`, bo dłużej lista rozmów przestaje pokazywać turę jako trwającą |
 
 Odpowiedź trafia do rozmowy, a jej osoba dostaje powiadomienie, więc to ogranicza
@@ -677,13 +678,13 @@ laptopie i `production` na serwerze. Jeden projekt może wtedy trzymać oba i na
 je rozróżniać.
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `LOG_LEVEL` | `INFO` | Poziom logów aplikacji: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
 | `LOGFIRE_CONSOLE` | `false` | Wypisuj spany Logfire na konsolę podczas debugowania |
 | `LOGFIRE_TOKEN` | (none) | Token Pydantic Logfire. Zdobądź go na https://logfire.pydantic.dev |
 | `LOGFIRE_SERVICE_NAME` | `agenticos` | Nazwa usługi na dashboardzie Logfire |
 | `LOGFIRE_ENVIRONMENT` | `development` | Etykieta środowiska |
-| `LOGFIRE_ORGANIZATION` | (none) | Slug organizacji, do zbudowania linku **do** zapisanego trace'u. Token jest poświadczeniem do *zapisu* i nie niesie żadnego z tych slugów |
+| `LOGFIRE_ORGANIZATION` | (none) | Slug organizacji, do zbudowania linku **do** zapisanego trace'u. Token jest poświadczeniem do _zapisu_ i nie niesie żadnego z tych slugów |
 | `LOGFIRE_PROJECT` | (none) | Slug projektu, obok organizacji. Gdy któregokolwiek brakuje, `logfire_trace_id` runa nadal jest zapisywane, a link nie jest oferowany |
 | `LOGFIRE_BASE_URL` | `https://logfire-us.pydantic.dev` | Do którego wdrożenia Logfire te slugi należą. `logfire-eu` to inny host, a link zbudowany dla niewłaściwego zwraca 404 |
 
@@ -713,7 +714,7 @@ aby poznać weryfikację powrotu z autoryzacji, zgodę dostawcy i kontrole wdro�
 ## Wyszukiwanie w sieci { #web-search }
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 
 ## RAG (Retrieval Augmented Generation) { #rag-retrieval-augmented-generation }
 
@@ -781,7 +782,7 @@ należy do żadnej kolekcji, więc nie ma zapisanej konfiguracji do odczytania.
 ### Synchronizacja Google Drive { #google-drive-sync }
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `GOOGLE_DRIVE_CREDENTIALS_FILE` | `credentials/google-drive-sa.json` | Ścieżka do poświadczeń konta serwisowego Google, wyłącznie dla `rag-sync-gdrive` |
 
 **To poświadczenie CLI, a nie fallback dla źródła synchronizacji.** Źródło
@@ -804,7 +805,7 @@ bazy wiedzy. Jeden backend na wdrożenie, nigdy per organizacja, a jego zmiana n
 przenosi tego, co trzyma już ten drugi.
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `FILE_STORAGE_BACKEND` | `local` | `local` zapisuje pod `MEDIA_DIR`; `s3` zapisuje do bucketu zgodnego z S3 |
 | `FILE_STORAGE_S3_BUCKET` | (puste) | Bucket. Wymagany przy backendzie `s3`; API odmawia rozpoczęcia uploadu bez niego |
 | `FILE_STORAGE_S3_ENDPOINT` | (brak) | Puste dla AWS. Adres usługi dla MinIO lub innego zgodnego magazynu |
@@ -839,7 +840,7 @@ podwójnie. Zobacz [Ochronę danych](data-protection.md#generated-media), żeby
 sprawdzić, co i kiedy jest usuwane.
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `GENERATED_MEDIA_QUOTA_MB` | `5120` | Ile wygenerowanych mediów może trzymać jedna organizacja, w MiB. Liczy się każdy plik, także utworzony bez rozmowy - z podglądu lub przebiegu testowego, z wtrącenia `/btw` w kanale, z runu API, który nie wskazuje rozmowy; sweep usuwa takie pliki po 7 dniach. Sprawdzane przed każdym płatnym wywołaniem generowania: po jego przekroczeniu narzędzie odpowiada, że organizacja wykorzystała swój magazyn, i niczego nie wydaje. Wpuszczone wywołanie rezerwuje w limicie szacowany rozmiar swojego pliku, dopóki plik nie zostanie zapisany - 16 MiB na obraz, 8 KiB na znak mowy, 2 MiB na sekundę wideo - więc wywołanie, którego szacunek przekroczyłby limit organizacji, zostaje odrzucone, a równoległe przebiegi albo równoległe wywołania w jednej odpowiedzi nie mogą przejść wszystkie na tej samej liczbie. Plik większy niż szacunek liczy się według prawdziwego rozmiaru. `0` to brak limitu |
 | `GENERATED_MEDIA_RETENTION_DAYS` | `90` | Wiek, w którym codzienne zadanie `sweep-generated-media` usuwa wygenerowany plik i jego zapis, bez względu na to, czy jego konwersacja wciąż istnieje. `0` trzyma je, aż ich konwersacja albo organizacja zostanie usunięta. Plik bez konwersacji odchodzi po 7 dniach w każdym przypadku |
 
@@ -850,14 +851,14 @@ jest trzymany w całości ani w API, ani na serwerze konsoli.
 ### Synchronizacja S3/MinIO { #s3minio-sync }
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `S3_RAG_ENDPOINT` | (none) | URL endpointu S3/MinIO. Źródło synchronizacji może go nadpisać |
 | `S3_RAG_ACCESS_KEY` | (empty) | Access key, wyłącznie dla polecenia CLI `rag-sync-s3` |
 | `S3_RAG_SECRET_KEY` | (empty) | Secret key, tak samo |
 | `S3_RAG_BUCKET` | `agenticos-rag` | Nazwa bucketa |
 | `S3_RAG_REGION` | `us-east-1` | Region AWS. Własny region poświadczenia wygrywa tam, gdzie je ma |
 
-To jest *konektor synchronizacji*, który czyta bucket należący do tenanta — a nie
+To jest _konektor synchronizacji_, który czyta bucket należący do tenanta — a nie
 magazyn plików samego wdrożenia opisany wyżej. Konfiguruje się je osobno i jest to
 świadome: jedno jest infrastrukturą, drugie danymi tenanta.
 
@@ -874,14 +875,14 @@ opisanym wyżej magazynie plików; te zmienne je ograniczają i mówią, skąd s
 serwowane. Zobacz [Aplikacje](artifacts.md).
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `ARTIFACT_MAX_BYTES` | 5 MiB | Jedna wersja jednej strony. Publikacja powyżej tej wartości jest odrzucana z komunikatem, który czyta model |
 | `ARTIFACT_MAX_VERSIONS` | `20` | Liczba wersji przechowywanych na aplikację. Najstarsza jest usuwana, gdy pojawia się nowsza, chyba że publiczny link jest do niej przypięty |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Jak długo otwiera się podpisany adres treści, najwyżej 3600. Także jak długo otwarta strona przeżywa odwołany grant albo link |
 | `ARTIFACT_PUBLIC_DATA_CACHE_BYTES` | 32 MiB | Najwięcej bajtów rekordów, jakie jeden proces API trzyma przez 30 sekund dla [publicznych linków i embedów stron](artifacts.md#the-cache-and-the-cap). Tylko w pamięci procesu, nigdy w Redisie. Najdawniej używane odczyty odpadają pierwsze, a odczyt ponad budżet nie jest zachowywany. Co najmniej 1024 |
 | `ARTIFACT_ORIGIN` | (puste) | Skąd serwowana jest treść - strony, ich [zestaw bibliotek](artifacts.md#the-library-set) i dokument do osadzania. Puste serwuje ją z `PUBLIC_BASE_URL`, izolowaną polityką `sandbox`. Ustaw na host w osobnej domenie rejestrowalnej, skierowany do tego API, żeby dodatkowo umieścić stronę w innej witrynie |
 | `ARTIFACT_RENDER_CDP_URL` | (puste) | Endpoint Chromium DevTools, w którym [`preview_artifact`](artifacts.md#seeing-the-page-preview) rysuje strony, np. `http://artifact-render:9222`. To wyłącznie konfiguracja wdrożenia: nie jest sprawdzana względem `BROWSER_CDP_ALLOWED_HOSTS`, która wymienia, czym mogą sterować autorzy agentów, a agent przeglądający strony dostaje odmowę dla tego hosta, nawet gdy ta lista go wymienia. Backend potrzebuje dodatku `browser`. Gdy jest puste, podgląd zwraca raport bez obrazu |
-| `VISUAL_MAP_TILES` | (puste) | Jedyny serwer kafelków, na którym [wizualizacja](artifacts.md#visuals) albo aplikacja może narysować mapę: `openstreetmap`, `usgs-topo` albo szablon URL `https://` z `{z}`, `{x}` i `{y}` po razie. Deployment pobiera każdy kafelek i serwuje go stronom z własnej ścieżki kafelków; żadna strona nie rozmawia z serwerem. Puste rysuje mapę jako zarys przystanków. Wartość, której nie da się serwować, jest odrzucana przy starcie |
+| `VISUAL_MAP_TILES` | (puste) | Jedyny serwer kafelków, na którym [wizualizacja](artifacts.md#visuals) albo aplikacja może narysować mapę: `openstreetmap`, `usgs-topo` albo szablon URL `https://` z `{z}`, `{x}` i `{y}` po razie. Deployment pobiera każdy kafelek i serwuje go stronom z własnej ścieżki kafelków; żadna strona nie rozmawia z serwerem. Bez tego ustawienia nowe mapy używają lokalnych konturów krajów w SVG, pinezek i połączeń. Istniejące strony tras mogą pokazywać zarys przystanków. Wartość, której nie da się serwować, jest odrzucana przy starcie |
 | `VISUAL_MAP_TILES_ATTRIBUTION` | (puste) | Atrybucja pokazywana pod mapą na własnym serwerze kafelków, np. `© OpenStreetMap contributors`. Wymagana przy szablonie URL; preset ma własną |
 
 **Kafelki map pobiera deployment, nie przeglądarka czytelnika.** Strona prosi o
@@ -890,7 +891,7 @@ z serwera, trzyma ostatnie 2048 w pamięci i odpowiada, więc klucz z szablonu n
 nie opuszcza serwera. Trasa nie wymaga sesji - ładuje ją każda strona - więc ma
 limit na adres (`RATE_LIMIT_MAP_TILES_PER_MINUTE`). Pilnuj warunków dostawcy:
 publiczne kafelki OpenStreetMap są do lekkiego użytku, a ruchliwy deployment
-powinien mieć własny serwer albo płatnego dostawcę. *Admin → System* pokazuje, czy
+powinien mieć własny serwer albo płatnego dostawcę. _Admin → System_ pokazuje, czy
 serwer odpowiada.
 
 **`ARTIFACT_ORIGIN` jest czytane dwa razy i obie strony muszą je widzieć.** Backend
@@ -919,6 +920,14 @@ Uruchom go przez `docker compose --profile artifact-render up -d`, a potem ustaw
 przeglądających strony, a renderer nie potrzebuje w niej wpisu. Jeden proces
 rysuje naraz dwie strony, każdą w ciągu 15 sekund.
 
+## Datasety { #datasets }
+
+Przypadki testowe, na których działają evale. Zobacz [Datasety](datasets.md).
+
+| Zmienna | Domyślnie | Opis |
+| --- | --- | --- |
+| `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Ile rewizji przypadków mogą łącznie przechowywać datasety jednej organizacji. Każdy dodany przypadek i każda edycja to rewizja, przechowywana dla wersji, które ją zawierają; wersja zapisuje tylko to, co zmieniła, więc dataset z 10 000 przypadków edytowany 500 razy przechowuje 10 500, a nie 5 milionów. Dodanie albo edycja ponad limit jest odrzucana z podaniem, ile jest przechowywane; usunięcie przypadku nic nie zapisuje i jest zawsze dozwolone, a usunięcie niepotrzebnych datasetów zwalnia ich rewizje. Nazwa jest starsza niż to znaczenie: liczyła każdy przypadek każdej wersji, dopóki wersje kopiowały swoje przypadki. Limit jest przybliżony: każda zmiana jest sprawdzana osobno, więc zmiany w różnych datasetach w tej samej chwili mogą go nieznacznie przekroczyć. Chroni miejsce w bazie, nie służy do rozliczeń |
+
 ## Workspace'y agentów { #agent-workspaces }
 
 Workspace `state` nie potrzebuje tutaj niczego. Jest trzymany w tej bazie danych,
@@ -926,13 +935,13 @@ działa na każdym wdrożeniu i jest tym, co agent dostaje domyślnie — więc 
 poniżej dotyczą wyłącznie workspace'u opartego na kontenerze.
 
 | Zmienna | Domyślnie | Uwagi |
-|---|---|---|
+| --- | --- | --- |
 | `SANDBOX_STATE_MAX_BYTES` | 32 MiB | Na **przechowywany** workspace. Po jego przekroczeniu zapis zostaje odrzucony komunikatem, który czyta model |
 | `SANDBOX_INLINE_IMAGE_MAX_BYTES` | 5 MiB | Powyżej tej wartości załączony obraz jest zapisywany do workspace'u i nie jest dodatkowo wysyłany inline |
 
 **Procent w czacie to dwa różne sufity i mówi, który.** Przechowywany workspace
 zapełnia się względem `SANDBOX_STATE_MAX_BYTES` powyżej — bajty, a ich wyczerpanie
-*odrzuca zapis*. Kontener raportuje rezydentną **pamięć** względem sufitu, który
+_odrzuca zapis_. Kontener raportuje rezydentną **pamięć** względem sufitu, który
 jego host ustawił dla danego runtime'u, czyli `1g`, o ile allowlista nie mówi
 inaczej, a wyczerpanie jej to zabicie przez OOM, a nie odmowa. Dlatego pasek mówi
 `workspace 12% full` dla pierwszego i `sandbox memory 12% full` dla drugiego;
@@ -960,7 +969,7 @@ Własny dashboard usługi (`SANDBOXD_UI_ENABLED`) jest z tego samego powodu wył
 w każdym dostarczanym pliku compose: prosi człowieka, żeby wkleił tę wartość do
 przeglądarki.
 
-`SANDBOXD_TOKEN` w `backend/.env` to token *samej usługi* — to, co zaakceptuje
+`SANDBOXD_TOKEN` w `backend/.env` to token _samej usługi_ — to, co zaakceptuje
 demon z pliku compose.
 
 `make sandbox-token` go generuje, a formularz połączenia zapisuje tę samą wartość w
@@ -1023,10 +1032,10 @@ nie słownik. Oto te, które ustawiają dostarczane pliki compose albo które de
 o tym, czy pliki przetrwają:
 
 | Zmienna | W dostarczanej konfiguracji | O czym decyduje |
-|---|---|---|
-| `SANDBOXD_WORKSPACE_ROOT` | ścieżka na hoście | Gdzie mieszka katalog roboczy każdej sesji, bind-mountowany z *hosta*. **Nieustawione — pliki istnieją wyłącznie wewnątrz działającego kontenera**: zebranie bezczynnej sesji je wyrzuca, a następne żądanie otwiera pusty workspace, bez śladu w logu. To też jest to, co umożliwia przeglądanie: odczyt workspace'u nigdy nie uruchamia kontenera |
-| `SANDBOXD_SANDBOX_UID` | `10001` | Nieuprzywilejowany użytkownik, jako który działa sandbox, zamiast roota — ucieczka z kontenera zaczyna się od tego, jako kto kontener działa, a każdy plik zapisany przez agenta należy na hoście do tego uid. **Musi być własnym uid usługi**: otwarcie sesji robi `chown` workspace'u na tego użytkownika, co nieuprzywilejowana usługa może zrobić tylko dla siebie. Dotyczy runtime'u, który wdrożenie *buduje*, bo gotowy obraz nie ma takiego konta, a agent w środku nie mógłby niczego zainstalować |
-| `SANDBOXD_CONTAINER_TTL` | 86400s | Jak długo trzymany jest *zatrzymany* utrwalony kontener. Odzyskuje to, co sesja zainstalowała — build, wheele, `node_modules` — i zostawia workspace nietknięty, bo to pliki są pracą. Nieustawione — trzymane na zawsze |
+| --- | --- | --- |
+| `SANDBOXD_WORKSPACE_ROOT` | ścieżka na hoście | Gdzie mieszka katalog roboczy każdej sesji, bind-mountowany z _hosta_. **Nieustawione — pliki istnieją wyłącznie wewnątrz działającego kontenera**: zebranie bezczynnej sesji je wyrzuca, a następne żądanie otwiera pusty workspace, bez śladu w logu. To też jest to, co umożliwia przeglądanie: odczyt workspace'u nigdy nie uruchamia kontenera |
+| `SANDBOXD_SANDBOX_UID` | `10001` | Nieuprzywilejowany użytkownik, jako który działa sandbox, zamiast roota — ucieczka z kontenera zaczyna się od tego, jako kto kontener działa, a każdy plik zapisany przez agenta należy na hoście do tego uid. **Musi być własnym uid usługi**: otwarcie sesji robi `chown` workspace'u na tego użytkownika, co nieuprzywilejowana usługa może zrobić tylko dla siebie. Dotyczy runtime'u, który wdrożenie _buduje_, bo gotowy obraz nie ma takiego konta, a agent w środku nie mógłby niczego zainstalować |
+| `SANDBOXD_CONTAINER_TTL` | 86400s | Jak długo trzymany jest _zatrzymany_ utrwalony kontener. Odzyskuje to, co sesja zainstalowała — build, wheele, `node_modules` — i zostawia workspace nietknięty, bo to pliki są pracą. Nieustawione — trzymane na zawsze |
 | `SANDBOXD_PERSIST_CONTAINERS` | `true` | Kontener zamkniętej sesji jest zachowywany, a nie usuwany, więc kolejna sesja tego workspace'u startuje bez builda. Kosztuje jeden zatrzymany kontener na workspace; `SANDBOXD_CONTAINER_TTL` to ogranicza |
 | `SANDBOXD_MAX_SESSIONS_PER_TENANT` | `5` | Jedna organizacja nie może zabrać całej puli. `SANDBOXD_MAX_SESSIONS` (20) to pula |
 | `SANDBOXD_NETWORK_MODE` | `none` | Domyślna sieć dla sandboksa. `none` to brak sieci w ogóle; runtime może nazwać dla siebie `bridge` |
@@ -1043,7 +1052,7 @@ potrzebuje trzech rzeczy i żadnego kodu:
 1. **Socketa Dockera**, bo usługa startuje kontenery. To root na tamtej maszynie,
    dlatego token poniżej jest wart tyle, ile jest.
 2. **`SANDBOXD_WORKSPACE_ROOT` na prawdziwym dysku, zamontowany pod tą samą ścieżką
-   po obu stronach.** Usługa tworzy katalog, a potem prosi *demona* o bind-mount, a
+   po obu stronach.** Usługa tworzy katalog, a potem prosi _demona_ o bind-mount, a
    demon rozwiązuje ścieżkę na hoście — więc nazwany wolumen albo ścieżka istniejąca
    wyłącznie wewnątrz kontenera usługi zostaje odrzucona z `mounts denied`.
 3. **TLS i token, którego nikt nie współdzieli.** Wewnątrz compose adres to
@@ -1084,7 +1093,7 @@ runtime. Brak zarejestrowanego połączenia to ostrzeżenie, a nie błąd — wo
 `state` nie potrzebuje żadnego.
 
 **Przeglądanie tego, co agenci zachowali.** Workspaces to osobny ekran — nie część
-Sandboxes, które są o *hostach*.
+Sandboxes, które są o _hostach_.
 
 Każdy wiersz nazywa agenta, rozmowę, do której należą pliki (albo ile czatów do nich
 sięga, dla workspace'u, którego nie posiada żadna pojedyncza rozmowa), kto może je
@@ -1106,7 +1115,7 @@ pojedynczego workspace'u udzielić nie potrafi.
 **Kliknięcie pliku otwiera go w podglądzie, i jest to ten sam podgląd co w panelu
 czatu.** Obraz jest obrazem, PDF to własny widok PDF przeglądarki, audio i wideo grają we
 własnym odtwarzaczu przeglądarki, markdown oferuje
-*Preview* i *Source* — oba są plikiem, a `#`, które po cichu stało się dużą czcionką,
+_Preview_ i _Source_ — oba są plikiem, a `#`, które po cichu stało się dużą czcionką,
 to sposób, w jaki ktoś nie zauważa, że jego agent pisze markdown do czegoś, co nie
 czyta tego jako markdown — a wszystko inne to jego tekst. Pobieranie jest zawsze
 dostępne, także dla tego, czego w ogóle nie da się pokazać. Jeden komponent, bo
@@ -1117,7 +1126,7 @@ Bajty pochodzą z `GET /sandbox-workspaces/{id}/raw?path=…` albo z
 `GET /conversations/{id}/workspace/raw?path=…` dla panelu obok czatu.
 
 Dwie trasy, a nie jedna, bo autoryzują różnych wołających — trasa rozmowy jest
-osiągana przez pobranie rozmowy, więc ktoś, komu czat *udostępniono*, zachowuje
+osiągana przez pobranie rozmowy, więc ktoś, komu czat _udostępniono_, zachowuje
 dostęp — i jeden moduł decyduje, co można wyświetlić, żeby odpowiedź nie mogła się
 różnić w zależności od powierzchni.
 
@@ -1157,7 +1166,7 @@ dla listy, która przecina czaty nie jego. Wszyscy pozostali widzą workspace'y,
 których są częścią: własne pliki o zasięgu `user`, workspace'y własnych rozmów i
 współdzielony workspace agenta, z którym rozmawiali. „Rozmawiali”, a nie „mogliby
 otworzyć”, celowo: zasięg `agent` dzieli jeden workspace między użytkowników agenta,
-a panel czatu i tak pokazuje te pliki każdemu w rozmowie z nim, więc *możliwość*
+a panel czatu i tak pokazuje te pliki każdemu w rozmowie z nim, więc _możliwość_
 otwarcia agenta jest szerszym roszczeniem niż to, które ta lista wypowiada.
 
 Zasięg `channel` jest widoczny wyłącznie dla operatora, co jest poprawne, a nie jest
@@ -1174,7 +1183,7 @@ platforma odrzuca, więc przełącza organizację jak każdy inny.
 istnieć.** Usługa sandboksa serwuje te pliki z `SANDBOXD_WORKSPACE_ROOT` i to
 właśnie pozwala rozmowie sprzed miesiąca wylistować swoje pliki po tym, jak jej
 sesja została zebrana — żaden kontener nie jest do tego uruchamiany. Usługa
-skonfigurowana *bez* niego nie trzyma nic na dysku, więc jej pliki istnieją tylko
+skonfigurowana _bez_ niego nie trzyma nic na dysku, więc jej pliki istnieją tylko
 dopóki sandbox działa i nie da się ich odczytać bez uruchomienia go: panel Files
 mógłby wtedy tylko to powiedzieć, o pliku, który agent demonstracyjnie dopiero co
 zapisał.
@@ -1185,13 +1194,13 @@ więc w katalogu głównym projektu, a nie w `backend/.env`, poza celami `dev` i
 `prod`, które przekazują ten plik jawnie.
 
 Jedna ścieżka na hoście, bind-mountowana w tym samym miejscu po obu stronach, bo
-usługa tworzy katalog, a potem prosi *demona* o zamontowanie go — a demon rozwiązuje
+usługa tworzy katalog, a potem prosi _demona_ o zamontowanie go — a demon rozwiązuje
 ścieżkę na hoście. Nazwany wolumen albo jakakolwiek ścieżka istniejąca wyłącznie
 wewnątrz kontenera usługi zostaje odrzucona z `mounts denied`.
 
-| | Domyślnie | |
-|---|---|---|
-| Lokalny dev | `/tmp/agenticos-sandbox-workspaces` | Docker Desktop go współdzieli i każdy może do niego pisać, więc laptop nie potrzebuje żadnej konfiguracji |
+|  | Domyślnie |  |
+| --- | --- | --- |
+| Lokalny dev | `/tmp/agenticos-sandbox-workspaces` | `make dev` tworzy go przed startem stacka z prawem zapisu dla wszystkich. Docker na Linuksie, także Docker Desktop pod WSL, tworzy brakujący katalog jako root, do którego uid 10001 nie może pisać, i wtedy każdy sandbox kończy się `SANDBOX_START_FAILED`; `make dev` zgłasza taki katalog razem z poleceniem `sudo chown 10001` + `sudo chmod u+wx`, które to naprawia |
 | Pliki na serwerze | `/var/lib/agenticos/sandbox-workspaces` | Musi istnieć i być zapisywalna dla uid 10001 — `sudo mkdir -p <path> && sudo chown 10001:10001 <path>`, raz. Nie `install -d -o 10001`: `install` rozwiązuje właściciela przez bazę passwd i odrzuca uid, którego nie ma żadne konto. Powinna leżeć na pamięci, którą ktoś backupuje |
 
 Reboot zamiata `/tmp` i to jedyny powód, żeby nie kierować tam prawdziwego
@@ -1207,7 +1216,7 @@ Podnoszenie wyjątku robiło z tego 500, które przeglądarka mogła wyrenderowa
 jako „coś poszło nie tak”, obok pustej listy, która czyta się jako „nie ma żadnych
 plików”. Dwie złe odpowiedzi naraz.
 
-Odczyt *jednego pliku* z takiego hosta zostaje odrzucony tym samym zdaniem, zamiast
+Odczyt _jednego pliku_ z takiego hosta zostaje odrzucony tym samym zdaniem, zamiast
 zgłoszony jako „nie ma takiego pliku”, co mówiłoby, że pliku brakuje, podczas gdy go
 nie brakuje.
 
@@ -1269,7 +1278,7 @@ za każdym aliasem (`SANDBOXD_RUNTIMES`, `SANDBOXD_MEM_LIMIT`,
 `SANDBOXD_NETWORK_MODE`, `SANDBOXD_MAX_SESSIONS_PER_TENANT` i reszta) to jej własna
 konfiguracja startowa i celowo nie ma endpointu do ich zapisu: przeglądarka, która
 mogłaby przekonfigurować proces trzymający socket Dockera, miałaby na własność host.
-Ekran Sandboxes i karta runtime'ów na dashboardzie oba je *czytają*, żeby widać
+Ekran Sandboxes i karta runtime'ów na dashboardzie oba je _czytają_, żeby widać
 było, co obowiązuje, a Builder oferuje agentowi wyłącznie te aliasy, które usługa
 naprawdę przyjmie.
 
@@ -1281,7 +1290,7 @@ własnym dashboardzie.
 ## Kanały komunikacyjne { #messaging-channels }
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 
 Poświadczenia botów nie są konfigurowane tutaj: każdy bot jest rejestrowany w
 aplikacji, a jego token zapieczętowany w vaulcie, przy czym bot Slacka niesie
@@ -1300,7 +1309,7 @@ sandboksa dla `run_python` są konfiguracją capability per agent
 najdłuższa rozmowa i budżety. Dwa sufity należą do deploymentu:
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `VOICE_MAX_CALLS_PER_USER` | `1` | Rozmowy, które jedna osoba może prowadzić jednocześnie. Rozmowa z drugiej karty to prawie zawsze pomyłka, a każda jest rozliczana; drugie rozpoczęcie jest odrzucane jako `busy` |
 | `VOICE_MAX_CALLS_PER_EMBED` | `3` | Rozmowy, które jeden widżet albo jedna hostowana strona może prowadzić jednocześnie, od wszystkich odwiedzających razem; następna jest odrzucana jako `line_busy`. Odwiedzający nie mają konta, na które można by liczyć, więc to właśnie powstrzymuje wyciekły link przed równoległym zużywaniem budżetu organizacji |
 
@@ -1317,7 +1326,7 @@ głosowych działa co minutę, jako harmonogram workera `reap-voice-calls`.
 ## CORS { #cors }
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `CORS_ORIGINS` | `["http://localhost:3000","http://localhost:8080"]` | Dozwolone originy (tablica JSON) |
 | `CORS_ALLOW_CREDENTIALS` | `true` | Zezwalaj na credentials (ciasteczka) |
 | `CORS_ALLOW_METHODS` | `["*"]` | Dozwolone metody HTTP |
@@ -1336,7 +1345,7 @@ trasy konsoli są za sesją i nie są mierzone, z jednym wyjątkiem: zapisami do
 API powinno nosić sufit, to osobna decyzja, nie ta.
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `RATE_LIMIT_RUN_PER_MINUTE` | `30` | `POST /api/v1/agents/{id}/run`, na wołającego |
 | `RATE_LIMIT_AUTH_PER_MINUTE` | `10` | Każda trasa z `auth.py` — logowanie, rejestracja, odświeżenie, trasy prośby i weryfikacji dla resetu i magic linku. Liczone **per IP oraz, gdy treść go niesie, per przesłany adres**. Zobacz niżej |
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Na adres, i **dwa osobne liczniki tej wielkości**: jeden dla `widget.js`, jeden dla wpuszczenia — `/config` widżetu plus handshake socketu którejkolwiek z powierzchni. Zobacz niżej |
@@ -1378,7 +1387,7 @@ niż brak limitu, bo czyta się jako liczba, którą ustawiłeś.
 Dlatego `widget.js` ma własny kubełek. Jest cacheowalny, a odmowa tam psuje widżet
 całkowicie, zamiast opóźnić jedną wiadomość.
 
-Config i handshake zostają razem, bo razem *są* jednym wpuszczeniem: przeglądarka,
+Config i handshake zostają razem, bo razem _są_ jednym wpuszczeniem: przeglądarka,
 która przeczytała config i nie otworzyła socketu, nie weszła.
 
 Liczniki żyją w Redisie wdrożenia, więc trzymają się w poprzek workerów — produkcja
@@ -1387,7 +1396,7 @@ co deklaruje. Jeśli Redis jest nieosiągalny, limit nie jest stosowany, a w log
 ląduje ostrzeżenie: odmówienie odwiedzającemu odpowiedzi, bo cache mrugnął, jest
 gorszą z tych dwóch porażek.
 
-To, co odwiedzający może *powiedzieć* po wpuszczeniu, to inna liczba, ustawiana per
+To, co odwiedzający może _powiedzieć_ po wpuszczeniu, to inna liczba, ustawiana per
 widżet w Builderze (`rate_limit_per_minute`) i liczona per odwiedzający. Te dwie są
 sufitem na samo wejście.
 
@@ -1486,7 +1495,7 @@ i jak długo trzymane są kopie, które zostawia zapis. Zapis ponad limit jest o
 kodem `QUOTA_EXCEEDED` (402) i wpisem audytu, który nazywa limit, nigdy treść.
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `TABLES_MAX_PER_ORGANIZATION` | `200` | Tabele na organizację. Zarchiwizowane się liczą, bo nic nie usuwa tabeli |
 | `TABLES_MAX_RECORDS_PER_TABLE` | `100000` | Rekordy w jednej tabeli |
 | `TABLES_MAX_RECORD_BYTES` | `1000000` | Rozmiar zserializowanych wartości jednego rekordu w bajtach. Minimum `1`. Ogranicza też to, co trzymają wiersz history przy create i delete oraz receipt; rekord już ponad limitem nadal się usuwa, zachowując znacznik z liczbą bajtów zamiast wartości |
@@ -1501,7 +1510,7 @@ Trzy okresy retencji stosuje codzienny [sweep retencji](governance.md#retention)
 każdej organizacji; nie są ustawieniami per organizacja.
 
 Budżet jednego przebiegu dla tych trzech klas skaluje się z `RATE_LIMIT_TABLE_WRITES_PER_MINUTE`
-zamiast ze stałej liczby batchy - ale ten limit jest per *członek* (`limit_table_write` liczy
+zamiast ze stałej liczby batchy - ale ten limit jest per _członek_ (`limit_table_write` liczy
 zapisy każdego członka na jego własnym koncie), więc budżet skaluje się też z liczbą aktywnych
 członków organizacji: aż do `RATE_LIMIT_TABLE_WRITES_PER_MINUTE * 60 * 24` wierszy na
 aktywnego członka dziennie, w batchach po 500.
@@ -1514,11 +1523,11 @@ przebiegach, tak jak każda inna klasa retencji, gdy zaległość przerośnie sw
 ## Worker, którego pętla zdarzeń przestała się kręcić { #a-worker-whose-event-loop-has-stopped-turning }
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `EVENT_LOOP_WEDGED_AFTER` | `15` | Ile sekund pętla zdarzeń może się nie kręcić, zanim worker zostanie zabity i zastąpiony. `0` lub mniej wyłącza to sprawdzanie |
 | `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` | `60` | Ile sekund supervisor uvicorna czeka, aż worker odpowie na jego ping, zanim go zastąpi — wszędzie, gdzie `--workers` jest większe od 1. Czytają ją pliki compose, nie aplikacja |
 
-Worker, który *żyje, ale nie odpowiada* — zakleszczony na blokadzie, kręcący się w
+Worker, który _żyje, ale nie odpowiada_ — zakleszczony na blokadzie, kręcący się w
 synchronicznym wywołaniu, zablokowany na sockecie, który nigdy nie odpowie — nie ma
 kodu wyjścia, więc każda ścieżka odzyskiwania w każdym stacku czytała go jako
 zdrowego, podczas gdy żądania wygasały. Kontener robi się `unhealthy`, a status nie
@@ -1533,7 +1542,7 @@ inaczej `docker inspect` raportuje `137`, a „zakleszczony”, czego nic nie
 obsługiwało, staje się „nieżywy”, co obsługuje już każdy stack:
 
 | Stack | Co zastępuje workera |
-|---|---|
+| --- | --- |
 | `docker-compose.yml` | supervisor przeładowania, przy następnym odpytaniu |
 | `docker-compose-dev.yml` | PID 1 to serwer, więc kontener kończy pracę i działa `restart: unless-stopped` |
 | `docker-compose-prod.yml` | `Multiprocess` uvicorna, w jakieś pół sekundy; pozostałe trzy workery serwują dalej |
@@ -1551,7 +1560,7 @@ liczbę:
   pierwsze sprawdzenie po czymś takim czyta nieaktualny stempel, który nic nie mówi.
 
 Supervisor przeładowania w lokalnym stacku czyta tę samą zmienną dla oceny, którą
-robi z *zewnątrz* workera, więc jedna liczba obejmuje oba.
+robi z _zewnątrz_ workera, więc jedna liczba obejmuje oba.
 
 !!! tip "Ustaw `0` na czas debugowania"
 
@@ -1578,10 +1587,11 @@ wystarczy.
 ## Docker / produkcja { #docker-production }
 
 | Zmienna | Domyślnie | Opis |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `DOMAIN` | `example.com` | Domena produkcyjna (dla Traefika) |
 | `ACME_EMAIL` | `admin@example.com` | Adres e-mail dla Let's Encrypt do certyfikatów SSL |
 | `REDIS_PASSWORD` | `change-me-in-production` | Hasło Redisa dla produkcji |
+| `SESSION_COOKIE_NAMESPACE` | (puste) | Czyta go kontener konsoli. Małe litery, cyfry i myślniki, najwyżej 48: ciasteczka sesji nazywają się wtedy `agenticos_<namespace>_access_token` i `agenticos_<namespace>_refresh_token`. Ustaw inną wartość w każdym wdrożeniu, które dzieli nazwę hosta z innym na innym porcie - przeglądarka rozróżnia ciasteczka po hoście, nie po porcie, więc inaczej zalogowanie do jednego wylogowuje z drugiego. Zmiana jednorazowo wylogowuje wszystkich z konsoli. Zapasowe odczytanie ciasteczka przez WebSocket w API zna tylko nazwę bez prefiksu; konsola uwierzytelnia swoje gniazda samym tokenem, więc to jej nie dotyczy |
 
 ## Lista kontrolna przed produkcją { #production-checklist }
 

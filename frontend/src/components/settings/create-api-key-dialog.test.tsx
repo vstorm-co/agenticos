@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { useState } from "react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -133,6 +134,7 @@ describe("CreateApiKeyDialog", () => {
 
 it("requires explicit Custom opt-in for personal consent", async () => {
   const { onCreate } = open();
+  await userEvent.click(screen.getByRole("button", { name: "View 2 permissions" }));
   expect(screen.getByText(/Personal consent is excluded from presets/)).toBeInTheDocument();
   await userEvent.type(screen.getByLabelText("Name"), "Personal routines");
   await pick("Access", "Custom");
@@ -141,4 +143,88 @@ it("requires explicit Custom opt-in for personal consent", async () => {
   await userEvent.click(consent);
   await userEvent.click(screen.getByRole("button", { name: "Create" }));
   expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ scopes: ["personal:consent"] }));
+});
+
+it("retains custom selections across search and an in-flight refusal, blocking dismissal", async () => {
+  const held = Promise.withResolvers<ApiKeyCreated>();
+  const create = vi
+    .fn()
+    .mockImplementationOnce(() => held.promise)
+    .mockResolvedValue(CREATED);
+  const close = vi.fn();
+  function Harness() {
+    const [busy, setBusy] = useState(false);
+    return (
+      <CreateApiKeyDialog
+        open
+        catalog={CATALOG}
+        busy={busy}
+        onOpenChange={close}
+        onCreate={async (input) => {
+          setBusy(true);
+          try {
+            return await create(input);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
+    );
+  }
+  render(<Harness />);
+  await userEvent.type(screen.getByLabelText("Name"), "Support sync");
+  await pick("Access", "Custom");
+  await userEvent.click(screen.getByRole("checkbox", { name: "agents:view" }));
+  await userEvent.type(screen.getByLabelText("Find a permission"), "collections");
+  expect(screen.queryByRole("checkbox", { name: "agents:view" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("checkbox", { name: "collections:view" }));
+  await userEvent.clear(screen.getByLabelText("Find a permission"));
+  expect(screen.getByRole("checkbox", { name: "agents:view" })).toBeChecked();
+  await pick("Expires", "In 30 days");
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  expect(screen.getByLabelText("Name")).toBeDisabled();
+  expect(screen.getByLabelText("Find a permission")).toBeDisabled();
+  expect(screen.getByRole("checkbox", { name: "agents:view" })).toBeDisabled();
+  expect(screen.getByLabelText("Access", { selector: "button" })).toBeDisabled();
+  expect(screen.getByLabelText("Expires")).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+  await userEvent.keyboard("{Escape}");
+  expect(close).not.toHaveBeenCalled();
+  held.reject(new Error("refused"));
+  await waitFor(() => expect(screen.getByLabelText("Name")).toBeEnabled());
+  expect(screen.getByLabelText("Name")).toHaveValue("Support sync");
+  expect(screen.getByLabelText("Expires")).toHaveTextContent("In 30 days");
+  expect(screen.getByRole("checkbox", { name: "agents:view" })).toBeChecked();
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  await screen.findByRole("heading", { name: "Copy your key" });
+  expect(create).toHaveBeenLastCalledWith({
+    name: "Support sync",
+    scopes: ["agents:view", "collections:view"],
+    expires_at: expect.any(String),
+  });
+  const [retried] = create.mock.lastCall ?? [];
+  const lifetime = new Date(retried?.expires_at ?? 0).getTime() - Date.now();
+  expect(lifetime).toBeGreaterThan(29 * DAY_MS);
+  expect(lifetime).toBeLessThanOrEqual(30 * DAY_MS);
+});
+
+it("submits the name with Enter while Enter in permission search leaves the form intact", async () => {
+  const { onCreate } = open();
+  await userEvent.type(screen.getByLabelText("Name"), "Keyboard key");
+  await pick("Access", "Custom");
+  await userEvent.click(screen.getByRole("checkbox", { name: "agents:view" }));
+  await userEvent.type(screen.getByLabelText("Find a permission"), "agents{Enter}");
+  expect(onCreate).not.toHaveBeenCalled();
+  await userEvent.type(screen.getByLabelText("Name"), "{Enter}");
+  await screen.findByRole("heading", { name: "Copy your key" });
+  expect(onCreate).toHaveBeenCalledOnce();
+  expect(onCreate).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "Keyboard key", scopes: ["agents:view"] }),
+  );
+});
+
+it("refuses a form submission without a key name", () => {
+  const { onCreate } = open();
+  fireEvent.submit(screen.getByRole("form"));
+  expect(onCreate).not.toHaveBeenCalled();
 });

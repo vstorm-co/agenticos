@@ -28,6 +28,7 @@ describe("useArchitectAskStore", () => {
 
     expect(second?.text).toBe("Make an agent");
     expect(second?.id).not.toBe(first?.id);
+    expect(second?.draft).toBe(false);
   });
 
   it("drops an answered ask, and never a newer one asked meanwhile", () => {

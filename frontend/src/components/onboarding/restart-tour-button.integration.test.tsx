@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -64,5 +64,29 @@ describe("RestartTourButton", () => {
     nav.pathname = "/pl/agents";
     renderButton();
     expect(screen.getByLabelText("Show tips for this page")).toBeVisible();
+  });
+
+  it("draws only the copy meant for the screen's width", () => {
+    const listeners: (() => void)[] = [];
+    let wide = false;
+    vi.stubGlobal("matchMedia", () => ({
+      get matches() {
+        return wide;
+      },
+      addEventListener: (_: string, listener: () => void) => listeners.push(listener),
+      removeEventListener: vi.fn(),
+    }));
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <RestartTourButton at="narrow" />
+        <RestartTourButton at="wide" />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getAllByLabelText("Show tips for this page")).toHaveLength(1);
+    wide = true;
+    act(() => listeners.forEach((listener) => listener()));
+    expect(screen.getAllByLabelText("Show tips for this page")).toHaveLength(1);
+    vi.unstubAllGlobals();
   });
 });

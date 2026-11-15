@@ -23,12 +23,14 @@ export function WorkingHoursField({
   value,
   onChange,
   id,
+  disabled = false,
   "aria-describedby": describedBy,
 }: {
   value: WorkingHours | null;
   onChange: (next: WorkingHours | null) => void;
   /** Injected by `FormField`, so its label and description reach the day toggles. */
   id?: string;
+  disabled?: boolean;
   "aria-describedby"?: string;
 }) {
   const t = useTranslations("pages.settings.agentContext");
@@ -50,16 +52,17 @@ export function WorkingHoursField({
         role="group"
         aria-label={t("workingDays")}
         aria-describedby={describedBy}
-        className="flex flex-wrap gap-1.5"
+        className="grid grid-cols-4 gap-1.5 sm:grid-cols-7"
       >
         {WEEKDAYS.map((day) => (
           <button
             key={day}
             type="button"
+            disabled={disabled}
             aria-pressed={hours.days.includes(day)}
             onClick={() => toggle(day)}
             className={cn(
-              "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+              "min-h-11 min-w-11 rounded-lg px-2 py-2 text-xs font-medium transition-colors disabled:opacity-50",
               hours.days.includes(day)
                 ? "bg-foreground text-background"
                 : "bg-muted/60 hover:bg-muted text-foreground",
@@ -70,22 +73,31 @@ export function WorkingHoursField({
         ))}
       </div>
       {value && (
-        <div className="flex items-center gap-2">
-          <Input
-            type="time"
-            aria-label={t("workStart")}
-            value={hours.start}
-            onChange={(event) => onChange({ ...hours, start: event.target.value })}
-            className="w-32"
-          />
-          <span className="text-muted-foreground text-xs">-</span>
-          <Input
-            type="time"
-            aria-label={t("workEnd")}
-            value={hours.end}
-            onChange={(event) => onChange({ ...hours, end: event.target.value })}
-            className="w-32"
-          />
+        <div className="grid grid-cols-2 gap-3">
+          <label className="min-w-0 space-y-1.5">
+            <span className="text-muted-foreground text-xs">{t("workStart")}</span>
+            <Input
+              type="time"
+              required
+              disabled={disabled}
+              aria-label={t("workStart")}
+              value={hours.start}
+              onChange={(event) => onChange({ ...hours, start: event.target.value })}
+              className="w-full min-w-0"
+            />
+          </label>
+          <label className="min-w-0 space-y-1.5">
+            <span className="text-muted-foreground text-xs">{t("workEnd")}</span>
+            <Input
+              type="time"
+              required
+              disabled={disabled}
+              aria-label={t("workEnd")}
+              value={hours.end}
+              onChange={(event) => onChange({ ...hours, end: event.target.value })}
+              className="w-full min-w-0"
+            />
+          </label>
         </div>
       )}
     </div>

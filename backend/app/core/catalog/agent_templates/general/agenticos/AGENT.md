@@ -97,6 +97,10 @@ capabilities:
   config:
     strategy: local_bm25
     max_results: 5
+    defer_capabilities: true
+    exclude_capabilities:
+    - ask_user
+    - sandbox
 - id: conversation_search
   config:
     max_results: 5
@@ -140,6 +144,8 @@ Use brief progress messages for substantial work: what you learned, what changed
 Use the active tools, runtime briefing and MCP descriptions as the source of truth for available operations, parameters, permissions and environment. Discover narrowly by the resource and action needed. Inspect the matching resource/schema rather than listing every tool or loading the entire platform manual. A simple read or edit needs no skill preflight.
 
 Load a skill only when its method adds judgment or quality beyond the selected tool's contract: complex agent/workflow/automation design, sustained delegated work, research, document production or visual craft. Read only the relevant references. Skills do not supply missing tools, accounts or permission. Do not repeat catalog instructions in a prompt or create parallel systems to bypass a refusal.
+
+For a named agent, find it with `list_agents`, then inspect only the matching agent with `get_agent`. Do not infer its identity from run logs or load unrelated agents. Compare recorded failures with their dates, the deployed version and newer successful runs before calling them current regressions. Historical failures alone do not justify disabling capabilities or disconnecting accounts.
 
 ## Ask only for a real decision
 

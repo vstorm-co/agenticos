@@ -52,10 +52,12 @@ from sqlalchemy.orm.attributes import set_committed_value
 from app.agents import mcp_oauth
 from app.agents.connect_on_use import OwnAccountGap, ServiceOutcome
 from app.agents.mcp import (
+    LeftOutOnClash,
     McpServerSpec,
     McpSourceIdentity,
     McpToolInfo,
     ToolOrigins,
+    fitted_tool_name,
     platform_spec,
     prefix_collisions,
     probe_error_message,
@@ -2887,7 +2889,10 @@ class McpConnectionService:
             action="mcp_connection.updated",
             target_type="mcp_connection",
             target_id=str(connection.id),
-            details={"fields": sorted(edited_fields)},
+            details={
+                "fields": sorted(edited_fields),
+                **(_trust_details(connection) if "trust_read_only_hints" in edited_fields else {}),
+            },
         )
         return connection
 
@@ -3294,9 +3299,11 @@ async def build_toolsets_for_agent(
     organization_id: UUID,
     refs: Sequence[McpServerRef],
     sender_user_id: UUID | None = None,
+    test_connections: Mapping[UUID, UUID | None] | None = None,
     platform_credential: str | None = None,
     personal_sources: Mapping[UUID, McpSourceIdentity] | None = None,
     organization_sources: Mapping[UUID, McpSourceIdentity] | None = None,
+    taken_names: Mapping[str, str] | None = None,
 ) -> ResolvedMcpToolsets:
     """Agent toolsets for a published agent: exactly the servers its spec names.
 
@@ -3324,9 +3331,25 @@ async def build_toolsets_for_agent(
     prefix, and listed on `accounts` so the run can be told which is which
     (#2125).
 
+    `test_connections` is the run's environment speaking: an organization
+    binding whose connection is a key there runs against the test connection it
+    maps to, under the production connection's name - so the model sees the same
+    tool names in staging as in production, and an eval's trajectory is
+    comparable across the two. A key mapping to `None` is a binding switched off
+    in that environment, as is a test connection that is gone, disabled or
+    without credentials: the production connection is never the fallback.
+
+    `taken_names` are the names the run's other tools hold, and whose each is -
+    its capabilities' and the platform's own, from
+    :func:`app.agents.tool_names.taken_tool_names`. A prefix keeps one server's
+    tools apart from another's but not from those, so every server is attached
+    inside :class:`~app.agents.mcp.LeftOutOnClash`, which leaves it out of a step
+    where one of its tool names is taken (#2890).
+
     Runs in the caller's session rather than opening its own: an OAuth refresh
     spent here has to be persisted by the same transaction that recorded the run.
     """
+    overrides = test_connections or {}
     specs: list[McpServerSpec] = []
     bindings: dict[int, str] = {}
     # Which service and account each spec reaches, for the accounts briefing.
@@ -3334,9 +3357,13 @@ async def build_toolsets_for_agent(
     # Whether each organization server had an outage open when this run read it.
     outage_open: dict[UUID, bool] = {}
     unavailable: list[UnavailableBinding] = []
+    org_ids = [ref.connection_id for ref in refs if isinstance(ref, OrgMcpServerRef)]
     found = await mcp_connection_repo.get_org_scoped_by_ids(
         db,
-        connection_ids=[ref.connection_id for ref in refs if isinstance(ref, OrgMcpServerRef)],
+        connection_ids=[
+            *org_ids,
+            *(test_id for ref_id in org_ids if (test_id := overrides.get(ref_id)) is not None),
+        ],
         organization_id=organization_id,
     )
     for ref in refs:
@@ -3373,6 +3400,17 @@ async def build_toolsets_for_agent(
             if gap is not None:
                 unavailable.append(UnavailablePersonalService(ref.catalog_key, gap))
             continue
+        if ref.connection_id in overrides:
+            spec = await _test_spec(
+                ref,
+                production=found.get(ref.connection_id),
+                test_id=overrides[ref.connection_id],
+                found=found,
+            )
+            if spec is not None:
+                specs.append(spec)
+                bindings[id(spec)] = f"the connection {spec.name!r}"
+            continue
         connection = found.get(ref.connection_id)
         if connection is None or not connection.is_enabled:
             # Deleted, disabled or moved out of the organization since publish.
@@ -3407,7 +3445,9 @@ async def build_toolsets_for_agent(
             url=connection.url,
             headers=headers,
             allowed_tools=_narrowed_tools(connection.allowed_tools, ref.allowed_tools),
+            trust_read_only_hints=connection.trust_read_only_hints,
             approval=ref.approval,
+            tool_approval=ref.tool_approval,
             include_instructions=connection.include_instructions,
             # Its label, where it has one: an organization holding two accounts on a
             # service names the second (#2125), and an approval should say which.
@@ -3482,13 +3522,16 @@ async def build_toolsets_for_agent(
                 server=spec.name, binding=bindings[id(spec)], held_by=holder
             )
         )
-    return ResolvedMcpToolsets(
-        toolsets=[
-            toolset
+    toolsets: list[Any] = []
+    for spec, toolset in attached:
+        guarded = _guarded(toolset, spec, binding=bindings[id(spec)], taken=taken_names)
+        toolsets.append(
+            guarded
             if spec.connection_id is None
-            else ToolOrigins(toolset, connection_id=spec.connection_id, seen=origins)
-            for spec, toolset in attached
-        ],
+            else ToolOrigins(guarded, connection_id=spec.connection_id, seen=origins)
+        )
+    return ResolvedMcpToolsets(
+        toolsets=toolsets,
         unavailable=unavailable,
         accounts=_several_accounts(
             [reaches[id(spec)] for spec, _ in attached if id(spec) in reaches]
@@ -3512,6 +3555,74 @@ async def build_toolsets_for_agent(
             for spec, _ in attached
             if spec.source_connection_id is not None and spec.authorization_generation is not None
         },
+    )
+
+
+def _guarded(
+    toolset: Any, spec: McpServerSpec, *, binding: str, taken: Mapping[str, str] | None
+) -> Any:
+    """`toolset`, left out of a step where one of its tool names is already taken (#2890)."""
+    if not taken:
+        return toolset
+    return LeftOutOnClash(toolset, server=spec.name, binding=binding, taken=taken)
+
+
+def _trust_details(connection: McpConnection) -> dict[str, Any]:
+    """What believing this server's `readOnlyHint` covers: how many of its tools claim it.
+
+    Counted from the last probe, so the count is null until anything reached it.
+    """
+    tools = connection.last_tools
+    return {
+        "trust_read_only_hints": connection.trust_read_only_hints,
+        "read_only_hint_tools": None
+        if tools is None
+        else sum(1 for tool in tools if tool.get("read_only") is True),
+    }
+
+
+async def _test_spec(
+    ref: OrgMcpServerRef,
+    *,
+    production: McpConnection | None,
+    test_id: UUID | None,
+    found: Mapping[UUID, McpConnection],
+) -> McpServerSpec | None:
+    """The environment's test connection in place of the one the spec binds, or none.
+
+    Both allowlists narrow it - the production connection's, so the test side
+    offers no tool production does not, and the test connection's own - and so
+    does the binding's.
+    """
+    test = found.get(test_id) if test_id is not None else None
+    if test is None or not test.is_enabled:
+        logger.warning(
+            "MCP connection %s is switched off in this environment: its test connection "
+            "is gone or disabled",
+            ref.connection_id,
+        )
+        return None
+    headers = await resolve_auth_headers(test)
+    if headers is None:
+        logger.warning(
+            "Skipping test MCP connection %r for this run: no usable credentials", test.name
+        )
+        return None
+    ceiling = _narrowed_tools(
+        production.allowed_tools if production is not None else None, ref.allowed_tools
+    )
+    return McpServerSpec(
+        name=production.name if production is not None else test.name,
+        url=test.url,
+        headers=headers,
+        allowed_tools=_narrowed_tools(test.allowed_tools, ceiling),
+        test=True,
+        trust_read_only_hints=test.trust_read_only_hints,
+        approval=ref.approval,
+        tool_approval=ref.tool_approval,
+        include_instructions=test.include_instructions,
+        account=test.label,
+        connection_id=test.id,
     )
 
 
@@ -3619,6 +3730,7 @@ async def _own_specs(
             headers=headers,
             allowed_tools=_narrowed_tools(ref.allowed_tools, account.allowed_tools),
             approval=ref.approval,
+            tool_approval=ref.tool_approval,
             include_instructions=account.include_instructions,
             # Named on an approval wherever it is a question: one of several accounts
             # on the service, or one its person labelled.
@@ -3706,14 +3818,18 @@ def _extra_prefix(catalog_key: str, account: McpConnection) -> str:
     return f"{catalog_key}-{slug or account.id.hex[:8]}"[:64]
 
 
-async def connect_personal_toolset(ref: PersonalMcpServerRef, *, user_id: UUID) -> ServiceOutcome:
+async def connect_personal_toolset(
+    ref: PersonalMcpServerRef, *, user_id: UUID, taken_names: Mapping[str, str] | None = None
+) -> ServiceOutcome:
     """A person's own connection to this service, read again once they say they made it.
 
     What `connect_account` attaches mid-run (`app.agents.connect_on_use`). In a
     session of its own rather than the run's: the call arrives in the middle of
     a run whose session is busy with it, and the connection it looks for was
     committed by another request after this run's transaction began. An OAuth
-    refresh spent on the way is committed with that session.
+    refresh spent on the way is committed with that session. `taken_names` keeps
+    it off the run's other tools' names, as `build_toolsets_for_agent` keeps the
+    servers it attached (#2890).
     """
     async with get_db_context() as db:
         own = await _own_specs(db, ref, user_id=user_id)
@@ -3721,8 +3837,33 @@ async def connect_personal_toolset(ref: PersonalMcpServerRef, *, user_id: UUID) 
         return own
     # One account answers the turn that waited - their default, else their
     # first; any others of theirs join from their next message on.
-    ((_, toolset),) = await probe_toolsets([own[0].spec])
-    return "unreachable" if toolset is None else toolset
+    ((spec, toolset),) = await probe_toolsets([own[0].spec])
+    if toolset is None:
+        return "unreachable"
+    return _guarded(
+        toolset, spec, binding=f"each person's own {ref.catalog_key}", taken=taken_names
+    )
+
+
+def presented_tool_names(
+    connection: McpConnection, binding: list[str] | None
+) -> list[tuple[str, str]]:
+    """Each tool a connection's last check listed, beside the name the model calls it (#2890).
+
+    The prefix and the server's own name joined, and fitted, as the run's toolset
+    presents them, for the tools both allowlists let through: what publish
+    compares with the agent's other tools. Empty where nothing has reached the
+    server yet - its names are unknown, and the run decides on what it lists.
+    """
+    if connection.last_tools is None:
+        return []
+    allowed = _narrowed_tools(connection.allowed_tools, binding)
+    prefix = tool_prefix(connection.name)
+    return [
+        (tool["name"], fitted_tool_name(f"{prefix}_{tool['name']}"))
+        for tool in connection.last_tools
+        if allowed is None or tool["name"] in allowed
+    ]
 
 
 def _narrowed_tools(connection: list[str] | None, binding: list[str] | None) -> list[str] | None:

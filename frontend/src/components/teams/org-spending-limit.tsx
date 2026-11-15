@@ -11,6 +11,7 @@ import { useOrganizations, usePermissions, useSpend } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
 import type { Organization } from "@/types";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
 
@@ -50,6 +51,7 @@ export function OrgSpendingLimit({ org }: { org: Organization }) {
 function SpendingLimitForm({ org }: { org: Organization }) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("teams");
+  const tc = useTranslations("common");
   const { setMonthlyBudget } = useOrganizations();
   const { spend } = useSpend();
 
@@ -69,34 +71,45 @@ function SpendingLimitForm({ org }: { org: Organization }) {
   const changed = trimmed !== asInputValue(org.monthly_budget_usd);
   const monthToDate = Number(spend?.month_to_date_usd ?? 0);
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     // `null` is a real value here - it is how the ceiling is lifted - so the
     // only thing to reject locally is a box holding something that is not a
     // number. Everything else is the server's call.
     if (parsed !== null && !Number.isFinite(parsed)) {
       setError(t("enterAmountDollarsLeave"));
-      return;
+      return false;
     }
     setSaving(true);
     try {
       await setMonthlyBudget(org.id, parsed);
       setError(null);
       toast.success(parsed === null ? t("monthlyLimitRemoved") : t("monthlyLimitUpdated"));
+      return true;
     } catch (failure) {
       const problem = submitFailure(failure, { fields: [FIELD] }, tErrors);
       setError(problem.fields[FIELD] ?? null);
       if (problem.toast) toast.error(problem.toast);
+      return false;
     } finally {
       setSaving(false);
     }
   };
+
+  useUnsavedChanges(`org-budget:${org.id}`, {
+    dirty: changed,
+    save: handleSave,
+    discard: () => {
+      setValue(asInputValue(org.monthly_budget_usd));
+      setError(null);
+    },
+  });
 
   return (
     <SettingsSection
       title={t("monthlySpendingLimit")}
       description={t("ceilingWhatEveryAgent") + t("monthNextAgentS") + t("emptyNoLimit")}
     >
-      <div className="flex flex-wrap items-start gap-3">
+      <div className="grid grid-cols-1 items-start gap-3 sm:flex sm:flex-wrap">
         <FormField label={t("limitUsd")} htmlFor="org-monthly-budget" error={error}>
           <Input
             id="org-monthly-budget"
@@ -113,8 +126,8 @@ function SpendingLimitForm({ org }: { org: Organization }) {
           />
         </FormField>
         {changed && (
-          <Button className="mt-6" onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+          <Button className="sm:mt-6" onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : tc("save")}
           </Button>
         )}
       </div>

@@ -228,7 +228,7 @@ let colleagueContext: BrowserContext | undefined;
 
 /** The colleague's own signed-in context, made once and closed at the teardown. */
 async function asColleague(browser: Browser): Promise<BrowserContext> {
-  colleagueContext ??= await signInAs(browser, COLLEAGUE_EMAIL, COLLEAGUE_PASSWORD);
+  colleagueContext ??= await signInAs(browser, COLLEAGUE_EMAIL, COLLEAGUE_PASSWORD, fixture.orgId);
   return colleagueContext;
 }
 

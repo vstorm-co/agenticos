@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Building2, Lock, Users } from "lucide-react";
-import { TableIcon as Table2 } from "@/components/icons/product-icons";
+import { ResourceIcon } from "@/components/ui/resource-icon";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui";
@@ -33,9 +33,7 @@ export function TableCard({ table }: { table: TableListItem }) {
           aria-label={tc("openNamed", { name: table.name })}
         />
         <div className="pointer-events-none relative flex items-start gap-3">
-          <span className="bg-foreground/[0.04] text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-lg">
-            <Table2 aria-hidden="true" className="size-5" />
-          </span>
+          <ResourceIcon kind="table" icon={table.icon} />
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <p className="text-foreground truncate font-medium">{table.name}</p>

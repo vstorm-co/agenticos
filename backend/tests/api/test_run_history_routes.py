@@ -27,11 +27,16 @@ from app.api import deps
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import AgentRun
 from app.main import app
+from app.schemas.agent_run import RunOriginRead, RunSkillUseRead
+from app.schemas.eval_run import EvalCaseLinkRead
 
 pytestmark = pytest.mark.anyio
 
 _ORGANIZATION_ID = uuid4()
 _CONVERSATION_ID = uuid4()
+
+
+_SKILL_ID = uuid4()
 
 
 @asynccontextmanager
@@ -41,6 +46,13 @@ async def _client(service: MagicMock) -> AsyncIterator[AsyncClient]:
     )
     app.dependency_overrides[deps.get_auth_context] = lambda: context
     app.dependency_overrides[deps.get_agent_runner_service] = lambda: service
+    skills = MagicMock()
+    skills.used_in_run = AsyncMock(
+        return_value=[
+            RunSkillUseRead(skill_id=_SKILL_ID, name="returns", version=2, fork=None, loaded=True)
+        ]
+    )
+    app.dependency_overrides[deps.get_skill_service] = lambda: skills
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             yield client
@@ -51,7 +63,9 @@ async def _client(service: MagicMock) -> AsyncIterator[AsyncClient]:
 def _service() -> MagicMock:
     service = MagicMock()
     service.list_runs = AsyncMock(return_value=([], 0))
+    service.previews = AsyncMock(return_value={})
     service.voice_chains = AsyncMock(return_value={})
+    service.origins = AsyncMock(return_value={})
     return service
 
 
@@ -105,12 +119,25 @@ class TestTheFiltersReachTheService:
         )
 
         assert filters.surface == "slack"
+        assert filters.exclude_surface is None
         assert filters.user_id == user_id
         assert filters.environment_id == environment_id
         assert filters.exposure_id == exposure_id
         assert filters.agent_version_id == version_id
         assert filters.started_from.isoformat() == "2026-08-01T00:00:00+00:00"
         assert filters.started_to.isoformat() == "2026-08-06T23:59:59+00:00"
+
+    async def test_the_eval_traffic_can_be_left_out(self):
+        filters = await _filters_for("?exclude_surface=eval")
+
+        assert filters.exclude_surface == "eval"
+
+    async def test_the_source_reaches_the_filters_and_an_unknown_one_is_refused(self):
+        filters = await _filters_for("?source=system")
+
+        assert filters.source == "system"
+        async with _client(_service()) as client:
+            assert (await client.get("/api/v1/runs?source=judges")).status_code == 422
 
 
 class TestSortingIsChosenFromTwoOrdersAndNotFromAColumnName:
@@ -251,12 +278,81 @@ class TestTheDownRatedMarkerReachesTheRow:
         service = _service()
         service.list_runs = AsyncMock(return_value=([run], 1))
         service.down_rated_run_ids = AsyncMock(return_value=set())
-
         async with _client(service) as client:
             response = await client.get("/api/v1/runs")
 
         assert response.status_code == 200, response.text
         assert response.json()["items"][0]["waiting_questions"] == []
+
+    async def test_an_eval_run_in_the_list_names_its_case(self):
+        run = AgentRun(
+            id=uuid4(),
+            organization_id=_ORGANIZATION_ID,
+            agent_id=uuid4(),
+            surface="eval",
+            status="completed",
+            input_tokens=10,
+            output_tokens=5,
+            tool_args_repaired=0,
+            cache_read_tokens=0,
+            cache_write_tokens=0,
+            cost_usd=Decimal("0.01"),
+            cost_is_partial=False,
+            is_test=False,
+            modality="text",
+            fallback_used=False,
+        )
+        web = AgentRun(
+            id=uuid4(),
+            organization_id=_ORGANIZATION_ID,
+            agent_id=uuid4(),
+            surface="web",
+            status="completed",
+            input_tokens=10,
+            output_tokens=5,
+            tool_args_repaired=0,
+            cache_read_tokens=0,
+            cache_write_tokens=0,
+            cost_usd=Decimal("0.01"),
+            cost_is_partial=False,
+            is_test=False,
+            modality="text",
+            fallback_used=False,
+        )
+        link = EvalCaseLinkRead(
+            eval_run_id=uuid4(),
+            agent_id=run.agent_id,
+            case_id=uuid4(),
+            dataset_name="refunds",
+            case_input="Can I return it?",
+        )
+        service = _service()
+        service.list_runs = AsyncMock(return_value=([run, web], 2))
+        service.down_rated_run_ids = AsyncMock(return_value=set())
+        evals = MagicMock()
+        evals.case_links = AsyncMock(return_value={run.id: link})
+        app.dependency_overrides[deps.get_eval_run_service] = lambda: evals
+        service.previews = AsyncMock(
+            return_value={run.id: "Can I return it?", web.id: "Where is my order?"}
+        )
+        service.origins = AsyncMock(
+            return_value={run.id: RunOriginRead(kind="grader", agent_name="Judge")}
+        )
+
+        async with _client(service) as client:
+            response = await client.get("/api/v1/runs")
+
+        assert response.status_code == 200, response.text
+        rows = response.json()["items"]
+        assert rows[0]["eval_case"]["case_input"] == "Can I return it?"
+        assert rows[1]["eval_case"] is None
+        assert rows[0]["origin"]["kind"] == "grader" and rows[1]["origin"] is None
+        assert service.origins.await_args.args[1] == [run.id]
+        assert evals.case_links.await_args.args[1] == [run.id]
+        # The eval case's question is the preview; the chat run's first turn is read.
+        assert [row["preview"] for row in rows] == ["Can I return it?", "Where is my order?"]
+        assert service.previews.await_args.args[0] == [run.id, web.id]
+        assert service.previews.await_args.kwargs["questions"] == {run.id: "Can I return it?"}
 
     async def test_an_empty_page_asks_for_no_marker_at_all(self):
         """Nothing to mark, so the marker query is skipped rather than asked with
@@ -307,6 +403,50 @@ class TestTheDetailReadCarriesItsNeighbours:
         body = response.json()
         assert body["prev_run_id"] == str(prev_id)
         assert body["next_run_id"] == str(next_id)
+        assert [(use["name"], use["version"]) for use in body["skills_used"]] == [("returns", 2)]
+
+    async def test_an_eval_run_names_the_case_it_answered(self):
+        run = AgentRun(
+            id=uuid4(),
+            organization_id=_ORGANIZATION_ID,
+            agent_id=uuid4(),
+            surface="eval",
+            status="completed",
+            input_tokens=10,
+            output_tokens=5,
+            tool_args_repaired=0,
+            cache_read_tokens=0,
+            cache_write_tokens=0,
+            cost_usd=Decimal("0.01"),
+            cost_is_partial=False,
+            is_test=False,
+            modality="text",
+            fallback_used=False,
+        )
+        link = EvalCaseLinkRead(
+            eval_run_id=uuid4(),
+            agent_id=run.agent_id,
+            case_id=uuid4(),
+            dataset_name="refunds",
+            case_input="Can I return it?",
+        )
+        service = _service()
+        service.get_run = AsyncMock(return_value=run)
+        service.down_rated_run_ids = AsyncMock(return_value=set())
+        service.trace_url = AsyncMock(return_value=None)
+        service.neighbor_run_ids = AsyncMock(return_value=(None, None))
+        evals = MagicMock()
+        evals.case_link = AsyncMock(return_value=link)
+        app.dependency_overrides[deps.get_eval_run_service] = lambda: evals
+
+        async with _client(service) as client:
+            response = await client.get(f"/api/v1/runs/{run.id}")
+
+        assert response.status_code == 200, response.text
+        assert response.json()["eval_case"]["dataset_name"] == "refunds"
+        assert response.json()["origin"] is None
+        evals.case_link.assert_awaited_once()
+        service.origins.assert_awaited_once()
 
 
 class TestARunSaysWhereItsContinuationGoes:
@@ -344,3 +484,37 @@ class TestARunSaysWhereItsContinuationGoes:
 
         assert (await read("slack"))["continues_in_chat"] is True
         assert (await read("web"))["continues_in_chat"] is False
+
+
+async def test_run_listing_exposes_unlinked_asker_separately_from_publisher_authority() -> None:
+    from app.schemas.agent_run import ChatAskerRead
+
+    run = TestTheDownRatedMarkerReachesTheRow._run()
+    run.user_id = uuid4()
+    run.channel_identity_id = uuid4()
+    run.initiated_by_publisher_fallback = True
+    run.surface = "mattermost"
+    service = _service()
+    service.list_runs = AsyncMock(return_value=([run], 1))
+    service.down_rated_run_ids = AsyncMock(return_value=set())
+    service.run_chat_askers = AsyncMock(
+        return_value={run.id: ChatAskerRead(platform="mattermost", name="@participant")}
+    )
+    service.get_run = AsyncMock(return_value=run)
+    service.trace_url = AsyncMock(return_value=None)
+    service.neighbor_run_ids = AsyncMock(return_value=(None, None))
+    async with _client(service) as client:
+        response = await client.get("/api/v1/runs")
+        detail = await client.get(f"/api/v1/runs/{run.id}")
+    assert response.status_code == 200, response.text
+    [item] = response.json()["items"]
+    assert item["user_id"] == str(run.user_id)
+    assert item["initiated_by_publisher_fallback"] is True
+    assert item["asked_in_chat"] == {
+        "platform": "mattermost",
+        "name": "@participant",
+        "bot_name": None,
+    }
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["asked_in_chat"] == item["asked_in_chat"]
+    assert service.run_chat_askers.await_count == 2

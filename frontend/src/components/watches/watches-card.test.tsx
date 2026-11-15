@@ -235,6 +235,9 @@ describe("WatchesCard", () => {
     state.watches = [watch(), watch({ id: "w2", title: "Paused one", is_active: false })];
     render(<WatchesCard onNew={onNew} />);
 
+    await userEvent.hover(screen.getByRole("switch", { name: "Watch Reviews" }));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Pause");
+    await userEvent.unhover(screen.getByRole("switch", { name: "Watch Reviews" }));
     await userEvent.click(screen.getByRole("switch", { name: "Watch Reviews" }));
     expect(state.update).toHaveBeenLastCalledWith({ id: "w1", changes: { is_active: false } });
     await waitFor(() => expect(toastSuccess).toHaveBeenLastCalledWith("Paused"));

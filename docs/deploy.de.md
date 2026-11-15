@@ -1,20 +1,14 @@
 ---
-source_sha: "a41c7a2c6e87"
+source_sha: "0d080c65b077"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
 
-Ein Host, Docker Compose, ein Reverse Proxy davor. Das ist der gesamte
-ausgelieferte Weg, und genau er läuft in den Deployments, in denen dieses
-Projekt eingesetzt wird.
-
-Es gibt keine Kubernetes-Manifeste und keine Ein-Klick-Schnellstarts für die
-Platform-as-a-Service-Anbieter. Das ist keine Bescheidenheit in Bezug auf die
-Skalierung. Der Stack besteht aus sechs Containern, zwei davon halten Zustand,
-einer kann eigene Container starten, und einer ist ein Postgres, das pgvector
-haben muss - was bereits mehr ist, als ein `git push`-Deploy-Ziel abbildet, und
-eine Anleitung, die etwas anderes vorgäbe, würde ein Deployment beschreiben, das
-niemand betrieben hat.
+Ein Host, Docker Compose und ein Reverse Proxy bleiben der ausgelieferte Weg
+für einen einzelnen Server. Für Cluster gibt es das gepflegte
+[Kubernetes-Helm-Chart](kubernetes.md) mit externen Datendiensten und einem
+blockierenden Migrationsjob. Die OpenShift-Konfiguration ist noch nicht validiert.
+Ein-Klick-Schnellstarts für PaaS-Anbieter gibt es nicht.
 
 Über einen Host hinaus - ein verwaltetes Postgres, mehrere API-Hosts, mehrere
 Deployments - führt [Über einen Host hinaus skalieren](scaling.md).
@@ -676,6 +670,54 @@ gebaut hat, auf einem Host, der die Toolchain nie braucht.
 Es ist nicht ausfallfrei. Compose erstellt die Container neu, deren Image sich
 geändert hat, die Website ist also für die wenigen Sekunden, die das dauert,
 nicht verfügbar.
+
+### Aufbewahrung von Release-Images { #release-image-retention }
+
+Vor dem Herunterladen entfernt das Skript alte, ungenutzte Release-Images nur aus
+`ghcr.io/vstorm-co/agenticos-backend`, `agenticos-frontend` und `agenticos-browser`.
+Es behält je Repository zwei zusätzliche ungenutzte Image-IDs, die neuesten
+zuerst. Mehrere SHA- oder Versions-Tags derselben ID zählen als ein Image.
+Nur `sha-<hex>` und numerische Versions-Tags kommen infrage. Alle Aliasse einer
+entfernbaren ID werden gemeinsam und ohne `--force` entfernt. `--no-prune`
+verhindert auch das implizite Löschen unmarkierter Eltern-Images.
+
+Jeder laufende oder gestoppte Container auf dem Host schützt sein Image, auch in
+anderen Compose-Projekten. Das Ziel-Image, ein veränderlicher oder manueller Tag
+sowie ein Tag oder Digest in einem anderen Repository schützen ebenfalls die
+gesamte ID. Sandbox-/Laufzeit-Images, Images ohne Tags und Anwendungs-Volumes
+bleiben unberührt. Diese Schutzregeln können mehr Images als das Kontingent für
+ungenutzte Images erhalten.
+
+Der Hash des Deployment-Verzeichnisses trennt die Markierungen mehrerer Stacks
+auf einem Host. Lokale Tags `deploy-<stack-hash>-current` und `deploy-<stack-hash>-rollback` erhalten das letzte gesunde
+Image jeder Komponente und dessen Vorgänger nach dem Austausch der Container.
+Beim ersten Einsatz wird `deploy-<stack-hash>-current` aus den gesunden Containern dieses
+Stacks ermittelt, nicht aus dem Checkout; unterschiedliche gesunde IDs derselben
+Komponente verweigern das Deployment. Die Markierungen wechseln erst nach
+erfolgreichen Healthchecks der neuen Dienste. Fehlgeschlagene Deployments behalten
+die gespeicherten Markierungen; ein erneutes Deployment desselben Images ersetzt
+seinen Rollback nicht. Rollbacks erfolgen weiterhin über einen genehmigten
+Commit-SHA: Diese lokalen Tags sind Aufbewahrungsmarkierungen, keine Registry-Releases.
+
+Das Skript verlangt mindestens **5 GiB freien Speicher** im Docker-Dateisystem vor
+jedem Pull und nach der optionalen Vorbereitung von Laufzeitumgebungen. Es prüft
+`DockerRootDir` und, falls vorhanden, den Standardspeicher `/var/lib/containerd`.
+Dies ist ein Mindestwert, keine Reservierung oder Schätzung der Image-Größe;
+benutzerdefinierte containerd-Speicher müssen separat überwacht werden. Backend-
+und Frontend-Images werden heruntergeladen, bevor einer der Dienste neu startet.
+Bei zu wenig Speicher nennt die Ablehnung das Dateisystem und den verfügbaren
+Platz. Speicher außerhalb der Schutzregeln freigeben oder erweitern, dann das
+genehmigte Deployment erneut starten. Diese Richtlinie niemals durch ein globales
+`docker image prune -a` umsetzen.
+
+Bei Docker Desktop liegt das Speicherverzeichnis in der Linux-VM. Das Skript
+misst deren freien Speicher mit einem temporären, schreibgeschützten und vom
+Netz getrennten Container aus einem bereits lokal vorhandenen Backend-Image,
+vorzugsweise dem letzten gesunden. Die Prüfung darf keine Images herunterladen
+und der Container wird automatisch entfernt. Zusätzlich wird das Host-Dateisystem
+des Deployment-Verzeichnisses geprüft; das Host-Dateisystem eines eigenen
+VM-Datenträgers muss separat überwacht werden. Dieses Update-Verfahren benötigt
+ein lokal vorhandenes Backend-Image; zuerst die normale Erstinstallation abschließen.
 
 ### Aus GitHub, mit einer Freigabe { #from-github-with-an-approval }
 

@@ -750,6 +750,7 @@ async def test_a_cancelled_sibling_parking_late_leaves_another_branchs_approval_
     entry, loop = _node("core.input"), _node("control.foreach", {"item_error_policy": "stop"})
     loop = loop.model_copy(update={"policy": NodePolicy(on_error="route")})
     item, bad, late = _node("loop.item"), _node("test.fails"), _ask()
+    item, bad, late = (n.model_copy(update={"scope_id": loop.id}) for n in (item, bad, late))
     elsewhere, rescued = _ask(), _node("core.output")
     graph = WorkflowGraph(
         entry_node_id=entry.id,
@@ -757,7 +758,6 @@ async def test_a_cancelled_sibling_parking_late_leaves_another_branchs_approval_
         edges=(
             _edge(entry, loop),
             _edge(entry, elsewhere),
-            _edge(loop, item, "body"),
             _edge(loop, rescued, "error"),
             _edge(item, bad),
             _edge(item, late),

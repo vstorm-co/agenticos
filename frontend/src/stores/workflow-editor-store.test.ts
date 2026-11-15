@@ -447,6 +447,34 @@ describe("useWorkflowEditorStore graph slice", () => {
     expect(edges[1]).toMatchObject({ source_node_id: "b", target_node_id: "a" });
   });
 
+  it("connectNodes makes a trigger wired into the start the new start", () => {
+    store.getState().seedGraph({
+      ...seededGraph(),
+      nodes: [
+        ...seededGraph().nodes,
+        { ...nodeAt("s", 0, 100), definition_id: "trigger.schedule" },
+      ],
+    });
+    store
+      .getState()
+      .connectNodes({ source: "s", target: "a", sourceHandle: "out", targetHandle: "in" });
+    expect(store.getState().graph?.entry_node_id).toBe("s");
+  });
+
+  it("connectNodes keeps the start when the trigger is wired into another step", () => {
+    store.getState().seedGraph({
+      ...seededGraph(),
+      nodes: [
+        ...seededGraph().nodes,
+        { ...nodeAt("s", 0, 100), definition_id: "trigger.schedule" },
+      ],
+    });
+    store
+      .getState()
+      .connectNodes({ source: "s", target: "b", sourceHandle: "out", targetHandle: "in" });
+    expect(store.getState().graph?.entry_node_id).toBe("a");
+  });
+
   it("connectNodes adds the bindings it is given with the edge, as one undoable edit", () => {
     store.getState().seedGraph(seededGraph());
     const binding = {
@@ -674,6 +702,48 @@ describe("useWorkflowEditorStore graph slice", () => {
     expect(store.getState().selection).toEqual({ nodeIds: [], edgeIds: [] });
   });
 
+  it("deleteSelection re-homes a removed start on a surviving trigger, not the step after it", () => {
+    store.getState().seedGraph({
+      entry_node_id: "manual",
+      nodes: [
+        { ...nodeAt("manual", 0, 0), definition_id: "trigger.manual" },
+        nodeAt("step", 100, 0),
+        { ...nodeAt("schedule", 0, 100), definition_id: "trigger.schedule" },
+      ],
+      edges: [
+        {
+          id: "e1",
+          source_node_id: "manual",
+          source_port: "out",
+          target_node_id: "step",
+          target_port: "in",
+        },
+      ],
+      bindings: [],
+      scopes: [],
+    });
+    store.getState().setSelection({ nodeIds: ["manual"], edgeIds: [] });
+    store.getState().deleteSelection();
+    expect(store.getState().graph?.entry_node_id).toBe("schedule");
+  });
+
+  it("deleteSelection does not re-home the start on a trigger inside a loop", () => {
+    store.getState().seedGraph({
+      entry_node_id: "a",
+      nodes: [
+        nodeAt("a", 0, 0),
+        nodeAt("b", 100, 0),
+        { ...nodeAt("nested", 0, 100), definition_id: "trigger.schedule", scope_id: "b" },
+      ],
+      edges: [],
+      bindings: [],
+      scopes: [],
+    });
+    store.getState().setSelection({ nodeIds: ["a"], edgeIds: [] });
+    store.getState().deleteSelection();
+    expect(store.getState().graph?.entry_node_id).toBe("b");
+  });
+
   it("deleteSelection prunes the bindings and scopes a removed node leaves dangling", () => {
     const literalBinding = (target: string, field: string): Binding => ({
       target_node_id: target,
@@ -696,7 +766,6 @@ describe("useWorkflowEditorStore graph slice", () => {
     const scope = (scopeNode: string, exit: string, body: string[]): ScopeBoundary => ({
       scope_node_id: scopeNode,
       body_node_ids: body,
-      entry_port: "body",
       exit_node_id: exit,
       exit_port: "out",
     });
@@ -1689,5 +1758,126 @@ describe("mailbox steps", () => {
     expect(store.getState().graph?.bindings).toHaveLength(1);
     store.getState().useEmailAccount("missing", 1, "c", "send");
     expect(store.getState().graph?.nodes).toHaveLength(1);
+  });
+});
+
+describe("a loop's body in the working graph (#2770)", () => {
+  const store = useWorkflowEditorStore;
+  const step = (id: string, definitionId: string, scopeId?: string): NodeInstance => ({
+    ...nodeAt(id, 0, 0),
+    definition_id: definitionId,
+    ...(scopeId !== undefined ? { scope_id: scopeId } : {}),
+  });
+  /** entry -> loop; the loop holds item -> map -> result and a nested loop with its own item. */
+  function loopGraph(): WorkflowGraph {
+    return {
+      entry_node_id: "entry",
+      nodes: [
+        step("entry", "core.input"),
+        step("loop", "control.foreach"),
+        step("item", "loop.item", "loop"),
+        step("map", "data.map", "loop"),
+        step("result", "loop.yield", "loop"),
+        step("inner", "control.foreach", "loop"),
+        step("inner-item", "loop.item", "inner"),
+        step("after", "core.output"),
+      ],
+      edges: [
+        {
+          id: "e1",
+          source_node_id: "entry",
+          source_port: "out",
+          target_node_id: "loop",
+          target_port: "in",
+        },
+        {
+          id: "e2",
+          source_node_id: "item",
+          source_port: "out",
+          target_node_id: "map",
+          target_port: "in",
+        },
+        {
+          id: "e3",
+          source_node_id: "loop",
+          source_port: "done",
+          target_node_id: "after",
+          target_port: "in",
+        },
+      ],
+      bindings: [],
+      scopes: [],
+    };
+  }
+  const ids = () => store.getState().graph?.nodes.map((node) => node.id);
+
+  beforeEach(reset);
+
+  it("deleting a loop deletes its whole body, nested bodies too", () => {
+    store.getState().seedGraph(loopGraph());
+    store.getState().setSelection({ nodeIds: ["loop"], edgeIds: [] });
+    store.getState().deleteSelection();
+    expect(ids()).toEqual(["entry", "after"]);
+    expect(store.getState().graph?.edges).toEqual([]);
+  });
+
+  it("keeps a body's item and result steps while their loop stays", () => {
+    store.getState().seedGraph(loopGraph());
+    store.getState().setSelection({ nodeIds: ["item", "map", "result"], edgeIds: [] });
+    store.getState().deleteSelection();
+    expect(ids()).toEqual(["entry", "loop", "item", "result", "inner", "inner-item", "after"]);
+  });
+
+  it("deleting a wire in a body leaves every step in it", () => {
+    store.getState().seedGraph(loopGraph());
+    store.getState().setSelection({ nodeIds: [], edgeIds: ["e2"] });
+    store.getState().deleteSelection();
+    expect(store.getState().graph?.nodes.find((node) => node.id === "map")?.scope_id).toBe("loop");
+  });
+
+  it("refuses a canvas removal of an item step, and takes one of an ordinary step", () => {
+    store.getState().seedGraph(loopGraph());
+    store.getState().applyNodeChanges([
+      { type: "remove", id: "item" },
+      { type: "remove", id: "map" },
+    ]);
+    expect(ids()).toEqual(["entry", "loop", "item", "result", "inner", "inner-item", "after"]);
+  });
+
+  it("adds a new loop together with its item and result steps", () => {
+    store.getState().seedGraph(loopGraph());
+    store.getState().insertNode({
+      node: step("new-loop", "control.foreach"),
+      edge: null,
+      bindings: [],
+      becomesEntry: false,
+      replaces: null,
+      companions: [
+        step("new-item", "loop.item", "new-loop"),
+        step("new-result", "loop.yield", "new-loop"),
+      ],
+    });
+    expect(ids()?.slice(-3)).toEqual(["new-loop", "new-item", "new-result"]);
+  });
+});
+
+describe("a step naming a loop the graph does not hold", () => {
+  const store = useWorkflowEditorStore;
+  beforeEach(reset);
+
+  it("stays through an edit, for validation to report", () => {
+    store.getState().seedGraph({
+      entry_node_id: "a",
+      nodes: [nodeAt("a", 0, 0), { ...nodeAt("stray", 100, 0), scope_id: "gone" }],
+      edges: [],
+      bindings: [],
+      scopes: [],
+    });
+    store
+      .getState()
+      .applyNodeChanges([{ type: "position", id: "a", position: { x: 5, y: 5 }, dragging: false }]);
+    store.getState().setSelection({ nodeIds: ["a"], edgeIds: [] });
+    store.getState().deleteSelection();
+    expect(store.getState().graph?.nodes.map((node) => node.id)).toEqual(["stray"]);
   });
 });

@@ -56,8 +56,18 @@ export const useAuthStore = create<AuthState>()(
       impersonationRevoked: false,
 
       setUser: (user) => {
+        const previous = get().user;
+        // Profile writes return account fields, not session proof. Keep proof
+        // only for the same identity and address; /auth/me supplies it explicitly.
+        const next =
+          user && user.email_verified === undefined && previous?.id === user.id
+            ? {
+                ...user,
+                email_verified: previous.email === user.email && previous.email_verified === true,
+              }
+            : user;
         set({
-          user,
+          user: next,
           isAuthenticated: user !== null,
           isLoading: false,
         });

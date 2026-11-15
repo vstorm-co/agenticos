@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Zeitlimits und Budgets, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "f415e83adfe5"
+source_sha: "4154d0af5d18"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -17,7 +17,7 @@ fortsetzen können. Audio wird nirgendwo gespeichert.
 Anrufe werden aus `/chat` in der Konsole geführt, und aus einem Widget oder von
 einer gehosteten Seite, wenn der eigene Schalter eines Embeds an ist. Jeder
 Anruf ist ein [Run](concepts.md) mit dem Namen des Realtime-Modells darauf, also
-sehen Aktivität (Activity), der Kostenbildschirm und der Audit-Trail ihn wie
+sehen **Aktivität** (Activity), der Kostenbildschirm und der Audit-Trail ihn wie
 jeden anderen Run.
 
 In `/chat` ist der Anruf eine Pille, die über dem Eingabefeld schwebt, das sich
@@ -192,6 +192,10 @@ Anrufs sagt es laut.
   Textmodell oder einer seiner Subagents aufruft, zeigt dieselbe Freigabekarte
   wie eines, das der Anruf aufruft. Auch hier trägt der Anruf eines Besuchers
   kein freigabepflichtiges Tool.
+- **Ein Aufruf, der jedes Mal fragt, wird schriftlich entschieden.**
+  Ein Tool wie `share_memory` wartet auf jemanden, der genau liest, was es ändern
+  würde, und das kann eine Sprachkarte nicht zeigen. Der Anruf lehnt es ab, und
+  der Agent schlägt vor, im Text-Chat zu fragen.
 - **Eine Übergabe nach der anderen.** Jede setzt fort, was die letzte in diesem
   Anruf getan hat, sodass „jetzt schick die Datei“ nach „schreib es auf“
   funktioniert.

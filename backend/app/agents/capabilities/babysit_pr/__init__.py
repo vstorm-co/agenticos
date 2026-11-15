@@ -67,10 +67,12 @@ class BabysitPrConfig(BaseModel):
         CapabilityToolInfo(
             id="babysit_pr_check",
             description="Classify one snapshot of a pull request's checks.",
+            read_only=True,
         ),
         CapabilityToolInfo(
             id="babysit_pr_rate_limit",
             description="Decide whether to watch again, from `gh api rate_limit`.",
+            read_only=True,
         ),
         CapabilityToolInfo(
             id="babysit_pr_stop",

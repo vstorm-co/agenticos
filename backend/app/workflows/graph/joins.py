@@ -6,7 +6,8 @@ condition AND the edge's literal: `(source, port)` when the source takes one way
 several (`branches_exclusively` - an If, a Switch, a decision, a step that routes its
 errors), nothing otherwise. Choices at one such step exclude each other; choices at
 different steps are independent. Each scope (the top level, each loop body) is analysed on
-its own, with a body rooted at its loop.
+its own: the top level rooted at its entry, a body at its `loop.item`, which runs whenever
+an iteration starts.
 
 A condition is a set of *terms*, each a set of `(step, port)` choices, read as their
 disjunction. It is kept small by two rules applied to a fixed point: if terms
@@ -34,7 +35,7 @@ from typing import Literal
 from uuid import UUID
 
 from app.workflows.contracts.definition import NodeDefinition
-from app.workflows.graph.model import NodeInstance, WorkflowGraph
+from app.workflows.graph.model import NodeInstance, WorkflowGraph, loop_item_of
 
 WireState = Literal["live", "dead", "failed"]
 """`failed`: the source failed and does not route its errors - only reachable in a
@@ -378,8 +379,9 @@ def _analyse_scope(
         ],
     )
     conditions = analysis.conditions
+    root = graph.entry_node_id if level is None else loop_item_of(graph, level)
     for node_id in order:
-        if node_id == graph.entry_node_id and level is None:
+        if node_id == root:
             conditions[node_id] = ALWAYS
             continue
         wires_in: list[tuple[RunCondition, bool]] = []
@@ -396,7 +398,8 @@ def _analyse_scope(
     for node_id in order:
         if node_id not in conditions:
             continue
-        before: set[UUID] = set()
+        # A body's item runs once its loop has: what precedes the loop precedes the body.
+        before: set[UUID] = {level} if node_id == root and level is not None else set()
         for source, _port in sources.get(node_id, ()):
             if source == level:
                 before.add(source)

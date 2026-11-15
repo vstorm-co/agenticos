@@ -501,7 +501,21 @@ def carried_over(previous: dict[str, Any], payload: dict[str, Any]) -> dict[str,
     ):
         return payload
     reviews = [*earlier_reviews, *payload.get("reviews", [])]
-    scripts = [*earlier_scripts, *payload.get("code_runs", [])]
+    scripts = list(earlier_scripts)
+    for script in payload.get("code_runs", []):
+        existing = next(
+            (
+                i
+                for i, previous_script in enumerate(scripts)
+                if previous_script.get("tool_call_id") == script.get("tool_call_id")
+                and script.get("tool_call_id")
+            ),
+            None,
+        )
+        if existing is None:
+            scripts.append(script)
+        else:
+            scripts[existing] = script
     council_rounds = [*earlier_council_rounds, *payload.get("council_rounds", [])]
     events = [*earlier_events, *payload.get("babysit_pr_events", [])]
     rounds = [*earlier_rounds, *payload.get("sol_loop_rounds", [])]

@@ -1,0 +1,21 @@
+.guided > section:first-child > header {
+  display: none;
+}
+.avatarEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  text-align: center;
+}
+.portraitControls {
+  flex-direction: column;
+  gap: 16px;
+}
+.portraitControls .portrait {
+  width: 104px;
+  height: 104px;
+}
+.avatarEditor > div:last-child {
+  width: 100%;
+  max-width: 440px;
+}

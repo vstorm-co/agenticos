@@ -17,10 +17,7 @@ register(
         config_schema=None,
         input_schema=None,
         output_schema=LoopItemOutput,
-        ports=(
-            Port(id="in", label="In", kind="input", schema=None),
-            Port(id="out", label="Out", kind="output", schema=LoopItemOutput),
-        ),
+        ports=(Port(id="out", label="Out", kind="output", schema=LoopItemOutput),),
         effect_kind="pure",
         retry_guarantee="idempotent",
         loop_body_only=True,

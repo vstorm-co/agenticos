@@ -1073,3 +1073,138 @@ class TestTheQueueCarriesTheProposal:
             "markdown",
             "Reply",
         )
+
+
+async def _approval_step(seeded: SeededRun, shape: Graph) -> dict[str, Any] | None:
+    async with seeded.factory() as db:
+        listing = await WorkflowExecutionService(db).node_runs(seeded.ctx, seeded.run.id)
+    by_step = {item.node_instance_id: item for item in listing.items}
+    others = [item for step, item in by_step.items() if step != shape.ask.id]
+    assert all(item.approval is None for item in others)
+    approval = by_step[shape.ask.id].approval
+    return None if approval is None else approval.model_dump()
+
+
+class TestTheRunSaysWhoDecided:
+    async def test_a_pending_step_says_nobody_has_decided_yet(self, engine: AsyncEngine):
+        shape = Graph()
+        seeded = await seed_run(engine, shape.graph)
+        await drive(seeded)
+
+        assert await _approval_step(seeded, shape) == {
+            "status": "pending",
+            "decided_at": None,
+            "decided_by_name": None,
+        }
+
+    async def test_an_approval_names_the_decider_and_the_time(self, engine: AsyncEngine, wakes):
+        shape = Graph()
+        seeded = await seed_run(engine, shape.graph)
+        async with seeded.factory() as db:
+            await db.execute(
+                update(User).where(User.id == seeded.principal.id).values(full_name="Ola Nowak")
+            )
+            await db.commit()
+        await drive(seeded)
+        await _decide(seeded, (await _request(seeded)).id, approved=True)
+
+        step = await _approval_step(seeded, shape)
+        assert step is not None
+        assert (step["status"], step["decided_by_name"]) == ("approved", "Ola Nowak")
+        assert step["decided_at"] == (await _request(seeded)).decided_at
+
+    async def test_a_rejection_by_someone_with_no_name_reads_their_email(
+        self, engine: AsyncEngine, wakes
+    ):
+        shape = Graph()
+        seeded = await seed_run(engine, shape.graph)
+        approver = await _another_member(seeded)
+        await drive(seeded)
+        await _decide(seeded, (await _request(seeded)).id, approved=False, ctx=approver)
+
+        async with seeded.factory() as db:
+            email = await db.scalar(select(User.email).where(User.id == approver.user_id))
+        step = await _approval_step(seeded, shape)
+        assert step is not None
+        assert (step["status"], step["decided_by_name"]) == ("rejected", email)
+
+    async def test_a_decider_whose_account_is_gone_is_not_named(self, engine: AsyncEngine, wakes):
+        shape = Graph()
+        seeded = await seed_run(engine, shape.graph)
+        former = await _another_member(seeded)
+        await drive(seeded)
+        await _decide(seeded, (await _request(seeded)).id, approved=True, ctx=former)
+        async with seeded.factory() as db:
+            await db.execute(
+                delete(OrganizationMember).where(OrganizationMember.user_id == former.user_id)
+            )
+            await db.execute(delete(User).where(User.id == former.user_id))
+            await db.commit()
+
+        step = await _approval_step(seeded, shape)
+        assert step is not None
+        assert (step["status"], step["decided_by_name"]) == ("approved", None)
+        assert step["decided_at"] is not None
+
+    async def test_a_decider_who_left_the_organization_is_still_named(
+        self, engine: AsyncEngine, wakes
+    ):
+        shape = Graph()
+        seeded = await seed_run(engine, shape.graph)
+        former = await _another_member(seeded)
+        await drive(seeded)
+        await _decide(seeded, (await _request(seeded)).id, approved=True, ctx=former)
+        async with seeded.factory() as db:
+            await db.execute(
+                delete(OrganizationMember).where(OrganizationMember.user_id == former.user_id)
+            )
+            email = await db.scalar(select(User.email).where(User.id == former.user_id))
+            await db.commit()
+
+        step = await _approval_step(seeded, shape)
+        assert step is not None
+        assert step["decided_by_name"] == email
+
+    async def test_an_expired_request_names_nobody(self, engine: AsyncEngine, wakes):
+        shape = Graph(timeout_hours=1)
+        seeded = await seed_run(engine, shape.graph)
+        await drive(seeded)
+        async with seeded.factory() as db:
+            await db.execute(
+                update(WorkflowApproval)
+                .where(WorkflowApproval.workflow_run_id == seeded.run.id)
+                .values(expires_at=datetime.now(UTC) - timedelta(minutes=1))
+            )
+            await db.commit()
+        async with seeded.factory() as db:
+            await WorkflowReconcilerService(db).wake_stale_step_approvals()
+            await db.commit()
+        await drive(seeded)
+
+        step = await _approval_step(seeded, shape)
+        assert step is not None
+        assert step == {"status": "expired", "decided_at": None, "decided_by_name": None}
+
+    async def test_another_organizations_decisions_are_never_read(self, engine: AsyncEngine, wakes):
+        seeded = await seed_run(engine, Graph().graph)
+        await drive(seeded)
+        request = await _request(seeded)
+        await _decide(seeded, request.id, approved=True)
+
+        async with seeded.factory() as db:
+            assert (
+                await approval_repo.step_decisions(
+                    db, organization_id=uuid.uuid4(), node_run_ids=[request.node_run_id]
+                )
+                == []
+            )
+            assert (
+                await approval_repo.step_decisions(
+                    db, organization_id=seeded.org.id, node_run_ids=[]
+                )
+                == []
+            )
+            mine = await approval_repo.step_decisions(
+                db, organization_id=seeded.org.id, node_run_ids=[request.node_run_id]
+            )
+        assert [decision.status for decision in mine] == ["approved"]
