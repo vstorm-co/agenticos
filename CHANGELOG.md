@@ -52,6 +52,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Keep pending skill updates fresh after decisions in other sessions, recover from stale proposals, and present compact update rows with readable instruction comparisons and reference-file previews.
 
+## [1.75.0] - 2026-11-15
+
+### Added
+
+- Generic API webhook triggers can verify raw-body HMAC-SHA256 signatures in a configured header, with hex or base64 encoding.
+
 ## [1.74.0] - 2026-11-14
 
 ### Added
@@ -21778,7 +21784,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.74.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.75.0...HEAD
+[1.75.0]: https://github.com/vstorm-co/agenticos/compare/v1.74.0...v1.75.0
 [1.74.0]: https://github.com/vstorm-co/agenticos/compare/v1.73.0...v1.74.0
 [1.73.0]: https://github.com/vstorm-co/agenticos/compare/v1.72.0...v1.73.0
 [1.72.0]: https://github.com/vstorm-co/agenticos/compare/v1.71.2...v1.72.0

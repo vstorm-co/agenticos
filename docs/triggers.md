@@ -153,10 +153,18 @@ flowchart TD
 
   GitHub, HubSpot and Zendesk sign their own deliveries, so you give the provider
   the secret - or, for HubSpot and Zendesk, take the one it issued - and it does the
-  signing. The API source reuses GitHub's scheme under `X-Signature-256`, which
+  signing. By default, the API source reuses GitHub's scheme under `X-Signature-256`, which
   whatever you point at the URL has to set itself. A **polled** source signs
   nothing and holds no secret: it was not addressed, it was read, and the account's
   own OAuth grant is what authorized reading it.
+
+The generic `webhook` defaults to the signature above. When creating or updating a trigger through the API, set `event_config` to `{"signature_scheme":"hmac-sha256-base64","signature_header":"X-Shopify-Hmac-Sha256"}` for Shopify, or use `X-Hookdeck-Signature` for Hookdeck's default signature. Use `hmac-sha256-hex` for an unprefixed hex digest. Both sign the exact raw body and require the provider's secret as `event_secret`; header names are case-insensitive.
+
+These modes do not authenticate a timestamp, so captured requests can be replayed. The generic delivery ID header is not signed and does not prevent an attacker changing it. Configure provider-side filtering and use a dedicated integration when its contract requires timestamp checks, a different success response, or another signature scheme. In particular, these options alone do not implement Linear's webhook contract. The console currently creates the default scheme; configure alternatives through the API.
+
+Shopify and Hookdeck do not normally send `X-Delivery-ID`, so retries can fire again. Their provider delivery IDs are not checked by this trigger. Body signatures do not bind the destination URL or provider headers: use a separate secret for each trust boundary, and do not rely on unsigned shop or topic headers to authorize a delivery. Shopify's app secret may be shared across shops, so do not use this mode when a signature must prove which shop or subscription sent the event.
+
+Rotate generates a new AgenticOS secret; it cannot install a replacement issued by a provider. For a provider-controlled secret, create a new trigger and update the provider's URL after changing the secret. Hookdeck's second signature during delayed rotation is not checked.
 
 !!! danger "The signature is not decoration"
 
