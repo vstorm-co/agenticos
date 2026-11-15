@@ -63,7 +63,7 @@ function AssistantCard({ assistant, agentId }: { assistant: AssistantState; agen
           <FormField
             label={t("greeting")}
             htmlFor="org-assistant-greeting"
-            description={t("greetingHint")}
+            help={t("greetingHint")}
           >
             <Textarea
               id="org-assistant-greeting"

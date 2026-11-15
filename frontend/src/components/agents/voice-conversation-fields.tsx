@@ -335,7 +335,7 @@ function LanguageField({ block, disabled, write }: PartProps) {
     <FormField
       label={t("voiceConversationLanguage")}
       htmlFor="agent-voice-call-language"
-      description={t("voiceConversationLanguageHint")}
+      help={t("voiceConversationLanguageHint")}
     >
       <Select
         value={block.language ?? FOLLOW_CALLER}

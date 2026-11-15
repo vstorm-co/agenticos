@@ -308,7 +308,7 @@ function DefaultFields(props: FieldsProps) {
         <FormField
           label={t("voice.provider")}
           htmlFor="org-voice-provider"
-          description={t("voice.providerHint")}
+          help={t("voice.providerHint")}
           error={failure.fields.speech_to_text_provider}
         >
           <Select
@@ -351,7 +351,7 @@ function DefaultFields(props: FieldsProps) {
           <FormField
             label={t("voice.model")}
             htmlFor="org-voice-model"
-            description={t("voice.modelHint", { provider: chosen.name })}
+            help={t("voice.modelHint", { provider: chosen.name })}
             error={failure.fields.speech_to_text_model}
           >
             <Select value={draft.model ?? undefined} onValueChange={(model) => onChange({ model })}>
