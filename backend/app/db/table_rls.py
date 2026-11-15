@@ -293,12 +293,14 @@ def policy_fingerprint(row: Mapping[str, object]) -> str:
 
 
 async def _policies(db: AsyncSession, objects: Sequence[str]) -> Sequence[RowMapping]:
+    # asyncpg decodes PostgreSQL's internal "char" as bytes. Select text so the
+    # runtime and the synchronous migration driver hash the same command tag.
     return (
         (
             await db.execute(
                 text(
                     "SELECT c.relname AS tablename, p.polname AS policyname, "
-                    "p.polpermissive AS permissive, p.polcmd AS cmd, p.polroles AS roles, "
+                    "p.polpermissive AS permissive, p.polcmd::text AS cmd, p.polroles AS roles, "
                     "p.polqual::text AS qual, p.polwithcheck::text AS check, "
                     "pg_catalog.obj_description(p.oid, 'pg_policy') AS stamp, "
                     "pg_catalog.current_setting('server_version_num') AS server_version, "

@@ -144,10 +144,12 @@ def _install_policies(connection: sa.Connection) -> None:
                 "FOR ALL TO PUBLIC USING (true) WITH CHECK (true)"
             )
         )
+        # The internal "char" command tag is bytes under asyncpg, text under
+        # psycopg2. The explicit cast keeps policy fingerprints driver-independent.
         rows = connection.execute(
             sa.text(
                 "SELECT p.polname, p.polqual::text AS qual, p.polwithcheck::text AS check, "
-                "p.polpermissive AS permissive, p.polcmd AS cmd, p.polroles AS roles, "
+                "p.polpermissive AS permissive, p.polcmd::text AS cmd, p.polroles AS roles, "
                 "pg_catalog.current_setting('server_version_num') AS server_version "
                 "FROM pg_catalog.pg_policy AS p "
                 "JOIN pg_catalog.pg_class AS c ON c.oid = p.polrelid "
