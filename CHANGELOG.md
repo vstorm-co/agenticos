@@ -25,6 +25,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Search organization memberships by name or slug alongside the matching count. Restore table card boundaries, fit sandbox host labels and compact dashboard project links.
+
 - Focus the Me dashboard on personal conversations, projects, agents and work; leave evaluation and authoring queues in the organization catalog. Count personal Inbox proposals and tool approvals as waiting.
 
 - Restore horizontal settings tabs and start the personal dashboard with its period summary, followed by a compact Briefing.

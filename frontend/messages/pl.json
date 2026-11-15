@@ -2783,6 +2783,7 @@
       "termsOfService": "Regulamin"
     },
     "orgs": {
+      "searchOrganizations": "Szukaj organizacji…",
       "searchPermissions": "Szukaj uprawnień…",
       "noPermissionsMatch": "Brak uprawnień pasujących do wyszukiwania",
       "retention": "Retencja",

@@ -6751,6 +6751,7 @@
       "termsOfService": "Nutzungsbedingungen"
     },
     "orgs": {
+      "searchOrganizations": "Organisationen suchen…",
       "searchPermissions": "Berechtigungen suchen…",
       "noPermissionsMatch": "Keine Berechtigungen passen zur Suche",
       "retention": "Aufbewahrung",

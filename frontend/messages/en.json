@@ -7478,6 +7478,7 @@
       "termsOfService": "Terms of Service"
     },
     "orgs": {
+      "searchOrganizations": "Search organizations…",
       "searchPermissions": "Search permissions…",
       "noPermissionsMatch": "No permissions match your search",
       "retention": "Retention",

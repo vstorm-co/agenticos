@@ -1,8 +1,10 @@
 ---
-source_sha: "342a26cf455f"
+source_sha: "840ee70e646c"
 ---
 
 # La consola { #the-console }
+
+Organizaciones permite buscar nombres y slugs de las membresías, con el número de coincidencias en la misma barra. Borrar la búsqueda restaura la lista completa de membresías.
 
 La vista Me empieza con una tarjeta de resumen del período, seguida de un Briefing compacto con títulos, fuentes y acciones. Los detalles completos siguen en Inbox.
 

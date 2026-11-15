@@ -1,8 +1,10 @@
 ---
-source_sha: "342a26cf455f"
+source_sha: "840ee70e646c"
 ---
 
 # Konsola { #the-console }
+
+Organizacje mają wyszukiwanie po nazwie i slugu członkostwa, z liczbą wyników w tym samym pasku. Wyczyszczenie wyszukiwania przywraca pełną listę organizacji użytkownika.
 
 Widok Me zaczyna się od karty podsumowania okresu, a następnie zwartego Briefingu z tytułami, źródłami i akcjami. Pełne opisy propozycji pozostają w Inbox.
 
