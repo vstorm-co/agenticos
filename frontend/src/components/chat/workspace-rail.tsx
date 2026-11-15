@@ -28,7 +28,7 @@ export function WorkspaceRail({
     <nav
       aria-label={t("rail")}
       data-tour="chat-workspace"
-      className="border-border bg-background z-20 order-last flex h-12 w-full shrink-0 basis-full flex-row items-center justify-end gap-1 border-t px-2 py-0.5 @min-[900px]/browser-layout:order-none @min-[900px]/browser-layout:h-full @min-[900px]/browser-layout:w-12 @min-[900px]/browser-layout:basis-auto @min-[900px]/browser-layout:flex-col @min-[900px]/browser-layout:justify-start @min-[900px]/browser-layout:gap-2 @min-[900px]/browser-layout:border-t-0 @min-[900px]/browser-layout:border-l @min-[900px]/browser-layout:px-1 @min-[900px]/browser-layout:py-3"
+      className="border-border bg-background z-20 hidden w-12 shrink-0 flex-col items-center gap-2 border-l px-1 py-3 lg:flex"
     >
       {(["browser", "computer"] as const).map((kind) => {
         const Icon = kind === "browser" ? Globe : Monitor;

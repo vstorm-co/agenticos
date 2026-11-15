@@ -19,6 +19,7 @@ import { ChatAgentSettingsPanel } from "./agent-settings-panel";
 
 interface WorkspacePanelsProps {
   teamRoom: boolean;
+  compact: boolean;
   agentId: string | null;
   hostedCapabilities: readonly string[] | null;
   canRun: boolean;
@@ -148,11 +149,13 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
           onClose={close}
         />
       )}
-      <WorkspaceRail
-        filesSlot={setFilesSlot}
-        hasAgent={props.agentId !== null}
-        panelIds={panelIds}
-      />
+      {!props.compact && (
+        <WorkspaceRail
+          filesSlot={setFilesSlot}
+          hasAgent={props.agentId !== null}
+          panelIds={panelIds}
+        />
+      )}
     </>
   );
 }

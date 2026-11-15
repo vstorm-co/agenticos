@@ -1,5 +1,5 @@
 ---
-source_sha: "348e9e2f553e"
+source_sha: "2d22440e0366"
 ---
 
 # La consola { #the-console }
@@ -693,8 +693,10 @@ herramientas. En pantallas estrechas, el panel seleccionado ocupa toda la pantal
 Tras un run, la imagen terminada lleva la etiqueta **Última vista (Last view)**;
 no es un escritorio en directo. Pide otra captura para actualizar la vista del equipo.
 
-**Ajustes del agente.** El control de ajustes de la derecha abre el borrador del
-agente seleccionado junto a la conversación. Edita su nombre, descripción breve,
+**Ajustes del agente.** En los chats completos de escritorio, el control de ajustes
+de la derecha abre el borrador del agente seleccionado junto a la conversación.
+La barra está oculta en teléfonos y chats compactos; usa allí el editor completo
+del agente. Edita su nombre, descripción breve,
 instrucciones, modelo predeterminado y capabilities existentes; después elige
 **Save draft**. **Review and publish** valida el borrador guardado y abre la
 confirmación de publicación existente. Cambiar el modelo predeterminado no elimina

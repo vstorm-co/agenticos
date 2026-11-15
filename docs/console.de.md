@@ -1,5 +1,5 @@
 ---
-source_sha: "348e9e2f553e"
+source_sha: "2d22440e0366"
 ---
 
 # Die Konsole { #the-console }
@@ -726,8 +726,10 @@ kennzeichnet **Letzte Ansicht (Last view)** das abgeschlossene Bild; es ist kein
 Live-Desktop. Fordern Sie ein neues Bildschirmfoto an, um eine Computer-Ansicht zu
 aktualisieren.
 
-**Agent-Einstellungen.** Die Einstellungsschaltfläche rechts öffnet den Entwurf
-des ausgewählten Agents neben dem Gespräch. Bearbeiten Sie Name, Kurzbeschreibung,
+**Agent-Einstellungen.** In vollständigen Desktop-Chats öffnet die
+Einstellungsschaltfläche rechts den Entwurf des ausgewählten Agents neben dem
+Gespräch. Die Leiste ist auf Telefonen und in kompakten Chats ausgeblendet;
+verwenden Sie dort den vollständigen Agent-Editor. Bearbeiten Sie Name, Kurzbeschreibung,
 Anweisungen, Standardmodell und vorhandene Capability-Schalter und wählen Sie
 **Save draft**. **Review and publish** prüft den gespeicherten Entwurf und öffnet
 die bestehende Bestätigung zur Veröffentlichung. Eine Änderung des Standardmodells

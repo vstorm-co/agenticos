@@ -648,9 +648,11 @@ it closed as new tool results arrive. On narrow screens the selected panel fills
 the screen. After a run, a completed image is labelled **Last view**; it is not a
 live desktop. Request a new screenshot to update a Computer view.
 
-**Agent settings.** The settings control on the right opens the selected agent's
-draft beside the conversation. Edit its name, short description, instructions,
-default model and existing capability switches, then choose **Save draft**.
+**Agent settings.** In full desktop chats, the settings control on the right opens
+the selected agent's draft beside the conversation. The rail is hidden on phones
+and in compact chats; use the full agent editor there. Edit its name, short
+description, instructions, default model and existing capability switches, then
+choose **Save draft**.
 **Review and publish** validates the saved draft and opens the existing publication
 confirmation. Changing the default here does not clear a model override in Chat
 controls, and a running turn keeps its frozen configuration.

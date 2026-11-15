@@ -1582,7 +1582,7 @@ function ChatUI({
     !isLoadingConversation;
   return (
     <div className="chat-surface @container/sources-layout relative flex h-full min-h-0 w-full min-w-0 overflow-hidden">
-      <div className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1 flex-wrap content-start">
+      <div className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1">
         {/* The column no longer carries the width. The scroller does, and the
           content is centred inside it - so the scrollbar sits at the edge of the
           pane where a scrollbar belongs, rather than a hundred pixels to the
@@ -1593,7 +1593,7 @@ function ChatUI({
           a column narrowed by the sidebar and the conversation list. */}
         <div
           className={cn(
-            "@container/chat relative flex h-[calc(100%_-_3rem)] min-h-0 min-w-0 flex-1 basis-full flex-col @min-[900px]/browser-layout:h-full @min-[900px]/browser-layout:basis-0",
+            "@container/chat relative flex h-full min-h-0 min-w-0 flex-1 flex-col",
             showWorkspaceHome && "chat-home-column justify-center-safe overflow-y-auto",
           )}
         >
@@ -2149,6 +2149,7 @@ function ChatUI({
         {/* The browser shares the chat's width; a narrow chat opens it full screen. */}
         <WorkspacePanels
           teamRoom={roomProjectId !== null}
+          compact={compact}
           browses={browses}
           surfaces={surfaces}
           onComment={commentOnPage}
