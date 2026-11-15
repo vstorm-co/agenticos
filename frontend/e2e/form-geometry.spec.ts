@@ -1,0 +1,70 @@
+import type { Locator, Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
+import { AUTH_STATE } from "./helpers";
+
+async function activeOrganization(page: Page): Promise<string> {
+  const read = () =>
+    page.evaluate(() => {
+      const value: unknown = JSON.parse(localStorage.getItem("org-storage") ?? "null");
+      if (!value || typeof value !== "object" || !("state" in value)) return "";
+      const state = value.state;
+      return state &&
+        typeof state === "object" &&
+        "activeOrgId" in state &&
+        typeof state.activeOrgId === "string"
+        ? state.activeOrgId
+        : "";
+    });
+  await expect.poll(read).not.toBe("");
+  return read();
+}
+
+async function expectGeometry(first: Locator, second: Locator, touch: boolean): Promise<void> {
+  await expect(first).toBeVisible();
+  await expect(second).toBeVisible();
+  await expect
+    .poll(async () => {
+      const [left, right] = await Promise.all([first.boundingBox(), second.boundingBox()]);
+      if (!left || !right) return Infinity;
+      return Math.max(
+        Math.abs(left.height - right.height),
+        touch ? Math.abs(left.x - right.x) : Math.abs(left.y - right.y),
+      );
+    })
+    .toBeLessThan(1);
+  const bounds = await first.boundingBox();
+  expect(bounds?.height).toBeGreaterThanOrEqual(touch ? 44 : 40);
+}
+
+for (const touch of [false, true]) {
+  test.describe(touch ? "touch form layout" : "desktop form layout", () => {
+    test.use({
+      storageState: AUTH_STATE,
+      viewport: { width: touch ? 390 : 1280, height: 900 },
+      hasTouch: touch,
+      isMobile: touch,
+    });
+    test("help text and native inputs do not displace adjacent controls", async ({ page }) => {
+      await page.goto("/dashboard");
+      const orgId = await activeOrganization(page);
+      await page.goto(`/orgs/${orgId}/members?tab=voice`);
+      const provider = page.locator("#org-voice-provider");
+      await expect(provider).toBeVisible();
+      const model = page.locator("#org-voice-model");
+      await expectGeometry(
+        provider,
+        (await model.count()) ? model : page.locator("#org-voice-language"),
+        touch,
+      );
+      await page.goto("/sandboxes");
+      await page.getByRole("button", { name: "Add connection", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Add sandbox connection" });
+      await expectGeometry(
+        dialog.getByRole("textbox", { name: "Name", exact: true }),
+        dialog.getByRole("combobox", { name: "Kind", exact: true }),
+        touch,
+      );
+      await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    });
+  });
+}

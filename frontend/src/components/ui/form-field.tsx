@@ -78,7 +78,7 @@ export function FormField({
       {(label || help) && (
         <div
           className={cn(
-            "flex min-h-6 items-center gap-1",
+            "touch:min-h-11 flex min-h-6 items-center gap-1",
             layout === "switch" && "col-start-1 row-start-1",
           )}
         >
