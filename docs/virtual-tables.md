@@ -750,9 +750,14 @@ In the table's sharing dialog, **Row access rules** chooses the default:
 
 The table owner, organization Owner/Admin roles and deployment administrator retain
 their policy bypass. They must still pass table access and API-key ceilings. In
-`grants` mode, configure grants before switching existing users over. Creating a new
-row still requires table administration. If the row would be hidden from a table editor,
-the service refuses it with 403: `You do not have permission to write this row`.
+`grants` mode, configure grants before switching existing users over.
+
+Creating a new row still requires table administration. In `grants` mode, a direct
+create that would hide the row from its table editor returns 403:
+`You do not have permission to write this row`. Batch creation reports
+`AUTHORIZATION_ERROR` for that row. Upsert returns the same 404 for a hidden existing
+external ID and unavailable creation, so the refusal does not reveal whether that ID exists.
+
 Managed task boards keep their board-specific access rules and do not offer these
 row-sharing controls.
 

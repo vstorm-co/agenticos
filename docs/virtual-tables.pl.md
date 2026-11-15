@@ -1,5 +1,5 @@
 ---
-source_sha: "240fc9260713"
+source_sha: "e0e623421c5e"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -789,8 +789,14 @@ określają domyślny dostęp:
 Właściciel tabeli, role Owner/Admin organizacji i administrator wdrożenia zachowują
 pominięcie polityki. Nadal muszą przejść kontrolę dostępu do tabeli i ograniczeń klucza API.
 W trybie `grants` skonfiguruj granty przed przełączeniem istniejących użytkowników.
-Utworzenie wiersza nadal wymaga administracji tabelą. Jeśli edytor tabeli nie może
-zobaczyć nowego wiersza, serwis odrzuci żądanie kodem 403: `You do not have permission to write this row`.
+
+Utworzenie wiersza nadal wymaga administracji tabelą. W trybie `grants` bezpośrednie
+tworzenie wiersza niewidocznego dla edytora tabeli zwraca 403:
+`You do not have permission to write this row`. Tworzenie zbiorcze raportuje dla tego
+wiersza `AUTHORIZATION_ERROR`. Upsert zwraca taki sam kod 404 dla istniejącego, lecz
+ukrytego identyfikatora zewnętrznego i niedozwolonego utworzenia, aby odmowa nie ujawniała,
+czy taki identyfikator istnieje.
+
 Zarządzane tablice zadań zachowują własne reguły i nie oferują tych
 kontrolek udostępniania wierszy.
 
