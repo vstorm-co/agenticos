@@ -35,9 +35,7 @@ export function DeveloperAccess({ initial = "api" }: { initial?: "api" | "mcp" }
         <ApiKeysManager />
       </TabsContent>
       <TabsContent value="mcp" className="flex min-h-0 flex-1 flex-col gap-4">
-        <div className="bg-card rounded-xl border px-5 sm:px-6">
-          <McpConnect />
-        </div>
+        <McpConnect />
         <ConnectedApps />
       </TabsContent>
     </Tabs>
