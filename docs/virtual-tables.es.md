@@ -876,8 +876,9 @@ predeterminado:
 El propietario de la tabla, los roles Owner/Admin de la organización y el administrador
 del despliegue conservan su excepción a la política. Siguen sujetos al acceso a la tabla
 y a los límites de la clave API. En modo `grants`, configure los grants antes de cambiar
-a los usuarios existentes. Crear una fila sigue requiriendo administración de la tabla,
-y la fila debe ser visible para su creador. Los tableros de tareas administrados
+a los usuarios existentes. Crear una fila sigue requiriendo administración de la tabla.
+Si el editor de la tabla no pudiera ver la nueva fila, el servicio rechazará la solicitud
+con 403: `You do not have permission to write this row`. Los tableros de tareas administrados
 conservan sus propias reglas y no ofrecen estos controles.
 
 Abra una fila y elija **Row access** para añadir una persona o grupo, seleccionar Read

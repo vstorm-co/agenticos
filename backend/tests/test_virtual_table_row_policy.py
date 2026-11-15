@@ -644,7 +644,7 @@ from unittest.mock import MagicMock
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.schemas.virtual_table import (
     RecordBatchCreate,
     RecordCountQuery,
@@ -907,6 +907,34 @@ async def test_a_create_assigned_to_someone_else_is_refused(ops, monkeypatch):
     assert written.created is True
 
 
+async def test_a_table_editor_without_a_row_grant_cannot_create_in_grants_mode(ops):
+    service, ctx, table = ops
+    table.row_policy = {"rule": "grants"}
+
+    with pytest.raises(AuthorizationError) as refused:
+        await service.create_record(ctx, table.id, RecordCreate(values={}))
+
+    assert refused.value.status_code == 403
+    assert refused.value.message == "You do not have permission to write this row"
+    assert refused.value.details == {"table_id": table.id}
+
+
+async def test_a_grants_mode_batch_reports_the_table_editor_refusal(ops, monkeypatch):
+    service, ctx, table = ops
+    table.row_policy = {"rule": "grants"}
+    monkeypatch.setattr(
+        virtual_table_repo, "database_time", AsyncMock(return_value=datetime.now(UTC))
+    )
+
+    result = await service.create_records(
+        ctx, table.id, RecordBatchCreate(records=[RecordCreate(values={})])
+    )
+
+    assert result.created == 0
+    assert len(result.failed) == 1
+    assert result.failed[0].code == "AUTHORIZATION_ERROR"
+
+
 async def test_a_batch_reports_the_refused_row_and_writes_the_rest(ops, monkeypatch):
     service, ctx, table = ops
     monkeypatch.setattr(
@@ -987,6 +1015,7 @@ async def test_an_update_that_changes_nothing_on_a_visible_row_returns_it(ops, m
 
 async def test_an_upsert_refuses_both_branches_outside_visibility(ops, monkeypatch):
     service, ctx, table = ops
+    table.row_policy = {"rule": "grants"}
     monkeypatch.setattr(
         virtual_table_repo, "get_record_by_external_id", AsyncMock(return_value=None)
     )

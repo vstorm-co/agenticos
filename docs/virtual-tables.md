@@ -827,7 +827,8 @@ In the table's sharing dialog, **Row access rules** chooses the default:
 The table owner, organization Owner/Admin roles and deployment administrator retain
 their policy bypass. They must still pass table access and API-key ceilings. In
 `grants` mode, configure grants before switching existing users over. Creating a new
-row still requires table administration and the new row must be visible to its creator.
+row still requires table administration. If the row would be hidden from a table editor,
+the service refuses it with 403: `You do not have permission to write this row`.
 Managed task boards keep their board-specific access rules and do not offer these
 row-sharing controls.
 
