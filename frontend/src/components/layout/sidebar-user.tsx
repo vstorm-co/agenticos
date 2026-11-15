@@ -29,7 +29,7 @@ import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
  * scrolled with the destinations, so a long nav can never push signing out off
  * the screen.
  *
- * The name and the address are on the trigger rather than inside the menu. The
+ * The name and the address are on the trigger as well as inside the menu. The
  * column has the width for them, and "which account is this" is a question
  * worth answering without a click on a platform where the answer decides what
  * every request is allowed to do.
