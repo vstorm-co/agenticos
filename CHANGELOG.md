@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Native Linear webhook triggers verify signed deliveries and start agent routines directly.
+
 ## [1.75.0] - 2026-11-15
 
 ### Added
