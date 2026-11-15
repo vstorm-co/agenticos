@@ -1,5 +1,5 @@
 ---
-source_sha: "c84ba7589f3d"
+source_sha: "288fe26b1ae3"
 ---
 
 # La consola { #the-console }
@@ -988,6 +988,8 @@ abre su asistente solo para leer, con lo decidido en su último paso; consulte e
 
 Los detalles de organización tienen tres pestañas: **Miembros**, **Presupuesto y aprobaciones** e **IA y servicios**. Miembros ofrece búsqueda por nombre/correo, filtro de rol y la última acción registrada en este espacio. Es una acción de auditoría, no una visita ni un inicio de sesión; se excluyen las acciones por suplantación y se muestra un guion si no hay historial.
 
+El informe diario se configura directamente en Servicios en segundo plano; actualiza el mismo modelo de organización y límite por persona que usan las sugerencias. El mantenimiento de memoria comienza desactivado; los perfiles antiguos sin modelo también se muestran desactivados. Selecciona un modelo antes de activar cada servicio. Los servicios desactivados no muestran avisos de configuración. Los nombres de proveedores de voz no incluyen sufijos sobre credenciales; las claves conservan su selector y validación propios.
+
 **Editar espacio** abre un diálogo para nombre, avatar y color que protege los cambios sin guardar. IA y servicios comienza con servicios en segundo plano, seguido del Arquitecto de IA, sugerencias y monitorización, y Voz. Desplegar la configuración conserva los borradores. Cada control mantiene sus permisos. Los enlaces antiguos `?tab=profile` abren el diálogo del espacio; `?tab=voice` y `?tab=proactivity` abren sus ajustes en IA y servicios.
 
 Al iniciar sesión, las invitaciones dirigidas al correo de la cuenta también aparecen en la consola y el onboarding, sin abrir el enlace del mensaje. La persona elige una organización y acepta explícitamente; Más tarde mantiene disponible el acceso a Invitaciones. Solo aparecen invitaciones vigentes al correo actual, sin enlaces compartidos ni organizaciones de las que ya se es miembro. Aceptar cambia a la organización elegida y abre su bienvenida. El servidor no devuelve el token de invitación en esta bandeja.
@@ -1179,9 +1181,7 @@ Los turnos de chat completados mantienen visible el texto entregado antes de una
 
 El historial distingue a quien pregunta del publicador cuya autoridad admite una solicitud externa. Los remitentes de canales sin vincular aparecen como cuentas de chat explícitamente no verificadas, tanto en escritorio como en móvil; una solicitud anónima no recibe una identidad de miembro inventada. La API conserva `user_id` como contexto de autoridad y expone `initiated_by_publisher_fallback` y `asked_in_chat` para atribuir correctamente la solicitud. Esta presentación no vincula cuentas ni concede acceso a conexiones personales del publicador.
 
-
 El selector de período aparece junto a las pestañas del panel. Las visualizaciones recientes prefieren miniaturas guardadas; si no hay una disponible, el dibujo se reconstruye para su propietario y se muestra en un marco aislado cuando la tarjeta se acerca al área visible. Esta vista no requiere un navegador en el servidor.
-
 
 La búsqueda se abre con la lupa junto al control para contraer la barra lateral; el atajo de teclado sigue disponible. En escritorio, el área de trabajo tiene un marco redondeado junto a la barra lateral. Las galerías muestran las tarjetas de recursos directamente en la página.
 
@@ -1192,3 +1192,7 @@ El editor de agentes destaca Probar, Abrir en el chat y Publicar. Más acciones 
 Ajustes ofrece pestañas horizontales desplazables en escritorio y teléfono. Las secciones habituales usan separadores y las acciones destructivas mantienen su marco de advertencia. En el chat, el contexto del proyecto aparece sobre el editor y el uso está en los controles del chat. La navegación conserva el diseño compartido sin desvanecer el contenido.
 
 Los grupos de la barra lateral se expanden y contraen con suavidad. Los destinos ocultos no reciben el foco y, al contraer la barra, el destino actual sigue visible. Las animaciones respetan los ajustes de apariencia; el movimiento reducido mantiene estos controles estáticos.
+
+Los ajustes conservan pestañas horizontales. Claves API y clientes MCP comparten **API y MCP**, con controles de acceso separados y las URL existentes; la vista interna se guarda en la URL. La configuración móvil se enlaza desde **Cuenta**. El perfil coloca identidad y contexto de agentes en paralelo en pantallas amplias, con tarjetas de apariencia y cuentas conectadas. Las listas ocupan la altura disponible. Organizaciones y grupos se abren desde **Gestionar organizaciones** en el selector de espacio. Las páginas, listas y tablas vacías comparten ilustración. Directory espera permisos y datos antes de mostrar una única acción para crear una asignación.
+
+Los ajustes personales ya no tienen una pestaña Assistant independiente. Los consejos de página están en **Account**; la antigua URL `/settings/assistant` redirige allí. **Inbox preferences** contiene el interruptor personal para recibir sugerencias nocturnas; el historial y la restauración permanecen en Inbox. Los modelos, presupuestos, mantenimiento de memoria y Voice de la organización permanecen en **AI & services**. Las etiquetas de formulario comparten una altura mínima, incluida la ayuda contextual. Los campos y selectores estándar tienen la misma altura, con objetivos táctiles mayores en dispositivos de puntero impreciso. Los filtros compactos conservan su tamaño. La configuración MCP utiliza su propio marco sin un segundo contenedor con borde.

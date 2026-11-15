@@ -1,5 +1,5 @@
 ---
-source_sha: "c84ba7589f3d"
+source_sha: "288fe26b1ae3"
 ---
 
 # Konsola { #the-console }
@@ -964,6 +964,8 @@ sesja otwiera kreator tylko do odczytu, z decyzją w ostatnim kroku; zobacz
 
 Szczegóły organizacji mają trzy zakładki: **Members**, **Budget and approvals** oraz **AI & services**. Members pozwala szukać po nazwie i e-mailu, filtrować role i sprawdzić ostatnie zapisane działanie w tym workspace. To działanie z audytu, nie wizyta ani logowanie; działania przez impersonację są pomijane, a brak historii pokazuje kreskę. **Edit workspace** otwiera okno nazwy, avatara i koloru z ochroną niezapisanych zmian. AI & services zaczyna się od Background services, potem zawiera AI Architect, sugestie i monitoring oraz Voice. Rozwijanie konfiguracji zachowuje szkice. Każda kontrolka zachowuje własne uprawnienia. Stare linki `?tab=profile` otwierają modal workspace, a `?tab=voice` i `?tab=proactivity` odpowiednie ustawienia w AI & services.
 
+Daily briefing można skonfigurować bezpośrednio w Background services; zmienia ten sam model organizacji i limit na osobę, z których korzystają sugestie. Memory maintenance zaczyna jako wyłączone, a stare profile bez modelu są pokazywane jako wyłączone. Najpierw wybierz model, potem włącz usługę. Wyłączone usługi nie pokazują ostrzeżenia konfiguracji. Nazwy providerów Voice nie zawierają dopisków o kluczach; klucze mają osobny wybór i walidację.
+
 Po zalogowaniu zaproszenia wysłane na e-mail konta pojawiają się także w konsoli i onboardingu, bez otwierania linku z wiadomości. Odbiorca wybiera organizację i jawnie przyjmuje zaproszenie; Później zostawia dostępny skrót Zaproszenia. Lista zawiera tylko aktualne zaproszenia na bieżący adres konta, bez linków współdzielonych i organizacji, do których użytkownik już należy. Przyjęcie przełącza organizację i otwiera jej powitanie. Serwer nie zwraca tokenu zaproszenia w tej skrzynce.
 
 Skrzynka wymaga potwierdzenia adresu w bieżącej sesji: świeżego logowania przez OAuth ze zweryfikowanym e-mailem lub linku do logowania wysłanego na konkretny adres. Sesje po zalogowaniu hasłem i starsze sesje nie wyświetlają ponaglenia do potwierdzenia skrzynki ani konfiguracji wysyłki e-maili. Zaproszenie można przyjąć przez oryginalny link, także we wdrożeniu bez dostawcy poczty. Potwierdzenie nie przechodzi do innej sesji ani na zmieniony adres. Lista ma stronicowanie przez **Pokaż kolejne zaproszenia**, a dostęp do logo sprawdza konkretne zaproszenie niezależnie od strony listy.
@@ -1144,9 +1146,7 @@ Zakończone tury chatu pokazują tekst przekazany przed pytaniem agenta obok ko�
 
 Historia runów rozróżnia osobę pytającą od publikującego, którego uprawnienia dopuszczają zewnętrzne zapytanie. Niepowiązany nadawca z kanału jest pokazany jako jawnie niezweryfikowane konto chatu, na komputerze i telefonie; anonimowe zapytanie nie otrzymuje wymyślonej tożsamości członka. API zachowuje `user_id` jako kontekst uprawnień i udostępnia `initiated_by_publisher_fallback` oraz `asked_in_chat` do poprawnego przypisania nadawcy. Ten widok nie łączy kont ani nie udostępnia osobistych połączeń publikującego.
 
-
 Wybór okresu znajduje się obok zakładek widoku dashboardu. Ostatnie wizualizacje korzystają najpierw z zapisanych miniatur; gdy miniatura jest niedostępna, rysunek jest odtwarzany dla właściciela i renderowany w izolowanej ramce, gdy karta zbliża się do widocznego obszaru. Ten podgląd nie wymaga przeglądarki na serwerze.
-
 
 Wyszukiwanie otwiera przycisk lupy obok zwijania paska bocznego; skrót klawiaturowy nadal działa. Na komputerze obszar roboczy ma zaokrągloną ramę obok paska bocznego. Galerie umieszczają karty zasobów bezpośrednio na stronie.
 
@@ -1157,3 +1157,7 @@ Edytor agenta wyróżnia Test, Otwórz w czacie i Publikuj. Więcej akcji zawier
 Ustawienia mają poziome, przewijane zakładki na komputerze i telefonie. Zwykłe sekcje rozdzielają linie, a działania nieodwracalne zachowują ramę ostrzeżenia. W czacie kontekst projektu znajduje się nad polem wiadomości, a zużycie w Ustawieniach czatu. Nawigacja zachowuje wspólny układ bez wygaszania treści.
 
 Grupy paska bocznego rozwijają się i zwijają płynnie. Ukryte miejsca nie przyjmują fokusu, a po zwinięciu paska bieżąca strona pozostaje widoczna. Animacje respektują ustawienia Wyglądu; ograniczenie ruchu pozostawia kontrolki nieruchome.
+
+Ustawienia zachowują poziome taby. Klucze API i klienci MCP są razem w **API i MCP**, z oddzielnymi kontrolami dostępu i zachowanymi adresami; wybrany widok wewnętrzny zapisuje się w URL. Konfiguracja aplikacji mobilnej jest pod **Account**. Profil układa dane osobowe i kontekst agentów obok siebie na szerokim ekranie, z osobnymi kartami wyglądu i połączonych kont. Kontenery list wypełniają dostępną wysokość. Organizacje i grupy otwiera się przez **Manage organizations** w przełączniku workspace, bez powielania ich w sidebarze. Puste strony, listy i tabele korzystają ze wspólnej ilustracji. Directory czeka na uprawnienia i dane, zanim pokaże pojedynczą akcję utworzenia mapowania.
+
+Ustawienia osobiste nie mają osobnej zakładki Assistant. Wskazówki stron znajdują się w **Account**, a stary adres `/settings/assistant` przekierowuje do tej zakładki. **Inbox preferences** zawiera osobisty przełącznik dostarczania nocnych sugestii; historia sugestii i ich przywracanie pozostają w Inbox. Modele organizacji, budżety, utrzymanie pamięci i Voice pozostają w **AI & services**. Etykiety formularzy mają wspólną minimalną wysokość, również przy przycisku pomocy. Standardowe pola tekstowe i selecty mają jednakową wysokość oraz większe obszary dotykowe przy niedokładnym wskaźniku. Kompaktowe filtry tabel zachowują własny rozmiar. Konfiguracja MCP ma jedną własną ramkę zamiast dodatkowego obramowanego kontenera.

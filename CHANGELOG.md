@@ -46,6 +46,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Remove the duplicate MCP setup frame and consolidate personal Assistant settings into Account tips and Inbox preferences. Organization service configuration stays in AI & services.
+- Standardize form label, help, input and select geometry across the console, including touch targets; label the remaining unlabeled selectors and cover adjacent field alignment on desktop and touch screens.
+
+- Configure Daily briefing directly in Background services. Memory maintenance starts disabled; legacy service profiles without a model read as off, and model-less services cannot be switched on in the console. Expand compact service rows for configuration and history; Voice provider labels keep credential status in its dedicated controls.
+- Align the sandbox connection Name and Kind controls, soften personal profile fields, and keep workspace expansion controls off desktop settings tables. Model forms use unique field identifiers when several are mounted together.
+
+- Reduce sidebar duplication, group personal API/MCP access and move mobile setup under Account. Refine profile cards and stretch settings list containers to the available height.
+- Share illustrated empty states across pages, lists and tables; keep Directory in its loading state until permissions and mappings resolve, without a premature Add mapping action.
+
 - Consolidate organization settings into three tabs with expandable AI services, a guarded workspace appearance dialog and aligned provider/model fields. Search members by name or email, filter roles and show workspace-scoped audited activity without treating it as a visit.
 
 - Show explicit loading, retry and empty-search states in the MCP catalog. Keep management table names and sandbox addresses readable, restore a generated profile portrait when an uploaded image cannot load, and let long service diagnostics expand on demand.
@@ -67,7 +76,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Opt-in automatic channel participation with a separate decision model, focus instructions, bounded message windows and configurable pre-/post-mention intervals. Automatic replies can use bound organization MCP accounts; private accounts and calls needing human approval require a direct mention.
 
 - Organization groups in workflow human/MCP approvals and agent notification audiences. Decisions use current eligible membership; empty or deleted configured groups never become unrestricted approval.
-
 
 - New chat bindings enable all supported tools by default, including agent-chosen emoji reactions on Mattermost, Slack, Discord, Telegram and iMessage, with explicit platform limits and text replies alongside reactions.
 
@@ -102,7 +110,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Native routine skill loading no longer inherits an unrelated write-approval requirement; explicit agent approval policy still applies. Approval decisions no longer leave continuation blocked by a stale cached queue.
 - Preserve bot text replies after emoji reactions, including approval continuations. Unlinked senders can request bot reactions on the admitted message or earlier messages actually read from that bound channel, without borrowing publisher account authority. Show editable deployment defaults directly in the channel instruction input; preserve legacy custom additions and restore live defaults when cleared. Smooth chat App/Visual previews with reserved skeletons, decode/render readiness and reduced-motion support.
 
-
 - Protect bundled platform and Architect skills from edits, resource/version/fork changes and deletion by callers without organization-wide agent edit authority, including explicit skill grants; reserve their names against unprivileged creation (#2882).
 
 - Routine skill loading no longer falls through to the unknown external-action approval rule; explicit agent approval gates remain enforced (#3019). Approval decisions check the server for remaining requests rather than trusting a stale queue page.
@@ -118,7 +125,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Chat prompts only for genuinely pending approvals; standing and remembered consent keep their approved audit entries without showing an actionable approval card after the tool completes (#2994).
 
-
 - Read Mattermost thread history in creation-time order and honor result limits even when the platform returns an unordered or oversized thread. Use the thread endpoint's native paging parameters for both text and attachment backfill.
 - Discover both search and fetch tools from multi-query local tool search, including MCP tools with long descriptions.
 - Keep channel author metadata separate from user messages, without inserting an empty message marker. Ignore Mattermost system housekeeping posts before they can start paid agent runs.
@@ -126,7 +132,6 @@ Two things are versioned separately from this file and worth knowing about:
 ### Changed
 
 - The active chat permission mode stays visible beside the composer, with a direct selector that respects the organization waiver policy and the caller’s permissions (#2995).
-
 
 ## [1.73.0] - 2026-11-13
 
@@ -152,7 +157,6 @@ Two things are versioned separately from this file and worth knowing about:
 - **Coding task file counts.** The message footer and task panel use the stored change set, including shell edits. New reports normalize harness-only fallback paths relative to the workspace.
 - **Workflow step claims follow the database clock.** A worker's claim on a workflow step now measures its lease from the database's time, the clock every expiry check reads. Before, a worker host whose clock ran behind the database could take a claim that had already expired, so a second worker could run the same step; one whose clock ran ahead held a dead worker's step longer than `WORKFLOW_DISPATCH_LEASE_SECONDS`. The recovery sweeps read the database's time too.
 
-
 ## [1.72.0] - 2026-11-13
 
 ### Added
@@ -172,7 +176,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Keep the Skill editor frame mounted across skeleton, metadata and module loading
   to avoid a second opening animation; place full view beside Share in its footer.
 
-
 - Match skill/context editor loading to the real dialog and pane geometry on
   desktop and phones. Keep dataset detail chrome and load Cases through its real
   table columns; align catalog placeholders and remove invented panel/form grids.
@@ -186,7 +189,6 @@ Two things are versioned separately from this file and worth knowing about:
   full Content view action; remove the Version tree while retaining History diffs.
 - Show the Agents status filter directly and reserve workspace fullscreen controls
   for phones, restoring navigation and page scrolling on desktop resize.
-
 
 - The first chat message keeps its composer mounted when the server names the
   new conversation, instead of briefly replacing it with an access-check notice.
@@ -284,7 +286,6 @@ Two things are versioned separately from this file and worth knowing about:
   organization accounts now reach the existing backend through the shared,
   authenticated console proxy instead of returning a frontend 404.
 
-
 ## [1.71.2] - 2026-11-12
 
 ### Changed
@@ -293,7 +294,6 @@ Two things are versioned separately from this file and worth knowing about:
 - **Browser actions follow tab state.** Browser opening and session restoration stay discoverable from the start; switching and closing appear when tabs exist, and page actions appear with an active tab. Tool renames and approval metadata are preserved.
 
 ## [1.71.1] - 2026-11-12
-
 
 ### Fixed
 
@@ -364,7 +364,6 @@ Platform MCP clients must follow page and text-window continuations instead of e
 ### Upgrading
 
 - Migrations `0316_trigger_attempts.py`, `0317_opensandbox_connections.py`, `0318_wide_memory_approvals.py`, `0319_webhook_signed_digest.py` and `0320_record_batch_receipts.py` form one chain after the deployed skill/approval merge. They add attempt history, OpenSandbox settings, pending shared-correction protection, webhook digests and batch receipt support. Downgrading removes the new attempt history and batch receipts; remove OpenSandbox connections and long image names before downgrading its settings.
-
 
 ## [1.68.0] - 2026-11-12
 
@@ -926,7 +925,6 @@ environment without a person's decision.
 - A suite and a promotion override can be set up only by a person signed in as
   themselves, not through an API key or impersonation.
 
-
 ## [1.61.5] - 2026-11-09
 
 ### Changed
@@ -1440,7 +1438,6 @@ environment without a person's decision.
 
 - Project tracking preset: explicitly review a published agent's sources, then create a private tracker, task table, saved views and a project-bound routine. Recheck project access for tools and queued notifications.
 
-
 - Bind routine execution, parked runs and queued events to reviewed source and account ceilings. Add owner-only source review in the console. **Upgrade:** apply `0276_routine_sources.py`, update API/workers together and explicitly review existing routines; migration grants no legacy consent.
 
 ### Changed
@@ -1756,7 +1753,6 @@ environment without a person's decision.
 
 - **mem0 is gone; native memory is the only store.** The `memory_mem0` capability, its secret kind, `MEM0_ALLOWED_HOSTS` and `mem0ai` are removed (#2090). **Upgrade:** `0248_drop_memory_mem0.py` stops while any legacy binding remains. Inventory endpoints and vault mappings, verify external erasure, then explicitly remove bindings from drafts and published versions before retrying; follow the [upgrade checklist](docs/deploy.md#native-memory-upgrade). No remote data is imported or erased by the migration. Recover mappings from the pre-upgrade backup if an earlier development build already stripped them. Native erasure reports `claims_deleted` and reaches native stores only. Agents now use the Memory capability.
 
-
 ### Fixed
 
 - Show the same Architect avatar in the assistant widget and agent list after its stored picture is cleared, including its selected colour.
@@ -1764,7 +1760,6 @@ environment without a person's decision.
 ### Fixed
 
 - Restore visible, horizontally scrollable settings tabs on desktop and mobile instead of the section dropdown.
-
 
 ## [1.49.0] - 2026-11-05
 
@@ -1956,7 +1951,6 @@ environment without a person's decision.
 
   The migration then finds the indexes valid and leaves those collections alone. Let the statement finish before you upgrade: if the migration finds a build still running, it stops with an error, and you run the upgrade again after the build ends. If a concurrent build fails, it leaves an invalid index. Drop it with `DROP INDEX CONCURRENTLY <name>` and run the statement again. If you upgrade with an invalid index in place, the migration drops and rebuilds it, and searches in that collection also wait until the upgrade commits.
 
-
 ## [1.39.0] - 2026-11-03
 
 ### Added
@@ -1970,7 +1964,6 @@ environment without a person's decision.
 - Remember native coding-agent startup consent per agent, folder, adapter version and connection; revoke it with folder/account access and stop affected agents. Preserve local grants on reconnect, avoid repeated credential probes on focus, hide background Windows console windows, wait for HTTP readiness and refuse remote Docker contexts or platform downgrades during local setup.
 
 - Prepare the local runtime from the macOS setup wizard and restart saved local workspaces when the desktop app opens. Pull public product images with a private anonymous configuration to avoid credential-helper and keychain prompts, and pass Docker helper paths to subprocesses launched from Finder.
-
 
 ## [1.38.4] - 2026-11-03
 

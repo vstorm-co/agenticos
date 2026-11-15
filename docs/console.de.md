@@ -1,5 +1,5 @@
 ---
-source_sha: "c84ba7589f3d"
+source_sha: "288fe26b1ae3"
 ---
 
 # Die Konsole { #the-console }
@@ -1039,6 +1039,8 @@ ihren Assistenten nur zum Lesen, mit der Entscheidung im letzten Schritt; siehe
 
 Organisationsdetails haben drei Registerkarten: **Mitglieder**, **Budget und Freigaben** und **KI & Dienste**. Mitglieder bietet Namens-/E-Mail-Suche, Rollenfilter und die letzte erfasste Aktion in diesem Arbeitsbereich. Dies ist eine Audit-Aktion, kein Besuch oder Login; Aktionen durch Identitätsübernahme werden ausgeschlossen und fehlende Historie erscheint als Strich. **Arbeitsbereich bearbeiten** öffnet einen Dialog für Name, Avatar und Farbe mit Schutz ungespeicherter Änderungen. KI & Dienste beginnt mit Hintergrunddiensten, danach folgen KI-Architekt, Vorschläge und Monitoring sowie Sprache. Aufklappen erhält Entwürfe. Alle Steuerelemente behalten ihre Berechtigungsprüfungen. Alte Links mit `?tab=profile` öffnen den Arbeitsbereich-Dialog; `?tab=voice` und `?tab=proactivity` öffnen die passenden Einstellungen in KI & Dienste.
 
+Das tägliche Briefing lässt sich direkt in Hintergrunddienste konfigurieren; es aktualisiert dasselbe Organisationsmodell und personenbezogene Limit wie die Vorschläge. Die Speicherpflege startet ausgeschaltet; auch alte Profile ohne Modell werden als ausgeschaltet angezeigt. Wählen Sie vor dem Einschalten ein Modell. Ausgeschaltete Dienste zeigen keine Einrichtungswarnung. Namen der Sprachanbieter enthalten keine Hinweise zum Schlüsselstatus; Schlüssel behalten ihre separate Auswahl und Validierung.
+
 Nach der Anmeldung erscheinen an die Konto-E-Mail adressierte Einladungen auch in Konsole und Onboarding, ohne den E-Mail-Link zu öffnen. Der Empfänger wählt eine Organisation und nimmt ausdrücklich an; Später lässt die Verknüpfung Einladungen verfügbar. Angezeigt werden nur gültige Einladungen an die aktuelle Konto-Adresse, ohne geteilte Links und bereits beigetretene Organisationen. Die Annahme wechselt zur gewählten Organisation und öffnet deren Begrüßung. Der Server gibt in diesem Posteingang keine Einladungstokens zurück.
 
 Der Posteingang erfordert einen Nachweis der E-Mail-Adresse in der aktuellen Sitzung: eine neue OAuth-Anmeldung mit verifizierter Adresse oder einen an die Adresse gebundenen E-Mail-Anmeldelink. Passwort- und ältere Sitzungen zeigen keine Aufforderung zur Bestätigung des Postfachs oder zur Einrichtung des E-Mail-Versands. Einladungen können über ihren ursprünglichen Link angenommen werden, auch bei Installationen ohne E-Mail-Anbieter. Der Nachweis gilt weder für andere Sitzungen noch für eine geänderte Adresse. **Weitere Einladungen anzeigen** lädt weitere Seiten; der Logoabruf prüft die konkrete Einladung unabhängig von deren Listenseite.
@@ -1231,9 +1233,7 @@ Abgeschlossene Chat-Turns zeigen den vor einer Agentenfrage gelieferten Text neb
 
 Der Run-Verlauf unterscheidet die anfragende Person vom Herausgeber, dessen Berechtigung eine externe Anfrage zulässt. Nicht verknüpfte Kanalabsender erscheinen auf Desktop und Mobilgeräten als ausdrücklich unbestätigte Chat-Konten; anonyme Anfragen erhalten keine erfundene Mitgliedsidentität. Die Run-API behält `user_id` als Berechtigungskontext und ergänzt `initiated_by_publisher_fallback` und `asked_in_chat` für eine korrekte Zuordnung. Die Anzeige verknüpft keine Konten und gewährt keinen Zugriff auf persönliche Verbindungen des Herausgebers.
 
-
 Die Zeitraumwahl steht neben den Dashboard-Ansichten. Zuletzt erstellte Visualisierungen bevorzugen gespeicherte Vorschaubilder. Fehlt eines, wird die Zeichnung für ihren Besitzer rekonstruiert und in einem isolierten Rahmen gerendert, sobald sich die Kachel dem sichtbaren Bereich nähert. Dafür ist kein Browser auf dem Server erforderlich.
-
 
 Die Suche öffnest du über die Lupe neben dem Schalter zum Einklappen der Seitenleiste; das Tastenkürzel bleibt verfügbar. Auf dem Desktop hat der Arbeitsbereich einen abgerundeten Rahmen neben der Seitenleiste. Galerien zeigen Ressourcenkarten direkt auf der Seite.
 
@@ -1244,3 +1244,7 @@ Der Agenteneditor hebt Test, Im Chat öffnen und Veröffentlichen hervor. Weiter
 Einstellungen bietet auf Desktop und Telefon horizontale, scrollbare Tabs. Gewöhnliche Abschnitte verwenden Trennlinien; destruktive Aktionen behalten ihren Warnrahmen. Im Chat steht der Projektkontext über dem Eingabefeld, die Nutzung findest du in den Chat-Einstellungen. Navigation erhält das gemeinsame Layout ohne Ausblenden der Inhalte.
 
 Gruppen der Seitenleiste öffnen und schließen sich fließend. Verborgene Ziele erhalten keinen Fokus; beim Einklappen bleibt das aktuelle Ziel sichtbar. Animationen beachten deine Darstellungseinstellungen; bei reduzierter Bewegung bleiben diese Bedienelemente statisch.
+
+Einstellungen behalten horizontale Tabs. API-Schlüssel und MCP-Clients teilen **API & MCP**, mit getrennten Zugriffskontrollen und bestehenden URLs; die innere Ansicht steht in der URL. Mobile Einrichtung ist unter **Konto** verlinkt. Das Profil zeigt Identität und Agentenkontext auf breiten Bildschirmen nebeneinander, mit eigenen Karten für Erscheinungsbild und verbundene Konten. Listen füllen die verfügbare Höhe. Organisationen und Gruppen öffnen über **Organisationen verwalten** im Workspace-Wechsler statt über doppelte Sidebar-Einträge. Leere Seiten, Listen und Tabellen teilen dieselbe Illustration. Directory wartet auf Berechtigungen und Daten, bevor es eine einzelne Aktion zum Erstellen einer Zuordnung zeigt.
+
+Persönliche Einstellungen haben keinen eigenen Assistant-Tab mehr. Seitenhinweise stehen unter **Account**; die alte URL `/settings/assistant` leitet dorthin weiter. **Inbox preferences** enthält den persönlichen Schalter für die Zustellung nächtlicher Vorschläge. Verlauf und Wiederherstellung bleiben im Inbox. Organisationsmodelle, Budgets, Speicherpflege und Voice bleiben unter **AI & services**. Formularbeschriftungen haben eine gemeinsame Mindestzeilenhöhe, auch mit Inline-Hilfe. Standard-Eingaben und Auswahllisten sind gleich hoch; bei groben Zeigegeräten sind die Berührungsflächen größer. Kompakte Tabellenfilter behalten ihre eigene Größe. Die MCP-Einrichtung besitzt einen eigenen Rahmen statt eines zweiten umschließenden Containers.
