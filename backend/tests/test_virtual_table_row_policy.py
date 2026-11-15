@@ -1056,7 +1056,7 @@ async def test_a_link_to_an_invisible_row_fails_like_a_missing_one(ops, monkeypa
         "fields": [
             {
                 "field": f"values.{LINK_COL.id}",
-                "message": f"No record {invisible_id} in the linked table",
+                "message": "No record is available in the linked table",
             }
         ]
     }

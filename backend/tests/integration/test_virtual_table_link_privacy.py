@@ -7,17 +7,21 @@ from uuid import UUID, uuid4
 import pytest
 
 from app.db.models.organization import OrganizationMember
-from app.repositories import virtual_table_repo
+from app.db.models.resource_grant import GrantLevel
+from app.repositories import resource_grant_repo, virtual_table_repo
 from app.schemas.virtual_table import (
     RecordCountQuery,
     RecordExportQuery,
     RecordFilter,
     RecordQuery,
     RecordSort,
+    RecordUpdate,
     SchemaUpdate,
     TableCreate,
 )
+from app.services.access import TABLE
 from app.services.virtual_tables import ReadDeadline, VirtualTableService
+from app.services.virtual_tables.exceptions import InvalidRecordError
 from tests.integration.virtual_table_support import (
     cid,
     column,
@@ -190,6 +194,76 @@ async def test_unreadable_or_invalid_target_policy_is_an_empty_filter_surface(db
         )
         assert {item.id for item in page.items} == expected
         assert str(destination) not in page.model_dump_json()
+
+
+async def test_hidden_and_unknown_submitted_links_fail_identically_and_legacy_empty_lists_preserve(
+    db,
+):
+    owner, viewer, org = await _people(db)
+    service = VirtualTableService(db)
+    owner_ctx = ctx_for(owner, org)
+    reader = ctx_for(viewer, org, "viewer")
+    target = await service.create_table(
+        owner_ctx,
+        TableCreate(
+            name="Link targets",
+            visibility="org",
+            columns=[column("Name", "text"), column("Assignee", "user")],
+        ),
+    )
+    hidden = (
+        await insert_rows(
+            db,
+            target,
+            [{cid(target, "Name"): "Private", cid(target, "Assignee"): str(owner.id)}],
+        )
+    )[0]
+    source = await service.create_table(
+        owner_ctx,
+        TableCreate(
+            name="Link sources",
+            visibility="org",
+            columns=[column("Name", "text"), column("Related", "link", link_table_id=target.id)],
+        ),
+    )
+    name, link = cid(source, "Name"), cid(source, "Related")
+    source_id = (await insert_rows(db, source, [{name: "before", link: [str(hidden)]}]))[0]
+    await _restrict(db, target, org, cid(target, "Assignee"))
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=org.id,
+        subject_user_id=viewer.id,
+        resource_type=TABLE.key,
+        resource_id=source.id,
+        level=GrantLevel.EDIT,
+    )
+
+    errors = []
+    for record_id in (hidden, uuid4()):
+        with pytest.raises(InvalidRecordError) as refused:
+            await service.update_record(
+                reader,
+                source.id,
+                source_id,
+                RecordUpdate(expected_revision=1, values={link: [str(record_id)]}),
+            )
+        errors.append(refused.value.details)
+    assert errors[0] == errors[1]
+    assert str(hidden) not in str(errors[0])
+
+    stored_target = await virtual_table_repo.get_table(db, target.id, organization_id=org.id)
+    stored_target.visibility = "private"
+    await db.flush()
+    await service.update_record(
+        reader,
+        source.id,
+        source_id,
+        RecordUpdate(expected_revision=1, values={name: "after", link: []}),
+    )
+    stored = await virtual_table_repo.get_record(
+        db, source_id, table_id=source.id, organization_id=org.id
+    )
+    assert stored.values == {name: "after", link: [str(hidden)]}
 
 
 async def test_self_links_apply_the_policy_to_the_destination_alias(db):
