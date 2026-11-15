@@ -83,6 +83,7 @@ export function SectionCard({
 
 interface SettingsSectionProps {
   tour?: string;
+  toggleTour?: string;
   collapsible?: boolean;
   defaultOpen?: boolean;
   title: string;
@@ -98,6 +99,7 @@ interface SettingsSectionProps {
 
 export function SettingsSection({
   tour,
+  toggleTour,
   collapsible = false,
   defaultOpen = false,
   title,
@@ -139,6 +141,7 @@ export function SettingsSection({
               {collapsible ? (
                 <button
                   type="button"
+                  data-tour={toggleTour}
                   aria-expanded={open}
                   aria-controls={panelId}
                   onClick={() => setOpen(!open)}

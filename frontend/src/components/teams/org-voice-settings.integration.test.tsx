@@ -168,8 +168,9 @@ async function mount(stored: Partial<Organization> = {}, served: Served = {}) {
   serve(served);
   render(<OrgVoiceSettings org={org(stored)} />, { wrapper });
   await screen.findByRole("heading", { name: "Voice" });
-  // The vault decides which providers have a key; wait for it to arrive.
-  await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/secrets"));
+  await waitFor(() =>
+    expect(apiClient.get).toHaveBeenCalledWith("/providers/speech-to-text-models"),
+  );
 }
 
 async function choose(field: string | RegExp, option: string | RegExp) {
@@ -225,7 +226,7 @@ describe("OrgVoiceSettings", () => {
   it("offers a provider with no key yet, and says how to add one", async () => {
     await mount({}, { vault: [] });
 
-    await choose("Provider", "OpenAI (no usable key)");
+    await choose("Provider", "OpenAI");
     expect(
       await screen.findByText(/No organization-wide OpenAI keys in the vault yet/),
     ).toBeInTheDocument();
@@ -233,7 +234,7 @@ describe("OrgVoiceSettings", () => {
 
   it("names an existing private OpenAI key and explains its required access", async () => {
     await mount({}, { vault: [key("Private OpenAI", "openai", "private")] });
-    await choose("Provider", "OpenAI (no usable key)");
+    await choose("Provider", "OpenAI");
     expect(
       await screen.findByText(/Private OpenAI.*shared with the whole organization/),
     ).toBeVisible();
@@ -242,7 +243,7 @@ describe("OrgVoiceSettings", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the provider's fields, marking providers with no organization-wide key", async () => {
+  it("shows provider names without credential annotations", async () => {
     await mount();
 
     await choose("Provider", "OpenAI");
@@ -258,9 +259,9 @@ describe("OrgVoiceSettings", () => {
 
     // A private Mistral key does not count: this one is spent for everybody.
     await userEvent.click(screen.getByRole("combobox", { name: "Provider" }));
-    expect(
-      await screen.findByRole("option", { name: "Mistral (no usable key)" }),
-    ).not.toHaveAttribute("aria-disabled");
+    expect(await screen.findByRole("option", { name: "Mistral" })).not.toHaveAttribute(
+      "aria-disabled",
+    );
     expect(screen.getByRole("option", { name: "Groq" })).toBeInTheDocument();
   });
 

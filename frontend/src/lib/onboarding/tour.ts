@@ -1322,7 +1322,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "org-proactivity-model",
     page: ORG_MEMBERS,
     target: "org-proactivity-model",
-    activate: "org-tab-assistant",
+    activate: ["org-tab-assistant", "org-proactivity-expand"],
     permission: Perm.budgetsManage,
     anyPermission: [Perm.connectionsManage],
     optional: true,

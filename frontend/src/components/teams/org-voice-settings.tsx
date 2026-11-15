@@ -10,7 +10,7 @@ import { voiceSetupHints } from "@/lib/setup-hints";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { OrgVoiceUsage } from "@/components/teams/org-voice-usage";
 import { ProviderIcon } from "@/components/vault/provider-icon";
-import { SpeechKeyField, useSpeechKeyCheck } from "@/components/vault/speech-key-field";
+import { SpeechKeyField } from "@/components/vault/speech-key-field";
 import {
   Alert,
   AlertDescription,
@@ -208,8 +208,6 @@ function useVoiceDraft(org: Organization) {
 function VoiceForm({ org, collapsible }: { org: Organization; collapsible: boolean }) {
   const t = useTranslations("teams");
   const { providers, languages } = useSpeechToTextProviders();
-  // Only organization-wide keys: the platform spends this one for everybody.
-  const hasKey = useSpeechKeyCheck(true);
   const form = useVoiceDraft(org);
   const { draft, failure } = form;
 
@@ -229,7 +227,6 @@ function VoiceForm({ org, collapsible }: { org: Organization; collapsible: boole
           draft={draft}
           providers={providers}
           languages={languages}
-          hasKey={hasKey}
           failure={failure}
           lengthInvalid={form.lengthInvalid}
           onChange={form.edit}
@@ -293,7 +290,6 @@ interface FieldsProps {
   draft: Draft;
   providers: SpeechToTextProvider[];
   languages: string[];
-  hasKey: (provider: string) => boolean;
   failure: SubmitFailure;
   lengthInvalid: boolean;
   onChange: (next: Partial<Draft>) => void;
@@ -304,7 +300,7 @@ interface FieldsProps {
  * recording, and where a recording sent to that provider travels.
  */
 function DefaultFields(props: FieldsProps) {
-  const { draft, providers, hasKey, failure, onChange } = props;
+  const { draft, providers, failure, onChange } = props;
   const t = useTranslations("teams");
   const chosen = providers.find((entry) => entry.provider === draft.provider);
   return (
@@ -339,9 +335,7 @@ function DefaultFields(props: FieldsProps) {
                 {t("voice.providerNone")}
               </SelectItem>
               {providers.map((entry) => {
-                const label = hasKey(entry.provider)
-                  ? entry.name
-                  : t("voice.providerNoKey", { name: entry.name });
+                const label = entry.name;
                 return (
                   <SelectItem key={entry.provider} value={entry.provider} textValue={label}>
                     <span className="flex items-center gap-2">
