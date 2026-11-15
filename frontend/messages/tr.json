@@ -7911,6 +7911,10 @@
             "body" : "Konuşmalar, run’lar, belgeler, bellek, yüklemeler ve denetim kaydı için ayrı saklama süreleri belirleyin. Günlük temizlik verileri kalıcı olarak siler ve dağıtımın belirlediği sınırları uygular. Denetim kaydının asgari süresi uzatılabilir, kısaltılamaz.",
             "title" : "Verilerin burada ne kadar kalacağı"
          },
+         "org-role-navigation" : {
+            "body" : "Bir rolün gezinme önizlemesini inceleyin ve göreceği bağlantıları seçin. Değişiklikleri bu kuruluş için kaydedin veya rolün varsayılan ayarlarını geri yükleyin. Verilere ve işlemlere erişimi izin matrisi belirlemeye devam eder.",
+            "title" : "Her rolün kenar çubuğunu seçin"
+         },
          "org-roles" : {
             "body" : "İzin matrisi, rol rol nelerin kullanılabileceğini ve erişimin sınırlarını gösterir. Tek bir kaynağı paylaşmak rolün erişimini genişletebilir ama daraltamaz.",
             "title" : "Her rol neler yapabilir?"
@@ -9124,6 +9128,38 @@
          "membersCard" : "Üyeler",
          "membersDescription" : "Bu kuruluşa {count, plural, =1 {1 kişinin} other {# kişinin}} erişimi var. Sahipler ve yöneticiler ekip arkadaşlarını davet edip rolleri düzenleyebilir.",
          "nameAvatarShownAcross" : "Bu kuruluştaki herkese uygulama genelinde gösterilen ad ve avatar.",
+         "navigation" : {
+            "accessNotice" : "Bu ayarlar gezinme bağlantılarını gizler. Veri erişimi, doğrudan bağlantılar ve işlemler izin matrisine ve kaynak paylaşımına tabi olmaya devam eder.",
+            "alwaysShown" : "Her zaman gösterilir",
+            "controlsTitle" : "Gezinme öğeleri",
+            "description" : "Bu kuruluştaki her rolün hangi gezinme öğelerini göreceğini seçin.",
+            "discard" : "Değişiklikleri iptal et",
+            "general" : "Genel",
+            "hidden" : "Gizli",
+            "loadError" : "Kenar çubuğu ayarları yüklenemedi.",
+            "ownerProtected" : "Kuruluş ayarlarına her zaman yeniden erişilebilmesi için Sahip rolünün kenar çubuğu kullanılabilir kalır.",
+            "permissionUnavailable" : "Bu rol için kullanılamaz",
+            "previewHint" : "Bu önizleme rolün izinlerini kullanır. Sabitlenmiş uygulamalar ve projeler yalnızca erişilebilir içerik varsa görünür.",
+            "previewTitle" : "Kenar çubuğu önizlemesi",
+            "readOnly" : "Bu rolün önizlemesini görebilirsiniz. Yalnızca kendi rolünüzün altındaki rolleri düzenleyebilirsiniz.",
+            "reset" : "Varsayılanlara dön",
+            "retry" : "Yeniden dene",
+            "role" : "Rol",
+            "roles" : {
+               "admin" : "Yönetici",
+               "builder" : "Oluşturucu",
+               "member" : "Üye",
+               "operator" : "Operatör",
+               "owner" : "Sahip",
+               "viewer" : "Görüntüleyici"
+            },
+            "save" : "Kenar çubuğunu kaydet",
+            "saved" : "Kenar çubuğu kaydedildi",
+            "showItem" : "{item} öğesini göster",
+            "title" : "Kenar çubuğu görünürlüğü",
+            "unsaved" : "Kaydedilmemiş değişiklikler var. Rol değiştirmeden önce kaydedin veya iptal edin.",
+            "visible" : "Görünür"
+         },
          "newOrganization" : "Yeni kuruluş",
          "noMembersYet" : "Henüz üye yok",
          "noOrganizationsYet" : "Henüz kuruluş yok",
@@ -9160,7 +9196,7 @@
          "usedOfMax" : "{max} üzerinden {used} kullanıldı",
          "usersRoles" : "Kullanıcılar ve Roller",
          "waitingOnResponse" : "{count, plural, =1 {1 yanıt bekleniyor} other {# yanıt bekleniyor}}",
-         "whatEachRoleMay" : "Her rolün yapabilecekleri. İzinler kodda tanımlanır ve rollere eklenir; bir rol, platformun tanımlamadığı bir izni hiçbir zaman içeremez.",
+         "whatEachRoleMay" : "Rol izinlerini inceleyin ve bu kuruluştaki her rolün kenar çubuğunda hangi bağlantıları göreceğini seçin.",
          "workspaceAvatarUpdated" : "Kuruluş avatarı güncellendi",
          "workspaceName" : "Kuruluş adı",
          "workspaceProfile" : "Kuruluş profili",

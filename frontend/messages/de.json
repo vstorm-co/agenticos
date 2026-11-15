@@ -10879,6 +10879,10 @@
             "body" : "Ein Zeitraum je Klasse – Unterhaltungen, Runs, Dokumente, Gedächtnis, Uploads und der Audit-Trail. Ein Durchlauf läuft täglich und löscht endgültig, innerhalb der Grenzen, die das Deployment gesetzt hat; der Audit-Trail hat eine Untergrenze, die Sie verlängern und nie verkürzen können.",
             "title" : "Wie lange Daten hier leben"
          },
+         "org-role-navigation" : {
+            "body" : "Sehen Sie sich die Navigation einer Rolle in der Vorschau an und wählen Sie ihre sichtbaren Links. Speichern Sie Änderungen für diese Organisation oder setzen Sie die Rolle auf die Standardeinstellungen zurück. Der Zugriff auf Daten und Aktionen richtet sich weiterhin nach der Berechtigungsmatrix.",
+            "title" : "Seitenleiste für jede Rolle festlegen"
+         },
          "org-roles" : {
             "body" : "Die Berechtigungsmatrix, Rolle für Rolle: was jede anfassen darf und wie weit das reicht. Eine einzelne Ressource zu teilen kann den Zugriff über die Rolle hinaus erweitern, nie einengen.",
             "title" : "Was jede Rolle darf"
@@ -12334,6 +12338,38 @@
          "membersCard" : "Mitglieder",
          "membersDescription" : "{count, plural, =1 {1 Person hat} other {# Personen haben}} Zugriff auf diese Organisation. Owner und Admins können Kolleginnen und Kollegen einladen und Rollen anpassen.",
          "nameAvatarShownAcross" : "Name und Avatar, in der ganzen App für alle in dieser Organisation sichtbar.",
+         "navigation" : {
+            "accessNotice" : "Diese Einstellungen blenden Navigationslinks aus. Datenzugriff, direkte Links und Aktionen richten sich weiterhin nach der Berechtigungsmatrix und der Ressourcenfreigabe.",
+            "alwaysShown" : "Immer angezeigt",
+            "controlsTitle" : "Navigationseinträge",
+            "description" : "Wählen Sie, welche Navigationseinträge jede Rolle in dieser Organisation sieht.",
+            "discard" : "Änderungen verwerfen",
+            "general" : "Allgemein",
+            "hidden" : "Ausgeblendet",
+            "loadError" : "Die Einstellungen der Seitenleiste konnten nicht geladen werden.",
+            "ownerProtected" : "Die Seitenleiste der Rolle „Inhaber“ bleibt verfügbar, damit der Zugriff auf die Organisationseinstellungen immer wiederhergestellt werden kann.",
+            "permissionUnavailable" : "Für diese Rolle nicht verfügbar",
+            "previewHint" : "Diese Vorschau berücksichtigt die Berechtigungen der Rolle. Angeheftete Apps und Projekte erscheinen nur, wenn zugängliche Inhalte vorhanden sind.",
+            "previewTitle" : "Vorschau der Seitenleiste",
+            "readOnly" : "Sie können diese Rolle in der Vorschau ansehen. Bearbeiten können Sie nur Rollen unterhalb Ihrer eigenen.",
+            "reset" : "Auf Standard zurücksetzen",
+            "retry" : "Erneut versuchen",
+            "role" : "Rolle",
+            "roles" : {
+               "admin" : "Administrator",
+               "builder" : "Ersteller",
+               "member" : "Mitglied",
+               "operator" : "Operator",
+               "owner" : "Inhaber",
+               "viewer" : "Betrachter"
+            },
+            "save" : "Seitenleiste speichern",
+            "saved" : "Seitenleiste gespeichert",
+            "showItem" : "{item} anzeigen",
+            "title" : "Sichtbarkeit der Seitenleiste",
+            "unsaved" : "Ungespeicherte Änderungen. Speichern oder verwerfen Sie diese, bevor Sie die Rolle wechseln.",
+            "visible" : "Sichtbar"
+         },
          "newOrganization" : "Neue Organisation",
          "noMembersYet" : "Noch keine Mitglieder",
          "noOrganizationsYet" : "Noch keine Organisationen",
@@ -12370,7 +12406,7 @@
          "usedOfMax" : "{used} von {max} belegt",
          "usersRoles" : "Benutzer & Rollen",
          "waitingOnResponse" : "{count, plural, =1 {1 wartet auf eine Antwort} other {# warten auf eine Antwort}}",
-         "whatEachRoleMay" : "Was jede Rolle darf. Berechtigungen sind im Code definiert und zu Rollen gebündelt – eine Rolle kann nie eine Berechtigung halten, die die Plattform nicht definiert.",
+         "whatEachRoleMay" : "Prüfen Sie die Rollenberechtigungen und wählen Sie, welche Links in der Seitenleiste jede Rolle in dieser Organisation sieht.",
          "workspaceAvatarUpdated" : "Organisations-Avatar aktualisiert",
          "workspaceName" : "Name der Organisation",
          "workspaceProfile" : "Organisationsprofil",
