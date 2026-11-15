@@ -2030,8 +2030,8 @@ class AgentSession:
         recheck = time.monotonic() + RECHECK_SECONDS
         async for frame in live_turn.follow(conversation_id, token):
             ended = frame["type"] == live_turn.END
-            # Revalidate before exposing even the first frame's thread identity.
-            # Its arrival may have been delayed while membership was revoked.
+            # Revalidate before forwarding when the periodic access check is due,
+            # including a first frame delayed beyond the recheck interval.
             if time.monotonic() >= recheck and not ended:
                 if not await self._still_reads(conversation_id):
                     await send_event(

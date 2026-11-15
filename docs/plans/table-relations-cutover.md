@@ -106,8 +106,10 @@ This can make fewer links visible after cutover; an operator must inspect and
 repair the retained evidence, not assume the migration resolved it.
 
 An invalid relationship definition, including a missing or cross-organization
-destination table, aborts the transaction. The migration does not guess a new
-destination or silently drop an invalid field. Evidence has no record foreign
+destination table or an invalid stored limit, aborts the transaction. Only an
+omitted or null limit uses the legacy default of 100; zero, false and blank values
+require repair before cutover. The migration does not guess a new destination
+or silently drop an invalid field. Evidence has no record foreign
 key, so deleting a record does not erase its migration evidence; deleting the
 source table still removes that table's data.
 

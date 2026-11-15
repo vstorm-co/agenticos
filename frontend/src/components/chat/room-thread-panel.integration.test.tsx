@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
@@ -188,9 +189,90 @@ beforeEach(() => {
   vi.mocked(apiClient.get).mockImplementation(async (path) => serve(String(path)));
   vi.mocked(apiClient.post).mockResolvedValue({ message: page.items[0], request: null });
 });
-afterEach(() => client.clear());
+afterEach(() => {
+  client.clear();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("RoomThreadPanel", () => {
+  it("renders the docked surface on the server", () => {
+    expect(renderToString(wrapper({ children: view() }))).toContain('role="complementary"');
+  });
+
+  it("keeps desktop chat interactive and closes only from focus inside the thread", async () => {
+    render(
+      <>
+        <button>Main composer</button>
+        {view()}
+      </>,
+      { wrapper },
+    );
+    await screen.findByText("Saved reply A");
+    const background = screen.getByRole("button", { name: "Main composer" });
+    expect(screen.getByRole("complementary", { name: "Thread" })).not.toHaveAttribute("aria-modal");
+    await userEvent.click(background);
+    await userEvent.keyboard("{Escape}");
+    expect(close).not.toHaveBeenCalled();
+    act(() => screen.getByRole("button", { name: "Close thread" }).focus());
+    await userEvent.keyboard("{Escape}");
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("traps mobile focus, hides the background and restores focus after Escape", async () => {
+    const media = window.matchMedia("");
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        ...media,
+        media: query,
+        matches: query === "(max-width: 1023px)",
+      })),
+    );
+    render(<button>Open thread</button>);
+    const opener = screen.getByRole("button", { name: "Open thread" });
+    opener.focus();
+    const mounted = render(
+      <>
+        <button>Main composer</button>
+        {view()}
+      </>,
+      { wrapper },
+    );
+    await screen.findByText("Saved reply A");
+    const dialog = screen.getByRole("dialog", { name: "Thread" });
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    const background = screen.getByText("Main composer");
+    expect(background.closest('[aria-hidden="true"]')).not.toBeNull();
+    expect(document.body.style.pointerEvents).toBe("none");
+    for (let step = 0; step < 12; step += 1) {
+      await userEvent.tab();
+      expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    }
+    act(() => background.focus());
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    await userEvent.keyboard("{Escape}");
+    expect(close).toHaveBeenCalledOnce();
+    mounted.unmount();
+    await waitFor(() => expect(opener).toHaveFocus());
+    expect(document.body.style.pointerEvents).toBe("");
+  });
+
+  it("keeps current focus when navigation has removed the thread opener", async () => {
+    const openerView = render(<button>Open thread</button>);
+    const opener = screen.getByRole("button", { name: "Open thread" });
+    opener.focus();
+    const mounted = render(view(), { wrapper });
+    await screen.findByText("Saved reply A");
+    openerView.unmount();
+    render(<button>New conversation</button>);
+    const next = screen.getByRole("button", { name: "New conversation" });
+    act(() => next.focus());
+    mounted.unmount();
+    await waitFor(() => expect(next).toHaveFocus());
+    expect(opener.isConnected).toBe(false);
+  });
+
   it("admits live rows only after a fresh scoped authorization and excludes main/other-root rows", async () => {
     const pending = deferred<RoomThreadPage>();
     useChatStore.setState({
