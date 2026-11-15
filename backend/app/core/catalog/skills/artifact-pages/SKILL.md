@@ -21,7 +21,7 @@ For a requested PDF, publish the final HTML and use `export_artifact` when avail
 Read only the resource needed for this task:
 
 - `references/styles-and-deliverables.md`: school/play/work directions, browser presentations, real PDF deliverables and channel delivery.
-- `templates/slide-deck.html`: an accessible browser presentation with keyboard navigation, overview and a complete print layout.
+- `templates/slide-deck.html`: five deliberately different compositions with an original illustrated cover, large metric, comparison, sequence and decision; keyboard navigation, palette selection, overview and print layout.
 - `references/ui-components.md`: reusable native controls, accessible interaction states and three visual directions.
 - `templates/component-studio.html`: working buttons, form controls, choice groups and a review dialog in editorial, midnight and classroom styles.
 - `references/app-design-playbook.md`: layout selection, interaction states, typography and purposeful visual detail.
@@ -29,6 +29,7 @@ Read only the resource needed for this task:
 - `references/design-recipes.md`: existing App helpers, reports, dashboards and bound tables.
 - `templates/editorial-brief.html`: a source-led brief with an evidence filter and a print layout.
 - `templates/decision-workbench.html`: editable criteria, sortable options and an inspectable recommendation.
-- `templates/report.html`, `templates/dashboard.html`, `templates/live-table.html`: established product-style patterns.
+- `templates/report.html`: an executive report with an annotated comparison, exact source table and a scope filter that recomputes the chart and totals.
+- `templates/dashboard.html`, `templates/live-table.html`: monitoring and record-work patterns.
 
 Render the actual published App, exercise its primary interaction and inspect phone and desktop layouts before calling it verified. Check both success and refusal/error states for real bindings or actions. Deliver the real link and explain what can be tried; report any unverified part precisely. Use the image-generation capability for a raster asset when it helps the subject, and a diagram/vector for precise relationships; preserve the exact values and labels as code-native text.

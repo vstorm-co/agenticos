@@ -1,76 +1,414 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Supplier review - Q3 2026</title>
-  <link rel="stylesheet" href="lib/agenticos-3.css">
-  <script src="lib/lucide-1.46.0.min.js"></script>
-  <script src="lib/agenticos-3.js"></script>
-</head>
-<body>
-  <main class="ao-page ao-page-narrow">
-    <header class="ao-header">
-      <div>
-        <div class="ao-eyebrow"><i data-lucide="file-text"></i>Quarterly review</div>
-        <h1>Supplier review - Q3 2026</h1>
-        <p class="ao-subtitle">Two suppliers carry most of the risk; one of them is late on half its orders.</p>
-        <div class="ao-meta">
-          <span><i data-lucide="calendar"></i>1 Jul - 30 Sep 2026</span>
-          <span><i data-lucide="database"></i>ERP purchase orders, exported 1 Oct</span>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Supply review — Q3 2026</title>
+    <link rel="stylesheet" href="lib/agenticos-3.css" />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--ao-bg);
+        color: var(--ao-fg);
+        font:
+          16px/1.6 system-ui,
+          sans-serif;
+      }
+      .report {
+        max-inline-size: 1140px;
+        margin: auto;
+        padding: clamp(20px, 5vw, 64px);
+      }
+      .masthead {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        align-items: baseline;
+        border-block-end: 1px solid var(--ao-border);
+        padding-block-end: 18px;
+      }
+      .kicker {
+        font-size: 11px;
+        font-weight: 650;
+        text-transform: uppercase;
+        letter-spacing: 0.15em;
+        color: var(--ao-muted-fg);
+      }
+      .demo {
+        font-size: 12px;
+        border: 1px solid var(--ao-border);
+        border-radius: 4px;
+        padding: 4px 8px;
+      }
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.7fr) minmax(200px, 1fr);
+        gap: 64px;
+        align-items: center;
+        padding-block: 48px;
+      }
+      h1 {
+        font:
+          clamp(42px, 5.5vw, 68px)/1.04 Georgia,
+          serif;
+        letter-spacing: -0.035em;
+        margin: 12px 0 20px;
+        max-inline-size: 15ch;
+      }
+      .lead {
+        font-size: 20px;
+        max-inline-size: 43ch;
+        color: var(--ao-muted-fg);
+      }
+      .metric {
+        border-inline-start: 1px solid var(--ao-border);
+        padding-inline-start: 40px;
+      }
+      .metric strong {
+        display: block;
+        font-size: 100px;
+        letter-spacing: -0.07em;
+        line-height: 1.1;
+      }
+      .metric p {
+        margin: 10px 0;
+        color: var(--ao-muted-fg);
+      }
+      h2 {
+        font-size: 22px;
+        letter-spacing: -0.02em;
+        margin: 0 0 16px;
+      }
+      .review {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+        gap: 52px;
+        border-block-start: 1px solid var(--ao-border);
+        padding-block: 32px;
+      }
+      .bar-row {
+        margin-block: 20px;
+      }
+      .bar-label {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 14px;
+      }
+      .bar-track {
+        block-size: 10px;
+        background: var(--ao-muted);
+        margin-block-start: 8px;
+        border-radius: 2px;
+      }
+      .bar {
+        block-size: 100%;
+        inline-size: var(--value);
+        background: #749487;
+        border-radius: 2px;
+      }
+      .bar.hot {
+        background: #b7764c;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-block: 32px 12px;
+      }
+      .toolbar label {
+        font-size: 14px;
+      }
+      select {
+        font: inherit;
+        color: inherit;
+        background: var(--ao-bg);
+        border: 1px solid var(--ao-border);
+        min-block-size: 40px;
+        padding: 6px 10px;
+        border-radius: 5px;
+      }
+      .table-wrap {
+        overflow-x: auto;
+      }
+      table {
+        border-collapse: collapse;
+        inline-size: 100%;
+        font-size: 14px;
+      }
+      th,
+      td {
+        padding: 14px 10px;
+        text-align: start;
+        border-block-end: 1px solid var(--ao-border);
+      }
+      th {
+        color: var(--ao-muted-fg);
+        font-size: 12px;
+      }
+      .num {
+        text-align: end;
+        font-variant-numeric: tabular-nums;
+      }
+      .recommendation {
+        border-inline-start: 3px solid #b7764c;
+        padding: 4px 0 4px 20px;
+        margin-block: 32px;
+      }
+      .recommendation p {
+        max-inline-size: 70ch;
+      }
+      .source {
+        border-block-start: 1px solid var(--ao-border);
+        padding-block: 24px;
+        font-size: 14px;
+        color: var(--ao-muted-fg);
+      }
+      summary {
+        cursor: pointer;
+        color: var(--ao-fg);
+      }
+      footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        border-block-start: 1px solid var(--ao-border);
+        padding-block-start: 20px;
+        font-size: 12px;
+        color: var(--ao-muted-fg);
+      }
+      :focus-visible {
+        outline: 3px solid #749487;
+        outline-offset: 4px;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      @media (max-width: 700px) {
+        .hero,
+        .review {
+          grid-template-columns: 1fr;
+          gap: 24px;
+        }
+        .hero {
+          padding-block: 32px;
+        }
+        .metric {
+          padding-inline-start: 20px;
+        }
+        .metric strong {
+          font-size: 72px;
+        }
+        footer {
+          flex-direction: column;
+          gap: 4px;
+        }
+      }
+      @media print {
+        .report {
+          max-inline-size: none;
+          padding: 24pt;
+        }
+        .hero {
+          grid-template-columns: 1.7fr 1fr;
+          gap: 32pt;
+          padding-block: 24pt;
+        }
+        h1 {
+          font-size: 38pt;
+        }
+        .metric strong {
+          font-size: 64pt;
+        }
+        .review {
+          grid-template-columns: 1fr 1.2fr;
+          gap: 24pt;
+        }
+        select {
+          display: none;
+        }
+        details {
+          display: block;
+        }
+        table {
+          break-inside: avoid;
+        }
+        a {
+          color: inherit;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="report">
+      <header class="masthead">
+        <span class="kicker">Operations / quarterly review</span
+        ><span class="demo">Illustrative data</span>
+      </header>
+      <section class="hero" aria-label="Executive summary">
+        <div>
+          <span class="kicker">Q3 2026 · three-supplier sample</span>
+          <h1>One supplier.<br />Most of the delay.</h1>
+          <p class="lead">
+            Fabrikam accounts for 70% of late orders in this demonstration
+            sample. Review its recovery plan before allocating the next batch.
+          </p>
         </div>
-      </div>
-    </header>
-
-    <!-- The answer first: what someone who reads nothing else should know. -->
-    <div class="ao-callout ao-callout-warning">
-      <i data-lucide="triangle-alert"></i>
-      <div>
-        <strong>Fabrikam delivered 48% of orders late.</strong>
-        Everything else is within the agreed lead times. Recommend a review call before the Q4 order window opens on 14 Oct.
-      </div>
-    </div>
-
-    <section class="ao-section">
-      <h2 class="ao-section-title"><i data-lucide="list-checks"></i>At a glance</h2>
-      <div class="ao-card" style="margin-top: 0.875rem">
-        <dl class="ao-kv">
-          <dt>Suppliers reviewed</dt><dd class="ao-num">14</dd>
-          <dt>Orders</dt><dd class="ao-num">1,208</dd>
-          <dt>On time</dt><dd class="ao-num">91.4% <span class="ao-delta ao-up">+2.1 pt</span></dd>
-          <dt>Owner</dt><dd>Procurement team</dd>
-        </dl>
-      </div>
-    </section>
-
-    <section class="ao-section">
-      <h2 class="ao-section-title"><i data-lucide="clock"></i>Late deliveries</h2>
-      <p>Late means delivered after the confirmed date, not the requested one. Two suppliers account for 71% of late orders.</p>
-      <div class="ao-table-wrap">
-        <table class="ao-table">
-          <thead>
-            <tr><th>Supplier</th><th class="ao-num">Orders</th><th class="ao-num">Late</th><th>Trend</th></tr>
-          </thead>
-          <tbody>
-            <tr><td class="ao-strong">Fabrikam</td><td class="ao-num">186</td><td class="ao-num">48%</td><td><span class="ao-badge ao-badge-danger">Worse</span></td></tr>
-            <tr><td class="ao-strong">Contoso</td><td class="ao-num">241</td><td class="ao-num">12%</td><td><span class="ao-badge">Flat</span></td></tr>
-            <tr><td class="ao-strong">Northwind</td><td class="ao-num">312</td><td class="ao-num">3%</td><td><span class="ao-badge ao-badge-success">Better</span></td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="ao-section">
-      <h2 class="ao-section-title"><i data-lucide="circle-check"></i>What to do next</h2>
-      <ol>
-        <li>Book the Fabrikam review before 14 Oct and ask for a recovery plan with dates.</li>
-        <li>Move the two urgent Q4 orders to Northwind, which has capacity until November.</li>
-      </ol>
-    </section>
-
-    <footer class="ao-footer">
-      <span><i data-lucide="info"></i>Prepared by the procurement agent on 1 Oct 2026.</span>
-    </footer>
-  </main>
-</body>
+        <div class="metric">
+          <span class="kicker">Delivered on time</span
+          ><strong id="on-time">82.8%</strong>
+          <p id="scope">612 of 739 orders · all three suppliers</p>
+        </div>
+      </section>
+      <section class="review">
+        <div>
+          <span class="kicker">01 / the evidence</span>
+          <h2>Where delays concentrate</h2>
+          <p>
+            Late means delivered after the confirmed date. Compare the late
+            share, not just the raw count: order volumes differ.
+          </p>
+        </div>
+        <figure style="margin: 0" aria-label="Late-order share">
+          <div id="bars"></div>
+          <figcaption class="kicker">
+            Scale 0–100% · exact values in the table
+          </figcaption>
+        </figure>
+      </section>
+      <section aria-labelledby="records-title">
+        <div class="toolbar">
+          <h2 id="records-title">Supplier detail</h2>
+          <label for="supplier"
+            >Scope
+            <select id="supplier">
+              <option value="all">All suppliers</option>
+              <option value="Fabrikam">Fabrikam</option>
+              <option value="Contoso">Contoso</option>
+              <option value="Northwind">Northwind</option>
+            </select></label
+          >
+        </div>
+        <p id="selection" aria-live="polite">Showing all three suppliers</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Supplier</th>
+                <th scope="col" class="num">Orders</th>
+                <th scope="col" class="num">Late orders</th>
+                <th scope="col" class="num">Late share</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+            <tfoot>
+              <tr>
+                <th scope="row">Selected total</th>
+                <td id="total-orders" class="num"></td>
+                <td id="total-late" class="num"></td>
+                <td id="late-share" class="num"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+      <aside class="recommendation">
+        <span class="kicker">02 / proposed response</span>
+        <h2>Validate the cause before changing allocation.</h2>
+        <p>
+          Ask Fabrikam for dated corrective actions and confirm spare capacity
+          with alternative suppliers. This recommendation uses the full sample;
+          the scope filter only changes the displayed evidence and totals.
+        </p>
+      </aside>
+      <details class="source">
+        <summary>Sources, calculation and limitations</summary>
+        <p>
+          All records are original demonstration fixtures, not an ERP export.
+          Period: 1 July–30 September 2026. Late share = late orders ÷ orders.
+          On-time share = (orders − late orders) ÷ orders. No prior-period
+          comparison or causal claim is inferred. Missing suppliers are outside
+          this sample.
+        </p>
+      </details>
+      <footer>
+        <span>Prepared for the procurement team · demonstration report</span
+        ><span>Q3 / 2026</span>
+      </footer>
+    </main>
+    <script>
+      const suppliers = [
+        { name: "Fabrikam", orders: 186, late: 89 },
+        { name: "Contoso", orders: 241, late: 29 },
+        { name: "Northwind", orders: 312, late: 9 },
+      ];
+      const percent = (value) => `${(value * 100).toFixed(1)}%`;
+      function render() {
+        const selected = document.getElementById("supplier").value;
+        const shown = suppliers.filter(
+          (item) => selected === "all" || item.name === selected,
+        );
+        const orders = shown.reduce((sum, item) => sum + item.orders, 0);
+        const late = shown.reduce((sum, item) => sum + item.late, 0);
+        const rows = document.getElementById("rows");
+        const bars = document.getElementById("bars");
+        rows.replaceChildren();
+        bars.replaceChildren();
+        for (const item of shown) {
+          const row = document.createElement("tr");
+          [
+            item.name,
+            item.orders,
+            item.late,
+            percent(item.late / item.orders),
+          ].forEach((value, index) => {
+            const cell = document.createElement(index === 0 ? "th" : "td");
+            if (index === 0) cell.scope = "row";
+            else cell.className = "num";
+            cell.textContent = String(value);
+            row.append(cell);
+          });
+          rows.append(row);
+          const group = document.createElement("div");
+          group.className = "bar-row";
+          const label = document.createElement("div");
+          label.className = "bar-label";
+          const name = document.createElement("span");
+          name.textContent = item.name;
+          const number = document.createElement("strong");
+          number.textContent = percent(item.late / item.orders);
+          label.append(name, number);
+          const track = document.createElement("div");
+          track.className = "bar-track";
+          const bar = document.createElement("div");
+          bar.className = item.name === "Fabrikam" ? "bar hot" : "bar";
+          bar.style.setProperty("--value", percent(item.late / item.orders));
+          track.append(bar);
+          group.append(label, track);
+          bars.append(group);
+        }
+        document.getElementById("on-time").textContent = percent(
+          (orders - late) / orders,
+        );
+        document.getElementById("scope").textContent =
+          `${orders - late} of ${orders} orders · ${selected === "all" ? "all three suppliers" : selected}`;
+        document.getElementById("selection").textContent =
+          selected === "all"
+            ? "Showing all three suppliers"
+            : `Showing ${selected}`;
+        document.getElementById("total-orders").textContent = String(orders);
+        document.getElementById("total-late").textContent = String(late);
+        document.getElementById("late-share").textContent = percent(
+          late / orders,
+        );
+      }
+      document.getElementById("supplier").addEventListener("change", render);
+      render();
+    </script>
+  </body>
 </html>
