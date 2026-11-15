@@ -1,5 +1,5 @@
 ---
-source_sha: "c6dd9109c71a"
+source_sha: "df3a1b6c2971"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -166,10 +166,18 @@ flowchart TD
 
   GitHub, HubSpot, Zendesk y Linear firman sus propias entregas, así que le das al
   provider el secreto - o, en HubSpot, Zendesk y Linear, tomas el que él emitió - y él
-  firma. La fuente API reutiliza el esquema de GitHub bajo `X-Signature-256`, que
+  firma. La fuente API reutiliza por defecto el esquema de GitHub bajo `X-Signature-256`, que
   tiene que poner por sí mismo lo que apuntes a la URL. Una fuente **por sondeo**
   no firma nada ni guarda secreto: no se le envió nada, se leyó, y lo que autorizó
   leerla es el consentimiento OAuth de la propia cuenta.
+
+El `webhook` genérico usa por defecto la firma anterior. Al crear o modificar el trigger por API, configura `event_config` como `{"signature_scheme":"hmac-sha256-base64","signature_header":"X-Shopify-Hmac-Sha256"}` para Shopify, o usa `X-Hookdeck-Signature` para la firma predeterminada de Hookdeck. `hmac-sha256-hex` acepta un resumen hexadecimal sin prefijo. Ambos firman el cuerpo crudo exacto y requieren el secreto del proveedor como `event_secret`; los nombres de cabecera no distinguen mayúsculas.
+
+Estos modos no autentican una marca de tiempo, por lo que se pueden repetir solicitudes capturadas. La cabecera genérica de ID de entrega no está firmada y puede modificarse. Filtra en el proveedor y usa una integración específica si su contrato requiere comprobar la fecha, otra respuesta de éxito u otro esquema de firma. Estas opciones no implementan el contrato de webhooks de Linear. La consola crea actualmente el esquema predeterminado; configura alternativas mediante la API.
+
+Shopify y Hookdeck no suelen enviar `X-Delivery-ID`, así que los reintentos pueden ejecutar el trigger otra vez. Este trigger no comprueba sus ID de entrega. Las firmas del cuerpo no vinculan la URL de destino ni las cabeceras del proveedor: usa un secreto distinto por límite de confianza y no autorices entregas con cabeceras de tienda o tema sin firmar. El secreto de la aplicación Shopify puede compartirse entre tiendas; no uses este modo si la firma debe demostrar la tienda o suscripción de origen.
+
+Rotate genera un secreto nuevo de AgenticOS; no permite instalar uno emitido por el proveedor. Si el proveedor controla el secreto, crea un trigger nuevo y actualiza su URL en el proveedor después del cambio. No se comprueba la segunda firma de Hookdeck durante una rotación diferida.
 
 !!! danger "La firma no es un adorno"
 

@@ -11,6 +11,8 @@ mocked, so these tests are about triggers, not about re-proving that.
 
 import asyncio
 import contextlib
+import hashlib
+import hmac
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -2067,6 +2069,41 @@ class TestEventTriggerSchema:
                 event_config={"path_contains": "x"},
             )
 
+    @pytest.mark.parametrize(
+        "config",
+        [
+            {"signature_scheme": "hmac-sha256-hex"},
+            {"signature_scheme": "hmac-sha256-base64", "signature_header": "bad header"},
+            {"signature_header": "X-Signature"},
+            {"signature_scheme": "none"},
+        ],
+    )
+    def test_invalid_generic_signature_configuration_is_refused(self, config):
+        with pytest.raises(PydanticValidationError):
+            TriggerCreate(
+                prompt="x",
+                trigger_type="event",
+                event_source="webhook",
+                event_secret=_SIGNING_SECRET,
+                event_config=config,
+            )
+
+    def test_generic_signature_configuration_is_normalized_at_creation(self):
+        trigger = TriggerCreate(
+            prompt="x",
+            trigger_type="event",
+            event_source="webhook",
+            event_secret=_SIGNING_SECRET,
+            event_config={
+                "signature_scheme": "hmac-sha256-base64",
+                "signature_header": "X-Shopify-Hmac-Sha256",
+            },
+        )
+        assert trigger.event_config == {
+            "signature_scheme": "hmac-sha256-base64",
+            "signature_header": "x-shopify-hmac-sha256",
+        }
+
     def test_an_event_read_exposes_its_webhook_url_on_the_public_api_host(self):
         read = TriggerRead(
             id=uuid.uuid4(),
@@ -2107,6 +2144,28 @@ class TestPreparingAnEventFire:
     """`prepare_event_fire` orchestrates the verifiers; the crypto itself is proven
     in `test_trigger_events.py`, so here `trigger_events` is mocked and what is
     asserted is the branching - what is ignored, what is a 403, what fires."""
+
+    async def test_configured_generic_signature_is_used_to_admit_delivery(self):
+        service = _service()
+        trigger = _event_trigger(
+            event_source="webhook",
+            event_config={"signature_scheme": "hmac-sha256-hex", "signature_header": "X-Provider"},
+        )
+        body = b'{"ticket":7}'
+        digest = hmac.new(b"secret", body, hashlib.sha256).hexdigest()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            decision = await service.prepare_event_fire(
+                "webhook", trigger.id, body=body, headers={"x-provider": digest}
+            )
+            assert decision is not None
+            with pytest.raises(AuthorizationError):
+                await service.prepare_event_fire(
+                    "webhook", trigger.id, body=body + b" ", headers={"x-provider": digest}
+                )
 
     async def test_an_unknown_trigger_is_ignored(self):
         service = _service()
