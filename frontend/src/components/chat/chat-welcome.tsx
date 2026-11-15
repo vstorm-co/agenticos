@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { ArrowUpRight, X, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { WorkspaceAtmosphere } from "@/components/illustrations/workspace-atmosphere";
 import { cn } from "@/lib/utils";
 
 export interface WelcomeSuggestion {
@@ -161,27 +162,13 @@ export function ChatWelcome({
         <div
           className={cn(
             "flex",
-            compact ? "mb-3 justify-center" : "relative mb-4 w-fit justify-start",
-            quiet && "min-h-14",
+            compact
+              ? "mb-3 justify-center"
+              : "relative mb-4 min-h-28 w-full items-center justify-start",
+            quiet && !compact && "min-h-28",
           )}
         >
-          {!compact && (
-            <svg
-              aria-hidden
-              className="text-muted-foreground/20 pointer-events-none absolute -top-3 left-3 h-20 w-44"
-              viewBox="0 0 176 80"
-              fill="none"
-            >
-              <path
-                d="M20 40H67L84 18H146M67 40L84 64H123"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              />
-              <rect x="142" y="13" width="10" height="10" rx="3" stroke="currentColor" />
-              <circle cx="128" cy="64" r="5" stroke="currentColor" />
-              <circle cx="99" cy="40" r="3" fill="currentColor" />
-            </svg>
-          )}
+          {!compact && <WorkspaceAtmosphere className="absolute inset-0 h-full w-full" />}
           <span className="relative">{mark}</span>
         </div>
         <h2
