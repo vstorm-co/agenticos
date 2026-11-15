@@ -1957,6 +1957,8 @@
       "spokenBy": "Stimme: {voice}",
       "generateVideo": "Video",
       "generatingVideo": "Erzeugt ein Video",
+      "selectingWorkspace": "Projektarbeitsbereich auswählen",
+      "selectedWorkspace": "Projektarbeitsbereich auswählen",
       "videoNotStored": "Das Video wurde erzeugt, aber nicht gespeichert.",
       "suggestingNextSteps": "Schlägt nächste Schritte vor",
       "nextSteps": "Nächste Schritte",
@@ -9388,7 +9390,7 @@
       "compareFailed": "Der aktuelle Skill konnte nicht geladen werden. Öffne die Prüfung erneut.",
       "apply": "Aktualisierung anwenden",
       "testOptional": "Vor dem Anwenden testen (optional)",
-      "hiddenAgents": "Weitere Agenten: {count}",
+      "hiddenAgents": "{count, plural, one {# weiterer Agent} other {# weitere Agenten}}",
       "testOptionalShort": "Test (optional)",
       "compareShort": "Änderungen"
     }

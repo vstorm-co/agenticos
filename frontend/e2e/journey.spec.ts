@@ -396,6 +396,8 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
     `a run billed against ${modelLabel} carrying a cost`,
   );
 
+  await page.getByRole("button", { name: "Columns", exact: true }).click();
+  await page.getByRole("menuitemcheckbox", { name: "Model", exact: true }).check();
   const row = page.getByRole("row").filter({ hasText: modelLabel }).first();
   await expect(
     row,

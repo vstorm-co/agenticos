@@ -730,7 +730,7 @@
       "compareFailed": "Mevcut skill yüklenemedi. Tekrar denemek için incelemeyi yeniden açın.",
       "apply": "Güncellemeyi uygula",
       "testOptional": "Uygulamadan önce test et (isteğe bağlı)",
-      "hiddenAgents": "Diğer ajanlar: {count}",
+      "hiddenAgents": "{count, plural, one {# diğer ajan} other {# diğer ajan}}",
       "testOptionalShort": "Test (isteğe bağlı)",
       "compareShort": "Değişiklikler"
     },
@@ -9377,6 +9377,8 @@
       "spokenBy": "Voice: {voice}",
       "generateVideo": "Video",
       "generatingVideo": "Video oluşturuluyor",
+      "selectingWorkspace": "Proje çalışma alanı seçiliyor",
+      "selectedWorkspace": "Proje çalışma alanı seç",
       "videoNotStored": "Video oluşturuldu ama saklanmadı.",
       "suggestingNextSteps": "Sonraki adımlar öneriliyor",
       "nextSteps": "Sonraki adımlar",

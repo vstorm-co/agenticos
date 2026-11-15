@@ -68,7 +68,11 @@ export function ListCard({
     const gallery = layout === "grid";
     const Frame = gallery ? "div" : Card;
     return (
-      <Frame className={cn("min-w-0", fill && "flex min-h-0 flex-1 flex-col", className)} {...rest}>
+      <Frame
+        data-list-layout={layout}
+        className={cn("min-w-0", fill && "flex min-h-0 flex-1 flex-col", className)}
+        {...rest}
+      >
         <CardHeader
           hidden={empty || (counted === undefined && !controls)}
           data-tour={headerTour}

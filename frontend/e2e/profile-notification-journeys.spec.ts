@@ -180,10 +180,15 @@ for (const device of [
 
         const read = await heldRefusal(page, "/api/notifications/preferences", "GET");
         release = read.release;
-        await page
-          .getByRole("main")
-          .getByRole("link", { name: "Notifications", exact: true })
-          .click();
+        if (device.phone) {
+          await page.getByRole("button", { name: /^Section:/ }).click();
+          await page.getByRole("menuitem", { name: "Notifications", exact: true }).click();
+        } else {
+          await page
+            .getByRole("main")
+            .getByRole("link", { name: "Notifications", exact: true })
+            .click();
+        }
         await read.started;
         read.release();
         const panel = page.locator("section").filter({

@@ -168,7 +168,18 @@ async def test_sandbox_child_tools_follow_their_configured_parent_selection(
     )
     expected = {"search_tools"} if defer_capabilities else {"create_chart"}
     if not defer_capabilities or "sandbox" in exclude_capabilities:
-        expected.update({"ls", "read_file", "glob", "grep", "write_file", "edit_file", "execute"})
+        expected.update(
+            {
+                "ls",
+                "read_file",
+                "glob",
+                "grep",
+                "write_file",
+                "edit_file",
+                "execute",
+                "select_project_workspace",
+            }
+        )
 
     assert await _visible_names(built) == expected
 

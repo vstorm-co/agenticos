@@ -973,6 +973,8 @@
       "spokenBy": "Głos: {voice}",
       "generateVideo": "Wideo",
       "generatingVideo": "Tworzy wideo",
+      "selectingWorkspace": "Wybieranie obszaru roboczego projektu",
+      "selectedWorkspace": "Wybierz obszar roboczy projektu",
       "videoNotStored": "Wideo powstało, ale go nie zapisano.",
       "suggestingNextSteps": "Proponuje następne kroki",
       "nextSteps": "Następne kroki",
@@ -8404,7 +8406,7 @@
       "compareFailed": "Nie udało się wczytać obecnego skilla. Otwórz podgląd ponownie, aby spróbować jeszcze raz.",
       "apply": "Zastosuj aktualizację",
       "testOptional": "Przetestuj przed zastosowaniem (opcjonalnie)",
-      "hiddenAgents": "Pozostali agenci: {count}",
+      "hiddenAgents": "{count, plural, one {# inny agent} few {# innych agentów} many {# innych agentów} other {# innego agenta}}",
       "testOptionalShort": "Test (opcjonalnie)",
       "compareShort": "Zmiany"
     }

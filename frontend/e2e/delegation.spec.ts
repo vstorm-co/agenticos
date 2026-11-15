@@ -208,6 +208,10 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
   await page.goto(`/runs?agent=${delegateId}`);
   await expect(pageHeading(page, "Activity")).toBeVisible();
   await page.getByRole("tab", { name: "Runs", exact: true }).click();
+  for (const name of ["Asked by", "Model", "Tokens"]) {
+    await page.getByRole("button", { name: "Columns", exact: true }).click();
+    await page.getByRole("menuitemcheckbox", { name, exact: true }).check();
+  }
   const delegateRuns = page.getByRole("row").filter({ hasText: modelLabel });
   await expect(
     delegateRuns,
@@ -235,6 +239,8 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
   // the same page, so a change that merged the two histories fails here.
   await page.goto(`/runs?agent=${parentId}`);
   await page.getByRole("tab", { name: "Runs", exact: true }).click();
+  await page.getByRole("button", { name: "Columns", exact: true }).click();
+  await page.getByRole("menuitemcheckbox", { name: "Model", exact: true }).check();
   await expect(page.getByRole("row").filter({ hasText: modelLabel })).toHaveCount(1);
 
   // 7. cleaning up

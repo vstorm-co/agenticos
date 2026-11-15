@@ -1957,6 +1957,8 @@
       "spokenBy": "Voice: {voice}",
       "generateVideo": "Video",
       "generatingVideo": "Making a video",
+      "selectingWorkspace": "Selecting a project workspace",
+      "selectedWorkspace": "Select project workspace",
       "videoNotStored": "The video was made but not saved.",
       "suggestingNextSteps": "Suggesting next steps",
       "nextSteps": "Next steps",
