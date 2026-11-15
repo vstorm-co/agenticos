@@ -1,5 +1,5 @@
 ---
-source_sha: "158c11621790"
+source_sha: "a6011726f555"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -340,6 +340,9 @@ des Runs. Siehe [Außerhalb des Chats entschieden](channels.md#decided-outside-t
 `GET /api/v1/conversations/{id}/transcript` liest eine der Unterhaltungen des
 Ausstellers Zug für Zug, mit den Tools, die jeder Zug aufgerufen hat, und den
 Kosten, für einen Schlüssel mit `runs:view`.
+Die paginierte Route `GET /api/v1/conversations/{id}/messages` lässt Antworten
+in Projekt-Threads standardmäßig aus. Setzen Sie `top_level_only=false`, um sie
+aufzunehmen.
 
 !!! info "Ein API-Aufrufer kann die Governance nicht umgehen"
 

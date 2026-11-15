@@ -184,8 +184,8 @@ interface ThreadSnapshot {
   can_post: boolean;
 }
 
-function threadPanel(page: Page): Locator {
-  return page.getByRole("complementary", { name: "Thread", exact: true });
+function threadPanel(page: Page, role: "complementary" | "dialog" = "complementary"): Locator {
+  return page.getByRole(role, { name: "Thread", exact: true });
 }
 
 async function openThread(
@@ -208,8 +208,7 @@ async function openThread(
   return panel;
 }
 
-async function closeThread(page: Page): Promise<void> {
-  const panel = threadPanel(page);
+async function closeThread(page: Page, panel: Locator = threadPanel(page)): Promise<void> {
   await panel.getByRole("button", { name: "Close thread", exact: true }).click();
   await expect(panel).toBeHidden();
   await expect(page).not.toHaveURL(/[?&]thread=/);
@@ -785,10 +784,12 @@ test.describe("multiplayer project rooms", () => {
         .click();
       await expect(threadPanel(page)).toBeVisible();
       await page.setViewportSize({ width: 390, height: 844 });
-      await expect(
-        threadPanel(page).getByRole("textbox", { name: "Reply to thread" }),
-      ).toBeInViewport();
-      await closeThread(page);
+      const mobilePanel = threadPanel(page, "dialog");
+      await expect(mobilePanel).toBeVisible();
+      await expect(mobilePanel).toHaveAttribute("aria-modal", "true");
+      await expect(threadPanel(page)).toHaveCount(0);
+      await expect(mobilePanel.getByRole("textbox", { name: "Reply to thread" })).toBeInViewport();
+      await closeThread(page, mobilePanel);
       await expect(page.getByRole("textbox", { name: "Message to the team" })).toBeInViewport();
     } finally {
       await network.reconnect();

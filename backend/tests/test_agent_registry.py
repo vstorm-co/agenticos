@@ -544,7 +544,8 @@ class TestList:
                 new=AsyncMock(return_value={}),
             ),
             patch(
-                f"{REGISTRY_PATH}.agent_repo.published_capabilities", new=AsyncMock(return_value={})
+                f"{REGISTRY_PATH}.agent_repo.published_capability_bindings",
+                new=AsyncMock(return_value={}),
             ),
             patch(
                 f"{REGISTRY_PATH}.agent_repo.published_coding_agents",
@@ -575,6 +576,7 @@ class TestList:
         version_id = uuid.uuid4()
         published = _agent(ctx, current_version_id=version_id)
         draft = _agent(ctx, shipped_template={"key": template} if template else None)
+        desktop_key = uuid4()
 
         with (
             patch(
@@ -620,9 +622,19 @@ class TestList:
                 new=AsyncMock(return_value={version_id: {"What can you do?": "compass"}}),
             ),
             patch(
-                f"{REGISTRY_PATH}.agent_repo.published_capabilities",
-                new=AsyncMock(return_value={version_id: ["sandbox", "computer_use"]}),
-            ),
+                f"{REGISTRY_PATH}.agent_repo.published_capability_bindings",
+                new=AsyncMock(
+                    return_value={
+                        version_id: [
+                            CapabilityBindingSpec(id="sandbox", config={"backend": "local"}),
+                            CapabilityBindingSpec(id="browser_use", enabled=False),
+                            CapabilityBindingSpec(
+                                id="computer_use", config={"desktop": "e2b"}, secret_id=desktop_key
+                            ),
+                        ]
+                    }
+                ),
+            ) as published_bindings,
             patch(
                 f"{REGISTRY_PATH}.agent_repo.published_coding_agents",
                 new=AsyncMock(
@@ -655,6 +667,11 @@ class TestList:
         assert rows[1].starter_titles == {}
         assert rows[0].published_capabilities == ["sandbox", "computer_use"]
         assert rows[1].published_capabilities == []
+        published_bindings.assert_awaited_once()
+        assert published_bindings.call_args.kwargs["version_ids"] == [version_id]
+        assert rows[0].published_hosted_capabilities == ["computer_use"]
+        assert rows[1].published_hosted_capabilities == []
+        assert str(desktop_key) not in rows[0].model_dump_json()
 
     @pytest.mark.anyio
     async def test_a_role_that_sees_everything_never_looks_up_grants(self):

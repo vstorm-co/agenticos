@@ -566,6 +566,60 @@ def _computer_use_problems(config: BaseModel | None) -> list[str]:
     return []
 
 
+def _hosted_browser(binding: CapabilityBindingSpec) -> bool:
+    """Recognize configured remote browsers without probing a host or reading a secret."""
+    try:
+        config = WebBrowserConfig.model_validate(binding.config)
+        if config.connection == "local":
+            return False
+        if config.connection == "hosted" and binding.secret_id is None:
+            return False
+        if connection_problems(config, has_secret=binding.secret_id is not None):
+            return False
+        validate_cdp_url(config)
+    except ValueError:
+        # Invalid configuration is not evidence of a usable hosted target. Publish
+        # and run validation still own its explanation; the listing exposes no URL.
+        return False
+    return True
+
+
+def _hosted_computer(binding: CapabilityBindingSpec, sandbox: CapabilityBindingSpec | None) -> bool:
+    """Only explicit E2B or a service desktop; auto can choose a person's computer.
+
+    A service may name a connection or use the organization's default. Resolving
+    that connection and its credential remains the run's job, not the listing's.
+    """
+    try:
+        config = ComputerUseConfig.model_validate(binding.config)
+        if config.desktop == "e2b":
+            return binding.secret_id is not None
+        if config.desktop != "sandbox" or sandbox is None:
+            return False
+        workspace = SandboxConfig.model_validate(sandbox.config)
+    except ValueError:
+        return False
+    return workspace.backend == "service" and workspace.runtime == "desktop"
+
+
+def _published_hosted_capabilities(bindings: Sequence[CapabilityBindingSpec]) -> list[str]:
+    """Safe routing hints from published bindings, never defaults or a new permission.
+
+    The consumer must also honor local choices for the current chat. Neither this
+    projection nor the listing opens a browser, provisions a desktop, or changes
+    an agent's bindings, including an explicit disabled binding.
+    """
+    enabled = {binding.id: binding for binding in bindings if binding.enabled}
+    hosted: list[str] = []
+    browser = enabled.get("browser_use")
+    if browser is not None and _hosted_browser(browser):
+        hosted.append("browser_use")
+    computer = enabled.get(COMPUTER_USE_ID)
+    if computer is not None and _hosted_computer(computer, enabled.get("sandbox")):
+        hosted.append(COMPUTER_USE_ID)
+    return hosted
+
+
 def _variable_problems(spec: AgentSpec) -> _SpecProblems:
     """Variables the instructions cannot fill, and custom ones that cannot be defined (#2065).
 
@@ -1518,7 +1572,7 @@ class AgentRegistryService:
         starters = await agent_repo.published_starters(self.db, version_ids=version_ids)
         starter_icons = await agent_repo.published_starter_icons(self.db, version_ids=version_ids)
         starter_titles = await agent_repo.published_starter_titles(self.db, version_ids=version_ids)
-        published_capabilities = await agent_repo.published_capabilities(
+        published_bindings = await agent_repo.published_capability_bindings(
             self.db, version_ids=version_ids
         )
         coding_agents = await agent_repo.published_coding_agents(self.db, version_ids=version_ids)
@@ -1603,7 +1657,16 @@ class AgentRegistryService:
                 context_window_tokens=(
                     windows.get(agent.current_version_id) if agent.current_version_id else None
                 ),
-                published_capabilities=published_capabilities.get(agent.current_version_id, [])
+                published_capabilities=[
+                    binding.id
+                    for binding in published_bindings.get(agent.current_version_id, [])
+                    if binding.enabled
+                ]
+                if agent.current_version_id
+                else [],
+                published_hosted_capabilities=_published_hosted_capabilities(
+                    published_bindings.get(agent.current_version_id, [])
+                )
                 if agent.current_version_id
                 else [],
                 local_coding_agent=_local_coding_agent(

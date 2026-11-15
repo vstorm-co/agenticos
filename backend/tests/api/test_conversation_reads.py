@@ -105,8 +105,20 @@ async def test_latest_messages_carry_the_cursor_and_the_same_reader_scope(
     assert arguments["latest"] is True
     assert arguments["before"] == before
     assert arguments["limit"] == 101
+    assert arguments["top_level_only"] is True
     assert arguments["organization_id"] is not None
     assert arguments["user_id"] is not None
+
+
+async def test_message_reads_can_include_thread_replies(service: AsyncMock) -> None:
+    service.transcript = AsyncMock(return_value=([], 0, None))
+    async with _client() as client:
+        response = await client.get(
+            f"{settings.API_V1_STR}/conversations/{CONVERSATION_ID}/messages",
+            params={"top_level_only": "false"},
+        )
+    assert response.status_code == 200
+    assert service.transcript.await_args.kwargs["top_level_only"] is False
 
 
 async def test_metadata_excludes_history_and_carries_the_reader_scope(service: AsyncMock) -> None:
