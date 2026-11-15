@@ -2149,6 +2149,7 @@ function ChatUI({
         {/* The browser shares the chat's width; a narrow chat opens it full screen. */}
         <WorkspacePanels
           teamRoom={roomProjectId !== null}
+          compact={compact}
           browses={browses}
           surfaces={surfaces}
           onComment={commentOnPage}
