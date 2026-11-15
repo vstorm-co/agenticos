@@ -316,11 +316,41 @@ async def test_an_unrelated_field_update_keeps_the_complete_link_set(linked_data
     assert merged == {KEY: [str(VISIBLE), str(HIDDEN)], str(NAME.id): "New"}
 
 
-async def test_retained_hidden_ids_are_not_treated_as_new_user_references(linked_data):
-    before: dict[str, CellValue] = {KEY: [str(HIDDEN)]}
-    await RecordOperations(MagicMock())._check_links(
-        context(), [LINK], {KEY: [str(HIDDEN)]}, stored=before
+async def test_omitted_hidden_ids_are_not_submitted_on_the_callers_behalf(
+    linked_data, monkeypatch: pytest.MonkeyPatch
+):
+    access = AsyncMock(return_value=False)
+    monkeypatch.setattr(records, "resolve_access", access)
+    await RecordOperations(MagicMock())._check_links(context(), [LINK], {KEY: []})
+    access.assert_not_awaited()
+
+
+@pytest.mark.parametrize("was_linked", [False, True])
+async def test_explicit_hidden_ids_are_refused_even_when_the_update_would_be_a_noop(
+    linked_data, monkeypatch: pytest.MonkeyPatch, was_linked: bool
+):
+    before: dict[str, CellValue] = {KEY: [str(HIDDEN)]} if was_linked else {}
+    original = VirtualTableRecord(
+        id=uuid4(),
+        organization_id=ORG,
+        table_id=SOURCE,
+        schema_version=1,
+        revision=1,
+        values=before.copy(),
+        created_at=datetime.now(UTC),
     )
+    service = RecordOperations(MagicMock())
+    monkeypatch.setattr(service, "_columns", AsyncMock(return_value=[LINK]))
+    monkeypatch.setattr(records, "may_edit_row", AsyncMock(return_value=True))
+    monkeypatch.setattr(
+        records, "normalize_task_cells", AsyncMock(return_value={KEY: [str(HIDDEN)]})
+    )
+
+    with pytest.raises(InvalidRecordError):
+        await service._apply(context(), linked_data, original, {KEY: [str(HIDDEN)]}, 1)
+
+    assert original.values == before
+    assert original.revision == 1
 
 
 async def test_unchanged_links_need_no_destination_read_for_preservation(linked_data, monkeypatch):
@@ -345,9 +375,7 @@ async def test_inaccessible_target_does_not_create_an_absent_link_cell(linked_da
 
 async def test_new_hidden_ids_still_cannot_be_added(linked_data):
     with pytest.raises(InvalidRecordError):
-        await RecordOperations(MagicMock())._check_links(
-            context(), [LINK], {KEY: [str(HIDDEN)]}, stored={KEY: [str(VISIBLE)]}
-        )
+        await RecordOperations(MagicMock())._check_links(context(), [LINK], {KEY: [str(HIDDEN)]})
 
 
 async def test_hidden_preservation_still_enforces_the_final_cell_limit(

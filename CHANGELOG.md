@@ -100,6 +100,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Table link replacements validate every explicitly submitted destination before accepting an unchanged write. Hidden and missing destination IDs receive the same refusal; omitted hidden links remain preserved for older clients.
+
 - **DNS parser security update (CVE-2026-128089).** Upgrade dnspython to 2.9.2
   to reject out-of-range WKS service numbers before allocating their bitmaps.
 - Match workflow editor loading to its full-height workspace and remove the

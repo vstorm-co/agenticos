@@ -1607,8 +1607,6 @@ class RecordOperations(Operations):
         ctx: AuthContext,
         columns: list[ColumnDef],
         submitted: dict[str, CellValue],
-        *,
-        stored: Mapping[str, CellValue] | None = None,
     ) -> None:
         """Every record a submitted link names exists in the table it links to, which the
         writer can see - a link is not a way to learn which ids another table holds.
@@ -1622,12 +1620,8 @@ class RecordOperations(Operations):
             ids = submitted.get(str(column.id))
             if column.type != "link" or column.link_table_id is None or not isinstance(ids, list):
                 continue
-            if stored is not None:
-                previous = stored.get(str(column.id))
-                existing = {str(item) for item in previous} if isinstance(previous, list) else set()
-                ids = [item for item in ids if str(item) not in existing]
-                if not ids:
-                    continue
+            if not ids:
+                continue
             target = await virtual_table_repo.get_table(
                 self.db, column.link_table_id, organization_id=ctx.organization_id
             )
@@ -1812,6 +1806,9 @@ class RecordOperations(Operations):
         merged = await normalize_task_cells(
             self.db, ctx.organization_id, table.id, _merge(columns, values, before)
         )
+        # A submitted ID needs current Read even when it is already linked or
+        # would leave the row unchanged. Only omitted hidden links are retained.
+        await self._check_links(ctx, columns, values)
         await self._preserve_unreadable_links(ctx, columns, values, before, merged)
         if merged == before:
             # Nothing to record. Bumping the revision and keeping a full before-and-after
@@ -1830,7 +1827,6 @@ class RecordOperations(Operations):
         )
         if problems:
             raise InvalidRecordError([(f"values.{key}", message) for key, message in problems])
-        await self._check_links(ctx, columns, values, stored=before)
         if not await may_edit_row(self.db, ctx, table, columns, merged):
             raise NotFoundError(message="Record not found", details={"record_id": record.id})
         await quotas.enforce_record_size(ctx, table, merged)
