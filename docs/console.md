@@ -1123,3 +1123,12 @@ Run history distinguishes the person asking from the publisher whose authority a
 
 
 The period selector sits beside the dashboard view tabs. Recent visuals prefer saved thumbnails; when a thumbnail is unavailable, a drawing is rebuilt for its owner and rendered in the isolated visual frame as its tile approaches the viewport. This fallback does not require a server browser.
+
+
+Search is the magnifying-glass button beside the sidebar collapse control; the keyboard shortcut remains available. On desktop, the main workspace has a rounded frame beside the sidebar. Galleries place resource cards directly on the page.
+
+The dashboard puts Discover tips after its data. Briefing uses rows with actions beside the text when space allows. Empty widget explanations expand from their summary; failures and retry controls stay visible.
+
+The agent builder keeps Test, Open in chat and Publish prominent. More actions contains sharing, the visual map, continuing your conversation and export. Activity combines period, filters, column selection and export in one toolbar. Columns can show the author, surface, model and token count; cost, duration and start time stay in the main table.
+
+Settings uses a section index on desktop and a section menu on phones. Standard settings sections use dividers, while destructive actions retain their warning frame. In chat, project context appears above the composer and usage is available inside Chat controls. Page navigation preserves the shared layout without fading its contents.

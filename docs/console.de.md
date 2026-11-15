@@ -1,5 +1,5 @@
 ---
-source_sha: "e468d58b1325"
+source_sha: "ee2a66cbf78c"
 ---
 
 # Die Konsole { #the-console }
@@ -1244,3 +1244,12 @@ Der Run-Verlauf unterscheidet die anfragende Person vom Herausgeber, dessen Bere
 
 
 Die Zeitraumwahl steht neben den Dashboard-Ansichten. Zuletzt erstellte Visualisierungen bevorzugen gespeicherte Vorschaubilder. Fehlt eines, wird die Zeichnung für ihren Besitzer rekonstruiert und in einem isolierten Rahmen gerendert, sobald sich die Kachel dem sichtbaren Bereich nähert. Dafür ist kein Browser auf dem Server erforderlich.
+
+
+Die Suche öffnest du über die Lupe neben dem Schalter zum Einklappen der Seitenleiste; das Tastenkürzel bleibt verfügbar. Auf dem Desktop hat der Arbeitsbereich einen abgerundeten Rahmen neben der Seitenleiste. Galerien zeigen Ressourcenkarten direkt auf der Seite.
+
+Das Dashboard zeigt Discover-Tipps nach seinen Daten. Briefing verwendet Zeilen mit Aktionen neben dem Text, wenn die Breite ausreicht. Erklärungen leerer Widgets lassen sich über ihre Zusammenfassung aufklappen; Fehler und Wiederholen bleiben sichtbar.
+
+Der Agenteneditor hebt Test, Im Chat öffnen und Veröffentlichen hervor. Weitere Aktionen enthält Teilen, die Übersichtskarte, das Fortsetzen des Gesprächs und Export. Aktivität vereint Zeitraum, Filter, Spaltenauswahl und Export in einer Leiste. Spalten können Autor, Oberfläche, Modell und Tokenanzahl anzeigen; Kosten, Dauer und Startzeit bleiben in der Haupttabelle.
+
+Einstellungen bietet auf dem Desktop einen Abschnittsindex und auf dem Telefon ein Abschnittsmenü. Gewöhnliche Abschnitte verwenden Trennlinien; destruktive Aktionen behalten ihren Warnrahmen. Im Chat steht der Projektkontext über dem Eingabefeld, die Nutzung findest du in den Chat-Einstellungen. Navigation erhält das gemeinsame Layout ohne Ausblenden der Inhalte.

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { ApprovalMode } from "@/stores/chat-controls-store";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
-import { useId, useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Check, HelpCircle, SlidersHorizontal, X } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -35,6 +35,7 @@ const APPROVAL_MODES: readonly ApprovalMode[] = ["follow_agent", "approve_all", 
 export type { ApprovalMode } from "@/stores/chat-controls-store";
 
 interface ChatControlsProps {
+  usageSlot?: ReactNode;
   agentCapabilities?: readonly string[] | null;
   /** The model profile this conversation runs on, or null for the agent's own. */
   onModelProfileChange?: (profileId: string | null) => void;
@@ -78,6 +79,7 @@ interface ChatControlsProps {
  *   permission and no ceiling.
  */
 export function ChatControls({
+  usageSlot,
   onModelProfileChange,
   onApprovalModeChange,
   agentModel = null,
@@ -392,6 +394,7 @@ export function ChatControls({
           <span className="inline-flex items-center gap-1.5">{t("savedAutomatically")}</span>
           <span>{t("escToClose")}</span>
         </div>
+        {usageSlot && <div className="border-border shrink-0 border-t px-5 py-3">{usageSlot}</div>}
       </PopoverContent>
     </Popover>
   );

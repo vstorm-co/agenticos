@@ -65,7 +65,7 @@ export function ChatWelcome({
         className={cn(
           "grid",
           quiet
-            ? "mt-5 grid-rows-[repeat(4,3.5rem)] gap-1"
+            ? "mt-4 auto-rows-[3.5rem] gap-1 sm:grid-cols-2"
             : compact
               ? "mt-4 auto-rows-fr gap-1.5"
               : "mt-6 auto-rows-fr gap-2 sm:grid-cols-2",
@@ -87,7 +87,7 @@ export function ChatWelcome({
                   // blank page read as a form to fill in, not as places to start.
                   className={cn(
                     "group hover:bg-muted focus-visible:ring-ring flex h-full w-full items-start gap-3 rounded-lg text-left transition-colors outline-none focus-visible:ring-2",
-                    quiet ? "soft-enter text-muted-foreground px-2 py-2" : "bg-muted/60",
+                    quiet ? "text-muted-foreground px-2 py-2" : "bg-muted/60",
                     quiet ? "px-2 py-2" : compact ? "px-3 py-2.5" : "px-3 py-3",
                   )}
                 >
@@ -156,27 +156,37 @@ export function ChatWelcome({
     </>
   );
   return (
-    // A short window - a laptop zoomed in, a browser half the screen - keeps the
-    // greeting and the suggestions and drops the mark, the shortcuts and the
-    // air: all of it stacked put the cards under the composer.
-    <div
-      className={cn("soft-enter @container mx-auto w-full", compact ? "px-3 py-2" : "py-6 md:py-8")}
-    >
+    <div className={cn("@container mx-auto w-full", compact ? "px-3 py-2" : "py-6 md:py-8")}>
       <div className={compact ? "text-center" : "text-left"}>
         <div
           className={cn(
             "flex",
-            compact
-              ? "mb-3 justify-center"
-              : "mb-4 justify-start [@media(max-height:760px)]:hidden",
+            compact ? "mb-3 justify-center" : "relative mb-4 w-fit justify-start",
             quiet && "min-h-14",
           )}
         >
-          {mark}
+          {!compact && (
+            <svg
+              aria-hidden
+              className="text-muted-foreground/20 pointer-events-none absolute -top-3 left-3 h-20 w-44"
+              viewBox="0 0 176 80"
+              fill="none"
+            >
+              <path
+                d="M20 40H67L84 18H146M67 40L84 64H123"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+              <rect x="142" y="13" width="10" height="10" rx="3" stroke="currentColor" />
+              <circle cx="128" cy="64" r="5" stroke="currentColor" />
+              <circle cx="99" cy="40" r="3" fill="currentColor" />
+            </svg>
+          )}
+          <span className="relative">{mark}</span>
         </div>
         <h2
           className={cn(
-            "text-foreground min-h-9 font-semibold tracking-tight",
+            "text-foreground min-h-9 font-medium tracking-tight",
             quiet && "min-h-[2lh] md:min-h-9",
             compact ? "text-lg" : "text-2xl md:text-3xl",
           )}

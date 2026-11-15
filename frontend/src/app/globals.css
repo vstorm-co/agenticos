@@ -612,23 +612,6 @@
     border: 0;
   }
 
-  /* Route transition - subtle fade + slide-up on each page change.
-     Keyed on pathname in components/layout/page-transition.tsx so it replays
-     on navigation. Neutralized under reduced motion below. */
-  .page-enter {
-    animation: page-enter var(--duration-base) var(--ease-out);
-  }
-  @keyframes page-enter {
-    from {
-      opacity: 0;
-      transform: translateY(6px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
   /* The bar along the top edge while a navigation is on its way
      (components/layout/navigation-progress.tsx): most of the way quickly, then
      slower and slower, never to the end - arriving is what finishes it. */

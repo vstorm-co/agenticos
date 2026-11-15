@@ -1,5 +1,5 @@
 ---
-source_sha: "e468d58b1325"
+source_sha: "ee2a66cbf78c"
 ---
 
 # La consola { #the-console }
@@ -1188,3 +1188,12 @@ El historial distingue a quien pregunta del publicador cuya autoridad admite una
 
 
 El selector de período aparece junto a las pestañas del panel. Las visualizaciones recientes prefieren miniaturas guardadas; si no hay una disponible, el dibujo se reconstruye para su propietario y se muestra en un marco aislado cuando la tarjeta se acerca al área visible. Esta vista no requiere un navegador en el servidor.
+
+
+La búsqueda se abre con la lupa junto al control para contraer la barra lateral; el atajo de teclado sigue disponible. En escritorio, el área de trabajo tiene un marco redondeado junto a la barra lateral. Las galerías muestran las tarjetas de recursos directamente en la página.
+
+El dashboard muestra los consejos Discover después de sus datos. Briefing utiliza filas con acciones junto al texto cuando hay espacio. Las explicaciones de widgets vacíos se despliegan desde su resumen; los errores y los controles para reintentar permanecen visibles.
+
+El editor de agentes destaca Probar, Abrir en el chat y Publicar. Más acciones contiene compartir, el mapa visual, continuar la conversación y exportar. Actividad reúne período, filtros, selección de columnas y exportación en una barra. Las columnas pueden mostrar autor, superficie, modelo y tokens; coste, duración y hora de inicio permanecen en la tabla principal.
+
+Ajustes ofrece un índice de secciones en escritorio y un menú en teléfonos. Las secciones habituales usan separadores y las acciones destructivas mantienen su marco de advertencia. En el chat, el contexto del proyecto aparece sobre el editor y el uso está en los controles del chat. La navegación conserva el diseño compartido sin desvanecer el contenido.

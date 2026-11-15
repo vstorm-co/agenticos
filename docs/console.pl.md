@@ -1,5 +1,5 @@
 ---
-source_sha: "e468d58b1325"
+source_sha: "ee2a66cbf78c"
 ---
 
 # Konsola { #the-console }
@@ -1154,3 +1154,12 @@ Historia runów rozróżnia osobę pytającą od publikującego, którego uprawn
 
 
 Wybór okresu znajduje się obok zakładek widoku dashboardu. Ostatnie wizualizacje korzystają najpierw z zapisanych miniatur; gdy miniatura jest niedostępna, rysunek jest odtwarzany dla właściciela i renderowany w izolowanej ramce, gdy karta zbliża się do widocznego obszaru. Ten podgląd nie wymaga przeglądarki na serwerze.
+
+
+Wyszukiwanie otwiera przycisk lupy obok zwijania paska bocznego; skrót klawiaturowy nadal działa. Na komputerze obszar roboczy ma zaokrągloną ramę obok paska bocznego. Galerie umieszczają karty zasobów bezpośrednio na stronie.
+
+Dashboard pokazuje wskazówki Discover pod danymi. Briefing używa wierszy z akcjami obok tekstu, gdy pozwala na to szerokość. Wyjaśnienie pustego widżetu rozwija się z jego podsumowania; błędy i przyciski ponowienia pozostają widoczne.
+
+Edytor agenta wyróżnia Test, Otwórz w czacie i Publikuj. Więcej akcji zawiera udostępnianie, mapę, wznowienie rozmowy i eksport. Aktywność łączy okres, filtry, wybór kolumn i eksport w jednym pasku. Kolumny mogą pokazywać autora, źródło, model i tokeny; koszt, czas trwania i data pozostają w głównej tabeli.
+
+Ustawienia mają indeks sekcji na komputerze i menu sekcji na telefonie. Zwykłe sekcje rozdzielają linie, a działania nieodwracalne zachowują ramę ostrzeżenia. W czacie kontekst projektu znajduje się nad polem wiadomości, a zużycie w Ustawieniach czatu. Nawigacja zachowuje wspólny układ bez wygaszania treści.
