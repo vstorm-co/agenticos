@@ -825,8 +825,9 @@ określają domyślny dostęp:
 Właściciel tabeli, role Owner/Admin organizacji i administrator wdrożenia zachowują
 pominięcie polityki. Nadal muszą przejść kontrolę dostępu do tabeli i ograniczeń klucza API.
 W trybie `grants` skonfiguruj granty przed przełączeniem istniejących użytkowników.
-Utworzenie wiersza nadal wymaga administracji tabelą, a nowy wiersz musi być widoczny
-dla twórcy. Zarządzane tablice zadań zachowują własne reguły i nie oferują tych
+Utworzenie wiersza nadal wymaga administracji tabelą. Jeśli edytor tabeli nie może
+zobaczyć nowego wiersza, serwis odrzuci żądanie kodem 403: `You do not have permission to write this row`.
+Zarządzane tablice zadań zachowują własne reguły i nie oferują tych
 kontrolek udostępniania wierszy.
 
 Otwórz wiersz i wybierz **Dostęp do wiersza (Row access)**, aby dodać osobę lub grupę,
