@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import insert, inspect, select
+from sqlalchemy import insert, inspect, select, text
 
 from app.db.base import Base
 from app.db.models.virtual_table import VirtualTableRecord, VirtualTableSchemaVersion
@@ -208,7 +208,9 @@ async def test_invalid_definition_aborts_cutover_without_rewriting_rows(db, defe
     await connection.run_sync(lambda conn: _migrate(conn, "downgrade"))
     with pytest.raises(RuntimeError, match="Invalid relationship definition"):
         async with db.begin_nested():
-            await connection.run_sync(lambda conn: _migrate(conn, "upgrade"))
+            # Enlist the connection in the session's lazy SAVEPOINT before DDL.
+            nested_connection = await db.connection()
+            await nested_connection.run_sync(lambda conn: _migrate(conn, "upgrade"))
     await db.refresh(schema)
     assert schema.columns == original
     assert await virtual_table_repo.get_table(db, source.id, organization_id=org.id) is not None
@@ -218,3 +220,12 @@ async def test_invalid_definition_aborts_cutover_without_rewriting_rows(db, defe
         "virtual_table_record_links",
         "virtual_table_link_evidence",
     }.isdisjoint(remaining_tables)
+    constraint_exists = await db.scalar(
+        text(
+            "SELECT EXISTS ("
+            "SELECT 1 FROM pg_constraint "
+            "WHERE conname = 'uq_virtual_table_record_org_table_id' "
+            "AND conrelid = 'virtual_table_records'::regclass)"
+        )
+    )
+    assert not constraint_exists
