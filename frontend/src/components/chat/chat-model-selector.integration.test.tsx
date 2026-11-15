@@ -233,6 +233,13 @@ describe("the chat header's saved model selector", () => {
     await userEvent.keyboard("{ArrowDown}");
     expect(screen.getByText(/The running turn keeps its model/)).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "OpenAI" }));
+    const group = screen.getByRole("radiogroup", { name: "Saved models" });
+    act(() => group.focus());
+    await userEvent.keyboard("{ArrowUp}");
+    expect(screen.getByRole("radio", { name: "Personal GPT" })).toHaveFocus();
+    act(() => group.focus());
+    await userEvent.keyboard("{ArrowDown}");
+    expect(screen.getByRole("radio", { name: "Team GPT" })).toHaveFocus();
     act(() => screen.getByRole("radio", { name: "Team GPT" }).focus());
     await userEvent.keyboard("{ArrowDown}");
     expect(screen.getByRole("radio", { name: "Personal GPT" })).toHaveFocus();

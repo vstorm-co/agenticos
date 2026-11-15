@@ -41,7 +41,12 @@ export function ChatModelOptions({
             ? 0
             : event.key === "End"
               ? buttons.length - 1
-              : (current + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
+              : current < 0
+                ? event.key === "ArrowDown"
+                  ? 0
+                  : buttons.length - 1
+                : (current + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) %
+                  buttons.length;
         buttons[next]?.focus();
       }}
     >
