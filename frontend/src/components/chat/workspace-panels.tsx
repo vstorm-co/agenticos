@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import type { Browse } from "@/lib/browse";
@@ -42,12 +42,18 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
   const chat = useTranslations("chat");
   const account = useAuthStore((state) => state.user?.id);
   const organization = useOrgStore((state) => state.activeOrgId);
-  // Work on reads these defaults when the conversation has no explicit choice.
+  // Subscribe to saved defaults: Work on's fallback getters do not subscribe themselves.
   useChatControlsStore((state) => state.byScope[chatControlScope(account, organization)]);
   const surface = useBrowserPanelStore((state) => state.surface);
   const open = useBrowserPanelStore((state) => state.openSurface);
   const close = useBrowserPanelStore((state) => state.close);
   const [filesSlot, setFilesSlot] = useState<HTMLSpanElement | null>(null);
+  const panelPrefix = useId();
+  const panelIds = {
+    browser: `${panelPrefix}-browser`,
+    computer: `${panelPrefix}-computer`,
+    settings: `${panelPrefix}-settings`,
+  };
   const localSelected = useWorkOnStore((state) =>
     Boolean(
       state.targetFor(props.conversationId) ||
@@ -110,6 +116,7 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
   return (
     <>
       <BrowserPanel
+        panelId={surface === "computer" ? panelIds.computer : panelIds.browser}
         browses={props.loading ? [] : props.browses}
         surfaces={props.surfaces}
         access={access}
@@ -134,13 +141,18 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
       {props.agentId !== null && (
         <ChatAgentSettingsPanel
           key={`${account}:${organization}:${props.agentId}`}
+          panelId={panelIds.settings}
           agentId={props.agentId}
           open={surface === "settings"}
           readOnly={props.readOnly || props.loading}
           onClose={close}
         />
       )}
-      <WorkspaceRail filesSlot={setFilesSlot} hasAgent={props.agentId !== null} />
+      <WorkspaceRail
+        filesSlot={setFilesSlot}
+        hasAgent={props.agentId !== null}
+        panelIds={panelIds}
+      />
     </>
   );
 }

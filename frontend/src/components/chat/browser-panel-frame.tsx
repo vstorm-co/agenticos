@@ -16,14 +16,17 @@ export function BrowserPanelFrame({
   label,
   resizeLabel,
   initialWidth = INITIAL_WIDTH,
+  id: suppliedId,
 }: {
   children: (layout: { fullscreen: boolean; toggleFullscreen: () => void }) => ReactNode;
   label?: string;
   resizeLabel?: string;
   initialWidth?: number;
+  id?: string;
 }) {
   const t = useTranslations("chat");
-  const id = useId();
+  const generatedId = useId();
+  const id = suppliedId ?? generatedId;
   const panel = useRef<HTMLElement>(null);
   const [width, setWidth] = useState(() => bounded(initialWidth));
   const [fullscreen, setFullscreen] = useState(false);

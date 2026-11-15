@@ -32,6 +32,7 @@ export function BrowserPanel({
   surfaces = NO_SURFACES,
   access,
   onStart,
+  panelId,
 }: {
   browses: Browse[];
   onResume?: () => void;
@@ -40,6 +41,7 @@ export function BrowserPanel({
   surfaces?: ReadonlyMap<string, BrowseSurface>;
   access?: WorkspaceStartAccess;
   onStart?: (surface: BrowseSurface, url?: string) => void;
+  panelId?: string;
 }) {
   const openCallId = useBrowserPanelStore((state) => state.openCallId);
   const surface = useBrowserPanelStore((state) => state.surface);
@@ -58,6 +60,7 @@ export function BrowserPanel({
   return streamed === null ? (
     <WorkspaceEmpty
       key={surface}
+      panelId={panelId}
       surface={surface}
       reason={access ? workspaceStartReason(access, surface) : "unknown"}
       onStart={onStart}
@@ -65,6 +68,7 @@ export function BrowserPanel({
   ) : (
     <OpenBrowser
       key={streamed.callId}
+      panelId={panelId}
       streamed={streamed}
       tabs={tabs}
       onComment={onComment}
@@ -83,6 +87,7 @@ function OpenBrowser({
   onResume,
   surface,
   onStart,
+  panelId,
 }: {
   streamed: Browse;
   tabs: Browse[];
@@ -90,6 +95,7 @@ function OpenBrowser({
   onComment?: (comment: PageComment) => void;
   surface: BrowseSurface;
   onStart?: (surface: BrowseSurface, url?: string) => void;
+  panelId?: string;
 }) {
   const close = useBrowserPanelStore((state) => state.close);
   const open = useBrowserPanelStore((state) => state.open);
@@ -120,7 +126,7 @@ function OpenBrowser({
   }, [close, holding]);
 
   return (
-    <BrowserPanelFrame label={workspace(surface)} resizeLabel={workspace("resize")}>
+    <BrowserPanelFrame id={panelId} label={workspace(surface)} resizeLabel={workspace("resize")}>
       {({ fullscreen, toggleFullscreen }) => {
         const content = (() => {
           if (browse.nativeId && isDesktopShell(shell) && shell.window === "main")

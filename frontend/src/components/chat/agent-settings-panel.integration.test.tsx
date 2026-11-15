@@ -198,7 +198,13 @@ describe("agent settings beside the chat", () => {
   it("loads only when opened and opens settings from the workspace rail without running a tool", async () => {
     mount({ open: false });
     expect(apiClient.get).not.toHaveBeenCalled();
-    render(<WorkspaceRail filesSlot={() => undefined} hasAgent />);
+    render(
+      <WorkspaceRail
+        filesSlot={() => undefined}
+        hasAgent
+        panelIds={{ browser: "browser", computer: "computer", settings: "settings" }}
+      />,
+    );
     await userEvent.click(screen.getByRole("button", { name: "Open agent settings" }));
     expect(useBrowserPanelStore.getState().surface).toBe("settings");
     expect(apiClient.post).not.toHaveBeenCalled();

@@ -17,10 +17,12 @@ export function WorkspaceEmpty({
   surface,
   reason,
   onStart,
+  panelId,
 }: {
   surface: BrowseSurface;
   reason: WorkspaceRefusal;
   onStart?: (surface: BrowseSurface, url?: string) => void;
+  panelId?: string;
 }) {
   const t = useTranslations("chat.workspace");
   const close = useBrowserPanelStore((state) => state.close);
@@ -43,7 +45,7 @@ export function WorkspaceEmpty({
     return () => window.removeEventListener("keydown", onKey);
   }, [close]);
   return (
-    <BrowserPanelFrame label={t(surface)} resizeLabel={t("resize")}>
+    <BrowserPanelFrame id={panelId} label={t(surface)} resizeLabel={t("resize")}>
       {() => (
         <>
           <div className="border-border flex items-center gap-2 border-b p-3">

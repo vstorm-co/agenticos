@@ -13,6 +13,7 @@ import { ChatAgentSettingsFields } from "./agent-settings-fields";
 import { ChatAgentSettingsPublish } from "./agent-settings-publish";
 
 interface SettingsPanelProps {
+  panelId?: string;
   agentId: string;
   open: boolean;
   readOnly: boolean;
@@ -27,7 +28,7 @@ export function ChatAgentSettingsPanel(props: SettingsPanelProps) {
   return <SettingsEditor {...props} />;
 }
 
-function SettingsEditor({ agentId, open, readOnly, onClose }: SettingsPanelProps) {
+function SettingsEditor({ panelId, agentId, open, readOnly, onClose }: SettingsPanelProps) {
   const t = useTranslations("chat.agentSettings");
   const workspace = useTranslations("chat.workspace");
   const common = useTranslations("common");
@@ -64,7 +65,12 @@ function SettingsEditor({ agentId, open, readOnly, onClose }: SettingsPanelProps
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <BrowserPanelFrame label={t("title")} resizeLabel={workspace("resize")} initialWidth={35}>
+    <BrowserPanelFrame
+      id={panelId}
+      label={t("title")}
+      resizeLabel={workspace("resize")}
+      initialWidth={35}
+    >
       {({ fullscreen, toggleFullscreen }) => (
         <>
           <header className="border-border flex shrink-0 items-center gap-2 border-b px-4 py-3">

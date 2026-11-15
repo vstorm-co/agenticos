@@ -226,6 +226,7 @@ export function WorkspaceFiles({
             }}
             className={cn(
               "text-muted-foreground hover:text-foreground hover:bg-accent/60 relative inline-flex size-8 items-center justify-center rounded-lg transition-colors",
+              responsive && "size-11 @min-[900px]/browser-layout:size-9",
               visible && "bg-foreground/[0.06] text-foreground",
             )}
           >
