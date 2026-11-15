@@ -1,5 +1,5 @@
 ---
-source_sha: "99bd879638a8"
+source_sha: "9f68fa732bb7"
 ---
 
 # Die Konsole { #the-console }
@@ -72,7 +72,7 @@ Der Eingabebereich zeigt den aktiven Genehmigungsmodus neben der Agent-Auswahl. 
 
 Dialoge behalten auf dem Smartphone an allen Rändern 12 px Abstand. Kompakte Seitenköpfe zeigen Titel und Aktionen in einer Zeile, wenn genug Platz ist. Die Context-Beschreibung öffnet sich über die Editorleiste.
 
-Auf dem Smartphone bleiben die Hauptaktionen sichtbar; weitere Befehle öffnet **Weitere Seitenaktionen**. Inbox-Filter und Tabellenformat werden über Auswahllisten gewählt. Einstellungen mit vielen Bereichen haben ein Bereichsmenü; der MCP-Client wird aus einer Liste gewählt. Projekt- und Workspace-Dateien öffnen sich im Vollbildleser; der Zurück-Pfeil führt zu den Ordnern. Im Workflow-Schritteditor wählst du Einstellungen, Eingabe oder Ausgabe. Beim Wechsel bleiben Änderungen erhalten; auf dem Desktop stehen die Bereiche weiterhin nebeneinander.
+Auf dem Smartphone bleiben die Hauptaktionen sichtbar; weitere Befehle öffnet **Weitere Seitenaktionen**. Inbox-Filter und Tabellenformat werden über Auswahllisten gewählt. Einstellungen haben eine horizontale, scrollbare Tableiste; der MCP-Client wird aus einer Liste gewählt. Projekt- und Workspace-Dateien öffnen sich im Vollbildleser; der Zurück-Pfeil führt zu den Ordnern. Im Workflow-Schritteditor wählst du Einstellungen, Eingabe oder Ausgabe. Beim Wechsel bleiben Änderungen erhalten; auf dem Desktop stehen die Bereiche weiterhin nebeneinander.
 
 Jede ausdrückliche Aktion **New chat** fokussiert den Editor erneut, auch bei einem leeren Entwurf; die Vergabe einer Gesprächs-ID während des Schreibens fordert keinen Fokus an.
 
@@ -84,7 +84,7 @@ Seitenüberschriften verwenden die Abstände des umgebenden Layouts ohne Verdopp
 
 Sekundäre Schaltflächen und Filter teilen eine deutlichere Füllfläche, kontrastreiche Beschriftungen und klare Zustände bei Hover, Betätigung und geöffnetem Menü. Die Modellauswahl im Chat verwendet denselben Stil.
 
-Persönliche Einstellungen verwenden auf dem Desktop einen Abschnittsindex und auf dem Telefon ein Abschnittsmenü. Erläuterungen öffnen sich über Informationsschaltflächen; Feldanforderungen, Validierungsfehler und Warnungen vor Löschaktionen bleiben sichtbar. Konto enthält Passwortänderungen und aktive Sitzungen.
+Persönliche Einstellungen verwenden auf Desktop und Telefon horizontale, scrollbare Tabs. Erläuterungen öffnen sich über Informationsschaltflächen; Feldanforderungen, Validierungsfehler und Warnungen vor Löschaktionen bleiben sichtbar. Konto enthält Passwortänderungen und aktive Sitzungen.
 
 Gesprächstitel stehen in der Chatliste zuerst, Agentennamen und Aktivität darunter. Suche, Filter und Neuer Chat teilen sich die Kopfzeile. Kopfzeilenfilter öffnen sich unter ihrer Schaltfläche, Filter der eingeklappten Leiste daneben. Dekorative Illustrationen wechseln ohne Wiedergabesteuerung und beachten die Einstellung für reduzierte Bewegung.
 
@@ -1254,6 +1254,6 @@ Das Dashboard zeigt Discover-Tipps nach seinen Daten. Briefing verwendet Zeilen 
 
 Der Agenteneditor hebt Test, Im Chat öffnen und Veröffentlichen hervor. Weitere Aktionen enthält Teilen, die Übersichtskarte, das Fortsetzen des Gesprächs und Export. Aktivität vereint Zeitraum, Filter, Spaltenauswahl und Export in einer Leiste. Spalten können Autor, Oberfläche, Modell und Tokenanzahl anzeigen; Kosten, Dauer und Startzeit bleiben in der Haupttabelle.
 
-Einstellungen bietet auf dem Desktop einen Abschnittsindex und auf dem Telefon ein Abschnittsmenü. Gewöhnliche Abschnitte verwenden Trennlinien; destruktive Aktionen behalten ihren Warnrahmen. Im Chat steht der Projektkontext über dem Eingabefeld, die Nutzung findest du in den Chat-Einstellungen. Navigation erhält das gemeinsame Layout ohne Ausblenden der Inhalte.
+Einstellungen bietet auf Desktop und Telefon horizontale, scrollbare Tabs. Gewöhnliche Abschnitte verwenden Trennlinien; destruktive Aktionen behalten ihren Warnrahmen. Im Chat steht der Projektkontext über dem Eingabefeld, die Nutzung findest du in den Chat-Einstellungen. Navigation erhält das gemeinsame Layout ohne Ausblenden der Inhalte.
 
 Gruppen der Seitenleiste öffnen und schließen sich fließend. Verborgene Ziele erhalten keinen Fokus; beim Einklappen bleibt das aktuelle Ziel sichtbar. Animationen beachten deine Darstellungseinstellungen; bei reduzierter Bewegung bleiben diese Bedienelemente statisch.

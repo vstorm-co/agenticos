@@ -66,7 +66,7 @@ The composer shows the active permission mode beside the agent picker. Open the 
 
 Phone dialogs keep a 12px gutter on every edge. Compact page headers place the title and actions on one row when they fit. Context descriptions open from the editor toolbar.
 
-On phones, primary page actions stay visible and secondary commands fold behind **More page actions**. Inbox filters and the table format use selects. Settings with many sections use a section menu, while the MCP client is selected from a dropdown. Opening a project or workspace file opens its full-screen reader; the back arrow returns to the folders. Workflow step dialogs show one chosen panel at a time: settings, input or output. Switching panels preserves edits; desktop keeps the panels side by side.
+On phones, primary page actions stay visible and secondary commands fold behind **More page actions**. Inbox filters and the table format use selects. Settings sections use a horizontal, scrollable tab strip, while the MCP client is selected from a dropdown. Opening a project or workspace file opens its full-screen reader; the back arrow returns to the folders. Workflow step dialogs show one chosen panel at a time: settings, input or output. Switching panels preserves edits; desktop keeps the panels side by side.
 
 Markdown fields and file editors also offer an expand button without discarding the current draft. Skill descriptions and categories can be expanded above the editor. The chat composer uses less space and caps long drafts against the available screen height. Opening navigation focuses the panel, while Tab still reaches its controls. On phones the workflow canvas has a floating full-screen control, opens with the whole flow in view and starts with the minimap hidden.
 
@@ -74,7 +74,7 @@ Page headers use the surrounding layout’s spacing once. Cards, sidebar rows, t
 
 Secondary buttons and toolbar filters share a more visible filled surface, full-contrast labels and distinct hover, pressed and open states. The chat model picker follows the same secondary-action styling.
 
-Personal settings use a section index on desktop and a section menu on phones. Explanatory copy opens from information buttons; requirements, validation errors and destructive-action warnings stay visible. Account holds password changes and active sessions.
+Personal settings use horizontal, scrollable tabs on desktop and phones. Explanatory copy opens from information buttons; requirements, validation errors and destructive-action warnings stay visible. Account holds password changes and active sessions.
 
 Conversation titles lead the chat list, with agent names and activity below. Search, filters and New chat share its header. Header filters open below their button; collapsed-rail filters open beside it. Decorative illustrations rotate without playback controls and follow the reduced-motion preference.
 
@@ -1133,6 +1133,6 @@ The dashboard puts Discover tips after its data. Briefing uses rows with actions
 
 The agent builder keeps Test, Open in chat and Publish prominent. More actions contains sharing, the visual map, continuing your conversation and export. Activity combines period, filters, column selection and export in one toolbar. Columns can show the author, surface, model and token count; cost, duration and start time stay in the main table.
 
-Settings uses a section index on desktop and a section menu on phones. Standard settings sections use dividers, while destructive actions retain their warning frame. In chat, project context appears above the composer and usage is available inside Chat controls. Page navigation preserves the shared layout without fading its contents.
+Settings uses horizontal, scrollable tabs on desktop and phones. Standard settings sections use dividers, while destructive actions retain their warning frame. In chat, project context appears above the composer and usage is available inside Chat controls. Page navigation preserves the shared layout without fading its contents.
 
 Sidebar groups expand and collapse smoothly. Hidden destinations cannot receive focus, and collapsing the sidebar keeps the current destination visible. Motion follows your Appearance settings; reduced motion keeps these controls static.

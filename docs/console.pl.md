@@ -1,5 +1,5 @@
 ---
-source_sha: "99bd879638a8"
+source_sha: "9f68fa732bb7"
 ---
 
 # Konsola { #the-console }
@@ -70,7 +70,7 @@ Pole wiadomości pokazuje aktywny tryb zatwierdzania obok wyboru agenta. Kliknij
 
 Na telefonie modale zachowują 12 px marginesu z każdej strony. Zwarte nagłówki mieszczą tytuł i akcje w jednym wierszu, gdy jest na to miejsce. Opis pliku Context rozwija się z paska edytora.
 
-Na telefonie główne akcje strony pozostają widoczne, a drugorzędne polecenia rozwija przycisk **Więcej akcji strony**. Filtry Inbox i format tabeli wybiera się selectem. Ustawienia z wieloma sekcjami mają menu wyboru sekcji; klienta MCP wybiera się z listy. Plik projektu lub workspace otwiera czytnik na pełnym ekranie, a strzałka wstecz wraca do folderów. Edytor kroku workflow pokazuje jeden wybrany panel: ustawienia, wejście albo wynik. Przełączanie zachowuje edycję; desktop nadal pokazuje panele obok siebie.
+Na telefonie główne akcje strony pozostają widoczne, a drugorzędne polecenia rozwija przycisk **Więcej akcji strony**. Filtry Inbox i format tabeli wybiera się selectem. Ustawienia mają poziomy, przewijany pasek zakładek; klienta MCP wybiera się z listy. Plik projektu lub workspace otwiera czytnik na pełnym ekranie, a strzałka wstecz wraca do folderów. Edytor kroku workflow pokazuje jeden wybrany panel: ustawienia, wejście albo wynik. Przełączanie zachowuje edycję; desktop nadal pokazuje panele obok siebie.
 
 Pola Markdown i edytory plików również mają przycisk powiększania, który zachowuje bieżący szkic. Opis i kategorię skilla można rozwinąć nad edytorem. Pole wiadomości na czacie zajmuje mniej miejsca i ogranicza wysokość długiego szkicu do dostępnej wysokości ekranu. Otwarcie nawigacji ustawia focus na panelu, a Tab nadal przechodzi do jego kontrolek. Na telefonie canvas workflow ma pływający przycisk pełnego ekranu, otwiera się z całym przepływem w widoku i startuje z ukrytą minimapą.
 
@@ -82,7 +82,7 @@ Nagłówki korzystają z odstępów otaczającego układu bez ich podwajania. Ka
 
 Przyciski drugorzędne i filtry mają wspólne, wyraźniejsze wypełnienie, kontrastowe etykiety oraz czytelne stany najechania, naciśnięcia i otwarcia. Wybór modelu w chacie korzysta z tego samego stylu przycisku.
 
-Ustawienia osobiste mają indeks sekcji na desktopie i menu sekcji na telefonie. Objaśnienia otwierają się pod przyciskami informacji; wymagania pól, błędy walidacji i ostrzeżenia przy usuwaniu pozostają widoczne. Konto zawiera zmianę hasła i aktywne sesje.
+Ustawienia osobiste mają poziome, przewijane zakładki na komputerze i telefonie. Objaśnienia otwierają się pod przyciskami informacji; wymagania pól, błędy walidacji i ostrzeżenia przy usuwaniu pozostają widoczne. Konto zawiera zmianę hasła i aktywne sesje.
 
 Tytuły rozmów są pierwszą linią listy czatów, z nazwami agentów i aktywnością poniżej. Wyszukiwanie, filtry i Nowy czat dzielą nagłówek. Filtry nagłówka otwierają się pod przyciskiem, a filtry zwiniętej szyny obok niego. Dekoracyjne ilustracje zmieniają się bez przycisków odtwarzania i respektują preferencję ograniczonego ruchu.
 
@@ -1164,6 +1164,6 @@ Dashboard pokazuje wskazówki Discover pod danymi. Briefing używa wierszy z akc
 
 Edytor agenta wyróżnia Test, Otwórz w czacie i Publikuj. Więcej akcji zawiera udostępnianie, mapę, wznowienie rozmowy i eksport. Aktywność łączy okres, filtry, wybór kolumn i eksport w jednym pasku. Kolumny mogą pokazywać autora, źródło, model i tokeny; koszt, czas trwania i data pozostają w głównej tabeli.
 
-Ustawienia mają indeks sekcji na komputerze i menu sekcji na telefonie. Zwykłe sekcje rozdzielają linie, a działania nieodwracalne zachowują ramę ostrzeżenia. W czacie kontekst projektu znajduje się nad polem wiadomości, a zużycie w Ustawieniach czatu. Nawigacja zachowuje wspólny układ bez wygaszania treści.
+Ustawienia mają poziome, przewijane zakładki na komputerze i telefonie. Zwykłe sekcje rozdzielają linie, a działania nieodwracalne zachowują ramę ostrzeżenia. W czacie kontekst projektu znajduje się nad polem wiadomości, a zużycie w Ustawieniach czatu. Nawigacja zachowuje wspólny układ bez wygaszania treści.
 
 Grupy paska bocznego rozwijają się i zwijają płynnie. Ukryte miejsca nie przyjmują fokusu, a po zwinięciu paska bieżąca strona pozostaje widoczna. Animacje respektują ustawienia Wyglądu; ograniczenie ruchu pozostawia kontrolki nieruchome.
