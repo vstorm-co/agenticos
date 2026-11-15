@@ -187,6 +187,40 @@ async def test_use_and_management_lists_apply_different_grant_levels(
     assert await service.list_for_org(caller) == ([], 0)
 
 
+@pytest.mark.parametrize(
+    "key_scopes", [None, frozenset({Perm.MCP_USE}), frozenset({Perm.MCP_MANAGE})]
+)
+async def test_subjectless_keys_list_only_their_organization_visible_connections(
+    caller, connection, monkeypatch, key_scopes
+):
+    caller = replace(caller, user_id=None, role=OrgRoleName.OWNER, key_scopes=key_scopes)
+    connection.visibility = Visibility.ORG.value
+    private = McpConnection(
+        id=uuid4(),
+        organization_id=caller.organization_id,
+        visibility=Visibility.PRIVATE.value,
+        created_by_user_id=None,
+    )
+    foreign = McpConnection(id=uuid4(), organization_id=uuid4(), visibility=Visibility.ORG.value)
+    monkeypatch.setattr(
+        mcp_connection_repo,
+        "list_org_scoped",
+        AsyncMock(return_value=([connection, private, foreign], 3)),
+    )
+    lookup = AsyncMock(return_value=connection)
+    monkeypatch.setattr(mcp_connection_repo, "get_org_scoped_by_id", lookup)
+    grant = AsyncMock(return_value=GrantLevel.EDIT)
+    monkeypatch.setattr(resource_grant_repo, "get_level", grant)
+    service = McpConnectionService(AsyncMock())
+
+    assert await service.list_usable(caller) == [connection]
+    assert await service.get_org_connection(caller, connection.id) is connection
+    lookup.return_value = private
+    with pytest.raises(NotFoundError):
+        await service.get_org_connection(caller, private.id)
+    grant.assert_not_awaited()
+
+
 @pytest.mark.parametrize("invalid", ["other-tenant-owner", "no-subject"])
 async def test_no_scope_or_grant_crosses_tenant_or_subject_boundaries(
     caller, connection, use_grant, invalid

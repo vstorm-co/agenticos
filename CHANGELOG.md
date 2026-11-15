@@ -23,9 +23,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Sync upstream to v1.73.0 while preserving the T3 overlay; migration histories join at 0324_merge_t3_upstream_v173. CI and downstream compatibility remain unverified.
 
-### Added
+### Security
 
 - Separate MCP connection use from administration on existing paths. Use grants continue to authorize agent/workflow binding, while editing, deleting, probing, reading call logs and changing sharing require management authority or an edit grant within the existing route gates. Existing role scopes and published-agent delegation remain in place; no grants are promoted and no new discovery endpoint is added.
+
+### Added
+
 - Project-room messaging APIs accept human posts without a model call and explicit requests for published cloud agents. A PostgreSQL submission ledger deduplicates retries, queues agent requests per conversation and retains their original requester; permissions are checked when accepted and when work starts or resumes. A waiting approval or answer keeps the room queue blocked. Queued follow-ups read earlier messages and the completed answers to preceding requests, while excluding later prompts. Migration `0311_room_submissions.py` follows `0303_virtual_table_row_policy.py`, which follows `0310_secret_requests.py`; the separate Team rooms interface uses these endpoints.
 - Open console tabs detect a newly deployed frontend and show a persistent top-center update notice with a Reload button, matching ServerOS. Checks run every minute while visible and when the tab returns; the app reloads only when the person chooses it. Build identities detect updates even when the release number is unchanged.
 - Row-level access for tables, by assignee: a table may carry a row policy naming the user or multi-user column that gates viewing and the one that gates editing, plus an optional project half (a link column, a projects table and its members column) that widens viewing to project members. A row with an empty assignee is visible to nobody except the deployment owner, the table owner and Owner/Admin roles; Builders and Operators get the predicate applied like everyone else. Creating a row its creator cannot see is refused, as are updates, upserts and deletes that move a row out of the caller's visibility, and single reads of invisible rows are 404s. Linked records a reader cannot see yield no label and no id, rollups count only the visible subset, and triggers do not fire for rows their publisher cannot see. Set it with `PUT /tables/{id}/row-policy`; tables without a policy behave exactly as before.

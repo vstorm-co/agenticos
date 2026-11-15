@@ -1,5 +1,5 @@
 ---
-source_sha: "392d370070c7"
+source_sha: "bfd97a18b5a9"
 ---
 
 # Permisos { #permissions }
@@ -213,9 +213,9 @@ Hoy `TEAM` no lo usa ningún rol integrado; existe para los roles personalizados
 
 | Rol | Idea | Agents | Secretos | Globales |
 | --- | --- | --- | --- | --- |
-| `owner` | posee la organización | todos `ALL` | `ALL` | todo, incluido `org:delete` |
-| `admin` | la lleva en el día a día | todos `ALL` | `ALL` | todo **menos** `org:delete` |
-| `builder` | construye, y aprende de toda la organización | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `owner` | posee la organización | todos `ALL` | `ALL` | todo, incluido `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
+| `admin` | la lleva en el día a día | todos `ALL` | `ALL` | todo **menos** `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
+| `builder` | construye, y aprende de toda la organización | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:use`/`mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `operator` | mantiene sano el sistema en marcha | `view`/`run` `ALL`, sin edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `member` | el usuario de cada día | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
 | `viewer` | lee | `view` `SHARED` | ninguno | `members:view` |

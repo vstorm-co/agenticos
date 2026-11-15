@@ -193,9 +193,9 @@ Ordered `NONE < OWN < SHARED < TEAM < ALL`.
 
 | Role | Idea | Agents | Secrets | Global |
 | --- | --- | --- | --- | --- |
-| `owner` | owns the organization | all `ALL` | `ALL` | everything, including `org:delete` |
-| `admin` | runs it day to day | all `ALL` | `ALL` | everything **except** `org:delete` |
-| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `owner` | owns the organization | all `ALL` | `ALL` | everything, including `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
+| `admin` | runs it day to day | all `ALL` | `ALL` | everything **except** `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
+| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:use`/`mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `operator` | keeps the running system healthy | `view`/`run` `ALL`, no edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `member` | the everyday user | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
 | `viewer` | reads | `view` `SHARED` | none | `members:view` |

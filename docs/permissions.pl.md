@@ -1,5 +1,5 @@
 ---
-source_sha: "392d370070c7"
+source_sha: "bfd97a18b5a9"
 ---
 
 # Uprawnienia { #permissions }
@@ -208,9 +208,9 @@ własnych.
 
 | Rola | Zamysł | Agents | Secrets | Globalne |
 | --- | --- | --- | --- | --- |
-| `owner` | jest właścicielem organizacji | wszystko `ALL` | `ALL` | wszystko, łącznie z `org:delete` |
-| `admin` | prowadzi ją na co dzień | wszystko `ALL` | `ALL` | wszystko **poza** `org:delete` |
-| `builder` | buduje i uczy się od całej organizacji | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `owner` | jest właścicielem organizacji | wszystko `ALL` | `ALL` | wszystko, łącznie z `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
+| `admin` | prowadzi ją na co dzień | wszystko `ALL` | `ALL` | wszystko **poza** `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
+| `builder` | buduje i uczy się od całej organizacji | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:use`/`mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `operator` | utrzymuje działający system w zdrowiu | `view`/`run` `ALL`, bez edycji | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `member` | codzienny użytkownik | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
 | `viewer` | czyta | `view` `SHARED` | żadne | `members:view` |

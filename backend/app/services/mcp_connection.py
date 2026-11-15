@@ -2686,8 +2686,10 @@ class McpConnectionService:
             row
             for row in rows
             if row.organization_id == ctx.organization_id
-            and ctx.user_id is not None
-            and (row.visibility == Visibility.ORG.value or row.id in usable)
+            and (
+                row.visibility == Visibility.ORG.value
+                or (ctx.user_id is not None and row.id in usable)
+            )
         ]
 
     async def used_by(
