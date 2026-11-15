@@ -1,5 +1,5 @@
 ---
-source_sha: "840ee70e646c"
+source_sha: "d347b6668f6b"
 ---
 
 # Konsola { #the-console }
@@ -139,10 +139,12 @@ możesz otworzyć. Każdy zaczyna od widoku **Ja**:
 
 | Widok | Odpowiada na |
 | --- | --- |
-| **Ja** | Twój okres, decyzje i propozycje z Inbox; ostatnie rozmowy, praca w tle, projekty, Twoi agenci, najczęściej używani agenci, udostępnione zasoby i ostatnie wizualizacje. Karty jakości i ewaluacji pozostają w katalogu organizacji. |
+| **Ja** | Twój okres, Briefing i wskazówki Discover; ostatnie rozmowy, projekty, Twoi agenci, najczęściej używani agenci i ostatnie wizualizacje. Domyślny widok osobisty pomija karty decyzji, tematów w tle i udostępnionych zasobów. |
 | **Organizacja** | Układalna strona opisana niżej |
 | **Grupa** | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika. Grupa, której członkowie nic nie uruchomili w okresie, mówi to raz, z przejściem do grupy, zamiast strony pustych kart |
 | **Wdrożenie** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |
+
+Briefing wyrównuje tytuły i źródła z akcjami. Discover znajduje się bezpośrednio pod nim. Ostatnie wizualizacje mieszczą obrazy w wyśrodkowanych podglądach. Pytanie przestaje oczekiwać na odpowiedź, gdy serwer rozpoczyna przyjętą kontynuację. Kliknięcie zamykanego toastu usuwa go z krótkim wygaszeniem; komunikaty trwających operacji pozostają widoczne.
 
 Karty jakości, w tym **Agenci wymagający uwagi** i **Poprawki czekające na Ciebie**, pozostają w katalogu widoku organizacji pod **Customize**. Decyzje, uprawnienia i linki do ulepszania agentów działają tak samo. Osobisty licznik oczekujących spraw obejmuje tylko zgody na narzędzia użytkownika i jego otwarte propozycje Inbox.
 

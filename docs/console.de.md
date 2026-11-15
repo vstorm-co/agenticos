@@ -1,5 +1,5 @@
 ---
-source_sha: "840ee70e646c"
+source_sha: "d347b6668f6b"
 ---
 
 # Die Konsole { #the-console }
@@ -141,10 +141,12 @@ an, die Sie öffnen dürfen. Alle starten in der Ansicht **Ich**:
 
 | Ansicht | Beantwortet |
 | --- | --- |
-| **Ich** | Ihr Zeitraum, Entscheidungen und persönliche Inbox-Vorschläge; letzte Unterhaltungen, Hintergrundarbeit, Projekte, eigene und häufig verwendete Agents, geteilte Ressourcen und letzte Visualisierungen. Qualitäts- und Evaluationskarten bleiben im Organisationskatalog. |
+| **Ich** | Ihr Zeitraum, Briefing und Discover-Tipps; letzte Unterhaltungen, Projekte, eigene und häufig verwendete Agents sowie letzte Visualisierungen. Entscheidungs-, Hintergrundthemen- und Freigabekarten entfallen in dieser persönlichen Standardansicht. |
 | **Organisation** | Die anordenbare Seite unten |
 | **Gruppe** | Die Mitglieder einer [Gruppe](departments.md) - ihre Runs, Ausgaben, Modelle, wann sie arbeiten und wer es am meisten nutzt. Die Gruppe wählen Sie neben dem Schalter. Eine Gruppe, deren Mitglieder im Zeitraum nichts ausgeführt haben, sagt das einmal, mit einem Weg zur Gruppe, statt eine Seite leerer Karten zu zeigen |
 | **Deployment** | Nur für einen [Deployment-Admin](permissions.md) — Plattformsummen, Health, aktivste Tenants, Bewertungen |
+
+Das persönliche Briefing richtet Titel und Quelle an den Aktionen aus. Discover folgt direkt darunter. Letzte Visualisierungen zeigen ihre Bilder vollständig in zentrierten Vorschauen. Beantwortete Fragen warten nicht mehr, sobald der Server die zugelassene Fortsetzung startet. Ein Klick schließt schließbare Toasts mit kurzem Ausblenden; laufende Vorgänge bleiben sichtbar.
 
 Qualitätskarten wie **Agents, die Aufmerksamkeit brauchen** und **Verbesserungen, die auf Sie warten**, bleiben in der Organisationsansicht unter **Customize** verfügbar. Entscheidungen, Berechtigungen und Links zur Agent-Verbesserung bleiben erhalten. Persönliche Wartezahlen umfassen nur eigene Werkzeugfreigaben und offene Inbox-Vorschläge.
 

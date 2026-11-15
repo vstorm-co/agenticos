@@ -1,5 +1,5 @@
 ---
-source_sha: "840ee70e646c"
+source_sha: "d347b6668f6b"
 ---
 
 # La consola { #the-console }
@@ -141,10 +141,12 @@ puedes abrir. Todos empiezan en **Me**:
 
 | Vista | Responde a |
 | --- | --- |
-| **Me** | Tu período, decisiones y propuestas personales de Inbox; conversaciones recientes, trabajo en segundo plano, proyectos, tus agentes, agentes más usados, recursos compartidos y visualizaciones recientes. Las tarjetas de calidad y evaluación siguen en el catálogo de la organización. |
+| **Me** | Tu período, Briefing y consejos Discover; conversaciones recientes, proyectos, tus agentes, agentes más usados y visualizaciones recientes. Esta vista personal predeterminada omite las tarjetas de decisiones, temas en segundo plano y recursos compartidos. |
 | **Organization** | La página que se ordena, descrita abajo |
 | **Group** | Los miembros de un [grupo](departments.md) - sus runs, gasto, modelos, cuándo trabajan y quién lo usa más. El grupo se elige junto al selector. Un grupo cuyos miembros no ejecutaron nada en el periodo lo dice una vez, con un enlace al grupo, en lugar de una página de tarjetas vacías |
 | **Deployment** | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones |
+
+El Briefing personal alinea cada título y origen con sus acciones. Discover aparece justo debajo. Las visualizaciones recientes encajan sus imágenes en vistas previas centradas. Las preguntas respondidas dejan de esperar cuando el servidor inicia la continuación admitida. Un clic cierra los avisos descartables con una salida breve; los avisos de operaciones en curso siguen visibles.
 
 Las tarjetas de calidad, como **Agents that need attention** e **Improvements waiting for you**, siguen disponibles en la vista de organización mediante **Customize**. Las decisiones, los permisos y los enlaces de mejora no cambian. El contador personal solo incluye aprobaciones propias de herramientas y propuestas abiertas de Inbox.
 
