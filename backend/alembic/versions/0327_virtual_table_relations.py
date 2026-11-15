@@ -11,7 +11,7 @@ Malformed, duplicate and dangling values are retained as repair evidence.
 """
 
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, TypedDict
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
@@ -23,6 +23,15 @@ revision: str = "0327_virtual_table_relations"
 down_revision: str | None = "0326_room_threads"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+
+
+class _Definition(TypedDict):
+    organization_id: UUID
+    source_table_id: UUID
+    column_id: UUID
+    target_table_id: UUID
+    archived: bool
+    max_links: int
 
 
 def _timestamps() -> list[sa.Column]:
@@ -246,13 +255,15 @@ def _backfill(connection: sa.Connection) -> None:
         )
     ).mappings()
     for schema in schemas:
-        definitions = []
+        definitions: list[_Definition] = []
         for column in schema["columns"]:
             if column.get("type") != "link":
                 continue
             column_id = _uuid(column.get("id"))
             target_table_id = _uuid(column.get("link_table_id"))
-            max_links = column.get("link_limit") or 100
+            max_links = column.get("link_limit")
+            if max_links is None:
+                max_links = 100
             if (
                 column_id is None
                 or target_table_id is None
@@ -264,7 +275,7 @@ def _backfill(connection: sa.Connection) -> None:
                     f"Invalid relationship definition in table {schema['id']}; "
                     "repair the schema before retrying this migration"
                 )
-            definition = {
+            definition: _Definition = {
                 "organization_id": schema["organization_id"],
                 "source_table_id": schema["id"],
                 "column_id": column_id,

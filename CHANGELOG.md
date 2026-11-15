@@ -108,6 +108,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Atomic table link changes refuse hidden and unknown targets identically even when the stored link cell is full, so cardinality errors cannot reveal an existing hidden connection.
 - Table link replacements validate every explicitly submitted destination before accepting an unchanged write. Hidden and missing destination IDs receive the same refusal; omitted hidden links remain preserved for older clients.
 - Table upserts return the same refusal for a hidden external ID and an unavailable creation, including absent or stale revisions, so row-grant readers cannot use error messages to discover hidden records.
+- Relationship backfill refuses invalid stored link limits, including zero, false and blank values. Only omitted or null limits use the legacy default; a refusal rolls back the new relationship tables without rewriting source data.
 
 ## [1.73.0] - 2026-11-13
 

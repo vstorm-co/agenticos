@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import insert, select
+from sqlalchemy import insert, inspect, select
 
 from app.db.base import Base
 from app.db.models.virtual_table import VirtualTableRecord, VirtualTableSchemaVersion
@@ -175,7 +175,11 @@ async def test_backfill_keeps_ids_revisions_order_archived_fields_and_every_reje
     assert stored.revision == 7
 
 
-async def test_invalid_cross_organization_definition_aborts_cutover_without_rewriting_rows(db):
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "defect", ["cross_organization", "zero_limit", "false_limit", "empty_limit"]
+)
+async def test_invalid_definition_aborts_cutover_without_rewriting_rows(db, defect):
     _service, _ctx, org, _owner, source, _target, _targets = await _setup(db)
     foreign_owner = await make_user(db)
     foreign_org = await make_org(db, owner=foreign_owner)
@@ -189,9 +193,14 @@ async def test_invalid_cross_organization_definition_aborts_cutover_without_rewr
             VirtualTableSchemaVersion.version == source.schema_version,
         )
     )
+    invalid = {
+        "cross_organization": {"link_table_id": str(foreign_table.id)},
+        "zero_limit": {"link_limit": 0},
+        "false_limit": {"link_limit": False},
+        "empty_limit": {"link_limit": ""},
+    }[defect]
     schema.columns = [
-        {**item, "link_table_id": str(foreign_table.id)} if item["type"] == "link" else item
-        for item in schema.columns
+        {**item, **invalid} if item["type"] == "link" else item for item in schema.columns
     ]
     await db.flush()
     original = list(schema.columns)
@@ -203,3 +212,9 @@ async def test_invalid_cross_organization_definition_aborts_cutover_without_rewr
     await db.refresh(schema)
     assert schema.columns == original
     assert await virtual_table_repo.get_table(db, source.id, organization_id=org.id) is not None
+    remaining_tables = await connection.run_sync(lambda conn: inspect(conn).get_table_names())
+    assert {
+        "virtual_table_relations",
+        "virtual_table_record_links",
+        "virtual_table_link_evidence",
+    }.isdisjoint(remaining_tables)
