@@ -7,8 +7,9 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.spec import CapabilityBindingSpec
 from app.repositories.agent import (
-    published_capabilities,
+    published_capability_bindings,
     published_coding_agents,
     published_local_workspaces,
 )
@@ -17,7 +18,7 @@ from app.schemas.agent import PublishedCodingAgent
 pytestmark = pytest.mark.anyio
 
 
-async def test_enabled_published_bindings_are_distinct_from_disabled_and_absent_ones() -> None:
+async def test_frozen_bindings_preserve_disabled_and_absent_entries_for_projection() -> None:
     version, old = uuid4(), uuid4()
     db = AsyncMock(spec=AsyncSession)
     result = MagicMock()
@@ -33,16 +34,39 @@ async def test_enabled_published_bindings_are_distinct_from_disabled_and_absent_
         (old, None),
     ]
     db.execute.return_value = result
-    assert await published_capabilities(db, version_ids=[version, old]) == {
-        version: ["sandbox", "computer_use"],
+    assert await published_capability_bindings(db, version_ids=[version, old]) == {
+        version: [
+            CapabilityBindingSpec(id="sandbox"),
+            CapabilityBindingSpec(id="browser_use", enabled=False),
+            CapabilityBindingSpec(id="computer_use"),
+        ],
         old: [],
     }
 
 
 async def test_no_versions_does_not_query_the_database() -> None:
     db = AsyncMock(spec=AsyncSession)
-    assert await published_capabilities(db, version_ids=[]) == {}
+    assert await published_capability_bindings(db, version_ids=[]) == {}
     db.execute.assert_not_awaited()
+
+
+async def test_frozen_bindings_retain_explicit_config_and_disables_for_internal_projection() -> (
+    None
+):
+    version = uuid4()
+    db = AsyncMock(spec=AsyncSession)
+    result = MagicMock()
+    result.all.return_value = [
+        (version, [{"id": "computer_use", "enabled": False, "config": {"desktop": "sandbox"}}])
+    ]
+    db.execute.return_value = result
+    bindings = await published_capability_bindings(db, version_ids=[version])
+    assert bindings[version][0].id == "computer_use"
+    assert bindings[version][0].enabled is False
+    assert bindings[version][0].config == {"desktop": "sandbox"}
+    statement = str(db.execute.call_args.args[0])
+    assert "agent_versions.spec" in statement
+    assert "draft_spec" not in statement
 
 
 async def test_invalid_frozen_metadata_is_not_disguised_as_disabled_tools() -> None:
@@ -51,7 +75,7 @@ async def test_invalid_frozen_metadata_is_not_disguised_as_disabled_tools() -> N
     result.all.return_value = [(uuid4(), {"invalid": "shape"})]
     db.execute.return_value = result
     with pytest.raises(ValidationError):
-        await published_capabilities(db, version_ids=[uuid4()])
+        await published_capability_bindings(db, version_ids=[uuid4()])
 
 
 async def test_each_enabled_coding_agent_is_reported_with_where_it_runs() -> None:

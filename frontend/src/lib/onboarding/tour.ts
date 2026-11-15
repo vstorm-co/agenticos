@@ -373,6 +373,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   { id: "chat-composer", page: ROUTES.CHAT, target: "chat-composer", optional: true },
+  { id: "chat-workspace", page: ROUTES.CHAT, target: "chat-workspace" },
   { id: "chat-team-room", page: ROUTES.CHAT, target: "chat-team-room", optional: true },
   { id: "chat-team-composer", page: ROUTES.CHAT, target: "chat-team-composer", optional: true },
   {
@@ -421,6 +422,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "chat-plan", page: ROUTES.CHAT, target: "chat-plan", optional: true },
   // Only where an agent has drawn something in the conversation on screen.
   { id: "chat-visual", page: ROUTES.CHAT, target: "chat-visual", optional: true },
+  {
+    id: "chat-model-selector",
+    page: ROUTES.CHAT,
+    target: "chat-model-selector",
+    permission: Perm.connectionsManage,
+    optional: true,
+  },
   {
     id: "chat-model-picker",
     page: ROUTES.CHAT,

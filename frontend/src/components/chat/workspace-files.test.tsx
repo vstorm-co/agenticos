@@ -81,6 +81,87 @@ describe("the workspace panel", () => {
     expect(screen.queryByRole("button", { name: /^Show the files/ })).toBeNull();
   });
 
+  it("closes with Escape and returns focus to its opener while leaving other keys alone", async () => {
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
+    const toggle = screen.getByRole("button", { name: /^Show the files/ });
+    await openPanel();
+    const file = await screen.findByRole("button", { name: /report.csv/ });
+    file.focus();
+    expect(file).toHaveFocus();
+
+    await userEvent.keyboard("{ArrowDown}");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("complementary")).toBeVisible();
+
+    await userEvent.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveFocus();
+  });
+
+  it.each(["menu", "dialog"] as const)("leaves Escape and focus to an open %s", async (role) => {
+    draw(
+      <>
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[]}
+          revision={0}
+        />
+        <div role={role} aria-label="Another overlay">
+          <button type="button">Overlay action</button>
+        </div>
+      </>,
+    );
+    const toggle = screen.getByRole("button", { name: /^Show the files/ });
+    await openPanel();
+    const action = screen.getByRole("button", { name: "Overlay action" });
+    action.focus();
+
+    await userEvent.keyboard("{Escape}");
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("complementary")).toBeVisible();
+    expect(action).toHaveFocus();
+  });
+
+  it("leaves an Escape already handled by another control alone", async () => {
+    draw(
+      <>
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[]}
+          revision={0}
+        />
+        <input
+          aria-label="Search"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") event.preventDefault();
+          }}
+        />
+      </>,
+    );
+    const toggle = screen.getByRole("button", { name: /^Show the files/ });
+    await openPanel();
+    const search = screen.getByRole("textbox", { name: "Search" });
+    search.focus();
+
+    await userEvent.keyboard("{Escape}");
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("complementary")).toBeVisible();
+    expect(search).toHaveFocus();
+  });
+
   it("lists what the agent is keeping as compact rows, with what each file weighs", async () => {
     draw(
       <WorkspaceFiles

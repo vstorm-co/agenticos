@@ -506,10 +506,10 @@ async def published_starter_titles(
 _CAPABILITY_BINDINGS = TypeAdapter(list[CapabilityBindingSpec])
 
 
-async def published_capabilities(
+async def published_capability_bindings(
     db: AsyncSession, *, version_ids: Sequence[UUID]
-) -> dict[UUID, list[str]]:
-    """Enabled capability ids from the frozen version, never its editable draft."""
+) -> dict[UUID, list[CapabilityBindingSpec]]:
+    """Bindings from the requested frozen versions, for internal listing projections."""
     if not version_ids:
         return {}
     result = await db.execute(
@@ -518,11 +518,7 @@ async def published_capabilities(
         )
     )
     return {
-        version_id: [
-            binding.id
-            for binding in _CAPABILITY_BINDINGS.validate_python([] if raw is None else raw)
-            if binding.enabled
-        ]
+        version_id: _CAPABILITY_BINDINGS.validate_python([] if raw is None else raw)
         for version_id, raw in result.all()
     }
 
