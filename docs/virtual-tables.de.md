@@ -1,5 +1,5 @@
 ---
-source_sha: "a8d2071361f0"
+source_sha: "240fc9260713"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -161,6 +161,11 @@ Zählungen, Exporte und Seitenabfragen prüfen dies vor der Paginierung. Ein
 zurückgegebenes Verknüpfungsarray ist die sichtbare Teilmenge des Aufrufers.
 Ersetzt ein älterer Client dieses Array, bleiben bestehende unlesbare Verknüpfungen
 erhalten; Änderungen anderer Felder behalten alle Verknüpfungen bei.
+
+Jede ausdrücklich übermittelte Verknüpfungs-ID muss lesbar sein, auch wenn sie
+bereits verknüpft ist oder die Zeile unverändert ließe. Eine verborgene ID wird
+wie eine unbekannte ID abgelehnt. Nur ausgelassene verborgene Verknüpfungen
+bleiben im Namen des Aufrufers erhalten.
 
 Eine ungültige gespeicherte Zeilenrichtlinie blockiert Datensatzlesevorgänge und
 Schreibvorgänge mit `ROW_POLICY_INVALID` (409), statt die Richtlinie abzuschalten.

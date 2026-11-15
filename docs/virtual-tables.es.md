@@ -1,5 +1,5 @@
 ---
-source_sha: "a8d2071361f0"
+source_sha: "240fc9260713"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -158,6 +158,10 @@ exportaciones y consultas de páginas aplican esta condición antes de paginar.
 El array devuelto es el subconjunto visible para quien consulta. Sustituirlo desde
 un cliente antiguo conserva los enlaces existentes que el usuario no puede leer;
 editar otro campo conserva todos los enlaces.
+
+Cada ID de enlace enviado explícitamente debe ser legible, aunque ya esté
+enlazado o no cambie la fila. Un ID oculto se rechaza igual que uno desconocido.
+Solo se conservan en nombre del usuario los enlaces ocultos que este omite.
 
 Una política de filas almacenada que sea inválida bloquea la lectura y escritura
 de registros con `ROW_POLICY_INVALID` (409), sin desactivar la política. Los

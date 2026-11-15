@@ -149,6 +149,10 @@ apply this condition before pagination. Treat a returned link array as the
 caller's visible subset. Replacing that array through an older client preserves
 existing links the caller cannot read; unrelated field edits preserve all links.
 
+Every explicitly submitted link ID must be readable, including an ID that is
+already linked or would leave the row unchanged. A hidden ID is refused just like
+an unknown ID. Only omitted hidden links are preserved on the caller's behalf.
+
 An invalid stored row policy blocks record reads and writes with
 `ROW_POLICY_INVALID` (409). It never disables the policy. Authorized users can
 still read table metadata, which reports `row_policy_valid: false`, and an

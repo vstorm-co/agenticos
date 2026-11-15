@@ -1,5 +1,5 @@
 ---
-source_sha: "a8d2071361f0"
+source_sha: "240fc9260713"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -155,6 +155,11 @@ liczniki, eksporty i zapytania stron sprawdzają ten warunek przed paginacją.
 Zwrócona tablica powiązań jest widocznym podzbiorem dla wywołującego. Zastąpienie
 jej przez starszego klienta zachowuje istniejące powiązania, których wywołujący
 nie może odczytać; zmiana innego pola zachowuje wszystkie powiązania.
+
+Każdy jawnie przesłany identyfikator powiązania musi być dostępny do odczytu,
+także gdy jest już powiązany lub nie zmienia wiersza. Ukryty identyfikator jest
+odrzucany tak samo jak nieznany. W imieniu wywołującego zachowywane są wyłącznie
+pominięte ukryte powiązania.
 
 Nieprawidłowa zapisana polityka wierszy blokuje odczyt i zapis rekordów błędem
 `ROW_POLICY_INVALID` (409), zamiast wyłączać politykę. Uprawnieni użytkownicy nadal
