@@ -2478,11 +2478,11 @@ body .tour-spotlight {
 
 /* A grid of cards arriving: each rises into place a beat after the one before,
    so a page of twelve reads as twelve things rather than one block. Capped at
-   the ninth, past which a delay is waiting rather than rhythm. */
+   the seventh, past which a delay is waiting rather than rhythm. */
 @keyframes rise-in {
   from {
-    opacity: 0;
-    transform: translateY(8px);
+    opacity: 0.5;
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -2490,34 +2490,28 @@ body .tour-spotlight {
   }
 }
 .rise-in > * {
-  animation: rise-in 240ms var(--ease-out) both;
+  animation: rise-in 180ms var(--ease-out) both;
 }
 .rise-in > :nth-child(2) {
-  animation-delay: 24ms;
+  animation-delay: 12ms;
 }
 .rise-in > :nth-child(3) {
-  animation-delay: 48ms;
+  animation-delay: 24ms;
 }
 .rise-in > :nth-child(4) {
-  animation-delay: 72ms;
+  animation-delay: 36ms;
 }
 .rise-in > :nth-child(5) {
-  animation-delay: 96ms;
+  animation-delay: 48ms;
 }
 .rise-in > :nth-child(6) {
-  animation-delay: 120ms;
+  animation-delay: 60ms;
 }
-.rise-in > :nth-child(7) {
-  animation-delay: 144ms;
-}
-.rise-in > :nth-child(8) {
-  animation-delay: 168ms;
-}
-.rise-in > :nth-child(n + 9) {
-  animation-delay: 192ms;
+.rise-in > :nth-child(n + 7) {
+  animation-delay: 72ms;
 }
 /* The global reduced-motion rule shortens durations but keeps these delays, and
-   with `both` fill a later card would sit invisible for up to 192ms and then
+   with `both` fill a later card would wait for up to 72ms and then
    appear at once (#1930). Without motion the grid is simply there. */
 @media (prefers-reduced-motion: reduce) {
   .rise-in > * {

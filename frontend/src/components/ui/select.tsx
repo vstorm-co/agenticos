@@ -28,7 +28,7 @@ const SelectTrigger = React.forwardRef<
       ref={ref}
       className={cn(
         FORM_CONTROL,
-        "group/select data-[state=open]:border-foreground/40 data-[state=open]:bg-control touch:min-h-11 flex h-10 touch-manipulation items-center justify-between gap-2 px-3 py-2 text-sm [&>span:first-of-type]:min-w-0 [&>span:first-of-type]:flex-1 [&>span:first-of-type]:truncate [&>span:first-of-type]:text-left [&>span:last-child]:shrink-0",
+        "group/select data-[state=open]:border-foreground/40 data-[state=open]:bg-control touch:min-h-11 flex h-9 touch-manipulation items-center justify-between gap-2 px-3 py-1.5 text-sm [&>span:first-of-type]:min-w-0 [&>span:first-of-type]:flex-1 [&>span:first-of-type]:truncate [&>span:first-of-type]:text-left [&>span:last-child]:shrink-0",
         size === "sm" && FILTER_CONTROL,
         className,
       )}
