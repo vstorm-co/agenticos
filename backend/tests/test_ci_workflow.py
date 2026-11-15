@@ -67,7 +67,9 @@ class TestEveryPullRequestIsChecked:
     ) -> None:
         assert "pull_request" in triggers, "CI no longer runs on pull requests at all"
         event = triggers["pull_request"]
-        filters = sorted(set(event or {}) & {"branches", "branches-ignore", "paths"})
+        filters = sorted(
+            set(event or {}) & {"branches", "branches-ignore", "paths", "paths-ignore"}
+        )
         assert not filters, (
             f"the `pull_request` trigger filters on {filters}. A `branches` filter matches "
             "the base, so a pull request stacked on a feature branch would run no jobs and "
@@ -75,29 +77,37 @@ class TestEveryPullRequestIsChecked:
             "worse: the required checks never report and the merge button stays grey."
         )
 
-    def test_no_trigger_is_filtered_by_path(self, triggers: dict[str, Any]) -> None:
-        """A job-level `if:` skips and satisfies a required check; a `paths:` filter never reports.
+    def test_only_documentation_pushes_may_be_filtered_by_path(
+        self, triggers: dict[str, Any]
+    ) -> None:
+        """The fast/full CI policy skips docs-only pushes, while every PR still reports checks.
 
-        `docs/branching.md` records why the change-scope gate had to be written as
-        the former. This is the assertion that keeps it written that way.
-
-        It reads the `on:` block, because that is the only place GitHub looks for a
-        path filter. The first spelling of this asserted `"paths" not in workflow`
-        against the *top level* of the file, where the schema has no `paths` key to
-        find - so it passed whatever anybody wrote, a `paths:` under `push`
-        included, and guarded nothing.
+        Keep the exception limited to the documented push paths. A path filter on
+        pull requests would hide their required contexts, including stacked PRs.
         """
-        filtered = sorted(
-            event
+        filtered = {
+            event: config
             for event, config in triggers.items()
             if {"paths", "paths-ignore"} & set(config or {})
+        }
+        assert set(filtered) == {"push"}, (
+            f"path filters appear on {sorted(filtered)}; only documentation-only pushes may "
+            "be skipped. Pull requests must report their checks for every base and path."
         )
-        assert not filtered, (
-            f"the {filtered} trigger(s) filter on a path. A filtered-out workflow never posts "
-            "its required contexts at all, so `main`'s ruleset waits for checks that will "
-            "never arrive and the merge button stays grey forever - see docs/branching.md. "
-            "Gate the individual jobs on `changes` instead, where a skip still satisfies the "
-            "check."
+        push = filtered["push"]
+        assert "paths" not in push, "Push CI must not be restricted to an allow-list of paths."
+        assert set(push["paths-ignore"]) == {"docs/**", "mkdocs.yml", "*.md"}, (
+            "The push exception must ignore only the documented documentation paths."
+        )
+
+    def test_labeling_a_pull_request_rechecks_the_full_ci_choice(
+        self, triggers: dict[str, Any]
+    ) -> None:
+        """Adding full-ci to an existing PR must schedule its selected checks."""
+        required = {"opened", "synchronize", "reopened", "labeled"}
+        assert required <= set(triggers["pull_request"].get("types", [])), (
+            "PR creation, updates, reopening and labeling must all trigger CI so full-ci "
+            "can opt an existing PR into the complete gates."
         )
 
 
