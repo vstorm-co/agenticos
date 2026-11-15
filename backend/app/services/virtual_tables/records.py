@@ -35,6 +35,7 @@ from app.core.audit import current_impersonator
 from app.core.exceptions import (
     AlreadyExistsError,
     AppException,
+    AuthorizationError,
     ConcurrentChangeError,
     ExportTooLargeError,
     NotFoundError,
@@ -125,6 +126,7 @@ from app.services.workflow_execution import context as workflow_context
 CREATED_EVENT = trigger_repo.CREATED_EVENT
 UPDATED_EVENT = trigger_repo.UPDATED_EVENT
 DELETED_EVENT = trigger_repo.DELETED_EVENT
+_ROW_WRITE_DENIED = "You do not have permission to write this row"
 
 _RECORD_TIMESTAMPS = ("created_at", "updated_at")
 
@@ -1052,7 +1054,12 @@ class RecordOperations(Operations):
                     failed.extend(_failure(at, refused) for at in range(index, len(data.records)))
                     break
                 failed.append(_failure(index, refused))
-            except (InvalidRecordError, ArchivedColumnError, AlreadyExistsError) as refused:
+            except (
+                InvalidRecordError,
+                ArchivedColumnError,
+                AlreadyExistsError,
+                AuthorizationError,
+            ) as refused:
                 failed.append(_failure(index, refused))
             except NotFoundError as refused:
                 # A row the policy refuses: one failed entry, not a failed batch.
@@ -1504,7 +1511,12 @@ class RecordOperations(Operations):
                 await quotas.lock_record_count(self.db, table)
                 existing = await self._lookup(ctx, table, external_id)
             if existing is None:
-                created = await self._insert(ctx, table, external_id, values)
+                try:
+                    created = await self._insert(ctx, table, external_id, values)
+                except AuthorizationError:
+                    raise NotFoundError(
+                        message="Record not found", details={"table_id": table.id}
+                    ) from None
                 if created is not None:
                     return await self._outcome(created, created=True)
                 # Another transaction took the external id between the lookup and
@@ -1913,7 +1925,10 @@ class RecordOperations(Operations):
         await quotas.enforce_record_count(self.db, ctx, table)
         # What is created must be visible to its creator: a row assigned to
         # someone else is refused here, not created and then hidden.
+        policy = parse_policy(table.row_policy)
         if not await may_view_row(self.db, ctx, table, columns, merged):
+            if policy is not None and policy.rule == "grants":
+                raise AuthorizationError(message=_ROW_WRITE_DENIED, details={"table_id": table.id})
             raise NotFoundError(message="Record not found", details={"table_id": table.id})
         record = await virtual_table_repo.insert_record(
             self.db,
