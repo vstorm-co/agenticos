@@ -3127,3 +3127,7 @@ body .tour-spotlight {
     }
   }
 }
+
+.console-toasts [data-sonner-toast][data-removed="true"] {
+  transition-duration: 150ms;
+}
