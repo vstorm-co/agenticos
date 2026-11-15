@@ -12,13 +12,14 @@ import math
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter, ValidationError
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import UnexpectedModelBehavior, UserError
 from pydantic_ai.messages import (
+    BinaryContent,
     CompactionPart,
     InstructionPart,
     ModelMessage,
@@ -50,9 +51,13 @@ from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.usage import RequestUsage
 
 from app.core.claude_subscription import (
+    CLAUDE_SUBSCRIPTION_EFFORTS,
+    CLAUDE_SUBSCRIPTION_IMAGE_TYPES,
     CLAUDE_SUBSCRIPTION_PROVIDER,
+    ClaudeSubscriptionImage,
     ClaudeSubscriptionModel,
     ClaudeSubscriptionOwner,
+    ClaudeSubscriptionThinking,
 )
 from app.services.claude_subscription import ClaudeInference, ClaudeSubscriptionRuntime
 
@@ -67,6 +72,8 @@ and executes it, including any required human approval, and supplies the real
 result in a later step. Never invent a tool result. Output tools deliver the
 agent's final structured answer; they are not ordinary function tools.
 Use text for user-facing content only. If a tool is required, request one.
+Image references such as [image:1] refer to the numbered image blocks supplied
+with this request. Read each image as content of its recorded message or tool result.
 Do not expose this transport envelope or repeat the conversation as an answer.
 """
 
@@ -94,7 +101,7 @@ class _RequestTools:
 
 
 class ClaudeSubscriptionModelClient(Model):
-    """Text and application tools through the user's native subscription.
+    """Text, images and application tools through the user's native subscription.
 
     Replies are buffered per model step. request_stream replays the finished
     parts using Pydantic AI's supported completed-response stream so the chat
@@ -112,7 +119,8 @@ class ClaudeSubscriptionModelClient(Model):
             profile=ModelProfile(
                 context_window=None,
                 supports_tools=True,
-                supports_image_input=False,
+                supports_thinking=True,
+                supports_image_input=True,
                 supports_document_input=False,
                 supports_audio_input=False,
                 supports_video_input=False,
@@ -145,7 +153,10 @@ class ClaudeSubscriptionModelClient(Model):
         requested_settings = merge_model_settings(self.settings, model_settings)
         _max_output_tokens(requested_settings)
         _request_timeout(requested_settings)
-        return super().prepare_request(model_settings, model_request_parameters)
+        _thinking((requested_settings or {}).get("thinking"))
+        settings, parameters = super().prepare_request(model_settings, model_request_parameters)
+        _thinking(parameters.thinking)
+        return settings, parameters
 
     async def request(
         self,
@@ -157,15 +168,16 @@ class ClaudeSubscriptionModelClient(Model):
         requested_settings = merge_model_settings(self.settings, model_settings)
         maximum_tokens = _max_output_tokens(requested_settings)
         timeout = _request_timeout(requested_settings)
-        settings, parameters = self.prepare_request(model_settings, model_request_parameters)
-        if parameters.native_tools:
+        if model_request_parameters.native_tools:
             raise UserError(
                 "Claude subscription models support application tools, not provider-native tools"
             )
+        settings, parameters = self.prepare_request(model_settings, model_request_parameters)
         tools = _request_tools(settings, parameters)
         # Construct and validate the entire input before the first runtime call.
         # Unsupported attachments must never be silently dropped from a request.
-        history = _conversation(messages)
+        images: list[ClaudeSubscriptionImage] = []
+        history = _conversation(messages, images)
         instructions = InstructionPart.join(self._get_instruction_parts(messages, parameters) or [])
         payload = {
             "instructions": instructions,
@@ -191,6 +203,8 @@ class ClaudeSubscriptionModelClient(Model):
                 prompt=prompt,
                 output_schema=_output_schema(tools),
                 max_output_tokens=maximum_tokens,
+                images=images,
+                thinking=_thinking(parameters.thinking),
             )
         return _response(result, tools)
 
@@ -259,6 +273,7 @@ def _request_timeout(settings: ModelSettings | None) -> float | None:
         "request_timeout",
         "first_event_timeout",
         "cache",
+        "thinking",
     }
     unsupported = sorted(
         key for key, value in (settings or {}).items() if value is not None and key not in supported
@@ -285,17 +300,44 @@ def _request_timeout(settings: ModelSettings | None) -> float | None:
     return float(timeout)
 
 
-def _text_content(content: str | Sequence[UserContent]) -> str:
+def _thinking(value: object) -> ClaudeSubscriptionThinking | None:
+    if value is None or isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value in CLAUDE_SUBSCRIPTION_EFFORTS:
+        return cast(ClaudeSubscriptionThinking, value)
+    raise UserError(
+        "Claude subscription thinking must be on, off or a supported effort level; "
+        "token budgets are not supported"
+    )
+
+
+def _text_content(
+    content: str | Sequence[UserContent], images: list[ClaudeSubscriptionImage]
+) -> str:
     if isinstance(content, str):
         return content
-    if any(not isinstance(item, str) for item in content):
-        raise UserError(
-            "Claude subscription connections currently support text messages and application tools only"
-        )
-    return "\n".join(item for item in content if isinstance(item, str))
+    parts: list[str] = []
+    for item in content:
+        if isinstance(item, str):
+            parts.append(item)
+        elif (
+            isinstance(item, BinaryContent)
+            and item.media_type in CLAUDE_SUBSCRIPTION_IMAGE_TYPES
+            and item.data
+        ):
+            images.append(ClaudeSubscriptionImage(media_type=item.media_type, data=item.data))
+            parts.append(f"[image:{len(images)}]")
+        else:
+            raise UserError(
+                "Claude subscription connections support text and nonempty JPEG, PNG, GIF or WebP bytes; "
+                "remote images and other attachments are not supported"
+            )
+    return "\n".join(parts)
 
 
-def _conversation(messages: list[ModelMessage]) -> list[dict[str, JsonValue]]:
+def _conversation(
+    messages: list[ModelMessage], images: list[ClaudeSubscriptionImage]
+) -> list[dict[str, JsonValue]]:
     history: list[dict[str, JsonValue]] = []
     for message in messages:
         parts = (
@@ -307,7 +349,7 @@ def _conversation(messages: list[ModelMessage]) -> list[dict[str, JsonValue]]:
             if isinstance(part, SystemPromptPart):
                 history.append({"role": "system", "text": part.content})
             elif isinstance(part, UserPromptPart):
-                history.append({"role": "user", "text": _text_content(part.content)})
+                history.append({"role": "user", "text": _text_content(part.content, images)})
             elif isinstance(part, ToolReturnPart):
                 text, content = part.model_response_str_and_user_content()
                 history.append(
@@ -317,7 +359,7 @@ def _conversation(messages: list[ModelMessage]) -> list[dict[str, JsonValue]]:
                         "call_id": part.tool_call_id,
                         "outcome": part.outcome,
                         "text": text,
-                        "content": _text_content(content),
+                        "content": _text_content(content, images),
                     }
                 )
             elif isinstance(part, ToolCallPart):

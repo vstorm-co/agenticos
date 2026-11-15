@@ -62,8 +62,12 @@ export function ProjectChip({
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: qk.conversations.all() }),
-        queryClient.invalidateQueries({ queryKey: qk.conversations.messages(conversationId ?? "") }),
-        queryClient.invalidateQueries({ queryKey: qk.conversations.projectOf(conversationId ?? "") }),
+        queryClient.invalidateQueries({
+          queryKey: qk.conversations.messages(conversationId ?? ""),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: qk.conversations.projectOf(conversationId ?? ""),
+        }),
         queryClient.invalidateQueries({ queryKey: qk.projects.all() }),
       ]);
       onPickerOpenChange(false);

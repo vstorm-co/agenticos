@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ComponentProps, ReactNode } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -121,6 +121,7 @@ const twoFieldRecord: RecordRead = { ...record, values: { c1: "Ada", c3: "ada@ex
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(apiClient.get).mockReset().mockResolvedValue(record);
   useTableViewStore.getState().reset();
 });
 
@@ -342,17 +343,90 @@ describe("RecordDetailSheet", () => {
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
-  it("a reload that finds the record deleted drops the edit and closes the sheet", async () => {
-    vi.mocked(apiClient.get).mockRejectedValue(new ApiError(404, "Record not found"));
+  it("drops a pending edit when the record is deleted before explicit reload", async () => {
     const onOpenChange = vi.fn();
     renderSheet({ onOpenChange });
     await raiseConflict();
+    await screen.findByTestId("conflict-now");
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(404, "Record not found"));
 
     await userEvent.click(screen.getByRole("button", { name: /reload and reapply/i }));
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     expect(toast.error).toHaveBeenCalledWith("Record not found");
     expect(useTableViewStore.getState().conflicts).toEqual({});
+    expect(apiClient.patch).toHaveBeenCalledTimes(1);
+  });
+
+  it("a conflict on a record since deleted drops the edit and closes the sheet", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new ApiError(404, "Record not found"));
+    const onOpenChange = vi.fn();
+    renderSheet({ onOpenChange });
+    await raiseConflict();
+
+    // The record is read again as soon as the conflict shows, and is gone.
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(toast.error).toHaveBeenCalledWith("Record not found");
+    expect(useTableViewStore.getState().conflicts).toEqual({});
+  });
+
+  it("says what the field holds now, who changed it and when, and refreshes the record", async () => {
+    const theirs: RecordRead = {
+      ...record,
+      values: { c1: "Grace" },
+      revision: 3,
+      updated_at: "2026-11-13T10:28:00Z",
+      updated_source: { kind: "user", id: "u2", name: "Ola Nowak" },
+    };
+    vi.mocked(apiClient.get).mockResolvedValue(theirs);
+    const onRecordUpdated = vi.fn();
+    renderSheet({ onRecordUpdated });
+    await raiseConflict("Ada Lovelace");
+
+    const now = await screen.findByTestId("conflict-now");
+    expect(now).toHaveTextContent(/^Now: Grace, changed by .*Ola Nowak at .+\./);
+    expect(now).toHaveTextContent("Your value is in the field.");
+    expect(onRecordUpdated).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Grace" })).toBeVisible();
+    expect(screen.getByRole("textbox")).toHaveValue("Ada Lovelace");
+    expect(apiClient.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("forgets what a cleared conflict read, so the next one shows only its own", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      ...record,
+      values: { c1: "First" },
+      revision: 2,
+    });
+    renderSheet();
+    await raiseConflict("x");
+    expect(await screen.findByTestId("conflict-now")).toHaveTextContent("Now: First");
+
+    act(() => useTableViewStore.getState().clearConflict("r1", "c1"));
+    await waitFor(() => expect(screen.queryByTestId("conflict-now")).toBeNull());
+
+    const second = deferred<RecordRead>();
+    vi.mocked(apiClient.get).mockReturnValueOnce(second.promise);
+    await raiseConflict("y");
+    // Until its own read lands, the second conflict says nothing of the first's value.
+    expect(screen.queryByTestId("conflict-now")).toBeNull();
+    second.resolve({ ...record, values: { c1: "Second" }, revision: 3 });
+    expect(await screen.findByTestId("conflict-now")).toHaveTextContent("Now: Second");
+  });
+
+  it("reads the record again for a conflict raised before the sheet opened", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ ...record, values: { c1: "" }, revision: 2 });
+    useTableViewStore
+      .getState()
+      .setConflict({ recordId: "r1", pendingValues: { c1: "Mine" }, fieldId: "c1" });
+    const view = renderSheet({ open: false });
+    expect(apiClient.get).not.toHaveBeenCalled();
+
+    view.rerender(sheet({ open: true }));
+
+    expect(await screen.findByTestId("conflict-now")).toHaveTextContent(
+      "Now: empty, changed by someone else.",
+    );
   });
 
   it("reload-and-reapply refetches the record and commits against its fresh revision", async () => {
@@ -676,4 +750,90 @@ it("places every property before document bodies, preserving property order", ()
     "cell-kind",
     "cell-doc",
   ]);
+});
+
+it("reads a replacement conflict even while the previous read is pending", async () => {
+  const first = deferred<RecordRead>();
+  const second = deferred<RecordRead>();
+  vi.mocked(apiClient.get).mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+  renderSheet();
+  act(() =>
+    useTableViewStore
+      .getState()
+      .setConflict({ recordId: "r1", fieldId: "c1", pendingValues: { c1: "Mine 1" } }),
+  );
+  await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(1));
+  act(() =>
+    useTableViewStore
+      .getState()
+      .setConflict({ recordId: "r1", fieldId: "c1", pendingValues: { c1: "Mine 2" } }),
+  );
+  await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
+  await act(async () => second.resolve({ ...record, revision: 3, values: { c1: "Newest" } }));
+  expect(screen.getByTestId("conflict-now")).toHaveTextContent("Now: Newest");
+  await act(async () => first.resolve({ ...record, revision: 2, values: { c1: "Older" } }));
+  expect(screen.getByTestId("conflict-now")).toHaveTextContent("Now: Newest");
+  expect(screen.getByRole("textbox")).toHaveValue("Mine 2");
+});
+
+it("does not let a deleted record's late read close the next record", async () => {
+  const pending = deferred<RecordRead>();
+  vi.mocked(apiClient.get).mockReturnValueOnce(pending.promise);
+  const onOpenChange = vi.fn();
+  const view = renderSheet({ onOpenChange });
+  await raiseConflict();
+  await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(1));
+  view.rerender(
+    sheet({ record: { ...record, id: "r2", values: { c1: "Next record" } }, onOpenChange }),
+  );
+  await act(async () => pending.reject(new ApiError(404, "Record not found")));
+  expect(onOpenChange).not.toHaveBeenCalled();
+  expect(screen.getByRole("textbox")).toHaveValue("Next record");
+});
+
+it("preserves an unsubmitted neighbouring draft and its original revision", async () => {
+  const pending = deferred<RecordRead>();
+  vi.mocked(apiClient.patch)
+    .mockReturnValueOnce(pending.promise)
+    .mockRejectedValueOnce(conflict409());
+  vi.mocked(apiClient.get).mockResolvedValue({
+    ...twoFieldRecord,
+    revision: 3,
+    values: { c1: "Theirs", c3: "theirs@example.com" },
+  });
+  function EditingSheet() {
+    const [current, setCurrent] = useState(twoFieldRecord);
+    return sheet({ columns: twoLiveColumns, record: current, onRecordUpdated: setCurrent });
+  }
+  render(<EditingSheet />, { wrapper });
+  const name = screen.getByLabelText("Name");
+  const email = screen.getByLabelText("Email");
+  fireEvent.change(name, { target: { value: "My name" } });
+  fireEvent.blur(name);
+  await waitFor(() => expect(apiClient.patch).toHaveBeenCalledTimes(1));
+  fireEvent.change(email, { target: { value: "mine@example.com" } });
+  await act(async () => pending.reject(conflict409()));
+  await screen.findByTestId("conflict-now");
+  expect(email).toHaveValue("mine@example.com");
+  fireEvent.blur(email);
+  await waitFor(() => expect(apiClient.patch).toHaveBeenCalledTimes(2));
+  expect(apiClient.patch).toHaveBeenLastCalledWith("/tables/t1/records/r1", {
+    expected_revision: 1,
+    values: { c3: "mine@example.com" },
+  });
+});
+
+it("bounds a long conflict preview while retaining the refused edit", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({
+    ...record,
+    revision: 2,
+    values: { c1: "x".repeat(100000) },
+  });
+  renderSheet({ columns: [{ ...twoLiveColumns[0]!, type: "long_text" }] });
+  await raiseConflict("My edit");
+  const preview = await screen.findByTestId("conflict-now");
+  expect(preview.textContent!.length).toBeLessThan(500);
+  expect(preview).toHaveTextContent("…");
+  expect(screen.getByRole("textbox")).toHaveValue("My edit");
+  expect(screen.getByRole("button", { name: /reload and reapply/i })).toBeVisible();
 });

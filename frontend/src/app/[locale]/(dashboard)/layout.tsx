@@ -1,5 +1,6 @@
 import { DiagnosticsPresence } from "@/components/layout/diagnostics-presence";
 import { ReleaseNotes } from "@/components/layout/release-notes";
+import { AppUpdateBanner } from "@/components/layout/app-update-banner";
 import { Suspense } from "react";
 
 import { AddToAgentPrompt } from "@/components/agents/add-to-agent";
@@ -24,6 +25,7 @@ import { OfflineBanner } from "@/components/layout/offline-banner";
 import { LiveUpdates } from "@/components/live-updates/live-updates";
 import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { PageTransition } from "@/components/layout/page-transition";
+import { UnsavedChangesGuard } from "@/components/layout/unsaved-changes-guard";
 import { OnboardingFlows } from "@/components/onboarding/onboarding-flows";
 import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
 
@@ -35,12 +37,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           lives beside the navigation it would otherwise silently strip. */}
       <ActiveOrgGuard />
       <ReleaseNotes />
+      <AppUpdateBanner />
       {/* The language the account chose, here or on another device or by asking an agent. */}
       <AccountLocale />
       <AccountTimeZone />
       <DiagnosticsPresence />
       {/* Changes made through the API, MCP or the assistant reach open pages. */}
       <LiveUpdates />
+      {/* Asks before leaving drops a change somebody has not saved. */}
+      <UnsavedChangesGuard />
       {/* Inside the desktop app: the badge, native notifications and the menu's navigation. */}
       <DesktopBridge />
       {/* Inside the phone app: live activities on the lock screen, and their buttons. */}
@@ -59,7 +64,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             see `useOnScreenKeyboard`; `100dvh` until it has measured. */}
         {/* Less the phone app's status bar, which `body` leaves room for
             (`desktop.css`); zero everywhere else. */}
-        <div className="flex h-[calc(var(--app-height,100dvh)-var(--shell-inset-top,0px))] flex-col">
+        <div className="relative flex h-[calc(var(--app-height,100dvh)-var(--shell-inset-top,0px))] flex-col">
           {/* Nothing above `md`: the brand, the organization, search, settings
             and the account are all in the column now, and this renders only
             where the column is a slide-over that needs opening. */}

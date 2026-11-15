@@ -46,9 +46,7 @@ def _case(name="case", *, passed=False, calls=(), kind="contains", value="total"
 
 
 def _call(tool, *, error=None, error_type=None):
-    return ToolCallObservation(
-        tool=tool, arguments={"q": "x"}, error=error, error_type=error_type
-    )
+    return ToolCallObservation(tool=tool, arguments={"q": "x"}, error=error, error_type=error_type)
 
 
 class TestEvalToolTuningScoring:

@@ -1,5 +1,5 @@
 ---
-source_sha: "ce9a9f820e6b"
+source_sha: "d80cae6dae16"
 ---
 
 # Uczenie się na błędach { #failure-learning }
@@ -87,14 +87,15 @@ Werdykty są oceniane w momencie odczytu próby, nigdy nie są przechowywane.
 Przebieg, który wciąż trwa, pozostawia swój przypadek jako oczekujący.
 
 Próba może wskazywać roboczą propozycję zamiast nadpisania instrukcji:
-uruchamia proponowany tekst instrukcji albo treść skilla. Próba skilla używa
-proponowanej treści jako nadpisania w pamięci podczas przebiegu testowego i
-nie zapisuje jej w skillu. Zapisuje też sumę SHA-256 sprawdzonej treści;
-zastosowanie musi dotyczyć dokładnie tej propozycji.
+uruchamia jej nowy tekst instrukcji albo treść skilla, więc stanowi dowód dla
+dokładnie tej propozycji. Zapisuje identyfikator propozycji i sumę SHA-256
+sprawdzonej treści; zastosowanie jest odrzucane, jeśli powiązana zaliczona
+próba nie dotyczy tej propozycji i tej sumy.
 
-Próba działa synchronicznie i jest ograniczona do dziesięciu wywołań modelu
-(dwie strony na przypadek i próbkę). Większe żądania są odrzucane, zanim
-rozpocznie się wywołanie modelu. Wykonywanie w tle pozostaje osobnym,
+Próba działa synchronicznie w żądaniu i jest ograniczona do dziesięciu runów
+agenta (dwie strony na przypadek i próbkę). Każdy run może wysłać wiele żądań
+do dostawcy, więc nie jest to limit żądań do dostawcy. Większe żądania są
+odrzucane przed rozpoczęciem runów. Wykonywanie w tle pozostaje osobnym,
 przyszłym zadaniem.
 
 ## Propozycje { #proposals }
@@ -142,12 +143,12 @@ to zamrożony nowy tekst, a propozycja zapisuje ją jako uchwyt wycofania.
 Powiązany wpis rejestru, jeśli istnieje, jest oznaczany jako rozwiązany, a
 wpis audytu zapisuje propozycję, wersję, próbę i wersję bazową.
 
-Zastosowanie skilla wymaga zaliczonej próby dla dokładnie proponowanej
-treści i odmawia z kodem 409, jeśli bieżąca treść skilla nie odpowiada już
-bazowej sumie propozycji. Przed edycją na żywo poprzednia treść jest
-zapisywana w propozycji. Jednorazowy endpoint przywracania odtwarza tę treść
-tylko wtedy, gdy skill nadal ma zastosowaną sumę kontrolną; późniejsze
-zmiany nie są nadpisywane. Przywrócenie trafia do audytu.
+Zastosowanie skilla wymaga zaliczonej powiązanej próby i zapisuje dokładną
+sumę kontrolną nowej treści. Odmawia z kodem 409, jeśli bieżąca treść skilla
+nie odpowiada już bazowej sumie propozycji. Przed edycją poprzednia treść jest
+zapisywana w propozycji. Jednorazowy endpoint przywracania odtwarza tę kopię
+tylko wtedy, gdy skill nadal ma zastosowaną sumę; zapisuje osobę przywracającą
+i wpis audytu, a późniejszych zmian nigdy nie nadpisuje.
 
 Cofnięcie zastosowania instrukcji to istniejące wycofanie: opublikuj nową
 wersję skopiowaną z wersji bazowej zapisanej przez propozycję. Nie ma do
@@ -190,8 +191,8 @@ użytkownika, wraz z wcześniejszymi turami jako historią, potem skróć
 wiadomość do wadliwej części i napisz, co powinna mówić odpowiedź.
 Próba przebiega po zaznaczonych przypadkach, z liczbą próbek i albo
 nowym tekstem roboczej propozycji, albo wpisanym nadpisaniem — nigdy
-jednym i drugim. Próby działają synchronicznie, więc trzymaj je małe:
-jeden lub dwa przypadki, jedna próbka. Próba, która przeszła bramę,
+jednym i drugim. Żądania wymagające więcej niż dziesięciu runów agenta są
+odrzucane przed uruchomieniem. Próba, która przeszła bramę,
 proponuje swój tekst jako propozycję, wstępnie wypełnioną tą próbą jako
 dowodem.
 
@@ -203,7 +204,8 @@ odrzucenia. Propozycja instrukcji stosuje się dopiero, gdy jej próba
 przeszła bramę, a kontrolkę zastosowania widzi tylko posiadacz
 `agents:publish`. Propozycja skilla również wymaga zaliczonej próby dla
 jej dokładnej treści. Przywrócenie odtwarza zapisany poprzedni skill, o ile
-nikt go od zastosowania nie zmienił.
+nikt go od zastosowania nie zmienił. Zastosowana propozycja zapisuje
+opublikowaną wersję i wskazówkę wycofania: wróć do zapisanej wersji bazowej.
 
 ### Ile reguł działa { #how-many-rules-are-live }
 
@@ -294,8 +296,8 @@ uczenie się od samego siebie.
 ### Dlaczego moja próba trwała tak długo? { #why-did-my-try-take-so-long }
 
 Próby działają synchronicznie: każdy przypadek jest uruchamiany dwa razy
-na próbkę, jedno wywołanie modelu po drugim. Żądanie może rozpocząć
-najwyżej dziesięć wywołań modelu.
+na próbkę, jeden run agenta po drugim, wewnątrz żądania. Próba może rozpocząć
+najwyżej dziesięć runów agenta; każdy z nich może wysłać wiele żądań do dostawcy.
 
 ### Czy próba może zmienić to, co mówi mój agent? { #can-a-try-change-what-my-agent-says }
 
@@ -311,9 +313,10 @@ publikację.
 
 ### Jak cofnąć zastosowanie? { #how-do-i-undo-an-apply }
 
-Cofnij propozycję instrukcji do zapisanej wersji bazowej. Zastosowanie
-skilla można raz przywrócić do zapisanej poprzedniej treści, jeśli skill
-pozostał bez zmian.
+Wróć do wersji bazowej zapisanej w propozycji: istniejące wycofanie publikuje
+nową wersję skopiowaną z niej, więc oś czasu pokazuje, że wycofanie nastąpiło.
+Zastosowanie skilla można raz cofnąć z zapisanej kopii, jeśli skill nadal
+ma zastosowaną treść.
 
 ### Co się dzieje, gdy zastosuję zmianę skilla? { #what-happens-when-i-apply-a-skill-change }
 
@@ -323,7 +326,7 @@ można ją raz przywrócić, jeśli nikt nie zmienił skilla od zastosowania.
 
 ### Gdzie widzę nowe wzorce każdego dnia? { #where-do-i-see-the-new-patterns-each-day }
 
-W skrzynce odbiorczej, jeśli wdrożenie skonfigurowało odbiorcę
-podsumowania — jeden mail dla organizacji, która ma coś nowego, żaden,
-gdy nie ma nic — oraz na stronie wzorców dla całej organizacji, która
-wymienia wzorce wszystkich agentów w jednym miejscu.
+W skrzynce odbiorczej, jeśli wdrożenie skonfigurowało odbiorcę podsumowania —
+jeden mail dla organizacji, która ma coś nowego. Brak odbiorcy lub nowych
+wzorców oznacza zapisany w logu brak działania. Wzorce są też na stronie
+dla całej organizacji, która wymienia wzorce wszystkich agentów w jednym miejscu.

@@ -720,9 +720,7 @@ class TestResolveFallbackUse:
     per-request models against the profile by hand.
     """
 
-    def _request(
-        self, model: str | None, *, failed: str | None = None
-    ) -> RecordedRequest:
+    def _request(self, model: str | None, *, failed: str | None = None) -> RecordedRequest:
         return RecordedRequest(
             index=0,
             started_at=datetime.now(UTC),

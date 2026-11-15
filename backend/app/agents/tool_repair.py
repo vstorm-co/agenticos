@@ -8,8 +8,8 @@ self-hosted at all.
 
 So every agent repairs a call's arguments with `json-repair` before they are
 validated. Only the syntax: a missing field or a wrong type still fails
-validation and retries as before, and a repaired call goes on through the same
-approval gate and guardrails as any other, which see the repaired arguments.
+validation, and a repaired call goes on through the same approval gate and
+guardrails as any other, which see the repaired arguments.
 
 The count is kept per run, so run history - and the per-model breakdown beside
 it - shows which models needed it. The repair's span carries no arguments.
@@ -18,7 +18,7 @@ it - shows which models needed it. The repair's span carries no arguments.
 from dataclasses import dataclass, field
 
 from pydantic_ai import RunContext
-from pydantic_ai.capabilities import RawToolArgs, ValidatedToolArgs
+from pydantic_ai.capabilities import RawToolArgs, ValidatedToolArgs, WrapToolValidateHandler
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai_harness.repair_tool_arguments import RepairToolArguments
@@ -37,8 +37,8 @@ class RepairTally:
 class CountedRepair(RepairToolArguments[AgentDeps]):
     """`RepairToolArguments`, counting each repaired call that then validated.
 
-    Counted once validation passes, not when the syntax is fixed: a call whose
-    repaired arguments still miss a field is retried anyway, and counting it
+    Counted once every validation check passes, not when the syntax is fixed:
+    arguments that still fail their schema need a correction, and counting them
     would claim a retry saved that was not.
     """
 
@@ -58,15 +58,21 @@ class CountedRepair(RepairToolArguments[AgentDeps]):
             self._repaired.add(call.tool_call_id)
         return repaired
 
-    async def after_tool_validate(
+    async def wrap_tool_validate(
         self,
         ctx: RunContext[AgentDeps],
         *,
         call: ToolCallPart,
         tool_def: ToolDefinition,
-        args: ValidatedToolArgs,
+        args: RawToolArgs,
+        handler: WrapToolValidateHandler,
     ) -> ValidatedToolArgs:
-        if call.tool_call_id in self._repaired:
+        try:
+            validated = await handler(args)
+            # Wrapper checks, including an MCP server's advertised schema, run
+            # after after_tool_validate hooks. Count only once they accept too.
+            if call.tool_call_id in self._repaired:
+                self.tally.count += 1
+            return validated
+        finally:
             self._repaired.discard(call.tool_call_id)
-            self.tally.count += 1
-        return args

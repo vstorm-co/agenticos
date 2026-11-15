@@ -254,7 +254,8 @@ class TestShare:
 
 class TestShareWithGroup:
     @pytest.mark.anyio
-    async def test_sharing_with_a_group_writes_a_group_grant_and_audits_it(self):
+    @pytest.mark.parametrize("explicit", [False, True])
+    async def test_sharing_with_a_group_writes_a_group_grant_and_audits_it(self, explicit: bool):
         ctx = _ctx(OrgRoleName.OWNER)
         resource = _resource(ctx.organization_id, owner_user_id=ctx.user_id)
         group = MagicMock(id=uuid.uuid4())
@@ -272,25 +273,55 @@ class TestShareWithGroup:
             patch.object(SharingService, "_tell_the_group", new=AsyncMock()),
         ):
             before = datetime.now(UTC)
+            chosen = before + timedelta(days=7) if explicit else None
             await SharingService(_db()).share_with_group(
                 ctx,
                 resource,
                 resource_type=COLLECTION,
                 group_id=group.id,
                 level=GrantLevel.USE,
+                expires_at=chosen,
             )
 
         assert found.call_args.kwargs["organization_id"] == ctx.organization_id
         assert upsert.call_args.kwargs["subject_group_id"] == group.id
         assert upsert.call_args.kwargs["level"] is GrantLevel.USE
         expires_at = upsert.call_args.kwargs["expires_at"]
-        assert timedelta(days=89) < expires_at - before < timedelta(days=91)
+        if explicit:
+            assert expires_at == chosen
+        else:
+            assert timedelta(days=89) < expires_at - before < timedelta(days=91)
         assert audit.call_args.kwargs["action"] == "resource.share"
         assert audit.call_args.kwargs["details"] == {
             "subject_group_id": str(group.id),
             "level": "use",
             "expires_at": expires_at.isoformat(),
         }
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_past_group_expiry_is_refused_before_lookup_write_or_audit(self) -> None:
+        ctx = _ctx(OrgRoleName.OWNER)
+        resource = _resource(ctx.organization_id, owner_user_id=ctx.user_id)
+        with (
+            patch("app.services.sharing.group_repo.get", new=AsyncMock()) as lookup,
+            patch(
+                "app.services.sharing.resource_grant_repo.upsert_for_group", new=AsyncMock()
+            ) as upsert,
+            patch("app.services.sharing.record_audit", new=AsyncMock()) as audit,
+            pytest.raises(BadRequestError, match="future"),
+        ):
+            await SharingService(_db()).share_with_group(
+                ctx,
+                resource,
+                resource_type=COLLECTION,
+                group_id=uuid.uuid4(),
+                level=GrantLevel.USE,
+                expires_at=datetime.now(UTC) - timedelta(seconds=1),
+            )
+        lookup.assert_not_awaited()
+        upsert.assert_not_awaited()
+        audit.assert_not_awaited()
 
     @pytest.mark.anyio
     @pytest.mark.security

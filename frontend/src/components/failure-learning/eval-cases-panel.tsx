@@ -89,7 +89,7 @@ export function EvalCasesPanel({
     ? tryProposalId
     : "none";
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState variant="skeleton-list" />;
   if (error) return <ErrorState />;
   return (
     <div className="space-y-3">

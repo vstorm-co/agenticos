@@ -15,8 +15,10 @@ because the audit lock is the last one a transaction takes.
 """
 
 from collections.abc import Awaitable, Callable, Mapping
+from contextlib import AsyncExitStack
 from dataclasses import dataclass
-from typing import Literal
+from datetime import timedelta
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import JsonValue, SecretStr
@@ -24,16 +26,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator
 from app.core.background import spawn_after_commit
+from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import (
     CHANNEL_SURFACES,
     AgentRun,
     ApprovalStatus,
+    RunStatus,
     RunSurface,
     ToolApproval,
 )
 from app.repositories import agent_run_repo, channel_prompt_repo
+from app.repositories import room_submission as room_repo
 from app.repositories.channel_prompt import SettledBy
 from app.schemas.agent import (
     AgentRunResult,
@@ -42,13 +47,44 @@ from app.schemas.agent import (
     SettledCall,
     SettledDelegation,
 )
-from app.services.agent_runner import AgentRunnerService, RunSegment
+from app.services.agent_runner import (
+    AgentRunnerService,
+    RunSegment,
+    parked_question_items,
+    parked_secret_request_items,
+)
 from app.services.approvals import ApprovalService
 from app.services.channels.continuation import continue_in_chat
 from app.services.channels.handback import chat_destination, continues_in_chat
 from app.services.channels.handback_jobs import queue_segment
 from app.services.channels.prompts import ChannelPrompts
+from app.services.conversation_turns import claim
 from app.services.secret_requests import SecretRequestService
+
+
+def waiting_update(run: AgentRun) -> dict[str, Any]:
+    """What a parked run is waiting on, for the run reads.
+
+    A pure read of the loaded row - no query, no service call. Only a run
+    parked on an answer carries anything: the text mapped from its parked
+    question calls, and the instant they expire, the park time plus
+    `QUESTION_EXPIRY_HOURS`, the same clock the expiry sweep reads. Anything
+    else returns nothing and the read keeps its defaults - an empty list and
+    no expiry - so a finished thread never looks as if it is still waiting.
+    """
+    if run.status != RunStatus.AWAITING_ANSWER or run.ended_at is None:
+        return {}
+    questions = [
+        question.question
+        for parked in parked_question_items(run.paused_state)
+        for question in parked.questions
+    ]
+    secret_requests = [item.secret_name for item in parked_secret_request_items(run.paused_state)]
+    return {
+        "waiting_questions": questions,
+        "waiting_secret_requests": secret_requests,
+        "waiting_expires_at": run.ended_at + timedelta(hours=settings.QUESTION_EXPIRY_HOURS),
+    }
 
 
 @dataclass(frozen=True)
@@ -57,6 +93,8 @@ class DecidedApproval:
 
     approval: ToolApproval
     continues_in_chat: bool
+    hidden: frozenset[str] = frozenset()
+    """The keys of the call the decider may not read, from `ApprovalService.hidden_fields`."""
 
 
 @dataclass(frozen=True)
@@ -101,7 +139,7 @@ class ParkedRunService:
                 note=note,
                 remember_scope=remember_scope,
             )
-            return DecidedApproval(decided, False)
+            return DecidedApproval(decided, False, await self.approvals.hidden_fields(ctx, decided))
         # Computed on the row held now, not on one read before the claim.
         flag = continues_in_chat(run, ctx)
         await channel_prompt_repo.settle_open(
@@ -129,7 +167,7 @@ class ParkedRunService:
                 name=f"channel-continuation:{run.id}",
             )
         # True while other calls are pending too: the browser must not resume either way.
-        return DecidedApproval(decided, flag)
+        return DecidedApproval(decided, flag, await self.approvals.hidden_fields(ctx, decided))
 
     async def _claimed_chat_run(self, ctx: AuthContext, approval_id: UUID) -> AgentRun | None:
         """The approval's run, held, when it is a channel run; None for any other."""
@@ -243,13 +281,24 @@ class ParkedRunService:
         step: Callable[[Callable[[RunSegment], Awaitable[None]] | None], Awaitable[RunSegment]],
     ) -> Continued:
         run = await self.runner.get_run(ctx, run_id)
-        destination = chat_destination(run) if continues_in_chat(run, ctx) else None
-        if destination is None:
-            return Continued(await step(None), False)
-        inherited = ChannelPrompts.inherited_calls(run)
-        await channel_prompt_repo.settle_open(self.db, run_id=run_id, by=by)
-        segment = await step(queue_segment(self.db, destination, inherited))
-        return Continued(segment, True)
+        async with AsyncExitStack() as admission:
+            if (
+                run.conversation_id is not None
+                and await room_repo.for_run(self.db, run_id, organization_id=ctx.organization_id)
+                is not None
+            ):
+                # Before runner.resume takes the run-row lock: keep the same
+                # room admission order as new turns and WebSocket answers.
+                await admission.enter_async_context(
+                    claim(run.conversation_id, background=False, resume_run_id=run_id)
+                )
+            destination = chat_destination(run) if continues_in_chat(run, ctx) else None
+            if destination is None:
+                return Continued(await step(None), False)
+            inherited = ChannelPrompts.inherited_calls(run)
+            await channel_prompt_repo.settle_open(self.db, run_id=run_id, by=by)
+            segment = await step(queue_segment(self.db, destination, inherited))
+            return Continued(segment, True)
 
 
 async def run_result(

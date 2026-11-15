@@ -35,7 +35,7 @@ export function PatternsPanel({
   const t = useTranslations("failureLearning");
   const [tracking, setTracking] = useState<FailurePattern | null>(null);
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState variant="skeleton-list" />;
   if (error) return <ErrorState />;
   if (patterns.length === 0) {
     return <EmptyState title={t("noPatterns")} description={t("noPatternsHint")} />;

@@ -14,7 +14,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.api import deps
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.permissions import AuthContext
 from app.main import app
 from app.schemas.failure_learning import (
@@ -337,3 +337,45 @@ async def test_a_try_naming_a_decided_proposal_is_refused_by_the_service(
     )
 
     assert response.status_code == 400
+
+
+@pytest.mark.parametrize("changed_since_apply", [False, True])
+async def test_skill_rollback_returns_the_restore_record_or_the_services_conflict(
+    client: AsyncClient, changed_since_apply: bool
+) -> None:
+    service = _override()
+    agent_id, proposal_id, skill_id = uuid4(), uuid4(), uuid4()
+    restored = ProposalRead(
+        id=proposal_id,
+        organization_id=_ORG,
+        agent_id=agent_id,
+        target_type="skill",
+        skill_id=skill_id,
+        old_text="Original procedure.",
+        new_text="Reviewed procedure.",
+        rationale="An operator approved the change.",
+        status="applied",
+        eval_gated=True,
+        created_at=_NOW,
+        reverted_at=_NOW,
+        rollback_available=False,
+    )
+    service.revert_proposal = AsyncMock(
+        return_value=restored,
+        side_effect=ConflictError(message="The skill changed after this proposal applied")
+        if changed_since_apply
+        else None,
+    )
+
+    response = await client.post(
+        f"/api/v1/agents/{agent_id}/failure-learning/proposals/{proposal_id}/revert"
+    )
+
+    service.revert_proposal.assert_awaited_once()
+    assert service.revert_proposal.await_args.args[1:] == (agent_id, proposal_id)
+    if changed_since_apply:
+        assert response.status_code == 409
+        assert "changed" in response.json()["error"]["message"]
+    else:
+        assert response.status_code == 200
+        assert response.json() == restored.model_dump(mode="json")

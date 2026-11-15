@@ -53,6 +53,7 @@ from app.db.models.failure_learning import (
     AgentFailureLedger,
     AgentInstructionProposal,
 )
+from app.db.updates import writable
 from app.repositories import (
     agent_repo,
     agent_run_repo,
@@ -328,19 +329,11 @@ class FailureLearningService:
                 if total < MIN_COUNT_PER_MODEL:
                     continue
                 first = min(
-                    (
-                        member.first_seen
-                        for _, member in members
-                        if member.first_seen is not None
-                    ),
+                    (member.first_seen for _, member in members if member.first_seen is not None),
                     default=None,
                 )
                 last = max(
-                    (
-                        member.last_seen
-                        for _, member in members
-                        if member.last_seen is not None
-                    ),
+                    (member.last_seen for _, member in members if member.last_seen is not None),
                     default=None,
                 )
                 sample_run_ids = [
@@ -569,7 +562,7 @@ class FailureLearningService:
         """
         await self._agent(ctx, agent_id, Perm.AGENTS_EDIT)
         entry = await self._entry(ctx, agent_id, entry_id)
-        update_data = data.model_dump(exclude_unset=True, exclude_none=True)
+        update_data = writable(data, over=AgentFailureLedger)
         if update_data.get("status") == "resolved":
             raise BadRequestError(
                 message="An entry is resolved by applying a proposal, not by a status change",
@@ -777,6 +770,7 @@ class FailureLearningService:
                 message="This proposal has no complete skill rollback record",
                 details={"proposal_id": str(proposal.id)},
             )
+        restored_content = proposal.prior_skill_content
         skill = await self.skills.get(ctx, proposal.skill_id, perm=Perm.SKILLS_EDIT)
         current_hash = hashlib.sha256(skill.content.encode("utf-8")).hexdigest()
         if current_hash != proposal.applied_content_sha256:
@@ -784,9 +778,7 @@ class FailureLearningService:
                 message="The skill changed after this proposal applied; refusing to overwrite it",
                 details={"proposal_id": str(proposal.id), "skill_id": str(skill.id)},
             )
-        await self.skills.update(
-            ctx, skill.id, SkillUpdate(content=proposal.prior_skill_content)
-        )
+        await self.skills.update(ctx, skill.id, SkillUpdate(content=restored_content))
         proposal = await failure_learning_repo.update_proposal(
             self.db,
             proposal=proposal,
@@ -802,7 +794,7 @@ class FailureLearningService:
             details={
                 "proposal_id": str(proposal.id),
                 "restored_content_sha256": hashlib.sha256(
-                    proposal.prior_skill_content.encode("utf-8")
+                    restored_content.encode("utf-8")
                 ).hexdigest(),
                 "reverted_from_content_sha256": current_hash,
             },
@@ -1330,7 +1322,7 @@ class FailureLearningService:
             tested_content_sha256 = hashlib.sha256(new_text.encode("utf-8")).hexdigest()
         else:
             new_text = data.instructions_override
-        if new_text is None and target_skill_id is None:
+        if new_text is None:
             raise BadRequestError(
                 message="A try needs new instruction text to try",
                 details={"instructions_override": None},

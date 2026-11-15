@@ -18,5 +18,5 @@ def is_managed_auth_type(auth_type: str | None) -> bool:
 
 
 def is_managed_catalog_key(catalog_key: str | None) -> bool:
-    """True when a catalog key names a managed app (``composio-<toolkit>``)."""
+    """True when a catalog key names a managed app (`composio-<toolkit>`)."""
     return catalog_key is not None and catalog_key.lower().startswith(MANAGED_CATALOG_PREFIX)

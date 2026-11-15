@@ -53,7 +53,7 @@ export function LedgerPanel({
   const [filter, setFilter] = useState<LedgerStatus | "all">("all");
   const shown = filter === "all" ? entries : entries.filter((entry) => entry.status === filter);
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <LoadingState variant="skeleton-list" />;
   if (error) return <ErrorState />;
   if (entries.length === 0) return <EmptyState title={t("noEntries")} />;
   return (

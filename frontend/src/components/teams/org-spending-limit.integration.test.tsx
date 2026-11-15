@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OrgSpendingLimit } from "./org-spending-limit";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { useOrgStore } from "@/stores";
 import type { Organization, OrgRole } from "@/types";
 
@@ -75,7 +76,25 @@ function serve(role: OrgRole, monthToDate = "12.5") {
 describe("OrgSpendingLimit", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
     useOrgStore.setState({ activeOrgId: ORG_ID });
+  });
+
+  it("keeps the pending cap when Save and leave is refused", async () => {
+    serve("owner");
+    vi.mocked(apiClient.patch).mockRejectedValue(new ApiError(409, "Changed elsewhere"));
+    render(<OrgSpendingLimit org={org()} />, { wrapper });
+    const input = await screen.findByLabelText("Limit (USD)");
+    await userEvent.type(input, "500");
+    const proceed = vi.fn();
+    act(() => useUnsavedChangesStore.getState().leave(proceed));
+    await act(() => useUnsavedChangesStore.getState().answer("save"));
+    expect(proceed).not.toHaveBeenCalled();
+    expect(input).toHaveValue(500);
+    act(() => useUnsavedChangesStore.getState().leave(proceed));
+    await act(() => useUnsavedChangesStore.getState().answer("discard"));
+    expect(input).toHaveValue(null);
+    expect(proceed).toHaveBeenCalledOnce();
   });
 
   it("sets a ceiling the whole workspace runs under", async () => {

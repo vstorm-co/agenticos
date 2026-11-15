@@ -37,6 +37,7 @@ def test_the_code_matches_the_rfc_vectors(moment: int, expected: str) -> None:
     assert _code(_RFC_SECRET, moment // 30, digits=8) == expected
 
 
+@pytest.mark.security
 def test_a_fresh_secret_is_160_bits_in_base32() -> None:
     secret = generate_secret()
     assert len(secret) == 32

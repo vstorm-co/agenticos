@@ -41,7 +41,10 @@
 #              by that name.
 #   foto       German and Spanish, in the few words the iOS app draws itself
 #              (`AttachPlugin.swift`), translated inline beside the English.
-ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,ans,oraz,jest,informacji,falied,instrucitons,ist,sie,unter,referenz,plattform,afterall,foto,convertor,convertors
+#   fulfilment British English, consistent with the prose style above.
+#   trough     The low point of an economic cycle, paired with its peak.
+#   mape       Mean Absolute Percentage Error, a forecast accuracy measure.
+ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,ans,oraz,jest,informacji,falied,instrucitons,ist,sie,unter,referenz,plattform,afterall,foto,convertor,convertors,fulfilment,trough,mape
 
 # Lockfiles, generated code, uploaded media, the third-party licence texts and
 # the translated message catalogs and documentation pages are not English prose.
@@ -56,5 +59,7 @@ ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,a
 # only to the walk, because that prefix is how codespell names a file while
 # walking. The prefixed entries are therefore repeated in
 # `.pre-commit-config.yaml`, and the bare ones do not have to be.
+# The native setup catalog also contains Polish, German and Turkish copy.
 # Upstream armored public keys are binary data encoded as text.
-skip = */connector-logos.generated.ts,*docker-apt.asc,*docker-rpm.asc,*package-lock.json,*THIRD_PARTY_NOTICES.md,./frontend/licenses/texts,*.lock,*.min.js,*.svg,*.pl.md,*.de.md,*.es.md,./site,./backend/media,./frontend/node_modules,./backend/.venv,./frontend/src/lib/mcp-logos.generated.ts,./frontend/messages/pl.json,./frontend/messages/de.json,./frontend/messages/tr.json,./docs/howto/translate.md,*/values-pl/*,*/values-de/*,*.xcstrings,*/widgets/Strings.json
+# Copied skill-gallery licences also retain their upstream spelling byte for byte.
+skip = *desktop/ui/translations.js,*/connector-logos.generated.ts,*docker-apt.asc,*docker-rpm.asc,*package-lock.json,*THIRD_PARTY_NOTICES.md,./frontend/licenses/texts,*/skill_gallery/*/LICENSE,*.lock,*.min.js,*.svg,*.pl.md,*.de.md,*.es.md,./site,./backend/media,./frontend/node_modules,./backend/.venv,./frontend/src/lib/mcp-logos.generated.ts,./frontend/messages/pl.json,./frontend/messages/de.json,./frontend/messages/tr.json,./docs/howto/translate.md,*/values-pl/*,*/values-de/*,*.xcstrings,*/widgets/Strings.json

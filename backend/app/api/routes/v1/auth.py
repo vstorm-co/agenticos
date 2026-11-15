@@ -3,7 +3,6 @@
 import hashlib
 import json
 import logging
-from datetime import UTC, datetime
 from typing import Annotated, Any
 from urllib.parse import urlencode
 from uuid import UUID
@@ -13,6 +12,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import (
+    CurrentSessionId,
     CurrentUser,
     DeploymentSettingsSvc,
     DevicePairingSvc,
@@ -36,7 +36,6 @@ from app.core.security import (
     verify_special_token,
     verify_token,
 )
-from app.db.models.user import User
 from app.schemas.mfa import (
     MfaCodeRequest,
     MfaRecoveryCodesRead,
@@ -68,37 +67,11 @@ from app.schemas.user import MeRead, UserCreate, UserRead
 from app.services import rate_limit
 from app.services.email.service import get_email_service
 from app.services.oauth_exchange import native_code_challenge
-from app.services.session import SessionService, refresh_expiry, successor_refresh_token
+from app.services.session import refresh_expiry, successor_refresh_token
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-async def _issue_tokens(
-    user: User, session_service: SessionService, request: Request
-) -> tuple[str, str]:
-    """The token pair for a sign-in that has cleared every factor.
-
-    The session row is created before the access token is minted, so the token
-    can name it in `sid` - which is what lets signing out everywhere revoke the
-    access token, not only stop the next refresh (#1501).
-    """
-    refresh_token = create_refresh_token(
-        subject=str(user.id), credential_version=user.credential_version
-    )
-    session = await session_service.create_session(
-        user_id=user.id,
-        refresh_token=refresh_token,
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("User-Agent"),
-    )
-    return (
-        create_access_token(
-            subject=str(user.id), sid=str(session.id), auth_time=int(datetime.now(UTC).timestamp())
-        ),
-        refresh_token,
-    )
 
 
 @router.post("/login", response_model=Token | MfaRequired)
@@ -121,7 +94,12 @@ async def login(
                 subject=str(user.id), credential_version=user.credential_version
             )
         )
-    access_token, refresh_token = await _issue_tokens(user, session_service, request)
+    access_token, refresh_token = await session_service.issue_tokens(
+        user_id=user.id,
+        credential_version=user.credential_version,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("User-Agent"),
+    )
     return Token(access_token=access_token, refresh_token=refresh_token)
 
 
@@ -201,7 +179,14 @@ async def verify_mfa(
         if groups is not None:
             await directory_sync.apply(user.id, frozenset(groups), provider=context["provider"])
     await rate_limit.reset_mfa_failures(str(user.id))
-    access_token, refresh_token = await _issue_tokens(user, session_service, request)
+    proved_email = user.email if payload.get("mbp") is True else None
+    access_token, refresh_token = await session_service.issue_tokens(
+        user_id=user.id,
+        credential_version=user.credential_version,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("User-Agent"),
+        proved_email=proved_email,
+    )
     if context is not None:
         started = context.get("client")
         if isinstance(started, dict) and started.get("client") == "desktop":
@@ -493,11 +478,23 @@ async def change_password(
 
 
 @router.get("/me", response_model=MeRead)
-async def get_current_user_info(current_user: CurrentUser, impersonation: ImpersonationSvc) -> Any:
+async def get_current_user_info(
+    current_user: CurrentUser,
+    impersonation: ImpersonationSvc,
+    sessions: SessionSvc,
+    session_id: CurrentSessionId,
+) -> Any:
     """The account this request acts as - and, when an administrator is acting as
     it, who and until when, which is what the console's banner is drawn from."""
     me = MeRead.model_validate(current_user)
-    return me.model_copy(update={"impersonation": await impersonation.describe()})
+    return me.model_copy(
+        update={
+            "impersonation": await impersonation.describe(),
+            "email_verified": await sessions.has_mailbox_proof(
+                current_user.id, current_user.email, session_id
+            ),
+        }
+    )
 
 
 @router.delete("/impersonation", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
@@ -621,16 +618,25 @@ async def verify_magic_link(
     """
     await enforce_auth_limit(request, surface="auth_magic_link_verify")
     user, return_to = await user_service.consume_magic_link_token(body.token)
+    proof = verify_special_token(body.token, expected_type="magic_link")
+    mailbox_proved = proof is not None and proof.get("email") == user.email
     if user.totp_enabled:
         return MfaRequired(
             mfa_token=create_mfa_token(
                 subject=str(user.id),
                 credential_version=user.credential_version,
                 return_to=return_to,
+                mailbox_proved=mailbox_proved,
             ),
             return_to=return_to,
         )
-    access_token, refresh_token = await _issue_tokens(user, session_service, request)
+    access_token, refresh_token = await session_service.issue_tokens(
+        user_id=user.id,
+        credential_version=user.credential_version,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("User-Agent"),
+        proved_email=user.email if mailbox_proved else None,
+    )
     return MagicLinkToken(
         access_token=access_token, refresh_token=refresh_token, return_to=return_to
     )

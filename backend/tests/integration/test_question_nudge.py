@@ -25,7 +25,9 @@ pytestmark = pytest.mark.anyio
 
 
 async def _agent(db: AsyncSession) -> Agent:
-    user = User(email=f"{uuid.uuid4().hex}@example.com", hashed_password="<redacted>", is_active=True)
+    user = User(
+        email=f"{uuid.uuid4().hex}@example.com", hashed_password="<redacted>", is_active=True
+    )
     db.add(user)
     await db.flush()
     org = Organization(name="Acme", slug=f"acme-{uuid.uuid4().hex[:8]}", created_by_user_id=user.id)

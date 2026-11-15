@@ -480,3 +480,291 @@ class TestProposalRows:
         assert len(applied) == 1
         assert applied[0].status == "applied"
         assert len(all_proposals) == 2
+
+
+async def _stored_entry(db, org, agent=None, **overrides):
+    fields = {
+        "organization_id": org.id,
+        "agent_id": agent.id if agent is not None else None,
+        "scope": "agent" if agent is not None else "model",
+        "model": None if agent is not None else _MODEL,
+        "pattern_key": f"pattern-{uuid.uuid4().hex}",
+        "title": "A recurring failure",
+        "summary": "An operator confirmed this pattern.",
+        "status": "draft",
+    }
+    fields.update(overrides)
+    return await failure_learning_repo.create_entry(db, **fields)
+
+
+async def _stored_case(db, org, agent, *, position, entry=None):
+    return await failure_learning_repo.create_case(
+        db,
+        organization_id=org.id,
+        agent_id=agent.id,
+        ledger_entry_id=entry.id if entry is not None else None,
+        name=f"Case {position}",
+        position=position,
+        input={"message": "Keep the promised boundary"},
+        expectation={"kind": "contains", "field": "text", "value": "confirmed"},
+    )
+
+
+class TestRepositoryBoundaries:
+    @pytest.mark.security
+    async def test_ledger_queries_keep_agent_model_status_and_tenant_scopes(self, db) -> None:
+        _, org = await seed_member(db)
+        _, foreign_org = await seed_member(db)
+        agent = await _agent(db, org)
+        other_agent = await _agent(db, org)
+        foreign_agent = await _agent(db, foreign_org)
+        older = await _stored_entry(db, org, agent, created_at=_NOW - timedelta(days=2))
+        newer = await _stored_entry(
+            db, org, agent, status="open", created_at=_NOW - timedelta(days=1)
+        )
+        resolved = await _stored_entry(db, org, agent, status="resolved", created_at=_NOW)
+        model = await _stored_entry(db, org)
+        other = await _stored_entry(db, org, other_agent)
+        foreign = await _stored_entry(db, foreign_org, foreign_agent)
+
+        mine = await failure_learning_repo.list_entries(
+            db, organization_id=org.id, agent_id=agent.id
+        )
+        assert [entry.id for entry in mine] == [resolved.id, newer.id, older.id]
+        drafts = await failure_learning_repo.list_entries(
+            db, organization_id=org.id, agent_id=agent.id, status="draft"
+        )
+        assert [entry.id for entry in drafts] == [older.id]
+        models = await failure_learning_repo.list_entries(db, organization_id=org.id, agent_id=None)
+        assert [entry.id for entry in models] == [model.id]
+        live = await failure_learning_repo.open_entries(db, organization_id=org.id)
+        assert {entry.id for entry in live} == {older.id, newer.id, model.id, other.id}
+        assert (
+            await failure_learning_repo.get_entry(
+                db, model.id, organization_id=org.id, agent_id=other_agent.id
+            )
+            is model
+        )
+        for inaccessible in (other, foreign):
+            assert (
+                await failure_learning_repo.get_entry(
+                    db, inaccessible.id, organization_id=org.id, agent_id=agent.id
+                )
+                is None
+            )
+
+        updated = await failure_learning_repo.update_entry(
+            db, entry=older, update_data={"status": "dismissed", "summary": "Reviewed and declined"}
+        )
+        assert updated.status == "dismissed" and updated.summary == "Reviewed and declined"
+        assert {
+            entry.id
+            for entry in await failure_learning_repo.open_entries(db, organization_id=org.id)
+        } == {newer.id, model.id, other.id}
+        await failure_learning_repo.delete_entry(db, entry=older)
+        assert (
+            await failure_learning_repo.get_entry(
+                db, older.id, organization_id=org.id, agent_id=agent.id
+            )
+            is None
+        )
+
+    @pytest.mark.security
+    async def test_case_reads_keep_requested_order_without_adopting_foreign_cases(self, db) -> None:
+        _, org = await seed_member(db)
+        _, foreign_org = await seed_member(db)
+        agent = await _agent(db, org)
+        other_agent = await _agent(db, org)
+        foreign_agent = await _agent(db, foreign_org)
+        entry = await _stored_entry(db, org, agent)
+        assert (
+            await failure_learning_repo.last_position(db, organization_id=org.id, agent_id=agent.id)
+            == 0
+        )
+        assert (
+            await failure_learning_repo.count_cases(db, organization_id=org.id, agent_id=agent.id)
+            == 0
+        )
+        first = await _stored_case(db, org, agent, position=1, entry=entry)
+        third = await _stored_case(db, org, agent, position=3, entry=entry)
+        other = await _stored_case(db, org, other_agent, position=80)
+        foreign = await _stored_case(db, foreign_org, foreign_agent, position=90)
+
+        assert (
+            await failure_learning_repo.last_position(db, organization_id=org.id, agent_id=agent.id)
+            == 3
+        )
+        assert (
+            await failure_learning_repo.count_cases(db, organization_id=org.id, agent_id=agent.id)
+            == 2
+        )
+        assert (
+            await failure_learning_repo.count_cases_for_entry(
+                db, organization_id=org.id, ledger_entry_id=entry.id
+            )
+            == 2
+        )
+        assert (
+            await failure_learning_repo.count_cases_for_entry(
+                db, organization_id=foreign_org.id, ledger_entry_id=entry.id
+            )
+            == 0
+        )
+        selected = await failure_learning_repo.get_cases_by_ids(
+            db,
+            [third.id, other.id, foreign.id, uuid.uuid4(), first.id],
+            organization_id=org.id,
+            agent_id=agent.id,
+        )
+        assert [case.id for case in selected] == [third.id, first.id]
+        assert (
+            await failure_learning_repo.get_cases_by_ids(
+                db, [], organization_id=org.id, agent_id=agent.id
+            )
+            == []
+        )
+        assert (
+            await failure_learning_repo.get_case(
+                db, first.id, organization_id=org.id, agent_id=agent.id
+            )
+            is first
+        )
+        for inaccessible in (other, foreign):
+            assert (
+                await failure_learning_repo.get_case(
+                    db, inaccessible.id, organization_id=org.id, agent_id=agent.id
+                )
+                is None
+            )
+        await failure_learning_repo.delete_case(db, case=first)
+        assert (
+            await failure_learning_repo.count_cases(db, organization_id=org.id, agent_id=agent.id)
+            == 1
+        )
+        await failure_learning_repo.delete_entry(db, entry=entry)
+        await db.refresh(third)
+        assert third.ledger_entry_id is None
+        assert (
+            await failure_learning_repo.get_case(
+                db, first.id, organization_id=org.id, agent_id=agent.id
+            )
+            is None
+        )
+
+    @pytest.mark.security
+    async def test_latest_try_uses_a_stable_tie_break_within_one_agent_and_tenant(self, db) -> None:
+        _, org = await seed_member(db)
+        _, foreign_org = await seed_member(db)
+        agent = await _agent(db, org)
+        other_agent = await _agent(db, org)
+        foreign_agent = await _agent(db, foreign_org)
+        assert (
+            await failure_learning_repo.latest_run(db, organization_id=org.id, agent_id=agent.id)
+            is None
+        )
+        attempts = [
+            await failure_learning_repo.create_run(
+                db, organization_id=org.id, agent_id=agent.id, cases=[], created_at=_NOW
+            )
+            for _ in range(2)
+        ]
+        foreign_attempts = [
+            await failure_learning_repo.create_run(
+                db,
+                organization_id=scope.id,
+                agent_id=actor.id,
+                cases=[],
+                created_at=_NOW + timedelta(days=1),
+            )
+            for scope, actor in ((org, other_agent), (foreign_org, foreign_agent))
+        ]
+        latest = await failure_learning_repo.latest_run(
+            db, organization_id=org.id, agent_id=agent.id
+        )
+        assert latest is not None
+        assert latest.id == max(attempt.id for attempt in attempts)
+        assert (
+            await failure_learning_repo.get_run(
+                db, latest.id, organization_id=org.id, agent_id=agent.id
+            )
+            is latest
+        )
+        for inaccessible in foreign_attempts:
+            assert (
+                await failure_learning_repo.get_run(
+                    db, inaccessible.id, organization_id=org.id, agent_id=agent.id
+                )
+                is None
+            )
+
+    @pytest.mark.security
+    async def test_proposal_updates_and_entry_counts_stay_with_the_owning_agent(self, db) -> None:
+        _, org = await seed_member(db)
+        _, foreign_org = await seed_member(db)
+        agent = await _agent(db, org)
+        other_agent = await _agent(db, org)
+        foreign_agent = await _agent(db, foreign_org)
+        entry = await _stored_entry(db, org, agent)
+        proposals = [
+            await failure_learning_repo.create_proposal(
+                db,
+                organization_id=org.id,
+                agent_id=agent.id,
+                ledger_entry_id=entry.id,
+                target_type="instructions",
+                old_text="old",
+                new_text="reviewed",
+                rationale="Operator-reviewed improvement",
+                status=status,
+                created_at=_NOW + timedelta(minutes=index),
+            )
+            for index, status in enumerate(("rejected", "draft"))
+        ]
+        other = await _proposal(db, org, other_agent)
+        foreign = await _proposal(db, foreign_org, foreign_agent)
+        assert (
+            await failure_learning_repo.count_proposals_for_entry(
+                db, organization_id=org.id, ledger_entry_id=entry.id
+            )
+            == 2
+        )
+        assert (
+            await failure_learning_repo.count_proposals_for_entry(
+                db, organization_id=foreign_org.id, ledger_entry_id=entry.id
+            )
+            == 0
+        )
+        listed = await failure_learning_repo.list_proposals(
+            db, organization_id=org.id, agent_id=agent.id
+        )
+        assert [proposal.id for proposal in listed] == [proposals[1].id, proposals[0].id]
+        drafts = await failure_learning_repo.list_proposals(
+            db, organization_id=org.id, agent_id=agent.id, status="draft"
+        )
+        assert [proposal.id for proposal in drafts] == [proposals[1].id]
+        assert (
+            await failure_learning_repo.get_proposal(
+                db, proposals[1].id, organization_id=org.id, agent_id=agent.id
+            )
+            is proposals[1]
+        )
+        for inaccessible in (other, foreign):
+            assert (
+                await failure_learning_repo.get_proposal(
+                    db, inaccessible.id, organization_id=org.id, agent_id=agent.id
+                )
+                is None
+            )
+        updated = await failure_learning_repo.update_proposal(
+            db,
+            proposal=proposals[1],
+            update_data={"status": "rejected", "rationale": "The reviewer declined this change"},
+        )
+        assert updated.status == "rejected"
+        assert updated.rationale == "The reviewer declined this change"
+        assert (
+            await failure_learning_repo.list_proposals(
+                db, organization_id=org.id, agent_id=agent.id, status="draft"
+            )
+            == []
+        )

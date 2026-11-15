@@ -1,5 +1,5 @@
 ---
-source_sha: "9ec53a258619"
+source_sha: "5e91e7483c03"
 ---
 
 # Rat { #council }
@@ -36,7 +36,7 @@ Umfangs vor.
 
 | Feld | Standard | Was es ist |
 |---|---|---|
-| `members` | — | Genau drei Delegierte, jeder mit einem eigenen, unterschiedlichen Anbieter und Modellprofil |
+| `members` | — | Genau drei Delegierte, jeder mit einem Namen, einem jeweils anderen Anbieter und einem Modellprofil |
 | `agreement_threshold` | `8` | Die Punktzahl von 10, die jeder Delegierte erreichen muss, damit eine Runde den Rat zufriedenstellt |
 | `max_rounds` | `3` | Wie viele Prüfungsrunden ein Run höchstens verlangen darf (1–5) |
 

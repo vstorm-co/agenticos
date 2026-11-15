@@ -30,7 +30,7 @@ export function RoleNavigationEditor({
       <CardContent className="space-y-5 p-5">
         <p className="text-muted-foreground text-sm">{t("accessNotice")}</p>
         {query.isPending || activeOrgId !== organizationId ? (
-          <LoadingState variant="skeleton-list" rows={3} />
+          <LoadingState variant="pending" />
         ) : (
           <>
             {query.isError ? (

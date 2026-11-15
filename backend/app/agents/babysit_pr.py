@@ -1,11 +1,11 @@
 """Babysit a pull request through CI and review bots (#7).
 
-Theo's tstack ``babysit-pr`` skill, T3OS-ised as pure logic: the watcher
+Theo's tstack `babysit-pr` skill, T3OS-ised as pure logic: the watcher
 classifies one snapshot of a PR's checks at a time, reports only what
 changed since the last snapshot, and says when to stop. It never merges,
 comments, or takes any other action on the PR — watching and reporting
-only. The agent obtains snapshots itself (``gh pr checks`` under the
-monitor capability) and hands them to the ``babysit_pr`` capability's
+only. The agent obtains snapshots itself (`gh pr checks` under the
+monitor capability) and hands them to the `babysit_pr` capability's
 tools; this module is what those tools call.
 
 Rules carried over from the skill, enforced here rather than left to
@@ -43,7 +43,7 @@ DEFAULT_POLL_SECONDS = 300
 #: watcher is not watching, it is forgetting.
 MAX_POLL_SECONDS = 1800
 #: How few GraphQL calls may remain before the watcher waits for the
-#: reset instead of watching again. ``gh pr checks`` uses GraphQL, and
+#: reset instead of watching again. `gh pr checks` uses GraphQL, and
 #: the REST limit it falls back to is separate.
 RATE_LIMIT_FLOOR = 10
 #: How long one watch may run before it stops and reports blocked.
@@ -98,8 +98,8 @@ def check_state(status: str, conclusion: str | None) -> CheckState:
 
     Anything not finished is pending. A finished check is passed,
     failed, cancelled, or skipped by its conclusion; a conclusion
-    that says nothing about the outcome (``action_required``,
-    ``stale``, none) is unknown rather than a pass.
+    that says nothing about the outcome (`action_required`,
+    `stale`, none) is unknown rather than a pass.
     """
     if status != "completed":
         return "pending"
@@ -118,7 +118,7 @@ def check_state(status: str, conclusion: str | None) -> CheckState:
 
 @dataclass(frozen=True)
 class BabysitCheck:
-    """One check run on a PR, as ``gh pr checks`` reports it."""
+    """One check run on a PR, as `gh pr checks` reports it."""
 
     name: str
     status: str = "queued"
@@ -348,8 +348,8 @@ def rate_limit_decision(
 ) -> tuple[str, int]:
     """Watch again, or wait for the rate-limit reset — never a tight loop.
 
-    Returns ``("watch", poll_seconds)`` while calls remain, and
-    ``("wait", seconds)`` when the GraphQL budget is nearly used up.
+    Returns `("watch", poll_seconds)` while calls remain, and
+    `("wait", seconds)` when the GraphQL budget is nearly used up.
     A reset that already passed is not a wait: the budget is back.
     """
     if remaining > RATE_LIMIT_FLOOR:

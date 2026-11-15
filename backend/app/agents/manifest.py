@@ -176,6 +176,8 @@ class RunRecorder:
     #: its attempts - so the proof for a change is read from what the run
     #: actually observed rather than remembered.
     proof_scenarios: list[dict[str, Any]] = field(default_factory=list)
+    #: Each burst the run recorded (#10), with its merged outcome and every part.
+    burst_runs: list[dict[str, Any]] = field(default_factory=list)
 
     def observe_request(
         self,
@@ -427,6 +429,7 @@ def as_payload(recorder: RunRecorder) -> dict[str, Any]:
         "sol_loop_rounds": list(recorder.sol_loop_rounds),
         "eval_tool_tuning_runs": list(recorder.eval_tool_tuning_runs),
         "proof_scenarios": list(recorder.proof_scenarios),
+        "burst_runs": list(recorder.burst_runs),
     }
 
 
@@ -462,6 +465,9 @@ MAX_RECORDED_PROOF_SCENARIOS = 20
 size ceiling. A change with more than twenty reproductions has a scope
 problem, not a proof problem."""
 
+MAX_RECORDED_BURSTS = 10
+"""How many burst runs the manifest keeps, within its size ceiling."""
+
 
 def carried_over(previous: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
     """This segment's payload with what earlier segments of the run recorded and it cannot.
@@ -480,6 +486,7 @@ def carried_over(previous: dict[str, Any], payload: dict[str, Any]) -> dict[str,
     earlier_rounds = previous.get("sol_loop_rounds") or []
     earlier_tuning = previous.get("eval_tool_tuning_runs") or []
     earlier_proof = previous.get("proof_scenarios") or []
+    earlier_bursts = previous.get("burst_runs") or []
     if not any(
         (
             earlier_reviews,
@@ -489,16 +496,32 @@ def carried_over(previous: dict[str, Any], payload: dict[str, Any]) -> dict[str,
             earlier_rounds,
             earlier_tuning,
             earlier_proof,
+            earlier_bursts,
         )
     ):
         return payload
     reviews = [*earlier_reviews, *payload.get("reviews", [])]
-    scripts = [*earlier_scripts, *payload.get("code_runs", [])]
+    scripts = list(earlier_scripts)
+    for script in payload.get("code_runs", []):
+        existing = next(
+            (
+                i
+                for i, previous_script in enumerate(scripts)
+                if previous_script.get("tool_call_id") == script.get("tool_call_id")
+                and script.get("tool_call_id")
+            ),
+            None,
+        )
+        if existing is None:
+            scripts.append(script)
+        else:
+            scripts[existing] = script
     council_rounds = [*earlier_council_rounds, *payload.get("council_rounds", [])]
     events = [*earlier_events, *payload.get("babysit_pr_events", [])]
     rounds = [*earlier_rounds, *payload.get("sol_loop_rounds", [])]
     tuning = [*earlier_tuning, *payload.get("eval_tool_tuning_runs", [])]
     proof = [*earlier_proof, *payload.get("proof_scenarios", [])]
+    bursts = [*earlier_bursts, *payload.get("burst_runs", [])]
     return {
         **payload,
         "reviews": reviews[:MAX_RECORDED_REVIEWS],
@@ -508,6 +531,7 @@ def carried_over(previous: dict[str, Any], payload: dict[str, Any]) -> dict[str,
         "sol_loop_rounds": rounds[:MAX_RECORDED_SOL_LOOP_ROUNDS],
         "eval_tool_tuning_runs": tuning[:MAX_RECORDED_EVAL_TOOL_TUNING_RUNS],
         "proof_scenarios": proof[:MAX_RECORDED_PROOF_SCENARIOS],
+        "burst_runs": bursts[:MAX_RECORDED_BURSTS],
     }
 
 

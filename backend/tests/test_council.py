@@ -225,10 +225,11 @@ class TestRunCouncilRound:
         assert round_.reviews[1].reason is not None
         assert round_satisfied(round_, 8) is False
 
-    async def test_a_raising_review_is_unavailable_not_a_failed_round(self):
+    @pytest.mark.parametrize("failure", [RuntimeError, asyncio.CancelledError])
+    async def test_a_failed_or_cancelled_reviewer_does_not_discard_its_sibling(self, failure):
         async def review_fn(member, work, context):
             if member.name == "B":
-                raise RuntimeError("provider down")
+                raise failure("provider down")
             return CouncilReview(score=9, findings=[], summary="")
 
         round_ = await run_council_round(
@@ -236,7 +237,7 @@ class TestRunCouncilRound:
         )
         assert round_.reviews[0].status == "scored"
         assert round_.reviews[1].status == "unavailable"
-        assert round_.reviews[1].reason == "RuntimeError"
+        assert round_.reviews[1].reason == failure.__name__
 
     async def test_a_none_review_is_no_score(self):
         async def review_fn(member, work, context):
@@ -444,6 +445,7 @@ class TestCouncilTool:
         assert len(built) == 1
         assert isinstance(built[0], Council)
         toolset = built[0].get_toolset()
+        assert built[0].get_toolset() is toolset
         assert isinstance(toolset, FunctionToolset)
         tools = await toolset.get_tools(probe_context(built[0]))
         assert "run_council_review" in tools
@@ -470,8 +472,16 @@ class TestFactoryWiring:
                                 "provider": "anthropic",
                                 "model_profile_id": str(profile_id),
                             },
-                            {"name": "GPT", "provider": "openai", "model_profile_id": str(uuid.uuid4())},
-                            {"name": "Gemini", "provider": "google", "model_profile_id": str(uuid.uuid4())},
+                            {
+                                "name": "GPT",
+                                "provider": "openai",
+                                "model_profile_id": str(uuid.uuid4()),
+                            },
+                            {
+                                "name": "Gemini",
+                                "provider": "google",
+                                "model_profile_id": str(uuid.uuid4()),
+                            },
                         ],
                         "agreement_threshold": 8,
                         "max_rounds": 3,
@@ -595,3 +605,88 @@ class TestRunnerWiring:
         )
         assert await service._council_models(ctx, spec) == {}
         service.models.resolve.assert_not_called()
+
+
+class TestCouncilBoundaryOutcomes:
+    def test_an_absent_or_skipped_delegate_never_acquires_an_invented_score(self) -> None:
+        table = render_council_table(
+            [
+                CouncilRound(1, [CouncilMemberReview("A", "scored", 8)]),
+                CouncilRound(2, [CouncilMemberReview("B", "skipped")]),
+            ]
+        )
+        assert "| A | 8/10 | no score |" in table
+        assert "| B | no score | no score |" in table
+
+    async def test_the_first_score_in_findings_is_kept_without_rewriting_them(self) -> None:
+        findings = ["Add the missing test.", "Overall 8/10.", "With that fixed, 9/10."]
+
+        async def review(member, work, context):
+            return CouncilReview(findings=findings, summary="A few changes remain.")
+
+        round_ = await run_council_round([_member("A")], "work", "", 1, 8, review)
+        assert round_.reviews[0].status == "scored"
+        assert round_.reviews[0].score == 8
+        assert round_.reviews[0].findings == findings
+
+    @pytest.mark.security
+    def test_a_model_that_cannot_be_built_stays_unavailable_without_using_its_fallback(
+        self,
+        monkeypatch,
+    ) -> None:
+        fallback = ModelRequestSpec(
+            profile_id=uuid.uuid4(),
+            label="Other provider",
+            provider="openai",
+            model="gpt-5.4",
+            params={},
+            credential=ResolvedCredential(
+                provider="openai",
+                secret=ApiKeySecret(api_key=SecretStr("test-only")),
+            ),
+            fallbacks=[],
+        )
+        primary = ModelRequestSpec(
+            profile_id=uuid.uuid4(),
+            label="Configured Claude",
+            provider="anthropic",
+            model="claude-sonnet-5-5",
+            params={},
+            credential=ResolvedCredential(
+                provider="anthropic",
+                secret=ApiKeySecret(api_key=SecretStr("test-only")),
+            ),
+            fallbacks=[fallback],
+        )
+        build = MagicMock(side_effect=ValueError("unsupported model"))
+        monkeypatch.setattr("app.agents.capabilities.council._capability.build_model", build)
+        member = resolve_members(
+            [{"name": "A", "provider": "anthropic", "model_profile_id": primary.profile_id}],
+            {primary.profile_id: primary},
+        )[0]
+        assert member.name == "A"
+        assert member.provider == "anthropic"
+        assert member.model_label == "Configured Claude"
+        assert member.model is None
+        assert member.unavailable_reason == "Its model could not be built"
+        build.assert_called_once_with(primary.credential, primary.model)
+
+    async def test_a_full_manifest_still_returns_the_new_round_without_overwriting_history(
+        self,
+        monkeypatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "app.agents.capabilities.council._toolset.MAX_RECORDED_COUNCIL_ROUNDS",
+            1,
+        )
+        review = AsyncMock(return_value=CouncilReview(score=9, findings=["Ready."]))
+        monkeypatch.setattr("app.agents.capabilities.council._toolset.run_ambient_agent", review)
+        earlier = CouncilRound(1, [CouncilMemberReview("A", "scored", 6)]).to_record(8)
+        recorder = RunRecorder(council_rounds=[earlier])
+        tool = build_council_toolset([_member("A")], recorder, 8, 3)
+        result = json.loads(await tool.tools["run_council_review"].function(None, "fixed work"))
+        assert result["round"] == 2
+        assert result["satisfied"] is True
+        assert "| A | 6/10 | 9/10 |" in result["table"]
+        assert recorder.council_rounds == [earlier]
+        assert review.await_count == 1

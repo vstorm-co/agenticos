@@ -114,8 +114,7 @@ class _Skills:
 
 @pytest.fixture
 def _service(monkeypatch: pytest.MonkeyPatch) -> AutoSkillLearningService:
-    service = AutoSkillLearningService.__new__(AutoSkillLearningService)
-    service.db = AsyncMock()
+    service = AutoSkillLearningService(AsyncMock())
     service.registry = _Registry()
     service.skills = _Skills()
     audit = AsyncMock()
@@ -161,6 +160,50 @@ async def test_a_viewer_cannot_learn_into_an_existing_skill(
     assert _service.skills.created == []  # type: ignore[attr-defined]
     assert _service.skills.updated == []  # type: ignore[attr-defined]
     _service.audit.assert_not_awaited()  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize(
+    ("pattern", "rationale", "name", "description"),
+    [
+        (
+            None,
+            None,
+            "learned-skill",
+            "Learned from a recurring failure. See the audit trail for its proposal.",
+        ),
+        (
+            "failed:rate_limit",
+            None,
+            "learned-failed-rate-limit",
+            "Learned from recurring failures: failed:rate_limit",
+        ),
+        (None, "!!!", "learned-skill", "!!!"),
+        (
+            None,
+            "Check the order before offering a refund and notify the operator",
+            "check-the-order-before-offering-a-refund-and",
+            "Check the order before offering a refund and notify the operator",
+        ),
+    ],
+)
+async def test_missing_optional_provenance_still_produces_a_usable_catalog_entry(
+    _service: AutoSkillLearningService,
+    pattern: str | None,
+    rationale: str | None,
+    name: str,
+    description: str,
+) -> None:
+    data = _proposal(pattern_key=pattern, rationale=rationale, ledger_entry_id=None)
+
+    learned = await _service.learn(_ctx(), uuid.uuid4(), data)
+
+    [created] = _service.skills.created
+    assert learned.name == created.name == name
+    assert created.description == description
+    assert created.content == NEW_TEXT and created.category == "learned"
+    assert learned.proposal_id == data.proposal_id and learned.ledger_entry_id is None
+    _service.audit.assert_awaited_once()
+    assert _service.audit.await_args.kwargs["details"]["ledger_entry_id"] is None
 
 
 async def test_learning_a_new_skill_creates_it_in_the_learned_category(

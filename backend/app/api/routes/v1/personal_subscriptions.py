@@ -2,9 +2,9 @@
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends
 
-from app.api.deps import Auth, ClaudeSubscriptionSvc, require
+from app.api.deps import Auth, ClaudeSubscriptionSvc, no_store_response, require
 from app.core.permissions import Perm
 from app.schemas.claude_subscription import (
     ClaudeSubscriptionLoginCode,
@@ -12,13 +12,8 @@ from app.schemas.claude_subscription import (
     ClaudeSubscriptionRead,
 )
 
-
-def _private_response(response: Response) -> None:
-    response.headers["Cache-Control"] = "no-store"
-
-
 router = APIRouter(
-    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE)), Depends(_private_response)]
+    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE)), Depends(no_store_response)]
 )
 
 

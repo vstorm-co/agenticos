@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 
 import { createTranslator } from "next-intl";
 import { describe, expect, it } from "vitest";
@@ -530,7 +530,7 @@ describe("nothing outside this module shows a refusal's raw message", () => {
       // forwards the backend's own sentence to the client that *will* render it,
       // and that client is what this rule is about. Its own refusals are a
       // separate contract - `bffRefusal` with a code from `BFF_ERROR_KEYS`.
-      .filter((path) => !path.startsWith(join("app", "api") + "/"))
+      .filter((path) => !path.startsWith(join("app", "api") + sep))
       .filter((path) => READS_MESSAGE.test(readFileSync(join(root, path), "utf8")));
 
     expect(offenders).toEqual([]);

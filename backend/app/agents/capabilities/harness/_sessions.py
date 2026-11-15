@@ -26,7 +26,7 @@ WORK_DIR = ".agenticos/harness"
 """Where a conversation's harness sessions are kept, inside its workspace."""
 
 _SESSION_FILE = re.compile(
-    r"^(claude_code|codex)-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:-(.+))?\.session$"
+    r"^(claude_code|codex|opencode|gemini|pi)-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:-(.+))?\.session$"
 )
 """A session file's name: harness, conversation, and the session's name when named."""
 
@@ -95,7 +95,7 @@ async def forget_session(ctx: Any, session: str = MAIN_SESSION) -> Harness | Non
     conversation_id = ctx.deps.conversation_id
     if conversation_id is None:
         return None
-    for harness in ("claude_code", "codex"):
+    for harness in ("claude_code", "codex", "opencode", "gemini", "pi"):
         path = session_path(harness, conversation_id, session)
         if (await _read(ctx, path)).strip():
             await ctx.workspace.remove(path)

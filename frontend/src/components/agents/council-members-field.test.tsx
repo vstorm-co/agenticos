@@ -23,14 +23,19 @@ vi.mock("@/components/agents/model-profile-picker", () => ({
     onChange: (profileId: string | null) => void;
     disabled?: boolean;
   }) => (
-    <button
-      type="button"
-      aria-label="Choose model profile"
-      disabled={disabled}
-      onClick={() => onChange(state.profileId)}
-    >
-      Choose model profile
-    </button>
+    <>
+      <button
+        type="button"
+        aria-label="Choose model profile"
+        disabled={disabled}
+        onClick={() => onChange(state.profileId)}
+      >
+        Choose model profile
+      </button>
+      <button type="button" disabled={disabled} onClick={() => onChange(null)}>
+        Clear model profile
+      </button>
+    </>
   ),
 }));
 
@@ -85,5 +90,55 @@ describe("CouncilMembersField", () => {
     screen
       .getAllByRole("button", { name: "Choose model profile" })
       .forEach((button) => expect(button).toBeDisabled());
+  });
+
+  it("preserves valid stored members and normalizes malformed entries before editing a provider", () => {
+    const onChange = vi.fn();
+    const first = { name: "Reviewer A", provider: "custom", model_profile_id: "saved-profile" };
+    render(
+      <CouncilMembersField
+        idPrefix="council"
+        value={[first, { name: 12, provider: false, model_profile_id: null }, null]}
+        onChange={onChange}
+      />,
+    );
+
+    const firstMember = screen.getByRole("group", { name: "Member 1" });
+    const secondMember = screen.getByRole("group", { name: "Member 2" });
+    const thirdMember = screen.getByRole("group", { name: "Member 3" });
+    expect(within(firstMember).getByLabelText("Name")).toHaveValue("Reviewer A");
+    expect(within(firstMember).getByLabelText("Provider")).toHaveValue("custom");
+    expect(within(secondMember).getByLabelText("Name")).toHaveValue("");
+    expect(within(thirdMember).getByLabelText("Provider")).toHaveValue("");
+    fireEvent.change(within(secondMember).getByLabelText("Provider"), {
+      target: { value: "reviewer-provider" },
+    });
+
+    expect(onChange).toHaveBeenCalledWith([
+      first,
+      { name: "", provider: "reviewer-provider", model_profile_id: "" },
+      { name: "", provider: "", model_profile_id: "" },
+    ]);
+  });
+
+  it("clears a saved model without silently replacing the member's provider", async () => {
+    const onChange = vi.fn();
+    render(
+      <CouncilMembersField
+        idPrefix="council"
+        value={[{ name: "Reviewer A", provider: "custom", model_profile_id: state.profileId }]}
+        onChange={onChange}
+      />,
+    );
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Member 1" })).getByRole("button", {
+        name: "Clear model profile",
+      }),
+    );
+    expect(onChange).toHaveBeenCalledWith([
+      { name: "Reviewer A", provider: "custom", model_profile_id: "" },
+      { name: "", provider: "", model_profile_id: "" },
+      { name: "", provider: "", model_profile_id: "" },
+    ]);
   });
 });

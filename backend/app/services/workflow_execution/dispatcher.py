@@ -135,14 +135,15 @@ from app.workflows.graph.joins import JoinVerdict, WireState, evaluate_join
 from app.workflows.graph.model import Edge, NodeInstance, WorkflowGraph, jsonb_value_fits
 from app.workflows.graph.validate import (
     FOREACH,
+    LOOP_ITEM,
     LOOP_YIELD,
     MERGE,
     derive_scopes,
     node_scope_map,
     owner_chain,
+    set_aside,
 )
 from app.workflows.nodes.control_foreach import (
-    BODY_PORT,
     ForeachConfig,
     ForeachItemError,
     ForeachManifest,
@@ -265,6 +266,10 @@ class HandlerOutcome:
     webhook_response: dict[str, Any] | None = None
 
 
+_STOPS_CALLED_RUNS = frozenset({WorkflowRunStatus.CANCELLED, WorkflowRunStatus.BUDGET_EXCEEDED})
+"""How a caller ends that ends what it called: a failure leaves a called run to finish."""
+
+
 async def claim(
     db: AsyncSession, *, node_run_id: UUID, lease_seconds: float | None = None
 ) -> DispatchOutbox | None:
@@ -278,9 +283,8 @@ async def claim(
     """
     token = uuid4()
     seconds = settings.WORKFLOW_DISPATCH_LEASE_SECONDS if lease_seconds is None else lease_seconds
-    lease_expires_at = datetime.now(UTC) + timedelta(seconds=seconds)
     return await workflow_run_repo.claim_outbox(
-        db, node_run_id=node_run_id, token=token, lease_expires_at=lease_expires_at
+        db, node_run_id=node_run_id, token=token, lease_seconds=seconds
     )
 
 
@@ -400,8 +404,7 @@ async def _principal_context(db: AsyncSession, run: WorkflowRun) -> AuthContext:
         if (
             parent is None
             or parent.id in visited
-            or parent.status
-            in {WorkflowRunStatus.CANCELLED.value, WorkflowRunStatus.BUDGET_EXCEEDED.value}
+            or WorkflowRunStatus(parent.status) in _STOPS_CALLED_RUNS
         ):
             raise WorkflowParentStoppedError(run_id=run.id)
         ancestor_workflow = await workflow_repo.get(
@@ -1245,6 +1248,8 @@ async def _end_run(
         db, run=run, kind=event, node_run_id=node_run.id, payload={"code": error.code}
     )
     await delivery.deliver_result(db, run=run)
+    if run_status in _STOPS_CALLED_RUNS:
+        await cleanup.stop_called_runs(db, run=run, now=now)
     if run_status is WorkflowRunStatus.FAILED:
         await failure.start_error_workflow(
             db, run=run, step_id=node_run.node_instance_id, error=error
@@ -2808,8 +2813,9 @@ async def _succeed_if_finished(
     left to dispatch.
 
     A loop body's rows are not counted here: a loop settles only once its last
-    iteration has. A node that failed through its `error` port settled too - a
-    failure that was not routed ended the run before this is ever asked.
+    iteration has. Nor is a step `set_aside`: nothing reaches it, so it never has
+    a row. A node that failed through its `error` port settled too - a failure
+    that was not routed ended the run before this is ever asked.
 
     Called under the run's lock, both when the last node settles and when a
     stray outbox row is closed, so whichever of the two happens last ends
@@ -2819,7 +2825,10 @@ async def _succeed_if_finished(
         return
     graph = graph or await resolve_graph(db, run)
     node_scope = node_scope_map(graph)
-    top_level = sum(1 for node in graph.nodes if node.id not in node_scope)
+    parked = set_aside(graph)
+    top_level = sum(
+        1 for node in graph.nodes if node.id not in node_scope and node.id not in parked
+    )
     statuses = await workflow_run_repo.list_node_run_statuses(db, workflow_run_id=run.id)
     if len(statuses) == top_level and all(status in _SETTLED for status in statuses):
         await _succeed_run(db, run=run)
@@ -2864,7 +2873,13 @@ async def _start_iteration(
         return []
     loop_id = loop_run.node_instance_id
     node_scope = node_scope_map(graph)
-    body = [node_id for node_id, owner in node_scope.items() if owner == loop_id]
+    # A step set aside never gets a row, so it takes nothing from the ceiling.
+    parked = set_aside(graph)
+    body = [
+        node_id
+        for node_id, owner in node_scope.items()
+        if owner == loop_id and node_id not in parked
+    ]
     existing = await workflow_run_repo.count_node_runs(db, workflow_run_id=run.id)
     limit = settings.WORKFLOW_RUN_MAX_NODE_RUNS
     if existing + len(body) > limit:
@@ -2882,10 +2897,11 @@ async def _start_iteration(
         )
         return []
     scope_path = [*loop_run.scope_path, {"loop_node_id": str(loop_id), "index": index}]
+    # Publishing proved the body holds exactly one item step; no wire leads to it.
     item_id = next(
-        edge.target_node_id
-        for edge in graph.edges
-        if edge.source_node_id == loop_id and edge.source_port == BODY_PORT
+        node.id
+        for node in graph.nodes
+        if node.scope_id == loop_id and node.definition_id == LOOP_ITEM
     )
     item_run = await _create_decided_node_run(
         db, run=run, target_id=item_id, runs=True, scope_path=scope_path

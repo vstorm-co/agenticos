@@ -20,7 +20,7 @@ it("uses the full-bleed content layout without compensating margins", () => {
 it("reserves the phone toolbar space for both initial content and sent-turn scrolling", () => {
   const { container } = render(<ChatPage />);
   expect(container.firstElementChild?.lastElementChild).toHaveClass(
-    "max-md:[&_[data-chat-scroller]]:scroll-pt-20",
-    "max-md:[&_[data-transcript]]:pt-20",
+    "max-lg:[&_[data-chat-scroller]]:scroll-pt-20",
+    "max-lg:[&_[data-transcript]]:pt-20",
   );
 });

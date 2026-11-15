@@ -1,5 +1,5 @@
 ---
-source_sha: "99911adb55ad"
+source_sha: "ffedb717d03c"
 ---
 
 # Modele i providery { #models-and-providers }

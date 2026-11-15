@@ -47,6 +47,7 @@ def question_nudge_notice(remaining_hours: int) -> str:
     """
     return f"Still waiting for your answer — the question expires in about {remaining_hours}h."
 
+
 _SURFACE_VALUES = frozenset(surface.value for surface in CHANNEL_SURFACES)
 
 

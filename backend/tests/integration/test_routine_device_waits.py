@@ -205,6 +205,14 @@ async def test_a_parked_event_keeps_its_payload_until_it_settles(db: AsyncSessio
     wait = await repo.get(db, activation)
     assert wait.event_context is None
     assert wait.event_payload is None
+    assert (
+        await db.scalar(
+            select(RoutineDeviceWait.event_payload.is_(None)).where(
+                RoutineDeviceWait.id == activation
+            )
+        )
+        is True
+    )
 
 
 @pytest.mark.parametrize("change", ["pause", "prompt", "folder", "owner", "end", "acting"])
@@ -290,6 +298,14 @@ async def test_pause_redacts_waits_and_deletion_cascades_their_metadata(db: Asyn
     activation = await park(db, w, context="private event")
     await repo.cancel_for_trigger(db, trigger_id=w.trigger.id, reason="paused")
     assert (await repo.get(db, activation)).event_context is None
+    assert (
+        await db.scalar(
+            select(RoutineDeviceWait.event_payload.is_(None)).where(
+                RoutineDeviceWait.id == activation
+            )
+        )
+        is True
+    )
     assert await repo.pending(db) == []
     await db.delete(w.trigger)
     await db.flush()

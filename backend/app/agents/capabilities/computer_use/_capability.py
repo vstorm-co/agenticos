@@ -104,7 +104,10 @@ class ComputerUse(AbstractCapability[AgentDepsT]):
             )
         if self.backend in ("sandbox", "auto"):
             return await open_sandbox_desktop(
-                workspace, width=self.policy.max_width, height=self.policy.max_height
+                workspace,
+                width=self.policy.max_width,
+                height=self.policy.max_height,
+                defer_start=True,
             )
         try:
             # Again, not only at publish: the operator may have taken the host off

@@ -265,6 +265,7 @@ class TestAConnectorSyncsEngine:
             # on every real sync.
             organization_id=uuid.uuid4(),
             secret_id=None,
+            connected_account_id=None,
         )
         sources = MagicMock(
             get_source=AsyncMock(return_value=source),
@@ -306,6 +307,7 @@ class TestAConnectorSyncsEngine:
             # on every real sync.
             organization_id=uuid.uuid4(),
             secret_id=None,
+            connected_account_id=None,
         )
         sources = MagicMock(
             get_source=AsyncMock(return_value=source), update_after_sync=AsyncMock()

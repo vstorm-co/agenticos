@@ -246,15 +246,36 @@ outside any project stays its author's own, as everywhere else in the console.
 A project's chat is not shared on its own, by link or with a person: it is read
 through the project, so share the project instead.
 
-**Working in one chat together.** Several people can be in a project's chat at
-once. A bar over the transcript shows who else has it open, and its owner can
-invite somebody from there. While one of them writes, the others see their face and
-"Anna is typing" over the composer. A question one of them asks, and the agent's answer,
-appear for everybody in the chat as they are written. **Reply** on any message
-quotes it above the composer, and the reply carries the quote - on screen, and to
-the agent, which reads each person's turn under their name and is told the chat
-may have several people in it, so it knows who asked what and what "yes, do that"
-is about.
+## Team rooms
+
+On a project's **Chats** tab, choose **New team room** to create an empty shared
+conversation. In the main console, project chats show a room header with the
+project audience and presence even when you are the only person there. **Share**
+manages access to the project; a read-only participant can follow the transcript
+but cannot post.
+
+The composer starts with **Team only** selected. Posting saves a human message
+without asking a model to answer. Choose a published cloud agent in the recipient
+picker to request its response explicitly. Typing an agent's name in the message
+does not select the responder. Posts and answers carry the sender's identity;
+**Reply** includes a quote in the message and the agent's context.
+
+Agent requests enter one durable queue for the room. A run waiting for approval
+or an answer keeps its place until resolved. You can cancel your own request
+while it is queued. The requester’s current project and agent permissions are
+checked again when work starts or resumes. A follow-up sees earlier messages and
+finished answers to preceding requests, without reading questions posted after it.
+
+The queue shows the saved request status and refreshes after a reconnect. If
+posting has an uncertain result, retry the pending post to reuse its identity.
+An interrupted agent request is not restarted automatically; inspect the saved
+run before making a new request.
+
+This composer supports text and quoted replies. Upload reference files through
+the project's **Files** tab; room agents use that shared workspace. Local desktop
+agents, per-message attachments and separate side threads are outside this first
+room interface. Personal chats and the floating assistant keep their existing
+composers.
 
 ## Deleting a project
 

@@ -701,6 +701,7 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "memoryCorrecting",
     displayNameKey: "correctMemory",
     staysClosed: true,
+    approvalSummary: { key: "approveCorrectMemory", needs: ["before", "after"] },
   },
   share_memory: {
     kind: "write",
@@ -708,6 +709,7 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "memorySharing",
     displayNameKey: "shareMemory",
     staysClosed: true,
+    approvalSummary: { key: "approveShareMemory", needs: ["claim", "audience"] },
   },
   remember: {
     kind: "write",
@@ -849,6 +851,16 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     render: "generic",
     captionKey: "recordingEvalToolTuning",
     displayNameKey: "evalToolTuning",
+  },
+
+  // burst - one task split into parallel subtasks, merged into one outcome.
+  // The result is plain text - a JSON burst with the merge and each part's
+  // status - so the step renders generic, like any other read-only text tool.
+  run_burst: {
+    kind: "read",
+    render: "generic",
+    captionKey: "burstingSubtasks",
+    displayNameKey: "burstRun",
   },
   create_agent: {
     kind: "delegate",

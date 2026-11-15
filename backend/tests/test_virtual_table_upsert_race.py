@@ -29,7 +29,7 @@ def _record(revision: int):
 
 @pytest.fixture
 def service(monkeypatch) -> tuple[RecordOperations, AuthContext, SimpleNamespace]:
-    table = SimpleNamespace(id=uuid.uuid4(), archived_at=None, schema_version=1)
+    table = SimpleNamespace(id=uuid.uuid4(), archived_at=None, schema_version=1, row_policy=None)
     service = RecordOperations(db=MagicMock(spec=AsyncSession))
 
     async def load(ctx, table_id, perm, *, lock=False, share=False):

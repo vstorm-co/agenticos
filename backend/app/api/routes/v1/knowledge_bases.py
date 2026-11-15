@@ -65,8 +65,8 @@ async def list_knowledge_bases(
 ) -> Any:
     """List the Knowledge Bases this caller may read in the active organization.
 
-    Carries each collection's document and chunk counts, which the single-row
-    responses do not. A picker choosing what an agent may search is choosing
+    Carries each collection's document and chunk counts, as its detail does.
+    A picker choosing what an agent may search is choosing
     between collections, and a name alone does not distinguish the one with four
     hundred documents in it from the one somebody made and never filled.
     """
@@ -105,7 +105,7 @@ async def get_knowledge_base(
     service: KnowledgeBaseSvc,
     ctx: Auth,
 ) -> Any:
-    """Get a Knowledge Base and effective write access for this caller.
+    """Get a Knowledge Base with counts, usage and effective write access for this caller.
 
     `can_edit` follows the same scope, ownership and grant rules as mutations.
     """

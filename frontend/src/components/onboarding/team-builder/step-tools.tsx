@@ -89,9 +89,7 @@ export function StepTools({ tools, onChange }: StepToolsProps) {
               </h3>
               <Badge variant="secondary">{t("appsOptional")}</Badge>
             </div>
-            <p className="text-muted-foreground text-xs leading-relaxed">
-              {t("appsDescription")}
-            </p>
+            <p className="text-muted-foreground text-xs leading-relaxed">{t("appsDescription")}</p>
           </div>
         </div>
 

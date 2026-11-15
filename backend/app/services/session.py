@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError, NotFoundError
-from app.core.security import create_refresh_token, read_uuid_claim
+from app.core.security import create_access_token, create_refresh_token, read_uuid_claim
 from app.db.models.session import Session
 from app.repositories import push_subscription as push_repo
 from app.repositories import session_repo
@@ -81,6 +81,40 @@ class SessionService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def issue_tokens(
+        self,
+        *,
+        user_id: UUID,
+        credential_version: int,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+        proved_email: str | None = None,
+    ) -> tuple[str, str]:
+        """The token pair for a sign-in that has cleared every factor.
+
+        The session row is created before the access token is minted, so the token
+        can name it in `sid` - which is what lets signing out everywhere revoke the
+        access token, not only stop the next refresh (#1501).
+        """
+        refresh_token = create_refresh_token(
+            subject=str(user_id), credential_version=credential_version
+        )
+        session = await self.create_session(
+            user_id=user_id,
+            refresh_token=refresh_token,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            proved_email=proved_email,
+        )
+        return (
+            create_access_token(
+                subject=str(user_id),
+                sid=str(session.id),
+                auth_time=int(datetime.now(UTC).timestamp()),
+            ),
+            refresh_token,
+        )
+
     async def create_session(
         self,
         user_id: UUID,
@@ -89,6 +123,7 @@ class SessionService:
         user_agent: str | None = None,
         *,
         session_id: UUID | None = None,
+        proved_email: str | None = None,
     ) -> Session:
         """The row a sign-in is tracked by, whose id the access token names in `sid`.
 
@@ -112,6 +147,22 @@ class SessionService:
             ip_address=ip_address,
             user_agent=user_agent,
             session_id=session_id,
+            proved_email=proved_email,
+        )
+
+    async def has_mailbox_proof(self, user_id: UUID, email: str, session_id: UUID | None) -> bool:
+        """Proof belongs to a live sign-in and its exact address, never just an account."""
+        if session_id is None:
+            return False
+        session = await session_repo.get_by_id(self.db, session_id)
+        return bool(
+            session is not None
+            and session.user_id == user_id
+            and session.is_active
+            and session.expires_at > datetime.now(UTC)
+            and session.impersonator_user_id is None
+            and session.proved_email is not None
+            and session.proved_email.lower() == email.lower()
         )
 
     async def rotate_session(

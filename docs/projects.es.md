@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "e9573cb4bf21"
+source_sha: "4cf68409a9df"
 ---
 
 # Proyectos { #projects }
@@ -266,15 +266,38 @@ autor, como en el resto de la consola.
 Un chat de un proyecto no se comparte por separado, ni por enlace ni con una
 persona: se lee a través del proyecto, así que comparte el proyecto.
 
-**Trabajar juntos en un chat.** Varias personas pueden estar a la vez en un chat
-de un proyecto. Una barra sobre la transcripción muestra quién más lo tiene
-abierto, y su propietario puede invitar a alguien desde ahí. Mientras alguien
-escribe, los demás ven su cara y «Anna está escribiendo» sobre el campo de
-escritura. La pregunta que hace una de ellas, y la respuesta del agent, aparecen para todos en el chat mientras se
-escriben. **Responder** en cualquier mensaje lo cita sobre el campo de escritura, y
-la respuesta lleva la cita - en pantalla y al agent, que lee el mensaje de cada
-persona bajo su nombre y sabe que en el chat puede haber varias personas, así sabe
-quién preguntó qué y a qué se refiere «sí, hazlo».
+## Salas de equipo { #team-rooms }
+
+En la pestaña **Chats** de un proyecto, elige **New team room** para crear una
+conversación compartida vacía. En la consola principal, los chats del proyecto
+muestran una cabecera con la audiencia del proyecto y los participantes presentes,
+aunque estés solo. **Share** gestiona el acceso al proyecto; un participante con
+permiso de lectura puede seguir la transcripción, pero no publicar mensajes.
+
+El campo de mensajes comienza con **Team only** seleccionado. Publicar guarda un
+mensaje humano sin pedir una respuesta a un modelo. Elige un agent de nube
+publicado en el selector de destinatario para solicitar su respuesta
+expresamente. Escribir su nombre en el mensaje no selecciona al agent que
+responde. Los mensajes y las respuestas identifican al remitente; **Reply**
+incluye una cita en el mensaje y en el contexto del agent.
+
+Las solicitudes a agents entran en una cola persistente por sala. Un run que
+espera una aprobación o respuesta mantiene su lugar hasta resolverse. Puedes
+cancelar tu propia solicitud mientras esté en cola. Los permisos actuales del
+solicitante sobre el proyecto y el agent se vuelven a comprobar al iniciar o
+reanudar el trabajo. Una pregunta de seguimiento ve mensajes anteriores y las
+respuestas terminadas a solicitudes previas, sin leer preguntas posteriores.
+
+La cola muestra el estado guardado y se actualiza tras reconectar. Si el resultado
+de una publicación es incierto, reintenta el mensaje pendiente para reutilizar su
+identidad. Una solicitud interrumpida no se reinicia automáticamente; revisa el
+run guardado antes de crear otra solicitud.
+
+Este campo admite texto y respuestas con cita. Sube los archivos de referencia en
+la pestaña **Files** del proyecto; los agents de la sala usan ese workspace
+compartido. Los agents locales de escritorio, los adjuntos por mensaje y los
+hilos laterales separados quedan fuera de esta primera interfaz. Los chats
+personales y el asistente flotante conservan sus campos de mensajes actuales.
 
 ## Borrar un proyecto { #deleting-a-project }
 

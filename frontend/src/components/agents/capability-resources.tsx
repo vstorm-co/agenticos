@@ -1,11 +1,15 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Info } from "lucide-react";
 
 import { CollectionPicker } from "@/components/agents/collection-picker";
 import { ContextGallery, type ContextChoice } from "@/components/agents/context-gallery";
 import { SkillGallery, type SkillChoice } from "@/components/agents/skill-gallery";
+import {
+  SystemAgentKnowledge,
+  type SystemAgentSearch,
+} from "@/components/agents/system-agent-knowledge";
 import {
   ARTIFACTS_ID,
   COMPANION_SKILLS,
@@ -14,6 +18,7 @@ import {
   KNOWLEDGE_ID,
   SKILLS_ID,
 } from "@/lib/agent-spec";
+import { takesSkillsOffOnly } from "@/lib/system-agents";
 import type { KnowledgeBase } from "@/types";
 import type { ContextSettings } from "@/lib/context-settings";
 import { useTranslations } from "next-intl";
@@ -49,11 +54,12 @@ export interface AgentResources {
  *
  * The tab's label, resolved by whoever renders the panel: a module constant
  * cannot call a translator, so this answers with a key and the workbench turns it
- * into words.
+ * into words. A system agent's Knowledge panel holds how it searches rather than
+ * which collections, so `system` names that tab for what it holds instead.
  */
-export function resourceTabKey(capabilityId: string): string | undefined {
+export function resourceTabKey(capabilityId: string, system = false): string | undefined {
   if (capabilityId === CONTEXT_ID) return "contextFilesHeading";
-  if (capabilityId === KNOWLEDGE_ID) return "collectionsHeading";
+  if (capabilityId === KNOWLEDGE_ID) return system ? "systemAgentKnowledge" : "collectionsHeading";
   if (capabilityId === SKILLS_ID) return "skillsHeading";
   if (capabilityId === ARTIFACTS_ID) return "artifactPagesHeading";
   if (capabilityId === VISUALS_ID) return "visualDesignHeading";
@@ -83,6 +89,7 @@ export function CapabilityResources({
   enabled,
   resources,
   disabled,
+  system,
   fileSettings = {},
   onFileSettingsChange,
 }: {
@@ -93,14 +100,23 @@ export function CapabilityResources({
   enabled: boolean;
   resources: AgentResources;
   disabled?: boolean;
+  /**
+   * Set on a system agent's page. The platform hands each of its runs the
+   * knowledge bases to search, so its Knowledge panel sets the search's steps
+   * instead of offering collections; and its files and skills come narrowed to
+   * what the whole organization shares, which the panels say.
+   */
+  system?: SystemAgentSearch;
 }) {
   const t = useTranslations("agents");
+  const sharedOnly = system === undefined ? null : t("systemAgentSharedOnly");
 
   if (capabilityId === CONTEXT_ID) {
     return (
       <ResourceGroup
-        detail={t("contextFilesDetail")}
+        note={sharedOnly}
         warning={contextWarning(t, enabled, resources, fileSettings)}
+        informational={enabled}
       >
         <ContextGallery
           onCreate={resources.onCreateContext}
@@ -117,6 +133,7 @@ export function CapabilityResources({
   }
 
   if (capabilityId === KNOWLEDGE_ID) {
+    if (system !== undefined) return <SystemAgentKnowledge search={system} disabled={disabled} />;
     return (
       <ResourceGroup
         detail={t("collectionsDetail")}
@@ -135,9 +152,25 @@ export function CapabilityResources({
   }
 
   if (capabilityId === SKILLS_ID) {
+    if (system !== undefined && takesSkillsOffOnly(system.kind)) {
+      return (
+        <ResourceGroup detail={t("systemAgentSkillsUnused")} warning={null}>
+          {resources.skillIds.length > 0 && (
+            <SkillGallery
+              skills={resources.skills}
+              total={resources.skillTotal}
+              selectedIds={resources.skillIds}
+              onToggle={resources.onSkillToggle}
+              disabled={disabled}
+            />
+          )}
+        </ResourceGroup>
+      );
+    }
     return (
       <ResourceGroup
         detail={t("skillsDetail")}
+        note={sharedOnly}
         warning={enabled || resources.skillIds.length === 0 ? null : t("skillsOffButBound")}
       >
         <SkillGallery
@@ -236,22 +269,38 @@ function contextWarning(
  */
 function ResourceGroup({
   detail,
+  note = null,
   warning,
+  informational = false,
   children,
 }: {
-  detail: string;
+  detail?: string;
+  informational?: boolean;
+  /** A second line under `detail`, for what narrows the picker below it. */
+  note?: string | null;
   warning: string | null;
   children: ReactNode;
 }) {
   return (
     <section className="space-y-3">
       {warning !== null && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+        <div
+          className={
+            informational
+              ? "bg-muted/50 text-muted-foreground flex items-start gap-2 rounded-lg px-3 py-2.5"
+              : "flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5"
+          }
+        >
+          {informational ? (
+            <Info className="mt-0.5 h-4 w-4 shrink-0" />
+          ) : (
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          )}
           <p className="text-xs">{warning}</p>
         </div>
       )}
-      <p className="text-muted-foreground text-xs">{detail}</p>
+      {detail && <p className="text-muted-foreground text-xs">{detail}</p>}
+      {note !== null && <p className="text-muted-foreground text-xs">{note}</p>}
       {children}
     </section>
   );

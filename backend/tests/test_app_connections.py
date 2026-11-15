@@ -45,6 +45,7 @@ from app.services.app_connections import (
 )
 from app.services.app_connections import _service as lifecycle
 from app.services.app_connections._client import (
+    ComposioCatalogClient,
     ComposioCompletedAuth,
     ComposioLink,
     ComposioToolkitMetadata,
@@ -223,13 +224,9 @@ async def test_curated_catalog_is_shared_with_binding_validation(harness):
             list(action.scopes) for action in catalog_app.actions
         ]
     serialized_actions = [
-        action
-        for app in catalog.model_dump(mode="json")["apps"]
-        for action in app["actions"]
+        action for app in catalog.model_dump(mode="json")["apps"] for action in app["actions"]
     ]
-    assert [
-        (action["side_effecting"], action["scopes"]) for action in serialized_actions
-    ] == [
+    assert [(action["side_effecting"], action["scopes"]) for action in serialized_actions] == [
         (action.side_effecting, list(action.scopes))
         for app in catalog.apps
         for action in app.actions
@@ -871,6 +868,25 @@ async def test_legacy_patch_keeps_labels_enable_and_narrowed_action_controls(har
     assert connection.allowed_tools == ["GMAIL_FETCH_EMAILS"]
 
 
+async def test_a_managed_app_label_change_preserves_the_authorization_generation(harness):
+    connection = row(harness.user_id, composio_status="ACTIVE", composio_account_id="ca_existing")
+    harness.store[connection.id] = connection
+    generation = connection.authorization_generation
+    allowed_tools = list(connection.allowed_tools)
+
+    updated = await legacy.McpConnectionService(harness.db).update(
+        user_id=harness.user_id,
+        connection_id=connection.id,
+        data=McpConnectionUpdate(label="Personal calendar"),
+    )
+
+    assert updated.label == "Personal calendar"
+    assert updated.authorization_generation == generation
+    assert updated.allowed_tools == allowed_tools
+    assert updated.is_enabled
+    assert not harness.provider.mock_calls
+
+
 @pytest.mark.parametrize("method", ["delete", "test"])
 async def test_legacy_delete_and_probe_use_managed_lifecycle(harness, method):
     attempt = await start(harness)
@@ -963,6 +979,51 @@ async def test_expired_link_is_not_sent_to_browser(harness):
     )
     with pytest.raises(ExternalServiceError, match="expired"):
         await start(harness)
+
+
+async def test_dynamic_expired_link_is_not_sent_to_browser(harness, monkeypatch):
+    monkeypatch.setattr(settings, "COMPOSIO_CATALOG_API_KEY", SecretStr("catalog-read-only-key"))
+    metadata = ComposioToolkitMetadata.model_validate(
+        {
+            "slug": "salesforce",
+            "name": "Salesforce",
+            "composio_managed_auth_schemes": ["OAUTH2"],
+            "composio_managed_auth": {"scheme": "OAUTH2", "scopes": ["read"]},
+            "description": "Search your customer records.",
+            "categories": [{"slug": "crm", "name": "CRM"}],
+            "tools_count": 2,
+        }
+    )
+
+    class CatalogStub:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def get_toolkit(self, slug):
+            assert slug == "salesforce"
+            return metadata
+
+        async def direct_tool_names(self, *, toolkit):
+            assert toolkit == "salesforce"
+            return ["SALESFORCE_SEARCH_RECORDS", "SALESFORCE_GET_RECORD"]
+
+    monkeypatch.setattr(lifecycle, "ComposioCatalogClient", CatalogStub)
+    harness.provider.create_link_session.return_value = "trs_salesforce_expired"
+    harness.provider.link_session.return_value = ComposioLink(
+        connected_account_id="ca_salesforce_expired",
+        redirect_url="https://connect.composio.dev/link/salesforce",
+        expires_at=datetime.now(UTC) - timedelta(minutes=1),
+    )
+
+    with pytest.raises(ExternalServiceError, match="expired"):
+        await harness.service.connect(
+            user_id=harness.user_id, data=AppConnectionCreate(toolkit="salesforce")
+        )
+
+    assert not any(connection.oauth_state for connection in harness.store.values())
 
 
 async def test_reconnect_cleanup_failure_retains_old_grant_and_verified_pending(harness):
@@ -1259,3 +1320,228 @@ async def test_managed_google_request_refused_before_org_app_lookup(harness, mon
             )
     org_app.assert_not_awaited()
     assert connection.auth_type == "composio" and connection.oauth_payload is None
+
+
+def dynamic_catalog(monkeypatch, *, metadata=None, next_cursor=None):
+    """A provider boundary with real parsed metadata and no network."""
+    metadata = metadata or ComposioToolkitMetadata(
+        slug="salesforce",
+        name="Salesforce",
+        composio_managed_auth_schemes=["OAUTH2"],
+        tools_count=1,
+    )
+    catalog = AsyncMock(spec=ComposioCatalogClient)
+    catalog.__aenter__.return_value = catalog
+    catalog.__aexit__.return_value = None
+    catalog.list_toolkits.return_value = SimpleNamespace(items=[metadata], next_cursor=next_cursor)
+    catalog.get_toolkit.return_value = metadata
+    catalog.direct_tool_names.return_value = ["SALESFORCE_SEARCH_RECORDS"]
+    monkeypatch.setattr(lifecycle, "ComposioCatalogClient", lambda: catalog)
+    return catalog
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("cursor", ["invalid cursor", "a" * 513])
+async def test_catalog_refuses_invalid_caller_cursor_before_provider_io(
+    harness, monkeypatch, cursor
+):
+    catalog = dynamic_catalog(monkeypatch)
+    with pytest.raises(BadRequestError, match="cursor"):
+        await harness.service.catalog(cursor=cursor)
+    catalog.list_toolkits.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("cursor", ["invalid cursor", "a" * 513])
+async def test_catalog_refuses_invalid_provider_cursor(harness, monkeypatch, cursor):
+    catalog = dynamic_catalog(monkeypatch, next_cursor=cursor)
+    with pytest.raises(ExternalServiceError, match="catalog cursor"):
+        await harness.service.catalog()
+    catalog.list_toolkits.assert_awaited_once()
+
+
+@pytest.mark.security
+async def test_catalog_drops_a_toolkit_whose_slug_cannot_be_a_saved_binding(harness, monkeypatch):
+    catalog = dynamic_catalog(monkeypatch)
+    catalog.list_toolkits.return_value.items.insert(
+        0, ComposioToolkitMetadata(slug="../foreign", name="Foreign")
+    )
+    result = await harness.service.catalog()
+    assert [entry.toolkit for entry in result.apps] == ["salesforce"]
+
+
+@pytest.mark.parametrize(
+    ("runtime_key", "tools_count", "availability"),
+    [(None, 1, "unavailable"), (SecretStr("synthetic-runtime"), 1001, "setup_required")],
+)
+async def test_dynamic_catalog_requires_runtime_and_a_bounded_action_set(
+    harness, monkeypatch, runtime_key, tools_count, availability
+):
+    monkeypatch.setattr(settings, "COMPOSIO_API_KEY", runtime_key)
+    dynamic_catalog(
+        monkeypatch,
+        metadata=ComposioToolkitMetadata(
+            slug="salesforce",
+            name="Salesforce",
+            tools_count=tools_count,
+            composio_managed_auth_schemes=["OAUTH2"],
+        ),
+    )
+    entry = (await harness.service.catalog()).apps[0]
+    assert entry.availability == availability and not entry.configured
+
+
+@pytest.mark.security
+async def test_dynamic_connect_requires_runtime_before_any_provider_or_repository_write(
+    harness, monkeypatch
+):
+    catalog = dynamic_catalog(monkeypatch)
+    monkeypatch.setattr(settings, "COMPOSIO_API_KEY", None)
+    with pytest.raises(ConfigurationError, match="COMPOSIO_API_KEY"):
+        await harness.service.connect(
+            user_id=harness.user_id, data=AppConnectionCreate(toolkit="salesforce")
+        )
+    catalog.get_toolkit.assert_not_awaited()
+    harness.provider.create_link_session.assert_not_awaited()
+    assert not harness.store
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        ComposioToolkitMetadata(
+            slug="foreign", name="Foreign", composio_managed_auth_schemes=["OAUTH2"]
+        ),
+        ComposioToolkitMetadata(slug="salesforce", name="Salesforce", no_auth=True),
+        ComposioToolkitMetadata(
+            slug="salesforce",
+            name="Salesforce",
+            tools_count=1001,
+            composio_managed_auth_schemes=["OAUTH2"],
+        ),
+    ],
+)
+async def test_dynamic_connect_cannot_adopt_a_different_or_unavailable_toolkit(
+    harness, monkeypatch, metadata
+):
+    catalog = dynamic_catalog(monkeypatch, metadata=metadata)
+    with pytest.raises(BadRequestError):
+        await harness.service.connect(
+            user_id=harness.user_id, data=AppConnectionCreate(toolkit="salesforce")
+        )
+    catalog.direct_tool_names.assert_not_awaited()
+    harness.provider.create_link_session.assert_not_awaited()
+    assert not harness.store
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("pending_is_active", [False, True])
+async def test_dynamic_reconnect_replaces_only_the_abandoned_pending_account(
+    harness, monkeypatch, pending_is_active
+):
+    dynamic_catalog(monkeypatch)
+    harness.provider.create_link_session.return_value = "trs_salesforce"
+    harness.provider.link_session.return_value = ComposioLink(
+        connected_account_id="ca_pending",
+        redirect_url="https://connect.composio.dev/link/salesforce",
+        expires_at=datetime.now(UTC) + timedelta(minutes=20),
+    )
+    first = await harness.service.connect(
+        user_id=harness.user_id, data=AppConnectionCreate(toolkit="salesforce")
+    )
+    connection = harness.store[first.connection_id]
+    active_account = "ca_pending" if pending_is_active else "ca_active"
+    connection.composio_account_id = active_account
+    connection.composio_status = "ACTIVE"
+    harness.provider.link_session.return_value = ComposioLink(
+        connected_account_id="ca_replacement",
+        redirect_url="https://connect.composio.dev/link/replacement",
+        expires_at=datetime.now(UTC) + timedelta(minutes=20),
+    )
+
+    second = await harness.service.reconnect(user_id=harness.user_id, connection_id=connection.id)
+
+    assert second.attempt_id != first.attempt_id
+    assert connection.composio_account_id == active_account
+    assert lifecycle._pending(connection, user_id=harness.user_id).account_id == "ca_replacement"
+    if pending_is_active:
+        harness.provider.delete_account.assert_not_awaited()
+    else:
+        harness.provider.delete_account.assert_awaited_once_with("ca_pending")
+    assert harness.provider.create_link_session.await_count == 2
+    harness.provider.link.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "tools",
+    [None, [], ["SALESFORCE_SEARCH_RECORDS"] * 1001, [123], ["../execute"], ["COMPOSIO_EXECUTE"]],
+)
+async def test_dynamic_reconnect_refuses_an_invalid_saved_action_set_before_provider_io(
+    harness, tools
+):
+    connection = row(
+        harness.user_id,
+        catalog_key="composio-salesforce",
+        url="https://backend.composio.dev/api/v3.1/toolkits/salesforce",
+        allowed_tools=tools,
+    )
+    harness.store[connection.id] = connection
+    with pytest.raises(BadRequestError, match="supported catalog"):
+        await harness.service.reconnect(user_id=harness.user_id, connection_id=connection.id)
+    harness.provider.create_link_session.assert_not_awaited()
+    harness.provider.link_session.assert_not_awaited()
+    harness.provider.delete_account.assert_not_awaited()
+    assert connection.oauth_pending_payload is None
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("dynamic", [False, True])
+async def test_pending_account_verification_requires_its_authorization_identity(harness, dynamic):
+    connection = row(harness.user_id)
+    pending = lifecycle._PendingConsent(
+        attempt_id=uuid4(),
+        user_id=harness.user_id,
+        toolkit="gmail",
+        account_id="ca_pending",
+        expires_at=datetime.now(UTC) + timedelta(minutes=5),
+        dynamic=dynamic,
+    )
+    with pytest.raises(ExternalServiceError, match="unavailable"):
+        await harness.service._verify_pending_account(
+            connection, user_id=harness.user_id, client=harness.provider, pending=pending
+        )
+    harness.provider.discover_account_auth_config.assert_not_awaited()
+    harness.provider.verify_account.assert_not_awaited()
+    assert connection.oauth_payload is None
+
+
+@pytest.mark.security
+async def test_curated_connect_fails_closed_if_configuration_lookup_breaks_its_contract(
+    harness, monkeypatch
+):
+    # Fault injection: None is not a supported return from _auth_config. The
+    # service's final defense must not turn this into dynamic authorization.
+    monkeypatch.setattr(lifecycle, "_auth_config", lambda toolkit: None)
+    with pytest.raises(ConfigurationError, match="managed authorization"):
+        await start(harness)
+    harness.provider.link.assert_not_awaited()
+    harness.provider.create_link_session.assert_not_awaited()
+    harness.provider.link_session.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_dynamic_start_fails_closed_if_descriptor_lookup_misses_an_empty_action_set(
+    harness, monkeypatch
+):
+    # Fault injection at the descriptor collaborator; the start boundary keeps
+    # its own action ceiling even if a future resolver forgets to validate it.
+    monkeypatch.setattr(lifecycle, "_app", lambda connection: APPS[0])
+    connection = row(harness.user_id, allowed_tools=[])
+    with pytest.raises(BadRequestError, match="action list"):
+        await harness.service._start_dynamic(connection, user_id=harness.user_id)
+    harness.provider.create_link_session.assert_not_awaited()
+    harness.provider.link_session.assert_not_awaited()
+    harness.provider.delete_account.assert_not_awaited()
+    assert connection.oauth_pending_payload is None

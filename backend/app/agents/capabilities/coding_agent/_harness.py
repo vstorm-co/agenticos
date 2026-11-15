@@ -1,11 +1,21 @@
-"""Claude Code and Codex, each as one command and one stream of events to read.
+"""Claude Code, Codex, OpenCode, Gemini CLI and Pi, each as one command and one
+stream of events to read.
 
-Both harnesses run headless in the agent's sandbox and print one JSON object per
-line: Claude Code with `--output-format stream-json`, Codex with `exec --json`.
-This module is the whole of what differs between them - the command line, the
-environment that carries the credential, and how their events become one
-:class:`CodingReport`. Nothing here touches a workspace or a ledger, so all of it
-is tested on recorded event streams.
+Every harness runs headless in the agent's sandbox and prints one JSON object
+per line: Claude Code with `--output-format stream-json`, Codex with
+`exec --json`, OpenCode with `run --format json`, Gemini CLI with
+`-p --output-format stream-json`, Pi with `--mode json`. This module is the
+whole of what differs between them - the command line, the environment that
+carries the credential, and how their events become one :class:`CodingReport`.
+Nothing here touches a workspace or a ledger, so all of it is tested on
+recorded event streams.
+
+The parsers for the three newer CLIs are written from their public docs, not
+from a live run - no OpenCode, Gemini CLI or Pi binary is installed where this
+runs - so each one reads only the event shapes those docs show and treats
+anything else as a session that stopped before it finished, rather than
+guessing at a field. A reviewer with the CLIs installed can check them with
+the commands in the harness capability's README.
 
 The two levels of access are the binding's, not the model's: `read_only` reads
 and answers, `edit` changes files and runs anything. Claude Code read-only runs in
@@ -14,7 +24,12 @@ commands allowed, so anything that would need a person's yes is refused rather
 than asked. Codex runs at `edit` only: its read-only mode is its own sandbox,
 which cannot start inside the sandbox container, and then even `cat` fails. At
 `edit` both run with their prompts off, because the container is already the
-boundary and nobody sits at the harness's terminal.
+boundary and nobody sits at the harness's terminal. OpenCode read-only runs its
+`plan` agent, which denies edits, and Gemini CLI read-only runs with
+`--approval-mode plan`; both also get the read-only note, since neither has a
+flag that takes a system prompt the way Claude Code's `--append-system-prompt`
+does. Pi read-only runs with its tools limited to the read-only helpers. Pi
+never asks before a tool call, so the tool list is the whole fence there.
 """
 
 import base64
@@ -31,7 +46,7 @@ from pydantic_ai.exceptions import UserError
 from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
 from pydantic_ai.usage import RequestUsage
 
-Harness = Literal["claude_code", "codex"]
+Harness = Literal["claude_code", "codex", "opencode", "gemini", "pi"]
 Access = Literal["read_only", "edit"]
 StepKind = Literal["read", "search", "edit", "command", "web", "other"]
 
@@ -42,7 +57,25 @@ MAX_TITLE_CHARS = 300
 MAX_ANSWER_CHARS = 30_000
 """How much of the harness's final answer reaches the model that asked."""
 
-LABELS: dict[Harness, str] = {"claude_code": "Claude Code", "codex": "Codex"}
+LABELS: dict[Harness, str] = {
+    "claude_code": "Claude Code",
+    "codex": "Codex",
+    "opencode": "OpenCode",
+    "gemini": "Gemini CLI",
+    "pi": "Pi",
+}
+
+# Which environment variable carries the key, by the model vendor the harness
+# runs. OpenCode and Pi run any provider's model, so the variable follows the
+# model, not the harness; Gemini CLI always runs a Gemini model, so its one
+# variable is named in its own branch. Google's key is set under both names the
+# CLIs have been seen to read: Gemini CLI documents `GEMINI_API_KEY`, and the
+# AI-SDK-based CLIs read `GOOGLE_GENERATIVE_AI_API_KEY`.
+KEY_ENV: dict[str, tuple[str, ...]] = {
+    "anthropic": ("ANTHROPIC_API_KEY",),
+    "openai": ("OPENAI_API_KEY",),
+    "google": ("GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"),
+}
 
 CLAUDE_TOKEN_PREFIX = "sk-ant-oat"
 """What a Claude subscription token from `claude setup-token` starts with.
@@ -53,6 +86,9 @@ from an API key (`sk-ant-api`): the two go in different variables.
 
 _OPENAI_AUTH_CLAIM = "https://api.openai.com/auth"
 _OPENAI_PROFILE_CLAIM = "https://api.openai.com/profile"
+
+_CLAUDE_QUIET = frozenset({"TodoWrite"})
+"""Bookkeeping calls, not steps a person would recognise as work."""
 
 _CLAUDE_KINDS: dict[str, StepKind] = {
     "Read": "read",
@@ -69,13 +105,57 @@ _CLAUDE_KINDS: dict[str, StepKind] = {
     "WebSearch": "web",
 }
 
-_CLAUDE_QUIET = frozenset({"TodoWrite"})
+_OPENCODE_KINDS: dict[str, StepKind] = {
+    "read": "read",
+    "edit": "edit",
+    "write": "edit",
+    "bash": "command",
+    "shell": "command",
+    "glob": "search",
+    "grep": "search",
+    "webfetch": "web",
+    "websearch": "web",
+}
+"""OpenCode tool names to step kinds, on the same shape as Claude Code's."""
+
+_GEMINI_KINDS: dict[str, StepKind] = {
+    "read_file": "read",
+    "read": "read",
+    "write_file": "edit",
+    "write": "edit",
+    "edit": "edit",
+    "replace": "edit",
+    "run_shell_command": "command",
+    "shell": "command",
+    "bash": "command",
+    "search": "search",
+    "grep": "search",
+    "glob": "search",
+    "web_fetch": "web",
+    "web_search": "web",
+}
+"""Gemini CLI tool names to step kinds. The CLI's tool names are not pinned in
+its headless docs, so an unknown name still reads as `other`."""
+
+_PI_KINDS: dict[str, StepKind] = {
+    "read": "read",
+    "grep": "search",
+    "find": "search",
+    "ls": "search",
+    "write": "edit",
+    "edit": "edit",
+    "bash": "command",
+}
+"""Pi's own tool names - the four it ships with, and the read-only helpers."""
 """Bookkeeping calls, not steps a person would recognise as work."""
 
 _CLAUDE_WRITING_TOOLS = "Edit,MultiEdit,Write,NotebookEdit,Bash"
 
-_SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]{0,63}")
-"""What both harnesses name a session with - a UUID, or Codex's thread id."""
+_SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+"""What the harnesses name a session with - a UUID, Codex's thread id, or
+OpenCode's `ses_…` id, which carries underscores; Pi's ids may carry dots.
+An id that is not one of those starts a fresh session rather than reaching the
+command line."""
 """What a read-only Claude Code session is not given at all - the shell included.
 
 The shell because no list of command prefixes keeps it read-only: a rule is a
@@ -197,6 +277,26 @@ class Usage:
     provider: str | None = None
 
 
+def _key_env(api_key: str | None, model_vendor: str | None, label: str) -> dict[str, str]:
+    """The key, under the variables the model vendor's CLIs read.
+
+    With no model picked there is no vendor to follow, so the key goes under
+    every provider's variable: the CLI's default model decides which provider
+    it calls, and only that provider's variable is ever read. A key for another
+    provider then fails at run time with the CLI's own auth error, reported as
+    a failed prompt rather than a run that looks answered.
+    """
+    if api_key is None:
+        raise UserError(f"{label} needs an API key.")
+    if model_vendor is None:
+        names = tuple(name for names in KEY_ENV.values() for name in names)
+    else:
+        names = KEY_ENV.get(model_vendor, ())
+    if not names:
+        raise UserError(f"{label} runs on an unknown model vendor: {model_vendor}.")
+    return dict.fromkeys(names, api_key)
+
+
 def invocation(
     harness: Harness,
     access: Access,
@@ -206,6 +306,7 @@ def invocation(
     model: str | None,
     session_id: str | None,
     base_url: str | None,
+    model_vendor: str | None = None,
 ) -> Invocation:
     """How to run `task` at `access` on `harness`, continuing `session_id` when given.
 
@@ -215,10 +316,76 @@ def invocation(
     The task goes last, after `--`: it is the model's text, and one opening on a
     dash would otherwise be read as a flag. A session id is what an earlier
     task's output said, and one that is not an id starts a fresh session rather
-    than reach the command line.
+    than reach the command line. OpenCode and Pi take the prompt as a positional
+    argument and Gemini CLI as `-p`'s value, so for those three the task is last
+    without the `--`.
+
+    `model` is the bare model id the binding picked, without its vendor; `model_vendor`
+    is that vendor (`anthropic`, `openai`, `google`). OpenCode and Pi take the
+    model as `provider/model` and read the key from the vendor's variable, so
+    both need the vendor; Claude Code and Codex take the bare id.
     """
+    if harness not in LABELS:
+        # The code below ends in Codex's branch; a harness nobody taught it
+        # must fail here rather than run as Codex.
+        raise UserError(f"Unknown harness: {harness}.")
     if session_id is not None and not _SESSION_ID.fullmatch(session_id):
         session_id = None
+    if harness == "opencode":
+        argv = ["opencode", "--standalone", "run", "--format", "json"]
+        if access == "read_only":
+            # The plan agent denies edits; the note is the same one Claude Code
+            # gets as a system prompt, which OpenCode has no flag for, so the
+            # agent is told rather than only fenced. Its plan files under
+            # `.opencode/plans/` are still writable, and a shell command the
+            # agent runs would need an approval nobody can give headless.
+            argv += ["--agent", "plan"]
+            task = f"{_READ_ONLY_NOTE}\n\n{task}"
+        else:
+            argv += ["--dangerously-skip-permissions"]
+        if model is not None and model_vendor is not None:
+            argv += ["-m", f"{model_vendor}/{model}"]
+        if session_id:
+            argv += ["-s", session_id]
+        argv += [task]
+        # `--standalone` runs a private server for this one run: the background
+        # service keeps the environment it started with, so a key passed to
+        # `run` would never reach it.
+        return Invocation(argv=argv, env=_key_env(api_key, model_vendor, "OpenCode"))
+
+    if harness == "gemini":
+        if api_key is None:
+            raise UserError("Gemini CLI needs a Gemini API key.")
+        argv = ["gemini", "--output-format", "stream-json", "--skip-trust"]
+        if access == "read_only":
+            # Plan mode proposes rather than acting; the note is the same one
+            # Claude Code gets as a system prompt, which Gemini CLI has no
+            # flag for. A personal Google sign-in no longer serves this CLI,
+            # so the key is the only way in.
+            argv += ["--approval-mode", "plan"]
+            task = f"{_READ_ONLY_NOTE}\n\n{task}"
+        else:
+            argv += ["--approval-mode", "yolo"]
+        if model:
+            argv += ["-m", model]
+        if session_id:
+            argv += ["-r", session_id]
+        argv += ["-p", task]
+        return Invocation(argv=argv, env={"GEMINI_API_KEY": api_key})
+
+    if harness == "pi":
+        argv = ["pi", "--mode", "json"]
+        if model is not None and model_vendor is not None:
+            argv += ["-m", f"{model_vendor}/{model}"]
+        if session_id:
+            argv += ["--session", session_id]
+        if access == "read_only":
+            # Pi never asks before a tool call, so the tool list is the whole
+            # fence: the four it ships with, cut to the read-only helpers.
+            argv += ["--tools", "read,grep,find,ls"]
+        argv += [task]
+        return Invocation(argv=argv, env=_key_env(api_key, model_vendor, "Pi"))
+
     if harness == "claude_code":
         argv = ["claude", "-p", "--output-format", "stream-json", "--verbose"]
         argv += (
@@ -366,8 +533,9 @@ def claude_report(
                 if name in _CLAUDE_QUIET:
                     continue
                 step = _claude_step(name, arguments)
-                if step.kind == "edit" and step.title not in files:
-                    files.append(step.title)
+                path = _text(arguments.get("file_path")) or _text(arguments.get("notebook_path"))
+                if step.kind == "edit" and path and path not in files:
+                    files.append(path)
                 key = _text(part.get("id")) or str(len(order))
                 steps[key] = step
                 order.append(key)
@@ -469,6 +637,259 @@ def codex_report(
     )
 
 
+def opencode_report(
+    events: Iterable[dict[str, Any]], *, access: Access, model: str | None
+) -> tuple[CodingReport, Usage]:
+    """OpenCode's `run --format json` stream: `step_start`, `tool_use`, `step_finish`, `text`.
+
+    Every event carries its `sessionID` and a `part`; a `text` event's part
+    holds the answer in `part.text`, and a `step_finish` part holds the step's
+    `reason`, `cost` and `tokens`. There is no closing `step_finish` after the
+    final text, so a run counts as finished when it said something, not when a
+    step closed: text with no error is `completed`, anything else is a session
+    that stopped before it finished.
+    """
+    steps: dict[str, CodingStep] = {}
+    order: list[str] = []
+    files: list[str] = []
+    texts: list[str] = []
+    session_id: str | None = None
+    error: str | None = None
+    usage = Usage(provider=None)
+    for event in events:
+        session_id = _text(event.get("sessionID")) or session_id
+        kind = event.get("type")
+        part = _mapping(event.get("part"))
+        if kind == "text":
+            if text := _text(part.get("text")):
+                texts.append(text)
+        elif kind == "tool_use":
+            tool = (
+                _text(part.get("tool"))
+                or _text(part.get("toolName"))
+                or _text(part.get("name"))
+                or "tool"
+            )
+            state = _mapping(part.get("state"))
+            arguments = (
+                _mapping(state.get("input"))
+                or _mapping(part.get("input"))
+                or _mapping(part.get("args"))
+            )
+            step = _named_step(tool, arguments, _OPENCODE_KINDS)
+            if step.kind == "edit" and step.title not in files:
+                files.append(step.title)
+            key = _text(part.get("id")) or tool
+            if key not in steps:
+                order.append(key)
+            steps[key] = step
+        elif kind == "step_finish":
+            spent = _mapping(part.get("tokens"))
+            if spent:
+                name = model or "opencode"
+                previous = usage.by_model.get(name, RequestUsage())
+                usage.by_model[name] = previous + _opencode_usage(spent)
+        elif kind == "error":
+            error = (
+                _text(part.get("message"))
+                or _text(part.get("text"))
+                or "OpenCode stopped with an error."
+            )
+
+    if error is not None:
+        return (
+            CodingReport(
+                harness="opencode",
+                access=access,
+                outcome="failed",
+                answer=bounded(error),
+                session_id=session_id,
+                steps=last_steps([steps[key] for key in order]),
+                files_changed=files if access == "edit" else [],
+            ),
+            usage,
+        )
+    if not texts:
+        return _unfinished("opencode", access, session_id, [steps[key] for key in order]), usage
+    return (
+        CodingReport(
+            harness="opencode",
+            access=access,
+            outcome="completed",
+            answer=bounded("\n\n".join(texts)),
+            session_id=session_id,
+            steps=last_steps([steps[key] for key in order]),
+            files_changed=files if access == "edit" else [],
+        ),
+        usage,
+    )
+
+
+def gemini_report(
+    events: Iterable[dict[str, Any]], *, access: Access, model: str | None
+) -> tuple[CodingReport, Usage]:
+    """Gemini CLI's `--output-format stream-json` stream.
+
+    `init` carries the session id, `message` events carry the assistant's text
+    in chunks, `tool_use` and `tool_result` bracket a tool call, and `result`
+    closes the run with aggregated statistics. `error` events are non-fatal
+    warnings as the CLI words them; a run with no `result` still failed, and
+    the last error it printed is the reason it gives rather than a sentence
+    that says only that it stopped.
+    """
+    steps: list[CodingStep] = []
+    texts: list[str] = []
+    session_id: str | None = None
+    error: str | None = None
+    finished = False
+    usage = Usage(provider="google")
+    for event in events:
+        kind = event.get("type")
+        if kind == "init":
+            session_id = _text(event.get("session_id")) or session_id
+        elif kind == "message":
+            if _gemini_role(event) == "user":
+                continue
+            if text := _gemini_text(event):
+                texts.append(text)
+        elif kind == "tool_use":
+            tool = (
+                _text(event.get("tool"))
+                or _text(event.get("toolName"))
+                or _text(event.get("name"))
+                or "tool"
+            )
+            arguments = (
+                _mapping(event.get("args"))
+                or _mapping(event.get("input"))
+                or _mapping(event.get("parameters"))
+            )
+            steps.append(_named_step(tool, arguments, _GEMINI_KINDS))
+        elif kind == "tool_result":
+            if (event.get("error") or event.get("is_error") is True) and steps:
+                steps[-1] = steps[-1].model_copy(update={"failed": True})
+        elif kind == "error":
+            error = _text(event.get("message")) or _text(event.get("error")) or error
+        elif kind == "result":
+            finished = True
+            stats = _mapping(event.get("stats")) or _mapping(event.get("usage"))
+            if stats:
+                usage = _gemini_usage(stats, model)
+
+    if finished:
+        return (
+            CodingReport(
+                harness="gemini",
+                access=access,
+                outcome="completed",
+                answer=bounded("\n\n".join(texts) or "(Gemini CLI sent no answer.)"),
+                session_id=session_id,
+                steps=last_steps(steps),
+                files_changed=_changed(steps) if access == "edit" else [],
+            ),
+            usage,
+        )
+    if error is not None:
+        return (
+            CodingReport(
+                harness="gemini",
+                access=access,
+                outcome="failed",
+                answer=bounded(error),
+                session_id=session_id,
+                steps=last_steps(steps),
+                files_changed=_changed(steps) if access == "edit" else [],
+            ),
+            usage,
+        )
+    return _unfinished("gemini", access, session_id, steps), usage
+
+
+def pi_report(
+    events: Iterable[dict[str, Any]], *, access: Access, model: str | None
+) -> tuple[CodingReport, Usage]:
+    """Pi's `--mode json` stream: a session header, then session events.
+
+    The first record is the session header, whose `id` is the session to
+    resume. `message_end` carries the authoritative final message; the
+    `message_update` deltas before it are progress, not the answer, and its
+    `usage` is the latest cumulative provider-reported usage. A run counts as
+    finished only at `agent_settled` with `aborted` false: `agent_end` can be
+    followed by automatic retry or follow-up work. A final `auto_retry_end`
+    with `success` false, or a settled run that was aborted, is a failure with
+    the reason Pi gave.
+    """
+    steps: dict[str, CodingStep] = {}
+    order: list[str] = []
+    texts: list[str] = []
+    session_id: str | None = None
+    error: str | None = None
+    settled = False
+    aborted = False
+    usage = Usage(provider=None)
+    for event in events:
+        kind = event.get("type")
+        if kind == "session":
+            session_id = _text(event.get("id")) or session_id
+        elif kind == "message_update":
+            spent = _mapping(event.get("usage"))
+            if spent:
+                usage = Usage(by_model={model or "pi": _pi_usage(spent)}, provider=usage.provider)
+        elif kind == "message_end":
+            message = _mapping(event.get("message"))
+            text = _pi_text(message) if message.get("role") == "assistant" else None
+            if text:
+                texts.append(text)
+            if message.get("stopReason") in ("error", "aborted"):
+                error = text or "Pi stopped with an error."
+        elif kind == "tool_execution_start":
+            tool = _text(event.get("toolName")) or "tool"
+            arguments = _mapping(event.get("args"))
+            key = _text(event.get("toolCallId")) or tool
+            if key not in steps:
+                order.append(key)
+            steps[key] = _named_step(tool, arguments, _PI_KINDS)
+        elif kind == "tool_execution_end":
+            key = _text(event.get("toolCallId"))
+            if key in steps and event.get("isError") is True:
+                steps[key] = steps[key].model_copy(update={"failed": True})
+        elif kind == "auto_retry_end":
+            if event.get("success") is False:
+                error = _text(event.get("finalError")) or "Pi stopped with an error."
+        elif kind == "agent_settled":
+            settled = True
+            aborted = event.get("aborted") is True
+
+    ordered = [steps[key] for key in order]
+    if settled and not aborted and error is None:
+        return (
+            CodingReport(
+                harness="pi",
+                access=access,
+                outcome="completed",
+                answer=bounded("\n\n".join(texts) or "(Pi sent no answer.)"),
+                session_id=session_id,
+                steps=last_steps(ordered),
+                files_changed=_changed(ordered) if access == "edit" else [],
+            ),
+            usage,
+        )
+    if settled or error is not None:
+        return (
+            CodingReport(
+                harness="pi",
+                access=access,
+                outcome="failed",
+                answer=bounded(error or "Pi stopped before it finished."),
+                session_id=session_id,
+                steps=last_steps(ordered),
+                files_changed=_changed(ordered) if access == "edit" else [],
+            ),
+            usage,
+        )
+    return _unfinished("pi", access, session_id, ordered), usage
+
+
 def live_items(harness: Harness, event: dict[str, Any]) -> list[LiveItem]:
     """What one event shows a person watching the task, in the order it shows it.
 
@@ -478,7 +899,13 @@ def live_items(harness: Harness, event: dict[str, Any]) -> list[LiveItem]:
     """
     if harness == "claude_code":
         return _claude_live(event)
-    return _codex_live(event)
+    if harness == "codex":
+        return _codex_live(event)
+    if harness == "opencode":
+        return _opencode_live(event)
+    if harness == "gemini":
+        return _gemini_live(event)
+    return _pi_live(event)
 
 
 def _claude_live(event: dict[str, Any]) -> list[LiveItem]:
@@ -517,6 +944,60 @@ def _codex_live(event: dict[str, Any]) -> list[LiveItem]:
     return [StepStarted(key, step), StepEnded(key, failed=step.failed)]
 
 
+def _opencode_live(event: dict[str, Any]) -> list[LiveItem]:
+    kind = event.get("type")
+    part = _mapping(event.get("part"))
+    if kind == "text" and (text := _text(part.get("text"))):
+        return [Said(text)]
+    if kind != "tool_use":
+        return []
+    tool = _text(part.get("tool")) or _text(part.get("toolName")) or "tool"
+    state = _mapping(part.get("state"))
+    arguments = (
+        _mapping(state.get("input")) or _mapping(part.get("input")) or _mapping(part.get("args"))
+    )
+    step = _named_step(tool, arguments, _OPENCODE_KINDS)
+    key = _text(part.get("id")) or tool
+    # The stream carries no per-call finish event - a `step_finish` closes a
+    # whole step, not one call - so the call opens and closes on this event,
+    # the way Codex's completed items do.
+    return [StepStarted(key, step), StepEnded(key, failed=False)]
+
+
+def _gemini_live(event: dict[str, Any]) -> list[LiveItem]:
+    kind = event.get("type")
+    if kind == "message":
+        if _gemini_role(event) == "user":
+            return []
+        text = _gemini_text(event)
+        return [Said(text)] if text else []
+    if kind != "tool_use":
+        return []
+    tool = _text(event.get("tool")) or _text(event.get("toolName")) or "tool"
+    arguments = _mapping(event.get("args")) or _mapping(event.get("input"))
+    step = _named_step(tool, arguments, _GEMINI_KINDS)
+    key = _text(event.get("id")) or tool
+    return [StepStarted(key, step), StepEnded(key, failed=False)]
+
+
+def _pi_live(event: dict[str, Any]) -> list[LiveItem]:
+    kind = event.get("type")
+    if kind == "tool_execution_start":
+        tool = _text(event.get("toolName")) or "tool"
+        key = _text(event.get("toolCallId")) or tool
+        return [StepStarted(key, _named_step(tool, _mapping(event.get("args")), _PI_KINDS))]
+    if kind == "tool_execution_end":
+        key = _text(event.get("toolCallId"))
+        return [StepEnded(key, failed=event.get("isError") is True)] if key else []
+    if kind == "message_end":
+        message = _mapping(event.get("message"))
+        # The deltas in `message_update` are progress; only the authoritative
+        # final message is shown, once.
+        if message.get("role") == "assistant" and (text := _pi_text(message)):
+            return [Said(text)]
+    return []
+
+
 def _claude_step(name: str, arguments: dict[str, Any]) -> CodingStep:
     kind = _CLAUDE_KINDS.get(name, "other")
     title = (
@@ -530,6 +1011,166 @@ def _claude_step(name: str, arguments: dict[str, Any]) -> CodingStep:
         or name
     )
     return CodingStep(kind=kind, title=clip(title))
+
+
+def _named_step(tool: str, arguments: dict[str, Any], kinds: dict[str, StepKind]) -> CodingStep:
+    """One tool call as a step, named after what it did rather than its id."""
+    title = (
+        _text(arguments.get("command"))
+        or _text(arguments.get("file_path"))
+        or _text(arguments.get("filePath"))
+        or _text(arguments.get("file"))
+        or _text(arguments.get("path"))
+        or _text(arguments.get("pattern"))
+        or _text(arguments.get("url"))
+        or _text(arguments.get("query"))
+        or _text(arguments.get("description"))
+        or tool
+    )
+    return CodingStep(kind=kinds.get(tool, "other"), title=clip(title))
+
+
+def _changed(steps: list[CodingStep]) -> list[str]:
+    """The files an edit step named, in the order they were first touched."""
+    files: list[str] = []
+    for step in steps:
+        if step.kind == "edit" and step.title not in files:
+            files.append(step.title)
+    return files
+
+
+def _gemini_role(event: dict[str, Any]) -> str | None:
+    """A message event's role, whether it sits on the event or its message."""
+    role = _text(event.get("role"))
+    if role is None:
+        role = _text(_mapping(event.get("message")).get("role"))
+    return role
+
+
+def _gemini_text(event: dict[str, Any]) -> str | None:
+    """An assistant message event's text, in the shapes the stream shows."""
+    message = event.get("message")
+    if isinstance(message, str):
+        return message or None
+    if isinstance(message, dict):
+        content = message.get("content")
+        if isinstance(content, str):
+            return content or None
+        if isinstance(content, list):
+            return (
+                "\n".join(
+                    _text(part.get("text")) or "" for part in content if isinstance(part, dict)
+                )
+                or None
+            )
+        return _text(message.get("text"))
+    return _text(event.get("text")) or _text(event.get("delta"))
+
+
+def _pi_text(message: dict[str, Any]) -> str | None:
+    """An assistant message's text, whether a string or a list of blocks."""
+    content = message.get("content")
+    if isinstance(content, str):
+        return content or None
+    if isinstance(content, list):
+        texts = [
+            _text(part.get("text")) or ""
+            for part in content
+            if isinstance(part, dict) and part.get("type") == "text"
+        ]
+        return "\n".join(text for text in texts if text) or None
+    return None
+
+
+def _opencode_usage(spent: dict[str, Any]) -> RequestUsage:
+    """One finished step's tokens: `input` apart from its cache, per the shape
+    the CLI's own docs show (`input` 4 beside `cache.read` 7860)."""
+    cache = _mapping(spent.get("cache"))
+    fresh = _count(spent.get("input"))
+    read = _count(cache.get("read"))
+    written = _count(cache.get("write"))
+    return RequestUsage(
+        input_tokens=fresh + read + written,
+        cache_read_tokens=read,
+        cache_write_tokens=written,
+        output_tokens=_count(spent.get("output")),
+    )
+
+
+def _gemini_usage(stats: dict[str, Any], model: str | None) -> Usage:
+    """A `result` event's statistics, booked under the model that ran.
+
+    The docs show the shape only as "aggregated statistics and per-model token
+    usage": a flat token count books under the model asked for, and a
+    per-model mapping books each entry under its own name. Anything else books
+    nothing, and the prompt is booked unpriced rather than guessed at.
+    """
+    by_model: dict[str, RequestUsage] = {}
+    per_model = _mapping(stats.get("models")) or _mapping(stats.get("per_model"))
+    if per_model:
+        for name, entry in per_model.items():
+            spent = _mapping(entry)
+            if spent:
+                by_model[str(name)] = _token_usage(spent)
+    elif _has_tokens(stats):
+        by_model[model or "gemini"] = _token_usage(stats)
+    return Usage(by_model=by_model, provider="google")
+
+
+def _pi_usage(spent: dict[str, Any]) -> RequestUsage:
+    """Pi's cumulative usage: `input` and `output` with the cache apart."""
+    read = _count(spent.get("cacheRead"))
+    written = _count(spent.get("cacheWrite"))
+    return RequestUsage(
+        input_tokens=_count(spent.get("input")),
+        cache_read_tokens=read,
+        cache_write_tokens=written,
+        output_tokens=_count(spent.get("output")),
+    )
+
+
+def _has_tokens(stats: dict[str, Any]) -> bool:
+    return any(
+        isinstance(stats.get(key), int)
+        for key in (
+            "input_tokens",
+            "inputTokens",
+            "input",
+            "output_tokens",
+            "outputTokens",
+            "output",
+        )
+    )
+
+
+def _token_usage(spent: dict[str, Any]) -> RequestUsage:
+    """Token counts in either spelling: the CLI's own, or the API's."""
+    fresh = _count(spent.get("input_tokens"))
+    if fresh == 0:
+        fresh = _count(spent.get("inputTokens"))
+    if fresh == 0:
+        fresh = _count(spent.get("input"))
+    read = _count(spent.get("cached_input_tokens"))
+    if read == 0:
+        read = _count(spent.get("cache_read_tokens"))
+    if read == 0:
+        read = _count(spent.get("cacheRead"))
+    written = _count(spent.get("cache_creation_input_tokens"))
+    if written == 0:
+        written = _count(spent.get("cache_write_tokens"))
+    if written == 0:
+        written = _count(spent.get("cacheWrite"))
+    output = _count(spent.get("output_tokens"))
+    if output == 0:
+        output = _count(spent.get("outputTokens"))
+    if output == 0:
+        output = _count(spent.get("output"))
+    return RequestUsage(
+        input_tokens=fresh + read + written,
+        cache_read_tokens=read,
+        cache_write_tokens=written,
+        output_tokens=output,
+    )
 
 
 def _codex_item(item: dict[str, Any]) -> tuple[str | None, CodingStep | None, list[str]]:

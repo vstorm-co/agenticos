@@ -5,6 +5,7 @@ import { retainNextSteps } from "@/lib/next-step-events";
 import { create, createStore, type StateCreator } from "zustand";
 
 import { scopedStore } from "./chat-scope-context";
+import type { TranscriptIdentity } from "./conversation-store";
 import { clientId } from "@/lib/ids";
 import type { ChatMessage, MessagePart, MessageReply, ToolCall } from "@/types";
 
@@ -74,6 +75,8 @@ function persistedAliases(local: ChatMessage[], history: ChatMessage[]): Map<str
 
 export interface ChatState {
   messages: ChatMessage[];
+  /** Set atomically with the converted transcript, before its socket may attach. */
+  loadedTranscript: TranscriptIdentity | null;
   isStreaming: boolean;
 
   addMessage: (message: ChatMessage) => void;
@@ -99,7 +102,7 @@ export interface ChatState {
   setStreaming: (streaming: boolean) => void;
   clearMessages: () => void;
   /** Reconcile stored rows while retaining later turns and unsaved local outcomes. */
-  rereadMessages: (history?: ChatMessage[]) => void;
+  rereadMessages: (history?: ChatMessage[], identity?: TranscriptIdentity | null) => void;
   /** The message the next turn replies to, chosen with Reply; null for none. */
   replyTo: MessageReply | null;
   setReplyTo: (reply: MessageReply | null) => void;
@@ -107,6 +110,7 @@ export interface ChatState {
 
 const chatState: StateCreator<ChatState> = (set) => ({
   messages: [],
+  loadedTranscript: null,
   isStreaming: false,
   replyTo: null,
 
@@ -231,21 +235,37 @@ const chatState: StateCreator<ChatState> = (set) => ({
   setStreaming: (streaming) => set({ isStreaming: streaming }),
 
   // Another conversation opened: a reply chosen in this one goes with it.
-  clearMessages: () => set({ messages: [], replyTo: null }),
-  rereadMessages: (history = []) =>
+  clearMessages: () => set({ messages: [], replyTo: null, loadedTranscript: null }),
+  rereadMessages: (history = [], identity = null) =>
     set((state) => {
-      if (history.length === 0) return { messages: [] };
+      const previous = state.loadedTranscript;
+      const sameTranscript =
+        identity !== null &&
+        previous !== null &&
+        previous.conversationId === identity.conversationId &&
+        previous.selectionVersion === identity.selectionVersion &&
+        previous.accountId === identity.accountId &&
+        (previous.tenantId === identity.tenantId ||
+          // Only a successful history commit may give an unresolved live
+          // transcript its concrete tenant. The stored identity changes now;
+          // null never acts as a wildcard for a later tenant or socket attach.
+          (previous.tenantId === null && identity.tenantId !== null));
+      const local = identity !== null && !sameTranscript ? [] : state.messages;
+      // An empty refresh can have started before a live message arrived. Keep
+      // those newer messages only within this exact loaded selection/session.
+      if (history.length === 0)
+        return { messages: identity === null ? [] : local, loadedTranscript: identity };
       const incoming = new Map(history.map((message) => [message.id, message]));
-      const aliases = persistedAliases(state.messages, history);
+      const aliases = persistedAliases(local, history);
       const savedId = (message: ChatMessage): string =>
         aliases.get(message.id) ?? message.persistedId ?? message.id;
-      const anchor = state.messages.findLastIndex((message) => incoming.has(savedId(message)));
+      const anchor = local.findLastIndex((message) => incoming.has(savedId(message)));
       const before = new Map<string | undefined, ChatMessage[]>();
       let nextPersisted: string | undefined;
       // The server's ordinal order is authoritative, including tied timestamps.
       // Local-only outcomes keep their place beside the nearest persisted row.
-      for (let index = state.messages.length - 1; index >= 0; index--) {
-        const message = state.messages[index]!;
+      for (let index = local.length - 1; index >= 0; index--) {
+        const message = local[index]!;
         const id = savedId(message);
         const persisted = incoming.get(id);
         if (persisted) {
@@ -274,7 +294,7 @@ const chatState: StateCreator<ChatState> = (set) => ({
         message,
       ]);
       messages.push(...(before.get(undefined) ?? []).reverse());
-      return { messages };
+      return { messages, loadedTranscript: identity };
     }),
   setReplyTo: (replyTo) => set({ replyTo }),
 });

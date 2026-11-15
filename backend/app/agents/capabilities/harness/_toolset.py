@@ -1,10 +1,10 @@
 """`harness_start`, `harness_prompt`, `harness_stop` and `harness_sessions`.
 
-One idea, four tools: a CLI session - Claude Code or Codex in the agent's
-sandbox - that the agent drives across turns as its working backend, instead
-of firing one-off tasks at it. The session is the CLI's own: its id is kept
-beside the work, so a follow-up prompt continues the same conversation, with
-the same files and context the earlier prompts left.
+One idea, four tools: a CLI session - Claude Code, Codex, OpenCode, Gemini CLI
+or Pi in the agent's sandbox - that the agent drives across turns as its working
+backend, instead of firing one-off tasks at it. The session is the CLI's own: its
+id is kept beside the work, so a follow-up prompt continues the same conversation,
+with the same files and context the earlier prompts left.
 
 What the model must not choose is closed over: which harness, what it may do,
 its model and its key. It chooses the session and what to say to it. Whether
@@ -33,8 +33,11 @@ from app.agents.capabilities.coding_agent._harness import (
     Usage,
     claude_report,
     codex_report,
+    gemini_report,
     invocation,
     live_items,
+    opencode_report,
+    pi_report,
 )
 from app.agents.capabilities.coding_agent._narration import Narration
 from app.agents.capabilities.coding_agent._task import (
@@ -69,6 +72,7 @@ def build_harness_toolset(
     base_url: str | None,
     api_key: str | None,
     timeout_seconds: int,
+    model_vendor: str | None = None,
 ) -> FunctionToolset[Any]:
     """The tools, bound to one harness, its access, its model and its key.
 
@@ -95,8 +99,7 @@ def build_harness_toolset(
     async def harness_start(ctx: RunContext[Any], prompt: str, session: str = MAIN_SESSION) -> str:
         """Open a named harness session with a first prompt, and keep it open.
 
-        The harness (Claude Code or Codex) is a separate agent with its own
-        tools: it reads the code, searches it and - when this agent may change
+        The harness is a separate agent with its own tools: it reads the code, searches it and - when this agent may change
         code - edits files and runs commands such as tests, then answers. The
         person watches it work. Open one session per line of work and keep
         prompting it, rather than starting over for every question: the
@@ -280,6 +283,7 @@ def build_harness_toolset(
                 prompt,
                 api_key=api_key,
                 model=model,
+                model_vendor=model_vendor,
                 session_id=session_id,
                 base_url=base_url,
             )
@@ -323,18 +327,37 @@ def build_harness_toolset(
     def _spent(events: list[dict[str, Any]]) -> Usage:
         if harness == "claude_code":
             return claude_report(events, access=access, base_url=base_url)[1]
-        return codex_report(events, access=access, model=model)[1]
+        if harness == "codex":
+            return codex_report(events, access=access, model=model)[1]
+        if harness == "opencode":
+            return opencode_report(events, access=access, model=model)[1]
+        if harness == "gemini":
+            return gemini_report(events, access=access, model=model)[1]
+        return pi_report(events, access=access, model=model)[1]
 
     def _reported(outcome: Outcome) -> HarnessReport | str:
         if outcome.exit_code == MISSING_COMMAND and not outcome.events:
+            if harness in ("claude_code", "codex"):
+                return (
+                    f"{label} is not installed in this sandbox's runtime. The `workbench` "
+                    "runtime has it; say that the agent's sandbox needs it."
+                )
+            # Whether the `workbench` runtime ships the newer CLIs is not
+            # established; say only that the sandbox needs it.
             return (
-                f"{label} is not installed in this sandbox's runtime. The `workbench` "
-                "runtime has it; say that the agent's sandbox needs it."
+                f"{label} is not installed in this sandbox's runtime. Say that "
+                "the agent's sandbox needs it installed."
             )
         if harness == "claude_code":
             report, usage = claude_report(outcome.events, access=access, base_url=base_url)
-        else:
+        elif harness == "codex":
             report, usage = codex_report(outcome.events, access=access, model=model)
+        elif harness == "opencode":
+            report, usage = opencode_report(outcome.events, access=access, model=model)
+        elif harness == "gemini":
+            report, usage = gemini_report(outcome.events, access=access, model=model)
+        else:
+            report, usage = pi_report(outcome.events, access=access, model=model)
         _book(usage)
         converted = from_coding(report)
         if outcome.timed_out:

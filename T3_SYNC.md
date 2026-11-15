@@ -3,8 +3,8 @@
 This repository contains a deterministic downstream updater and CI definitions.
 Installing these files does not enable a trigger, grant access or establish a
 passing CI check. The initial rollout still requires the cloud and GitHub setup
-below. GitHub Actions remains disabled in this central fork; central validation
-uses Cloud Build.
+below. GitHub Actions runs checks only in this fork; central validation and
+downstream updates use Cloud Build.
 
 ## Execution and trust
 
@@ -53,8 +53,10 @@ update. Closing a bot PR without merging also stops automatic reuse. Resolve
 that PR or retire its branch deliberately before resuming. Key rotation likewise
 requires completing or retiring pending branches signed with the previous key.
 
-Incoming changes to `.github/workflows/` require separate fork review. The bot
-does not request workflow-write permission or activate inherited workflows.
+Incoming changes to `.github/workflows/` require separate fork review. During
+an upstream sync, keep every new or changed non-CI workflow parked under
+`.github/workflows-disabled/`; only reviewed check workflows may remain active.
+The bot does not request workflow-write permission or activate inherited workflows.
 
 ## Validation definition
 

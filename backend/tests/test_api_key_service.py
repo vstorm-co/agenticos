@@ -140,6 +140,7 @@ class TestRotating:
             setattr(key, name, value)
         return key
 
+    @pytest.mark.security
     async def test_rotation_mints_a_new_secret_and_revokes_the_old(self) -> None:
         ctx = _ctx(OrgRoleName.MEMBER)
         old = _key(ctx)

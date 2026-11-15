@@ -31,6 +31,7 @@ def _caller(role: str, *, app_admin: bool = False, scoped: bool = False) -> Auth
 
 
 @pytest.mark.parametrize("role", list(OrgRoleName))
+@pytest.mark.security
 async def test_any_member_reads_this_tenant_policy_and_their_own_hidden_entries(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch, role: OrgRoleName
 ) -> None:
@@ -50,6 +51,7 @@ async def test_any_member_reads_this_tenant_policy_and_their_own_hidden_entries(
 
 
 @pytest.mark.parametrize("role", ["builder", "operator", "member", "viewer"])
+@pytest.mark.security
 async def test_a_non_manager_cannot_save_even_an_empty_policy(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch, role: str
 ) -> None:
@@ -62,6 +64,7 @@ async def test_a_non_manager_cannot_save_even_an_empty_policy(
 
 
 @pytest.mark.parametrize("app_admin", [False, True])
+@pytest.mark.security
 async def test_api_key_scopes_still_limit_an_owner_or_platform_admin(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch, app_admin: bool
 ) -> None:
@@ -76,6 +79,7 @@ async def test_api_key_scopes_still_limit_an_owner_or_platform_admin(
 @pytest.mark.parametrize(
     ("caller", "target"), [("owner", "owner"), ("admin", "admin"), ("admin", "owner")]
 )
+@pytest.mark.security
 async def test_owner_and_peer_policy_writes_are_refused(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch, caller: str, target: str
 ) -> None:
@@ -88,6 +92,7 @@ async def test_owner_and_peer_policy_writes_are_refused(
 
 
 @pytest.mark.parametrize("app_admin", [False, True])
+@pytest.mark.security
 async def test_a_manager_saves_and_resets_only_the_selected_role_in_the_active_org(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch, app_admin: bool
 ) -> None:
@@ -128,6 +133,7 @@ async def test_a_manager_saves_and_resets_only_the_selected_role_in_the_active_o
         ("member", {"hidden_items": [], "organization_id": str(uuid4())}),
     ],
 )
+@pytest.mark.security
 async def test_invalid_roles_entries_and_tenant_overrides_are_validation_errors(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch, target: str, payload: dict[str, object]
 ) -> None:
@@ -140,6 +146,7 @@ async def test_invalid_roles_entries_and_tenant_overrides_are_validation_errors(
 
 
 @pytest.mark.parametrize("method", ["get", "patch"])
+@pytest.mark.security
 async def test_a_nonmember_cannot_select_another_organization_by_header(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch, method: str
 ) -> None:

@@ -60,6 +60,9 @@ async def _export(*_args: Any) -> RecordExport:
     return RecordExport(filename="Orders.csv", lines=lines())
 
 
+_AS_OF = datetime(2026, 11, 12, 9, 0, tzinfo=UTC)
+
+
 def _record(revision: int = 1) -> RecordRead:
     return RecordRead(
         id=_RECORD,
@@ -95,10 +98,13 @@ def service() -> MagicMock:
         archive_table=AsyncMock(return_value=_table()),
         unarchive_table=AsyncMock(return_value=_table()),
         update_schema=AsyncMock(return_value=_table()),
+        set_row_policy=AsyncMock(return_value=_table()),
         list_schema_versions=AsyncMock(return_value={"items": []}),
         list_records=AsyncMock(return_value=RecordList(items=[], skip=0, limit=50, has_more=False)),
         count_records=AsyncMock(return_value=RecordCount(count=3, capped=False)),
-        create_records=AsyncMock(return_value=RecordBatchResult(created=1, failed=[])),
+        write_batch=AsyncMock(
+            return_value=(RecordBatchResult(created=1, failed=[], as_of=_AS_OF), False)
+        ),
         export_records=AsyncMock(side_effect=_export),
         record_exists=AsyncMock(return_value=True),
         get_record=AsyncMock(return_value=_record()),
@@ -177,6 +183,42 @@ async def test_the_per_table_routes_answer_with_the_table(client):
 
     assert [r.status_code for r in responses] == [200, 200, 200, 200, 200]
     assert versions.json() == {"items": []}
+
+
+async def test_setting_a_row_policy_passes_the_document_to_the_service(client, service):
+    assignee = str(uuid.uuid4())
+    async with client() as http:
+        response = await http.put(
+            _url(f"/{_TABLE}/row-policy"),
+            json={
+                "rule": "assignee",
+                "view_column_id": assignee,
+                "edit_column_id": assignee,
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["name"] == "Orders"
+    ctx, table_id, data = service.set_row_policy.await_args.args
+    assert table_id == _TABLE
+    assert data.rule == "assignee"
+    assert str(data.view_column_id) == assignee
+
+
+async def test_a_viewer_reaches_the_row_policy_service_because_no_route_gate_blocks_them(
+    client, service
+):
+    """The access decision is the service's, via `resolve_access`: a route-level
+    role gate would refuse a grant holder before the service is reached, so
+    this route carries none - a viewer gets the service's answer, not a 403."""
+    viewer = AuthContext(user_id=uuid.uuid4(), organization_id=_ORG, role=OrgRoleName.VIEWER)
+    app.dependency_overrides[deps.get_auth_context] = lambda: viewer
+
+    async with client() as http:
+        response = await http.put(_url(f"/{_TABLE}/row-policy"), json={"rule": "none"})
+
+    assert response.status_code == 200
+    service.set_row_policy.assert_awaited_once()
 
 
 async def test_creating_a_record_is_a_201_and_passes_the_operation_key_through(client, service):
@@ -289,9 +331,43 @@ async def test_a_batch_hands_the_service_at_most_two_hundred_records(client, ser
         too_many = await http.post(_records("/batch"), json={"records": [{"values": {}}] * 201})
 
     assert written.status_code == 200
-    assert written.json() == {"created": 1, "updated": 0, "failed": []}
+    assert written.json() == {
+        "created": 1,
+        "updated": 0,
+        "failed": [],
+        "as_of": _AS_OF.isoformat().replace("+00:00", "Z"),
+    }
+    assert "idempotent-replayed" not in written.headers
     assert (empty.status_code, too_many.status_code) == (422, 422)
-    assert len(service.create_records.await_args.args[2].records) == 1
+    assert len(service.write_batch.await_args.args[2].records) == 1
+    assert service.write_batch.await_args.kwargs["operation_key"] is None
+
+
+async def test_a_batch_naming_a_time_without_a_zone_is_refused(client, service):
+    async with client() as http:
+        naive = await http.post(
+            _records("/batch"),
+            json={"records": [{"values": {}}], "as_of": "2026-11-12T09:00:00"},
+        )
+
+    assert naive.status_code == 422
+    service.write_batch.assert_not_awaited()
+
+
+async def test_a_batch_sent_again_under_its_key_says_it_was_replayed(client, service):
+    service.write_batch.return_value = (
+        RecordBatchResult(created=1, failed=[], as_of=_AS_OF),
+        True,
+    )
+    async with client() as http:
+        replayed = await http.post(
+            _records("/batch"),
+            json={"records": [{"values": {}}]},
+            headers={"Idempotency-Key": "import-1"},
+        )
+
+    assert replayed.headers["idempotent-replayed"] == "true"
+    assert service.write_batch.await_args.kwargs["operation_key"] == "import-1"
 
 
 async def test_an_export_answers_a_csv_file_named_after_its_table(client, service):
@@ -528,7 +604,21 @@ def test_the_openapi_document_lists_403_on_the_gated_routes_and_only_on_them():
 
     with_403 = {key for key, operation in table_routes.items() if "403" in operation["responses"]}
 
-    assert with_403 == {(prefix, "get"), (prefix, "post")}
+    # The collection's role gate, and refusals about something the caller can already
+    # see, so answered outright rather than as a 404: changes to a task board itself, a
+    # view's visibility, which only its owner changes, and resuming a table trigger
+    # without the right to run its workflow.
+    assert with_403 == {
+        (prefix, "get"),
+        (prefix, "post"),
+        (f"{prefix}/{{table_id}}", "patch"),
+        (f"{prefix}/{{table_id}}/archive", "post"),
+        (f"{prefix}/{{table_id}}/unarchive", "post"),
+        (f"{prefix}/{{table_id}}/schema", "put"),
+        (f"{prefix}/{{table_id}}/triggers/{{trigger_id}}", "patch"),
+        (f"{prefix}/{{table_id}}/views/{{view_id}}", "patch"),
+        (f"{prefix}/{{table_id}}/views/{{view_id}}", "delete"),
+    }
     refusal = table_routes[(prefix, "post")]["responses"]["403"]
     assert refusal["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/ErrorEnvelope"
@@ -614,6 +704,7 @@ _MUTATIONS = [
     ("post", _url(f"/{_TABLE}/archive"), None),
     ("post", _url(f"/{_TABLE}/unarchive"), None),
     ("put", _url(f"/{_TABLE}/schema"), {"expected_version": 1, "columns": []}),
+    ("put", _url(f"/{_TABLE}/row-policy"), {"rule": "none"}),
     ("post", _records(), {"values": {}}),
     ("patch", _records(f"/{_RECORD}"), {"expected_revision": 1, "values": {}}),
     ("put", _records("/by-external-id/A-1"), {"values": {}}),
@@ -633,6 +724,7 @@ _MUTATIONS = [
         "archive-table",
         "unarchive-table",
         "change-schema",
+        "set-row-policy",
         "create-record",
         "update-record",
         "upsert-record",

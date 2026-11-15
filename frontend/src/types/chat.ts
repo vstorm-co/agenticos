@@ -85,9 +85,14 @@ export interface ChatMessage {
   timestamp: Date;
   toolCalls?: ToolCall[];
   isStreaming?: boolean;
+  /** Local reveal for a newly received setup reply; absent from loaded history. */
+  animateSetupReply?: boolean;
   /** Run-level pause, including gated delegate tools absent from this message. */
   runWaitingFor?: "approval" | "answer";
   runStartedAt?: Date;
+  runFailed?: boolean;
+  /** Safe run failure explanation, shown separately from the assistant's words. */
+  runError?: string;
   /** Group ID for related messages in a multi-agent chain. */
   groupId?: string;
   /** IDs of attached files - kept for sending. Use `files` for rendering. */
@@ -209,7 +214,14 @@ export interface ToolCall {
 
 /** The kinds of segment a turn is built from, live and replayed alike. */
 export type MessagePartType =
-  "thinking" | "text" | "tool" | "ask_user" | "steer" | "workflow_run" | "phone_call";
+  | "thinking"
+  | "text"
+  | "tool"
+  | "ask_user"
+  | "steer"
+  | "workflow_run"
+  | "phone_call"
+  | "model_setup";
 
 /** A workflow answering a chat turn: which run it is and where it stands. */
 export interface WorkflowRunPart {
@@ -224,6 +236,7 @@ export interface WorkflowRunPart {
 
 /** One ordered segment of an assistant turn. */
 export interface MessagePart {
+  setupAgentId?: string;
   id: string;
   type: MessagePartType;
   /** Text for "thinking"/"text" parts, and what the person added for a "steer" (#2087). */
@@ -295,6 +308,7 @@ export type WSEventType =
   | "next_steps"
   | "user_prompt"
   | "session_ready"
+  | "model_setup_required"
   | "model_request_start"
   | "text_delta"
   | "thinking_delta"
@@ -328,6 +342,8 @@ export type WSEventType =
   | "background_task_turn"
   | "turn_prompt"
   | "presence"
+  | "room_message"
+  | "room_request"
   | "typing"
   | "turn_followed_to_end"
   // Sent on every turn and deliberately unread, because each only announces a step
@@ -532,6 +548,10 @@ export interface ActionRequest {
   context?: Record<string, string> | null;
   /** Which of a service's accounts the call acts as, where its binding names one. */
   account?: string | null;
+  /** What the call quotes from its run was left out, because this person may not see the run. */
+  content_hidden?: boolean;
+  /** Only a person's answer could let the call run; with `content_hidden`, only Reject is offered. */
+  always_asks?: boolean;
 }
 
 export interface ReviewConfig {
@@ -678,14 +698,14 @@ export interface SubagentStartFrame extends SubagentFrameBase {
    */
   specialist: SpecialistDefinition | null;
   /**
-   * Set when the worker is Claude Code or Codex, started by the `coding_agent`
+   * Set when the worker is a coding harness, started by the `coding_agent`
    * capability rather than delegated to an agent, so the panel draws its mark.
    */
   harness?: CodingHarness | null;
 }
 
 /** The coding harnesses the `coding_agent` capability runs. */
-export type CodingHarness = "claude_code" | "codex";
+export type CodingHarness = "claude_code" | "codex" | "opencode" | "gemini" | "pi";
 
 export interface SubagentTextDeltaFrame extends SubagentFrameBase {
   kind: "subagent_text_delta";
@@ -828,7 +848,7 @@ export interface Delegation {
    * chat reads, and what its absence hides that action for. See `SpecialistDefinition`.
    */
   specialist: SpecialistDefinition | null;
-  /** Claude Code or Codex, when the worker is a coding harness rather than an agent. */
+  /** A coding harness, when the worker is one rather than an agent. */
   harness: CodingHarness | null;
   text: string;
   thinking: string;

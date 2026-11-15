@@ -197,6 +197,7 @@ class TestCompiledEmailContract:
         assert html.count(f'href="{escaped_url}"') == 2
         assert "https://app.example.test/accept?token=abc&next=%2Fhome" in text
 
+    @pytest.mark.security
     def test_live_workflow_and_approval_content_keeps_escaped_multiline_values(self) -> None:
         _, workflow_html, workflow_text = render_email("workflow_message", _REAL_TEMPLATE_CONTEXT)
         _, approval_html, approval_text = render_email("approval_requested", _REAL_TEMPLATE_CONTEXT)

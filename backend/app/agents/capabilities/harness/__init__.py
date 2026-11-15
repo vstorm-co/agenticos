@@ -1,11 +1,11 @@
 """Harness - a local CLI session as an agent's working backend.
 
 A general agent with a shell can edit code; a coding harness is better at it,
-and both Claude Code and Codex run headless. The coding agent hands one task
-to one of them and reports back. This capability goes one step further: the
-agent is *backed by* a harness session - Claude Code or Codex in the agent's
-sandbox - that it drives across turns, starting one session per line of work
-and prompting it as the work proceeds, while a person watches.
+and Claude Code, Codex, OpenCode, Gemini CLI and Pi all run headless. The coding
+agent hands one task to one of them and reports back. This capability goes one
+step further: the agent is *backed by* a harness session - one of those CLIs in
+the agent's sandbox - that it drives across turns, starting one session per line
+of work and prompting it as the work proceeds, while a person watches.
 
 An agent with this capability is a harness-backed agent; another agent reaches
 it the way it reaches any specialist, through delegation, so "ask the harness
@@ -21,10 +21,9 @@ from app.agents.capabilities._registry import (
 )
 from app.agents.capabilities.coding_agent import (
     _MODEL_NAMES,
-    _VENDOR,
     CodingModel,
 )
-from app.agents.capabilities.coding_agent._harness import Access, Harness
+from app.agents.capabilities.coding_agent._harness import LABELS, Access, Harness
 from app.agents.capabilities.harness._capability import HarnessAgent
 from app.core.secret_kinds import (
     ApiKeySecret,
@@ -42,6 +41,24 @@ __all__ = [
 
 HARNESS_ID = "harness"
 
+# Which model vendors each harness runs, by the vendor prefix on the model id.
+# Claude Code and Codex run one vendor each; Gemini CLI runs Google's; OpenCode
+# and Pi run any provider's model, so the key they run on follows the model.
+_HARNESS_VENDORS: dict[Harness, tuple[str, ...]] = {
+    "claude_code": ("anthropic",),
+    "codex": ("openai",),
+    "opencode": ("anthropic", "openai", "google"),
+    "gemini": ("google",),
+    "pi": ("anthropic", "openai", "google"),
+}
+
+_VENDOR_NAMES: dict[str, str] = {
+    "anthropic": "Claude",
+    "openai": "OpenAI",
+    "google": "Gemini",
+}
+"""The vendor prefixes as the Builder's refusals name them."""
+
 
 class HarnessConfig(BaseModel):
     """Which harness backs the agent, and what it may do in the sandbox."""
@@ -49,7 +66,10 @@ class HarnessConfig(BaseModel):
     harness: Harness = Field(
         default="claude_code",
         title="Harness",
-        description="The CLI session that does the agent's work: Claude Code or Codex.",
+        description=(
+            "The CLI session that does the agent's work: Claude Code, Codex, "
+            "OpenCode, Gemini CLI or Pi."
+        ),
     )
     access: Access = Field(
         default="read_only",
@@ -62,7 +82,13 @@ class HarnessConfig(BaseModel):
             # Codex has no read-only mode that starts inside a container.
             "x-enum-when": {
                 "field": "harness",
-                "choices": {"claude_code": ["edit", "read_only"], "codex": ["edit"]},
+                "choices": {
+                    "claude_code": ["edit", "read_only"],
+                    "codex": ["edit"],
+                    "opencode": ["edit", "read_only"],
+                    "gemini": ["edit", "read_only"],
+                    "pi": ["edit", "read_only"],
+                },
             },
         },
     )
@@ -71,16 +97,18 @@ class HarnessConfig(BaseModel):
         title="Model",
         description=(
             "The model the harness runs on: a Claude model for Claude Code, an "
-            "OpenAI one for Codex. Not set takes the harness's own default."
+            "OpenAI one for Codex, a Gemini one for Gemini CLI, or any of those "
+            "vendors' models for OpenCode or Pi. Not set takes the harness's own "
+            "default."
         ),
         json_schema_extra={
             "x-enum-labels": _MODEL_NAMES,
-            # The Builder offers each harness only its own vendor's models.
+            # The Builder offers each harness only its own vendors' models.
             "x-enum-when": {
                 "field": "harness",
                 "choices": {
-                    harness: [model for model in _MODEL_NAMES if model.startswith(f"{vendor}:")]
-                    for harness, vendor in _VENDOR.items()
+                    harness: [model for model in _MODEL_NAMES if model.split(":", 1)[0] in vendors]
+                    for harness, vendors in _HARNESS_VENDORS.items()
                 },
             },
         },
@@ -126,10 +154,29 @@ class HarnessConfig(BaseModel):
 
     @model_validator(mode="after")
     def _model_fits_the_harness(self) -> HarnessConfig:
-        if self.model is not None and not self.model.startswith(f"{_VENDOR[self.harness]}:"):
+        if self.model is not None:
+            vendor = self.model.split(":", 1)[0]
+            if vendor not in _HARNESS_VENDORS[self.harness]:
+                if self.harness in ("claude_code", "codex"):
+                    raise ValueError(
+                        "Claude Code runs Claude models and Codex runs OpenAI ones; "
+                        "pick a model of the chosen harness's vendor."
+                    )
+                names = ", ".join(_VENDOR_NAMES[name] for name in _HARNESS_VENDORS[self.harness])
+                raise ValueError(f"{LABELS[self.harness]} runs {names} models; pick one of those.")
+        return self
+
+    @model_validator(mode="after")
+    def _model_required_for_multi_provider(self) -> HarnessConfig:
+        # OpenCode and Pi run any provider's model, so with no model picked
+        # there is no vendor to take the key from: the CLI's default model
+        # would decide, and a key for another provider would fail at run time.
+        # Gemini CLI's default is a Gemini model either way, so it keeps the
+        # harness's own default.
+        if self.harness in ("opencode", "pi") and self.model is None:
             raise ValueError(
-                "Claude Code runs Claude models and Codex runs OpenAI ones; pick a model "
-                "of the chosen harness's vendor."
+                f"{LABELS[self.harness]} runs any provider's model, so pick one: "
+                "the key it runs on follows the model."
             )
         return self
 
@@ -138,14 +185,19 @@ class HarnessConfig(BaseModel):
         """The model as the harness names it, without the vendor the Builder shows."""
         return self.model.split(":", 1)[1] if self.model is not None else None
 
+    @property
+    def model_vendor(self) -> str | None:
+        """The vendor of the model picked, for the CLIs that take `provider/model`."""
+        return self.model.split(":", 1)[0] if self.model is not None else None
+
 
 @register(
     id=HARNESS_ID,
     name="Harness",
     category="analysis",
     description=(
-        "Drive a Claude Code or Codex session in the agent's sandbox across turns, "
-        "as the agent's working backend, while you watch."
+        "Drive a Claude Code, Codex, OpenCode, Gemini CLI or Pi session in the "
+        "agent's sandbox across turns, as the agent's working backend, while you watch."
     ),
     tools=(
         CapabilityToolInfo(
@@ -163,6 +215,7 @@ class HarnessConfig(BaseModel):
         CapabilityToolInfo(
             id="harness_sessions",
             description="List the harness sessions this conversation has open.",
+            read_only=True,
         ),
     ),
     config_schema=HarnessConfig,
@@ -187,12 +240,22 @@ class HarnessConfig(BaseModel):
             purposes={
                 "claude_code": ("anthropic",),
                 "codex": ("openai", OPENAI_CODEX_PURPOSE),
+                # Gemini CLI takes a Gemini API key: a personal Google sign-in
+                # no longer serves it.
+                "gemini": ("google",),
+                # OpenCode and Pi run any provider's model, so the key follows
+                # the model the binding picks; a key for another provider fails
+                # at run time with the CLI's own auth error.
+                "opencode": ("anthropic", "openai", "google"),
+                "pi": ("anthropic", "openai", "google"),
             },
             open_when_set={"claude_code": "base_url"},
         ),
         description=(
             "Claude Code: an Anthropic API key or a Claude subscription token. "
-            "Codex: an OpenAI API key."
+            "Codex: an OpenAI API key. Gemini CLI: a Gemini API key. OpenCode "
+            "and Pi: a key for the chosen model's provider - Anthropic, OpenAI "
+            "or Google."
         ),
     ),
 )
@@ -202,6 +265,7 @@ def _build(ctx: CapabilityBuildContext) -> HarnessAgent:
         harness=config.harness,
         access=config.access,
         model=config.model_id,
+        model_vendor=config.model_vendor,
         base_url=str(config.base_url).rstrip("/") if config.base_url is not None else None,
         timeout_seconds=config.timeout_minutes * 60,
         api_key=ctx.secret.api_key if isinstance(ctx.secret, ApiKeySecret) else None,

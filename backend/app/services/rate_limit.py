@@ -207,10 +207,11 @@ async def record_mfa_failure(user_id: str) -> int:
             await _redis.set(
                 _mfa_backoff_key(user_id, "locked"), "1", ttl=_MFA_FAILURE_WINDOW_SECONDS
             )
-        return count
     except Exception:
         logger.warning("mfa_backoff_redis_unavailable", exc_info=True)
         return 0
+    else:
+        return count
 
 
 async def reset_mfa_failures(user_id: str) -> None:

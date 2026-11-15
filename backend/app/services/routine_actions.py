@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities import CapabilityDef, CapabilityToolInfo
 from app.agents.capabilities import get as capability
 from app.agents.capabilities.approval import tool_needs_approval
+from app.agents.mcp import approval_needed
 from app.agents.spec import AgentSpec, OrgMcpServerRef, PersonalMcpServerRef
 from app.core.audit import current_impersonator, record_audit
 from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError
@@ -30,6 +31,7 @@ from app.schemas.routine_actions import (
     RoutineMcpActionConsent,
     RoutineMcpActionKey,
     RoutineMcpActionOption,
+    RoutineReviewChange,
 )
 from app.services.agent_registry import AgentRegistryService
 
@@ -221,24 +223,45 @@ class RoutineActionService:
         instructions = await instruction_fingerprint(
             self.db, organization_id=ctx.organization_id, spec=spec, project_id=trigger.project_id
         )
+        previous = [
+            consent
+            for consent in CONSENTS.validate_python(trigger.action_consents)
+            if consent.consented_by == ctx.user_id
+        ]
+        prior_keys = {action_key(consent) for consent in previous}
         consented = {
             action_key(consent)
-            for consent in CONSENTS.validate_python(trigger.action_consents)
+            for consent in previous
             if consent.version_id == version
             and consent.intent_hash == action_intent(trigger)
-            and consent.consented_by == ctx.user_id
             and consent.instructions_hash == instructions
         }
+        options = [*action_options(spec, local=trigger.local_target is not None), *mcp]
+        review_changes: list[RoutineReviewChange] = []
+        if any(consent.version_id != version for consent in previous):
+            review_changes.append("version")
+        if any(consent.intent_hash != action_intent(trigger) for consent in previous):
+            review_changes.append("intent")
+        if any(consent.instructions_hash != instructions for consent in previous):
+            review_changes.append("instructions")
+        if not prior_keys.issubset({action_key(option) for option in options if option.waivable}):
+            review_changes.append("actions")
         organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
         return RoutineActionOptions(
+            review_changes=review_changes,
             review_token=action_review(trigger, version, mcp, instructions_hash=instructions),
             unavailable_sources=unavailable,
             can_waive=ctx.has(Perm.APPROVALS_DECIDE)
             and organization is not None
             and organization.chat_may_waive_approvals,
             items=[
-                option.model_copy(update={"consented": action_key(option) in consented})
-                for option in [*action_options(spec, local=trigger.local_target is not None), *mcp]
+                option.model_copy(
+                    update={
+                        "consented": action_key(option) in consented,
+                        "previously_consented": action_key(option) in prior_keys,
+                    }
+                )
+                for option in options
             ],
         )
 
@@ -377,7 +400,14 @@ class RoutineActionService:
                         endpoint_hash=hashlib.sha256(connection.url.encode()).hexdigest(),
                         tool_id=tool.name,
                     )
-                    waivable = ref.approval == "none"
+                    # Standing consent may only stand in for an approval the
+                    # agent itself does not demand - this tool's own, or else
+                    # its binding's.
+                    waivable = not approval_needed(
+                        ref.approval,
+                        read_only=tool.read_only,
+                        own=ref.tool_approval.get(tool.name, "default"),
+                    )
                     previous = offered.get(key)
                     offered[key] = RoutineMcpActionOption(
                         **key.model_dump(),

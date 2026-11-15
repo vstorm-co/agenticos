@@ -473,4 +473,3 @@ const summary = [
 await writeFile(path.join(output, "README.md"), summary);
 console.log("Evidence: " + output);
 process.exitCode = failed.length ? 1 : 0;
-

@@ -19,6 +19,7 @@ from app.main import app
 from app.api.deps import get_redis
 from app.api.deps import get_db_session
 from app.api.deps import get_session_service
+from app.services.session import SessionService
 
 pytestmark = pytest.mark.security
 
@@ -109,7 +110,7 @@ async def test_login_names_its_session_in_the_access_token(
     """The access token carries the id of the session login opened, so a later
     password change can spare this session while revoking the account's rest (#1439)."""
     session_id = uuid4()
-    session_service = MagicMock()
+    session_service = SessionService(MagicMock())
     session_service.create_session = AsyncMock(
         return_value=SimpleNamespace(id=session_id, created_at=datetime.now(UTC))
     )
@@ -142,7 +143,7 @@ async def test_magic_link_binds_the_access_token_to_its_session(
     """A magic-link sign-in is a session like any other, bound to its row."""
     mock_user_service.consume_magic_link_token = ServiceMock(return_value=(mock_user, None))
     session_id = uuid4()
-    session_service = MagicMock()
+    session_service = SessionService(MagicMock())
     session_service.create_session = ServiceMock(
         return_value=SimpleNamespace(id=session_id, created_at=datetime.now(UTC))
     )

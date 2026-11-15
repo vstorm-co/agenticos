@@ -3,9 +3,9 @@
 The watcher holds one watch per run: the agent hands it a snapshot
 of the PR's checks whenever the monitor wakes it, and the watcher
 says what changed and what to do next. The capability never runs
-``gh`` itself and never touches the PR — no merge, no comment, no
-other action. Reading the checks is the agent's job (``gh pr
-checks`` under the monitor capability); classifying them is this
+`gh` itself and never touches the PR — no merge, no comment, no
+other action. Reading the checks is the agent's job (`gh pr
+checks` under the monitor capability); classifying them is this
 capability's.
 """
 

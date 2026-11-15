@@ -128,3 +128,127 @@ async def test_background_authority_refuses_a_user_lost_after_membership_read(mo
     assert (
         await module.TableTriggerConsumer(MagicMock())._fire_context(exposure, MagicMock()) is None
     )
+
+
+# -- row-level access on trigger admissions -----------------------------------
+#
+# A trigger must not hand a workflow run a record its publisher cannot see:
+# the run input would disclose the row even though later node reads are
+# filtered. Such an event is FILTERED with reason `row_policy`, not FAILED.
+
+from datetime import UTC as _UTC
+from datetime import datetime as _datetime
+from types import SimpleNamespace
+
+from app.db.models.virtual_table_trigger import AdmissionReason as _AdmissionReason
+from app.db.models.virtual_table_trigger import AdmissionStatus as _AdmissionStatus
+from app.repositories import virtual_table_repo as _vt_repo
+from app.schemas.virtual_table import RowPolicy as _RowPolicy
+from app.services.virtual_tables.triggers import TableTriggerConsumer as _Consumer
+from app.services.virtual_tables.triggers import _Happened as _Happened
+
+_TRIGGER_TABLE = uuid.uuid4()
+_TRIGGER_ID = uuid.uuid4()
+_TRIGGER_EVENT = uuid.uuid4()
+_TRIGGER_RUN = uuid.uuid4()
+_TRIGGER_ENTRY = uuid.uuid4()
+_TRIGGER_NODE = uuid.uuid4()
+_TRIGGER_ASSIGNEE = uuid.uuid4()
+_TRIGGER_MEMBER = uuid.uuid4()
+_TRIGGER_OTHER = uuid.uuid4()
+_TRIGGER_ORG = uuid.uuid4()
+_TRIGGER_POLICY = _RowPolicy(
+    rule="assignee",
+    view_column_id=_TRIGGER_ASSIGNEE,
+    edit_column_id=_TRIGGER_ASSIGNEE,
+)
+_TRIGGER_COLUMN = ColumnDef(id=_TRIGGER_ASSIGNEE, label="Assignee", type="user")
+
+
+def _trigger_decide_setup(monkeypatch, *, values, role="member"):
+    consumer = _Consumer(MagicMock())
+    trigger = SimpleNamespace(
+        id=_TRIGGER_ID,
+        revision=3,
+        organization_id=_TRIGGER_ORG,
+        activated_at=_datetime(2026, 1, 1, tzinfo=_UTC),
+        watched_column_ids=[],
+        filters=[],
+        node_instance_id=_TRIGGER_NODE,
+        table_id=_TRIGGER_TABLE,
+    )
+    event = SimpleNamespace(
+        id=_TRIGGER_EVENT,
+        organization_id=_TRIGGER_ORG,
+        table_id=_TRIGGER_TABLE,
+        record_id=uuid.uuid4(),
+        created_at=_datetime(2026, 6, 1, tzinfo=_UTC),
+        event_type="table.record.created",
+        payload={},
+    )
+    snapshot = _Happened(
+        event="created",
+        values={str(_TRIGGER_ASSIGNEE): values},
+        before=None,
+        author_id=_TRIGGER_MEMBER,
+    )
+    table = SimpleNamespace(
+        id=_TRIGGER_TABLE,
+        organization_id=_TRIGGER_ORG,
+        owner_user_id=_TRIGGER_OTHER,
+        row_policy=_TRIGGER_POLICY.model_dump(mode="json"),
+        schema_version=1,
+    )
+    ctx = AuthContext(user_id=_TRIGGER_MEMBER, organization_id=_TRIGGER_ORG, role=role)
+    admitted = AsyncMock()
+    monkeypatch.setattr(_vt_repo, "get_table", AsyncMock(return_value=table))
+    monkeypatch.setattr(trigger_repo, "add_admission", admitted)
+    monkeypatch.setattr(
+        _Consumer, "_columns", AsyncMock(return_value={_TRIGGER_ASSIGNEE: _TRIGGER_COLUMN})
+    )
+    monkeypatch.setattr(
+        _Consumer,
+        "_fire_context",
+        AsyncMock(return_value=(ctx, SimpleNamespace(), SimpleNamespace())),
+    )
+    consumer.runs = MagicMock()
+    consumer.runs.admit_pinned = AsyncMock(
+        return_value=(SimpleNamespace(id=_TRIGGER_RUN), _TRIGGER_ENTRY)
+    )
+    return consumer, trigger, event, snapshot, admitted
+
+
+async def test_a_trigger_does_not_fire_for_a_row_its_publisher_cannot_see(monkeypatch):
+    consumer, trigger, event, snapshot, admitted = _trigger_decide_setup(
+        monkeypatch, values=str(_TRIGGER_OTHER)
+    )
+
+    assert await consumer._decide(trigger, event, snapshot, None) is None
+    consumer.runs.admit_pinned.assert_not_awaited()
+    admitted.assert_awaited_once()
+    assert admitted.await_args.kwargs["status"] == _AdmissionStatus.FILTERED.value
+    assert admitted.await_args.kwargs["reason"] == _AdmissionReason.ROW_POLICY.value
+
+
+async def test_a_trigger_fires_for_a_row_its_publisher_can_see(monkeypatch):
+    consumer, trigger, event, snapshot, admitted = _trigger_decide_setup(
+        monkeypatch, values=str(_TRIGGER_MEMBER)
+    )
+
+    assert await consumer._decide(trigger, event, snapshot, None) == (
+        _TRIGGER_RUN,
+        _TRIGGER_ENTRY,
+    )
+    assert admitted.await_args.kwargs["status"] == _AdmissionStatus.QUEUED.value
+    assert admitted.await_args.kwargs["reason"] is None
+
+
+async def test_a_trigger_fires_for_a_bypass_publisher_on_any_row(monkeypatch):
+    consumer, trigger, event, snapshot, admitted = _trigger_decide_setup(
+        monkeypatch, values=str(_TRIGGER_OTHER), role="owner"
+    )
+
+    assert await consumer._decide(trigger, event, snapshot, None) == (
+        _TRIGGER_RUN,
+        _TRIGGER_ENTRY,
+    )

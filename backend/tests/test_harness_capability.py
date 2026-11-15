@@ -7,6 +7,7 @@ for the sandbox, so the command line, the polling, the live frames, the
 parsing, the booking, the session and the clean-up all run as they would.
 """
 
+import asyncio
 import base64
 import contextlib
 import json
@@ -14,26 +15,29 @@ import re
 import shlex
 from collections.abc import Mapping
 from typing import Any
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
+import anyio
 import pytest
 from pydantic import SecretStr, ValidationError
 from pydantic_ai._run_context import RunContext
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
-from pydantic_ai.workspaces import CommandResult, Workspace, WrapperWorkspace
+from pydantic_ai.workspaces import CommandResult, Workspace, WorkspaceError, WrapperWorkspace
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities import get
 from app.agents.capabilities._registry import CapabilityBinding, CapabilityBuildContext
 from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.agents.capabilities.coding_agent import _task
-from app.agents.capabilities.harness import HarnessAgent, HarnessConfig
+from app.agents.capabilities.harness import HarnessAgent, HarnessConfig, _toolset
 from app.agents.capabilities.harness._report import HarnessReport
+from app.agents.capabilities.harness._sessions import WORK_DIR
 from app.agents.capabilities.harness._toolset import build_harness_toolset
 from app.agents.deps import AgentDeps
-from app.agents.subagent_events import SubagentEvent
+from app.agents.subagent_events import SubagentEvent, SubagentFinished, SubagentToolResult
 from app.core.secret_kinds import ApiKeySecret
 from tests.workspaces import document_workspace
 
@@ -290,7 +294,9 @@ class TestRegistration:
             )
         )
         assert isinstance(built, HarnessAgent)
-        tools = built.get_toolset().tools
+        toolset = built.get_toolset()
+        assert built.get_toolset() is toolset
+        tools = toolset.tools
         for declared in definition.tools:
             assert tools[declared.id].function.__doc__.startswith(declared.description)
 
@@ -393,16 +399,12 @@ class TestASession:
             await _call(_Shell(), "harness_start", session="Bad Name")
 
     @pytest.mark.parametrize("invalid", ["../x", "a/b", ""])
-    async def test_stopping_with_an_invalid_name_is_rejected(
-        self, invalid: str
-    ) -> None:
+    async def test_stopping_with_an_invalid_name_is_rejected(self, invalid: str) -> None:
         with pytest.raises(ModelRetry, match="lower case letters"):
             await _call(_Shell(), "harness_stop", session=invalid)
 
     @pytest.mark.parametrize("invalid", ["../x", "a/b", ""])
-    async def test_prompting_with_an_invalid_name_is_rejected(
-        self, invalid: str
-    ) -> None:
+    async def test_prompting_with_an_invalid_name_is_rejected(self, invalid: str) -> None:
         with pytest.raises(ModelRetry, match="lower case letters"):
             await _call(_Shell(), "harness_prompt", session=invalid)
 
@@ -414,3 +416,332 @@ class TestASession:
         assert [(entry.model_name, entry.priced) for entry in ledger.entries] == [
             ("claude-sonnet-5-5", True)
         ]
+
+
+def _spending_events(harness: str):
+    if harness == "claude_code":
+        return [
+            {
+                "type": "assistant",
+                "message": {
+                    "id": "m-1",
+                    "model": "claude-sonnet-5-5",
+                    "usage": {
+                        "input_tokens": 4,
+                        "output_tokens": 5,
+                        "cache_read_input_tokens": 2,
+                        "cache_creation_input_tokens": 3,
+                    },
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "read-1",
+                            "name": "Read",
+                            "input": {"file_path": "app.py"},
+                        }
+                    ],
+                },
+            }
+        ]
+    if harness == "codex":
+        return [
+            {
+                "type": "turn.completed",
+                "usage": {
+                    "input_tokens": 9,
+                    "cached_input_tokens": 2,
+                    "output_tokens": 5,
+                },
+            }
+        ]
+    if harness == "opencode":
+        return [
+            {
+                "type": "step_finish",
+                "part": {
+                    "tokens": {
+                        "input": 4,
+                        "output": 5,
+                        "cache": {"read": 2, "write": 3},
+                    }
+                },
+            }
+        ]
+    if harness == "gemini":
+        return [
+            {
+                "type": "result",
+                "stats": {
+                    "input_tokens": 4,
+                    "cached_input_tokens": 2,
+                    "cache_creation_input_tokens": 3,
+                    "output_tokens": 5,
+                },
+            }
+        ]
+    return [{"type": "message_update", "usage": {"input": 9, "output": 5}}]
+
+
+_HARNESSES = [
+    ("claude_code", "claude-sonnet-5-5", "anthropic"),
+    ("codex", "gpt-5.4", "openai"),
+    ("opencode", "claude-sonnet-5-5", "anthropic"),
+    ("gemini", "gemini-2.5-flash", "google"),
+    ("pi", "gpt-5.4", "openai"),
+]
+
+
+class TestInterruptedPrompts:
+    @pytest.mark.security
+    @pytest.mark.parametrize("harness,model,vendor", _HARNESSES)
+    async def test_losing_the_sandbox_keeps_reported_spend_and_removes_prompt_files(
+        self,
+        monkeypatch,
+        harness,
+        model,
+        vendor,
+    ) -> None:
+        shell = _Shell()
+        frames: list[SubagentEvent] = []
+        ledger = SpendLedger()
+        paths: list[str] = []
+
+        async def lost(ctx, command, files, *, timeout_seconds, on_events):
+            await ctx.workspace.make_dir(WORK_DIR)
+            for path in (files.events, files.errors, files.status):
+                paths.append(path)
+                await ctx.workspace.write_bytes(path, b"partial")
+            await on_events(_spending_events(harness))
+            raise WorkspaceError("sandbox disappeared")
+
+        monkeypatch.setattr(_toolset, "run_detached", lost)
+        with metered_by(ledger):
+            answer = await _call(
+                shell,
+                "harness_start",
+                harness=harness,
+                model=model,
+                model_vendor=vendor,
+                frames=frames,
+            )
+        assert "could not run in this sandbox (WorkspaceError)" in answer
+        assert len(ledger.entries) == 1
+        assert ledger.entries[0].model_name == model
+        assert ledger.input_tokens == 9
+        assert ledger.output_tokens == 5
+        for path in paths:
+            with pytest.raises(FileNotFoundError):
+                await shell.read_bytes(path)
+        assert isinstance(frames[-1], SubagentFinished)
+        assert frames[-1].status == "failed"
+        assert json.loads(await _call(shell, "harness_sessions")) == {"sessions": []}
+
+    async def test_a_sandbox_that_never_started_books_nothing_even_when_cleanup_fails(
+        self,
+        monkeypatch,
+    ) -> None:
+        run = AsyncMock(side_effect=WorkspaceError("not available"))
+        cleanup = AsyncMock(side_effect=WorkspaceError("already gone"))
+        monkeypatch.setattr(_toolset, "run_detached", run)
+        monkeypatch.setattr(_toolset, "clean_up", cleanup)
+        frames: list[SubagentEvent] = []
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            answer = await _call(_Shell(), "harness_start", frames=frames)
+        assert "could not run in this sandbox (WorkspaceError)" in answer
+        assert ledger.entries == []
+        cleanup.assert_awaited_once()
+        assert isinstance(frames[-1], SubagentFinished)
+        assert frames[-1].status == "failed"
+
+    @pytest.mark.security
+    async def test_cancelling_a_prompt_keeps_spend_and_closes_its_open_tool_panel(
+        self,
+        monkeypatch,
+    ) -> None:
+        shell = _Shell()
+        frames: list[SubagentEvent] = []
+        started = asyncio.Event()
+        ledger = SpendLedger()
+        paths: list[str] = []
+
+        async def waiting(ctx, command, files, *, timeout_seconds, on_events):
+            await ctx.workspace.make_dir(WORK_DIR)
+            for path in (files.events, files.errors, files.status):
+                paths.append(path)
+                await ctx.workspace.write_bytes(path, b"partial")
+            await on_events(_spending_events("claude_code"))
+            started.set()
+            await asyncio.Event().wait()
+
+        monkeypatch.setattr(_toolset, "run_detached", waiting)
+        with metered_by(ledger):
+            task = asyncio.create_task(_call(shell, "harness_start", frames=frames))
+            try:
+                with anyio.fail_after(5):
+                    await started.wait()
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+            finally:
+                if not task.done():
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
+        assert len(ledger.entries) == 1
+        assert (ledger.input_tokens, ledger.output_tokens) == (9, 5)
+        assert (ledger.cache_read_tokens, ledger.cache_write_tokens) == (2, 3)
+        assert isinstance(frames[-1], SubagentFinished)
+        assert frames[-1].status == "cancelled"
+        closed = [frame for frame in frames if isinstance(frame, SubagentToolResult)]
+        assert [(frame.tool_call_id, frame.ok) for frame in closed] == [("read-1", False)]
+        for path in paths:
+            with pytest.raises(FileNotFoundError):
+                await shell.read_bytes(path)
+
+    async def test_an_unexpected_prompt_error_is_not_hidden_by_its_panel(
+        self,
+        monkeypatch,
+    ) -> None:
+        failure = RuntimeError("broken adapter")
+        monkeypatch.setattr(_toolset, "run_detached", AsyncMock(side_effect=failure))
+        frames: list[SubagentEvent] = []
+        ledger = SpendLedger()
+        with metered_by(ledger), pytest.raises(RuntimeError) as raised:
+            await _call(_Shell(), "harness_start", frames=frames)
+        assert raised.value is failure
+        assert [(entry.model_name, entry.priced) for entry in ledger.entries] == [
+            ("harness:unreported", False),
+        ]
+        assert isinstance(frames[-1], SubagentFinished)
+        assert frames[-1].status == "cancelled"
+
+
+class TestSandboxRefusals:
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "harness,endpoint,reason",
+        [
+            ("codex", None, "only for Claude Code"),
+            ("opencode", None, "only for Claude Code"),
+            ("gemini", None, "only for Claude Code"),
+            ("pi", None, "only for Claude Code"),
+            ("claude_code", "https://gateway.example", "endpoint needs clearing"),
+        ],
+    )
+    async def test_a_subscription_token_is_not_sent_to_another_harness_or_gateway(
+        self,
+        harness,
+        endpoint,
+        reason,
+    ) -> None:
+        shell = _Shell()
+        frames: list[SubagentEvent] = []
+        token = "sk-ant-oat01-test-only"
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            answer = await _call(
+                shell,
+                "harness_start",
+                harness=harness,
+                api_key=token,
+                base_url=endpoint,
+                frames=frames,
+            )
+        assert reason in answer
+        assert token not in answer
+        assert shell.commands == []
+        assert frames == []
+        assert ledger.entries == []
+
+    @pytest.mark.security
+    async def test_an_unsupported_vendor_fails_before_a_command_or_spend(self) -> None:
+        shell = _Shell()
+        frames: list[SubagentEvent] = []
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            answer = await _call(
+                shell,
+                "harness_start",
+                harness="opencode",
+                model="some-model",
+                model_vendor="unsupported",
+                frames=frames,
+            )
+        assert "unknown model vendor: unsupported" in answer
+        assert shell.commands == []
+        assert ledger.entries == []
+        assert isinstance(frames[-1], SubagentFinished)
+        assert frames[-1].status == "failed"
+
+    @pytest.mark.parametrize("harness,model,vendor", _HARNESSES)
+    async def test_a_missing_cli_reports_the_installation_needed_without_retrying(
+        self,
+        harness,
+        model,
+        vendor,
+    ) -> None:
+        shell = _Shell(exit_code=127, stderr="command not found")
+        frames: list[SubagentEvent] = []
+        answer = await _call(
+            shell,
+            "harness_start",
+            harness=harness,
+            model=model,
+            model_vendor=vendor,
+            frames=frames,
+        )
+        assert "is not installed" in answer
+        assert ("workbench" in answer) is (harness in ("claude_code", "codex"))
+        assert len(shell.started) == 1
+        assert isinstance(frames[-1], SubagentFinished)
+        assert frames[-1].status == "failed"
+
+    async def test_a_timeout_is_reported_and_its_unreported_cost_is_not_zero(
+        self,
+        monkeypatch,
+    ) -> None:
+        monkeypatch.setattr(
+            _toolset,
+            "run_detached",
+            AsyncMock(return_value=_task.Outcome([], "", None, timed_out=True)),
+        )
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            raw = await _call(_Shell(), "harness_start", timeout_seconds=600)
+        report = HarnessReport.model_validate_json(raw)
+        assert report.outcome == "timed_out"
+        assert "stopped after 10 minutes" in report.answer
+        assert [(entry.model_name, entry.priced) for entry in ledger.entries] == [
+            ("harness:unreported", False),
+        ]
+
+    async def test_a_failed_cli_keeps_only_the_last_two_thousand_diagnostic_characters(
+        self,
+    ) -> None:
+        diagnostic = "old context\n" + "x" * 2100
+        raw = await _call(_Shell(exit_code=1, stderr=diagnostic), "harness_start")
+        report = HarnessReport.model_validate_json(raw)
+        assert report.outcome == "failed"
+        assert report.answer == diagnostic[-2000:]
+
+    async def test_a_codex_answer_keeps_its_session_and_books_its_reported_usage(self) -> None:
+        events = [
+            {"type": "thread.started", "thread_id": "thread-1"},
+            {"type": "item.completed", "item": {"type": "agent_message", "text": "Fixed."}},
+            *_spending_events("codex"),
+        ]
+        shell = _Shell(events=_lines(events))
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            raw = await _call(shell, "harness_start", harness="codex", model="gpt-5.4")
+        report = HarnessReport.model_validate_json(raw)
+        assert (report.outcome, report.answer, report.session_id) == (
+            "completed",
+            "Fixed.",
+            "thread-1",
+        )
+        assert (ledger.input_tokens, ledger.output_tokens) == (9, 5)
+        assert json.loads(await _call(shell, "harness_sessions")) == {
+            "sessions": [{"session": "main", "harness": "codex"}],
+        }

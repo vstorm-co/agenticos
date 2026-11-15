@@ -23,10 +23,16 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.virtual_table import VirtualTableRecord
 from app.repositories import virtual_table_repo
 from app.repositories.virtual_table import RecordCells
-from app.schemas.virtual_table import CellValue, ColumnDef, LinkedRecord, RecordRead
+from app.schemas.virtual_table import CellValue, ColumnDef, LinkedRecord, RecordRead, RowPolicy
 from app.services.access import TABLE, resolve_access
 from app.services.virtual_tables.deadline import ReadDeadline, arm_if_set
 from app.services.virtual_tables.formula import references, work_out
+from app.services.virtual_tables.row_policy import (
+    bypasses_policy,
+    parse_policy,
+    row_matches,
+    visible_project_ids,
+)
 from app.services.virtual_tables.types import READ_THROUGH_LINK
 
 _NAMED_BY = ("text", "email", "url", "phone", "long_text")
@@ -101,6 +107,10 @@ class LinkedTable:
     table_id: UUID
     columns: list[ColumnDef]
     named_by: ColumnDef | None
+    row_policy: RowPolicy | None = None
+    """The linked table's row-level access policy, for filtering what is read through."""
+    owner_user_id: UUID | None = None
+    """Whose bypass the linked table's policy grants."""
 
 
 @dataclass(frozen=True)
@@ -131,14 +141,30 @@ async def linked_table_access(
         db, table_id=table.id, version=table.schema_version
     )
     columns = [ColumnDef.model_validate(column) for column in version.columns]
-    return LinkedTable(table_id=table.id, columns=columns, named_by=named_by(columns))
+    return LinkedTable(
+        table_id=table.id,
+        columns=columns,
+        named_by=named_by(columns),
+        row_policy=parse_policy(table.row_policy),
+        owner_user_id=table.owner_user_id,
+    )
 
 
 def linked_cell_keys(linked: LinkedTable, targets: Iterable[UUID]) -> list[str]:
-    """The cells of `linked` a read through it takes: `targets` and the column naming its records."""
+    """The cells of `linked` a read through it takes: `targets` and the column naming its records.
+
+    Plus the cells the linked table's row policy reads: a projected read
+    that did not fetch the assignee column could not tell a visible linked
+    record from an invisible one, so the policy's columns travel with the
+    read and the filter below can use them.
+    """
     keys = {str(target) for target in targets}
     if linked.named_by is not None:
         keys.add(str(linked.named_by.id))
+    if linked.row_policy is not None:
+        keys.add(str(linked.row_policy.view_column_id))
+        if linked.row_policy.view_project_link_column_id is not None:
+            keys.add(str(linked.row_policy.view_project_link_column_id))
     return sorted(keys)
 
 
@@ -163,6 +189,7 @@ async def _linked_table(
     record_ids = [UUID(record_id) for record_id in ids]
     rows: Sequence[VirtualTableRecord | RecordCells]
     if targets is None:
+        await arm_if_set(db, deadline)
         rows = await virtual_table_repo.get_records_by_ids(
             db, record_ids, table_id=linked.table_id, organization_id=ctx.organization_id
         )
@@ -179,6 +206,27 @@ async def _linked_table(
         )
     values: dict[str, dict[str, CellValue]] = {}
     names: dict[str, str] = {}
+    if linked.row_policy is not None and not bypasses_policy(
+        ctx, owner_user_id=linked.owner_user_id
+    ):
+        # A row the reader may see can link to one they may not: the label
+        # would leak the linked record's title, and a rollup over it would
+        # leak that it exists and how many there are. Invisible linked
+        # records are left out entirely - no label and no id - so lookups
+        # and rollups below are worked out over the visible subset only.
+        project_ids = await visible_project_ids(db, ctx, linked.row_policy, deadline=deadline)
+        rows = [
+            row
+            for row in rows
+            if row_matches(
+                row.values,
+                linked.row_policy,
+                linked.columns,
+                ctx.user_id,
+                kind="view",
+                project_ids=project_ids,
+            )
+        ]
     for row in rows:
         record_id = str(row.id)
         values[record_id] = dict(row.values)

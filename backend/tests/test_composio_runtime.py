@@ -137,6 +137,7 @@ async def test_a_session_pins_the_member_account_config_and_reviewed_actions(pro
     assert "runtime-provider-key" not in repr(spec)
 
 
+@pytest.mark.security
 async def test_dynamic_session_freezes_direct_tools_and_requires_approval_for_every_call(
     monkeypatch, provider
 ):
@@ -518,6 +519,7 @@ async def test_resolved_source_consent_uses_the_stable_connection_not_a_temporar
     }
 
 
+@pytest.mark.security
 @pytest.mark.parametrize(
     "approval,read_hint,gated", [("none", True, False), ("none", False, True), ("all", True, True)]
 )
@@ -558,6 +560,7 @@ async def test_actual_toolset_filters_router_tools_and_retains_approval_and_sour
     assert origins[0].identity.authorization_generation == connection.authorization_generation
 
 
+@pytest.mark.security
 async def test_dynamic_read_only_looking_actions_still_require_approval(monkeypatch, provider):
     spec = await _spec(_dynamic_connection(), name="composio-google_sheets", approval="none")
     assert spec is not None and spec.approval == "all"
@@ -844,6 +847,7 @@ async def test_any_agent_resolves_the_senders_gmail_and_gets_its_managed_app_not
     assert "Gmail is connected for this person" not in spec.instructions
 
 
+@pytest.mark.security
 async def test_dynamic_bindings_keep_an_explicit_tool_ceiling_and_resolve_approval(
     monkeypatch, provider
 ):

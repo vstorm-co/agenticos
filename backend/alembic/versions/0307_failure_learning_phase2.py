@@ -63,9 +63,7 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "target_type IN ('instructions', 'skill')", name="ck_proposal_target_type"
         ),
-        sa.CheckConstraint(
-            "status IN ('draft', 'applied', 'rejected')", name="ck_proposal_status"
-        ),
+        sa.CheckConstraint("status IN ('draft', 'applied', 'rejected')", name="ck_proposal_status"),
         sa.CheckConstraint(
             "(target_type = 'skill' AND skill_id IS NOT NULL) OR "
             "(target_type = 'instructions' AND skill_id IS NULL)",

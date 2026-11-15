@@ -29,7 +29,7 @@ class ComposioAction:
     @property
     def side_effecting(self) -> bool:
         """Whether the action changes provider state — the provider-neutral
-        read of the reviewed ``read_only`` policy."""
+        read of the reviewed `read_only` policy."""
         return not self.read_only
 
 

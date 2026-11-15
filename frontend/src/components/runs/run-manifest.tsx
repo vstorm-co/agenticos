@@ -79,7 +79,9 @@ export function RunManifest({ runId }: { runId: string }) {
 
       <Section title={t("systemPrompt")} copyText={manifest.instructions ?? undefined}>
         {manifest.instructions === null ? (
-          <p className="text-muted-foreground text-sm">{t("noInstructionsSent")}</p>
+          manifest.system_prompts.length === 0 && (
+            <p className="text-muted-foreground text-sm">{t("noInstructionsSent")}</p>
+          )
         ) : (
           <pre className="bg-muted/40 max-h-80 overflow-auto rounded p-3 text-xs whitespace-pre-wrap">
             {manifest.instructions}
@@ -160,11 +162,21 @@ export function RunManifest({ runId }: { runId: string }) {
                 </p>
                 <ol className="space-y-0.5">
                   {run.calls.map((call, index) => (
-                    <li key={index} className="flex gap-2 font-mono text-xs">
+                    <li
+                      key={call.tool_call_id ?? index}
+                      className="flex min-w-0 items-center gap-2 font-mono text-xs"
+                    >
                       <span className={call.status === "failed" ? "text-destructive" : ""}>
                         {call.tool}
                       </span>
-                      <span className="text-muted-foreground truncate">{call.args}</span>
+                      <span className="text-muted-foreground min-w-0 flex-1 truncate">
+                        {call.args}
+                      </span>
+                      {call.status === "awaiting_approval" && (
+                        <Badge variant="outline" className="shrink-0 font-sans">
+                          {t("toolState", { status: "awaiting_approval" })}
+                        </Badge>
+                      )}
                     </li>
                   ))}
                 </ol>
@@ -292,6 +304,40 @@ export function RunManifest({ runId }: { runId: string }) {
                     ))}
                   </ol>
                 )}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {/* The burst ledger: each burst's merged outcome and every part's
+          status. A part that failed reads as exactly that, never as a part
+          that finished - the merge is the record, not a summary of it. */}
+      {!!manifest.burst_runs?.length && (
+        <Section title={t("burstRuns", { count: manifest.burst_runs.length })}>
+          <ul className="space-y-3">
+            {manifest.burst_runs.map((burst) => (
+              <li key={burst.burst} className="space-y-1.5">
+                <p className="text-sm font-medium">
+                  {t("burstRun", { burst: burst.burst, task: burst.task })}
+                </p>
+                <ol className="space-y-0.5">
+                  {burst.results.map((part) => (
+                    <li key={part.id} className="text-sm">
+                      <span className={part.status === "failed" ? "text-destructive" : ""}>
+                        {t("burstPart", {
+                          id: part.id,
+                          title: part.title,
+                          status: part.status,
+                        })}
+                        {part.reason ? ` (${part.reason})` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+                <pre className="bg-muted/50 max-h-64 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
+                  {burst.merged}
+                </pre>
               </li>
             ))}
           </ul>

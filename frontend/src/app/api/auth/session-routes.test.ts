@@ -73,6 +73,23 @@ beforeEach(() => vi.clearAllMocks());
  * retrying a credential the server has already refused.
  */
 describe("signing in", () => {
+  it("returns a second-factor challenge without reading or setting a session", async () => {
+    const challenge = { mfa_required: true, mfa_token: "password-challenge", expires_in: 300 };
+    vi.mocked(backendFetch).mockResolvedValueOnce(challenge);
+
+    const response = await login(request({}, { email: "a@example.com", password: "secret" }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(challenge);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.getSetCookie()).toEqual([]);
+    expect(backendFetch).toHaveBeenCalledTimes(1);
+    expect(backendFetch).toHaveBeenCalledWith(
+      "/api/v1/auth/login",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
   it("hands the backend a form, because that is what OAuth2 password flow takes", async () => {
     // Not JSON: FastAPI's token endpoint reads `username` and `password` from a
     // form body, and posting JSON there answers 422.
@@ -557,6 +574,28 @@ describe("ending an impersonation", () => {
 });
 
 describe("signing in without a password", () => {
+  it("keeps the link's destination on its MFA challenge without opening a session", async () => {
+    const challenge = {
+      mfa_required: true,
+      mfa_token: "magic-link-challenge",
+      expires_in: 300,
+      return_to: "/agents/a-1",
+    };
+    vi.mocked(backendFetch).mockResolvedValueOnce(challenge);
+
+    const response = await magicLinkVerify(request({}, { token: "one-time" }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(challenge);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.getSetCookie()).toEqual([]);
+    expect(backendFetch).toHaveBeenCalledExactlyOnceWith("/api/v1/auth/magic-link/verify", {
+      method: "POST",
+      headers: {},
+      body: JSON.stringify({ token: "one-time" }),
+    });
+  });
+
   it("asks the backend to mail a link, and answers what it said", async () => {
     // Deliberately the same answer whether the address exists or not, which is
     // the backend's decision and this route's job not to leak.

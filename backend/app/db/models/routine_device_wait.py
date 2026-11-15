@@ -44,8 +44,11 @@ class RoutineDeviceWait(Base, TimestampMixin):
     # GitHub delivery's `GithubTriggerOutput`-shaped dict, so a fire that waits
     # for its computer still hands the run the whole payload when it wakes -
     # the job queue carries it on the direct path, this row on the waiting one.
-    # Null on a scheduled wait and on any event whose source sends none.
-    event_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    # SQL NULL on a scheduled wait, an event without payload, and after redaction.
+    # JSON null would fail the terminal-state redaction constraint below.
+    event_payload: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="waiting", server_default="waiting"
     )

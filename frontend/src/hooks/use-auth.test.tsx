@@ -232,6 +232,51 @@ describe("checking the session without a network (#2097)", () => {
 });
 
 describe("signing in", () => {
+  it.each(["password", "directory"] as const)(
+    "passes a %s MFA challenge to the form without adopting a session or navigating",
+    async (method) => {
+      vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(401, "Not authenticated"));
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      expect(result.current.isAuthenticated).toBe(false);
+      client.setQueryData(["pending-invitation"], { flow: "pending-flow" });
+      const clear = vi.spyOn(client, "clear");
+      const assign = vi.fn();
+      vi.spyOn(window, "location", "get").mockReturnValue({
+        ...window.location,
+        assign,
+      } as unknown as Location);
+      const challenge = {
+        mfa_required: true,
+        mfa_token: "second-factor-challenge",
+        expires_in: 300,
+        return_to: "/agents/a-1",
+      };
+      vi.mocked(apiClient.post).mockResolvedValueOnce(challenge);
+
+      await act(async () => {
+        const response =
+          method === "password"
+            ? await result.current.login({ email: "a@example.com", password: "pw" }, "/agents/a-1")
+            : await result.current.loginWithDirectory(
+                { username: "jdoe", password: "pw" },
+                "/agents/a-1",
+              );
+        expect(response).toEqual(challenge);
+      });
+
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().user).toBeNull();
+      expect(useAuthStore.getState().accessToken).toBeNull();
+      expect(client.getQueryData(["pending-invitation"])).toEqual({ flow: "pending-flow" });
+      expect(clear).not.toHaveBeenCalled();
+      expect(push).not.toHaveBeenCalled();
+      expect(assign).not.toHaveBeenCalled();
+      expect(apiClient.get).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it("opens the desktop callback returned by MFA verification", async () => {
     const assign = vi.fn();
     vi.stubGlobal("location", { assign });
@@ -577,6 +622,26 @@ describe("signing in", () => {
 });
 
 describe("signing out", () => {
+  it("keeps repeated sign-out safe after the shared refresh timer has stopped", async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+    const clearTimer = vi.spyOn(globalThis, "clearInterval");
+
+    await act(async () => {
+      await result.current.logout();
+      await result.current.logout();
+    });
+
+    expect(apiClient.post).toHaveBeenCalledTimes(2);
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/auth/logout");
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, "/auth/logout");
+    expect(clearTimer).toHaveBeenCalledTimes(1);
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(useAuthStore.getState().accessToken).toBeNull();
+    expect(push).toHaveBeenLastCalledWith(ROUTES.LOGIN);
+  });
+
   it("reports native cleanup failure without claiming success", async () => {
     window.__AGENTICOS_SHELL__ = {
       platform: "ios",
@@ -899,6 +964,26 @@ describe("keeping the in-memory token fresh", () => {
 });
 
 describe("a page that found nobody signed in", () => {
+  it("waits until a hidden page becomes visible before checking again", async () => {
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(401, "Not authenticated"));
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    vi.mocked(apiClient.get).mockClear();
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ ...user(), access_token: "after" });
+
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+    expect(result.current.isAuthenticated).toBe(false);
+    visibility.mockReturnValue("visible");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+    expect(apiClient.get).toHaveBeenCalledExactlyOnceWith("/auth/me");
+    expect(useAuthStore.getState().accessToken).toBe("after");
+  });
+
   it("asks again when it is shown, once the console has signed in (2026-11-06)", async () => {
     // Quick Ask is built beside the console and kept loaded; built before the
     // sign-in, it said "sign in" until the app restarted.

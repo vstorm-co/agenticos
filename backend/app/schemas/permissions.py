@@ -13,6 +13,7 @@ NAVIGATION_ITEM_IDS = (
     "agents",
     "workflows",
     "routines",
+    "datasets",
     "allProjects",
     "knowledgeBases",
     "tables",

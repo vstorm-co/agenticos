@@ -238,6 +238,7 @@ class TestDecideWatch:
         )
         assert decision == "continue"
 
+    @pytest.mark.security
     def test_the_watch_expires_but_expiry_is_not_approval(self):
         checks = [_check(status="in_progress")]
         decision, reason = decide_watch(

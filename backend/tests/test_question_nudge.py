@@ -158,6 +158,16 @@ class TestNudgeUnanswered:
         started["stamp"].assert_not_called()
         started["post"].assert_not_awaited()
 
+    async def test_a_run_waiting_only_for_a_secret_gets_no_question_reminder(self) -> None:
+        run = _chat_run()
+        run.paused_state["questions"] = []
+        run.paused_state["secret_requests"] = ["secret-1"]
+        nudged, started = await self._sweep([run])
+        assert nudged == 0
+        assert run.question_nudged_at is None
+        started["stamp"].assert_not_called()
+        started["post"].assert_not_awaited()
+
     async def test_two_runs_are_each_reminded_once(self):
         runs = sorted((_chat_run() for _ in range(2)), key=lambda run: run.id)
         nudged, started = await self._sweep(list(reversed(runs)))

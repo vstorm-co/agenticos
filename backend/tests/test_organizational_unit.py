@@ -210,6 +210,7 @@ async def _connector_sync(
         sync_mode="full",
         organization_id=uuid.uuid4(),
         secret_id=None,
+        connected_account_id=None,
         organizational_unit=organizational_unit,
     )
     sources = MagicMock(

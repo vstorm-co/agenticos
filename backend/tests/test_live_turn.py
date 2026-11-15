@@ -1272,6 +1272,29 @@ class TestTheRoom:
             await session._hear_room(CONVERSATION)
         assert reads.await_count == 1
 
+    @pytest.mark.parametrize(
+        ("kind", "field"), [("room_message", "message_id"), ("room_request", "request_id")]
+    )
+    async def test_saved_room_events_name_the_room_and_durable_row_without_following_a_turn(
+        self,
+        kind: str,
+        field: str,
+    ) -> None:
+        session = _session()
+        session._room = CONVERSATION
+        room = self._room(events=[{"type": kind, field: "saved-1", "ignored": "not forwarded"}])
+        follow = AsyncMock()
+        with (
+            patch.object(session, "_still_reads", AsyncMock(return_value=True)),
+            patch.object(session, "_follow_if_running", follow),
+            patch.multiple("app.services.agent_session.chat_room", **room),
+        ):
+            await session._hear_room(CONVERSATION)
+        assert [data for event, data in _sent_events(session) if event == kind] == [
+            {"conversation_id": CONVERSATION, field: "saved-1"}
+        ]
+        follow.assert_not_awaited()
+
     async def test_an_open_chat_keeps_saying_its_reader_is_here(self) -> None:
         session = _session()
         join = AsyncMock(side_effect=[None, asyncio.CancelledError()])

@@ -14,9 +14,11 @@ from app.api.deps import (
     CurrentUser,
     MessageRatingSvc,
     ProjectSvc,
+    RoomSubmissionSvc,
     VisualSvc,
     WorkspaceSvc,
     key_needs,
+    limit_coding_revert,
     limit_fork,
     require,
 )
@@ -50,6 +52,12 @@ from app.schemas.message_rating import (
     MessageRatingCreate,
     MessageRatingRead,
 )
+from app.schemas.room_submission import (
+    RoomAgentRequestList,
+    RoomAgentRequestRead,
+    RoomMessageCreate,
+    RoomMessageRead,
+)
 from app.schemas.visual import VisualPublish, VisualPublished
 from app.schemas.workspace import (
     WorkspaceFileContent,
@@ -59,6 +67,41 @@ from app.schemas.workspace import (
 from app.services.sandbox_workspace import owner_label, stored_ceiling
 
 router = APIRouter()
+
+
+@router.post("/{conversation_id}/room-messages", response_model=RoomMessageRead)
+async def post_room_message(
+    conversation_id: UUID,
+    body: RoomMessageCreate,
+    service: RoomSubmissionSvc,
+    ctx: Auth,
+    current_user: CurrentUser,
+) -> Any:
+    """Post as yourself; only an explicit agent selection queues an answer."""
+    return await service.post(ctx, conversation_id, body, current_user)
+
+
+@router.get("/{conversation_id}/room-requests", response_model=RoomAgentRequestList)
+async def list_room_requests(
+    conversation_id: UUID,
+    service: RoomSubmissionSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """The durable queue, and the current reader's right to post to this room."""
+    return await service.list_for_room(ctx, conversation_id, skip=skip, limit=limit)
+
+
+@router.post(
+    "/{conversation_id}/room-requests/{request_id}/cancel",
+    response_model=RoomAgentRequestRead,
+)
+async def cancel_room_request(
+    conversation_id: UUID, request_id: UUID, service: RoomSubmissionSvc, ctx: Auth
+) -> Any:
+    """Withdraw your queued request, retaining the human message."""
+    return await service.cancel(ctx, conversation_id, request_id)
 
 
 @router.get("/background-tasks", response_model=list[ConversationTaskRead])
@@ -83,7 +126,20 @@ async def get_coding_task_change(change_id: UUID, service: CodingTaskChangeSvc, 
     whoever may read the conversation the task ran in - the transcript's own
     check - and missing (404) for anybody else, in this organization or another.
     """
-    return await service.get(ctx, change_id)
+    return await service.read(ctx, change_id)
+
+
+@router.post(
+    "/coding-changes/{change_id}/revert",
+    dependencies=[Depends(limit_coding_revert)],
+    response_model=CodingTaskChangeRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def revert_coding_task_change(
+    change_id: UUID, service: CodingTaskChangeSvc, ctx: Auth
+) -> Any:
+    """Queue a recoverable task revert; read its change set to follow the outcome."""
+    return await service.revert(ctx, change_id)
 
 
 @router.get("/shared-with-me", response_model=ConversationList)

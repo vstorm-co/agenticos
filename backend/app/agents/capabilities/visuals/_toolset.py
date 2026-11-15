@@ -228,12 +228,14 @@ class VisualsToolset:
           `lib/topojson-client-3.1.0.min.js`, `lib/world-atlas-2.0.2-110m.js` and
           `lib/agenticos-worldmap-1.js` after d3, then `AOWorldMap.draw(element,
           {countries: {Poland: 12}, pins: [{name, lat, lng}], routes: [{from, to}]})`.
-          Prefer it to the itinerary map for anything about countries or regions;
+          Use it by default for all maps, including city-to-city routes and itineraries,
+          unless your instructions explicitly say the administrator enabled map tiles;
         - a map: `lib/leaflet-1.9.4/leaflet.css`, `lib/leaflet-1.9.4/leaflet.js` and
           `lib/agenticos-map-2.js`, then `AOMap.itinerary(element, {stops: [{name, lat,
           lng, day, note}]})` - numbered pins dropped in order, pause and replay, and
           cards for the stops. It draws on the deployment's map tiles, or as an outline
-          of the stops where there are none; your instructions say which. It is its
+          of the stops where there are none. Use it only when your instructions say
+          tiles are enabled; otherwise draw a geographic SVG map with AOWorldMap. It is its
           own layout: put the element straight on the page, without a border or a
           `min-height` around it, and do not list the stops again beside it.
 

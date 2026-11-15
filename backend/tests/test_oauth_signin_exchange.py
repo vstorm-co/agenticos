@@ -25,6 +25,7 @@ from app.core.oauth import oauth
 from app.core.security import verify_special_token, verify_token
 from app.main import app
 from app.services.oauth_exchange import OAuthExchangeService
+from app.services.session import SessionService
 from app.services.user import UserService
 
 pytestmark = pytest.mark.anyio
@@ -105,8 +106,8 @@ async def test_oidc_signin_for_totp_user_redirects_to_mfa_without_issuing_tokens
     app.dependency_overrides[deps.get_directory_sync_service] = lambda: directory_sync
     fake = _FakeRedis()
     app.dependency_overrides[get_redis] = lambda: fake
-    session_service = MagicMock()
-    session_service.create_session = AsyncMock()
+    session_service = SessionService(MagicMock())
+    session_service.create_session = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
     app.dependency_overrides[get_session_service] = lambda: session_service
     make_access = MagicMock(return_value="must-not-be-created")
     make_refresh = MagicMock(return_value="must-not-be-created")

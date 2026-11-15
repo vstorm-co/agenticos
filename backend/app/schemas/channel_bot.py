@@ -155,14 +155,14 @@ class ChannelBotCreate(BaseSchema):
         description="Show a streamed answer's tool calls as a `timeline` or as one `plan`.",
     )
     rate_answers: bool = Field(
-        default=True, description="Put thumbs under a finished answer to rate it."
+        default=False, description="Opt in to thumbs under a finished answer to rate it."
     )
     ack_reaction: str | None = Field(
         default=None,
         pattern=ACK_REACTION_PATTERN,
         description=(
             "The emoji the bot reacts to a question with as it arrives, by the "
-            "platform's name for it (`eyes`). Slack, Mattermost and optional iMessage tapbacks; null for none."
+            "platform's name for it (`eyes`). Defaults to eyes on Slack, Telegram and Mattermost, or emphasize on iMessage; explicit null disables it."
         ),
     )
     transcribe_voice_notes: bool = Field(
@@ -194,6 +194,16 @@ class ChannelBotCreate(BaseSchema):
             "without one."
         ),
     )
+
+    @model_validator(mode="after")
+    def _default_acknowledgement(self) -> ChannelBotCreate:
+        """Choose a supported reaction only when creation omitted the setting."""
+        if "ack_reaction" not in self.model_fields_set:
+            if self.platform in {"slack", "telegram", "mattermost"}:
+                self.ack_reaction = "eyes"
+            elif self.platform == "imessage":
+                self.ack_reaction = "emphasize"
+        return self
 
     @model_validator(mode="after")
     def _transcription_is_a_pair_the_catalog_lists(self) -> ChannelBotCreate:

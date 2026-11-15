@@ -152,6 +152,7 @@ class TestStopReason:
         round_ = SolLoopRound(round_no=1, verdict="CHANGES", findings=[_finding("S1", "nit")])
         assert stop_reason_for(round_, 3) == "nits_only"
 
+    @pytest.mark.security
     def test_budget_end_is_not_approval(self):
         round_ = SolLoopRound(round_no=3, verdict="CHANGES", findings=[_finding("S1", "blocker")])
         assert stop_reason_for(round_, 3) == "budget_exhausted"
@@ -264,6 +265,7 @@ class TestRunSolLoopRound:
         assert round_.reason == "RuntimeError"
         assert round_.stop_reason == "reviewer_unavailable"
 
+    @pytest.mark.security
     async def test_a_budget_cap_skip_is_unavailable_not_approval(self):
         async def review_fn(work, context):
             raise AmbientCallSkipped("The run has reached a budget cap")
@@ -537,6 +539,7 @@ class TestSolLoopTool:
         assert result["reason"] is not None
         assert len(recorder.sol_loop_rounds) == 1
 
+    @pytest.mark.security
     async def test_a_budget_cap_skip_is_recorded_as_unavailable(self, monkeypatch):
         async def fake_ambient(ctx, **kwargs):
             raise AmbientCallSkipped("The run has reached a budget cap")

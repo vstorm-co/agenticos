@@ -1,5 +1,5 @@
 ---
-source_sha: "9ec53a258619"
+source_sha: "5e91e7483c03"
 ---
 
 # Consejo { #council }
@@ -34,7 +34,7 @@ está; no lo edita ni propone trabajo fuera de su alcance.
 
 | Campo | Predeterminado | Qué es |
 |---|---|---|
-| `members` | — | Exactamente tres delegados, cada uno con un proveedor distinto y un perfil de modelo |
+| `members` | — | Exactamente tres delegados, cada uno con un nombre, un proveedor distinto y un perfil de modelo |
 | `agreement_threshold` | `8` | La puntuación sobre 10 que cada delegado debe alcanzar para que una ronda satisfaga al consejo |
 | `max_rounds` | `3` | Cuántas rondas de revisión puede pedir un run (1–5) |
 

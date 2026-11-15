@@ -66,6 +66,7 @@ def _agent() -> Agent[AgentDeps, str | DeferredToolRequests]:
     )
 
 
+@pytest.mark.security
 async def test_a_secret_request_parks_the_run_waiting_on_an_answer() -> None:
     parked = await _agent().run("List my Acme contacts", deps=AgentDeps())
 
@@ -80,6 +81,7 @@ async def test_a_secret_request_parks_the_run_waiting_on_an_answer() -> None:
     assert state.questions == []
 
 
+@pytest.mark.security
 async def test_the_safe_result_continues_the_run_and_the_value_never_appears() -> None:
     parked = await _agent().run("List my Acme contacts", deps=AgentDeps())
     assert isinstance(parked.output, DeferredToolRequests)
@@ -105,6 +107,7 @@ async def test_the_safe_result_continues_the_run_and_the_value_never_appears() -
     assert SENTINEL not in json.dumps(restored.model_dump(mode="json"))
 
 
+@pytest.mark.security
 def test_the_capability_builds_its_toolset_once() -> None:
     from app.agents.capabilities.secret_request._capability import SecretRequestCapability
 
@@ -128,26 +131,31 @@ class TestRequestSecretValidation:
 
         return MagicMock(last_attempt=True)
 
+    @pytest.mark.security
     async def test_an_empty_name_is_refused(self, toolset, ctx) -> None:
         result = await toolset.request_secret(ctx, "  ", "Acme CRM, to list contacts")
 
         assert "Name the secret to store" in result
 
+    @pytest.mark.security
     async def test_an_overlong_name_is_refused(self, toolset, ctx) -> None:
         result = await toolset.request_secret(ctx, "k" * 129, "Acme CRM, to list contacts")
 
         assert "under 128 characters" in result
 
+    @pytest.mark.security
     async def test_a_missing_reason_is_refused(self, toolset, ctx) -> None:
         result = await toolset.request_secret(ctx, "acme_api_key", "  ")
 
         assert "Say what the secret is for" in result
 
+    @pytest.mark.security
     async def test_an_overlong_reason_is_refused(self, toolset, ctx) -> None:
         result = await toolset.request_secret(ctx, "acme_api_key", "w" * 1001)
 
         assert "under 1000 characters" in result
 
+    @pytest.mark.security
     async def test_an_unknown_kind_is_refused_before_parking(self, toolset, ctx) -> None:
         from unittest.mock import AsyncMock, patch
 
@@ -166,6 +174,7 @@ class TestRequestSecretValidation:
         assert "supported secret kinds" in none_result
         park.assert_not_awaited()
 
+    @pytest.mark.security
     async def test_a_kind_over_32_characters_is_refused_before_parking(self, toolset, ctx) -> None:
         from unittest.mock import AsyncMock, patch
 
@@ -178,6 +187,7 @@ class TestRequestSecretValidation:
         assert "supported secret kinds" in result
         park.assert_not_awaited()
 
+    @pytest.mark.security
     async def test_a_valid_call_that_somehow_does_not_park_still_answers(
         self, toolset, ctx
     ) -> None:

@@ -222,9 +222,7 @@ describe("assistantPageSnapshot", () => {
   });
 
   it("bounds document titles and the route used when no title is available", () => {
-    expect(assistantPageSnapshot("/apps/scheduler", "t".repeat(241)).title).toBe(
-      "t".repeat(240),
-    );
+    expect(assistantPageSnapshot("/apps/scheduler", "t".repeat(241)).title).toBe("t".repeat(240));
     const path = "/" + "a".repeat(300);
     const snapshot = assistantPageSnapshot(path, " ");
     expect(snapshot.title).toBe(path.slice(0, 240));

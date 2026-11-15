@@ -1,5 +1,5 @@
 ---
-source_sha: "ce9a9f820e6b"
+source_sha: "d80cae6dae16"
 ---
 
 # Aprender de los errores { #failure-learning }
@@ -90,16 +90,16 @@ Los veredictos se juzgan al leer el intento, nunca se guardan. Una
 ejecución que sigue en curso deja su caso pendiente.
 
 Un intento puede nombrar una propuesta en borrador en lugar de una
-sustitución de instrucciones: ejecuta las instrucciones propuestas o el
-contenido propuesto del skill. La prueba del skill usa el contenido propuesto
-como una sustitución en memoria durante la ejecución de prueba; no modifica el
-skill guardado. Registra el hash SHA-256 del contenido probado, que debe
-coincidir exactamente con la propuesta al aplicarla.
+sustitución de instrucciones: ejecuta sus instrucciones nuevas o el contenido
+del skill y sirve como evidencia de esa propuesta exacta. Registra el id de la
+propuesta y el SHA-256 del contenido probado. La aplicación se rechaza si el
+intento aprobado vinculado no corresponde a esa propuesta y a ese hash.
 
-Los intentos son síncronos y tienen un límite de diez llamadas al modelo
-(dos lados por caso y muestra). Las solicitudes mayores se rechazan antes de
-iniciar llamadas. La ejecución en segundo plano queda como trabajo futuro
-independiente.
+Un intento se ejecuta de forma síncrona dentro de la petición y tiene un
+límite de diez runs del agente (dos lados por caso y muestra). Cada run puede
+hacer varias peticiones al provider, por lo que no es un límite de peticiones
+al provider. Las solicitudes mayores se rechazan antes de iniciar los runs.
+La ejecución en segundo plano queda como trabajo futuro independiente.
 
 ## Propuestas { #proposals }
 
@@ -147,12 +147,12 @@ entrada del registro vinculada, si la hay, se marca resuelta, y la entrada
 de auditoría registra la propuesta, la versión, el intento y la versión
 base.
 
-Aplicar un skill requiere un intento aprobado para el contenido exacto
-de la propuesta y devuelve 409 si el skill actual ya no coincide con el hash
-base. Antes de editarlo en vivo, la propuesta guarda el contenido anterior.
-El endpoint de reversión, disponible una vez, restaura esa copia solo si el
-skill aún coincide con el hash aplicado; no sobrescribe cambios posteriores.
-La reversión queda registrada en la auditoría.
+Aplicar un skill requiere que el intento vinculado haya pasado y registra el
+hash exacto del contenido nuevo. Devuelve 409 si el skill actual ya no coincide
+con el hash base de la propuesta. Antes de editarlo, guarda el contenido anterior
+en la propuesta. El endpoint de reversión, disponible una vez, restaura esa copia
+solo si el skill aún coincide con el hash aplicado; registra quién lo revirtió
+y una entrada de auditoría, y nunca sobrescribe cambios posteriores.
 
 Deshacer una aplicación de instrucciones es la reversión existente:
 publica una versión nueva copiada de la versión base que registró la
@@ -199,8 +199,8 @@ parte que falla y escribe lo que debería decir la respuesta.
 
 Un intento corre sobre los casos marcados, con un número de muestras y o
 bien el texto nuevo de una propuesta en borrador o bien una sustitución
-escrita — nunca ambos. Los intentos corren de forma síncrona, así que
-mantenlos pequeños: uno o dos casos, una muestra. Un intento que pasa
+escrita — nunca ambos. Las solicitudes de más de diez runs del agente se
+rechazan antes de ejecutarse. Un intento que pasa
 la puerta ofrece su texto como propuesta, prerrellenada con el intento
 como su evidencia.
 
@@ -213,7 +213,8 @@ solo cuando su intento ha pasado la puerta, y solo quien tiene
 `agents:publish` ve el control de aplicar. Una propuesta de skill
 también necesita un intento aprobado para su contenido exacto. Su reversión
 restaura el contenido anterior guardado si nadie cambió el skill desde que
-se aplicó.
+se aplicó. Una propuesta aplicada registra la versión que publicó y la
+indicación para deshacerla: volver a la versión base guardada.
 
 ### Cuántas reglas están vivas { #how-many-rules-are-live }
 
@@ -308,9 +309,9 @@ mismo.
 
 ### ¿Por qué tardó tanto mi intento? { #why-did-my-try-take-so-long }
 
-Los intentos son síncronos: cada caso se ejecuta dos veces por muestra,
-una llamada al modelo tras otra. Una solicitud puede iniciar como máximo
-diez llamadas al modelo.
+Los intentos son síncronos: cada caso se ejecuta dos veces por muestra, un
+run del agente tras otro, dentro de la petición. Un intento puede iniciar
+como máximo diez runs; cada run puede hacer varias peticiones al provider.
 
 ### ¿Puede un intento cambiar lo que dice mi agente? { #can-a-try-change-what-my-agent-says }
 
@@ -326,9 +327,10 @@ publicación más reciente.
 
 ### ¿Cómo deshago una aplicación? { #how-do-i-undo-an-apply }
 
-Revierte una propuesta de instrucciones a la versión base guardada.
-Una aplicación de skill se puede revertir una vez al contenido anterior
-si el skill no ha cambiado desde entonces.
+Vuelve a la versión base guardada en la propuesta: la reversión existente
+publica una versión nueva copiada de ella, por lo que la cronología muestra
+que ocurrió. Una aplicación de skill se puede revertir una vez desde su copia
+guardada si el skill todavía tiene el contenido aplicado.
 
 ### ¿Qué pasa cuando aplico un cambio de skill? { #what-happens-when-i-apply-a-skill-change }
 
@@ -338,7 +340,7 @@ exacto y se puede revertir una vez si nadie cambió el skill desde entonces.
 
 ### ¿Dónde veo los patrones nuevos cada día? { #where-do-i-see-the-new-patterns-each-day }
 
-En tu bandeja de entrada, si el despliegue configuró un destinatario para
-el resumen — un correo por organización con algo nuevo, ninguno cuando no
-hay nada — y en la página de patrones de la organización, que lista los
-patrones de todos los agentes en un solo lugar.
+En tu bandeja de entrada, si el despliegue configuró un destinatario para el
+resumen — un correo por organización con algo nuevo. Si no hay destinatario o
+novedades, se registra que no se hizo nada. También aparecen en la página de
+patrones de la organización, que reúne los de todos los agentes.

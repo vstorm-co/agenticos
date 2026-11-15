@@ -57,11 +57,16 @@ CodingModel = Literal[
     "openai:gpt-5.6-terra",
     "openai:gpt-5.6-luna",
     "openai:gpt-5.3-codex",
+    "google:gemini-3-pro-preview",
+    "google:gemini-2.5-flash",
 ]
 """The models offered, each prefixed with its vendor so the Builder draws its mark.
 
 The Claude ids are the ones Claude Code takes, directly and through OpenRouter,
-both checked; the Codex ones are the curated `openai_codex` list.
+both checked; the Codex ones are the curated `openai_codex` list. The Gemini
+ids are the ones Gemini CLI takes with `-m`: its `pro` alias resolves to the
+3 Pro preview and `flash` to 2.5 Flash. OpenCode and Pi take any of these ids
+as `provider/model`.
 """
 
 _MODEL_NAMES: dict[str, JsonValue] = {
@@ -72,6 +77,8 @@ _MODEL_NAMES: dict[str, JsonValue] = {
     "openai:gpt-5.6-terra": "GPT-5.6 Terra",
     "openai:gpt-5.6-luna": "GPT-5.6 Luna",
     "openai:gpt-5.3-codex": "GPT-5.3 Codex",
+    "google:gemini-3-pro-preview": "Gemini 3 Pro preview",
+    "google:gemini-2.5-flash": "Gemini 2.5 Flash",
 }
 
 _VENDOR = {"claude_code": "anthropic", "codex": "openai"}

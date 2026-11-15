@@ -20,14 +20,17 @@ import { cn } from "@/lib/utils";
  * hover:bg-accent) and reuses the shared DropdownMenu so its menu styling is
  * consistent with the org/user menus.
  */
-export function LanguageSwitcherIcon() {
+export function LanguageSwitcherIcon({
+  onLocaleChange,
+}: { onLocaleChange?: (locale: Locale) => void } = {}) {
   const t = useTranslations("common");
   const locale = useLocale() as Locale;
   const router = useRouter();
   const pathname = usePathname();
 
   const handleChange = (newLocale: Locale) => {
-    router.push(pathname, { locale: newLocale });
+    if (onLocaleChange) onLocaleChange(newLocale);
+    else router.push(pathname, { locale: newLocale });
   };
 
   return (

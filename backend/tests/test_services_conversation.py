@@ -1863,6 +1863,50 @@ class TestConversationServiceAddMessage:
         )
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize("kind", ["conversation", "local"])
+    async def test_a_runner_file_origin_survives_jsonb_serialization(
+        self, service: ConversationService, kind: str
+    ) -> None:
+        import json
+
+        from app.schemas.conversation import MessageCreate, MessagePart
+
+        conv_id, source_id = uuid4(), uuid4()
+        data = MessageCreate(
+            role="assistant",
+            content="Answer with a file link.",
+            parts=[
+                MessagePart.model_validate(
+                    {
+                        "type": "text",
+                        "text": "Answer with a file link. ",
+                        "file_source": {"kind": kind, "id": str(source_id)},
+                    }
+                )
+            ],
+        )
+        with (
+            patch("app.services.conversation.conversation_repo") as repo,
+            patch("app.services.follow_ups.queue_next_steps"),
+        ):
+            repo.get_conversation_by_id = AsyncMock(return_value=MockConversation(id=conv_id))
+            repo.create_message = AsyncMock(return_value=MockMessage())
+            await service.add_message(conv_id, data, organization_id=TEST_ORG_ID, run_id=uuid4())
+
+        # The same JSON encoder used by the JSONB column must accept the payload.
+        stored = json.loads(json.dumps(repo.create_message.await_args.kwargs["parts"]))
+        assert stored == [
+            {
+                "type": "text",
+                "text": "Answer with a file link. ",
+                "file_source": {"kind": kind, "id": str(source_id)},
+            }
+        ]
+        parsed = MessagePart.model_validate(stored[0])
+        assert parsed.file_source is not None
+        assert parsed.file_source.id == source_id
+
+    @pytest.mark.anyio
     async def test_add_message_to_archived_conversation_raises_bad_request(
         self, service: ConversationService
     ):
@@ -2240,7 +2284,13 @@ class TestSayingATurnWasStopped:
     async def _listed(service: ConversationService, conv_id):
         """Listed as the transcript route lists them - with a reader, so the
         schema-enriching branch runs rather than the raw-row one."""
-        with patch("app.services.conversation.message_rating_repo") as ratings:
+        with (
+            patch("app.services.conversation.message_rating_repo") as ratings,
+            patch(
+                "app.services.conversation.conversation_share_repo.get_share",
+                AsyncMock(return_value=SimpleNamespace(permission="view")),
+            ),
+        ):
             ratings.get_user_ratings_for_messages = AsyncMock(return_value={})
             ratings.get_rating_counts_for_messages = AsyncMock(return_value={})
             items, total, _cost = await service.transcript(
@@ -2289,6 +2339,36 @@ class TestSayingATurnWasStopped:
             items, _total = await self._listed(service, conv_id)
 
         assert items[0].run_status is None
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "stored",
+        [
+            "The run did not finish (ContentFilterError) - retry it",
+            "https://private.example/?api_key=secret",
+        ],
+    )
+    async def test_a_failed_turn_has_a_safe_explanation(self, service: ConversationService, stored):
+        from app.agents.failures import CONTENT_FILTER_SUMMARY
+
+        conv_id, run_id = uuid4(), uuid4()
+        with patch("app.services.conversation.conversation_repo") as repo:
+            repo.get_conversation_by_id = AsyncMock(
+                return_value=MockConversation(id=conv_id, organization_id=TEST_ORG_ID)
+            )
+            repo.favourite_ids = AsyncMock(return_value=set())
+            repo.get_messages_by_conversation = AsyncMock(return_value=[MockMessage(run_id=run_id)])
+            repo.count_messages = AsyncMock(return_value=1)
+            repo.run_outcomes = AsyncMock(
+                return_value={run_id: RunOutcome(status="failed", duration_ms=10_000, error=stored)}
+            )
+            repo.conversation_cost = AsyncMock(return_value=None)
+            items, _total = await self._listed(service, conv_id)
+        assert items[0].run_status == "failed"
+        assert items[0].run_error == (
+            CONTENT_FILTER_SUMMARY if "ContentFilterError" in stored else None
+        )
 
 
 class TestWhatTheThreadCost:
@@ -2685,6 +2765,104 @@ class TestTheThreadAModelIsGivenBack:
 
         assert history == []
 
+    async def test_a_room_request_uses_its_selected_history_instead_of_a_shared_summary(
+        self, monkeypatch
+    ):
+        conversation = MockConversation()
+        conversation.guardrail_revision = 7
+        conversation.summary_messages = ModelMessagesTypeAdapter.dump_python(
+            [ModelRequest(parts=[SystemPromptPart(content="Summary includes a later question.")])],
+            mode="json",
+        )
+        conversation.summary_ordinal = 99
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        window = AsyncMock(
+            return_value=[
+                self._row("user", "First question"),
+                self._row("assistant", "First answer"),
+            ]
+        )
+        monkeypatch.setattr(conversation_repo, "get_room_history_messages", window)
+        recent = AsyncMock()
+        after = AsyncMock()
+        monkeypatch.setattr(conversation_repo, "get_recent_messages", recent)
+        monkeypatch.setattr(conversation_repo, "get_messages_after", after)
+        service = ConversationService(AsyncMock())
+        prompt_id = uuid4()
+
+        history = await service.model_history(
+            conversation.id, limit=25, room_request_message_id=prompt_id
+        )
+
+        assert [part.content for message in history for part in message.parts] == [
+            "First question",
+            "First answer",
+        ]
+        assert history.revision == 7
+        window.assert_awaited_once_with(
+            service.db, conversation.id, request_message_id=prompt_id, limit=25
+        )
+        recent.assert_not_awaited()
+        after.assert_not_awaited()
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("room", [False, True])
+    async def test_history_still_withholds_refused_content_and_capabilities(
+        self, monkeypatch: pytest.MonkeyPatch, capability_loads_repo: AsyncMock, room: bool
+    ) -> None:
+        conversation = MockConversation()
+        refused = self._row("user", "REFUSED_SECRET")
+        refused.guardrail_refused = True
+        refused.attachment_context = "REFUSED_ATTACHMENT"
+        answer = self._row("assistant", "REFUSED_ANSWER")
+        answer.guardrail_refused = True
+        answer.attachment_context = "REFUSED_ASSISTANT_ATTACHMENT"
+        answer.parts = [
+            {"type": "text", "text": "REFUSED_STREAMED_TEXT"},
+            {"type": "steer", "text": "REFUSED_STEER"},
+            {"type": "ask_user", "question": "REFUSED_QUESTION", "answer": "REFUSED_CARD_ANSWER"},
+        ]
+        safe = self._row("assistant", "An earlier allowed answer")
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(
+            conversation_repo,
+            "get_room_history_messages" if room else "get_recent_messages",
+            AsyncMock(return_value=[refused, answer, safe]),
+        )
+
+        history = await ConversationService(AsyncMock()).model_history(
+            conversation.id, limit=25, room_request_message_id=uuid4() if room else None
+        )
+
+        assert [part.content for message in history for part in message.parts] == [
+            REFUSED_TURN,
+            "An earlier allowed answer",
+        ]
+        assert capability_loads_repo.await_args.args[1] == {safe.id}
+
+    async def test_a_room_history_requires_a_submission_in_the_same_conversation(self, monkeypatch):
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=MockConversation())
+        )
+        monkeypatch.setattr(
+            conversation_repo, "get_room_history_messages", AsyncMock(return_value=None)
+        )
+
+        with pytest.raises(NotFoundError, match="Room message not found"):
+            await ConversationService(AsyncMock()).model_history(
+                uuid4(), limit=25, room_request_message_id=uuid4()
+            )
+
+    async def test_a_room_boundary_cannot_be_combined_with_a_retry_boundary(self):
+        with pytest.raises(BadRequestError, match="Choose one conversation history boundary"):
+            await ConversationService(AsyncMock()).model_history(
+                uuid4(), limit=25, room_request_message_id=uuid4(), before_message_id=uuid4()
+            )
+
     async def test_a_retry_reads_the_thread_as_it_stood_when_asked(self, monkeypatch):
         """A retry re-issues an earlier turn as the prompt, so the history must
         stop before it: the turn itself and the failed attempt after it are
@@ -2699,9 +2877,7 @@ class TestTheThreadAModelIsGivenBack:
         monkeypatch.setattr(
             conversation_repo, "messages_by_id", AsyncMock(return_value={prompt.id: prompt})
         )
-        window = AsyncMock(
-            return_value=[self._row("user", "hi"), self._row("assistant", "hello")]
-        )
+        window = AsyncMock(return_value=[self._row("user", "hi"), self._row("assistant", "hello")])
         monkeypatch.setattr(conversation_repo, "get_messages_by_conversation", window)
 
         history = await ConversationService(AsyncMock()).model_history(
@@ -2715,9 +2891,7 @@ class TestTheThreadAModelIsGivenBack:
         assert window.await_args.kwargs["before"] == prompt.id
         assert window.await_args.kwargs["latest"] is True
 
-    async def test_a_retry_after_a_summary_keeps_only_what_preceded_the_turn(
-        self, monkeypatch
-    ):
+    async def test_a_retry_after_a_summary_keeps_only_what_preceded_the_turn(self, monkeypatch):
         """The summary half is older than the turn, so it stands; the rows since
         it are cut at the turn, dropping the question and its failed answer."""
         conversation = MockConversation()
@@ -2871,10 +3045,7 @@ class TestTheThreadAModelIsGivenBack:
 
         history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
 
-        assert [part.content for message in history for part in message.parts] == [
-            REFUSED_TURN,
-            "Working",
-        ]
+        assert [part.content for message in history for part in message.parts] == [REFUSED_TURN]
 
     @pytest.mark.security
     async def test_nor_is_it_replayed_after_a_summary(self, monkeypatch):
@@ -2889,11 +3060,15 @@ class TestTheThreadAModelIsGivenBack:
             role="user", content="SECRETWORD", run_id=run_id, guardrail_refused=True
         )
         refused.context_used_tokens = None
+        answer = MockMessage(
+            role="assistant", content="REFUSED_ANSWER", run_id=run_id, guardrail_refused=True
+        )
+        answer.context_used_tokens = None
         monkeypatch.setattr(
             conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
         )
         monkeypatch.setattr(
-            conversation_repo, "get_messages_after", AsyncMock(return_value=[refused])
+            conversation_repo, "get_messages_after", AsyncMock(return_value=[refused, answer])
         )
 
         history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
@@ -2904,14 +3079,18 @@ class TestTheThreadAModelIsGivenBack:
         ]
 
     @pytest.mark.security
-    async def test_a_reply_to_a_refused_turn_does_not_quote_it(self, monkeypatch):
+    @pytest.mark.parametrize("role", ["user", "assistant"])
+    @pytest.mark.parametrize("room", [False, True])
+    async def test_a_reply_to_a_refused_turn_does_not_quote_it(
+        self, monkeypatch: pytest.MonkeyPatch, role: str, room: bool
+    ) -> None:
         """Quoting is the second way a turn's words reach the model: a reply to
         the refused message would carry an excerpt of it, from inside the window
         or from outside it."""
         conversation = MockConversation()
         run_id = uuid4()
         refused = MockMessage(
-            role="user", content="SECRETWORD", run_id=run_id, guardrail_refused=True
+            role=role, content="SECRETWORD", run_id=run_id, guardrail_refused=True
         )
         refused.context_used_tokens = None
         reply = MockMessage(role="user", content="and this?")
@@ -2921,14 +3100,18 @@ class TestTheThreadAModelIsGivenBack:
             conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
         )
         monkeypatch.setattr(
-            conversation_repo, "get_recent_messages", AsyncMock(return_value=[reply])
+            conversation_repo,
+            "get_room_history_messages" if room else "get_recent_messages",
+            AsyncMock(return_value=[reply]),
         )
         monkeypatch.setattr(
             conversation_repo, "messages_by_id", AsyncMock(return_value={refused.id: refused})
         )
         monkeypatch.setattr(conversation_repo, "users_by_id", AsyncMock(return_value={}))
 
-        history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
+        history = await ConversationService(AsyncMock()).model_history(
+            conversation.id, limit=50, room_request_message_id=uuid4() if room else None
+        )
 
         [replayed] = [part.content for message in history for part in message.parts]
         assert "SECRETWORD" not in replayed

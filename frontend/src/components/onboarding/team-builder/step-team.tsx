@@ -80,14 +80,14 @@ export function StepTeam({
 
       {/* Rationale Callout */}
       {proposal.rationale && (
-        <div className="border-brand/20 bg-brand/5 flex items-start gap-3 rounded-2xl border p-4 text-xs leading-relaxed text-foreground">
+        <div className="border-brand/20 bg-brand/5 text-foreground flex items-start gap-3 rounded-2xl border p-4 text-xs leading-relaxed">
           <Sparkles className="text-brand mt-0.5 size-4 shrink-0" />
           <p>{proposal.rationale}</p>
         </div>
       )}
 
       {/* Lead Orchestrator Card */}
-      <div className="border-brand/40 bg-card relative space-y-4 rounded-2xl border p-5 sm:p-6 shadow-sm">
+      <div className="border-brand/40 bg-card relative space-y-4 rounded-2xl border p-5 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <span className="bg-brand text-brand-foreground inline-flex size-10 shrink-0 items-center justify-center rounded-xl shadow-sm">
@@ -99,7 +99,7 @@ export function StepTeam({
                   type="text"
                   value={proposal.lead.name}
                   onChange={(e) => onUpdateLeadName(e.target.value)}
-                  className="text-foreground border-transparent hover:border-border focus:border-brand bg-transparent text-base font-semibold focus:outline-none border-b px-1 py-0.5 transition-colors"
+                  className="text-foreground hover:border-border focus:border-brand border-b border-transparent bg-transparent px-1 py-0.5 text-base font-semibold transition-colors focus:outline-none"
                 />
               </div>
               <p className="text-muted-foreground text-xs">{proposal.lead.role}</p>
@@ -110,14 +110,12 @@ export function StepTeam({
           </Badge>
         </div>
 
-        <p className="text-muted-foreground text-sm leading-relaxed">
-          {proposal.lead.description}
-        </p>
+        <p className="text-muted-foreground text-sm leading-relaxed">{proposal.lead.description}</p>
 
         {/* Lead Starters */}
         {proposal.lead.starters.length > 0 && (
-          <div className="border-border/60 border-t pt-3 space-y-1.5">
-            <span className="text-muted-foreground text-[11px] font-medium uppercase tracking-wider">
+          <div className="border-border/60 space-y-1.5 border-t pt-3">
+            <span className="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
               {t("starterPromptsHeader")}
             </span>
             <div className="flex flex-wrap gap-1.5">
@@ -126,7 +124,7 @@ export function StepTeam({
                   key={i}
                   className="bg-muted text-muted-foreground inline-block rounded-md px-2.5 py-1 text-xs"
                 >
-                  "{starter}"
+                  &quot;{starter}&quot;
                 </span>
               ))}
             </div>

@@ -201,12 +201,17 @@ class TestKerberosLogin:
         # The session row carries the id the access token names, chosen up front.
         assert sessions.await_args.kwargs["session_id"] is not None
 
+    @pytest.mark.parametrize("response_token", [None, b"server-token"])
     async def test_a_ticket_for_an_mfa_user_stops_at_the_second_factor(
-        self, client: AsyncClient, sign_in: MagicMock, sessions: AsyncMock
+        self,
+        client: AsyncClient,
+        sign_in: MagicMock,
+        sessions: AsyncMock,
+        response_token: bytes | None,
     ) -> None:
         user = _user()
         user.totp_enabled = True
-        sign_in.sign_in_with_ticket = AsyncMock(return_value=(user, None))
+        sign_in.sign_in_with_ticket = AsyncMock(return_value=(user, response_token))
 
         resp = await client.get(
             _KERBEROS,
@@ -218,6 +223,12 @@ class TestKerberosLogin:
         assert location.path == "/auth/callback"
         assert "mfa_token" in parse_qs(location.fragment)
         assert not location.query
+        if response_token is None:
+            assert "www-authenticate" not in resp.headers
+        else:
+            assert resp.headers["www-authenticate"] == (
+                f"Negotiate {base64.b64encode(response_token).decode('ascii')}"
+            )
         sessions.assert_not_awaited()
 
     async def test_the_desktop_shell_gets_its_deep_link(

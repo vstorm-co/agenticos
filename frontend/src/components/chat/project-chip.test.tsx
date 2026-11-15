@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
 import { getProject } from "@/lib/projects-api";
@@ -28,6 +29,7 @@ vi.mock("next/navigation", () => ({
   permanentRedirect: vi.fn(),
 }));
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), patch: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/projects-api", async (original) => ({
   ...(await original<typeof import("@/lib/projects-api")>()),
   getProject: vi.fn(),
@@ -141,7 +143,11 @@ describe("ProjectChip", () => {
       <QueryClientProvider
         client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
       >
-        <ProjectChip conversationId="c-1" pickerOpen={false} onPickerOpenChange={onPickerOpenChange} />
+        <ProjectChip
+          conversationId="c-1"
+          pickerOpen={false}
+          onPickerOpenChange={onPickerOpenChange}
+        />
       </QueryClientProvider>,
     );
     await userEvent.click(await screen.findByRole("button", { name: "Change project" }));
@@ -194,6 +200,28 @@ describe("ProjectChip", () => {
     expect(await screen.findByText("Launch")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Change project" })).toBeNull();
     expect(apiClient.patch).not.toHaveBeenCalled();
+  });
+
+  it("keeps the current project and picker open when moving the chat is refused", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "c-1", project_id: "p-1" });
+    vi.mocked(apiClient.patch).mockRejectedValueOnce(new Error("Project access was removed"));
+    const onPickerOpenChange = vi.fn();
+    render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <ProjectChip conversationId="c-1" pickerOpen onPickerOpenChange={onPickerOpenChange} />
+      </QueryClientProvider>,
+    );
+    await screen.findByText("Launch");
+    await userEvent.click(screen.getByRole("button", { name: "pick" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not move conversation"));
+    expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1", { project_id: "p-2" });
+    expect(screen.getByText("Launch")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "pick" })).toBeInTheDocument();
+    expect(onPickerOpenChange).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });
 

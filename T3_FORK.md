@@ -13,11 +13,9 @@ The initial source baseline is upstream `v1.52.0`, commit
 
 This initial change adds documentation and baseline metadata. It does not add an
 adapter, change application behavior, or establish runtime compatibility.
-GitHub Actions is disabled in this fork at repository level. The Cloud Build
-validation and downstream updater definitions are documented in [T3_SYNC.md](T3_SYNC.md).
-Repository files alone do not enable the triggers or establish passing checks;
-record the connected build and trigger evidence when installing them. Deployment
-remains a separate acceptance step.
+GitHub Actions is enabled for checks only; central validation and downstream
+updates are also documented in [T3_SYNC.md](T3_SYNC.md). Deployment remains a
+separate acceptance step.
 
 ## Branches
 
@@ -111,15 +109,16 @@ release attribution; do not present a custom T3 build as an upstream release.
 
 ## Workflows and releases
 
-Inherited workflows include upstream-specific image namespaces, package
-publishing, Pages, deployment and optional AI review. Repository environment
-approval rules and secrets do not become a safe fork configuration merely by
-copying their YAML. Keep Actions disabled until a deliberate CI setup is reviewed.
+GitHub Actions is on for checks only. The only active workflow is
+`.github/workflows/ci.yml`, and it uses GitHub-hosted runners. Its top-level
+`GITHUB_TOKEN` permission is `contents: read`; any additional token permissions
+are read-only. Codecov upload failures do not fail CI and no Codecov token is
+configured. Pull requests from forks require maintainer approval before their
+workflows run.
 
-Before enabling CI, select approved runners, separate checks from publishing,
-audit all workflow triggers and permissions, and keep deployment credentials out
-of untrusted PR jobs. Review new upstream workflows on every update. Do not add
-model credentials merely to satisfy the inherited optional AI reviewer.
+All other inherited workflows are parked under `.github/workflows-disabled/`.
+Review each one separately before restoring it. Do not put deployment credentials
+in untrusted PR jobs or add model credentials for the optional AI reviewer.
 
 External MCP adapters can use explicitly pinned upstream images. A platform code
 change requires T3-built images and an explicit deployment override: the upstream

@@ -46,6 +46,7 @@ vi.mock("@/hooks/use-assistant-page-context", () => ({
 
 const useArtifactDisclosureMock = vi.fn();
 const usePublicDataDisclosureMock = vi.fn();
+const toggleFavourite = vi.fn();
 vi.mock("@/hooks/use-artifacts", () => ({
   useArtifact: (...args: unknown[]) => useArtifactMock(...args),
   useArtifactView: (...args: unknown[]) => useArtifactViewMock(...args),
@@ -53,7 +54,7 @@ vi.mock("@/hooks/use-artifacts", () => ({
   useArtifactReasons: (...args: unknown[]) => useArtifactReasonsMock(...args),
   useArtifactDisclosure: (...args: unknown[]) => useArtifactDisclosureMock(...args),
   usePublicDataDisclosure: (...args: unknown[]) => usePublicDataDisclosureMock(...args),
-  useToggleArtifactFavourite: () => ({ isPending: false, mutate: vi.fn() }),
+  useToggleArtifactFavourite: () => ({ isPending: false, mutate: toggleFavourite }),
 }));
 // What the console does with a page's requests has its own tests
 // (`artifact-actions.test.tsx`); here the viewer only draws what it is lent.
@@ -352,6 +353,22 @@ describe("ArtifactViewer", () => {
     rerender(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
     await userEvent.click(screen.getByRole("button", { name: "Unfollow" }));
     expect(follow.mutate).toHaveBeenLastCalledWith(false);
+  });
+
+  it("lets a reader save and unsave the page without editing it", async () => {
+    useArtifactMock.mockReturnValue(state(detail({ can_edit: false, is_favourite: false })));
+    const view = render(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+    const add = screen.getByRole("button", { name: "Add Weekly report to favourites" });
+    expect(add).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(add);
+    expect(toggleFavourite).toHaveBeenLastCalledWith({ id: "a1", favourite: true });
+
+    useArtifactMock.mockReturnValue(state(detail({ can_edit: false, is_favourite: true })));
+    view.rerender(<ArtifactViewer artifactId="a1" initialVersionId={null} />);
+    const remove = screen.getByRole("button", { name: "Remove Weekly report from favourites" });
+    expect(remove).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(remove);
+    expect(toggleFavourite).toHaveBeenLastCalledWith({ id: "a1", favourite: false });
   });
 
   it("says in a word how far it reaches", () => {
@@ -1432,7 +1449,12 @@ describe("ArtifactViewer requests", () => {
     await userEvent.click(screen.getByRole("button", { name: /waiting for you/ }));
 
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Bea Builder changed the data v3 shows")).toBeVisible();
+    const request = within(dialog).getByText("Bea Builder changed the data v3 shows");
+    expect(request).toBeVisible();
+    expect(
+      request.compareDocumentPosition(within(dialog).getByLabelText("Link to this app")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("opens the Share dialog at once when a notification linked to the requests", async () => {

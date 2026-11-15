@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -55,6 +55,10 @@ vi.mock("@/stores", () => ({
   useAuthStore: (selector: (state: { user: { id: string } | null }) => unknown) =>
     selector({ user: { id: "user-1" } }),
 }));
+const datasets = vi.hoisted(() => ({ runnable: false }));
+vi.mock("@/hooks/use-eval-runs", () => ({
+  useRunsADataset: () => datasets.runnable,
+}));
 
 function run(overrides: Partial<AgentRun> = {}): AgentRun {
   return {
@@ -109,6 +113,7 @@ function renderRun(runId = "run-2", onFocusRun = vi.fn()) {
 beforeEach(() => {
   useRunMock.mockReset();
   prefetched.mockReset();
+  datasets.runnable = false;
   useResumeRunMock.mockReset();
   useResumeRunMock.mockReturnValue({ mutate: vi.fn(), isPending: false });
   useRetryRunMock.mockReset();
@@ -134,6 +139,27 @@ describe("stepping to a neighbour", () => {
     expect(
       screen.getByText("Repaired 2 tool calls' malformed arguments instead of retrying them"),
     ).toBeInTheDocument();
+  });
+
+  it("names the skills the run used, each at its version and linked to the skill", () => {
+    serve({
+      run: run({
+        skills_used: [
+          { skill_id: "k1", name: "returns", version: 2, fork: null, loaded: true },
+          { skill_id: "k2", name: "prints", version: 1, fork: "Shop", loaded: true },
+          { skill_id: "k3", name: "legacy", version: null, fork: null, loaded: false },
+        ],
+      }),
+    });
+    renderRun();
+
+    expect(screen.getByText("Skills used:")).toBeVisible();
+    expect(screen.getByRole("link", { name: "returns · v2" })).toHaveAttribute(
+      "href",
+      "/skills/k1",
+    );
+    expect(screen.getByRole("link", { name: "prints · Shop v1" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "legacy" })).toBeVisible();
   });
 
   it("says nothing about repairs for a run that needed none", () => {
@@ -262,6 +288,24 @@ describe("stepping to a neighbour", () => {
     expect(
       screen.getByText(/900 read from the provider's cache and 100 written to it/),
     ).toBeVisible();
+  });
+
+  it.each([
+    { read: 90, write: undefined, text: "90 read from the provider's cache and 0 written to it" },
+    { read: undefined, write: 12, text: "0 read from the provider's cache and 12 written to it" },
+  ])(
+    "does not invent a missing cache counter ($read read, $write written)",
+    ({ read, write, text }) => {
+      serve({ run: run({ cache_read_tokens: read, cache_write_tokens: write }) });
+      renderRun();
+      expect(screen.getByText(new RegExp(text))).toBeInTheDocument();
+    },
+  );
+
+  it("admits a fallback whose serving model and original label are unavailable", () => {
+    serve({ run: run({ fallback_used: true, serving_model: null, model_label: null }) });
+    renderRun();
+    expect(screen.getByText("Served by - (fallback)")).toBeInTheDocument();
   });
 
   it("warms both neighbours on arrival, so the step is a cache hit", () => {
@@ -410,6 +454,61 @@ describe("the row being held while the next one loads", () => {
   });
 });
 
+describe("an eval run", () => {
+  it("names the case it answered and opens the eval run, not an empty transcript", () => {
+    serve({
+      run: run({
+        surface: "eval",
+        eval_case: {
+          eval_run_id: "eval-1",
+          agent_id: "agent-9",
+          case_id: "case-1",
+          dataset_name: "refunds",
+          case_input: "Can I return it?",
+          graded: false,
+        },
+      }),
+    });
+    renderRun();
+    expect(
+      screen.getByRole("link", { name: "Eval case: refunds · Can I return it?" }),
+    ).toHaveAttribute("href", "/agents/agent-9/evals/eval-1?case=case-1");
+    expect(screen.getByText("A case from an eval run")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open the eval run" })).toHaveAttribute(
+      "href",
+      "/agents/agent-9/evals/eval-1?case=case-1",
+    );
+    expect(screen.queryByTestId("timeline")).toBeNull();
+  });
+
+  it("says a judge's run graded an eval case, and opens the eval run", () => {
+    serve({
+      run: run({
+        surface: "eval",
+        eval_case: {
+          eval_run_id: "eval-1",
+          agent_id: "agent-9",
+          case_id: "case-1",
+          dataset_name: "refunds",
+          case_input: "Can I return it?",
+          graded: true,
+        },
+      }),
+    });
+    renderRun();
+    expect(
+      screen.getByRole("link", { name: "Grading an eval case: refunds · Can I return it?" }),
+    ).toHaveAttribute("href", "/agents/agent-9/evals/eval-1?case=case-1");
+    expect(screen.getByText("The judge grading a case of an eval run")).toBeInTheDocument();
+  });
+
+  it("links no eval run it cannot name - a judge has no evals of its own to point at", () => {
+    serve({ run: run({ surface: "eval" }) });
+    renderRun();
+    expect(screen.queryByRole("link", { name: /eval/i })).toBeNull();
+  });
+});
+
 describe("a voice call in focus", () => {
   it("says it was a call beside its surface", () => {
     serve({ run: run({ modality: "voice" }) });
@@ -468,10 +567,58 @@ describe("a run parked on a question", () => {
     expect(screen.getByText(/Expires in 1 d/)).toBeVisible();
   });
 
+  it("names every requested secret even when no ordinary question is pending", () => {
+    serve({
+      run: run({
+        status: "awaiting_answer",
+        waiting_secret_requests: ["Vendor API key", "Calendar token"],
+        waiting_expires_at: null,
+      }),
+    });
+    renderRun();
+    const waiting = screen.getByRole("region", { name: "Waiting on you" });
+    expect(within(waiting).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(waiting).getByText("Needs secret: Vendor API key")).toBeVisible();
+    expect(within(waiting).getByText("Needs secret: Calendar token")).toBeVisible();
+    expect(within(waiting).queryByText(/Expires in/)).not.toBeInTheDocument();
+  });
+
+  it("does not display an empty waiting section while pending details are absent", () => {
+    serve({
+      run: run({ status: "awaiting_answer", waiting_questions: [], waiting_secret_requests: [] }),
+    });
+    renderRun();
+    expect(screen.queryByRole("region", { name: "Waiting on you" })).not.toBeInTheDocument();
+  });
+
   it("shows no waiting section once the run has finished", () => {
     serve({ run: run({ status: "completed" }) });
     renderRun();
 
     expect(screen.queryByRole("region", { name: "Waiting on you" })).toBeNull();
+  });
+});
+
+describe("scoring a run against a case", () => {
+  it("is offered to who may run a dataset, whatever the role says", () => {
+    datasets.runnable = true;
+    serve({ run: run() });
+    renderRun();
+
+    expect(screen.getByRole("button", { name: "More actions for this run" })).toBeInTheDocument();
+  });
+
+  it("is not offered to who may run no dataset", () => {
+    datasets.runnable = false;
+    serve({ run: run() });
+    renderRun();
+    expect(screen.queryByRole("button", { name: "More actions for this run" })).toBeNull();
+  });
+
+  it("is not offered for a run with no transcript to score", () => {
+    datasets.runnable = true;
+    serve({ run: run({ conversation_id: null }) });
+    renderRun();
+    expect(screen.queryByRole("button", { name: "More actions for this run" })).toBeNull();
   });
 });

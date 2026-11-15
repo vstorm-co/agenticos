@@ -26,6 +26,11 @@ vi.mock("@/hooks/use-mcp-connections", () => ({
   useMcpConnections: () => ({ create: createOwn, connections: held.own }),
 }));
 vi.mock("@/lib/mcp-connections-api", () => ({ startMcpOAuth: vi.fn() }));
+const managedConnect = vi.fn();
+vi.mock("@/hooks/use-managed-app-connect", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-managed-app-connect")>()),
+  useManagedAppConnect: () => managedConnect,
+}));
 const shell = vi.hoisted(() => ({ desktop: false, openConsent: vi.fn() }));
 vi.mock("@/hooks/use-shell", () => ({
   useShell: () => (shell.desktop ? { platform: "macos", window: "main" } : null),
@@ -63,6 +68,116 @@ const OAUTH_ENTRY: McpCatalogEntry = {
   auth: "oauth",
   url: "https://mcp.notion.com/mcp",
 };
+
+const MANAGED_ENTRY: McpCatalogEntry = {
+  ...OAUTH_ENTRY,
+  key: "composio-gmail",
+  name: "Gmail",
+  url: null,
+};
+
+describe("managed app connection routing", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    shell.desktop = false;
+  });
+
+  it.each(["organization", "personal"] as const)(
+    "hands a managed entry to the app journey from the %s scope without a legacy MCP form",
+    async (scope) => {
+      const openForm = vi.fn();
+      function ManagedEntry() {
+        const connect = useConnectEntry(scope, {
+          openForm,
+          keepThisTab: true,
+          returnTo: "/chat",
+        });
+        return (
+          <button type="button" onClick={() => connect(MANAGED_ENTRY)}>
+            Connect managed entry
+          </button>
+        );
+      }
+      render(<ManagedEntry />, { wrapper });
+      await userEvent.click(screen.getByRole("button", { name: "Connect managed entry" }));
+      expect(managedConnect).toHaveBeenCalledWith("composio-gmail", {
+        keepThisTab: true,
+        sameTab: true,
+      });
+      expect(managedConnect).toHaveBeenCalledTimes(1);
+      expect(openForm).not.toHaveBeenCalled();
+      expect(startMcpOAuth).not.toHaveBeenCalled();
+      expect(create).not.toHaveBeenCalled();
+      expect(createOwn).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps the managed own-account control disabled when requested and routes an enabled click safely", async () => {
+    const view = render(
+      <ConnectOwnButton entry={MANAGED_ENTRY} label="Connect Gmail" keepThisTab disabled />,
+      { wrapper },
+    );
+    const button = screen.getByRole("button", { name: "Connect Gmail" });
+    expect(button).toBeDisabled();
+    await userEvent.click(button);
+    expect(managedConnect).not.toHaveBeenCalled();
+
+    view.rerender(<ConnectOwnButton entry={MANAGED_ENTRY} label="Connect Gmail" keepThisTab />);
+    await userEvent.click(screen.getByRole("button", { name: "Connect Gmail" }));
+    expect(managedConnect).toHaveBeenCalledWith("composio-gmail", { keepThisTab: true });
+    expect(managedConnect).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Configure/ })).not.toBeInTheDocument();
+    expect(startMcpOAuth).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, "/chat"])(
+    "reconnects a managed account through the app journey with return target %s",
+    async (returnTo) => {
+      const connection: McpConnectionRecord = {
+        id: "managed-account",
+        name: "gmail-personal",
+        url: "https://managed.example/mcp",
+        has_auth_token: false,
+        allowed_tools: null,
+        is_enabled: true,
+        include_instructions: false,
+        auth_type: "composio",
+        oauth_authorized: false,
+        authorized: false,
+        last_status: "error",
+        last_error: "Authorization expired",
+        last_checked_at: null,
+        visibility: "private",
+        catalog_key: MANAGED_ENTRY.key,
+        label: null,
+        is_default: false,
+        last_tools: null,
+        trust_read_only_hints: false,
+        created_at: "2026-11-14T08:00:00Z",
+        updated_at: null,
+      };
+      function ReconnectManaged() {
+        const reconnect = useSignInOwn({ returnTo, keepThisTab: true });
+        return (
+          <button type="button" onClick={() => reconnect(connection)}>
+            Reconnect Gmail
+          </button>
+        );
+      }
+      render(<ReconnectManaged />, { wrapper });
+      await userEvent.click(screen.getByRole("button", { name: "Reconnect Gmail" }));
+      expect(managedConnect).toHaveBeenCalledWith("composio-gmail", {
+        keepThisTab: true,
+        sameTab: returnTo !== undefined,
+      });
+      expect(managedConnect).toHaveBeenCalledTimes(1);
+      expect(startMcpOAuth).not.toHaveBeenCalled();
+      expect(createOwn).not.toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    },
+  );
+});
 
 function open(entry: McpCatalogEntry, onConnected = vi.fn(), onClose = vi.fn()) {
   render(<ConnectServerDialog entry={entry} onClose={onClose} onConnected={onConnected} />, {
@@ -128,12 +243,24 @@ describe("ConnectServerDialog", () => {
     );
   });
 
+  it("formats an edited tool prefix instead of refusing a human title", async () => {
+    open(TOKEN_ENTRY);
+    await userEvent.click(await screen.findByRole("button", { name: "More options" }));
+    const name = screen.getByLabelText("Tool prefix");
+    await userEvent.clear(name);
+    await userEvent.type(name, "Support CRM");
+    await submit();
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith(expect.objectContaining({ name: "support-crm" })),
+    );
+  });
+
   it("refuses a name the server would not accept, without calling the API", async () => {
     open(TOKEN_ENTRY);
     await userEvent.click(await screen.findByRole("button", { name: "More options" }));
     const name = screen.getByLabelText("Tool prefix");
     await userEvent.clear(name);
-    await userEvent.type(name, "Not A Name");
+    await userEvent.type(name, "---");
 
     await submit();
 

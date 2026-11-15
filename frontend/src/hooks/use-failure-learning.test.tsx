@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,6 +11,10 @@ import {
   useProposal,
 } from "./use-failure-learning";
 import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-error";
+import { qk } from "@/lib/query-keys";
+import { toast } from "sonner";
+import type { FailurePattern } from "@/lib/failure-learning-api";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -23,6 +27,30 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 const emptyList = { items: [], total: 0 };
+const pattern: FailurePattern = {
+  agent_id: "agent-1",
+  agent_name: "Helper",
+  model: null,
+  status: "failed",
+  error_class: "other",
+  pattern_key: "failed:other",
+  count: 3,
+  first_seen: "2026-11-13T00:00:00Z",
+  last_seen: "2026-11-14T00:00:00Z",
+  sample_run_ids: ["run-1"],
+  sample_message_ids: ["message-1"],
+  already_tracked: false,
+};
+
+function setup() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity }, mutations: { retry: false } },
+  });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  return { client, wrapper };
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -43,6 +71,50 @@ beforeEach(() => {
 });
 
 describe("useFailureLearning", () => {
+  it.each(["accepted", "refused"] as const)(
+    "reverts a proposal only after an %s server response",
+    async (outcome) => {
+      const { client, wrapper } = setup();
+      const current = qk.failureLearning.proposal("agent-1", "prop-1");
+      const other = qk.failureLearning.proposal("agent-2", "prop-2");
+      client.setQueryData(current, { id: "prop-1", status: "applied" });
+      client.setQueryData(other, { id: "prop-2", status: "applied" });
+      const invalidate = vi.spyOn(client, "invalidateQueries");
+      const { result, unmount } = renderHook(() => useFailureLearning("agent-1"), { wrapper });
+      await waitFor(() => expect(result.current.patternsLoading).toBe(false));
+      const failure = new ApiError(409, "The skill changed after this proposal");
+      if (outcome === "refused") vi.mocked(apiClient.post).mockRejectedValueOnce(failure);
+
+      try {
+        await act(async () => {
+          const reverting = result.current.revert.mutateAsync("prop-1");
+          if (outcome === "refused") await expect(reverting).rejects.toBe(failure);
+          else await expect(reverting).resolves.toEqual({ id: "new-1" });
+        });
+        expect(apiClient.post).toHaveBeenCalledExactlyOnceWith(
+          "/agents/agent-1/failure-learning/proposals/prop-1/revert",
+        );
+        expect(client.getQueryState(other)?.isInvalidated).toBe(false);
+        if (outcome === "accepted") {
+          expect(invalidate).toHaveBeenCalledExactlyOnceWith({
+            queryKey: ["failure-learning", "agents", "agent-1"],
+          });
+          expect(client.getQueryState(current)?.isInvalidated).toBe(true);
+          expect(toast.success).toHaveBeenCalledTimes(1);
+          expect(toast.error).not.toHaveBeenCalled();
+        } else {
+          expect(invalidate).not.toHaveBeenCalled();
+          expect(client.getQueryState(current)?.isInvalidated).toBe(false);
+          expect(toast.error).toHaveBeenCalledTimes(1);
+          expect(toast.success).not.toHaveBeenCalled();
+        }
+      } finally {
+        unmount();
+        client.clear();
+      }
+    },
+  );
+
   it("reads the agent's patterns, ledger, cases and proposals", async () => {
     const { result } = renderHook(() => useFailureLearning("agent-1"), { wrapper });
 
@@ -147,6 +219,67 @@ describe("useFailureLearning", () => {
 });
 
 describe("useOrgPatterns", () => {
+  it.each(["accepted", "refused"] as const)(
+    "tracks an organization pattern with an %s server response",
+    async (outcome) => {
+      const { client, wrapper } = setup();
+      const firstAgent = qk.failureLearning.agentPatterns("agent-1");
+      const secondAgent = qk.failureLearning.ledger("agent-2");
+      const unrelated = qk.providers.modelProfiles();
+      client.setQueryData(firstAgent, { items: [pattern], total: 1, notes: [] });
+      client.setQueryData(secondAgent, emptyList);
+      client.setQueryData(unrelated, []);
+      const invalidate = vi.spyOn(client, "invalidateQueries");
+      const { result, unmount } = renderHook(() => useOrgPatterns(), { wrapper });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+      const failure = new ApiError(403, "This pattern is read-only for this member");
+      if (outcome === "refused") vi.mocked(apiClient.post).mockRejectedValueOnce(failure);
+      try {
+        await act(async () => {
+          const tracking = result.current.track.mutateAsync({
+            pattern,
+            input: { title: "Check failures", summary: "Keep the verified evidence" },
+          });
+          if (outcome === "refused") await expect(tracking).rejects.toBe(failure);
+          else await expect(tracking).resolves.toEqual({ id: "new-1" });
+        });
+        expect(apiClient.post).toHaveBeenCalledExactlyOnceWith(
+          "/agents/agent-1/failure-learning/ledger",
+          {
+            title: "Check failures",
+            summary: "Keep the verified evidence",
+            scope: "agent",
+            model: null,
+            pattern_key: pattern.pattern_key,
+            evidence: {
+              run_ids: ["run-1"],
+              message_ids: ["message-1"],
+              count: 3,
+              window: { from: pattern.first_seen, to: pattern.last_seen },
+              error_class: "other",
+            },
+          },
+        );
+        expect(client.getQueryState(unrelated)?.isInvalidated).toBe(false);
+        if (outcome === "accepted") {
+          expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.failureLearning.orgPatterns() });
+          expect(invalidate).toHaveBeenCalledWith({ queryKey: ["failure-learning", "agents"] });
+          expect(client.getQueryState(firstAgent)?.isInvalidated).toBe(true);
+          expect(client.getQueryState(secondAgent)?.isInvalidated).toBe(true);
+          expect(toast.error).not.toHaveBeenCalled();
+        } else {
+          expect(invalidate).not.toHaveBeenCalled();
+          expect(client.getQueryState(firstAgent)?.isInvalidated).toBe(false);
+          expect(client.getQueryState(secondAgent)?.isInvalidated).toBe(false);
+          expect(toast.error).toHaveBeenCalledTimes(1);
+        }
+      } finally {
+        unmount();
+        client.clear();
+      }
+    },
+  );
+
   it("reads the org patterns and tracks one", async () => {
     const { result } = renderHook(() => useOrgPatterns(), { wrapper });
 

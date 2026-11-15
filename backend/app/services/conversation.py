@@ -10,7 +10,7 @@ member's request reaches.
 import asyncio
 import json
 import logging
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Sequence
 from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -30,6 +30,7 @@ from app.agents.ask_user import parked_status
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import prefix_for, restore_stored_media
 from app.agents.capabilities.media._store import BoundedOrganizationMediaStore, MediaReadLimitError
+from app.agents.failures import stored_failure_summary
 from app.agents.model_context import ModelContextCheck
 from app.agents.steering import STEER_PREFIX
 from app.core.background import spawn_after_commit
@@ -133,12 +134,12 @@ def _as_history(
     person's turn reads as `spoken` says where it says anything - who said it
     and what it answers - see `ConversationService._spoken`. A prompt of a turn
     a guardrail stopped reads as `REFUSED_TURN`, with nothing its files added
-    (#2578).
+    (#2578). A refused assistant's text and parts are omitted entirely.
     """
     spoken = spoken or {}
     history: list[HistoryMessage] = []
     for row in rows:
-        if row.id == exclude_message_id:
+        if row.id == exclude_message_id or (row.role == "assistant" and row.guardrail_refused):
             continue
         # Rebuild the assistant's spoken sequence around human answers, instead
         # of moving every answer before the text that originally asked for it.
@@ -257,6 +258,7 @@ class ConversationService:
         limit: int,
         exclude_message_id: UUID | None = None,
         before_message_id: UUID | None = None,
+        room_request_message_id: UUID | None = None,
     ) -> ModelHistory:
         """The thread as the model should read it, summary included.
 
@@ -282,11 +284,37 @@ class ConversationService:
         as history. A summary taken at or after that turn covers it, so the
         summary half is dropped and the transcript half reads the window
         before it instead.
+
+        `room_request_message_id` reads earlier messages plus completed answers
+        to preceding queued requests, even when those answers landed after this
+        question. Later questions are excluded. A shared summary cannot describe
+        that filtered window, so room histories always rebuild the bounded
+        transcript and retain its refusal revision.
         """
+        if room_request_message_id is not None and before_message_id is not None:
+            raise BadRequestError(message="Choose one conversation history boundary")
         conversation = await conversation_repo.get_conversation_by_id(
             self.db, conversation_id, include_summary=True, fresh=True
         )
         revision = None if conversation is None else conversation.guardrail_revision
+        if room_request_message_id is not None:
+            rows = await conversation_repo.get_room_history_messages(
+                self.db,
+                conversation_id,
+                request_message_id=room_request_message_id,
+                limit=limit,
+            )
+            if rows is None:
+                raise NotFoundError(
+                    message="Room message not found",
+                    details={"message_id": room_request_message_id},
+                )
+            spoken = await self._spoken(rows, conversation)
+            history = build_message_history(_as_history(rows, exclude_message_id, spoken))
+            return ModelHistory(
+                await self._restore_capability_loads(history, rows, exclude_message_id),
+                revision=revision,
+            )
         summary = None if conversation is None else conversation.summary_messages
         before_ordinal: int | None = None
         if before_message_id is not None:
@@ -586,6 +614,34 @@ class ConversationService:
             logger.info(
                 "conversation_summary_superseded", extra={"conversation_id": str(conversation_id)}
             )
+
+    async def readable(self, ctx: AuthContext, conversation_ids: Iterable[UUID]) -> set[UUID]:
+        """Which of these conversations the caller may read the text of.
+
+        All of them with `runs:view`, the lens that reads any run in its context.
+        Otherwise those the caller may open - their own, shared with them, or in a
+        project they belong to - each asked once. A conversation that no longer
+        exists has nobody left to authorize it, and is not readable.
+        """
+        wanted = set(conversation_ids)
+        if ctx.has(Perm.RUNS_VIEW):
+            return wanted
+        if ctx.user_id is None:
+            return set()
+        readable: set[UUID] = set()
+        for conversation_id in wanted:
+            try:
+                await self.get_conversation(
+                    conversation_id,
+                    organization_id=ctx.organization_id,
+                    user_id=ctx.subject_id,
+                    ctx=ctx,
+                    include_favourite=False,
+                )
+            except NotFoundError:
+                continue
+            readable.add(conversation_id)
+        return readable
 
     async def get_conversation(
         self,
@@ -1817,6 +1873,9 @@ class ConversationService:
             include_favourite=False,
             ctx=ctx,
         )
+        await personal_data_repo.unlink_dataset_cases_from_conversation(
+            self.db, conversation_id, organization_id=organization_id
+        )
         await self.forget_stored_files(organization_id, [conversation_id])
         await conversation_repo.delete_conversation(self.db, db_conversation=conversation)
         return True
@@ -1959,6 +2018,11 @@ class ConversationService:
                 # complete one, and the reader believes the agent finished.
                 outcome = outcomes.get(msg.run_id) if msg.run_id else None
                 msg_schema.run_status = outcome.status if outcome else None
+                msg_schema.run_error = (
+                    stored_failure_summary(outcome.error)
+                    if outcome and outcome.status == "failed"
+                    else None
+                )
                 msg_schema.run_duration_ms = outcome.duration_ms if outcome else None
                 msg_schema.run_started_at = outcome.started_at if outcome else None
                 enriched.append(msg_schema)
@@ -2290,8 +2354,8 @@ def _excerpt(text: str) -> str:
 
 def _said(message: Message) -> str:
     """What a quoted message says, as the model may be told it: a quote is the
-    other way a refused prompt's words would reach it (#2578)."""
-    if message.role == "user" and message.guardrail_refused:
+    other way a refused turn's words would reach it (#2578)."""
+    if message.guardrail_refused:
         return REFUSED_TURN
     return message.content
 

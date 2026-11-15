@@ -310,10 +310,12 @@ class TestGroupGrantsReachMembers:
             resource_type=SKILL.key,
             resource_id=skill.id,
             level=GrantLevel.EDIT,
-            expires_at=datetime.now(UTC) + timedelta(days=30),
+            expires_at=(replacement := datetime.now(UTC) + timedelta(days=7)),
         )
 
+        await db.refresh(upgraded)
         assert upgraded.level == "edit"
+        assert upgraded.expires_at == replacement
         assert await resource_grant_repo.revoke_for_group(
             db,
             organization_id=org.id,

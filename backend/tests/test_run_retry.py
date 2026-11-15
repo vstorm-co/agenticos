@@ -13,7 +13,7 @@ guessed at.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -29,6 +29,26 @@ from app.services.agent_runner import AgentRunnerService
 pytestmark = pytest.mark.anyio
 
 MODULE = "app.services.agent_runner"
+
+
+@pytest.fixture(autouse=True)
+def ordinary_runs_have_no_room_request():
+    with patch("app.repositories.room_submission.for_run", new=AsyncMock(return_value=None)):
+        yield
+
+
+async def test_a_room_run_requires_a_new_explicit_queued_request():
+    service = AgentRunnerService(MagicMock())
+    original = _run()
+    ctx = _ctx(user_id=original.user_id)
+    with (
+        patch(f"{MODULE}.agent_run_repo.get_run", new=AsyncMock(return_value=original)),
+        patch("app.repositories.room_submission.for_run", new=AsyncMock(return_value=object())),
+        patch.object(service, "execute", new=AsyncMock()) as execute,
+        pytest.raises(BadRequestError, match="project room"),
+    ):
+        await service.retry_run(ctx, original.id)
+    execute.assert_not_called()
 
 
 def _ctx(*, user_id=None, api_key_id=None) -> AuthContext:
@@ -64,9 +84,7 @@ def _run(**overrides) -> SimpleNamespace:
 
 
 def _message(*, role, content, row_id=None, files=None):
-    return SimpleNamespace(
-        id=row_id or uuid.uuid4(), role=role, content=content, files=files or []
-    )
+    return SimpleNamespace(id=row_id or uuid.uuid4(), role=role, content=content, files=files or [])
 
 
 async def test_retry_row_stays_top_level_and_keeps_its_origin():
@@ -84,7 +102,7 @@ async def test_retry_row_stays_top_level_and_keeps_its_origin():
         conversation_id=uuid.uuid4(),
         surface="web",
         model_label=None,
-        started_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        started_at=datetime(2026, 1, 1, tzinfo=UTC),
         retry_of_run_id=original_id,
     )
 
@@ -102,23 +120,26 @@ class TestRetryRefusals:
         with pytest.raises(AuthorizationError, match="signed-in session"):
             await service.retry_run(ctx, uuid.uuid4())
 
+    @pytest.mark.security
     async def test_a_run_in_another_tenant_reads_as_absent(self):
         service = AgentRunnerService(MagicMock())
 
-        with patch(f"{MODULE}.agent_run_repo.get_run", new=AsyncMock(return_value=None)):
-            with pytest.raises(NotFoundError, match="Run not found"):
-                await service.retry_run(_ctx(), uuid.uuid4())
+        with (
+            patch(f"{MODULE}.agent_run_repo.get_run", new=AsyncMock(return_value=None)),
+            pytest.raises(NotFoundError, match="Run not found"),
+        ):
+            await service.retry_run(_ctx(), uuid.uuid4())
 
     async def test_somebody_elses_run_is_not_theirs_to_retry(self):
         service = AgentRunnerService(MagicMock())
         original = _run()
         ctx = _ctx(user_id=uuid.uuid4())
 
-        with patch(
-            f"{MODULE}.agent_run_repo.get_run", new=AsyncMock(return_value=original)
+        with (
+            patch(f"{MODULE}.agent_run_repo.get_run", new=AsyncMock(return_value=original)),
+            pytest.raises(AuthorizationError, match="who started this run"),
         ):
-            with pytest.raises(AuthorizationError, match="who started this run"):
-                await service.retry_run(ctx, original.id)
+            await service.retry_run(ctx, original.id)
 
     @pytest.mark.parametrize(
         "status",
@@ -133,22 +154,22 @@ class TestRetryRefusals:
         original = _run(status=status.value)
         ctx = _ctx(user_id=original.user_id)
 
-        with patch(
-            f"{MODULE}.agent_run_repo.get_run", new=AsyncMock(return_value=original)
+        with (
+            patch(f"{MODULE}.agent_run_repo.get_run", new=AsyncMock(return_value=original)),
+            pytest.raises(BadRequestError, match="has not finished"),
         ):
-            with pytest.raises(BadRequestError, match="has not finished"):
-                await service.retry_run(ctx, original.id)
+            await service.retry_run(ctx, original.id)
 
     async def test_a_run_with_no_conversation_has_nothing_to_retry_from(self):
         service = AgentRunnerService(MagicMock())
         original = _run(conversation_id=None)
         ctx = _ctx(user_id=original.user_id)
 
-        with patch(
-            f"{MODULE}.agent_run_repo.get_run", new=AsyncMock(return_value=original)
+        with (
+            patch(f"{MODULE}.agent_run_repo.get_run", new=AsyncMock(return_value=original)),
+            pytest.raises(BadRequestError, match="no conversation"),
         ):
-            with pytest.raises(BadRequestError, match="no conversation"):
-                await service.retry_run(ctx, original.id)
+            await service.retry_run(ctx, original.id)
 
     async def test_a_run_with_no_user_turn_has_no_request_to_reissue(self):
         """A delegation or a workflow step: the transcript holds what the
@@ -170,9 +191,36 @@ class TestRetryRefusals:
                     )
                 ),
             ),
+            pytest.raises(BadRequestError, match="no user turn"),
         ):
-            with pytest.raises(BadRequestError, match="no user turn"):
-                await service.retry_run(ctx, original.id)
+            await service.retry_run(ctx, original.id)
+
+    async def test_a_deleted_conversation_is_refused_before_model_or_attachment_work(self):
+        service = AgentRunnerService(MagicMock())
+        original = _run()
+        ctx = _ctx(user_id=original.user_id)
+        prompt = _message(role="user", content="try again")
+        conversations = MagicMock()
+        conversations.find_conversation = AsyncMock(return_value=None)
+        conversations.model_text = AsyncMock()
+        conversations.model_history = AsyncMock()
+
+        with (
+            patch(f"{MODULE}.agent_run_repo.get_run", new=AsyncMock(return_value=original)),
+            patch.object(
+                service, "get_run_transcript", new=AsyncMock(return_value=(original, [prompt], 1))
+            ),
+            patch(f"{MODULE}.ConversationService", return_value=conversations),
+            patch(f"{MODULE}.load_turn_attachments", new=AsyncMock()) as attachments,
+            patch.object(service, "execute", new=AsyncMock()) as execute,
+            pytest.raises(NotFoundError, match="Conversation not found"),
+        ):
+            await service.retry_run(ctx, original.id)
+
+        conversations.model_text.assert_not_awaited()
+        conversations.model_history.assert_not_awaited()
+        attachments.assert_not_awaited()
+        execute.assert_not_awaited()
 
 
 class TestRetryRunsTheSameRequest:
@@ -194,11 +242,15 @@ class TestRetryRunsTheSameRequest:
 
         with (
             patch(f"{MODULE}.agent_run_repo.get_run", new=AsyncMock(return_value=original)),
-            patch.object(service, "get_run_transcript", new=AsyncMock(return_value=(original, [prompt], 1))),
+            patch.object(
+                service, "get_run_transcript", new=AsyncMock(return_value=(original, [prompt], 1))
+            ),
             patch(f"{MODULE}.ConversationService", return_value=conversations),
             patch(f"{MODULE}.load_turn_attachments", new=AsyncMock(return_value=[])),
             patch(f"{MODULE}.record_audit", new=AsyncMock()),
-            patch.object(service, "execute", new=AsyncMock(return_value=("Done.", new_run))) as executed,
+            patch.object(
+                service, "execute", new=AsyncMock(return_value=("Done.", new_run))
+            ) as executed,
             patch.object(service, "parked_calls", new=AsyncMock(return_value=[])),
         ):
             result = await service.retry_run(ctx, original.id)
@@ -282,7 +334,7 @@ class TestRetryRunsTheSameRequest:
         total = await sum_cost_since(
             db,
             organization_id=organization_id,
-            since=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            since=datetime(2026, 1, 1, tzinfo=UTC),
         )
 
         statement = db.scalar.await_args.args[0]
@@ -296,9 +348,7 @@ class TestRetryRunsTheSameRequest:
         service = self._service(None)
         original = _run()
         file_id = uuid.uuid4()
-        prompt = _message(
-            role="user", content="what changed?", files=[SimpleNamespace(id=file_id)]
-        )
+        prompt = _message(role="user", content="what changed?", files=[SimpleNamespace(id=file_id)])
         new_run = _run(status=RunStatus.COMPLETED.value)
         ctx = _ctx(user_id=original.user_id)
         conversations = MagicMock()

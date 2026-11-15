@@ -1,5 +1,5 @@
 ---
-source_sha: "6be4e8d3a870"
+source_sha: "f0b3009ed75d"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -11,6 +11,10 @@ source_sha: "6be4e8d3a870"
     `app/core/vault.py`. Einen zweiten Weg hinzuzufügen, Zugangsdaten im
     Ruhezustand zu halten, ist genau der Defekt, den zwei Migrationen entfernt
     haben.
+
+## In der Konsole { #in-the-console }
+
+Vault zeigt Schlüssel, deine verbundenen Konten und Organisationskonten in einer Tabelle. **Schlüssel hinzufügen** speichert Zugangsdaten; **Konto verbinden** lässt dich dein eigenes Konto oder mit entsprechender Berechtigung ein Organisationskonto auswählen. Jede Zeile behält ihre eigenen Zugriffsrechte und Aktionen: Schlüssel teilen oder rotieren beziehungsweise Konten erneut verbinden oder trennen. OAuth-Tokens bleiben verborgen; das Trennen eines Kontos erfordert eine Bestätigung.
 
 ## Envelope-Verschlüsselung { #envelope-encryption }
 
@@ -397,7 +401,7 @@ versiegelt — die Nutzlasten bleiben unberührt, und das macht die Rotation
 günstig.
 
 ```bash
-uv run agenticos cmd doctor    # reports whether a vault key is configured at all
+uv run agenticos cmd doctor    # says whether a dedicated key or the SECRET_KEY fallback seals the vault
 ```
 
 `make platform-bootstrap BOOTSTRAP_API_KEY=sk-...` hinterlegt den ersten

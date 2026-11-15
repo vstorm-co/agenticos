@@ -53,6 +53,7 @@ def _paused(messages: list) -> dict:
 
 
 class TestSecretRequestItem:
+    @pytest.mark.security
     def test_a_request_needs_a_name_and_a_reason(self):
         item = secret_request_item(_call())
 
@@ -60,6 +61,7 @@ class TestSecretRequestItem:
         assert item.what_for == "Acme CRM, to list contacts"
         assert item.kind == "api_key"
 
+    @pytest.mark.security
     def test_a_request_without_a_name_is_refused(self):
         call = ToolCallPart(
             "request_secret", {"secret_name": "  ", "what_for": "x"}, tool_call_id="c"
@@ -67,6 +69,7 @@ class TestSecretRequestItem:
         with pytest.raises(ValueError, match="secret_name"):
             secret_request_item(call)
 
+    @pytest.mark.security
     def test_a_request_without_a_reason_is_refused(self):
         call = ToolCallPart(
             "request_secret", {"secret_name": "x", "what_for": "  "}, tool_call_id="c"
@@ -74,6 +77,7 @@ class TestSecretRequestItem:
         with pytest.raises(ValueError, match="what_for"):
             secret_request_item(call)
 
+    @pytest.mark.security
     def test_args_stored_as_a_json_string_still_parse(self):
         call = ToolCallPart(
             "request_secret",
@@ -84,22 +88,26 @@ class TestSecretRequestItem:
 
 
 class TestParkedItems:
+    @pytest.mark.security
     def test_parked_calls_map_back_to_the_card(self):
         items = parked_secret_request_items(_paused([ModelResponse(parts=[_call()])]))
 
         assert [item.secret_name for item in items] == ["acme_api_key"]
 
+    @pytest.mark.security
     def test_a_malformed_call_is_skipped_rather_than_breaking_the_read(self):
         bad = ToolCallPart(
             "request_secret", {"secret_name": "", "what_for": ""}, tool_call_id="call-1"
         )
         assert parked_secret_request_items(_paused([ModelResponse(parts=[bad])])) == []
 
+    @pytest.mark.security
     def test_no_parked_state_means_no_requests(self):
         assert parked_secret_request_items(None) == []
         assert parked_secret_requests_by_call({"secret_requests": "not-a-list"}) == {}
 
 
+@pytest.mark.security
 async def test_parking_raises_the_deferred_kind():
     with pytest.raises(CallDeferred) as caught:
         await park_the_secret_request()
@@ -108,6 +116,7 @@ async def test_parking_raises_the_deferred_kind():
 
 
 class TestResultStringsNeverCarryAValue:
+    @pytest.mark.security
     def test_the_fulfilled_result_names_the_secret_and_its_hint_only(self):
         result = secret_request_result("acme_api_key", "9c2f")
 
@@ -115,6 +124,7 @@ class TestResultStringsNeverCarryAValue:
         assert "9c2f" in result
         assert SENTINEL not in result
 
+    @pytest.mark.security
     def test_the_declined_result_names_no_secret_at_all(self):
         assert SENTINEL not in SECRET_DECLINED_RESULT
         assert "declined" in SECRET_DECLINED_RESULT
@@ -123,23 +133,28 @@ class TestResultStringsNeverCarryAValue:
 class TestCallArgsShapes:
     """`_call_args` reads whatever shape a stored call kept, or nothing."""
 
+    @pytest.mark.security
     def test_malformed_json_string_args_read_as_nothing(self):
         call = ToolCallPart("request_secret", "{not json", tool_call_id="c")
         assert _call_args(call) == {}
 
+    @pytest.mark.security
     def test_json_that_is_not_an_object_reads_as_nothing(self):
         call = ToolCallPart("request_secret", "[1, 2]", tool_call_id="c")
         assert _call_args(call) == {}
 
+    @pytest.mark.security
     def test_args_that_are_neither_object_nor_string_read_as_nothing(self):
         assert _call_args(SimpleNamespace(args=[1, 2])) == {}
 
 
 class TestParkedItemsEdgeCases:
+    @pytest.mark.security
     def test_no_wanted_calls_means_no_requests(self):
         assert parked_secret_requests_by_call({"messages": [], "secret_requests": []}) == {}
         assert parked_secret_requests_by_call({"messages": [], "secret_requests": [123]}) == {}
 
+    @pytest.mark.security
     def test_a_user_message_is_skipped_not_read_as_a_request(self):
         items = parked_secret_request_items(
             _paused(
@@ -152,6 +167,7 @@ class TestParkedItemsEdgeCases:
 
         assert [item.secret_name for item in items] == ["acme_api_key"]
 
+    @pytest.mark.security
     def test_parts_that_are_not_the_wanted_call_are_skipped(self):
         items = parked_secret_request_items(
             _paused(

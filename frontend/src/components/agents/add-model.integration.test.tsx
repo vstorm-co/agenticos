@@ -6,7 +6,7 @@ import { AddModel } from "./add-model";
 import { ApiError } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
-import type { SecretPurpose } from "@/types/secrets";
+import type { Secret as StoredSecret, SecretPurpose } from "@/types/secrets";
 import { providerMarkIn } from "@/test-utils/brand-marks";
 
 /**
@@ -58,6 +58,7 @@ const state = {
   createProfile: { mutateAsync: vi.fn(), isPending: false },
   updateProfile: { mutateAsync: vi.fn(), isPending: false },
   permissions: [] as Permission[],
+  createdPersonal: null as StoredSecret | null,
 };
 
 const listingRequests = vi.fn();
@@ -97,6 +98,29 @@ vi.mock("@/components/vault/inline-secret", () => ({
       </button>
     );
   },
+}));
+
+// The connection form validates the signed-in owner before returning metadata.
+// Here the model form receives that accepted result while its list is still stale.
+vi.mock("@/components/vault/personal-api-connection", () => ({
+  PersonalApiConnection: ({
+    onCreated,
+    disabled,
+  }: {
+    onCreated: (secret: StoredSecret) => void;
+    disabled?: boolean;
+  }) =>
+    state.createdPersonal ? (
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => {
+          if (state.createdPersonal) onCreated(state.createdPersonal);
+        }}
+      >
+        Connect personal key
+      </button>
+    ) : null,
 }));
 
 // The real one signs in with ChatGPT. What this form needs from it is the same
@@ -178,6 +202,7 @@ beforeEach(() => {
   // the default caller may also store a key, and the tests that care say so.
   state.permissions = [Perm.secretsEdit];
   onCreatedSecret.handler = undefined;
+  state.createdPersonal = null;
 });
 
 function mount(props: Partial<Parameters<typeof AddModel>[0]> = {}) {
@@ -192,6 +217,59 @@ async function pickProvider(label: string) {
 }
 
 describe("the add-model form", () => {
+  it("keeps a newly connected personal key selected until the list refreshes without duplicating or repointing a shared model", async () => {
+    state.purposes = state.purposes.map((entry) =>
+      entry.id === "openai" ? { ...entry, personal_supported: true } : entry,
+    );
+    const personal: StoredSecret = {
+      id: "s-new-personal",
+      name: "My new OpenAI",
+      description: null,
+      purpose: "openai",
+      kind: "api_key",
+      hint: "safe",
+      usage_scope: "personal",
+      owner_user_id: "user-a",
+    };
+    state.createdPersonal = personal;
+    state.secrets = [secret()];
+    const selected = {
+      id: "p-team",
+      label: "Team GPT",
+      provider: "openai",
+      model: "gpt-5",
+      secret_id: "s-1",
+      base_url: "https://organization-model.example/v1",
+      api: "chat" as const,
+      params: {},
+      fallback_profile_ids: [],
+    };
+    const onCreated = vi.fn();
+    const view = render(<AddModel onCreated={onCreated} selected={selected} />);
+    await userEvent.click(screen.getByRole("button", { name: "Connect personal key" }));
+
+    expect(screen.getByLabelText("Endpoint")).toHaveValue("");
+    expect(listingRequests).toHaveBeenCalledWith("openai", undefined, personal.id);
+    expect(screen.queryByRole("button", { name: "Update model" })).not.toBeInTheDocument();
+    state.secrets = [secret(), { ...personal, purpose: "openai" }];
+    view.rerender(<AddModel onCreated={onCreated} selected={selected} />);
+    await userEvent.click(screen.getByLabelText("Key"));
+    const choices = screen.getAllByRole("option", { name: /My new OpenAI/ });
+    expect(choices).toHaveLength(1);
+    await userEvent.click(screen.getByRole("option", { name: /My new OpenAI/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        secret_id: personal.id,
+        base_url: null,
+        api: "responses",
+        label: "My new OpenAI · OpenAI · gpt-5",
+      }),
+    );
+    expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
+    expect(onCreated).toHaveBeenCalledWith({ id: "p-1" });
+  });
+
   it("creates a separate personal profile without repointing a shared model", async () => {
     state.secrets = [
       secret(),

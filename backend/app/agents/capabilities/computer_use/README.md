@@ -22,8 +22,8 @@ The settings ask `desktop` first: `sandbox` or `daemon`.
   in a sandbox it does not have or on any other runtime - the spec's, else the
   connection's default, and naming neither is refused too. A sandbox's key
   includes its runtime, so moving an agent to `desktop` opens a new container
-  rather than reattaching to the workbench one. `open_sandbox_desktop` starts
-  the display on each run's first use, because a sandbox that hibernated
+  rather than reattaching to the workbench one. The display starts after the run
+  acquires ownership on its first use, because a sandbox that hibernated
   between turns kept its files and lost its processes.
 - **`daemon`**: a `computerd` process the operator runs, on their own Linux
   desktop (X11), on a Mac's own screen or in a container
@@ -40,6 +40,25 @@ The settings ask `desktop` first: `sandbox` or `daemon`.
   One daemon is one desktop: every run holding its token shares the machine.
   The container runs computerd and the desktop as two accounts, so an agent
   with a terminal on that desktop cannot read the token.
+
+## Shared sandbox ownership
+
+One live run owns computer use on a shared sandbox desktop at a time, including
+when separate conversations or delegates attach to the same workspace. A Redis
+lease is acquired before desktop startup, screenshots or input. A busy run is
+refused; wait for the current run to finish, then retry.
+
+Ownership is renewed while the model thinks or a person uses Take over. Human
+takeover keeps the same run's lease. Run completion or cancellation releases it.
+If an acquired lease is lost or cannot be verified, further desktop operations
+are refused; start a new run. The toolset never silently reacquires ownership
+and applies its old coordinates.
+
+This guard covers computer-use tools and their live takeover path. Arbitrary
+shell commands such as `xdotool` are not fenced, and a command already dispatched
+cannot be recalled if its worker stalls beyond the lease expiry. Parking for
+approval releases ownership: the resumed batch still checks screen dimensions,
+but the lease does not guarantee that the screen's contents stayed unchanged.
 
 ## Decisions
 
@@ -151,9 +170,8 @@ action carries at most 2000 characters.
 - An approval bound to the pixels. A resumed batch is refused on a screen of
   another shape, but a desktop is never the same twice - a clock, a cursor, a
   notification - so the same shape with different contents still runs.
-- Two runs on one desktop at once. Each run has a session of its own,
-  delegations included, but a daemon, or a sandbox shared with delegates, is
-  one screen, and nothing queues one run's clicks behind another's.
+- Cross-run ownership for a shared daemon desktop. The sandbox lease does not
+  cover a `computerd` desktop used by multiple runs.
 - A cloud desktop. A cloud sandbox provider (E2B, for one) would arrive as a
   sandbox connection kind, and its desktop would come with it.
 - `launch` on a Mac or a self-hosted Linux desktop, whether through computerd

@@ -45,6 +45,7 @@ def _row(**overrides: Any) -> MagicMock:
     # so a route test has to carry them.
     row.purpose = "openai"
     row.visibility = "org"
+    row.usage_scope = "organization"
     row.owner_user_id = None
     row.owner_email = None
     row.created_at = datetime.now(UTC)
@@ -283,6 +284,7 @@ class TestSigningInWithChatGPT:
             "name": "My ChatGPT",
             "description": None,
             "visibility": "private",
+            "usage_scope": "organization",
         }
 
     async def test_reconnecting_signs_in_again_in_place(self, client, codex) -> None:

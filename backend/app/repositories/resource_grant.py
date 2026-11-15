@@ -246,8 +246,7 @@ async def upsert_for_group(
         db.add(grant)
     else:
         grant.level = level.value
-        if expires_at is not None:
-            grant.expires_at = expires_at
+        grant.expires_at = expires_at
     await db.flush()
     await db.refresh(grant)
     return grant

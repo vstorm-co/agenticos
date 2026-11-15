@@ -1069,7 +1069,9 @@ class TestTries:
         skill_id = uuid4()
         spec = AgentSpec(name="Support", model_profile_id=uuid4()).model_dump(mode="json")
         spec["skill_ids"] = [str(skill_id)]
-        monkeypatch.setattr(agent_repo, "get_version", AsyncMock(return_value=SimpleNamespace(spec=spec)))
+        monkeypatch.setattr(
+            agent_repo, "get_version", AsyncMock(return_value=SimpleNamespace(spec=spec))
+        )
         skill = SimpleNamespace(id=skill_id, content="Current skill text.")
         service.skills.get = AsyncMock(return_value=skill)
         proposal = _proposal_row(
@@ -1082,7 +1084,9 @@ class TestTries:
         monkeypatch.setattr(failure_learning_repo, "get_proposal", AsyncMock(return_value=proposal))
         old_run, new_run = SimpleNamespace(id=uuid4()), SimpleNamespace(id=uuid4())
         service.runner.execute = AsyncMock(side_effect=[("old", old_run), ("new", new_run)])
-        monkeypatch.setattr(failure_learning_repo, "create_run", AsyncMock(side_effect=_created_run))
+        monkeypatch.setattr(
+            failure_learning_repo, "create_run", AsyncMock(side_effect=_created_run)
+        )
         linked = AsyncMock()
         monkeypatch.setattr(failure_learning_repo, "update_proposal", linked)
         monkeypatch.setattr(
@@ -2351,9 +2355,7 @@ class TestApply:
                 )
             ),
         )
-        monkeypatch.setattr(
-            "app.services.failure_learning.record_audit", AsyncMock()
-        )
+        monkeypatch.setattr("app.services.failure_learning.record_audit", AsyncMock())
 
         read = await service.revert_proposal(_ctx(), agent.id, proposal.id)
 
@@ -2362,6 +2364,164 @@ class TestApply:
         assert read.rollback_available is False
         restored.assert_awaited_once()
         assert restored.await_args.args[2].content == "Old skill text."
+
+
+class TestEvidenceAndRestoreBoundaries:
+    @pytest.mark.parametrize(
+        ("counts", "sample_counts"),
+        [((3, 3), (3, 3)), ((3, 2), (1, 5))],
+    )
+    async def test_model_evidence_is_bounded_and_does_not_reload_existing_samples(
+        self, monkeypatch, mock_db_session, counts, sample_counts
+    ):
+        service = _service(mock_db_session)
+        agents = [uuid4(), uuid4()]
+        samples = {
+            agent_id: [uuid4() for _ in range(size)]
+            for agent_id, size in zip(agents, sample_counts)
+        }
+        sampled = []
+
+        async def read_samples(_db, *, agent_id, **_kwargs):
+            sampled.append(agent_id)
+            return samples[agent_id]
+
+        monkeypatch.setattr(
+            agent_run_repo,
+            "failure_groups",
+            AsyncMock(
+                return_value=[
+                    _group(agent_id, count=count) for agent_id, count in zip(agents, counts)
+                ]
+            ),
+        )
+        monkeypatch.setattr(agent_run_repo, "failure_group_samples", read_samples)
+        monkeypatch.setattr(agent_run_repo, "stalled_runs", AsyncMock(return_value=[]))
+        monkeypatch.setattr(agent_run_repo, "down_rated_messages", AsyncMock(return_value=[]))
+        monkeypatch.setattr(failure_learning_repo, "open_entries", AsyncMock(return_value=[]))
+        monkeypatch.setattr(agent_repo, "list_by_ids", AsyncMock(return_value=([], 0)))
+
+        patterns = await service.list_org_patterns(_ctx())
+
+        [model] = [pattern for pattern in patterns.items if pattern.agent_id is None]
+        assert model.count == sum(counts)
+        assert model.sample_run_ids == (samples[agents[0]] + samples[agents[1]])[:5]
+        assert sampled == agents
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("overrides", "current_content", "message"),
+        [
+            ({"target_type": "instructions"}, "Applied procedure", "no available"),
+            ({"status": "draft"}, "Applied procedure", "no available"),
+            ({"reverted_at": _NOW}, "Applied procedure", "no available"),
+            ({"prior_skill_content": None}, "Applied procedure", "no available"),
+            ({"skill_id": None}, "Applied procedure", "no complete"),
+            ({"applied_content_sha256": None}, "Applied procedure", "no complete"),
+            ({}, "A later operator edit", "refusing to overwrite"),
+        ],
+    )
+    async def test_rollback_refuses_unavailable_or_stale_evidence_before_any_write(
+        self, monkeypatch, mock_db_session, overrides, current_content, message
+    ):
+        service = _service(mock_db_session)
+        agent = service.registry.get.return_value
+        fields = {
+            "target_type": "skill",
+            "skill_id": uuid4(),
+            "status": "applied",
+            "prior_skill_content": "Original procedure",
+            "applied_content_sha256": hashlib.sha256(b"Applied procedure").hexdigest(),
+        }
+        fields.update(overrides)
+        proposal = _proposal_row(agent.id, **fields)
+        monkeypatch.setattr(failure_learning_repo, "get_proposal", AsyncMock(return_value=proposal))
+        service.skills.get = AsyncMock(
+            return_value=SimpleNamespace(id=proposal.skill_id, content=current_content)
+        )
+        service.skills.update = AsyncMock()
+        record = AsyncMock()
+        audit = AsyncMock()
+        monkeypatch.setattr(failure_learning_repo, "update_proposal", record)
+        monkeypatch.setattr("app.services.failure_learning.record_audit", audit)
+
+        with pytest.raises(ConflictError, match=message):
+            await service.revert_proposal(_ctx(), agent.id, proposal.id)
+
+        service.skills.update.assert_not_awaited()
+        record.assert_not_awaited()
+        audit.assert_not_awaited()
+        if overrides:
+            service.skills.get.assert_not_awaited()
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("mode", "exception", "message"),
+        [
+            ("missing", BadRequestError, "must name its skill"),
+            ("changed", ConflictError, "has changed since"),
+            ("unattached", BadRequestError, "attached to the published agent"),
+        ],
+    )
+    async def test_a_skill_try_refuses_missing_stale_or_unbound_content_before_running(
+        self, monkeypatch, mock_db_session, mode, exception, message
+    ):
+        service = _service(mock_db_session)
+        agent = service.registry.get.return_value
+        case = _case_row(agent.id)
+        proposal = _proposal_row(
+            agent.id,
+            target_type="skill",
+            skill_id=None if mode == "missing" else uuid4(),
+            base_content_sha256=hashlib.sha256(b"Original procedure").hexdigest(),
+        )
+        monkeypatch.setattr(failure_learning_repo, "get_proposal", AsyncMock(return_value=proposal))
+        monkeypatch.setattr(
+            failure_learning_repo, "get_cases_by_ids", AsyncMock(return_value=[case])
+        )
+        monkeypatch.setattr(
+            agent_repo,
+            "get_version",
+            AsyncMock(
+                return_value=SimpleNamespace(
+                    spec=AgentSpec(name="Support", model_profile_id=uuid4()).model_dump(mode="json")
+                )
+            ),
+        )
+        service.skills.get = AsyncMock(
+            return_value=SimpleNamespace(
+                id=proposal.skill_id,
+                content="Later edit" if mode == "changed" else "Original procedure",
+            )
+        )
+        service.runner.execute = AsyncMock()
+        service.conversations.create_conversation = AsyncMock()
+        written = AsyncMock()
+        monkeypatch.setattr(failure_learning_repo, "create_run", written)
+
+        with pytest.raises(exception, match=message):
+            await service.start_try(
+                _ctx(), agent.id, EvalTryCreate(case_ids=[case.id], proposal_id=proposal.id)
+            )
+
+        service.runner.execute.assert_not_awaited()
+        service.conversations.create_conversation.assert_not_awaited()
+        written.assert_not_awaited()
+
+    async def test_a_missing_linked_try_is_reported_without_inventing_evidence(
+        self, monkeypatch, mock_db_session
+    ):
+        service = _service(mock_db_session)
+        agent = service.registry.get.return_value
+        proposal = _proposal_row(agent.id, eval_try_id=uuid4())
+        monkeypatch.setattr(failure_learning_repo, "get_proposal", AsyncMock(return_value=proposal))
+        monkeypatch.setattr(failure_learning_repo, "get_run", AsyncMock(return_value=None))
+
+        read = await service.get_proposal(_ctx(), agent.id, proposal.id)
+
+        assert read.eval_try_id == proposal.eval_try_id
+        assert read.eval_evidence is None
+        assert read.status == "draft"
 
 
 class TestProposalBranches:

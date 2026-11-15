@@ -63,17 +63,52 @@ def _key(incoming: IncomingMessage) -> str:
     )
 
 
+def _is_edited_mention(incoming: IncomingMessage) -> bool:
+    return incoming.platform == "mattermost" and incoming.raw.get("event") == "post_edited"
+
+
+async def remember_unaddressed(incoming: IncomingMessage) -> None:
+    """Retain a short-lived edit candidate only for an observed, ignored post."""
+    if (
+        incoming.platform != "mattermost"
+        or incoming.message_id is None
+        or _redis is None
+        or not incoming.dedupe_claimed
+    ):
+        return
+    try:
+        await _redis.set(_key(incoming), "ignored", ttl=SEEN_TTL_SECONDS)
+    except Exception:
+        logger.warning("channel_edit_candidate_unavailable", exc_info=True)
+
+
 async def claim_delivery(incoming: IncomingMessage) -> bool:
     """Claim this delivery. True means it is ours to process; False means an
     earlier delivery of the same message already was.
 
-    Fails open, every time with a log line: a message with no platform
+    New-post delivery fails open, every time with a log line: a message with no platform
     message id, a module nothing configured, and a Redis that cannot be
     reached all answer True. Dropping a legitimate question is a worse
     failure than answering a redelivered one twice - the duplicate is the
     rarer event and costs money, the drop is silence in front of a user -
-    so degrading means losing the guarantee, never the message.
+    so degrading means losing the guarantee, never the message. Edited Mattermost
+    mentions are admitted only with a shared receipt for an ignored original;
+    they fail closed so an edit cannot replay a previously handled action.
     """
+    incoming.dedupe_claimed = False
+    if _is_edited_mention(incoming):
+        # An edit may start work only for a post we observed and ignored. A
+        # separate NX claim serializes edits without deleting the original's
+        # receipt. Missing Redis or expired history never replays old actions.
+        if incoming.message_id is None or _redis is None:
+            return False
+        try:
+            if await _redis.get(_key(incoming)) != "ignored":
+                return False
+            return await _redis.set(f"{_key(incoming)}:edit", "1", ttl=SEEN_TTL_SECONDS, nx=True)
+        except Exception:
+            logger.warning("channel_edited_delivery_unavailable", exc_info=True)
+            return False
     if incoming.message_id is None:
         logger.warning(
             "Channel delivery has no message_id - processed without a dedupe claim: "
@@ -92,10 +127,12 @@ async def claim_delivery(incoming: IncomingMessage) -> bool:
         )
         return True
     try:
-        return await _redis.set(_key(incoming), "1", ttl=SEEN_TTL_SECONDS, nx=True)
+        claimed = await _redis.set(_key(incoming), "1", ttl=SEEN_TTL_SECONDS, nx=True)
     except Exception:
         logger.warning("channel_dedupe_redis_unavailable", exc_info=True)
         return True
+    incoming.dedupe_claimed = claimed
+    return claimed
 
 
 async def release_delivery(incoming: IncomingMessage) -> None:
@@ -118,6 +155,7 @@ async def release_delivery(incoming: IncomingMessage) -> None:
     if incoming.message_id is None or _redis is None:
         return
     try:
-        await _redis.delete(_key(incoming))
+        key = f"{_key(incoming)}:edit" if _is_edited_mention(incoming) else _key(incoming)
+        await _redis.delete(key)
     except Exception:
         logger.warning("channel_dedupe_release_failed", exc_info=True)

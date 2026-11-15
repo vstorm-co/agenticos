@@ -403,4 +403,3 @@ export async function installFixture(context, { baseURL, version }) {
     dispose() { for (const timer of timers) clearTimeout(timer); },
   };
 }
-

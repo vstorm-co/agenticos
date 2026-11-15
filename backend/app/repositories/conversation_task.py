@@ -12,6 +12,7 @@ from app.db.locks import LockScope, hold_subject
 from app.db.models.agent_run import AgentRun
 from app.db.models.conversation import Conversation
 from app.db.models.conversation_task import ConversationTask, ConversationTurnClaim
+from app.repositories import room_submission as room_repo
 
 
 async def get(
@@ -123,9 +124,25 @@ async def save(db: AsyncSession, task: ConversationTask) -> None:
     await db.flush()
 
 
-async def claim_turn(db: AsyncSession, conversation_id: UUID, *, background: bool) -> UUID | None:
-    """Atomically share foreground admission, or exclusively admit a task return."""
+async def claim_turn(
+    db: AsyncSession,
+    conversation_id: UUID,
+    *,
+    background: bool,
+    room_request_id: UUID | None = None,
+    resume_run_id: UUID | None = None,
+) -> UUID | None:
+    """Serialize room requests, while ordinary foreground conversations still share."""
     await hold_subject(db, LockScope.CONVERSATION_TURN, conversation_id)
+    pending = await room_repo.head(db, conversation_id)
+    if pending is not None:
+        starts_head = pending.id == room_request_id and pending.status == "queued"
+        resumes_head = resume_run_id is not None and pending.run_id == resume_run_id
+        if not starts_head and not resumes_head:
+            return None
+    # A parked room continuation is exclusive too. Its durable queue head
+    # remains in place while the original requester answers an approval/question.
+    exclusive = background or pending is not None
     now = datetime.now(UTC)
     await db.execute(
         delete(ConversationTurnClaim).where(
@@ -136,7 +153,7 @@ async def claim_turn(db: AsyncSession, conversation_id: UUID, *, background: boo
     conflict = select(ConversationTurnClaim).where(
         ConversationTurnClaim.conversation_id == conversation_id
     )
-    if not background:
+    if not exclusive:
         conflict = conflict.where(ConversationTurnClaim.background.is_(True))
     if await db.scalar(select(exists(conflict))):
         return None
@@ -145,7 +162,7 @@ async def claim_turn(db: AsyncSession, conversation_id: UUID, *, background: boo
         ConversationTurnClaim(
             id=claim_id,
             conversation_id=conversation_id,
-            background=background,
+            background=exclusive,
             expires_at=now + timedelta(seconds=60),
         )
     )

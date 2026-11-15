@@ -291,6 +291,8 @@ CALLS: tuple[Call, ...] = (
     # create an agent has a use for it.
     Call("GET", "/agents/ceiling", Perm.AGENTS_EDIT),
     Call("POST", "/agents", Perm.AGENTS_EDIT, body={"spec": _SPEC}),
+    # A system agent is an agent too, so it is gated like `create`.
+    Call("POST", "/agents/system", Perm.AGENTS_EDIT, body={"kind": "judge", "name": "Grader"}),
     # Promoting a specialist creates an agent, so it is gated like `create` - and
     # this is where "a specialist created inside someone else's run does not become
     # their agent" is enforced: a caller without `agents:edit` is refused before the
@@ -328,6 +330,7 @@ CALLS: tuple[Call, ...] = (
         query="?started_from=2020-01-01T00:00:00&started_to=2020-01-02T00:00:00",
     ),
     Call("GET", "/runs/{run_id}", Perm.RUNS_VIEW),
+    Call("POST", "/runs/{run_id}/retry", Perm.RUNS_VIEW),
     Call("GET", "/runs/{run_id}/parked", Perm.APPROVALS_DECIDE),
     Call("POST", "/runs/{run_id}/resume", Perm.APPROVALS_DECIDE),
     Call("GET", "/approvals", Perm.APPROVALS_DECIDE),
@@ -347,6 +350,8 @@ CALLS: tuple[Call, ...] = (
     ),
     Call("GET", "/skills", Perm.SKILLS_VIEW),
     Call("GET", "/skills/gallery", Perm.SKILLS_VIEW),
+    Call("GET", "/skills/gallery/preview", Perm.SKILLS_VIEW, query="?key=healthcare/consent"),
+    Call("GET", "/skills/behind-main", Perm.SKILLS_VIEW),
     Call(
         "POST",
         "/skills/gallery/install",
@@ -365,6 +370,46 @@ CALLS: tuple[Call, ...] = (
         "/context",
         Perm.CONTEXT_EDIT,
         body={"name": "glossary", "description": "What the words mean"},
+    ),
+    Call("GET", "/datasets", Perm.DATASETS_VIEW),
+    Call("POST", "/datasets", Perm.DATASETS_EDIT, body={"name": "refund questions"}),
+    # A knowledge gap is made of people's questions, so every route reads them
+    # only with runs:view; which collection, agent and dataset is the service's.
+    Call("GET", "/knowledge-gaps", Perm.RUNS_VIEW),
+    Call("GET", "/knowledge-gaps/collections/{knowledge_base_id}", Perm.RUNS_VIEW),
+    Call("POST", "/knowledge-gaps/collections/{knowledge_base_id}/regroup", Perm.RUNS_VIEW),
+    Call("POST", "/knowledge-gaps/collections/{knowledge_base_id}/classify", Perm.RUNS_VIEW),
+    Call("GET", "/knowledge-gaps/agents/{agent_id}", Perm.RUNS_VIEW),
+    Call("GET", "/knowledge-gaps/{topic_id}", Perm.RUNS_VIEW),
+    Call("POST", "/knowledge-gaps/{topic_id}/dismiss", Perm.RUNS_VIEW),
+    Call("POST", "/knowledge-gaps/{topic_id}/reopen", Perm.RUNS_VIEW),
+    Call("POST", "/knowledge-gaps/{topic_id}/draft", Perm.RUNS_VIEW),
+    Call("GET", "/knowledge-gaps/{topic_id}/draft/estimate", Perm.RUNS_VIEW),
+    Call(
+        "PUT",
+        "/knowledge-gaps/{topic_id}/draft",
+        Perm.RUNS_VIEW,
+        body={"title": "Parking", "content": "Visitors park on level -1."},
+    ),
+    Call(
+        "POST",
+        "/knowledge-gaps/{topic_id}/document",
+        Perm.RUNS_VIEW,
+        body={"title": "Parking", "content": "Visitors park on level -1."},
+    ),
+    Call(
+        "POST",
+        "/knowledge-gaps/{topic_id}/dataset",
+        Perm.RUNS_VIEW,
+        body={"dataset_id": "00000000-0000-0000-0000-000000000001"},
+    ),
+    Call("GET", "/datasets/review-queue", Perm.DATASETS_VIEW),
+    Call("GET", "/eval-runs/recent", Perm.RUNS_VIEW),
+    Call(
+        "GET",
+        "/datasets/judge-agreement",
+        Perm.DATASETS_VIEW,
+        query="?judge=00000000-0000-0000-0000-000000000001",
     ),
     Call("GET", "/tables", Perm.TABLES_VIEW),
     Call("POST", "/tables", Perm.TABLES_CREATE, body={"name": "orders"}),
@@ -506,6 +551,14 @@ CALLS: tuple[Call, ...] = (
         Perm.MCP_MANAGE,
         body={"is_enabled": False},
     ),
+    # Believing a server's `readOnlyHint` lets an eval call its tools live, so it is
+    # the same authority as editing the connection, not a lesser one.
+    Call(
+        "PATCH",
+        "/mcp-connections/{connection_id}",
+        Perm.MCP_MANAGE,
+        body={"trust_read_only_hints": True},
+    ),
     Call("DELETE", "/mcp-connections/{connection_id}", Perm.MCP_MANAGE),
     Call("GET", "/mcp-connections/{connection_id}/calls", Perm.MCP_MANAGE),
     Call("POST", "/mcp-connections/{connection_id}/test", Perm.MCP_MANAGE),
@@ -643,8 +696,12 @@ CALLS: tuple[Call, ...] = (
     # read it is exactly whoever may accept it.
     Call("GET", "/skill-changes", Perm.SKILLS_EDIT),
     Call("GET", "/skill-changes/{proposal_id}", Perm.SKILLS_EDIT),
-    Call("POST", "/skill-changes/{proposal_id}/apply", Perm.SKILLS_EDIT),
-    Call("POST", "/skill-changes/{proposal_id}/discard", Perm.SKILLS_EDIT),
+    Call("POST", "/skill-changes/{proposal_id}/apply", Perm.SKILLS_EDIT, body={"revision": 1}),
+    Call("POST", "/skill-changes/{proposal_id}/discard", Perm.SKILLS_EDIT, body={"revision": 1}),
+    Call("GET", "/context-changes", Perm.CONTEXT_EDIT),
+    Call("GET", "/context-changes/{proposal_id}", Perm.CONTEXT_EDIT),
+    Call("POST", "/context-changes/{proposal_id}/apply", Perm.CONTEXT_EDIT, body={"revision": 1}),
+    Call("POST", "/context-changes/{proposal_id}/discard", Perm.CONTEXT_EDIT, body={"revision": 1}),
 )
 
 WRITE_CALLS: tuple[Call, ...] = tuple(call for call in CALLS if call.method != "GET")
@@ -861,6 +918,13 @@ _PLATFORM_PREFIXES = (
     # Context files, shaped exactly like skills: the collection routes gate on
     # context:view/edit, the per-file routes resolve grants in the service.
     "/context",
+    # Datasets, the same shape: collection routes gate on datasets:view/edit,
+    # the per-dataset routes - cases, versions, import, export - in the service.
+    "/datasets",
+    "/knowledge-gaps",
+    # Eval runs resolve the agent's and the dataset's grants in the service; the
+    # organization-wide recent list gates on runs:view.
+    "/eval-runs",
     # Virtual tables, shaped the same way: the collection routes gate on
     # tables:view and tables:create, every per-table route resolves the table's
     # visibility and grants in the service.
@@ -1039,6 +1103,24 @@ RESOURCE_AWARE_SERVICES = (
     # or delete one is its grants' answer, resolved inside the service. Every
     # per-file route (`GET/PATCH/DELETE /context/{id}`) depends on it.
     deps.get_context_service,
+    # A dataset is a shared resource like a context file: who may read its cases,
+    # change them, import or export them is its grants' answer, in the service.
+    deps.get_dataset_service,
+    # A knowledge gap belongs to a collection: reading one resolves the caller's
+    # access to that knowledge base, and adding it to a dataset to that dataset.
+    deps.get_knowledge_gap_service,
+    # Scoring acts on one dataset: configuring it, scoring against it and
+    # recording a verdict resolve the dataset's grants in the service.
+    deps.get_scoring_service,
+    # Generated cases ride on their dataset: drafting and deciding them is
+    # `datasets:edit` on that dataset, resolved against its grants in the service.
+    deps.get_case_generation_service,
+    # An agent's test set acts on one agent, resolved against its grants in the
+    # service, which also refuses a role that may not edit datasets.
+    deps.get_agent_test_set_service,
+    # An eval run acts on one agent and one dataset, each resolved against its
+    # grants in the service.
+    deps.get_eval_run_service,
     # A table is a shared resource like a context file: who may read or write it
     # (and every record in it) is its grants' answer, resolved inside the service.
     deps.get_virtual_table_service,
@@ -1342,6 +1424,8 @@ class TestReadingWhatARunIsParkedOn:
                 "account": None,
                 "can_remember": False,
                 "subagent_name": None,
+                "content_hidden": False,
+                "always_asks": False,
             },
             {
                 "id": str(shared_id),
@@ -1354,6 +1438,8 @@ class TestReadingWhatARunIsParkedOn:
                 "account": None,
                 "can_remember": False,
                 "subagent_name": None,
+                "content_hidden": False,
+                "always_asks": False,
             },
         ]
 
@@ -1419,6 +1505,12 @@ class TestTheQueueNamesWhatItAsks:
         assert (item["tool_id"], item["capability_tool_id"]) == ("change_ticket", "update_record")
 
 
+@pytest.fixture
+def ordinary_run_without_room_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These HTTP contracts resume a regular run, outside a room delivery."""
+    monkeypatch.setattr("app.services.parked_runs.room_repo.for_run", AsyncMock(return_value=None))
+
+
 class TestResumeConveysAFailedContinuation:
     """A resume whose continuation raised is a 5xx that still names the run's status.
 
@@ -1430,7 +1522,10 @@ class TestResumeConveysAFailedContinuation:
     """
 
     async def test_a_failed_resume_answers_5xx_with_the_status_in_the_body(
-        self, as_role: ClientFactory, synthetic_roles: None
+        self,
+        as_role: ClientFactory,
+        synthetic_roles: None,
+        ordinary_run_without_room_request: None,
     ) -> None:
         run_id = uuid4()
 
@@ -1464,7 +1559,10 @@ class TestResumeAnswersWithWhatTheContinuationDid:
     """
 
     async def test_the_continuations_tool_calls_are_in_the_response(
-        self, as_role: ClientFactory, synthetic_roles: None
+        self,
+        as_role: ClientFactory,
+        synthetic_roles: None,
+        ordinary_run_without_room_request: None,
     ) -> None:
         run = MagicMock(
             id=uuid4(),
@@ -1589,10 +1687,15 @@ class TestStatsScopeIsDecidedInTheService:
             (
                 "window_aggregates",
                 WindowAggregates(
-                    total=0, cost_usd=Decimal(0), distinct_users=0, p50_ms=None, p95_ms=None
+                    total=0,
+                    cost_usd=Decimal(0),
+                    distinct_users=0,
+                    p50_ms=None,
+                    p95_ms=None,
+                    eval_cost_usd=Decimal(0),
                 ),
             ),
-            ("window_totals", (0, Decimal(0))),
+            ("window_totals", (0, Decimal(0), Decimal(0), Decimal(0))),
             ("runs_by_bin", []),
             (
                 "window_breakdown",
@@ -1671,6 +1774,30 @@ class TestStatsScopeIsDecidedInTheService:
             response = await client.get(_url(path, "?scope=own"))
 
         assert response.status_code == 200
+
+    async def test_who_needs_attention_is_refused_without_runs_view(
+        self,
+        synthetic_roles: None,
+        as_role: ClientFactory,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Counts over everybody's runs: the gate `scope=org` has, with no scope to ask."""
+        for target, value in (
+            ("message_rating_repo.down_rated_by_agent", {}),
+            ("agent_run_repo.failed_by_agent", {}),
+            ("eval_suite_repo.list_for_organization", []),
+            ("eval_suite_repo.latest_results", {}),
+            ("agent_repo.get_many", {}),
+            ("accessible_ids", set()),
+        ):
+            monkeypatch.setattr(f"app.services.stats.{target}", AsyncMock(return_value=value))
+        async with as_role(all_but(Perm.RUNS_VIEW), self._service()) as client:
+            refused = await client.get(_url("/stats/attention"))
+        async with as_role(only(Perm.RUNS_VIEW), self._service()) as client:
+            answered = await client.get(_url("/stats/attention"))
+
+        assert refused.status_code == 403
+        assert answered.status_code == 200 and answered.json()["items"] == []
 
     async def test_naming_the_organizations_people_is_refused_without_runs_view(
         self, synthetic_roles: None, stats_repos: None, as_role: ClientFactory
@@ -1906,6 +2033,9 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", f"{V1}/auth/password-reset/confirm"),
         ("POST", f"{V1}/auth/magic-link/request"),
         ("POST", f"{V1}/auth/magic-link/verify"),
+        # Completes sign-in using the short-lived first-factor challenge and a valid
+        # second factor; it cannot require the session it exists to issue.
+        ("POST", f"{V1}/auth/mfa/verify"),
         # A phone signing in by scanning the code a signed-in console shows
         # (#2097). The phone has no session yet - that is what it is getting -
         # and the single-use, one-minute code is the credential, as a magic
@@ -2313,7 +2443,10 @@ class TestAQuestionTheRunParkedOn:
         assert response.json()[0]["questions"][0]["header"] == "Tone"
 
     async def test_an_answer_continues_the_run_and_says_what_it_did(
-        self, as_role: ClientFactory, synthetic_roles: None
+        self,
+        as_role: ClientFactory,
+        synthetic_roles: None,
+        ordinary_run_without_room_request: None,
     ) -> None:
         run = self._run()
         service = MagicMock(

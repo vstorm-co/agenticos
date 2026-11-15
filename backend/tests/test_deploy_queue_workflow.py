@@ -21,7 +21,7 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WORKFLOWS = REPO_ROOT / ".github" / "workflows"
+WORKFLOWS = REPO_ROOT / ".github" / "workflows-disabled"
 
 
 def _workflow(name: str) -> dict[str, Any]:

@@ -9,10 +9,16 @@ import { toast } from "sonner";
 import { useBranding } from "@/components/branding/branding-provider";
 import { Button } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
+import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { createOnboardingTeam, fetchTeamProposal } from "@/lib/onboarding/team-api";
 import { useAuthStore } from "@/stores";
-import type { OnboardingTeamProposal, OnboardingTeamResult, ProposedSpecialist } from "@/types/onboarding";
+import type { User } from "@/types/auth";
+import type {
+  OnboardingTeamProposal,
+  OnboardingTeamResult,
+  ProposedSpecialist,
+} from "@/types/onboarding";
 
 import { StepAbout } from "./step-about";
 import { StepDeploying } from "./step-deploying";
@@ -22,6 +28,7 @@ import { StepTools } from "./step-tools";
 
 export function TeamBuilder() {
   const t = useTranslations("onboardingTeam");
+  const tErrors = useTranslations("errors");
   const { appName } = useBranding();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
@@ -44,10 +51,10 @@ export function TeamBuilder() {
   const handleSkip = async () => {
     try {
       if (user && !user.onboarding_completed_at) {
-        const updated = await apiClient.patch("/users/me", {
+        const updated = await apiClient.patch<User>("/users/me", {
           onboarding_completed_at: new Date().toISOString(),
         });
-        if (updated) setUser(updated as any);
+        if (updated) setUser(updated);
       }
     } catch {
       // non-blocking
@@ -117,9 +124,7 @@ export function TeamBuilder() {
   };
 
   const handleBack = () => {
-    if (step > 1 && step < 5) {
-      setStep((prev) => (prev - 1) as any);
-    }
+    setStep((prev) => (prev === 4 ? 3 : prev === 3 ? 2 : prev === 2 ? 1 : prev));
   };
 
   const handleDeploy = async () => {
@@ -140,8 +145,8 @@ export function TeamBuilder() {
           onboarding_completed_at: new Date().toISOString(),
         });
       }
-    } catch (err: any) {
-      setDeployError(err?.message || "Failed to assemble your team. Please try again."); // i18n-exempt: error fallback
+    } catch (err: unknown) {
+      setDeployError(getErrorMessage(err, tErrors));
     } finally {
       setIsDeploying(false);
     }
@@ -174,7 +179,7 @@ export function TeamBuilder() {
   return (
     <div className="bg-background text-foreground flex min-h-screen flex-col">
       {/* Header */}
-      <header className="border-border sticky top-0 z-10 border-b bg-background/80 backdrop-blur-md">
+      <header className="border-border bg-background/80 sticky top-0 z-10 border-b backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between px-6 py-4">
           <span className="inline-flex items-center gap-2 text-base font-semibold tracking-tight">
             <span aria-hidden className="bg-brand inline-block h-2.5 w-2.5 rounded-full" />
@@ -204,7 +209,7 @@ export function TeamBuilder() {
         {/* Progress Stepper Bar (steps 1 to 4) */}
         {step < 5 && (
           <div className="mb-8 space-y-2">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <div className="text-muted-foreground flex items-center justify-between text-xs">
               <span className="font-medium">{t("stepTracker", { step })}</span>
               <span>
                 {step === 1

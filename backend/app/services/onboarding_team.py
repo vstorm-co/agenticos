@@ -6,9 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.spec import AgentSpec, SubagentRef
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
-from app.db.models.agent import Visibility
+from app.db.models.agent import Agent, AgentVersion, Visibility
 from app.repositories import agent_repo, conversation_repo, credential_repo, user_repo
 from app.schemas.onboarding import (
     CreatedAgentInfo,
@@ -127,10 +127,7 @@ class OnboardingTeamService:
         )
 
         catalog_templates = [
-            t
-            for ind in agent_templates.catalog()
-            if ind.id == ind_key
-            for t in ind.templates
+            t for ind in agent_templates.catalog() if ind.id == ind_key for t in ind.templates
         ]
 
         specialists: list[ProposedSpecialist] = []
@@ -142,7 +139,9 @@ class OnboardingTeamService:
                         name=t.name,
                         role=t.name,
                         description=t.description,
-                        capabilities=[b["id"] for b in t.capabilities if isinstance(b, dict) and "id" in b],
+                        capabilities=[
+                            b["id"] for b in t.capabilities if isinstance(b, dict) and "id" in b
+                        ],
                         recommended=True,
                     )
                 )
@@ -196,12 +195,22 @@ class OnboardingTeamService:
         self, ctx: AuthContext, request: CreateOnboardingTeamRequest
     ) -> OnboardingTeamResult:
         """Construct the team: specialists, lead with subagents delegation, and primary chat."""
+        if ctx.user_id is None:
+            raise AuthorizationError(message="Sign in to create an onboarding team")
+        user = await user_repo.get_by_id(self.db, ctx.user_id)
+        if user is None:
+            raise NotFoundError(message="User not found")
+
         # 1. Ceiling check
         ceiling = await self.registry.ceiling(ctx)
         needed = len(request.specialists) + 1
-        if ceiling.remaining is not None and ceiling.remaining < needed:
+        if ceiling.at_limit or (
+            ceiling.limit is not None
+            and ceiling.held is not None
+            and ceiling.held + needed > ceiling.limit
+        ):
             raise BadRequestError(
-                message=f"Creating {needed} agents would exceed the organization limit of {ceiling.max_agents}."
+                message=f"Creating {needed} agents would exceed the organization limit of {ceiling.limit}."
             )
 
         # 2. Check available model profiles in organization
@@ -213,14 +222,16 @@ class OnboardingTeamService:
                 break
 
         # 3. Create / install specialists
-        created_specialists: list[tuple[any, any]] = []
+        created_specialists: list[tuple[Agent, AgentVersion | None]] = []
         created_info: list[CreatedAgentInfo] = []
 
         for s in request.specialists:
             agent = None
             if s.key and agent_templates.get(s.key) is not None:
                 try:
-                    result = await self.registry.install_template(ctx, s.key, visibility=Visibility.ORG)
+                    result = await self.registry.install_template(
+                        ctx, s.key, visibility=Visibility.ORG
+                    )
                     agent = await self.registry.get(ctx, result.agent_id)
                 except Exception:
                     logger.warning("Could not install template %s; creating custom agent", s.key)
@@ -261,7 +272,7 @@ class OnboardingTeamService:
         ]
 
         specialist_bullet_instructions = "\n".join(
-            f"- {ag.name}: {ag.description} (delegate using `task(description=..., subagent_type=\"{ag.slug}\")`)"
+            f'- {ag.name}: {ag.description} (delegate using `task(description=..., subagent_type="{ag.slug}")`)'
             for ag, _ in created_specialists
         )
 
@@ -356,7 +367,7 @@ class OnboardingTeamService:
         # 7. Mark onboarding completed
         await user_repo.update(
             self.db,
-            user_id=ctx.user_id,
+            db_user=user,
             update_data={"onboarding_completed_at": datetime.now(UTC)},
         )
         await self.db.flush()
@@ -371,7 +382,7 @@ class OnboardingTeamService:
 
     async def _create_custom_specialist(
         self, ctx: AuthContext, s: ProposedSpecialist, model_profile_id: UUID | None
-    ):
+    ) -> Agent:
         """Create a custom specialist agent from proposed spec."""
         unique_name = await self._unique_name(ctx, s.name)
         starter_caps = list(agent_templates.starter_capabilities().values())

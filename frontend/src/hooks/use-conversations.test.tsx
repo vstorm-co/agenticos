@@ -2,13 +2,14 @@ import { useWorkOnStore } from "@/stores/work-on-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { useConversations, type ConversationQuery } from "./use-conversations";
 import { apiClient } from "@/lib/api-client";
 import * as invalidation from "@/lib/coalesced-invalidation";
 import { qk } from "@/lib/query-keys";
+import type { ConversationMessagesResponse, User } from "@/types";
 import {
   useAgentSelectionStore,
   useAuthStore,
@@ -1704,6 +1705,302 @@ it("starts a project draft without reusing an unrelated empty conversation or fo
   expect(useWorkOnStore.getState().targetFor(null)).toBeNull();
 });
 
+describe("loaded transcript provenance", () => {
+  const owner: User = {
+    id: "transcript-owner",
+    email: "transcript-owner@example.com",
+    is_active: true,
+    created_at: "2026-11-01T00:00:00Z",
+  };
+  let previousUser: User | null;
+
+  beforeEach(() => {
+    previousUser = useAuthStore.getState().user;
+    useAuthStore.setState({ user: owner });
+    serve({ messages: [] });
+  });
+
+  afterEach(() => {
+    useAuthStore.setState({ user: previousUser });
+  });
+
+  function holdTranscripts() {
+    const pending: {
+      resolve: (response: ConversationMessagesResponse) => void;
+      reject: (error: Error) => void;
+    }[] = [];
+    vi.mocked(apiClient.get).mockImplementation((path: string) => {
+      if (!path.includes("/messages")) return Promise.resolve({ items: [], total: 0 });
+      return new Promise<ConversationMessagesResponse>((resolve, reject) => {
+        pending.push({ resolve, reject });
+      });
+    });
+    return pending;
+  }
+
+  const emptyTranscript: ConversationMessagesResponse = { items: [], total: 0, cost: null };
+  const savedMessage = (id: string) => ({
+    id,
+    conversation_id: "room-a",
+    role: "user" as const,
+    content: id,
+    created_at: "2026-11-01T00:00:00Z",
+  });
+
+  it("distinguishes a pending empty selection from a successfully loaded empty room", async () => {
+    const result = await hook();
+    const pending = holdTranscripts();
+    let reading!: Promise<void>;
+    act(() => {
+      reading = result.current.selectConversation("room-a");
+    });
+    const firstVersion = useConversationStore.getState().selectionVersion;
+    expect(useConversationStore.getState().currentMessages).toEqual([]);
+    expect(useConversationStore.getState().isLoading).toBe(true);
+    expect(useConversationStore.getState().loadedTranscript).toBeNull();
+
+    await act(async () => {
+      pending[0]!.resolve(emptyTranscript);
+      await reading;
+    });
+    expect(useConversationStore.getState().loadedTranscript).toEqual({
+      conversationId: "room-a",
+      selectionVersion: firstVersion,
+      accountId: owner.id,
+      tenantId: "fallback",
+    });
+    expect(useConversationStore.getState().isLoading).toBe(false);
+
+    // A new request for the same id still has to finish its own history read.
+    act(() => {
+      reading = result.current.selectConversation("room-a");
+    });
+    const nextVersion = useConversationStore.getState().selectionVersion;
+    expect(nextVersion).toBeGreaterThan(firstVersion);
+    expect(useConversationStore.getState().loadedTranscript).toBeNull();
+    await act(async () => {
+      pending[1]!.resolve(emptyTranscript);
+      await reading;
+    });
+    expect(useConversationStore.getState().loadedTranscript).toEqual({
+      conversationId: "room-a",
+      selectionVersion: nextVersion,
+      accountId: owner.id,
+      tenantId: "fallback",
+    });
+  });
+
+  it("leaves a refused empty history unready after loading ends", async () => {
+    const result = await hook();
+    const pending = holdTranscripts();
+    let reading!: Promise<void>;
+    act(() => {
+      reading = result.current.selectConversation("room-a");
+    });
+    await act(async () => {
+      pending[0]!.reject(new Error("Transcript unavailable"));
+      await reading;
+    });
+    expect(useConversationStore.getState().isLoading).toBe(false);
+    expect(useConversationStore.getState().currentMessages).toEqual([]);
+    expect(useConversationStore.getState().loadedTranscript).toBeNull();
+    expect(useConversationStore.getState().error).toBe("Transcript unavailable");
+  });
+
+  it("records a successfully loaded empty room reached through its address", async () => {
+    window.history.replaceState({}, "", "/chat?id=room-a");
+    const result = await hook();
+    const pending = holdTranscripts();
+    let reading!: Promise<void>;
+    act(() => {
+      reading = result.current.fetchConversations();
+    });
+    expect(useConversationStore.getState().loadedTranscript).toBeNull();
+    await act(async () => {
+      pending[0]!.resolve(emptyTranscript);
+      await reading;
+    });
+    expect(useConversationStore.getState().currentConversationId).toBe("room-a");
+    expect(useConversationStore.getState().loadedTranscript).toEqual({
+      conversationId: "room-a",
+      selectionVersion: useConversationStore.getState().selectionVersion,
+      accountId: owner.id,
+      tenantId: "fallback",
+    });
+  });
+
+  it("keeps the newer selection loading when another hook's old request ends", async () => {
+    const firstHook = await hook();
+    const secondHook = await hook();
+    const pending = holdTranscripts();
+    let oldRead!: Promise<void>;
+    let newRead!: Promise<void>;
+    act(() => {
+      oldRead = firstHook.current.selectConversation("room-a");
+      newRead = secondHook.current.selectConversation("room-a");
+    });
+    await act(async () => {
+      pending[0]!.resolve(emptyTranscript);
+      await oldRead;
+    });
+    expect(useConversationStore.getState().isLoading).toBe(true);
+    expect(useConversationStore.getState().loadedTranscript).toBeNull();
+    await act(async () => {
+      pending[1]!.resolve(emptyTranscript);
+      await newRead;
+    });
+    expect(useConversationStore.getState().isLoading).toBe(false);
+    expect(useConversationStore.getState().loadedTranscript).not.toBeNull();
+  });
+
+  it("drops an old select after another hook leaves and reopens the same room", async () => {
+    const firstHook = await hook();
+    const secondHook = await hook();
+    const pending = holdTranscripts();
+    let oldRead!: Promise<void>;
+    let otherRead!: Promise<void>;
+    let newRead!: Promise<void>;
+    act(() => {
+      oldRead = firstHook.current.selectConversation("room-a");
+      otherRead = secondHook.current.selectConversation("room-b");
+      newRead = secondHook.current.selectConversation("room-a");
+    });
+    const latestVersion = useConversationStore.getState().selectionVersion;
+    await act(async () => {
+      pending[2]!.resolve({ items: [savedMessage("new-message")], total: 1, cost: null });
+      await newRead;
+    });
+    const latestIdentity = useConversationStore.getState().loadedTranscript;
+    expect(latestIdentity).toEqual({
+      conversationId: "room-a",
+      selectionVersion: latestVersion,
+      accountId: owner.id,
+      tenantId: "fallback",
+    });
+    await act(async () => {
+      pending[1]!.resolve(emptyTranscript);
+      pending[0]!.resolve(emptyTranscript);
+      await Promise.all([otherRead, oldRead]);
+    });
+    expect(useConversationStore.getState().currentMessages).toEqual([savedMessage("new-message")]);
+    expect(useConversationStore.getState().loadedTranscript).toBe(latestIdentity);
+  });
+
+  it("drops an old reread after leaving and reopening the same room", async () => {
+    const result = await hook();
+    await act(async () => {
+      await result.current.selectConversation("room-a");
+    });
+    const pending = holdTranscripts();
+    let oldRead!: Promise<void>;
+    let otherRead!: Promise<void>;
+    let newRead!: Promise<void>;
+    act(() => {
+      oldRead = result.current.rereadConversation("room-a");
+      otherRead = result.current.selectConversation("room-b");
+      newRead = result.current.selectConversation("room-a");
+    });
+    await act(async () => {
+      pending[2]!.resolve(emptyTranscript);
+      await newRead;
+    });
+    const latestIdentity = useConversationStore.getState().loadedTranscript;
+    expect(latestIdentity).not.toBeNull();
+    await act(async () => {
+      pending[1]!.resolve(emptyTranscript);
+      pending[0]!.resolve({ items: [savedMessage("stale-message")], total: 1, cost: null });
+      await Promise.all([otherRead, oldRead]);
+    });
+    expect(useConversationStore.getState().currentMessages).toEqual([]);
+    expect(useConversationStore.getState().loadedTranscript).toBe(latestIdentity);
+  });
+
+  it.each([
+    ["select", "account"],
+    ["select", "organization"],
+    ["reread", "account"],
+    ["reread", "organization"],
+  ] as const)("does not adopt a late %s after the %s changes", async (read, changed) => {
+    const result = await hook();
+    await act(async () => {
+      await result.current.selectConversation("room-a");
+    });
+    const pending = holdTranscripts();
+    let reading!: Promise<void>;
+    act(() => {
+      reading =
+        read === "select"
+          ? result.current.selectConversation("room-a")
+          : result.current.rereadConversation("room-a");
+    });
+    const beforeReply = useConversationStore.getState().loadedTranscript;
+    // Keep the selection and its version: this specifically exercises the
+    // account/tenant guard, rather than passing because a reset moved the epoch.
+    act(() => {
+      if (changed === "account") useAuthStore.setState({ user: { ...owner, id: "next-account" } });
+      else useOrgStore.setState({ activeOrgId: "next-organization" });
+    });
+    await act(async () => {
+      pending[0]!.resolve({ items: [savedMessage("private-message")], total: 1, cost: null });
+      await reading;
+    });
+    expect(useConversationStore.getState().currentMessages).toEqual([]);
+    expect(useConversationStore.getState().loadedTranscript).toBe(beforeReply);
+    expect(useConversationStore.getState().error).toBeNull();
+  });
+
+  it.each(["account", "organization"] as const)(
+    "replaces invalidated raw history when a fresh read belongs to another %s",
+    async (changed) => {
+      const oldRows = Array.from({ length: 101 }, (_, index) => savedMessage(`old-${index}`));
+      serve({ messages: oldRows });
+      const result = await hook();
+      await act(async () => result.current.selectConversation("room-a"));
+      expect(useConversationStore.getState().currentMessages).toHaveLength(100);
+      expect(useConversationStore.getState().hasEarlierMessages).toBe(true);
+
+      act(() => {
+        if (changed === "account")
+          useAuthStore.setState({ user: { ...owner, id: "next-account" } });
+        else useOrgStore.setState({ activeOrgId: "next-organization" });
+        useConversationStore.getState().invalidateTranscript();
+      });
+      // Scoped invalidation removes ownership proof while raw rows may remain.
+      // The next successful response must not give those rows a new owner.
+      expect(useConversationStore.getState().currentMessages).toHaveLength(100);
+      expect(useConversationStore.getState().loadedTranscript).toBeNull();
+      const fresh = savedMessage("fresh-authorized-message");
+      serve({ messages: [fresh] });
+      await act(async () => result.current.rereadConversation("room-a"));
+      expect(useConversationStore.getState().currentMessages).toEqual([fresh]);
+      expect(useConversationStore.getState().hasEarlierMessages).toBe(false);
+      expect(useConversationStore.getState().loadedTranscript).toEqual({
+        conversationId: "room-a",
+        selectionVersion: useConversationStore.getState().selectionVersion,
+        accountId: changed === "account" ? "next-account" : owner.id,
+        tenantId: changed === "organization" ? "next-organization" : "fallback",
+      });
+    },
+  );
+
+  it("does not request an earlier page from invalidated raw history", async () => {
+    serve({
+      messages: Array.from({ length: 101 }, (_, index) => savedMessage(`saved-${index}`)),
+    });
+    const result = await hook();
+    await act(async () => result.current.selectConversation("room-a"));
+    const messages = useConversationStore.getState().currentMessages;
+    expect(useConversationStore.getState().hasEarlierMessages).toBe(true);
+    act(() => useConversationStore.getState().invalidateTranscript());
+    const requestsBefore = vi.mocked(apiClient.get).mock.calls.length;
+    await act(async () => result.current.loadEarlierMessages());
+    expect(apiClient.get).toHaveBeenCalledTimes(requestsBefore);
+    expect(useConversationStore.getState().currentMessages).toBe(messages);
+    expect(useConversationStore.getState().loadedTranscript).toBeNull();
+    expect(result.current.isLoadingEarlier).toBe(false);
+  });
+});
+
 describe("transcript request ownership", () => {
   it.each(["organization", "selection"])(
     "drops a late select after the %s changes",
@@ -1773,6 +2070,15 @@ it("opens the newest transcript page and prepends older messages without losing 
     all.map((message) => message.id),
   );
   expect(result.current.hasEarlierMessages).toBe(false);
+  // A same-owner refresh reads only the newest page, preserving earlier pages
+  // already fetched under this exact loaded selection.
+  const loadedIdentity = useConversationStore.getState().loadedTranscript;
+  await act(async () => result.current.rereadConversation("long"));
+  expect(result.current.currentMessages.map((message) => message.id)).toEqual(
+    all.map((message) => message.id),
+  );
+  expect(result.current.hasEarlierMessages).toBe(false);
+  expect(useConversationStore.getState().loadedTranscript).toEqual(loadedIdentity);
 });
 
 it("leaves the loaded transcript intact when loading earlier messages fails, and permits retry", async () => {

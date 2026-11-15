@@ -71,8 +71,7 @@ export function useLocalAccessGate<A extends unknown[]>(
       const explicit = workOn.explicitTargetFor(conversationId);
       // A project's cloud workspace supersedes the agent's local default.
       const project =
-        projectId ??
-        (conversationId === null ? conversationApi.getState().pendingProjectId : null);
+        projectId ?? (conversationId === null ? conversationApi.getState().pendingProjectId : null);
       if (project && explicit === null) {
         send(...args);
         return;

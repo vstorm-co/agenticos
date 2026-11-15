@@ -1,5 +1,5 @@
 ---
-source_sha: "9ec53a258619"
+source_sha: "5e91e7483c03"
 ---
 
 # Rada { #council }
@@ -32,7 +32,7 @@ edytuje jej i nie proponuje prac spoza jej zakresu.
 
 | Pole | Domyślnie | Co to jest |
 |---|---|---|
-| `members` | — | Dokładnie trzech delegatów, każdy z innym dostawcą i profilem modelu |
+| `members` | — | Dokładnie trzech delegatów, każdy z nazwą, innym dostawcą i profilem modelu |
 | `agreement_threshold` | `8` | Ocena w skali do 10, którą każdy delegat musi osiągnąć, żeby runda zadowoliła radę |
 | `max_rounds` | `3` | Ile rund oceny może poprosić jeden run (1–5) |
 

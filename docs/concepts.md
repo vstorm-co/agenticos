@@ -209,6 +209,10 @@ matters in my inbox* the default cannot do — on these terms:
 - **So does a new version you did not publish yourself.** A publish, a
   promotion or a rollback by anybody else turns it off - and so does one made
   through your API key or by an administrator impersonating you.
+- **Resuming it and its end date are yours.** While it acts as you, nobody else can
+  resume it, change or clear its end date, or raise or remove its failure and
+  spending limits: they are refused until they turn Run as me off. Anyone who may
+  edit it can still pause it or tighten those limits.
 - **The record says so.** The run names the trigger that fired it, and every audit
   entry the fire records carries `via_trigger` with the member it acted as.
 - **It may work on the creator's own computer.** With Run as me on, the creator
@@ -587,6 +591,22 @@ ceilings and the tools, and
 delegate to what.
 
 ---
+
+## Evaluation helpers { #system-agents }
+
+Evaluation uses code-defined helpers for grading, generating cases and proposing improvements. They are configured with the dataset, and do not appear as agents to create or edit in the agent catalog. Architect and AgenticOS assistants remain ordinary product agents.
+
+A dataset's **Grading** tab chooses the grading model, instructions, criteria and pass mark. **Settings** chooses the model and instructions for case generation and agent improvement, using the same model picker and Markdown editor as Agent Builder. Instructions initially come from the code-defined defaults. Changes require `datasets:edit`; adding a model also requires `connections:manage`.
+
+Queued generations, authoring requests and improvement sessions keep their admitted model and instructions. Editing settings affects later work. Historical helper identities and published versions remain in storage for run attribution, budgets and old pins; they do not consume the deployment's user-agent allowance.
+
+### Isolation { #system-agent-spec }
+
+Helpers run through the existing agent runner on the `eval` surface. Caller access, model credentials and budgets are checked before paid calls; costs and failures remain visible in Activity. Isolation blocks writes to production connections and keeps knowledge reads scoped to the requesting person. A helper cannot be exposed through chat, a channel, a schedule or delegation.
+
+### Existing work { #retiring-a-system-agent }
+
+Migration preserves the model and instructions of existing graders and queued work. Historical runs and suite pins retain their original identities. There is no organization-wide AI-assistance switch or grading-model setting; configure the dataset and use the existing permissions and budgets.
 
 ## Model profiles
 

@@ -1,7 +1,7 @@
 """Tests for the MFA routes: the second step at sign-in, and enrolment.
 
-The services are mocked, as in `test_auth.py`; what is exercised here is
-the route's own decisions - when a sign-in stops at a challenge, what a
+The factor and persistence boundaries are mocked; token issuance stays real.
+These tests exercise when a sign-in stops at a challenge, what a
 challenge token may and may not become, and that enrolment answers with
 its secrets once and never again.
 """
@@ -29,10 +29,12 @@ from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.security import (
     create_access_token,
+    create_magic_link_token,
     create_mfa_token,
     verify_special_token,
 )
 from app.main import app
+from app.services.session import SessionService
 
 pytestmark = pytest.mark.anyio
 
@@ -66,8 +68,8 @@ def mock_user_service(mock_user: MockUser) -> MagicMock:
 
 
 @pytest.fixture
-def mock_session_service() -> MagicMock:
-    service = MagicMock()
+def mock_session_service() -> SessionService:
+    service = SessionService(MagicMock())
     service.create_session = AsyncMock(
         return_value=SimpleNamespace(id=uuid4(), created_at=datetime.now(UTC))
     )
@@ -95,7 +97,7 @@ def mock_mfa_service() -> MagicMock:
 async def client(
     mock_user: MockUser,
     mock_user_service: MagicMock,
-    mock_session_service: MagicMock,
+    mock_session_service: SessionService,
     mock_mfa_service: MagicMock,
     mock_redis: MagicMock,
     mock_db_session,
@@ -324,6 +326,31 @@ async def test_a_magic_link_sign_in_with_a_second_factor_stops_at_a_challenge(
     assert body["return_to"] == "/dashboard"
 
 
+async def test_a_magic_link_mfa_challenge_preserves_its_mailbox_proof(
+    client: AsyncClient,
+    mock_user: MockUser,
+    mock_session_service: SessionService,
+) -> None:
+    mock_user.totp_enabled = True
+    link = create_magic_link_token(
+        subject=str(mock_user.id), email=mock_user.email, return_to="/dashboard"
+    )
+    challenge = await client.post(
+        f"{settings.API_V1_STR}/auth/magic-link/verify", json={"token": link}
+    )
+    assert challenge.status_code == 200
+    mfa_token = challenge.json()["mfa_token"]
+    payload = verify_special_token(mfa_token, expected_type="mfa")
+    assert payload is not None and payload.get("mbp") is True
+
+    verified = await client.post(
+        _mfa_url("/verify"), json={"mfa_token": mfa_token, "code": "123456"}
+    )
+    assert verified.status_code == 200
+    session_args = mock_session_service.create_session.await_args.kwargs
+    assert session_args["proved_email"] == mock_user.email
+
+
 async def test_status_reports_whether_the_second_factor_is_on(
     client: AsyncClient, mock_mfa_service: MagicMock
 ) -> None:
@@ -341,9 +368,7 @@ async def test_setup_rejects_an_access_token_without_recent_authentication(
     app.dependency_overrides.pop(require_recent_authentication)
     token = create_access_token(subject=str(uuid4()))
 
-    response = await client.post(
-        _mfa_url("/setup"), headers={"Authorization": f"Bearer {token}"}
-    )
+    response = await client.post(_mfa_url("/setup"), headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 401
     mock_mfa_service.begin_setup.assert_not_awaited()
@@ -353,13 +378,9 @@ async def test_mfa_status_accepts_a_recently_authenticated_access_token(
     client: AsyncClient, mock_mfa_service: MagicMock
 ) -> None:
     app.dependency_overrides.pop(require_recent_authentication)
-    token = create_access_token(
-        subject=str(uuid4()), auth_time=int(datetime.now(UTC).timestamp())
-    )
+    token = create_access_token(subject=str(uuid4()), auth_time=int(datetime.now(UTC).timestamp()))
 
-    response = await client.get(
-        _mfa_url("/status"), headers={"Authorization": f"Bearer {token}"}
-    )
+    response = await client.get(_mfa_url("/status"), headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
 
@@ -373,13 +394,12 @@ async def test_mfa_status_rejects_an_old_authentication(
         auth_time=int((datetime.now(UTC) - timedelta(minutes=6)).timestamp()),
     )
 
-    response = await client.get(
-        _mfa_url("/status"), headers={"Authorization": f"Bearer {token}"}
-    )
+    response = await client.get(_mfa_url("/status"), headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 401
 
 
+@pytest.mark.security
 async def test_setup_answers_with_the_provisioning_uri_and_the_secret_once(
     client: AsyncClient, mock_user: MockUser, monkeypatch: pytest.MonkeyPatch
 ) -> None:

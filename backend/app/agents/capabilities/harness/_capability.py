@@ -1,4 +1,4 @@
-"""Claude Code or Codex, kept as a session the agent drives across turns."""
+"""One of the coding CLIs, kept as a session the agent drives across turns."""
 
 from dataclasses import dataclass, field
 from typing import Any
@@ -14,7 +14,7 @@ from app.agents.capabilities.harness._toolset import build_harness_toolset
 
 @dataclass
 class HarnessAgent(AbstractCapability[AgentDepsT]):
-    """A CLI session - Claude Code or Codex - as the agent's working backend.
+    """A CLI session - one of the coding CLIs - as the agent's working backend.
 
     See the package `README.md` for why the session is the CLI's own, kept
     beside the work, and why its approval is one decision per prompt.
@@ -23,6 +23,7 @@ class HarnessAgent(AbstractCapability[AgentDepsT]):
     harness: Harness = "claude_code"
     access: Access = "read_only"
     model: str | None = None
+    model_vendor: str | None = None
     base_url: str | None = None
     timeout_seconds: int = 30 * 60
     # Unsealed from the vault by the factory; `repr=False` for the reason
@@ -59,6 +60,7 @@ class HarnessAgent(AbstractCapability[AgentDepsT]):
                 harness=self.harness,
                 access=self.access,
                 model=self.model,
+                model_vendor=self.model_vendor,
                 base_url=self.base_url,
                 api_key=self.api_key.get_secret_value() if self.api_key is not None else None,
                 timeout_seconds=self.timeout_seconds,

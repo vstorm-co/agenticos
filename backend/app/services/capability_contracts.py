@@ -134,6 +134,25 @@ _DOCUMENTATION_CONFIGS: dict[str, dict[str, Any]] = {
     # Granted no table, it builds only to create one; that is the widest list.
     # Granted no workflow, it builds nothing; one id the prober never starts.
     "workflows": {"workflow_ids": [str(UUID(int=0))]},
+    # Reviewers require a valid published configuration even when only their
+    # tool descriptions are read. No models are resolved or called by the probe.
+    "council": {
+        "members": [
+            {
+                "name": f"documentation-probe-{index}",
+                "provider": provider,
+                "model_profile_id": str(UUID(int=index)),
+            }
+            for index, provider in enumerate(("openai", "anthropic", "google"), start=1)
+        ]
+    },
+    "sol_loop": {
+        "reviewer": {
+            "name": "documentation-probe",
+            "provider": "openai",
+            "model_profile_id": str(UUID(int=1)),
+        }
+    },
 }
 
 

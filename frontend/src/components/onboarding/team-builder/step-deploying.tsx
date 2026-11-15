@@ -62,16 +62,14 @@ export function StepDeploying({ isDeploying, result, error, onRetry }: StepDeplo
         </div>
 
         <div className="space-y-2">
-          <h2 className="text-foreground text-2xl font-bold tracking-tight">
-            {t("successTitle")}
-          </h2>
+          <h2 className="text-foreground text-2xl font-bold tracking-tight">{t("successTitle")}</h2>
           <p className="text-muted-foreground max-w-md text-sm leading-relaxed">
             {t("successSubtitle")}
           </p>
         </div>
 
         <div className="border-border/60 bg-muted/40 flex w-full max-w-md flex-col gap-2 rounded-xl border p-4 text-left">
-          <div className="text-muted-foreground text-[11px] font-medium uppercase tracking-wider">
+          <div className="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
             {t("teamMembersCreated")}
           </div>
           <div className="space-y-1.5">
@@ -102,14 +100,12 @@ export function StepDeploying({ isDeploying, result, error, onRetry }: StepDeplo
   }
 
   return (
-    <div className="bg-card border-border flex flex-col items-center justify-center space-y-8 rounded-2xl border p-8 sm:p-12 text-center shadow-sm">
+    <div className="bg-card border-border flex flex-col items-center justify-center space-y-8 rounded-2xl border p-8 text-center shadow-sm sm:p-12">
       <div className="space-y-2">
         <h2 className="text-foreground text-xl font-semibold tracking-tight">
           {t("deployingTitle")}
         </h2>
-        <p className="text-muted-foreground text-sm">
-          {t("deployingSubtitle")}
-        </p>
+        <p className="text-muted-foreground text-sm">{t("deployingSubtitle")}</p>
       </div>
 
       <div className="w-full max-w-sm space-y-3.5 text-left">

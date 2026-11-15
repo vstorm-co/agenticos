@@ -5,12 +5,13 @@ import pytest
 from pydantic import SecretStr
 
 from app.core.config import settings
-from app.core.exceptions import ConfigurationError, ExternalServiceError
+from app.core.exceptions import BadRequestError, ConfigurationError, ExternalServiceError
 from app.services.app_connections._catalog import (
     APPS,
     ComposioAction,
     get_app,
     resolve_action,
+    toolkit_from_catalog_key,
 )
 from app.services.app_connections._client import ComposioCatalogClient
 from app.services.app_connections._managed import (
@@ -362,3 +363,80 @@ def test_starter_actions_carry_least_privilege_scopes() -> None:
     assert all(action.scopes == () for action in notion.actions)
     github = by_toolkit["github"]
     assert all(action.scopes == ("repo",) for action in github.actions)
+
+
+@pytest.mark.security
+def test_catalog_key_parsing_does_not_admit_an_unreviewed_public_binding() -> None:
+    assert get_app("github").toolkit == "github"
+    assert toolkit_from_catalog_key(None) is None
+    assert toolkit_from_catalog_key("gmail") is None
+    assert toolkit_from_catalog_key("composio-salesforce") == "salesforce"
+    with pytest.raises(BadRequestError, match="not available"):
+        get_app("salesforce")
+
+
+async def test_unknown_legacy_deprecation_metadata_does_not_replace_explicit_flags() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/tools"):
+            tool = direct_tool("MICROSOFT_TEAMS_LIST_CHANNELS")
+            tool["deprecated"] = "legacy-description"
+            return httpx.Response(200, json={"items": [tool]})
+        metadata = toolkit_row()
+        metadata["deprecated"] = "legacy-description"
+        return httpx.Response(200, json=metadata)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        catalog = ComposioCatalogClient(http)
+        metadata = await catalog.get_toolkit("microsoft_teams")
+        assert metadata.deprecated is None and not metadata.is_deprecated_flag
+        assert await catalog.direct_tool_names(toolkit="microsoft_teams") == [
+            "MICROSOFT_TEAMS_LIST_CHANNELS"
+        ]
+
+
+async def test_catalog_context_closes_only_the_http_client_it_owns() -> None:
+    owned = ComposioCatalogClient()
+    async with owned as entered:
+        assert entered is owned and not owned._client.is_closed
+    assert owned._client.is_closed
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: pytest.fail("No provider request expected"))
+    ) as http:
+        async with ComposioCatalogClient(http) as injected:
+            assert injected._client is http
+        assert not http.is_closed
+
+
+@pytest.mark.security
+async def test_catalog_network_failure_does_not_reveal_credentials_or_retry() -> None:
+    calls: list[httpx.Request] = []
+    private = "synthetic-private-transport-detail"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        raise httpx.ReadTimeout(private, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        with pytest.raises(ExternalServiceError) as caught:
+            await ComposioCatalogClient(http).list_toolkits(search="", cursor=None, limit=24)
+    assert len(calls) == 1
+    for secret in (private, CATALOG_KEY, RUNTIME_KEY):
+        assert secret not in str(caught.value) and secret not in repr(caught.value)
+
+
+@pytest.mark.parametrize("limit", [0, 101])
+async def test_catalog_page_limits_are_refused_before_provider_io(limit: int) -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: pytest.fail("Invalid limit reached provider"))
+    ) as http:
+        with pytest.raises(ValueError, match="page size"):
+            await ComposioCatalogClient(http).list_toolkits(search="", cursor=None, limit=limit)
+
+
+@pytest.mark.security
+async def test_a_catalog_with_no_direct_actions_cannot_create_an_ambient_tool_grant() -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json={"items": []}))
+    ) as http:
+        with pytest.raises(ExternalServiceError, match="no available direct actions"):
+            await ComposioCatalogClient(http).direct_tool_names(toolkit="microsoft_teams")

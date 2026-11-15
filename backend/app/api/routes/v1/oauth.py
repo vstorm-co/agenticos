@@ -24,6 +24,7 @@ from app.api.deps import (
     Redis,
     SessionSvc,
     UserSvc,
+    take_started_oauth_client,
 )
 from app.api.routes.v1._oauth_claims import claims_for
 from app.core.config import settings
@@ -108,22 +109,11 @@ def _return_url(request: Request, code: str) -> str:
     it decides nothing here; it is what lets the shell refuse a deep link it did
     not ask for, since any local process can invoke a custom scheme.
     """
-    started = _take_started_client(request)
+    started = take_started_oauth_client(request, session_key=_CLIENT_KEY)
     if isinstance(started, dict) and started.get("client") == _DESKTOP:
         params = urlencode({"code": code, "desktop_nonce": started.get("nonce") or ""})
         return f"{settings.DESKTOP_DEEP_LINK_SCHEME}://auth/callback?{params}"
     return f"{settings.FRONTEND_URL.rstrip('/')}/auth/callback?{urlencode({'code': code})}"
-
-
-def _take_started_client(request: Request) -> dict[str, str] | None:
-    """Consume this OAuth state's client handoff marker, if it had one."""
-    pending = dict(request.session.get(_CLIENT_KEY) or {})
-    started = pending.pop(request.query_params.get("state") or "", None)
-    if pending:
-        request.session[_CLIENT_KEY] = pending
-    else:
-        request.session.pop(_CLIENT_KEY, None)
-    return started if isinstance(started, dict) else None
 
 
 #: Where an invitation token waits while the caller is away at the provider.
@@ -247,7 +237,7 @@ async def provider_callback(
             # session creation, or token exchange. The challenge stays in the
             # URL fragment, which the browser can read but never sends in an
             # HTTP request.
-            started = _take_started_client(request)
+            started = take_started_oauth_client(request, session_key=_CLIENT_KEY)
             challenge_id = secrets.token_urlsafe(32)
             mfa_token = create_mfa_token(
                 subject=str(user.id), credential_version=user.credential_version, jti=challenge_id
@@ -297,6 +287,7 @@ async def provider_callback(
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("User-Agent"),
             session_id=session_id,
+            proved_email=email,
         )
         return RedirectResponse(url=_return_url(request, code))
 

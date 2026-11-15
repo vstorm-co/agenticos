@@ -12,15 +12,24 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import SecretStr
 
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import ApprovalStatus, RunSurface
+from app.services.agent_runner import RunSegment
 from app.services.approvals import ApprovalService
 from app.services.parked_runs import Continued, DecidedApproval, ParkedRunService
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def ordinary_runs_have_no_room_request():
+    with patch("app.repositories.room_submission.for_run", new=AsyncMock(return_value=None)):
+        yield
+
 
 _MODULE = "app.services.parked_runs"
 ORG = uuid.uuid4()
@@ -82,6 +91,7 @@ class _Patched:
             return self.decided
 
         self.approvals.decide = AsyncMock(side_effect=decide)
+        self.approvals.hidden_fields = AsyncMock(return_value=frozenset())
 
         async def claim(*args: Any, **kwargs: Any) -> Any:
             self.events.append("claim run")
@@ -395,4 +405,98 @@ class TestAnswering:
             with pytest.raises(RunExecutionError):
                 await p.service.answer(_person(), RUN, {})
         assert p.runner.answer.await_args.kwargs["on_segment"] is callback
+        assert p.spawned == []
+
+
+class TestSecretRequests:
+    @pytest.mark.security
+    async def test_a_secret_cannot_resume_a_workflow_outside_its_owner(self) -> None:
+        with _Patched(_run(RunSurface.WORKFLOW.value)) as p:
+            p.service.secrets.fulfil = AsyncMock()
+            with pytest.raises(BadRequestError, match="continued by its workflow"):
+                await p.service.fulfil_secret_request(
+                    _person(), RUN, uuid.uuid4(), value=SecretStr("test-credential")
+                )
+
+        p.service.secrets.fulfil.assert_not_awaited()
+        p.claim.assert_not_awaited()
+        p.runner.resume.assert_not_awaited()
+        assert p.spawned == []
+
+    @pytest.mark.security
+    async def test_a_remaining_secret_keeps_the_refreshed_run_parked_without_an_agent_step(
+        self,
+    ) -> None:
+        request_id = uuid.uuid4()
+        value = SecretStr("test-credential")
+        with _Patched(_run("web")) as p:
+            refreshed = _run("web")
+            refreshed.status = "waiting"
+            p.runner.get_run.side_effect = [p.run, p.run, refreshed]
+            p.service.secrets.fulfil = AsyncMock(return_value=None)
+
+            result = await p.service.fulfil_secret_request(_person(), RUN, request_id, value=value)
+
+        assert result.segment.run is refreshed
+        assert result.segment.run.status == "waiting"
+        assert result.segment.output == ""
+        assert result.segment.tool_calls == []
+        assert result.segment.settled == {}
+        assert result.continues_in_chat is False
+        p.service.secrets.fulfil.assert_awaited_once_with(
+            _person(), RUN, request_id, value=value, on_segment=None
+        )
+        p.runner.resume.assert_not_awaited()
+        p.runner.answer.assert_not_awaited()
+        assert p.spawned == []
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("surface", ["web", "slack"])
+    async def test_the_last_secret_returns_its_segment_and_retains_the_channel_handback(
+        self, surface: str
+    ) -> None:
+        request_id = uuid.uuid4()
+        value = SecretStr("test-credential")
+        callback = AsyncMock()
+        with (
+            _Patched(_run(surface)) as p,
+            patch(f"{_MODULE}.queue_segment", return_value=callback) as queue,
+        ):
+            segment = RunSegment(output="Connection ready", run=p.run, tool_calls=[], settled={})
+            p.service.secrets.fulfil = AsyncMock(return_value=segment)
+
+            result = await p.service.fulfil_secret_request(_person(), RUN, request_id, value=value)
+
+        assert result.segment is segment
+        assert result.segment.output == "Connection ready"
+        assert result.continues_in_chat is (surface == "slack")
+        p.service.secrets.fulfil.assert_awaited_once_with(
+            _person(),
+            RUN,
+            request_id,
+            value=value,
+            on_segment=callback if surface == "slack" else None,
+        )
+        if surface == "slack":
+            assert p.settle_open.await_args.kwargs == {"run_id": RUN, "by": "answered"}
+            assert queue.call_args.args[:2] == (p.db, DESTINATION)
+        else:
+            queue.assert_not_called()
+            p.settle_open.assert_not_awaited()
+        assert p.spawned == []
+
+    @pytest.mark.security
+    async def test_declining_a_secret_returns_the_recorded_decision_without_resuming(self) -> None:
+        request_id = uuid.uuid4()
+        with _Patched(_run("web")) as p:
+            declined = MagicMock(id=request_id, status="declined")
+            p.service.secrets.decline = AsyncMock(return_value=declined)
+
+            result = await p.service.decline_secret_request(_person(), RUN, request_id)
+
+        assert result is declined
+        assert result.id == request_id and result.status == "declined"
+        p.service.secrets.decline.assert_awaited_once_with(_person(), RUN, request_id)
+        p.runner.resume.assert_not_awaited()
+        p.runner.answer.assert_not_awaited()
         assert p.spawned == []

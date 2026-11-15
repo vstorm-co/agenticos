@@ -24,7 +24,11 @@ import type { EditorSelection, WorkflowClipboard } from "@/stores/workflow-edito
  *   belongs to a copied node), and remap a `NodeOutputRef.node_id` the same way
  *   **only** when it names a copied node; an external reference is left alone so
  *   the paste still reads from the original producer;
- * - keep a `ScopeBoundary` only when every node it names is in the selection.
+ * - keep a `ScopeBoundary` only when every node it names is in the selection;
+ * - a copied loop brings its whole body, and a loop's own Loop item and Loop
+ *   result never travel without it;
+ * - a pasted step whose loop was pasted with it names the new copy of that loop;
+ *   every other pasted step lands in the scope being viewed.
  *
  * Because `config` is never inspected, a new node kind needs no change here. The
  * clip is held in the editor store's `clipboard`, keyed per organization and
@@ -59,7 +63,7 @@ export function copySelection(
   graph: WorkflowGraph,
   selection: EditorSelection,
 ): WorkflowClipboard | null {
-  const selected = new Set<Uuid>(selection.nodeIds);
+  const selected = withBodies(graph, new Set<Uuid>(selection.nodeIds));
   if (selected.size === 0) return null;
 
   const nodes = graph.nodes.filter((node) => selected.has(node.id));
@@ -78,6 +82,31 @@ export function copySelection(
   return clone({ nodes, edges, bindings, scopes, ...(notes.length > 0 ? { notes } : {}) });
 }
 
+/**
+ * The selection a copy takes: a selected loop's whole body added, nested bodies too,
+ * and a Loop item or Loop result whose loop is not copied left out - pasted alone it
+ * would be a second start or end in some body.
+ */
+function withBodies(graph: WorkflowGraph, picked: ReadonlySet<Uuid>): Set<Uuid> {
+  const selected = new Set(picked);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const node of graph.nodes) {
+      if (node.scope_id != null && selected.has(node.scope_id) && !selected.has(node.id)) {
+        selected.add(node.id);
+        grew = true;
+      }
+    }
+  }
+  for (const node of graph.nodes) {
+    const loopCopied = node.scope_id != null && selected.has(node.scope_id);
+    if (LOOP_PARTS.has(node.definition_id) && !loopCopied) selected.delete(node.id);
+  }
+  return selected;
+}
+
+const LOOP_PARTS = new Set(["loop.item", "loop.yield"]);
+
 /** Whether every node a scope boundary names — owner, exit and body — is in the selection. */
 function scopeContained(scope: ScopeBoundary, selected: ReadonlySet<Uuid>): boolean {
   return (
@@ -91,7 +120,9 @@ function scopeContained(scope: ScopeBoundary, selected: ReadonlySet<Uuid>): bool
  * A remapped copy of a clip, every id fresh, ready to merge into the graph.
  *
  * `newId` mints a fresh id per copied node and per copied edge; `offset` shifts
- * each pasted node's layout so a paste does not land exactly on its source. A
+ * each pasted node's layout so a paste does not land exactly on its source, and
+ * `scopeId` is the loop being viewed, where a step whose loop was not pasted with it
+ * lands (null at the top level). A
  * binding's `target_node_id` is always remapped (it names a copied node); its
  * source is remapped only for a `NodeOutputRef.node_id` that names a copied node
  * — an external producer is left untouched. Scope ids all remap, since a scope
@@ -101,6 +132,7 @@ export function pasteClipboard(
   clipboard: WorkflowClipboard,
   newId: () => Uuid,
   offset: NodePosition = { x: 0, y: 0 },
+  scopeId: Uuid | null = null,
 ): PasteResult {
   const source = clone(clipboard);
 
@@ -110,11 +142,17 @@ export function pasteClipboard(
 
   const remapNode = (id: Uuid): Uuid => idMap[id] ?? id;
 
-  const nodes = source.nodes.map((node) => ({
-    ...node,
-    id: remapNode(node.id),
-    layout: { ...node.layout, x: node.layout.x + offset.x, y: node.layout.y + offset.y },
-  }));
+  const nodes = source.nodes.map((node) => {
+    const { scope_id: owner, ...rest } = node;
+    const pastedOwner = owner != null ? idMap[owner] : undefined;
+    const scope = pastedOwner ?? scopeId;
+    return {
+      ...rest,
+      id: remapNode(node.id),
+      layout: { ...node.layout, x: node.layout.x + offset.x, y: node.layout.y + offset.y },
+      ...(scope !== null ? { scope_id: scope } : {}),
+    };
+  });
 
   const edges = source.edges.map((edge) => ({
     ...edge,

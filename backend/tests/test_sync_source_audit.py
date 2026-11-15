@@ -82,7 +82,9 @@ def _service(monkeypatch: pytest.MonkeyPatch, *, stored=None, updated=None) -> A
         sync_source_module.organization_secret_repo,
         "get",
         AsyncMock(
-            return_value=SimpleNamespace(id=_SECRET, kind="gcp_service_account", hint="9f3c")
+            return_value=SimpleNamespace(
+                id=_SECRET, kind="gcp_service_account", hint="9f3c", usage_scope="organization"
+            )
         ),
     )
     monkeypatch.setattr(

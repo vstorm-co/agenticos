@@ -318,10 +318,10 @@ describe("the channels page", () => {
         name: "Acme Support",
         token: "a-long-enough-token",
         api_base_url: "https://mattermost.acme.com",
-        ack_reaction: null,
+        ack_reaction: "eyes",
         stream_answers: true,
         step_display: "timeline",
-        rate_answers: true,
+        rate_answers: false,
       }),
     );
   });
@@ -361,10 +361,10 @@ describe("the channels page", () => {
           name: "Acme Support",
           token: "a-long-enough-token",
           api_base_url: "https://mattermost.acme.com",
-          ack_reaction: null,
+          ack_reaction: "eyes",
           stream_answers: true,
           step_display: "timeline",
-          rate_answers: true,
+          rate_answers: false,
           ...sent,
         }),
       );
@@ -416,10 +416,10 @@ describe("the channels page", () => {
         token: "xoxb-a-long-token",
         // Slack calls this deployment unless told the deployment connects out.
         webhook_mode: true,
-        ack_reaction: null,
+        ack_reaction: "eyes",
         stream_answers: true,
         step_display: "timeline",
-        rate_answers: true,
+        rate_answers: false,
       }),
     );
   });

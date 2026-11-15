@@ -1,0 +1,228 @@
+name: Apps
+on:
+  pull_request:
+    paths: ["desktop/**", "mobile/**", ".github/workflows/apps.yml", ".github/workflows/app-release.yml"]
+  push:
+    branches: [main]
+    paths: ["desktop/**", "mobile/**", ".github/workflows/apps.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: apps-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  desktop:
+    # Smoke packages exercise installation, not debugger symbols. The Linux RPM
+    # step stalled for 32 minutes; avoid its unnecessary debug-symbol payload.
+    env:
+      CARGO_PROFILE_DEV_DEBUG: "0"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - name: Linux native libraries
+        if: runner.os == 'Linux'
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          # Choose a reachable mirror; apt still verifies Ubuntu's signed indexes.
+          UBUNTU_SERIES="$(. /etc/os-release && printf '%s' "$VERSION_CODENAME")"
+          UBUNTU_ARCHIVE=""
+          for CANDIDATE in https://mirrors.edge.kernel.org/ubuntu https://archive.ubuntu.com/ubuntu; do
+            if curl --ipv4 --fail --silent --show-error --connect-timeout 15 --max-time 25 "$CANDIDATE/dists/$UBUNTU_SERIES/InRelease" > /dev/null; then
+              UBUNTU_ARCHIVE="$CANDIDATE"
+              break
+            fi
+          done
+          test -n "$UBUNTU_ARCHIVE"
+          echo "Using Ubuntu archive: $UBUNTU_ARCHIVE"
+          sudo sed -Ei "s|https?://azure.archive.ubuntu.com/ubuntu|$UBUNTU_ARCHIVE|g" /etc/apt/sources.list.d/ubuntu.sources
+          printf '%s\n' "$UBUNTU_ARCHIVE" | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+          APT_NETWORK=(-o Acquire::ForceIPv4=true -o Acquire::Retries=2 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
+          sudo apt-get "${APT_NETWORK[@]}" update --error-on=any
+          sudo apt-get "${APT_NETWORK[@]}" install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libpipewire-0.3-dev libgbm-dev clang xvfb bubblewrap
+      # Ubuntu's hosted runner restricts unprivileged user namespaces. Exercise
+      # the actual bubblewrap boundary instead of skipping its confinement test.
+      - name: Allow sandbox namespaces on the ephemeral Linux runner
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - name: Rust toolchain
+        run: rustup update stable --no-self-update && rustup default stable && rustup component add rustfmt clippy
+      - name: Identify the Rust compiler for the cache
+        id: rust-cache-key
+        shell: bash
+        run: echo "version=$(rustc --version)" >> "$GITHUB_OUTPUT"
+      - name: Cache Cargo downloads for CI and releases
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-
+      - name: Cache native build artifacts
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            desktop/core/target
+            desktop/src-tauri/target
+            mobile/src-tauri/target
+            !**/target/**/bundle
+          key: cargo-desktop-debug-${{ runner.os }}-${{ runner.arch }}-desktop-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock', 'desktop/**/Cargo.toml', 'mobile/**/Cargo.toml') }}
+          restore-keys: cargo-desktop-debug-${{ runner.os }}-${{ runner.arch }}-desktop-${{ steps.rust-cache-key.outputs.version }}-
+      - name: Native contracts and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for crate in desktop/core desktop/src-tauri mobile/src-tauri; do
+            cargo fmt --manifest-path "$crate/Cargo.toml" --check
+            cargo clippy --locked --manifest-path "$crate/Cargo.toml" --all-targets -- -D warnings
+            cargo test --locked --manifest-path "$crate/Cargo.toml"
+          done
+      - name: Optimized GLib iterator regression
+        if: runner.os == 'Linux'
+        shell: bash
+        run: cargo test --locked --config 'profile.test.package.glib.opt-level=2' --manifest-path desktop/src-tauri/Cargo.toml --lib variant_string_iteration_remains_sound_when_optimized
+      - name: Prepare coding tools without host Node or npm
+        timeout-minutes: 15
+        shell: bash
+        run: cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml clean_machine_prepares_without_host_node_or_npm --lib -- --ignored
+      - name: Native browser engine smoke
+        timeout-minutes: 3
+        shell: bash
+        env:
+          WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+        run: |
+          set -euo pipefail
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a cargo run --locked --manifest-path desktop/src-tauri/Cargo.toml --example native_browser_smoke
+          else
+            cargo run --locked --manifest-path desktop/src-tauri/Cargo.toml --example native_browser_smoke
+          fi
+      - name: Persistent console session smoke
+        timeout-minutes: 3
+        shell: bash
+        env:
+          WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+        run: |
+          set -euo pipefail
+          for mode in write read; do
+            if [ "$RUNNER_OS" = "Linux" ]; then
+              xvfb-run -a cargo run --locked --manifest-path desktop/src-tauri/Cargo.toml --example session_profile_smoke -- "$mode"
+            else
+              cargo run --locked --manifest-path desktop/src-tauri/Cargo.toml --example session_profile_smoke -- "$mode"
+            fi
+          done
+      - name: Build desktop installer packages
+        env:
+          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd desktop
+          bun install --frozen-lockfile
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            bunx tauri build --debug --ci --config '{"bundle":{"macOS":{"signingIdentity":"-"}}}' -- --locked
+          else
+            bunx tauri build --debug --ci -- --locked
+          fi
+      - name: Install and remove desktop packages
+        run: python scripts/check_desktop_installation.py desktop/src-tauri/target/debug/bundle
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-installers-${{ runner.os }}
+          path: |
+            desktop/src-tauri/target/debug/bundle/**/*.dmg
+            desktop/src-tauri/target/debug/bundle/**/*.exe
+            desktop/src-tauri/target/debug/bundle/**/*.msi
+            desktop/src-tauri/target/debug/bundle/**/*.deb
+            desktop/src-tauri/target/debug/bundle/**/*.rpm
+            desktop/src-tauri/target/debug/bundle/**/*.AppImage
+          if-no-files-found: error
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - name: Android toolchain
+        run: |
+          rustup target add aarch64-linux-android
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+      - name: Identify the Rust compiler for the cache
+        id: rust-cache-key
+        shell: bash
+        run: echo "version=$(rustc --version)" >> "$GITHUB_OUTPUT"
+      - name: Cache Cargo downloads for CI and releases
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-
+      - name: Cache native build artifacts
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            desktop/core/target
+            desktop/src-tauri/target
+            mobile/src-tauri/target
+            !**/target/**/bundle
+          key: cargo-android-debug-${{ runner.os }}-${{ runner.arch }}-android-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock', 'desktop/**/Cargo.toml', 'mobile/**/Cargo.toml') }}
+          restore-keys: cargo-android-debug-${{ runner.os }}-${{ runner.arch }}-android-${{ steps.rust-cache-key.outputs.version }}-
+      - name: Build debug APK
+        working-directory: mobile
+        run: bun install --frozen-lockfile && bunx tauri android build --debug --target aarch64 --apk --ci -- --locked
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-debug
+          path: mobile/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - name: Simulator toolchain
+        run: rustup target add aarch64-apple-ios-sim
+      - name: Identify the Rust compiler for the cache
+        id: rust-cache-key
+        shell: bash
+        run: echo "version=$(rustc --version)" >> "$GITHUB_OUTPUT"
+      - name: Cache Cargo downloads for CI and releases
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust-cache-key.outputs.version }}-
+      - name: Cache native build artifacts
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            desktop/core/target
+            desktop/src-tauri/target
+            mobile/src-tauri/target
+            !**/target/**/bundle
+          key: cargo-ios-debug-${{ runner.os }}-${{ runner.arch }}-ios-${{ steps.rust-cache-key.outputs.version }}-${{ hashFiles('desktop/**/Cargo.lock', 'mobile/**/Cargo.lock', 'desktop/**/Cargo.toml', 'mobile/**/Cargo.toml') }}
+          restore-keys: cargo-ios-debug-${{ runner.os }}-${{ runner.arch }}-ios-${{ steps.rust-cache-key.outputs.version }}-
+      - name: Build iOS simulator with extensions
+        working-directory: mobile
+        run: bun install --frozen-lockfile && bunx tauri ios build --target aarch64-sim --no-sign --archive-only --ci -- --locked

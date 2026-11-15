@@ -7,7 +7,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useToggleArtifactFavourite } from "./use-artifacts";
+import { useArtifact, useToggleArtifactFavourite } from "./use-artifacts";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type { Artifact, ArtifactDetail, ArtifactList } from "@/types/artifact";
@@ -57,7 +57,7 @@ function setup() {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
-  return { client, ...renderHook(() => useToggleArtifactFavourite(), { wrapper }) };
+  return { client, wrapper, ...renderHook(() => useToggleArtifactFavourite(), { wrapper }) };
 }
 
 beforeEach(() => {
@@ -104,5 +104,46 @@ describe("useToggleArtifactFavourite", () => {
     await waitFor(() => expect(toastError).toHaveBeenCalled());
     expect(client.getQueryData<ArtifactList>(ALL)?.items[0]?.is_favourite).toBe(false);
     expect(client.getQueryData<ArtifactList>(FAVOURITES)?.items[0]?.id).toBe("a1");
+  });
+
+  it("leaves an unloaded detail and other apps untouched by an optimistic star", async () => {
+    let finish!: (detail: ArtifactDetail) => void;
+    vi.mocked(apiClient.get).mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    vi.mocked(apiClient.post).mockResolvedValue(undefined);
+    const { result, client, wrapper } = setup();
+    const other = artifact({ id: "a2", title: "Another app" });
+    client.setQueryData<ArtifactList>(ALL, { items: [artifact(), other], total: 2 });
+    const loading = renderHook(() => useArtifact("unloaded"), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/apps/unloaded"));
+    expect(loading.result.current.isLoading).toBe(true);
+
+    let changing!: Promise<void>;
+    act(() => {
+      changing = result.current.mutateAsync({ id: "a1", favourite: true });
+    });
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/apps/a1/favourite"));
+
+    expect(client.getQueryData(qk.artifacts.detail("unloaded"))).toBeUndefined();
+    expect(client.getQueryData<ArtifactList>(ALL)).toEqual({
+      items: [artifact({ is_favourite: true }), other],
+      total: 2,
+    });
+    expect(toastError).not.toHaveBeenCalled();
+    await act(async () => {
+      finish(artifact({ id: "unloaded", archived_at: "2026-11-14T10:00:00Z" }));
+      await changing;
+    });
+    await waitFor(() =>
+      expect(loading.result.current.artifact).toMatchObject({
+        id: "unloaded",
+        is_favourite: false,
+      }),
+    );
+    loading.unmount();
+    client.clear();
   });
 });

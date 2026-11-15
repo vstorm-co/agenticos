@@ -82,7 +82,7 @@ export function StepGoals({ goals, details, onChange }: StepGoalsProps) {
           value={details}
           onChange={(e) => onChange({ details: e.target.value })}
           placeholder={t("detailsPlaceholder")}
-          className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-brand focus:ring-brand/20 w-full resize-none rounded-xl border p-3.5 text-sm transition-all focus:outline-none focus:ring-1"
+          className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-brand focus:ring-brand/20 w-full resize-none rounded-xl border p-3.5 text-sm transition-all focus:ring-1 focus:outline-none"
         />
       </div>
     </div>

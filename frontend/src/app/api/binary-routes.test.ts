@@ -762,7 +762,7 @@ describe("finishing an MCP OAuth flow", () => {
       body: JSON.stringify({ code: "abc", state: "xyz" }),
     });
     expect(redirected(response)).toMatchObject({
-      path: "/mcp-servers",
+      path: "/connectors",
       status: "success",
       name: "Linear",
     });
@@ -978,7 +978,7 @@ describe("coming back from an MCP OAuth consent to where it started", () => {
     const raw = response.headers.get("location")!;
     expect(raw).not.toMatch(/^https?:\/\//);
     expect(raw).not.toContain("0.0.0.0");
-    expect(raw.startsWith("/mcp-servers?")).toBe(true);
+    expect(raw.startsWith("/connectors?")).toBe(true);
   });
 
   it("ignores a return target that is not this app's own", async () => {
@@ -987,7 +987,7 @@ describe("coming back from an MCP OAuth consent to where it started", () => {
     const response = await callback(callbackWithReturn("//evil.example/steal"));
 
     expect(new URL(response.headers.get("location")!, "https://agenticos.example").pathname).toBe(
-      "/mcp-servers",
+      "/connectors",
     );
   });
 });

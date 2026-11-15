@@ -11,8 +11,8 @@ the payload models are reachable from request bodies on purpose and from
 responses never. The *field* check catches a new schema that spells a secret out
 by hand without going through those models at all.
 
-Adding a route that returns a credential should fail here. If it does, the fix
-is the route, not the allowlist.
+Reading a stored credential must fail here. Newly issued authenticator enrolment
+material has one schema-and-field exception, pinned to its setup route below.
 """
 
 import re
@@ -63,6 +63,10 @@ _SECRET_FIELDS = frozenset(
     }
 )
 
+# A freshly generated key shown to its recently authenticated owner at enrolment,
+# never a read of an enabled factor. The route assertion below bounds this exception.
+_ISSUED_FIELDS = frozenset({("MfaSetupRead", "secret")})
+
 # Names on the list above are the ones somebody thought of. This pattern
 # catches the ones nobody did - any string-ish field whose name says "secret".
 # It is the half that found `InvitationRead.token`, which is not on the list
@@ -83,6 +87,7 @@ _PATTERN_ALLOWED: dict[str, str] = {
     "token_hint": "the last four characters, so two keys can be told apart",
     "access_token": "minted for the caller who just authenticated - it is theirs",
     "refresh_token": "same: issued to this caller, not read from storage",
+    "mfa_token": "a five-minute challenge issued after the first factor, never a session credential",
     "token_type": "the string 'bearer'",
     "expires_in": "a lifetime in seconds",
     "share_token": (
@@ -120,6 +125,9 @@ _PATTERN_ALLOWED: dict[str, str] = {
         "in the path and returns none"
     ),
     "secret_id": "a reference to a stored secret, not the secret",
+    "fulfilled_secret_id": "the vault row that fulfilled a request, never its credential value",
+    "secret_name": "the human-readable label requested by an agent, never the credential value",
+    "waiting_secret_requests": "labels of pending credential requests, never supplied values",
     "api_keys": (
         "the personal-data export's list of keys a person issued: name, prefix, "
         "scopes and dates, never the key or its hash"
@@ -155,6 +163,7 @@ _PATTERN_ALLOWED: dict[str, str] = {
     "output_tokens": "the same, for the completion",
     "context_used_tokens": "the same word again: how much of a context window a turn filled",
     "context_window_tokens": "how many tokens a model accepts, which is a capacity not a key",
+    "avg_tokens": "the same usage count, averaged over an eval arm's cases",
     "cache_read_tokens": "the prompt tokens a turn read from the provider's prompt cache",
     "cache_write_tokens": "the prompt tokens a turn wrote to that cache",
 }
@@ -252,6 +261,7 @@ class TestNoSecretShapeIsReturned:
             f"{name}.{field}"
             for name in _response_schema_names(document)
             for field in _string_properties(components.get(name, {})) & _SECRET_FIELDS
+            if (name, field) not in _ISSUED_FIELDS
         )
         assert not offenders, f"response schemas exposing a credential field: {offenders}"
 
@@ -267,7 +277,9 @@ class TestNoSecretShapeIsReturned:
             f"{name}.{field}"
             for name in _response_schema_names(document)
             for field in _string_properties(components.get(name, {}))
-            if _SECRET_WORDS.search(field) and field not in _PATTERN_ALLOWED
+            if _SECRET_WORDS.search(field)
+            and field not in _PATTERN_ALLOWED
+            and (name, field) not in _ISSUED_FIELDS
         )
         assert not offenders, f"response schemas exposing a credential field: {offenders}"
 
@@ -277,6 +289,26 @@ class TestNoSecretShapeIsReturned:
         named = {field for schema in components.values() for field in _properties(schema)}
 
         assert set(_PATTERN_ALLOWED) <= named
+
+    def test_the_new_authenticator_key_is_only_returned_by_setup(
+        self, document: dict[str, Any]
+    ) -> None:
+        """A second response reusing this schema must not inherit its issuance exception."""
+        uses = {
+            (method, path)
+            for path, methods in document["paths"].items()
+            for method, operation in methods.items()
+            if isinstance(operation, dict)
+            and "MfaSetupRead"
+            in _response_schema_names(
+                {"components": document["components"], "paths": {path: {method: operation}}}
+            )
+        }
+        from app.core.config import settings
+
+        assert uses == {("post", f"{settings.API_V1_STR}/auth/mfa/setup")}
+        schema = document["components"]["schemas"]["MfaSetupRead"]
+        assert _properties(schema) & _SECRET_FIELDS == {"secret"}
 
     def test_the_sweep_reaches_the_schemas_it_claims_to(self, document: dict[str, Any]) -> None:
         """A sweep that resolves nothing passes for the wrong reason.

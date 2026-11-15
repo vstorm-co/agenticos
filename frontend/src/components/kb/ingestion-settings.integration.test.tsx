@@ -107,7 +107,7 @@ function wrapper({ children }: { children: ReactNode }) {
 
 /** The form with image description switched on, which is what renders the picker. */
 function show(modelProfileId: string | null = null, disabled = false) {
-  render(
+  const form = (frozen: boolean) => (
     <IngestionSettings
       idPrefix="test"
       value={{
@@ -119,10 +119,11 @@ function show(modelProfileId: string | null = null, disabled = false) {
         },
       }}
       onChange={vi.fn()}
-      disabled={disabled}
-    />,
-    { wrapper },
+      disabled={frozen}
+    />
   );
+  const view = render(form(disabled), { wrapper });
+  return { ...view, freeze: () => view.rerender(form(true)) };
 }
 
 /** The form with LlamaParse chosen, which is what renders its key picker. */
@@ -196,12 +197,16 @@ describe("the model that describes the images", () => {
     // was harmless while this panel was a list of radios. It is not now: the
     // key field writes an organization-wide vault secret, and a dialog mid-save
     // did not mean "except the vault".
-    show(null, true);
+    const view = show();
 
     await userEvent.click(await screen.findByLabelText("Provider"));
     await userEvent.click(screen.getByRole("option", { name: /OpenAI/ }));
 
+    view.freeze();
+    expect(screen.getByLabelText("Provider")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Add a key: OpenAI" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Add a key: OpenAI" }));
+    expect(apiClient.post).not.toHaveBeenCalled();
   });
 
   it("says the chosen model has no key, which is what decides whether ingestion runs", async () => {

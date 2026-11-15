@@ -630,3 +630,10 @@ describe("WorkflowLogs", () => {
     expect(screen.queryByText(/line/)).toBeNull();
   });
 });
+
+it("renders the catalog name of a default-labeled log row", () => {
+  logs.entries = [entry({ step_label: "Server default", step_definition_id: "core.input" })];
+  render(<WorkflowLogs workflowId="wf" />);
+  expect(screen.getByText("API request")).toBeVisible();
+  expect(screen.queryByText("Server default")).toBeNull();
+});

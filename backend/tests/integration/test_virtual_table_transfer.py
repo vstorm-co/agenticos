@@ -17,8 +17,10 @@ from app.schemas.virtual_table import (
     RecordCreate,
     RecordExportQuery,
     RecordFilter,
+    RecordQuery,
     RecordRead,
     RecordSort,
+    RecordUpdate,
     SchemaUpdate,
     TableCreate,
     TableUpdate,
@@ -76,7 +78,8 @@ async def test_a_batch_writes_every_record_that_fits_and_names_each_that_does_no
     assert [(failure.index, failure.code) for failure in result.failed] == [
         (1, "INVALID_RECORD"),
         (2, "ALREADY_EXISTS"),
-        (4, "ALREADY_EXISTS"),
+        # Repeating an id the batch already named, not one the table held before it.
+        (4, "INVALID_RECORD"),
     ]
     events = await db.scalar(
         select(func.count())
@@ -118,6 +121,166 @@ async def test_a_batch_imported_again_updates_the_records_it_names_by_external_i
     # Only the cells the row names change; the rest stay as they were.
     assert acme.values == {customer: "Acme", quantity: 5}
     assert acme.revision == 2
+
+
+async def test_a_batch_refuses_a_row_repeating_an_external_id_it_already_named(db):
+    service, ctx, table = await _setup(db)
+    customer = cid(table, "Customer")
+
+    result = await service.create_records(
+        ctx,
+        table.id,
+        RecordBatchCreate(
+            records=[
+                RecordCreate(external_id="acme", values={customer: "Acme"}),
+                RecordCreate(external_id="acme", values={customer: "Acme Ltd"}),
+            ]
+        ),
+    )
+
+    assert result.created == 1
+    (refused,) = result.failed
+    assert (refused.index, refused.code) == (1, "INVALID_RECORD")
+    assert refused.details is not None
+    assert refused.details["fields"][0]["field"] == "records.1.external_id"
+
+
+async def test_an_import_leaves_a_record_changed_since_it_began_and_reports_it(db):
+    service, ctx, table = await _setup(db)
+    customer, quantity = cid(table, "Customer"), cid(table, "Quantity")
+    acme = await service.create_record(
+        ctx, table.id, RecordCreate(external_id="acme", values={customer: "Acme", quantity: 1})
+    )
+    await db.commit()
+    first = await service.create_records(
+        ctx,
+        table.id,
+        RecordBatchCreate(
+            update_existing=True,
+            records=[RecordCreate(external_id="globex", values={customer: "Globex"})],
+        ),
+    )
+    await db.commit()
+    # Someone edits the record while the import is still sending its batches.
+    await service.update_record(
+        ctx,
+        table.id,
+        acme.record.id,
+        RecordUpdate(expected_revision=acme.record.revision, values={quantity: 7}),
+    )
+    await db.commit()
+
+    later = await service.create_records(
+        ctx,
+        table.id,
+        RecordBatchCreate(
+            update_existing=True,
+            as_of=first.as_of,
+            records=[RecordCreate(external_id="acme", values={quantity: 2})],
+        ),
+    )
+
+    assert later.as_of == first.as_of
+    assert later.updated == 0
+    (conflict,) = later.failed
+    assert (conflict.index, conflict.code) == (0, "REVISION_CONFLICT")
+    assert conflict.details == {"record_id": acme.record.id, "current_revision": 2}
+    kept = await service.get_record(ctx, table.id, acme.record.id)
+    assert kept.values[quantity] == 7
+
+
+async def test_a_batch_sent_again_under_its_key_writes_nothing_more(db):
+    from app.services.virtual_tables.exceptions import IdempotencyKeyReuseError
+
+    service, ctx, table = await _setup(db)
+    customer = cid(table, "Customer")
+    batch = RecordBatchCreate(records=[RecordCreate(values={customer: "Acme"})])
+
+    first, first_replayed = await service.write_batch(
+        ctx, table.id, batch, operation_key="import-1"
+    )
+    again, again_replayed = await service.write_batch(
+        ctx, table.id, batch, operation_key="import-1"
+    )
+
+    assert (first_replayed, again_replayed) == (False, True)
+    assert again == first
+    listed = await service.list_records(ctx, table.id, RecordQuery())
+    assert len(listed.items) == 1
+    with pytest.raises(IdempotencyKeyReuseError):
+        await service.write_batch(
+            ctx,
+            table.id,
+            RecordBatchCreate(records=[RecordCreate(values={customer: "Globex"})]),
+            operation_key="import-1",
+        )
+
+
+async def test_an_edit_that_waited_until_after_the_import_began_is_not_overwritten(engine):
+    """An edit is stamped when it is written, not when its transaction began: one that
+    started before the import and landed after it began must still read as later."""
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as db:
+        service, ctx, table = await _setup(db)
+        quantity = cid(table, "Quantity")
+        acme = await service.create_record(
+            ctx, table.id, RecordCreate(external_id="acme", values={quantity: 1})
+        )
+        await db.commit()
+
+    async with factory() as editing, factory() as importing:
+        await editing.execute(select(1))
+        first = await VirtualTableService(importing).create_records(
+            ctx,
+            table.id,
+            RecordBatchCreate(update_existing=True, records=[RecordCreate(values={})]),
+        )
+        await importing.commit()
+        await VirtualTableService(editing).update_record(
+            ctx,
+            table.id,
+            acme.record.id,
+            RecordUpdate(expected_revision=acme.record.revision, values={quantity: 7}),
+        )
+        await editing.commit()
+
+        later = await VirtualTableService(importing).create_records(
+            ctx,
+            table.id,
+            RecordBatchCreate(
+                update_existing=True,
+                as_of=first.as_of,
+                records=[RecordCreate(external_id="acme", values={quantity: 2})],
+            ),
+        )
+        await importing.commit()
+
+    assert [(failure.index, failure.code) for failure in later.failed] == [(0, "REVISION_CONFLICT")]
+
+
+@pytest.mark.security
+async def test_a_keyed_batch_whose_outcome_passes_the_storage_limit_writes_nothing(db, monkeypatch):
+    from app.core.config import settings
+    from app.db.models.virtual_table import VirtualTableReceipt
+    from app.repositories import virtual_table_repo
+    from app.services.virtual_tables.exceptions import QuotaExceededError
+
+    service, ctx, table = await _setup(db)
+    # The refusal audits in its own transaction, which waits on the audit chain this one holds.
+    await db.commit()
+    used = await virtual_table_repo.storage_bytes(db, organization_id=ctx.organization_id)
+    monkeypatch.setattr(settings, "TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION", used)
+    quantity = cid(table, "Quantity")
+    refused_rows = RecordBatchCreate(
+        records=[RecordCreate(values={quantity: "not a number"}) for _ in range(5)]
+    )
+
+    with pytest.raises(QuotaExceededError):
+        await service.write_batch(ctx, table.id, refused_rows, operation_key="flood-1")
+
+    assert await db.scalar(select(func.count()).select_from(VirtualTableReceipt)) == 0
 
 
 async def test_a_batch_lists_in_the_order_it_was_written(db):
@@ -414,3 +577,26 @@ async def test_export_cursor_keeps_one_record_snapshot_across_concurrent_edits(
         )
         await other.commit()
     assert [line.strip() async for line in export.lines] == ["original"] * 4
+
+
+async def test_future_batch_cutoffs_are_refused_without_overwriting_records(db):
+    from datetime import timedelta
+
+    service, ctx, table = await _setup(db)
+    quantity = cid(table, "Quantity")
+    made = await service.create_record(
+        ctx, table.id, RecordCreate(external_id="acme", values={quantity: 7})
+    )
+    with pytest.raises(InvalidQueryError) as refused:
+        await service.create_records(
+            ctx,
+            table.id,
+            RecordBatchCreate(
+                update_existing=True,
+                as_of=datetime.now(UTC) + timedelta(days=1),
+                records=[RecordCreate(external_id="acme", values={quantity: 2})],
+            ),
+        )
+    assert refused.value.details["fields"][0]["field"] == "as_of"
+    read = await service.get_record(ctx, table.id, made.record.id)
+    assert read.values[quantity] == 7 and read.revision == made.record.revision

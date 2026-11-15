@@ -87,17 +87,20 @@ def _service() -> SecretRequestService:
 
 
 class TestFulfilBody:
+    @pytest.mark.security
     def test_the_value_is_masked_in_the_schema_repr(self):
         data = SecretRequestFulfil(value=SENTINEL)
 
         assert SENTINEL not in repr(data)
         assert data.value.get_secret_value() == SENTINEL
 
+    @pytest.mark.security
     def test_a_multiline_value_is_refused(self):
         with pytest.raises(ValueError, match="single line"):
             SecretRequestFulfil(value="line-one\nline-two")
 
 
+@pytest.mark.security
 async def test_fulfil_seals_the_value_and_keeps_only_name_and_hint() -> None:
     service = _service()
     run = _run()
@@ -153,6 +156,7 @@ async def test_fulfil_seals_the_value_and_keeps_only_name_and_hint() -> None:
     service.runner.resume.assert_awaited_once()
 
 
+@pytest.mark.security
 async def test_fulfil_round_trips_a_requested_non_api_key_kind() -> None:
     service = _service()
     run = _run()
@@ -189,6 +193,7 @@ async def test_fulfil_round_trips_a_requested_non_api_key_kind() -> None:
     assert restored.aws_secret_access_key.get_secret_value() == "sentinel-credential-value"
 
 
+@pytest.mark.security
 async def test_fulfil_while_another_secret_is_outstanding_stays_parked() -> None:
     service = _service()
     run = _run()
@@ -226,6 +231,7 @@ async def test_fulfil_while_another_secret_is_outstanding_stays_parked() -> None
     service.runner.resume.assert_not_awaited()
 
 
+@pytest.mark.security
 async def test_decline_ends_the_run_failed_without_the_value_anywhere() -> None:
     service = _service()
     run = _run()
@@ -326,6 +332,7 @@ def _fulfil_patches(service, *, run, request, approvals=None):
         yield vault
 
 
+@pytest.mark.security
 async def test_list_for_run_returns_nothing_for_another_person() -> None:
     service = _service()
     run = _run(user_id=uuid.uuid4())
@@ -346,6 +353,7 @@ async def test_list_for_run_returns_nothing_for_another_person() -> None:
     listed.assert_not_awaited()
 
 
+@pytest.mark.security
 async def test_list_for_run_returns_the_runs_requests_for_its_person() -> None:
     service = _service()
     run = _run()
@@ -366,6 +374,7 @@ async def test_list_for_run_returns_the_runs_requests_for_its_person() -> None:
     assert SENTINEL not in repr(reads[0])
 
 
+@pytest.mark.security
 async def test_fulfil_on_a_run_that_is_not_parked_is_not_found() -> None:
     service = _service()
     with (
@@ -375,6 +384,7 @@ async def test_fulfil_on_a_run_that_is_not_parked_is_not_found() -> None:
         await service.fulfil(_ctx(), RUN_ID, REQUEST_ID, value=SecretStr(SENTINEL))
 
 
+@pytest.mark.security
 async def test_fulfil_refuses_a_request_the_run_is_not_waiting_on() -> None:
     service = _service()
     run = _run()
@@ -386,6 +396,7 @@ async def test_fulfil_refuses_a_request_the_run_is_not_waiting_on() -> None:
         await service.fulfil(_ctx(), RUN_ID, REQUEST_ID, value=SecretStr(SENTINEL))
 
 
+@pytest.mark.security
 async def test_fulfil_refuses_while_a_question_is_unanswered() -> None:
     service = _service()
     run = _run()
@@ -398,6 +409,7 @@ async def test_fulfil_refuses_while_a_question_is_unanswered() -> None:
         await service.fulfil(_ctx(), RUN_ID, REQUEST_ID, value=SecretStr(SENTINEL))
 
 
+@pytest.mark.security
 async def test_fulfil_refuses_an_empty_or_oversized_value() -> None:
     service = _service()
     with (
@@ -412,6 +424,7 @@ async def test_fulfil_refuses_an_empty_or_oversized_value() -> None:
         await service.fulfil(_ctx(), RUN_ID, REQUEST_ID, value=SecretStr("x" * 8193))
 
 
+@pytest.mark.security
 async def test_fulfil_refuses_a_missing_or_wrong_run_request() -> None:
     service = _service()
     with (
@@ -426,6 +439,7 @@ async def test_fulfil_refuses_a_missing_or_wrong_run_request() -> None:
         await service.fulfil(_ctx(), RUN_ID, REQUEST_ID, value=SecretStr(SENTINEL))
 
 
+@pytest.mark.security
 async def test_fulfil_refuses_an_already_decided_request() -> None:
     service = _service()
     with (
@@ -435,6 +449,7 @@ async def test_fulfil_refuses_an_already_decided_request() -> None:
         await service.fulfil(_ctx(), RUN_ID, REQUEST_ID, value=SecretStr(SENTINEL))
 
 
+@pytest.mark.security
 async def test_fulfil_refuses_a_request_asked_of_somebody_else() -> None:
     service = _service()
     run = _run(user_id=uuid.uuid4())
@@ -445,6 +460,7 @@ async def test_fulfil_refuses_a_request_asked_of_somebody_else() -> None:
         await service.fulfil(_ctx(), RUN_ID, REQUEST_ID, value=SecretStr(SENTINEL))
 
 
+@pytest.mark.security
 async def test_fulfil_refuses_a_run_that_is_not_waiting() -> None:
     service = _service()
     run = _run(status=RunStatus.COMPLETED.value)
@@ -455,6 +471,7 @@ async def test_fulfil_refuses_a_run_that_is_not_waiting() -> None:
         await service.fulfil(_ctx(), RUN_ID, REQUEST_ID, value=SecretStr(SENTINEL))
 
 
+@pytest.mark.security
 async def test_fulfil_refuses_a_run_parked_without_state() -> None:
     service = _service()
     run = _run(paused_state=None)
@@ -465,6 +482,7 @@ async def test_fulfil_refuses_a_run_parked_without_state() -> None:
         await service.fulfil(_ctx(), RUN_ID, REQUEST_ID, value=SecretStr(SENTINEL))
 
 
+@pytest.mark.security
 async def test_fulfil_refuses_while_an_approval_is_still_pending() -> None:
     service = _service()
     run = _run(status=RunStatus.AWAITING_APPROVAL.value)
@@ -477,6 +495,7 @@ async def test_fulfil_refuses_while_an_approval_is_still_pending() -> None:
         await service.fulfil(_ctx(), RUN_ID, REQUEST_ID, value=SecretStr(SENTINEL))
 
 
+@pytest.mark.security
 async def test_fulfil_proceeds_once_the_approvals_are_decided() -> None:
     service = _service()
     run = _run(status=RunStatus.AWAITING_APPROVAL.value)
@@ -493,6 +512,7 @@ async def test_fulfil_proceeds_once_the_approvals_are_decided() -> None:
     service.runner.resume.assert_awaited_once()
 
 
+@pytest.mark.security
 async def test_fulfil_refuses_a_workflow_run() -> None:
     service = _service()
     run = _run(surface="workflow")
@@ -503,6 +523,7 @@ async def test_fulfil_refuses_a_workflow_run() -> None:
         await service.fulfil(_ctx(), RUN_ID, REQUEST_ID, value=SecretStr(SENTINEL))
 
 
+@pytest.mark.security
 async def test_fulfil_refuses_an_api_key_on_a_person_started_run() -> None:
     service = _service()
     keyed = replace(_ctx(), api_key_id=uuid.uuid4(), key_scopes=frozenset(Perm))
@@ -513,6 +534,7 @@ async def test_fulfil_refuses_an_api_key_on_a_person_started_run() -> None:
         await service.fulfil(keyed, RUN_ID, REQUEST_ID, value=SecretStr(SENTINEL))
 
 
+@pytest.mark.security
 async def test_fulfil_refuses_an_api_key_without_the_run_scope() -> None:
     service = _service()
     run = _run(user_id=None)
@@ -530,6 +552,7 @@ async def test_fulfil_refuses_an_api_key_without_the_run_scope() -> None:
         await service.fulfil(keyed, RUN_ID, REQUEST_ID, value=SecretStr(SENTINEL))
 
 
+@pytest.mark.security
 async def test_decline_on_a_run_that_is_not_parked_is_not_found() -> None:
     service = _service()
     with (
@@ -542,6 +565,7 @@ async def test_decline_on_a_run_that_is_not_parked_is_not_found() -> None:
         await service.decline(_ctx(), RUN_ID, REQUEST_ID)
 
 
+@pytest.mark.security
 async def test_decline_refuses_a_run_that_is_not_waiting() -> None:
     service = _service()
     run = _run(status=RunStatus.COMPLETED.value)
@@ -559,6 +583,91 @@ async def test_decline_refuses_a_run_that_is_not_waiting() -> None:
         await service.decline(_ctx(), RUN_ID, REQUEST_ID)
 
 
+@pytest.mark.security
+async def test_decline_refuses_a_workflow_run() -> None:
+    service = _service()
+    run = _run(surface="workflow")
+    with (
+        patch(
+            "app.services.secret_requests.agent_run_repo.claim_parked_run",
+            AsyncMock(return_value=run),
+        ),
+        patch(
+            "app.services.secret_requests.secret_request_repo.claim",
+            AsyncMock(return_value=_request()),
+        ),
+        pytest.raises(BadRequestError, match="through its workflow"),
+    ):
+        await service.decline(_ctx(), RUN_ID, REQUEST_ID)
+
+
+@pytest.mark.security
+async def test_decline_refuses_while_an_approval_is_still_pending() -> None:
+    service = _service()
+    run = _run(status=RunStatus.AWAITING_APPROVAL.value)
+    pending = MagicMock(status=ApprovalStatus.PENDING.value)
+    with (
+        patch(
+            "app.services.secret_requests.agent_run_repo.claim_parked_run",
+            AsyncMock(return_value=run),
+        ),
+        patch(
+            "app.services.secret_requests.secret_request_repo.claim",
+            AsyncMock(return_value=_request()),
+        ),
+        patch(
+            "app.services.secret_requests.agent_run_repo.list_approvals_for_run",
+            AsyncMock(return_value=[pending]),
+        ),
+        pytest.raises(BadRequestError, match="Decide the run's approvals"),
+    ):
+        await service.decline(_ctx(), RUN_ID, REQUEST_ID)
+
+
+@pytest.mark.security
+async def test_decline_refuses_an_api_key_on_a_person_started_run() -> None:
+    service = _service()
+    keyed = replace(_ctx(), api_key_id=uuid.uuid4(), key_scopes=frozenset(Perm))
+    with (
+        patch(
+            "app.services.secret_requests.agent_run_repo.claim_parked_run",
+            AsyncMock(return_value=_run()),
+        ),
+        patch(
+            "app.services.secret_requests.secret_request_repo.claim",
+            AsyncMock(return_value=_request()),
+        ),
+        pytest.raises(AuthorizationError, match="not with an API key"),
+    ):
+        await service.decline(keyed, RUN_ID, REQUEST_ID)
+
+
+@pytest.mark.security
+async def test_decline_refuses_an_api_key_without_the_run_scope() -> None:
+    service = _service()
+    run = _run(user_id=None)
+    keyed = AuthContext(
+        user_id=None,
+        organization_id=ORG_ID,
+        role=OrgRoleName.OWNER,
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset(),
+    )
+    with (
+        patch(
+            "app.services.secret_requests.agent_run_repo.claim_parked_run",
+            AsyncMock(return_value=run),
+        ),
+        patch(
+            "app.services.secret_requests.secret_request_repo.claim",
+            AsyncMock(return_value=_request()),
+        ),
+        pytest.raises(AuthorizationError, match="may not run agents"),
+    ):
+        await service.decline(keyed, RUN_ID, REQUEST_ID)
+
+
+@pytest.mark.security
 async def test_decline_declines_a_pending_sibling_with_the_run() -> None:
     service = _service()
     run = _run()

@@ -16,23 +16,25 @@ import enMessages from "../../../messages/en.json";
 
 vi.mock("next-intl", () => ({
   useTranslations: (namespace?: string) => {
-    const section = namespace ? (enMessages as Record<string, any>)[namespace] : enMessages;
-    return (key: string, params?: Record<string, any>) => {
-      const parts = key.split(".");
-      let val: any = section;
-      for (const p of parts) {
-        val = val?.[p];
-      }
-      if (typeof val === "string") {
-        if (params) {
-          return Object.entries(params).reduce(
-            (acc, [k, v]) => acc.replace(new RegExp(`\\{${k}\\}`, "g"), String(v)),
-            val
-          );
+    const section: unknown = namespace
+      ? (enMessages as unknown as Record<string, unknown>)[namespace]
+      : enMessages;
+    return (key: string, params?: Record<string, unknown>) => {
+      let value: unknown = section;
+      for (const part of key.split(".")) {
+        if (typeof value !== "object" || value === null || !(part in value)) {
+          value = undefined;
+          break;
         }
-        return val;
+        value = (value as Record<string, unknown>)[part];
       }
-      return key;
+      if (typeof value !== "string") return key;
+      if (!params) return value;
+      return Object.entries(params).reduce(
+        (result, [name, replacement]) =>
+          result.replace(new RegExp(`\\{${name}\\}`, "g"), String(replacement)),
+        value,
+      );
     };
   },
 }));

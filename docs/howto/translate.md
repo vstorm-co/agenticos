@@ -147,8 +147,8 @@ repository, and in every English page of this site. Translating them here and
 nowhere else gives one product two vocabularies, and a Polish reader who looks
 up the translated word finds nothing.
 
-**agent · spec · capability · skill · embed · budget · run · prompt · provider ·
-token · vault · workspace · sandbox · MCP**
+**agent · spec · capability · skill · dataset · embed · budget · run · prompt ·
+provider · token · vault · workspace · sandbox · MCP**
 
 Inflect them rather than replacing them, and translate everything around them.
 
@@ -177,6 +177,7 @@ reader meets both. So the choice is made once, here:
 | spec | der Spec | ten spec, speca | el spec |
 | capability | die Capability | ta capability (nieodmienne) | la capability |
 | skill | der Skill | ten skill, skilla | el skill |
+| dataset | das Dataset | ten dataset, datasetu | el dataset |
 | embed | das Embed | ten embed, embeda | el embed |
 | budget | das Budget | ten budżet | el budget |
 | run | der Run | ten run, runa | el run |
@@ -224,6 +225,36 @@ distinctions in every language:
 When a sentence states what the platform refuses, translate the refusal
 literally. Do not soften "is refused" into "may not work", and do not turn a
 statement about what cannot happen into advice about what you should not do.
+
+## The words the eval screens use
+
+An agent's Evals tab, a dataset and an eval run's verdict name each of these
+one way, and a sentence that names a tab names it as the tab does. The console's
+catalogs hold them, and `frontend/messages/eval-terms.test.ts` refuses the mixed
+forms they replaced in the eval namespaces. A page quoting one of these screens
+uses the same word, and `scripts/check_docs_glossary.py` holds the Polish and
+German pages about them to it in `make lint`, from the same patterns in
+`frontend/messages/eval-terms.json`.
+
+| English | Polish | German | Spanish |
+|---|---|---|---|
+| case | przypadek, przypadki, przypadków | der Fall, die Fälle | el caso |
+| eval, the Evals tab | ewaluacja, zakładka Ewaluacje | das Eval, der Tab Evals | el eval, la pestaña Evals |
+| judge | sędzia | der Bewerter | el juez |
+| review | przegląd | die Prüfung | la revisión |
+| environment | środowisko | die Umgebung | el entorno |
+| draft: an agent's unpublished spec | wersja robocza | der Entwurf | el borrador |
+| draft: a text waiting to be accepted - a gap's content, a generated case | szkic | der Entwurf | el borrador |
+| the Build tab | zakładka Budowa | der Tab Bauen | la pestaña Build |
+| breaks / fixes a case | psuje / naprawia przypadek | verschlechtert / behebt einen Fall | rompe / arregla un caso |
+| AI assistance | wsparcie AI | die KI-Unterstützung | la asistencia de IA |
+| the Activity page | Aktywność | die Aktivität | Activity |
+| the Publish button | Opublikuj | Veröffentlichen | Publicar |
+
+A draft is still never the published version: the published / draft pair under
+[Terminology that has to be exact](#terminology-that-has-to-be-exact) keeps its
+distinction, whatever word the draft takes. The console has no Spanish catalog,
+so the Spanish column is the vocabulary of the Spanish pages.
 
 ## The four files GitHub renders, not this site
 

@@ -12,8 +12,25 @@ import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agen
 import type { Secret, SecretRequirement } from "@/types/secrets";
 import en from "../../../messages/en.json";
 
+const councilMembers = vi.hoisted(() => [
+  { name: "Reviewer A", provider: "anthropic", model_profile_id: "profile-a" },
+  { name: "Reviewer B", provider: "openai", model_profile_id: "profile-b" },
+  { name: "Reviewer C", provider: "openrouter", model_profile_id: "profile-c" },
+]);
 vi.mock("./council-members-field", () => ({
-  CouncilMembersField: () => <div role="group" aria-label="Council member editor" />,
+  CouncilMembersField: ({
+    onChange,
+    disabled,
+  }: {
+    onChange: (members: typeof councilMembers) => void;
+    disabled?: boolean;
+  }) => (
+    <div role="group" aria-label="Council member editor">
+      <button type="button" disabled={disabled} onClick={() => onChange(councilMembers)}>
+        Save council members
+      </button>
+    </div>
+  ),
 }));
 
 /** The English catalog, so the suites below keep asserting the words on screen. */
@@ -21,7 +38,8 @@ vi.mock("./council-members-field", () => ({
 // name or a kind, and a stub that ignored them would assert against a message no
 // reader ever sees.
 const words = (key: string, values?: Record<string, string>): string => {
-  const message = (en.agents as Record<string, string>)[key] ?? key;
+  const found = (en.agents as Record<string, unknown>)[key];
+  const message = typeof found === "string" ? found : key;
   return Object.entries(values ?? {}).reduce(
     (filled, [name, value]) => filled.replaceAll(`{${name}}`, value),
     message,
@@ -241,6 +259,21 @@ describe("CapabilitySettings", () => {
     expect(screen.queryByRole("textbox", { name: "Council members" })).not.toBeInTheDocument();
   });
 
+  it("reports council member edits through the existing binding without changing its approval", async () => {
+    const onChange = vi.fn();
+    const selected = binding("council", {
+      approval: "required",
+      tool_approval: { run_council_review: "required" },
+      config: { members: [] },
+    });
+    render(<CapabilitySettings catalog={[COUNCIL]} selected={[selected]} onChange={onChange} />);
+    await userEvent.click(screen.getByRole("button", { name: "Save council members" }));
+    expect(onChange).toHaveBeenCalledWith({
+      ...selected,
+      config: { members: councilMembers },
+    });
+  });
+
   it("offers an approval choice for a read-only capability too", async () => {
     // The backend honours `required` on any capability, so "this only reads,
     // but somebody here approves it anyway" is a decision an operator makes.
@@ -270,6 +303,22 @@ describe("CapabilitySettings", () => {
 
     expect(screen.getByText(/because this capability only reads/)).toBeInTheDocument();
     expect(screen.getByText(/Choose Always ask if a person should see/)).toBeInTheDocument();
+  });
+
+  it("shows legacy default as Never ask without rewriting it and offers only two capability choices", async () => {
+    const onChange = vi.fn();
+    render(
+      <CapabilitySettings
+        catalog={[KNOWLEDGE]}
+        selected={[binding("knowledge")]}
+        onChange={onChange}
+      />,
+    );
+    expect(screen.getByLabelText("Human approval")).toHaveTextContent("Never ask");
+    expect(onChange).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByLabelText("Human approval"));
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    expect(screen.queryByRole("option", { name: "Follow the capability" })).not.toBeInTheDocument();
   });
 
   it("records the approval mode that was chosen", async () => {

@@ -82,7 +82,7 @@ class CouncilConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def require_distinct_providers(self) -> "CouncilConfig":
+    def require_distinct_providers(self) -> CouncilConfig:
         providers = {member.provider for member in self.members}
         if len(providers) != 3:
             raise ValueError("Council members must use three distinct providers")

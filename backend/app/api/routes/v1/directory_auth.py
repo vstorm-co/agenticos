@@ -118,9 +118,7 @@ async def kerberos_login(
                 subject=str(user.id), credential_version=user.credential_version
             )
             callback = f"{settings.FRONTEND_URL.rstrip('/')}/auth/callback"
-            response = RedirectResponse(
-                url=f"{callback}#{urlencode({'mfa_token': mfa_token})}"
-            )
+            response = RedirectResponse(url=f"{callback}#{urlencode({'mfa_token': mfa_token})}")
             if response_token:
                 response.headers["WWW-Authenticate"] = (
                     f"Negotiate {base64.b64encode(response_token).decode('ascii')}"

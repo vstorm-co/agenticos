@@ -1,12 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import RAGPage from "./page";
 import { apiClient } from "@/lib/api-client";
-import { searchDocuments } from "@/lib/rag-api";
+import { searchDocuments, type RAGSearchResponse } from "@/lib/rag-api";
 import { DEFAULT_INGESTION_CONFIG } from "@/lib/ingestion-config";
 import { useOrgStore } from "@/stores";
 import type { KnowledgeBase } from "@/types";
@@ -211,11 +211,14 @@ describe("search", () => {
     await user.click(screen.getByRole("button", { name: "rag.search.button" }));
 
     await waitFor(() =>
-      expect(searchDocuments).toHaveBeenCalledWith({
-        query: "onboarding",
-        collection_names: ["handbook", "contracts"],
-        limit: 10,
-      }),
+      expect(searchDocuments).toHaveBeenCalledWith(
+        {
+          query: "onboarding",
+          collection_names: ["handbook", "contracts"],
+          limit: 10,
+        },
+        expect.any(AbortSignal),
+      ),
     );
   });
 
@@ -272,6 +275,70 @@ describe("search", () => {
     await waitFor(() => expect(screen.getByText("rag.search.noResults")).toBeInTheDocument());
     expect(screen.getByText("rag.search.resultCount")).toBeInTheDocument();
     expect(screen.queryByText("rag.search.failedTitle")).not.toBeInTheDocument();
+  });
+
+  it("cancels a changed question and ignores its late answer after a newer search", async () => {
+    mockApi([kb("kb-1", "Handbook", "handbook")]);
+    let release: (value: RAGSearchResponse) => void = () => {};
+    let signal: AbortSignal | undefined;
+    vi.mocked(searchDocuments)
+      .mockImplementationOnce((_request, cancel) => {
+        signal = cancel;
+        return new Promise((resolve) => {
+          release = resolve;
+        });
+      })
+      .mockResolvedValueOnce({ results: [] });
+    render(<RAGPage />, { wrapper });
+    const user = await openSearchTab();
+    const input = screen.getByPlaceholderText("rag.search.placeholder");
+    await user.type(input, "old question");
+    await user.click(screen.getByRole("button", { name: "rag.search.button" }));
+    await user.clear(input);
+    expect(signal?.aborted).toBe(true);
+    await user.type(input, "new question");
+    await user.click(screen.getByRole("button", { name: "rag.search.button" }));
+    await screen.findByText("rag.search.noResults");
+    await act(async () =>
+      release({
+        results: [
+          {
+            content: "Old policy answer",
+            score: 1,
+            metadata: { filename: "old.txt", collection: "handbook" },
+            parent_doc_id: "previous-source",
+            page: null,
+          },
+        ],
+      }),
+    );
+    expect(screen.queryByText("Old policy answer")).not.toBeInTheDocument();
+    expect(screen.getByText("rag.search.noResults")).toBeInTheDocument();
+    expect(searchDocuments).toHaveBeenCalledTimes(2);
+  });
+
+  it("clears finished results when the search scope changes", async () => {
+    mockApi([kb("kb-1", "Handbook", "handbook"), kb("kb-2", "Contracts", "contracts")]);
+    vi.mocked(searchDocuments).mockResolvedValue({
+      results: [
+        {
+          content: "Old scope answer",
+          score: 1,
+          metadata: { filename: "handbook.txt", collection: "handbook" },
+          parent_doc_id: "previous-source",
+          page: null,
+        },
+      ],
+    });
+    render(<RAGPage />, { wrapper });
+    const user = await openSearchTab();
+    await user.type(screen.getByPlaceholderText("rag.search.placeholder"), "policy");
+    await user.click(screen.getByRole("button", { name: "rag.search.button" }));
+    await screen.findByText("Old scope answer");
+    await user.click(screen.getByRole("combobox", { name: "rag.search.scopeLabel" }));
+    await user.click(screen.getByRole("option", { name: "Contracts" }));
+    expect(screen.queryByText("Old scope answer")).not.toBeInTheDocument();
+    expect(screen.getByText("rag.search.idleTitle")).toBeInTheDocument();
   });
 
   it("a result shows its source document, score and the base it came from", async () => {

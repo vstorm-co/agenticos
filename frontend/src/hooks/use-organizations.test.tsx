@@ -13,10 +13,11 @@ import {
 } from "./use-organizations";
 import { apiClient } from "@/lib/api-client";
 import { useOrgStore } from "@/stores";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type { Organization } from "@/types";
 
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn(), upload: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -333,6 +334,25 @@ describe("useOrganizations", () => {
     await waitFor(() => expect(result.current.orgs[0]?.chat_may_waive_approvals).toBe(true));
   });
 
+  it("persists an explicit footer opt-out and updates the organization cache", async () => {
+    const result = await hook();
+    vi.mocked(apiClient.patch).mockResolvedValue(org({ public_agenticos_attribution: false }));
+    await result.current.setPublicAttribution("org-1", false);
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", {
+      public_agenticos_attribution: false,
+    });
+    await waitFor(() => expect(result.current.orgs[0]?.public_agenticos_attribution).toBe(false));
+  });
+
+  it("propagates a refused footer change and preserves the cached setting", async () => {
+    const result = await hook([org({ public_agenticos_attribution: true })]);
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("Not allowed"));
+    await expect(result.current.setPublicAttribution("org-1", false)).rejects.toThrow(
+      "Not allowed",
+    );
+    expect(result.current.orgs[0]?.public_agenticos_attribution).toBe(true);
+  });
+
   it("sends only the public live data field, and keeps the answer in the list", async () => {
     const result = await hook();
     vi.mocked(apiClient.patch).mockResolvedValue(org({ public_live_data: true }));
@@ -402,6 +422,19 @@ describe("useOrganizations", () => {
     expect(useOrgStore.getState().activeOrgId).toBe("org-2");
   });
 
+  it("asks before switching away from a change not yet saved", async () => {
+    const result = await hook([org(), org({ id: "org-2" })]);
+    useOrgStore.setState({ activeOrgId: "org-1" });
+    useUnsavedChangesStore.setState({ sources: { editor: { discard: vi.fn() } }, prompt: null });
+
+    result.current.switchOrg("org-2");
+    expect(useOrgStore.getState().activeOrgId).toBe("org-1");
+
+    await useUnsavedChangesStore.getState().answer("discard");
+    expect(useOrgStore.getState().activeOrgId).toBe("org-2");
+    useUnsavedChangesStore.setState({ sources: {}, prompt: null });
+  });
+
   it("refetches the list on demand, whatever the caller passes", async () => {
     // The `force` argument is kept for call-site compatibility; invalidation
     // always refetches.
@@ -411,4 +444,13 @@ describe("useOrganizations", () => {
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
   });
+});
+
+it("uploads an organization logo and refreshes the shared organization list", async () => {
+  const result = await hook();
+  const file = new File(["image"], "company.png", { type: "image/png" });
+  vi.mocked(apiClient.upload).mockResolvedValue({});
+  await result.current.uploadAvatar("org-1", file);
+  expect(apiClient.upload).toHaveBeenCalledWith("/orgs/org-1/avatar", file);
+  expect(apiClient.get).toHaveBeenCalledWith("/orgs");
 });

@@ -237,7 +237,7 @@ class TestWhatAReaderSees:
         assert _names(listing) == {"bo-private", "ada-org", "ada-shared"}
         assert listing.total == 3
 
-    async def test_favourite_listing_is_personal_visible_and_newest_starred_first(
+    async def test_favourite_listing_is_personal_visible_and_preserves_star_order(
         self, db: AsyncSession
     ) -> None:
         world = await _world(db)
@@ -276,7 +276,7 @@ class TestWhatAReaderSees:
             favourites_for=world.bo.id,
         )
 
-        assert [row.id for row in ada_items] == [newest, own]
+        assert [row.id for row in ada_items] == [own, newest]
         assert ada_total == 2
         assert [row.id for row in bo_items] == [world.shared]
         assert bo_total == 1

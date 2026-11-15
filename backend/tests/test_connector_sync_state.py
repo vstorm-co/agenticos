@@ -175,6 +175,7 @@ async def _sync(
         sync_mode=mode,
         organization_id=ORG_ID,
         secret_id=None,
+        connected_account_id=None,
         organizational_unit=None,
         sync_state=stored_state,
     )

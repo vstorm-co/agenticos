@@ -248,14 +248,24 @@ def test_a_known_renamed_question_is_parsed_without_rewriting_its_exposed_name()
 
 
 def test_parked_question_ids_resolve_to_displayed_text_in_call_order() -> None:
-    from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelResponse, ToolCallPart
+    from pydantic_ai.messages import (
+        ModelMessagesTypeAdapter,
+        ModelRequest,
+        ModelResponse,
+        TextPart,
+        ToolCallPart,
+        UserPromptPart,
+    )
 
     from app.agents.ask_user import parked_question_texts
 
     messages = ModelMessagesTypeAdapter.dump_python(
         [
+            ModelRequest(parts=[UserPromptPart("A question in user text is not a parked ask")]),
             ModelResponse(
                 parts=[
+                    TextPart("Which region? This is prose, not a question call."),
+                    ToolCallPart("unrelated", {"not_questions": True}, tool_call_id="other"),
                     ToolCallPart(
                         "clarify",
                         {
@@ -288,7 +298,7 @@ def test_parked_question_ids_resolve_to_displayed_text_in_call_order() -> None:
                         tool_call_id="ask-2",
                     ),
                 ]
-            )
+            ),
         ],
         mode="json",
     )

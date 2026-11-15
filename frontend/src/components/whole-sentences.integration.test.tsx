@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -50,7 +51,12 @@ describe("a heading is one message", () => {
     [RegisterForm, "Create your workspace."],
     [ForgotPasswordForm, "Happens to the best of us."],
   ])("renders it whole, emphasis included", (Form, sentence) => {
-    render(<Form />);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <Form />
+      </QueryClientProvider>,
+    );
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(sentence);
   });

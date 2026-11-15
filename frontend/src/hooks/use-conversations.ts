@@ -330,9 +330,9 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       const openAddress = async () => {
         if (!stillCurrent() || !stillAddressed()) return;
         if (urlId && conversationApi.getState().currentConversationId !== urlId) {
-          const selectedBefore = conversationApi.getState().currentConversationId;
+          const selectedBefore = conversationApi.getState().selectionVersion;
           const stillSelected = () =>
-            conversationApi.getState().currentConversationId === selectedBefore;
+            conversationApi.getState().selectionVersion === selectedBefore;
           try {
             const msgs = await readConversation(urlId, () =>
               apiClient.get<ConversationMessagesResponse>(transcriptPath(urlId), { signal }),
@@ -341,7 +341,12 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
             clearMessages();
             setCurrentConversationId(urlId);
             const page = transcriptPage(msgs);
-            setCurrentMessages(page.items, msgs.cost, page.hasEarlier);
+            setCurrentMessages(page.items, msgs.cost, page.hasEarlier, {
+              conversationId: urlId,
+              selectionVersion: conversationApi.getState().selectionVersion,
+              accountId: startedAs ?? null,
+              tenantId: startedIn,
+            });
           } catch {
             // The failure belongs to whoever asked. A refusal answering after
             // somebody else has signed in says nothing about the conversation they
@@ -444,9 +449,11 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         stillSameAccount(startedAs) &&
         useOrgStore.getState().activeOrgId === startedOrg &&
         stillSameTenant(tenant) &&
+        conversationApi.getState().selectionVersion === selectionVersion &&
         conversationApi.getState().currentConversationId === id;
 
       setCurrentConversationId(id);
+      const selectionVersion = conversationApi.getState().selectionVersion;
       clearMessages();
       setCurrentMessages([]);
       if (!scoped) setUrlParam("id", id);
@@ -461,7 +468,12 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         // Guard against a superseded request resolving after a newer select.
         if (!stillSelected()) return;
         const page = transcriptPage(response);
-        setCurrentMessages(page.items, response.cost, page.hasEarlier);
+        setCurrentMessages(page.items, response.cost, page.hasEarlier, {
+          conversationId: id,
+          selectionVersion,
+          accountId: startedAs ?? null,
+          tenantId: tenant,
+        });
       } catch (err) {
         // Ignore aborted/superseded requests - they're expected on rapid switch.
         if (
@@ -477,7 +489,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       } finally {
         // Only the most recent request owns the loading flag.
         if (messagesAbortRef.current === controller) {
-          setLoading(false);
+          if (conversationApi.getState().selectionVersion === selectionVersion) setLoading(false);
           messagesAbortRef.current = null;
         }
       }
@@ -506,6 +518,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   const rereadConversation = useCallback(
     async (id: string) => {
       const ticket = ++rereadRef.current;
+      const selectionVersion = conversationApi.getState().selectionVersion;
       const startedAs = useAuthStore.getState().user?.id;
       const startedOrg = useOrgStore.getState().activeOrgId;
       let response: ConversationMessagesResponse;
@@ -520,6 +533,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       }
       if (
         ticket !== rereadRef.current ||
+        conversationApi.getState().selectionVersion !== selectionVersion ||
         conversationApi.getState().currentConversationId !== id ||
         useOrgStore.getState().activeOrgId !== startedOrg ||
         !stillSameTenant(tenant) ||
@@ -529,18 +543,29 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       }
       const page = transcriptPage(response);
       const previous = conversationApi.getState();
-      const first = previous.currentMessages[0];
+      const loaded = previous.loadedTranscript;
+      // A fresh authorized read may resolve an unknown tenant, but must not
+      // relabel rows retained from another account, tenant or selection visit.
+      const previousMessages =
+        loaded?.conversationId === id &&
+        loaded.selectionVersion === selectionVersion &&
+        loaded.accountId === (startedAs ?? null) &&
+        (loaded.tenantId === tenant || loaded.tenantId === null)
+          ? previous.currentMessages
+          : [];
+      const first = previousMessages[0];
       const keepsEarlier =
         first !== undefined && !page.items.some((message) => message.id === first.id);
       const merged = [
         ...new Map(
-          [...previous.currentMessages, ...page.items].map((message) => [message.id, message]),
+          [...previousMessages, ...page.items].map((message) => [message.id, message]),
         ).values(),
       ];
       setCurrentMessages(
         merged,
         response.cost,
         keepsEarlier ? previous.hasEarlierMessages : page.hasEarlier,
+        { conversationId: id, selectionVersion, accountId: startedAs ?? null, tenantId: tenant },
       );
     },
     [setCurrentMessages, conversationApi, tenant, stillSameTenant],
@@ -552,13 +577,25 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     const selected = conversationApi.getState();
     const id = selected.currentConversationId;
     const first = selected.currentMessages[0];
-    if (!id || !first || !selected.hasEarlierMessages || earlierRequest.current) return;
     const account = useAuthStore.getState().user?.id;
+    const loaded = selected.loadedTranscript;
+    if (
+      !id ||
+      !first ||
+      !selected.hasEarlierMessages ||
+      earlierRequest.current ||
+      loaded?.conversationId !== id ||
+      loaded.selectionVersion !== selected.selectionVersion ||
+      loaded.accountId !== (account ?? null) ||
+      loaded.tenantId !== tenant
+    )
+      return;
     const organization = useOrgStore.getState().activeOrgId;
     const stillSelected = () =>
       stillSameAccount(account) &&
       stillSameTenant(tenant) &&
       useOrgStore.getState().activeOrgId === organization &&
+      conversationApi.getState().selectionVersion === selected.selectionVersion &&
       conversationApi.getState().currentConversationId === id;
     earlierRequest.current = true;
     setLoadingEarlier(true);
@@ -574,7 +611,12 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
           [...page.items, ...previous.currentMessages].map((message) => [message.id, message]),
         ).values(),
       ];
-      setCurrentMessages(merged, previous.currentCost, page.hasEarlier);
+      setCurrentMessages(merged, previous.currentCost, page.hasEarlier, {
+        conversationId: id,
+        selectionVersion: selected.selectionVersion,
+        accountId: account ?? null,
+        tenantId: tenant,
+      });
       setError(null);
     } catch (error) {
       if (stillSelected()) {

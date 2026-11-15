@@ -100,6 +100,7 @@ describe("useRuns", () => {
           orderBy: "cost",
           statuses: ["failed", "budget_exceeded"],
           surface: "slack",
+          source: "conversation",
           modelLabel: "gpt-4o-mini",
         }),
       { wrapper },
@@ -110,6 +111,7 @@ describe("useRuns", () => {
         order_by: "cost",
         status: "failed,budget_exceeded",
         surface: "slack",
+        source: "conversation",
         model_label: "gpt-4o-mini",
       },
     });
@@ -684,9 +686,7 @@ describe("useRetryRun", () => {
     vi.mocked(apiClient.post).mockRejectedValue(new Error("This run has not finished"));
     const { result } = renderHook(() => useRetryRun(), { wrapper });
 
-    await expect(result.current.mutateAsync("run-9")).rejects.toThrow(
-      "This run has not finished",
-    );
+    await expect(result.current.mutateAsync("run-9")).rejects.toThrow("This run has not finished");
 
     expect(toast.error).toHaveBeenCalledWith("This run has not finished");
   });

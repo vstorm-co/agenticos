@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TeamBuilder } from "./team-builder";
 import * as teamApi from "@/lib/onboarding/team-api";
 import { ROUTES } from "@/lib/constants";
+import { ApiError } from "@/lib/api-error";
 
 vi.mock("@/components/branding/branding-provider", () => ({
   useBranding: () => ({ appName: "AgenticOS", logoUrl: null }),
@@ -18,23 +19,25 @@ import enMessages from "../../../../messages/en.json";
 
 vi.mock("next-intl", () => ({
   useTranslations: (namespace?: string) => {
-    const section = namespace ? (enMessages as Record<string, any>)[namespace] : enMessages;
-    return (key: string, params?: Record<string, any>) => {
-      const parts = key.split(".");
-      let val: any = section;
-      for (const p of parts) {
-        val = val?.[p];
-      }
-      if (typeof val === "string") {
-        if (params) {
-          return Object.entries(params).reduce(
-            (acc, [k, v]) => acc.replace(new RegExp(`\\{${k}\\}`, "g"), String(v)),
-            val
-          );
+    const section: unknown = namespace
+      ? (enMessages as unknown as Record<string, unknown>)[namespace]
+      : enMessages;
+    return (key: string, params?: Record<string, unknown>) => {
+      let value: unknown = section;
+      for (const part of key.split(".")) {
+        if (typeof value !== "object" || value === null || !(part in value)) {
+          value = undefined;
+          break;
         }
-        return val;
+        value = (value as Record<string, unknown>)[part];
       }
-      return key;
+      if (typeof value !== "string") return key;
+      if (!params) return value;
+      return Object.entries(params).reduce(
+        (result, [name, replacement]) =>
+          result.replace(new RegExp(`\\{${name}\\}`, "g"), String(replacement)),
+        value,
+      );
     };
   },
 }));
@@ -116,15 +119,27 @@ describe("TeamBuilder", () => {
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
     expect(screen.getByText("Step 2 of 4")).toBeInTheDocument();
     expect(screen.getByText("What should your AI team handle?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /back/i }));
+    expect(screen.getByText("Step 1 of 4")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
 
     // Advance to Step 3: Tools
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
     expect(screen.getByText("Step 3 of 4")).toBeInTheDocument();
     expect(screen.getByText("Tools & integrations")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /back/i }));
+    expect(screen.getByText("Step 2 of 4")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
     expect(screen.getByRole("link", { name: /connect apps/i })).toHaveAttribute(
       "href",
       ROUTES.CONNECTORS,
     );
+
+    // Back is offered while choosing tools. Re-enter that step before generating the team.
+    fireEvent.click(screen.getByRole("button", { name: /back/i }));
+    expect(screen.getByText("Step 2 of 4")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+    expect(screen.getByText("Step 3 of 4")).toBeInTheDocument();
 
     // Advance to Step 4: Recommended Team
     fireEvent.click(screen.getByRole("button", { name: /continue/i }));
@@ -137,6 +152,7 @@ describe("TeamBuilder", () => {
     expect(screen.getByDisplayValue("Tech Lead")).toBeInTheDocument();
     expect(screen.getByText("API Support")).toBeInTheDocument();
     expect(screen.getByText("Release Notes Writer")).toBeInTheDocument();
+    await screen.findByText("Your recommended AI team");
 
     // Deploy Team
     fireEvent.click(screen.getByRole("button", { name: /build & deploy my team/i }));
@@ -157,4 +173,50 @@ describe("TeamBuilder", () => {
     fireEvent.click(skipButton);
     expect(mockPush).toHaveBeenCalledWith(ROUTES.CHAT);
   });
+
+  it.each([
+    [
+      new ApiError(500, "Untranslated proxy failure", { code: "INTERNAL_SERVER_ERROR" }),
+      enMessages.errors.internalServerError,
+    ],
+    [{ reason: "not an Error" }, enMessages.errors.unexpected],
+  ] as const)(
+    "renders a deployment failure through the localized error contract",
+    async (failure, message) => {
+      vi.spyOn(teamApi, "fetchTeamProposal").mockResolvedValue({
+        industry: "software",
+        role: "engineering",
+        rationale: "A small team",
+        lead: {
+          name: "Team lead",
+          role: "Coordinator",
+          description: "Coordinates work",
+          starters: [],
+        },
+        specialists: [
+          {
+            key: "software/api-support",
+            name: "API Support",
+            role: "Integrations",
+            description: "Answers integration questions.",
+            capabilities: ["web_research"],
+            recommended: true,
+          },
+        ],
+      });
+      vi.spyOn(teamApi, "createOnboardingTeam").mockRejectedValue(failure);
+      render(<TeamBuilder />);
+      fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+      fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+      fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+      await screen.findByText("Your recommended AI team");
+      expect(screen.getByRole("button", { name: /build & deploy my team/i })).toBeEnabled();
+      fireEvent.click(screen.getByRole("button", { name: /build & deploy my team/i }));
+
+      expect(await screen.findByText(message)).toBeVisible();
+      expect(teamApi.createOnboardingTeam).toHaveBeenCalledOnce();
+      expect(screen.queryByText("Untranslated proxy failure")).toBeNull();
+      expect(screen.queryByText("Your AI team is ready!")).toBeNull();
+    },
+  );
 });

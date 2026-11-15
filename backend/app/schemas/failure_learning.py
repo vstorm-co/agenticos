@@ -185,9 +185,7 @@ class EvalTryCreate(BaseSchema):
     @model_validator(mode="after")
     def bound_agent_runs(self) -> EvalTryCreate:
         if len(self.case_ids) * self.samples * 2 > MAX_AGENT_RUNS_PER_TRY:
-            raise ValueError(
-                f"A try can start at most {MAX_AGENT_RUNS_PER_TRY} agent runs"
-            )
+            raise ValueError(f"A try can start at most {MAX_AGENT_RUNS_PER_TRY} agent runs")
         return self
 
 

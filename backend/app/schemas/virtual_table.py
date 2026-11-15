@@ -22,12 +22,15 @@ from uuid import UUID
 
 from pydantic import (
     AfterValidator,
+    AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
     StringConstraints,
     model_validator,
 )
+
+from app.core.resource_icons import ResourceIconName
 
 ColumnTypeName = Literal[
     "text",
@@ -259,7 +262,74 @@ class ColumnInput(_Request):
         return data
 
 
+class RowPolicy(_Schema):
+    """One table's row-level access policy, stored as JSONB on the table.
+
+    The assignee rule keeps a row visible to the members its Assignee column
+    names. View is wider than edit: a row is viewable when the caller is in the
+    view column, or belongs to a project the row links to (when the project
+    half is configured); it is editable only when the caller is in the edit
+    column. A row with an empty assignee is visible to nobody except the bypass
+    roles. When the project half cannot be resolved - no Projects table, or a
+    missing members column - view degrades to assignee-only, never wider.
+    """
+
+    rule: Literal["assignee", "none"] = Field(
+        default="assignee",
+        description="Which rule filters the table's rows; `none` clears the policy.",
+    )
+    view_column_id: UUID = Field(description="The user or multi_user column that gates viewing")
+    edit_column_id: UUID = Field(description="The user or multi_user column that gates editing")
+    view_project_link_column_id: UUID | None = Field(
+        default=None,
+        description="The link column of this table that names the row's project, "
+        "for the project half of viewing. All three project fields are set together.",
+    )
+    view_projects_table_id: UUID | None = Field(
+        default=None, description="The table of projects the link column points at"
+    )
+    view_project_members_column_id: UUID | None = Field(
+        default=None,
+        description="The user or multi_user column of the Projects table holding its members",
+    )
+
+
+class RowPolicyUpdate(_Request):
+    """Set or clear a table's row policy.
+
+    `{"rule": "none"}` clears it. An assignee policy names its view and edit
+    columns; the three project fields are set together or not at all.
+    """
+
+    rule: Literal["assignee", "none"]
+    view_column_id: UUID | None = None
+    edit_column_id: UUID | None = None
+    view_project_link_column_id: UUID | None = None
+    view_projects_table_id: UUID | None = None
+    view_project_members_column_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def _check_columns(self) -> RowPolicyUpdate:
+        if self.rule == "assignee":
+            if self.view_column_id is None:
+                raise ValueError("An assignee policy names the column that gates viewing")
+            if self.edit_column_id is None:
+                raise ValueError("An assignee policy names the column that gates editing")
+        project = (
+            self.view_project_link_column_id,
+            self.view_projects_table_id,
+            self.view_project_members_column_id,
+        )
+        if any(item is not None for item in project) and any(item is None for item in project):
+            raise ValueError(
+                "The project half of viewing names a link column, a projects table "
+                "and a members column together"
+            )
+        return self
+
+
 class TableCreate(_Request):
+    icon: ResourceIconName | None = None
     name: Label = Field(description="Unique among the organization's live tables")
     description: Description | None = None
     columns: list[ColumnInput] = Field(default_factory=list, max_length=MAX_COLUMNS)
@@ -271,6 +341,7 @@ class TableUpdate(_Request):
         default=None,
         description="Shared saved view opened by default; null resets to the plain table",
     )
+    icon: ResourceIconName | None = None
     name: Label | None = None
     description: Description | None = None
 
@@ -285,6 +356,7 @@ class SchemaUpdate(_Request):
 class TableSummary(_Schema):
     default_view_id: UUID | None = None
     id: UUID
+    icon: ResourceIconName | None = None
     name: str
     description: str | None = None
     visibility: VisibilityName
@@ -303,6 +375,18 @@ class TableSummary(_Schema):
 
 class TableRead(TableSummary):
     columns: list[ColumnDef]
+    row_policy: RowPolicy | None = Field(
+        default=None,
+        description="The table's row-level access policy, or null when every row is "
+        "visible to anyone who may read the table.",
+    )
+    can_manage: bool = Field(
+        default=False,
+        description="Whether this caller may rename the table, change its columns or "
+        "default view, or archive it. The same as `can_edit`, except on a task board, "
+        "where adding and editing tasks stays open to its audience and changing the "
+        "board is for an administrator or the leader of its scope.",
+    )
     can_restore: bool = Field(
         default=False,
         description="Whether the table is archived and this caller may restore it with "
@@ -355,6 +439,12 @@ class RecordBatchCreate(_Request):
         description="Update a record whose external id the table already holds with the "
         "values given, rather than refusing it as taken - importing a file again.",
     )
+    as_of: AwareDatetime | None = Field(
+        default=None,
+        description="When the import began: the `as_of` its first batch answered, never a future time. An "
+        "`update_existing` row leaves a record changed after it as it is and reports it as "
+        "`REVISION_CONFLICT`. Omitted, the batch begins an import of its own.",
+    )
 
 
 class RecordBatchFailure(_Schema):
@@ -370,6 +460,10 @@ class RecordBatchResult(_Schema):
         default=0, description="How many existing records an `update_existing` batch changed"
     )
     failed: list[RecordBatchFailure] = Field(description="Each record that was not, and why")
+    as_of: datetime = Field(
+        description="When the import began, by the server's clock: send it as `as_of` with "
+        "the rest of the import's batches"
+    )
 
 
 class RecordUpdate(_Request):

@@ -8,15 +8,17 @@ const state = vi.hoisted(() => ({
   artifact: { agent_id: "publisher" as string | null },
   agents: [] as { id: string; status: string; can_run: boolean }[],
   assistantDefault: "missing",
+  artifactLoading: false,
+  agentsLoading: false,
 }));
 
 vi.mock("@/lib/locale-navigation", () => ({ usePathname: () => state.pathname }));
 vi.mock("next/navigation", () => ({ useParams: () => ({ id: "app-1" }) }));
 vi.mock("@/hooks/use-artifacts", () => ({
-  useArtifact: () => ({ artifact: state.artifact, isLoading: false }),
+  useArtifact: () => ({ artifact: state.artifact, isLoading: state.artifactLoading }),
 }));
 vi.mock("@/hooks/use-agents", () => ({
-  useAgents: () => ({ agents: state.agents, isLoading: false }),
+  useAgents: () => ({ agents: state.agents, isLoading: state.agentsLoading }),
 }));
 vi.mock("./assistant-widget", () => ({
   AssistantWidget: ({
@@ -39,6 +41,8 @@ describe("viewer assistant launcher", () => {
     state.pathname = "/apps/app-1";
     state.artifact = { agent_id: "publisher" };
     state.agents = [{ id: "publisher", status: "published", can_run: true }];
+    state.artifactLoading = false;
+    state.agentsLoading = false;
   });
 
   it("starts with the publishing agent when it is runnable", () => {
@@ -61,6 +65,19 @@ describe("viewer assistant launcher", () => {
     render(<ViewerAssistantWidget />);
     expect(screen.queryByTestId("assistant")).not.toBeInTheDocument();
   });
+
+  it.each(["artifactLoading", "agentsLoading"] as const)(
+    "waits for %s before offering the publishing agent",
+    (pending) => {
+      state[pending] = true;
+      const view = render(<ViewerAssistantWidget />);
+      expect(screen.queryByTestId("assistant")).not.toBeInTheDocument();
+
+      state[pending] = false;
+      view.rerender(<ViewerAssistantWidget />);
+      expect(screen.getByTestId("assistant")).toHaveAttribute("data-default-agent", "publisher");
+    },
+  );
 });
 
 describe("viewerChatAgentId", () => {

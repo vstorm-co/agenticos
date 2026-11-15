@@ -726,7 +726,11 @@ async def test_a_linked_table_is_checked_once_per_binding(db, monkeypatch):
     assert len(read.records) == 250
     assert read.records[0]["Names"] == ["Atlas", "Quill"]
     assert read.records[-1]["Kinds"] == ["Book", "Pen"]
-    assert [args[1] for args, _kwargs, _found in tables] == [products.id]
+    # The bound table's current row policy is read once, then the linked table
+    # is resolved once for both computed columns and all 250 records.
+    assert [
+        args[1] if len(args) > 1 else kwargs["table_id"] for args, kwargs, _found in tables
+    ] == [orders.id, products.id]
     assert [args[2].id for args, _kwargs, _allowed in access] == [products.id]
 
 

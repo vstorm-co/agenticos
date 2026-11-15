@@ -30,7 +30,7 @@ services:
       WORKER_INGEST_CHILDREN: '1'
       WORKER_INGEST_MEMORY_MB: '1024'
     networks:
-    - data
+      - data
     depends_on:
       agenticos-db:
         condition: service_healthy
@@ -42,7 +42,7 @@ services:
     image: ghcr.io/vstorm-co/agenticos-backend:1.52.0@sha256:4b4e01a2e7afb094e57ce86891d34571799d2a33654c6936374aa3446109b001
     stop_grace_period: 40s
     volumes:
-    - media_data:/app/media
+      - media_data:/app/media
     environment:
       ENVIRONMENT: production
       DEBUG: 'false'
@@ -64,12 +64,11 @@ services:
       UVICORN_WORKERS: '2'
       WORKER_INGEST_CHILDREN: '1'
       WORKER_INGEST_MEMORY_MB: '1024'
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 --timeout-worker-healthcheck
-      60 --ws websockets-sansio
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 --timeout-worker-healthcheck 60 --ws websockets-sansio
     networks:
-    - data
-    - edge
-    - proxy
+      - data
+      - edge
+      - proxy
     depends_on:
       agenticos-migrate:
         condition: service_completed_successfully
@@ -77,11 +76,10 @@ services:
         condition: service_healthy
     healthcheck:
       test:
-      - CMD
-      - python
-      - -c
-      - import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health',
-        timeout=5)
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=5)
       interval: 30s
       timeout: 10s
       retries: 3
@@ -96,7 +94,7 @@ services:
           cpus: '0.5'
           memory: 512M
     expose:
-    - '8000'
+      - '8000'
     labels:
       traefik.enable: 'false'
       traefik.docker.network: coolify
@@ -104,7 +102,7 @@ services:
     logging: *id001
     image: ghcr.io/vstorm-co/agenticos-backend:1.52.0@sha256:4b4e01a2e7afb094e57ce86891d34571799d2a33654c6936374aa3446109b001
     volumes:
-    - media_data:/app/media
+      - media_data:/app/media
     command: python -m app.worker
     environment:
       ENVIRONMENT: production
@@ -128,8 +126,8 @@ services:
       WORKER_INGEST_CHILDREN: '1'
       WORKER_INGEST_MEMORY_MB: '1024'
     networks:
-    - data
-    - edge
+      - data
+      - edge
     depends_on:
       agenticos-migrate:
         condition: service_completed_successfully
@@ -137,11 +135,10 @@ services:
         condition: service_healthy
     healthcheck:
       test:
-      - CMD
-      - python
-      - -c
-      - import os, sys, time; sys.exit(time.time() - os.stat(os.environ.get('WORKER_HEALTH_FILE',
-        '/tmp/agenticos-worker-alive')).st_mtime > 90)
+        - CMD
+        - python
+        - -c
+        - import os, sys, time; sys.exit(time.time() - os.stat(os.environ.get('WORKER_HEALTH_FILE', '/tmp/agenticos-worker-alive')).st_mtime > 90)
       interval: 15s
       timeout: 5s
       retries: 3
@@ -158,23 +155,20 @@ services:
   agenticos-db:
     logging: *id001
     image: pgvector/pgvector:pg16
-    command: postgres -c max_connections=200 -c shared_preload_libraries=pg_stat_statements
-      -c shared_buffers=512MB -c effective_cache_size=1536MB -c maintenance_work_mem=128MB
-      -c work_mem=8MB -c wal_buffers=16MB -c random_page_cost=1.1 -c effective_io_concurrency=200
-      -c max_parallel_workers_per_gather=2
+    command: postgres -c max_connections=200 -c shared_preload_libraries=pg_stat_statements -c shared_buffers=512MB -c effective_cache_size=1536MB -c maintenance_work_mem=128MB -c work_mem=8MB -c wal_buffers=16MB -c random_page_cost=1.1 -c effective_io_concurrency=200 -c max_parallel_workers_per_gather=2
     shm_size: 512mb
     environment:
       POSTGRES_USER: postgres
       POSTGRES_DB: agenticos
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
-    - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     networks:
-    - data
+      - data
     healthcheck:
       test:
-      - CMD-SHELL
-      - pg_isready -U postgres -d agenticos
+        - CMD-SHELL
+        - pg_isready -U postgres -d agenticos
       interval: 10s
       timeout: 5s
       retries: 5
@@ -190,17 +184,16 @@ services:
   agenticos-cache:
     logging: *id001
     image: valkey/valkey:8-alpine
-    command: valkey-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
-      --maxmemory 384mb --maxmemory-policy allkeys-lru --save ''
+    command: valkey-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required} --maxmemory 384mb --maxmemory-policy allkeys-lru --save ''
     networks:
-    - data
+      - data
     healthcheck:
       test:
-      - CMD
-      - valkey-cli
-      - -a
-      - ${REDIS_PASSWORD}
-      - ping
+        - CMD
+        - valkey-cli
+        - -a
+        - ${REDIS_PASSWORD}
+        - ping
       interval: 10s
       timeout: 5s
       retries: 5
@@ -230,16 +223,15 @@ services:
       OAUTH_PROVIDERS: ''
       SESSION_COOKIE_NAMESPACE: agenticos-demo
     networks:
-    - edge
-    - proxy
+      - edge
+      - proxy
     restart: unless-stopped
     healthcheck:
       test:
-      - CMD
-      - bun
-      - -e
-      - 'fetch(''http://localhost:3000/api/health'').then((r) => process.exit(r.ok
-        ? 0 : 1), () => process.exit(1))'
+        - CMD
+        - bun
+        - -e
+        - 'fetch(''http://localhost:3000/api/health'').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))'
       interval: 30s
       timeout: 10s
       start_period: 40s
@@ -250,7 +242,7 @@ services:
           cpus: '1'
           memory: 512M
     expose:
-    - '3000'
+      - '3000'
     labels:
       traefik.enable: 'false'
       traefik.docker.network: coolify

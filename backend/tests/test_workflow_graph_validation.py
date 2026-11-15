@@ -34,13 +34,16 @@ def _pos() -> NodePosition:
     return NodePosition(x=0, y=0)
 
 
-def _echo_node(node_id: UUID | None = None, *, config: dict | None = None) -> NodeInstance:
+def _echo_node(
+    node_id: UUID | None = None, *, config: dict | None = None, scope_id: UUID | None = None
+) -> NodeInstance:
     return NodeInstance(
         id=node_id or uuid4(),
         definition_id="debug.echo",
         definition_version=1,
         config=config or {"message": "hi"},
         layout=_pos(),
+        scope_id=scope_id,
     )
 
 
@@ -1070,7 +1073,6 @@ def _loop_definition() -> NodeDefinition:
         output_schema=None,
         ports=(
             Port(id="in", label="In", kind="input"),
-            Port(id="body", label="Body", kind="output"),
             Port(id="done", label="Done", kind="output"),
         ),
         effect_kind="pure",
@@ -1081,25 +1083,22 @@ def _loop_definition() -> NodeDefinition:
 async def test_an_edge_reaching_into_a_scope_body_from_outside_it_is_refused(
     mock_db_session, registered_node
 ):
-    """The only sanctioned way into a body is the loop's own entry edge.
+    """No edge enters a body: it starts at its own first step (#2770).
 
-    An edge from some other top-level node directly into a body member -
-    skipping `loop_node`'s `body` port entirely - is a crossing rule 6
-    refuses, even though the target node is legitimately part of the body
-    when reached the sanctioned way.
+    An edge from a top-level node directly into a body member is a crossing
+    rule 6 refuses, though the target is legitimately part of the body.
     """
     loop_def = registered_node(_loop_definition())
     entry = _echo_node()
     loop_node = NodeInstance(
         id=uuid4(), definition_id=loop_def.id, definition_version=1, config={}, layout=_pos()
     )
-    body_node = _echo_node()
+    body_node = _echo_node(scope_id=loop_node.id)
     intruder = _echo_node()
     edges = (
         _edge(entry.id, "out", loop_node.id, "in"),
-        _edge(loop_node.id, "body", body_node.id, "in"),
         _edge(loop_node.id, "done", intruder.id, "in"),
-        # Forbidden: reaches a body member directly, not through `body`.
+        # Forbidden: reaches a body member from outside its body.
         _edge(intruder.id, "out", body_node.id, "in"),
     )
     graph = WorkflowGraph(
@@ -1110,17 +1109,16 @@ async def test_an_edge_reaching_into_a_scope_body_from_outside_it_is_refused(
     assert any("crosses a scope boundary" in f["message"] for f in excinfo.value.details["fields"])
 
 
-async def test_the_two_declared_boundary_edges_are_sanctioned(mock_db_session, registered_node):
+async def test_the_loop_exit_edge_is_sanctioned(mock_db_session, registered_node):
     loop_def = registered_node(_loop_definition())
     entry = _echo_node()
     loop_node = NodeInstance(
         id=uuid4(), definition_id=loop_def.id, definition_version=1, config={}, layout=_pos()
     )
-    body_node = _echo_node()
+    body_node = _echo_node(scope_id=loop_node.id)
     after = _echo_node()
     edges = (
         _edge(entry.id, "out", loop_node.id, "in"),
-        _edge(loop_node.id, "body", body_node.id, "in"),
         _edge(loop_node.id, "done", after.id, "in"),
     )
     graph = WorkflowGraph(
@@ -1172,14 +1170,18 @@ async def test_a_scope_exit_owned_by_a_body_interior_node_publishes(
     loop_node = NodeInstance(
         id=uuid4(), definition_id=loop_def.id, definition_version=1, config={}, layout=_pos()
     )
-    body_node = _echo_node()
+    body_node = _echo_node(scope_id=loop_node.id)
     yield_node = NodeInstance(
-        id=uuid4(), definition_id=yield_def.id, definition_version=1, config={}, layout=_pos()
+        id=uuid4(),
+        definition_id=yield_def.id,
+        definition_version=1,
+        config={},
+        layout=_pos(),
+        scope_id=loop_node.id,
     )
     after = _echo_node()
     edges = (
         _edge(entry.id, "out", loop_node.id, "in"),
-        _edge(loop_node.id, "body", body_node.id, "in"),
         _edge(body_node.id, "out", yield_node.id, "in"),
         # The real exit edge: sourced at `yield_node`, not `loop_node`.
         _edge(yield_node.id, "out", after.id, "in"),
@@ -1187,7 +1189,6 @@ async def test_a_scope_exit_owned_by_a_body_interior_node_publishes(
     scope = ScopeBoundary(
         scope_node_id=loop_node.id,
         body_node_ids=frozenset({body_node.id, yield_node.id}),
-        entry_port="body",
         exit_node_id=yield_node.id,
         exit_port="out",
     )
@@ -1215,21 +1216,24 @@ async def test_a_body_member_other_than_the_designated_exit_node_still_cannot_le
     loop_node = NodeInstance(
         id=uuid4(), definition_id=loop_def.id, definition_version=1, config={}, layout=_pos()
     )
-    body_node = _echo_node()
+    body_node = _echo_node(scope_id=loop_node.id)
     yield_node = NodeInstance(
-        id=uuid4(), definition_id=yield_def.id, definition_version=1, config={}, layout=_pos()
+        id=uuid4(),
+        definition_id=yield_def.id,
+        definition_version=1,
+        config={},
+        layout=_pos(),
+        scope_id=loop_node.id,
     )
     after = _echo_node()
     edges = (
         _edge(entry.id, "out", loop_node.id, "in"),
-        _edge(loop_node.id, "body", body_node.id, "in"),
         # Forbidden: `body_node` is a body member but not `exit_node_id`.
         _edge(body_node.id, "out", after.id, "in"),
     )
     scope = ScopeBoundary(
         scope_node_id=loop_node.id,
         body_node_ids=frozenset({body_node.id, yield_node.id}),
-        entry_port="body",
         exit_node_id=yield_node.id,
         exit_port="out",
     )
@@ -1245,20 +1249,17 @@ async def test_a_body_member_other_than_the_designated_exit_node_still_cannot_le
     assert any("crosses a scope boundary" in f["message"] for f in excinfo.value.details["fields"])
 
 
-def test_derive_scopes_does_not_absorb_what_is_downstream_of_the_loop(registered_node):
-    """The regression the design doc's round 2 fix caught: a plain forward
-    walk from `entry_port` also reaches whatever is downstream of `done`,
-    since in a linear diagram the only path there is *through* the loop."""
+def test_derive_scopes_holds_only_the_steps_naming_the_loop(registered_node):
+    """What is downstream of `done` is wired from the loop but never in its body."""
     loop_def = registered_node(_loop_definition())
     entry = _echo_node()
     loop_node = NodeInstance(
         id=uuid4(), definition_id=loop_def.id, definition_version=1, config={}, layout=_pos()
     )
-    body_node = _echo_node()
+    body_node = _echo_node(scope_id=loop_node.id)
     after_the_loop = _echo_node()
     edges = (
         _edge(entry.id, "out", loop_node.id, "in"),
-        _edge(loop_node.id, "body", body_node.id, "in"),
         _edge(loop_node.id, "done", after_the_loop.id, "in"),
     )
     graph = WorkflowGraph(

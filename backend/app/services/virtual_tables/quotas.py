@@ -192,6 +192,10 @@ async def enforce_record_count(db: AsyncSession, ctx: AuthContext, table: Virtua
     """Refuse a new record when the table already holds as many as it may."""
     limit = settings.TABLES_MAX_RECORDS_PER_TABLE
     await lock_record_count(db, table)
+    # Deliberately table-wide, not filtered by the caller's row policy: the
+    # limit is on how many records the table holds, not on how many its
+    # caller may see. A policy-filtered count would let a caller who sees
+    # few rows add rows past the limit the table was meant to stop at.
     held = await virtual_table_repo.count_records_up_to(
         db, table_id=table.id, organization_id=ctx.organization_id, ceiling=limit
     )

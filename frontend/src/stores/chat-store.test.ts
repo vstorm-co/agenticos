@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useChatStore } from "./chat-store";
+import type { TranscriptIdentity } from "./conversation-store";
 import type { ChatMessage, ToolCall } from "@/types";
 
 function message(overrides: Partial<ChatMessage> = {}): ChatMessage {
@@ -39,7 +40,64 @@ function timeline(id = "m-1") {
  * them would render differently after a refresh than it did live.
  */
 beforeEach(() => {
-  useChatStore.setState({ messages: [], isStreaming: false });
+  useChatStore.setState({ messages: [], isStreaming: false, loadedTranscript: null });
+});
+
+describe("committed transcript identity", () => {
+  const identity: TranscriptIdentity = {
+    conversationId: "room",
+    selectionVersion: 1,
+    accountId: "me",
+    tenantId: "organization",
+  };
+
+  it("publishes a loaded empty transcript atomically and clears readiness with the messages", () => {
+    const committed = vi.fn();
+    const unsubscribe = useChatStore.subscribe(committed);
+    store().rereadMessages([], identity);
+    expect(committed).toHaveBeenCalledTimes(1);
+    expect(committed.mock.calls[0]?.[0]).toMatchObject({
+      messages: [],
+      loadedTranscript: identity,
+    });
+    unsubscribe();
+    store().clearMessages();
+    expect(store().loadedTranscript).toBeNull();
+  });
+
+  it("keeps newer local and streaming messages when an empty refresh lands", () => {
+    store().rereadMessages([], identity);
+    store().addMessage(message({ id: "prompt", role: "user", isTemporaryId: true }));
+    store().addMessage(message({ id: "answer", content: "New", isStreaming: true }));
+    store().rereadMessages([], { ...identity });
+    store().appendTextDelta("answer", " answer");
+    expect(store().messages.map((item) => item.id)).toEqual(["prompt", "answer"]);
+    expect(store().messages[1]?.content).toBe("New answer");
+  });
+
+  it("retains unresolved live content only for its successful concrete-tenant revalidation", () => {
+    store().rereadMessages([], { ...identity, tenantId: null });
+    store().addMessage(message({ id: "answer", content: "Live", isStreaming: true }));
+    store().rereadMessages([], identity);
+    expect(store().messages[0]?.content).toBe("Live");
+    expect(store().loadedTranscript).toEqual(identity);
+    store().rereadMessages([], { ...identity, tenantId: "other" });
+    expect(store().messages).toEqual([]);
+  });
+
+  it.each([
+    { conversationId: "another-room" },
+    { selectionVersion: 2 },
+    { accountId: "another-account" },
+    { tenantId: "another-organization" },
+  ])("does not retain another loaded identity's messages: %j", (changed) => {
+    store().rereadMessages([], identity);
+    store().addMessage(message({ id: "old", content: "Old session" }));
+    const next = { ...identity, ...changed };
+    store().rereadMessages([], next);
+    expect(store().messages).toEqual([]);
+    expect(store().loadedTranscript).toEqual(next);
+  });
 });
 
 describe("the message list", () => {

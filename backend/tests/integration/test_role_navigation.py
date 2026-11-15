@@ -12,6 +12,7 @@ from app.repositories import organization_repo
 pytestmark = pytest.mark.anyio
 
 
+@pytest.mark.security
 async def test_saving_from_a_stale_session_preserves_other_roles_and_tenants(
     db: AsyncSession, engine: AsyncEngine
 ) -> None:

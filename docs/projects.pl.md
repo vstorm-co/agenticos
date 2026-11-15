@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "e9573cb4bf21"
+source_sha: "4cf68409a9df"
 ---
 
 # Projekty { #projects }
@@ -250,15 +250,37 @@ Czat poza projektem zostaje jego autora, jak wszędzie indziej w konsoli.
 Czatu projektu nie udostępnia się osobno, linkiem ani konkretnej osobie: czyta się
 go przez projekt, więc udostępnij projekt.
 
-**Wspólna praca w jednym czacie.** W czacie projektu może być naraz kilka osób.
-Pasek nad transkrypcją pokazuje, kto jeszcze go ma otwarty, a jego właściciel może
-stamtąd kogoś zaprosić. Gdy ktoś pisze, pozostali widzą nad polem wpisywania jego
-twarz i „Anna pisze”. Pytanie zadane przez jedną z nich i odpowiedź agenta
-pojawiają się u wszystkich w czacie na bieżąco. **Odpowiedz** przy dowolnej
-wiadomości cytuje ją nad polem wpisywania, a odpowiedź niesie ten cytat - na
-ekranie i do agenta, który czyta wiadomość każdej osoby pod jej imieniem i wie,
-że w czacie może być kilka osób, więc wie, kto o co pytał i do czego odnosi się
-„tak, zrób to”.
+## Pokoje zespołu { #team-rooms }
+
+Na karcie **Czaty** projektu wybierz **Nowy pokój zespołu (New team room)**, aby
+utworzyć pustą wspólną rozmowę. W głównej konsoli czaty projektu pokazują nagłówek
+pokoju z odbiorcami projektu i obecnymi osobami, nawet gdy jesteś tam sam.
+**Udostępnij (Share)** zarządza dostępem do projektu; uczestnik z prawem tylko do
+odczytu może śledzić transkrypcję, ale nie może wysyłać wiadomości.
+
+Pole wiadomości zaczyna z opcją **Tylko zespół (Team only)**. Wysłanie zapisuje
+wiadomość człowieka bez pytania modelu o odpowiedź. Wybierz opublikowanego agenta
+chmurowego w selektorze odbiorcy, aby jawnie poprosić go o odpowiedź. Wpisanie nazwy
+agenta w wiadomości nie wybiera odpowiadającego. Wiadomości i odpowiedzi wskazują
+nadawcę; **Odpowiedz (Reply)** dodaje cytat do wiadomości i kontekstu agenta.
+
+Żądania odpowiedzi agenta trafiają do jednej trwałej kolejki pokoju. Run czekający
+na zatwierdzenie lub odpowiedź zachowuje swoje miejsce do rozstrzygnięcia.
+Możesz anulować własne żądanie, gdy czeka w kolejce. Bieżące uprawnienia
+zlecającego do projektu i agenta są sprawdzane ponownie przy rozpoczęciu lub
+wznowieniu pracy. Kolejne pytanie widzi wcześniejsze wiadomości i ukończone
+odpowiedzi na poprzednie żądania, bez pytań wysłanych po nim.
+
+Kolejka pokazuje zapisany stan żądania i odświeża się po ponownym połączeniu.
+Jeśli wynik wysłania jest niepewny, ponów oczekującą wiadomość, aby użyć jej
+dotychczasowej tożsamości. Przerwane żądanie agenta nie uruchamia się ponownie
+automatycznie; sprawdź zapisany run przed nowym żądaniem.
+
+To pole wiadomości obsługuje tekst i odpowiedzi z cytatem. Pliki referencyjne
+wgraj na karcie **Pliki (Files)** projektu; agenci pokoju używają tego wspólnego
+workspace'u. Lokalni agenci desktopowi, załączniki pojedynczych wiadomości i
+osobne wątki boczne nie należą do tej pierwszej wersji interfejsu. Czaty osobiste
+i pływający asystent zachowują dotychczasowe pola wiadomości.
 
 ## Usuwanie projektu { #deleting-a-project }
 

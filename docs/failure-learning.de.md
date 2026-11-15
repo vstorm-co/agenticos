@@ -1,5 +1,5 @@
 ---
-source_sha: "ce9a9f820e6b"
+source_sha: "d80cae6dae16"
 ---
 
 # Aus Fehlern lernen { #failure-learning }
@@ -91,16 +91,17 @@ Urteile werden beim Lesen des Versuchs gefällt, nie gespeichert. Ein Lauf,
 der noch läuft, lässt seinen Fall ausstehend.
 
 Ein Versuch kann einen Entwurfsvorschlag statt einer
-Anweisungsüberschreibung nennen: Er führt den vorgeschlagenen Anweisungstext
-oder Skill-Inhalt aus. Skill-Versuche verwenden den vorgeschlagenen Inhalt
-als In-Memory-Überschreibung im Testlauf und speichern ihn nicht im Skill.
-Der Lauf hält den SHA-256-Hash des getesteten Inhalts fest; beim Anwenden
-muss er zu genau diesem Vorschlag passen.
+Anweisungsüberschreibung nennen: Er führt dessen neue Anweisungen oder
+Skill-Inhalt aus und belegt damit genau diesen Vorschlag. Versuche speichern
+die Vorschlags-ID und den SHA-256-Hash des getesteten Inhalts. Das Anwenden
+wird verweigert, wenn der verknüpfte erfolgreiche Versuch nicht zu genau
+diesem Vorschlag und Hash gehört.
 
-Ein Versuch läuft synchron und ist auf zehn Modellaufrufe begrenzt (zwei
-Seiten je Fall und Stichprobe). Größere Anfragen werden abgelehnt, bevor
-ein Modell aufgerufen wird. Hintergrundausführung bleibt ein separates
-Folgethema.
+Ein Versuch läuft synchron innerhalb der Anfrage und ist auf zehn Runs des
+Agents begrenzt (zwei Seiten je Fall und Stichprobe). Jeder Run kann mehrere
+Provider-Anfragen auslösen; dies ist also keine Grenze für Provider-Anfragen.
+Größere Anfragen werden abgelehnt, bevor Runs starten. Hintergrundausführung
+bleibt ein separates Folgethema.
 
 ## Vorschläge { #proposals }
 
@@ -149,13 +150,13 @@ Rollback-Griff fest. Der verknüpfte Verzeichniseintrag, falls es einen gibt,
 wird als gelöst markiert, und der Audit-Eintrag hält Vorschlag, Version,
 Versuch und Basisversion fest.
 
-Ein Skill-Anwenden benötigt einen erfolgreichen Versuch für genau den
-vorgeschlagenen Inhalt und verweigert mit 409, wenn der aktuelle Skill nicht
-mehr dem Basishash des Vorschlags entspricht. Vor der Live-Änderung wird
-der vorherige Inhalt im Vorschlag gespeichert. Der einmalige
-Wiederherstellungs-Endpunkt setzt diesen Inhalt nur zurück, wenn der Skill
-noch den angewendeten Hash hat; spätere Änderungen werden nicht überschrieben.
-Die Wiederherstellung wird auditiert.
+Das Anwenden eines Skills benötigt einen erfolgreichen verknüpften Versuch
+und speichert den exakten Hash des neuen Inhalts. Es verweigert mit 409, wenn
+der aktuelle Skill nicht mehr dem Basishash des Vorschlags entspricht.
+Vor der Änderung wird der vorherige Inhalt im Vorschlag gespeichert. Der
+einmalige Wiederherstellungs-Endpunkt setzt diese Kopie nur zurück, solange
+der Skill noch den angewendeten Hash hat. Er erfasst die wiederherstellende
+Person und einen Audit-Eintrag und überschreibt niemals spätere Änderungen.
 
 Das Rückgängigmachen eines Anweisungs-Anwendens ist das bestehende
 Rollback: Veröffentliche eine neue Version, die aus der Basisversion
@@ -202,8 +203,8 @@ vorangehenden Runden als Verlauf, dann kürze die Nachricht auf den
 fehlerhaften Teil und schreibe, was die Antwort sagen sollte. Ein
 Versuch läuft über die angehakten Fälle, mit einer Stichprobenzahl und
 entweder dem neuen Text eines Vorschlags im Entwurf oder einer
-getippten Überschreibung — niemals beidem. Versuche laufen synchron,
-halte sie also klein: ein oder zwei Fälle, eine Stichprobe. Ein Versuch,
+getippten Überschreibung — niemals beidem. Anfragen für mehr als zehn Runs
+des Agents werden vor der Ausführung abgelehnt. Ein Versuch,
 der das Evaluierungstor passiert, bietet seinen Text als Vorschlag an,
 vorbefüllt mit dem Versuch als seinem Beleg.
 
@@ -216,7 +217,9 @@ wenn sein Versuch das Evaluierungstor passiert hat, und nur ein Inhaber
 von `agents:publish` sieht die Anwenden-Schaltfläche. Auch ein
 Skill-Vorschlag braucht einen erfolgreichen Versuch für genau seinen Inhalt.
 Seine Wiederherstellung setzt den gespeicherten Skill-Inhalt zurück, sofern
-niemand den Skill seit dem Anwenden geändert hat.
+niemand den Skill seit dem Anwenden geändert hat. Ein angewendeter Vorschlag
+hält die veröffentlichte Version fest, mit dem Rollback-Hinweis: zurück zur
+gespeicherten Basisversion.
 
 ### Wie viele Regeln leben { #how-many-rules-are-live }
 
@@ -312,8 +315,8 @@ beides zu schürfen hieße, von sich selbst zu lernen.
 ### Warum hat mein Versuch so lange gedauert? { #why-did-my-try-take-so-long }
 
 Versuche laufen synchron: Jeder Fall wird zweimal pro Stichprobe ausgeführt,
-ein Modellaufruf nach dem anderen. Eine Anfrage kann höchstens zehn
-Modellaufrufe starten.
+ein Run des Agents nach dem anderen, innerhalb der Anfrage. Ein Versuch kann
+höchstens zehn Runs starten; jeder Run kann mehrere Provider-Anfragen auslösen.
 
 ### Kann ein Versuch ändern, was mein Agent sagt? { #can-a-try-change-what-my-agent-says }
 
@@ -329,9 +332,10 @@ neuere Veröffentlichung zu überschreiben.
 
 ### Wie mache ich ein Anwenden rückgängig? { #how-do-i-undo-an-apply }
 
-Rolle einen Anweisungs-Vorschlag auf seine gespeicherte Basisversion
-zurück. Ein Skill-Anwenden lässt sich einmal auf den gespeicherten vorherigen
-Inhalt zurücksetzen, solange der Skill seitdem unverändert ist.
+Kehre zur im Vorschlag gespeicherten Basisversion zurück: Das bestehende
+Rollback veröffentlicht eine neue, daraus kopierte Version, sodass die
+Zeitleiste den Vorgang zeigt. Das Anwenden eines Skills lässt sich einmal
+aus seiner Kopie zurücksetzen, solange der Skill noch den angewendeten Inhalt hat.
 
 ### Was passiert, wenn ich eine Skill-Änderung anwende? { #what-happens-when-i-apply-a-skill-change }
 
@@ -342,7 +346,7 @@ seiner Anwendung niemand den Skill geändert hat.
 
 ### Wo sehe ich die neuen Muster jeden Tag? { #where-do-i-see-the-new-patterns-each-day }
 
-Im Posteingang, wenn das Deployment einen Empfänger für die
-Zusammenfassung konfiguriert hat — eine Mail je Organisation mit etwas
-Neuem, keine, wenn es nichts gibt — und auf der organisationsweiten
-Musterseite, die die Muster aller Agenten an einem Ort listet.
+Im Posteingang, wenn das Deployment einen Empfänger für die Zusammenfassung
+konfiguriert hat — eine Mail je Organisation mit etwas Neuem. Fehlt der Empfänger
+oder gibt es nichts Neues, wird die Untätigkeit protokolliert. Außerdem stehen
+die Muster auf der organisationsweiten Seite für alle Agents an einem Ort.

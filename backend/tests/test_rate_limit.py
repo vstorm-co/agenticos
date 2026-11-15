@@ -82,6 +82,64 @@ class TestTheAllowanceItself:
             f"{key.rsplit(':', 1)[0]}:locked",
         ]
 
+    @pytest.mark.security
+    async def test_unconfigured_mfa_backoff_does_not_turn_a_challenge_into_a_server_error(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        assert await rate_limit.mfa_backoff_locked("private-user-id") is False
+        assert await rate_limit.record_mfa_failure("private-user-id") == 0
+        await rate_limit.reset_mfa_failures("private-user-id")
+
+        assert "MFA backoff not configured" in caplog.text
+        assert "private-user-id" not in caplog.text
+
+    @pytest.mark.security
+    async def test_a_failed_mfa_lock_lookup_is_unmetered_without_leaking_the_account(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        client = _redis()
+        client.get = AsyncMock(side_effect=ConnectionError("Redis unavailable"))
+        rate_limit.configure(client)
+
+        assert await rate_limit.mfa_backoff_locked("private-user-id") is False
+        assert "mfa_backoff_redis_unavailable" in caplog.text
+        assert "private-user-id" not in caplog.text
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("failed_operation", ["count_in_window", "set"])
+    async def test_a_failed_mfa_counter_or_lock_write_reports_no_recorded_failure(
+        self, failed_operation: str, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        client = _redis([3])
+        client.set = AsyncMock(return_value=True)
+        setattr(
+            client, failed_operation, AsyncMock(side_effect=ConnectionError("Redis unavailable"))
+        )
+        rate_limit.configure(client)
+
+        assert await rate_limit.record_mfa_failure("private-user-id") == 0
+        assert "mfa_backoff_redis_unavailable" in caplog.text
+        assert "private-user-id" not in caplog.text
+        if failed_operation == "count_in_window":
+            client.set.assert_not_awaited()
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("failed_delete", [1, 2])
+    async def test_a_failed_mfa_reset_does_not_replace_a_successful_challenge_with_an_error(
+        self, failed_delete: int, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        client = _redis()
+        client.delete = AsyncMock(
+            side_effect=[1] * (failed_delete - 1) + [ConnectionError("Redis unavailable")]
+        )
+        rate_limit.configure(client)
+
+        await rate_limit.reset_mfa_failures("private-user-id")
+
+        assert client.delete.await_count == failed_delete
+        assert "mfa_backoff_redis_unavailable" in caplog.text
+        assert "private-user-id" not in caplog.text
+
     async def test_the_attempt_after_the_allowance_is_refused(self):
         """Four attempts against a limit of three: the fourth is the one the
         window has no room for."""

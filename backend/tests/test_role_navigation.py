@@ -52,6 +52,7 @@ def _context(
         {"hidden_items": [], "permissions": []},
     ],
 )
+@pytest.mark.security
 def test_invalid_or_protected_preferences_are_rejected(payload: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         RoleNavigationUpdate.model_validate(payload)
@@ -84,6 +85,7 @@ def test_every_sidebar_destination_has_a_policy_entry_or_is_explicitly_protected
         ("", True, {"admin", "builder", "operator", "member", "viewer"}),
     ],
 )
+@pytest.mark.security
 async def test_every_member_reads_the_policy_but_only_managers_edit_lower_roles(
     monkeypatch: pytest.MonkeyPatch, role: str, app_admin: bool, editable: set[str]
 ) -> None:
@@ -98,6 +100,7 @@ async def test_every_member_reads_the_policy_but_only_managers_edit_lower_roles(
     get.assert_awaited_once_with(get.await_args.args[0], ctx.organization_id)
 
 
+@pytest.mark.security
 async def test_hiding_navigation_does_not_revoke_a_permission_or_change_another_role(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -115,6 +118,7 @@ async def test_hiding_navigation_does_not_revoke_a_permission_or_change_another_
 
 
 @pytest.mark.parametrize(("role", "app_admin"), [("owner", False), ("member", True)])
+@pytest.mark.security
 async def test_owner_and_platform_admin_cannot_be_hidden_from_navigation(
     monkeypatch: pytest.MonkeyPatch, role: str, app_admin: bool
 ) -> None:
@@ -127,6 +131,7 @@ async def test_owner_and_platform_admin_cannot_be_hidden_from_navigation(
     get.assert_not_awaited()
 
 
+@pytest.mark.security
 async def test_an_old_owner_preference_never_hides_recovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -139,6 +144,7 @@ async def test_an_old_owner_preference_never_hides_recovery(
 
 
 @pytest.mark.parametrize("method", ["read", "for_caller"])
+@pytest.mark.security
 async def test_anonymous_policy_reads_are_refused(method: str) -> None:
     service = RoleNavigationService(AsyncMock())
     with pytest.raises(AuthorizationError):
@@ -146,6 +152,7 @@ async def test_anonymous_policy_reads_are_refused(method: str) -> None:
 
 
 @pytest.mark.parametrize("method", ["read", "for_caller"])
+@pytest.mark.security
 async def test_a_missing_organization_has_no_fallback_policy(
     monkeypatch: pytest.MonkeyPatch, method: str
 ) -> None:
@@ -166,6 +173,7 @@ async def test_a_missing_organization_has_no_fallback_policy(
         ("owner", "owner"),
     ],
 )
+@pytest.mark.security
 async def test_non_managers_and_equal_or_higher_roles_cannot_be_changed(
     monkeypatch: pytest.MonkeyPatch, caller: str, target: str
 ) -> None:
@@ -179,6 +187,7 @@ async def test_non_managers_and_equal_or_higher_roles_cannot_be_changed(
 
 
 @pytest.mark.parametrize("app_admin", [False, True])
+@pytest.mark.security
 async def test_an_owner_key_without_roles_manage_cannot_write(
     monkeypatch: pytest.MonkeyPatch, app_admin: bool
 ) -> None:
@@ -194,6 +203,7 @@ async def test_an_owner_key_without_roles_manage_cannot_write(
 
 @pytest.mark.parametrize(("caller", "target"), [("owner", "admin"), ("admin", "member")])
 @pytest.mark.parametrize("hidden", [["chat", "groups"], []])
+@pytest.mark.security
 async def test_a_write_and_reset_are_scoped_to_the_caller_org_and_audited(
     monkeypatch: pytest.MonkeyPatch, caller: str, target: str, hidden: list[str]
 ) -> None:
@@ -221,6 +231,7 @@ async def test_a_write_and_reset_are_scoped_to_the_caller_org_and_audited(
     db.commit.assert_not_awaited()
 
 
+@pytest.mark.security
 async def test_a_removed_organization_cannot_be_recreated_by_a_policy_write(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -235,6 +246,7 @@ async def test_a_removed_organization_cannot_be_recreated_by_a_policy_write(
 
 
 @pytest.mark.parametrize("stored", [None, {"viewer": ["skills"]}])
+@pytest.mark.security
 async def test_the_repository_locks_and_refreshes_the_tenant_before_merging_one_role(
     stored: dict[str, list[str]] | None,
 ) -> None:
@@ -259,6 +271,7 @@ async def test_the_repository_locks_and_refreshes_the_tenant_before_merging_one_
     db.commit.assert_not_awaited()
 
 
+@pytest.mark.security
 async def test_the_repository_does_not_write_when_the_tenant_was_deleted() -> None:
     result = MagicMock()
     result.scalar_one_or_none.return_value = None
@@ -274,7 +287,7 @@ async def test_the_repository_does_not_write_when_the_tenant_was_deleted() -> No
 
 
 def test_the_migration_adds_a_nullable_column_and_has_a_matching_downgrade() -> None:
-    path = Path(__file__).resolve().parents[1] / "alembic/versions/0311_role_navigation.py"
+    path = Path(__file__).resolve().parents[1] / "alembic/versions/0330_role_navigation.py"
     spec = importlib.util.spec_from_file_location("role_navigation_migration", path)
     assert spec is not None and spec.loader is not None
     migration = importlib.util.module_from_spec(spec)
@@ -290,4 +303,4 @@ def test_the_migration_adds_a_nullable_column_and_has_a_matching_downgrade() -> 
     assert "ALTER TABLE organizations ADD COLUMN role_navigation JSONB" in sql
     assert "ALTER TABLE organizations DROP COLUMN role_navigation" in sql
     assert "NOT NULL" not in sql
-    assert migration.down_revision == "0310_secret_requests"
+    assert migration.down_revision == "0325_merge_t3_rooms_v173"

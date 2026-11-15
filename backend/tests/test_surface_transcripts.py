@@ -37,12 +37,20 @@ import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from decimal import Decimal
-from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
+from pydantic_ai import Agent
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    ToolCallPart,
+    ToolReturnPart,
+)
+from pydantic_ai.models.function import AgentInfo, DeltaToolCall, DeltaToolCalls, FunctionModel
+from pydantic_ai.run import AgentRun as AgentIteration
 from pydantic_ai.usage import RequestUsage
 
 from app.agents.capabilities.budget import SpendLedger, record_ambient_usage
@@ -100,37 +108,37 @@ def _searched_then_answered(output: str) -> MagicMock:
     return MagicMock(output=output, new_messages=MagicMock(return_value=messages))
 
 
-class _Iteration:
-    """A run to iterate, standing in for the library's own.
-
-    It yields no nodes. Which frames a surface sends is pinned in
-    `tests/test_agent_session.py` and `tests/test_embed_frames.py`; what these
-    tests are about is the rows a turn leaves behind. The outcome is awaited on
-    the first step so that a model which raises does so where the real one would -
-    inside the loop, with the settle path around it.
-    """
-
-    def __init__(self, outcome: AsyncMock) -> None:
-        self._outcome = outcome
-        self._started = False
-        self.result: Any = None
-        # The run's own deps, which a hosted page reads its stored files from.
-        self.ctx = SimpleNamespace(deps=SimpleNamespace(user_deps=AgentDeps()))
-
-    def __aiter__(self) -> _Iteration:
-        return self
-
-    async def __anext__(self) -> Any:
-        if self._started:
-            raise StopAsyncIteration
-        self._started = True
-        self.result = await self._outcome()
-        raise StopAsyncIteration
-
-
 @asynccontextmanager
-async def _iterating(outcome: AsyncMock) -> AsyncIterator[_Iteration]:
-    yield _Iteration(outcome)
+async def _iterating(
+    outcome: AsyncMock, prompt: str
+) -> AsyncIterator[AgentIteration[AgentDeps, str]]:
+    """A real SDK graph whose local model searches and then streams its answer.
+
+    The surface drives genuine model events, including the no-output guard. The
+    outcome is awaited inside the first model request so failures and ambient
+    spend still happen inside the runner's settle path.
+    """
+    answer: str | None = None
+
+    async def stream(
+        _messages: list[ModelMessage], _info: AgentInfo
+    ) -> AsyncIterator[str | DeltaToolCalls]:
+        nonlocal answer
+        if answer is None:
+            answer = (await outcome()).output
+            yield {
+                0: DeltaToolCall(name="search_kb", json_args='{"q":"refund"}', tool_call_id="c1")
+            }
+        else:
+            yield answer
+
+    def search_kb(q: str) -> str:
+        assert q == "refund"
+        return "30 days"
+
+    agent = Agent(FunctionModel(stream_function=stream), deps_type=AgentDeps, tools=[search_kb])
+    async with agent.iter(prompt, deps=AgentDeps()) as iteration:
+        yield iteration
 
 
 @contextmanager
@@ -159,7 +167,7 @@ def _run_yielding(agent_run: AsyncMock) -> Iterator[tuple[dict[str, PreparedRun]
         built.agent.run = agent_run
         # The streaming half, for a surface that shows an answer arriving. The
         # widget is one since #634, so its turns reach `iterate` rather than `run`.
-        built.agent.iter = MagicMock(side_effect=lambda *_a, **_k: _iterating(agent_run))
+        built.agent.iter = MagicMock(side_effect=lambda prompt, **_k: _iterating(agent_run, prompt))
         prepared = PreparedRun(
             run=MagicMock(
                 id=uuid.uuid4(),

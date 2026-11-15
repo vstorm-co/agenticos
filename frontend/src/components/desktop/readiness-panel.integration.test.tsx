@@ -20,6 +20,7 @@ const setup = vi.hoisted(() => ({
   refresh: vi.fn(),
 }));
 const events = vi.hoisted(() => new Map<string, (v: unknown) => void>());
+const shell = vi.hoisted(() => ({ platform: "macos" }));
 const router = vi.hoisted(() => ({ push: vi.fn() }));
 const screenshot = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/desktop/readiness", async (original) => ({
@@ -28,7 +29,7 @@ vi.mock("@/lib/desktop/readiness", async (original) => ({
 }));
 vi.mock("@/hooks/use-desktop-setup", () => ({ useDesktopSetup: () => setup }));
 vi.mock("@/hooks/use-shell", () => ({
-  useShell: () => ({ platform: "macos", window: "main", version: "test", vibrancy: false }),
+  useShell: () => ({ platform: shell.platform, window: "main", version: "test", vibrancy: false }),
 }));
 vi.mock("@/hooks/use-desktop", () => ({
   useShellEvent: (event: string, callback: (v: unknown) => void) => events.set(event, callback),
@@ -40,6 +41,7 @@ function mount(node: React.ReactNode) {
 beforeEach(async () => {
   vi.clearAllMocks();
   events.clear();
+  shell.platform = "macos";
   setup.items = [{ key: "screen_capture", state: "missing" }];
   setup.native.status.data.screen_capture = "denied";
   setup.scope = "existing-user-server-one";
@@ -49,7 +51,11 @@ beforeEach(async () => {
   await useDesktopPreferencesStore.persist.rehydrate();
   useDesktopPreferencesStore.setState({ reviewed: {}, notifications: {} });
 });
-it("checks an existing account after connection, honours Later and rechecks a new connection", async () => {
+it("offers a missing device connection, honours Later and rechecks a new connection", async () => {
+  setup.items = [
+    { key: "device", state: "missing" },
+    { key: "screen_capture", state: "missing" },
+  ];
   const user = userEvent.setup();
   const view = mount(<DesktopSetupGate />);
   expect(await screen.findByRole("dialog")).toBeVisible();
@@ -77,8 +83,24 @@ it("requests one permission only on a click and offers connection repair", async
   expect(setup.native.request.mutate).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Set up" }));
   expect(setup.native.request.mutate).toHaveBeenCalledWith("screen_capture");
-  await userEvent.click(screen.getByRole("button", { name: "Connect" }));
+  expect(screen.getByText("Linked computer")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Link" }));
   expect(setup.link.mutate).toHaveBeenCalled();
+});
+it("names this computer, not a Mac, on Windows and Linux", () => {
+  for (const platform of ["windows", "linux"]) {
+    shell.platform = platform;
+    const view = mount(<ReadinessPanel />);
+    expect(screen.getByText(/What is ready on this computer/)).toBeVisible();
+    expect(view.container).not.toHaveTextContent(/\bMac\b|macOS/);
+    expect(screen.getByText(/has not granted screen access/)).toBeVisible();
+    view.unmount();
+  }
+});
+it("keeps the macOS screen-recording advice on macOS", () => {
+  const view = mount(<ReadinessPanel />);
+  expect(view.container).toHaveTextContent("macOS may require restarting the app");
+  expect(view.container).toHaveTextContent("macOS has not granted screen access");
 });
 it("does not offer administrator controls to an existing member", () => {
   setup.items = [

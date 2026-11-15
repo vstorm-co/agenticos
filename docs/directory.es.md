@@ -288,7 +288,9 @@ acepta un ticket aceptado en un único paso. NTLM no se ofrece.
 Si tu empresa ya pone un proveedor de identidad delante de su directorio, apunta
 AgenticOS a él en su lugar, por [OIDC](configuration.md#single-sign-on-generic-oidc).
 Usa su claim de grupos para los mapeos. El inicio de sesión nativo por LDAP y por
-Kerberos deja entonces de hacer falta. Esta es también la respuesta para la
+Kerberos deja entonces de hacer falta.
+
+Esta es también la respuesta para la
 autenticación multifactor. Si tu despliegue exige MFA, aplícala en el proveedor
 de identidad. AgenticOS no comprueba `amr`, `acr` ni otra afirmación de MFA en
 OIDC, así que no puede rechazar un inicio de sesión si el proveedor no la incluye.

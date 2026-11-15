@@ -351,7 +351,10 @@ describe("how a folder signs in", () => {
     secrets.mockReturnValue({ secrets: [], isLoading: false });
     mount({ mounts: [{ path: "/files/", backend: "onedrive" }] });
 
-    expect(screen.getByRole("link", { name: "vault" })).toHaveAttribute("href", "/vault");
+    expect(screen.getByRole("link", { name: "vault" })).toHaveAttribute(
+      "href",
+      "/connectors/vault",
+    );
   });
 
   it("signs a Microsoft service in as an Entra app", async () => {

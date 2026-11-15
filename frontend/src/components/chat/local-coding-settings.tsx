@@ -3,14 +3,14 @@
 import { useId } from "react";
 import { useTranslations } from "next-intl";
 import { useLocalCodingOptions } from "@/hooks/use-desktop";
+import type { LocalAgent } from "@/lib/desktop/commands";
 import { useWorkOnStore, type CodingPreferences } from "@/stores/work-on-store";
 import { useConversationStore } from "@/stores";
-import type { CodingHarness } from "@/types/chat";
 import { getErrorMessage } from "@/lib/api-error";
 import { Button } from "@/components/ui/button";
 
 /** Choices come from the installed harness; leaving either unset retains its settings. */
-export function LocalCodingSettings({ harness }: { harness: CodingHarness }) {
+export function LocalCodingSettings({ harness }: { harness: LocalAgent["id"] }) {
   const t = useTranslations("chat.controls.workOn.coding");
   const tReasoning = useTranslations("chat.reasoning");
   const tErrors = useTranslations("errors");

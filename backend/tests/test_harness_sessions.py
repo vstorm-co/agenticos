@@ -5,9 +5,11 @@ workspace, which is all these helpers touch.
 """
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.capabilities.harness._sessions import (
     WORK_DIR,
@@ -71,6 +73,7 @@ async def test_listing_names_only_this_conversations_sessions() -> None:
     await remember_session(ctx, "codex", "th-1", "api")
     await remember_session(_ctx(other, workspace), "claude_code", "s-2")
     await workspace.write_bytes(f"{WORK_DIR}/notes.txt", b"not a session")
+    await workspace.make_dir(session_path("gemini", conversation, "not-a-session"))
 
     found = await list_sessions(ctx)
     assert {(session.name, session.harness) for session in found} == {
@@ -104,3 +107,18 @@ async def test_forgetting_an_invalid_session_name_is_none() -> None:
     assert await forget_session(ctx, session="../x") is None
     assert await forget_session(ctx, session="a/b") is None
     assert await forget_session(ctx, session="") is None
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("name", ["../other-room", "a/b", ""])
+async def test_an_invalid_session_name_never_reads_a_workspace_path(name: str) -> None:
+    workspace = SimpleNamespace(read_bytes=AsyncMock())
+    assert await remembered_session(_ctx(uuid4(), workspace), "claude_code", name) is None
+    workspace.read_bytes.assert_not_awaited()
+
+
+@pytest.mark.parametrize("failure", [FileNotFoundError, WorkspaceError])
+async def test_a_missing_or_unavailable_session_directory_lists_nothing(failure) -> None:
+    workspace = SimpleNamespace(list_dir=AsyncMock(side_effect=failure("gone")))
+    assert await list_sessions(_ctx(uuid4(), workspace)) == []
+    workspace.list_dir.assert_awaited_once_with(WORK_DIR)

@@ -16,9 +16,36 @@ const NAMED = 2;
  * never given to an agent does nothing, and the card is where its author looks.
  * Nothing for a response that did not say, rather than a claim of "nowhere".
  */
-export function UsedBy({ agents, className }: { agents?: AgentUsage[]; className?: string }) {
+export function UsedBy({
+  agents,
+  drafted = [],
+  className,
+}: {
+  agents?: AgentUsage[];
+  /** Agents it was added to and that are not yet published with it, said apart. */
+  drafted?: AgentUsage[];
+  className?: string;
+}) {
   const t = useTranslations("agents");
   if (agents === undefined) return null;
+  if (agents.length === 0 && drafted.length > 0) {
+    return (
+      <span
+        className={cn("text-muted-foreground flex min-w-0 items-center gap-1 text-xs", className)}
+      >
+        <Bot className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        <span className="truncate">
+          {t("inDraftOf", {
+            names: drafted
+              .slice(0, NAMED)
+              .map((agent) => agent.name)
+              .join(", "),
+            more: Math.max(0, drafted.length - NAMED),
+          })}
+        </span>
+      </span>
+    );
+  }
   const names = agents
     .slice(0, NAMED)
     .map((agent) => agent.name)

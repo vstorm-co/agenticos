@@ -33,7 +33,7 @@ interface CodingStep {
  * renamed and no change set. */
 interface CodingReport {
   kind: "coding_agent" | "harness";
-  harness: "claude_code" | "codex";
+  harness: "claude_code" | "codex" | "opencode" | "gemini" | "pi";
   access: "edit" | "read_only";
   outcome: "completed" | "failed" | "timed_out";
   answer: string;
@@ -63,6 +63,12 @@ export const HARNESS_NAME: Record<CodingReport["harness"], string> = {
   claude_code: "Claude Code",
   // i18n-exempt: a product's own name
   codex: "Codex",
+  // i18n-exempt: a product's own name
+  opencode: "OpenCode",
+  // i18n-exempt: a product's own name
+  gemini: "Gemini CLI",
+  // i18n-exempt: a product's own name
+  pi: "Pi",
 };
 
 export function parseCodingReport(text: string): CodingReport | null {
@@ -170,7 +176,10 @@ function Report({ report, fileSource }: { report: CodingReport; fileSource?: Tur
         )}
       {/* The diff, where one was kept, says everything the list of names did. */}
       {report.changes_id !== undefined ? (
-        <TaskChanges changeId={report.changes_id} fallback={names} />
+        <TaskChanges
+          changeId={report.changes_id}
+          conversationId={fileSource?.kind === "conversation" ? fileSource.id : undefined}
+        />
       ) : (
         names
       )}

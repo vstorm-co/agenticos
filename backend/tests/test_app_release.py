@@ -97,8 +97,8 @@ def test_homebrew_cask_hashes_both_architectures_and_refuses_ambiguity(tmp_path:
 
 
 def test_mobile_publication_is_opt_in_without_disabling_ci_builds() -> None:
-    release = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
-    builds = yaml.safe_load((ROOT / ".github/workflows/apps.yml").read_text())
+    release = yaml.safe_load((ROOT / ".github/workflows-disabled/app-release.yml").read_text())
+    builds = yaml.safe_load((ROOT / ".github/workflows-disabled/apps.yml").read_text())
     mobile_gate = "vars.AGENTICOS_MOBILE_RELEASES_ENABLED == 'true'"
     assert release["jobs"]["android"]["if"] == mobile_gate
     assert release["jobs"]["ios"]["if"] == (
@@ -116,7 +116,7 @@ def test_mobile_publication_is_opt_in_without_disabling_ci_builds() -> None:
 
 
 def test_desktop_updater_manifest_has_only_one_writer() -> None:
-    release = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    release = yaml.safe_load((ROOT / ".github/workflows-disabled/app-release.yml").read_text())
     desktop = release["jobs"]["desktop"]
     assert "max-parallel" not in desktop["strategy"]
     action = next(step for step in desktop["steps"] if "uploadUpdaterJson" in step.get("with", {}))
@@ -136,7 +136,7 @@ def test_desktop_updater_manifest_has_only_one_writer() -> None:
 
 
 def test_release_jobs_build_the_verified_commit_even_if_the_tag_moves(tmp_path: Path) -> None:
-    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    workflow = yaml.safe_load((ROOT / ".github/workflows-disabled/app-release.yml").read_text())
     resolver = next(
         step for step in workflow["jobs"]["resolve"]["steps"] if step.get("id") == "release"
     )
@@ -199,7 +199,7 @@ def test_release_jobs_build_the_verified_commit_even_if_the_tag_moves(tmp_path: 
 
 
 def test_desktop_smoke_packages_omit_debug_symbols_without_skipping_formats() -> None:
-    workflow = yaml.safe_load((ROOT / ".github/workflows/apps.yml").read_text())
+    workflow = yaml.safe_load((ROOT / ".github/workflows-disabled/apps.yml").read_text())
     job = workflow["jobs"]["desktop"]
     assert job["env"]["CARGO_PROFILE_DEV_DEBUG"] == "0"
     assert set(job["strategy"]["matrix"]["os"]) == {
@@ -224,7 +224,7 @@ def test_desktop_smoke_packages_omit_debug_symbols_without_skipping_formats() ->
 def test_release_requires_both_updater_keys_before_preparing_assets(
     tmp_path: Path, private: str, public: str, allowed: bool
 ) -> None:
-    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    workflow = yaml.safe_load((ROOT / ".github/workflows-disabled/app-release.yml").read_text())
     step = next(
         s
         for s in workflow["jobs"]["desktop"]["steps"]
@@ -262,7 +262,7 @@ def test_release_requires_both_updater_keys_before_preparing_assets(
 
 
 def test_macos_release_defaults_to_ad_hoc_without_disabling_updater_signatures() -> None:
-    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    workflow = yaml.safe_load((ROOT / ".github/workflows-disabled/app-release.yml").read_text())
     steps = workflow["jobs"]["desktop"]["steps"]
     gate = "vars.AGENTICOS_MACOS_SIGNING_ENABLED == 'true'"
     signing = next(
@@ -298,7 +298,7 @@ def test_macos_release_defaults_to_ad_hoc_without_disabling_updater_signatures()
 def test_enabled_macos_signing_refuses_each_missing_credential(
     tmp_path: Path, missing: str | None
 ) -> None:
-    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    workflow = yaml.safe_load((ROOT / ".github/workflows-disabled/app-release.yml").read_text())
     step = next(
         s
         for s in workflow["jobs"]["desktop"]["steps"]
@@ -328,7 +328,7 @@ def test_enabled_macos_signing_refuses_each_missing_credential(
 
 
 def test_ad_hoc_macos_exports_only_the_ad_hoc_identity(tmp_path: Path) -> None:
-    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    workflow = yaml.safe_load((ROOT / ".github/workflows-disabled/app-release.yml").read_text())
     step = next(
         s
         for s in workflow["jobs"]["desktop"]["steps"]
@@ -357,7 +357,7 @@ def test_ad_hoc_macos_exports_only_the_ad_hoc_identity(tmp_path: Path) -> None:
 def test_self_signed_macos_needs_the_identity_name_before_touching_a_keychain(
     tmp_path: Path,
 ) -> None:
-    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    workflow = yaml.safe_load((ROOT / ".github/workflows-disabled/app-release.yml").read_text())
     step = next(
         s
         for s in workflow["jobs"]["desktop"]["steps"]
@@ -389,7 +389,7 @@ def test_self_signed_macos_needs_the_identity_name_before_touching_a_keychain(
 
 
 def test_release_bundler_receives_the_same_public_key_as_the_running_app(tmp_path: Path) -> None:
-    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    workflow = yaml.safe_load((ROOT / ".github/workflows-disabled/app-release.yml").read_text())
     steps = workflow["jobs"]["desktop"]["steps"]
     step = next(s for s in steps if s.get("name") == "Configure updater public key")
     action = next(s for s in steps if "uploadUpdaterJson" in s.get("with", {}))
@@ -423,7 +423,7 @@ def test_tap_deploy_key_is_scoped_and_removed_even_when_publishing_fails(
     tmp_path: Path,
     push_fails: bool,
 ) -> None:
-    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    workflow = yaml.safe_load((ROOT / ".github/workflows-disabled/app-release.yml").read_text())
     step = next(
         s
         for s in workflow["jobs"]["homebrew"]["steps"]
@@ -526,8 +526,8 @@ def test_installer_authenticates_certificate_bytes_not_designated_requirement(
 
 
 def test_releases_only_read_dependency_caches_seeded_by_native_ci() -> None:
-    release = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
-    apps = yaml.safe_load((ROOT / ".github/workflows/apps.yml").read_text())
+    release = yaml.safe_load((ROOT / ".github/workflows-disabled/app-release.yml").read_text())
+    apps = yaml.safe_load((ROOT / ".github/workflows-disabled/apps.yml").read_text())
     for name in ("desktop", "android", "ios"):
         steps = release["jobs"][name]["steps"]
         cache_steps = [step for step in steps if step.get("uses", "").startswith("actions/cache")]
@@ -546,7 +546,7 @@ def test_releases_only_read_dependency_caches_seeded_by_native_ci() -> None:
 
 @pytest.mark.parametrize("pin", ["351ec21dde69acfb29f5d2661b27c0f6a517035a", "", "malformed"])
 def test_pinned_releases_refuse_missing_signing_material(tmp_path: Path, pin: str) -> None:
-    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    workflow = yaml.safe_load((ROOT / ".github/workflows-disabled/app-release.yml").read_text())
     step = next(
         s
         for s in workflow["jobs"]["desktop"]["steps"]
@@ -622,7 +622,7 @@ fi
         mount = Path(detached.read_text())
         assert not mount.parent.exists()
 
-    workflow = yaml.safe_load((ROOT / ".github/workflows/app-release.yml").read_text())
+    workflow = yaml.safe_load((ROOT / ".github/workflows-disabled/app-release.yml").read_text())
     job = workflow["jobs"]["homebrew"]
     assert job["runs-on"] == "macos-latest"
     attach = next(

@@ -12,14 +12,14 @@ code enforces them:
 
 - **Budget end is not approval.** :func:`round_satisfied` needs an APPROVE on
   the current diff with no blocker or should open. A round that runs out of
-  budget with either still open records ``budget_exhausted`` and is not
+  budget with either still open records `budget_exhausted` and is not
   satisfied.
 - **Stop early on nits only.** A round whose findings are all nits stops the
-  loop with ``nits_only`` - declined nits need no new round.
+  loop with `nits_only` - declined nits need no new round.
 - **An unavailable reviewer is reported, never substituted.** A reviewer with
   no model, or whose review raises - including a budget cap skipping the call -
-  records as ``unavailable`` with the reason, and the round stops with
-  ``reviewer_unavailable``. Substituting another model would review with a
+  records as `unavailable` with the reason, and the round stops with
+  `reviewer_unavailable`. Substituting another model would review with a
   reviewer the operator did not choose.
 """
 
