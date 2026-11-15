@@ -3583,28 +3583,6 @@
       }
    },
    "chat" : {
-      "roomThread" : {
-         "historyAudience" : "Gespeicherter Gesprächsverlauf",
-         "readOnly" : "Dieser Thread ist schreibgeschützt.",
-         "title" : "Thread",
-         "start" : "Im Thread antworten",
-         "replies" : "{count, plural, one {# Antwort} other {# Antworten}}",
-         "message" : "Im Thread antworten",
-         "placeholder" : "Hier antworten. Alle im Raum können diesen Thread lesen.",
-         "post" : "Antwort senden",
-         "close" : "Thread schließen",
-         "earlier" : "Frühere Antworten laden",
-         "audience" : "Für alle in diesem Raum sichtbar",
-         "root" : "Ursprüngliche Nachricht",
-         "loading" : "Thread wird geladen…",
-         "unavailable" : "Dieser Thread ist nicht verfügbar. Er wurde möglicherweise entfernt oder dein Zugriff auf den Raum hat sich geändert.",
-         "retry" : "Erneut versuchen",
-         "empty" : "Beginne die Unterhaltung in diesem Thread.",
-         "open" : "Thread öffnen",
-         "pending" : "Ein Agent wartet in einem Thread auf dich.",
-         "mainPending" : "Ein Agent wartet im Hauptraum auf dich.",
-         "main" : "Zurück zum Raum"
-      },
       "accessChanged" : "Zugriff geändert",
       "accessChecking" : "Zugriff auf die Unterhaltung wird geprüft…",
       "accessFailed" : "Der Zugriff auf diese Unterhaltung konnte nicht geprüft werden",
@@ -5019,6 +4997,28 @@
             "cancelled" : "Abgebrochen",
             "interrupted" : "Unterbrochen"
          }
+      },
+      "roomThread": {
+         "historyAudience": "Gespeicherter Gesprächsverlauf",
+         "readOnly": "Dieser Thread ist schreibgeschützt.",
+         "title": "Thread",
+         "start": "Im Thread antworten",
+         "replies": "{count, plural, one {# Antwort} other {# Antworten}}",
+         "message": "Im Thread antworten",
+         "placeholder": "Hier antworten. Alle im Raum können diesen Thread lesen.",
+         "post": "Antwort senden",
+         "close": "Thread schließen",
+         "earlier": "Frühere Antworten laden",
+         "audience": "Für alle in diesem Raum sichtbar",
+         "root": "Ursprüngliche Nachricht",
+         "loading": "Thread wird geladen…",
+         "unavailable": "Dieser Thread ist nicht verfügbar. Er wurde möglicherweise entfernt oder dein Zugriff auf den Raum hat sich geändert.",
+         "retry": "Erneut versuchen",
+         "empty": "Beginne die Unterhaltung in diesem Thread.",
+         "open": "Thread öffnen",
+         "pending": "Ein Agent wartet in einem Thread auf dich.",
+         "mainPending": "Ein Agent wartet im Hauptraum auf dich.",
+         "main": "Zurück zum Raum"
       }
    },
    "claudeSubscription" : {
@@ -9912,14 +9912,6 @@
       },
       "saveFailed" : "Wir konnten nicht speichern, dass Sie die Tour gesehen haben, sie erscheint also womöglich beim nächsten Mal erneut.",
       "steps" : {
-         "chat-room-thread" : {
-            "title" : "Eine Nachricht besprechen",
-            "body" : "Öffne einen Thread, um Antworten zusammenzuhalten, ohne den Hauptraum zu füllen. Die Anzahl der Antworten führt zurück zur Diskussion; Antworten zitiert weiterhin eine Nachricht."
-         },
-         "chat-room-thread-panel" : {
-            "title" : "Antworten mit eigenem Kontext",
-            "body" : "Die ursprüngliche Nachricht bleibt über den Antworten. Alle im Raum können den Thread lesen. Wähle einen Agenten für Hilfe oder schließe den Thread, um zum Raum zurückzukehren."
-         },
          "activity-approvals" : {
             "body" : "Runs, die für eine menschliche Entscheidung angehalten haben, reihen sich hier ein. Geben Sie jeden frei oder lehnen Sie ihn ab, und der Run macht dort weiter, wo er stehen geblieben ist - dieser Tab erscheint nur, wenn Sie darüber entscheiden dürfen.",
             "title" : "Was auf Sie wartet"
@@ -11233,13 +11225,21 @@
             "title" : "Mit dem Team sprechen und bei Bedarf einen Agent fragen",
             "body" : "Schreibe deinem Team, ohne einen Agent zu starten. Wähle einen Agent ausdrücklich für eine KI-Antwort; die Anfrage kommt in die gemeinsame Warteschlange."
          },
+         "table-row-access": {
+            "title": "Regeln für den Zeilenzugriff",
+            "body": "Wählen Sie, wer Zeilen lesen darf. Öffnen Sie dann eine Zeile, um einer Person oder Gruppe Lesen oder Schreiben zu geben."
+         },
          "record-access": {
             "title": "Diese Zeile teilen",
             "body": "Schreiben umfasst Lesen und Änderungen an gewöhnlichen Zellen. Es erlaubt weder Löschen noch Zugriffsverwaltung oder Änderungen am Tabellenschema."
          },
-         "table-row-access": {
-            "title": "Regeln für den Zeilenzugriff",
-            "body": "Wählen Sie, wer Zeilen lesen darf. Öffnen Sie dann eine Zeile, um einer Person oder Gruppe Lesen oder Schreiben zu geben."
+         "chat-room-thread": {
+            "title": "Eine Nachricht besprechen",
+            "body": "Öffne einen Thread, um Antworten zusammenzuhalten, ohne den Hauptraum zu füllen. Die Anzahl der Antworten führt zurück zur Diskussion; Antworten zitiert weiterhin eine Nachricht."
+         },
+         "chat-room-thread-panel": {
+            "title": "Antworten mit eigenem Kontext",
+            "body": "Die ursprüngliche Nachricht bleibt über den Antworten. Alle im Raum können den Thread lesen. Wähle einen Agenten für Hilfe oder schließe den Thread, um zum Raum zurückzukehren."
          }
       }
    },

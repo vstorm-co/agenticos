@@ -3583,28 +3583,6 @@
       }
    },
    "chat" : {
-      "roomThread" : {
-         "historyAudience" : "Zapisana historia rozmowy",
-         "readOnly" : "Ten wątek jest tylko do odczytu.",
-         "title" : "Wątek",
-         "start" : "Odpowiedz w wątku",
-         "replies" : "{count, plural, one {# odpowiedź} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}}",
-         "message" : "Odpowiedz w wątku",
-         "placeholder" : "Odpowiedz tutaj. Każdy w pokoju może przeczytać ten wątek.",
-         "post" : "Wyślij odpowiedź",
-         "close" : "Zamknij wątek",
-         "earlier" : "Wczytaj wcześniejsze odpowiedzi",
-         "audience" : "Widoczny dla wszystkich w tym pokoju",
-         "root" : "Oryginalna wiadomość",
-         "loading" : "Wczytywanie wątku…",
-         "unavailable" : "Ten wątek jest niedostępny. Być może został usunięty lub zmienił się Twój dostęp do pokoju.",
-         "retry" : "Spróbuj ponownie",
-         "empty" : "Rozpocznij rozmowę w tym wątku.",
-         "open" : "Otwórz wątek",
-         "pending" : "Agent czeka na Ciebie w wątku.",
-         "mainPending" : "Agent czeka na Ciebie w głównym pokoju.",
-         "main" : "Wróć do pokoju"
-      },
       "accessChanged" : "Zmieniono dostęp",
       "accessChecking" : "Sprawdzanie dostępu do rozmowy…",
       "accessFailed" : "Nie udało się sprawdzić dostępu do tej rozmowy",
@@ -5018,6 +4996,28 @@
             "cancelled" : "Anulowano",
             "interrupted" : "Przerwano"
          }
+      },
+      "roomThread": {
+         "historyAudience": "Zapisana historia rozmowy",
+         "readOnly": "Ten wątek jest tylko do odczytu.",
+         "title": "Wątek",
+         "start": "Odpowiedz w wątku",
+         "replies": "{count, plural, one {# odpowiedź} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}}",
+         "message": "Odpowiedz w wątku",
+         "placeholder": "Odpowiedz tutaj. Każdy w pokoju może przeczytać ten wątek.",
+         "post": "Wyślij odpowiedź",
+         "close": "Zamknij wątek",
+         "earlier": "Wczytaj wcześniejsze odpowiedzi",
+         "audience": "Widoczny dla wszystkich w tym pokoju",
+         "root": "Oryginalna wiadomość",
+         "loading": "Wczytywanie wątku…",
+         "unavailable": "Ten wątek jest niedostępny. Być może został usunięty lub zmienił się Twój dostęp do pokoju.",
+         "retry": "Spróbuj ponownie",
+         "empty": "Rozpocznij rozmowę w tym wątku.",
+         "open": "Otwórz wątek",
+         "pending": "Agent czeka na Ciebie w wątku.",
+         "mainPending": "Agent czeka na Ciebie w głównym pokoju.",
+         "main": "Wróć do pokoju"
       }
    },
    "claudeSubscription" : {
@@ -9995,14 +9995,6 @@
       },
       "saveFailed" : "Nie udało się zapisać ukończenia przewodnika, więc może pojawić się ponownie następnym razem.",
       "steps" : {
-         "chat-room-thread" : {
-            "title" : "Omów jedną wiadomość",
-            "body" : "Otwórz wątek, aby zebrać odpowiedzi w jednym miejscu bez zapełniania głównego pokoju. Liczba odpowiedzi prowadzi z powrotem do dyskusji; Odpowiedz nadal cytuje wiadomość."
-         },
-         "chat-room-thread-panel" : {
-            "title" : "Odpowiedzi we własnym kontekście",
-            "body" : "Oryginalna wiadomość pozostaje nad odpowiedziami. Każdy w pokoju może przeczytać wątek. Wybierz agenta, gdy potrzebujesz pomocy, lub zamknij wątek, aby wrócić do pokoju."
-         },
          "activity-approvals" : {
             "body" : "Uruchomienia wstrzymane na ludzką decyzję czekają tutaj. Zatwierdź lub odrzuć każde, a uruchomienie ruszy stamtąd, gdzie stanęło - ta zakładka pojawia się tylko, jeśli wolno Ci o nich decydować.",
             "title" : "Co czeka na Ciebie"
@@ -11316,13 +11308,21 @@
             "title" : "Rozmawiaj z zespołem, a agenta pytaj w razie potrzeby",
             "body" : "Pisz do zespołu bez uruchamiania agenta. Aby otrzymać odpowiedź AI, wybierz agenta. Prośba trafi do wspólnej kolejki."
          },
+         "table-row-access": {
+            "title": "Reguły dostępu do wierszy",
+            "body": "Wybierz, kto może odczytywać wiersze, a następnie otwórz wiersz, aby nadać osobie lub grupie odczyt lub zapis."
+         },
          "record-access": {
             "title": "Udostępnij ten wiersz",
             "body": "Zapis obejmuje odczyt i zmianę zwykłych komórek. Nie pozwala usuwać, zarządzać dostępem ani zmieniać schematu tabeli."
          },
-         "table-row-access": {
-            "title": "Reguły dostępu do wierszy",
-            "body": "Wybierz, kto może odczytywać wiersze, a następnie otwórz wiersz, aby nadać osobie lub grupie odczyt lub zapis."
+         "chat-room-thread": {
+            "title": "Omów jedną wiadomość",
+            "body": "Otwórz wątek, aby zebrać odpowiedzi w jednym miejscu bez zapełniania głównego pokoju. Liczba odpowiedzi prowadzi z powrotem do dyskusji; Odpowiedz nadal cytuje wiadomość."
+         },
+         "chat-room-thread-panel": {
+            "title": "Odpowiedzi we własnym kontekście",
+            "body": "Oryginalna wiadomość pozostaje nad odpowiedziami. Każdy w pokoju może przeczytać wątek. Wybierz agenta, gdy potrzebujesz pomocy, lub zamknij wątek, aby wrócić do pokoju."
          }
       }
    },

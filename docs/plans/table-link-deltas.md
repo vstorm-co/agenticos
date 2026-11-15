@@ -12,6 +12,10 @@ contains bounded `add` and `remove` UUID lists. The update keeps the existing
 revision check, storage quota, transaction, history, trigger and idempotency path.
 Only explicit targets are checked for current read access; retained hidden links
 are not treated as newly submitted IDs. Scalar edits can share the same request.
+Explicit target authorization runs before applying the delta or checking the
+resulting cardinality. Even at the link limit, an already-linked hidden ID and
+an unknown ID receive the same missing-record refusal. A limit error must not
+reveal whether an unreadable destination is already linked.
 
 The grid and record panel emit deltas. The shared write queue advances revisions,
 and the conflict store retains and composes explicit choices. A successful delta
@@ -33,8 +37,9 @@ Preserve the agreed row Read/Write contract: Write includes Read and updates to
 ordinary fields, while deletion, sharing and schema administration stay separate.
 Coordinate through this PR before overlapping implementation. During integration,
 access-field checks must see the fully merged values. Legacy replacement
-preservation receives only original `values` keys, while delta validation checks
-explicit additions and removals without the legacy stored-ID exemption.
+preservation receives only original `values` keys. Both replacements and deltas
+validate every explicitly named destination, including existing links and no-ops;
+only omitted hidden destinations are preserved without a caller Read check.
 
 The normalized-relationship follow-up supplies the canonical write baseline,
 including hidden valid targets. Use it for delta resolution, merging, access

@@ -298,14 +298,18 @@ async def test_batch_receipts_keep_counts_but_refuse_disclosure_after_row_revoca
     assert fresh.failed[0].details == {"table_id": rows.table.id}
 
 
-async def test_an_external_id_does_not_reveal_a_hidden_record_id_or_revision(rows):
+async def test_an_external_id_does_not_reveal_hidden_existence_ids_or_revisions(rows):
     for data in (
         RecordUpsert(values={}, expected_revision=None),
         RecordUpsert(values={}, expected_revision=999),
     ):
-        with pytest.raises(NotFoundError) as refused:
-            await rows.service.upsert_record(rows.reader, rows.table.id, "second", data)
-        assert refused.value.details == {"table_id": rows.table.id}
+        for external_id in ("second", "does-not-exist"):
+            with pytest.raises(NotFoundError) as refused:
+                await rows.service.upsert_record(rows.reader, rows.table.id, external_id, data)
+            assert refused.value.status_code == 404
+            assert refused.value.code == "NOT_FOUND"
+            assert refused.value.message == "Record not found"
+            assert refused.value.details == {"table_id": rows.table.id}
 
 
 async def test_grant_subjects_must_belong_to_this_organization(db, rows):

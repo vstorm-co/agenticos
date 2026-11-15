@@ -1778,7 +1778,6 @@ class RecordOperations(Operations):
         submitted: dict[str, CellValue],
         *,
         field_prefix: str = "values",
-        stored: Mapping[str, CellValue] | None = None,
     ) -> None:
         """Every record a submitted link names exists in the table it links to, which the
         writer can see - a link is not a way to learn which ids another table holds.
@@ -1792,12 +1791,8 @@ class RecordOperations(Operations):
             ids = submitted.get(str(column.id))
             if column.type != "link" or column.link_table_id is None or not isinstance(ids, list):
                 continue
-            if stored is not None:
-                previous = stored.get(str(column.id))
-                existing = {str(item) for item in previous} if isinstance(previous, list) else set()
-                ids = [item for item in ids if str(item) not in existing]
-                if not ids:
-                    continue
+            if not ids:
+                continue
             target = await virtual_table_repo.get_table(
                 self.db, column.link_table_id, organization_id=ctx.organization_id
             )
@@ -1894,7 +1889,9 @@ class RecordOperations(Operations):
     ) -> VirtualTableRecord | None:
         """Insert a record with its history and created event, or `None` if the id is taken."""
         if not await resolve_access(self.db, ctx, table, Perm.TABLES_EDIT, resource_type=TABLE):
-            raise NotFoundError(message="Table not found", details={"table_id": table.id})
+            # Upserts must not distinguish an unavailable existing external ID
+            # from a new ID this caller cannot create.
+            raise NotFoundError(message="Record not found", details={"table_id": table.id})
         columns = await self._columns(table)
         merged = await normalize_task_cells(
             self.db, ctx.organization_id, table.id, _merge(columns, values, None)
@@ -2015,8 +2012,9 @@ class RecordOperations(Operations):
         before = dict(record.values)
         merged = _merge(columns, values, baseline)
         if link_changes:
-            merged = _merge(columns, _link_delta_values(columns, baseline, link_changes), merged)
             # Validate only the explicitly named targets, including removals and no-ops.
+            # Do this before applying deltas: a full cell must not distinguish an
+            # already-linked hidden ID from an unknown ID through its limit error.
             # Internally retained links may be invisible to this writer.
             await self._check_links(
                 ctx,
@@ -2028,7 +2026,11 @@ class RecordOperations(Operations):
                 },
                 field_prefix="link_changes",
             )
+            merged = _merge(columns, _link_delta_values(columns, baseline, link_changes), merged)
         merged = await normalize_task_cells(self.db, ctx.organization_id, table.id, merged)
+        # A submitted ID needs current Read even when it is already linked or
+        # would leave the row unchanged. Only omitted hidden links are retained.
+        await self._check_links(ctx, columns, values)
         await self._preserve_unreadable_links(ctx, columns, values, baseline, merged)
         await require_access_fields(self.db, ctx, table, columns, baseline, merged)
         if merged == baseline:
@@ -2048,7 +2050,6 @@ class RecordOperations(Operations):
         )
         if problems:
             raise InvalidRecordError([(f"values.{key}", message) for key, message in problems])
-        await self._check_links(ctx, columns, values, stored=baseline)
         if not await can_write_record(self.db, ctx, table, record.id, columns, merged):
             raise NotFoundError(message="Record not found", details={"record_id": record.id})
         await quotas.enforce_record_size(ctx, table, merged)

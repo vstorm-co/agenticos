@@ -3595,28 +3595,6 @@
       }
    },
    "chat" : {
-      "roomThread" : {
-         "historyAudience" : "Saved conversation history",
-         "readOnly" : "This thread is read-only.",
-         "title" : "Thread",
-         "start" : "Reply in thread",
-         "replies" : "{count, plural, one {# reply} other {# replies}}",
-         "message" : "Reply to thread",
-         "placeholder" : "Reply here. Everyone in the room can read this thread.",
-         "post" : "Post reply",
-         "close" : "Close thread",
-         "earlier" : "Load earlier replies",
-         "audience" : "Visible to everyone in this room",
-         "root" : "Original message",
-         "loading" : "Loading thread…",
-         "unavailable" : "This thread is unavailable. It may have been removed, or your room access may have changed.",
-         "retry" : "Try again",
-         "empty" : "Start the conversation in this thread.",
-         "open" : "Open thread",
-         "pending" : "An agent is waiting for you in a thread.",
-         "mainPending" : "An agent is waiting for you in the main room.",
-         "main" : "Back to room"
-      },
       "accessChanged" : "Access changed",
       "accessChecking" : "Checking conversation access…",
       "accessFailed" : "Could not verify access to this conversation",
@@ -5037,6 +5015,28 @@
             "cancelled" : "Cancelled",
             "interrupted" : "Interrupted"
          }
+      },
+      "roomThread": {
+         "historyAudience": "Saved conversation history",
+         "readOnly": "This thread is read-only.",
+         "title": "Thread",
+         "start": "Reply in thread",
+         "replies": "{count, plural, one {# reply} other {# replies}}",
+         "message": "Reply to thread",
+         "placeholder": "Reply here. Everyone in the room can read this thread.",
+         "post": "Post reply",
+         "close": "Close thread",
+         "earlier": "Load earlier replies",
+         "audience": "Visible to everyone in this room",
+         "root": "Original message",
+         "loading": "Loading thread…",
+         "unavailable": "This thread is unavailable. It may have been removed, or your room access may have changed.",
+         "retry": "Try again",
+         "empty": "Start the conversation in this thread.",
+         "open": "Open thread",
+         "pending": "An agent is waiting for you in a thread.",
+         "mainPending": "An agent is waiting for you in the main room.",
+         "main": "Back to room"
       }
    },
    "claudeSubscription" : {
@@ -10360,14 +10360,6 @@
       },
       "saveFailed" : "We couldn't save that you've seen the walkthrough, so it may show again next time.",
       "steps" : {
-         "chat-room-thread" : {
-            "title" : "Discuss one message",
-            "body" : "Open a thread to keep replies together without filling the main room. The reply count takes you back to the discussion; Reply still quotes a message."
-         },
-         "chat-room-thread-panel" : {
-            "title" : "Replies with their own context",
-            "body" : "The original message stays above the replies. Everyone in the room can read the thread. Choose an agent when you want help here, or close the thread to return to the room."
-         },
          "activity-approvals" : {
             "body" : "Runs that paused for a human decision queue here. Approve or reject each one and the run picks up from where it stopped - this tab only appears if you're allowed to decide them.",
             "title" : "What's waiting on you"
@@ -11701,13 +11693,21 @@
             "title" : "Talk first, ask an agent when needed",
             "body" : "Post to your teammates without starting an agent. Choose an agent explicitly for an AI answer; its request joins the shared queue."
          },
+         "table-row-access": {
+            "title": "Row access rules",
+            "body": "Choose who can read rows, then open a row to give a person or group Read or Write."
+         },
          "record-access": {
             "title": "Share this row",
             "body": "Write includes Read and changes to ordinary cells. It does not allow deletion, access management, or table schema changes."
          },
-         "table-row-access": {
-            "title": "Row access rules",
-            "body": "Choose who can read rows, then open a row to give a person or group Read or Write."
+         "chat-room-thread": {
+            "title": "Discuss one message",
+            "body": "Open a thread to keep replies together without filling the main room. The reply count takes you back to the discussion; Reply still quotes a message."
+         },
+         "chat-room-thread-panel": {
+            "title": "Replies with their own context",
+            "body": "The original message stays above the replies. Everyone in the room can read the thread. Choose an agent when you want help here, or close the thread to return to the room."
          }
       }
    },

@@ -2941,28 +2941,6 @@
       }
    },
    "chat" : {
-      "roomThread" : {
-         "historyAudience" : "Kaydedilmiş sohbet geçmişi",
-         "readOnly" : "Bu konu salt okunurdur.",
-         "title" : "Konu",
-         "start" : "Konuda yanıtla",
-         "replies" : "{count, plural, one {# yanıt} other {# yanıt}}",
-         "message" : "Konuya yanıt ver",
-         "placeholder" : "Buradan yanıtlayın. Odadaki herkes bu konuyu okuyabilir.",
-         "post" : "Yanıtı gönder",
-         "close" : "Konuyu kapat",
-         "earlier" : "Önceki yanıtları yükle",
-         "audience" : "Bu odadaki herkes görebilir",
-         "root" : "İlk mesaj",
-         "loading" : "Konu yükleniyor…",
-         "unavailable" : "Bu konu kullanılamıyor. Silinmiş veya odaya erişiminiz değişmiş olabilir.",
-         "retry" : "Tekrar dene",
-         "empty" : "Bu konuda sohbeti başlatın.",
-         "open" : "Konuyu aç",
-         "pending" : "Bir ajan bir konuda sizi bekliyor.",
-         "mainPending" : "Bir ajan ana odada sizi bekliyor.",
-         "main" : "Odaya dön"
-      },
       "accessChanged" : "Erişim değiştirildi",
       "accessChecking" : "Sohbet erişimi kontrol ediliyor…",
       "accessFailed" : "Bu sohbete erişim doğrulanamadı",
@@ -4269,6 +4247,28 @@
       "workflowRun" : {
          "unnamed" : "Workflow",
          "viewSteps" : "Adımlarını görüntüle"
+      },
+      "roomThread": {
+         "historyAudience": "Kaydedilmiş sohbet geçmişi",
+         "readOnly": "Bu konu salt okunurdur.",
+         "title": "Konu",
+         "start": "Konuda yanıtla",
+         "replies": "{count, plural, one {# yanıt} other {# yanıt}}",
+         "message": "Konuya yanıt ver",
+         "placeholder": "Buradan yanıtlayın. Odadaki herkes bu konuyu okuyabilir.",
+         "post": "Yanıtı gönder",
+         "close": "Konuyu kapat",
+         "earlier": "Önceki yanıtları yükle",
+         "audience": "Bu odadaki herkes görebilir",
+         "root": "İlk mesaj",
+         "loading": "Konu yükleniyor…",
+         "unavailable": "Bu konu kullanılamıyor. Silinmiş veya odaya erişiminiz değişmiş olabilir.",
+         "retry": "Tekrar dene",
+         "empty": "Bu konuda sohbeti başlatın.",
+         "open": "Konuyu aç",
+         "pending": "Bir ajan bir konuda sizi bekliyor.",
+         "mainPending": "Bir ajan ana odada sizi bekliyor.",
+         "main": "Odaya dön"
       }
    },
    "claudeSubscription" : {
@@ -7325,14 +7325,6 @@
       },
       "saveFailed" : "Tanıtım turunu gördüğünüz bilgisi kaydedilemedi; bu nedenle bir dahaki gelişinizde yeniden gösterilebilir.",
       "steps" : {
-         "chat-room-thread" : {
-            "title" : "Bir mesajı tartışın",
-            "body" : "Ana odayı doldurmadan yanıtları bir arada tutmak için bir konu açın. Yanıt sayısı sizi tartışmaya geri götürür; Yanıtla bir mesajı alıntılamaya devam eder."
-         },
-         "chat-room-thread-panel" : {
-            "title" : "Kendi bağlamında yanıtlar",
-            "body" : "İlk mesaj yanıtların üstünde kalır. Odadaki herkes konuyu okuyabilir. Yardım istediğinizde bir ajan seçin veya odaya dönmek için konuyu kapatın."
-         },
          "activity-approvals" : {
             "body" : "İnsan kararı beklerken duran run’lar burada sıraya girer. Her birini onaylayın veya reddedin; run kaldığı yerden devam eder. Bu sekme yalnızca karar verme izniniz varsa görünür.",
             "title" : "Sizden yanıt bekleyenler"
@@ -8149,13 +8141,21 @@
             "body" : "Bir agent’ın dosyaları, klasörlere göre düzenlenir. Dosyayı önizleyin veya agent’ın sizin için oluşturduğu dosyaları indirin.",
             "title" : "Klasörün içi"
          },
+         "table-row-access": {
+            "title": "Satır erişim kuralları",
+            "body": "Satırları kimlerin okuyabileceğini seçin, ardından bir kişiye veya gruba Okuma ya da Yazma izni vermek için satırı açın."
+         },
          "record-access": {
             "title": "Bu satırı paylaş",
             "body": "Yazma, Okuma ve normal hücreleri değiştirme hakkını içerir. Silme, erişim yönetimi veya tablo şemasını değiştirme izni vermez."
          },
-         "table-row-access": {
-            "title": "Satır erişim kuralları",
-            "body": "Satırları kimlerin okuyabileceğini seçin, ardından bir kişiye veya gruba Okuma ya da Yazma izni vermek için satırı açın."
+         "chat-room-thread": {
+            "title": "Bir mesajı tartışın",
+            "body": "Ana odayı doldurmadan yanıtları bir arada tutmak için bir konu açın. Yanıt sayısı sizi tartışmaya geri götürür; Yanıtla bir mesajı alıntılamaya devam eder."
+         },
+         "chat-room-thread-panel": {
+            "title": "Kendi bağlamında yanıtlar",
+            "body": "İlk mesaj yanıtların üstünde kalır. Odadaki herkes konuyu okuyabilir. Yardım istediğinizde bir ajan seçin veya odaya dönmek için konuyu kapatın."
          }
       }
    },
