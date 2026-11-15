@@ -556,6 +556,10 @@ class AppConnectionService:
             )
             link = await client.link_session(session_id=session_id, toolkit=app.toolkit)
         expires_at = min(link.expires_at, datetime.now(UTC) + _DYNAMIC_ATTEMPT_TTL)
+        if expires_at <= datetime.now(UTC):
+            raise ExternalServiceError(
+                message="The app connection provider returned an expired link"
+            )
         pending = _PendingConsent(
             attempt_id=attempt_id,
             user_id=user_id,
