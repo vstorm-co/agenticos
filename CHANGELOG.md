@@ -23,6 +23,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Sync upstream to v1.73.0 while preserving the T3 overlay; migration histories join at 0324_merge_t3_upstream_v173. CI and downstream compatibility remain unverified.
 
+### Security
+
+- Separate MCP connection use from administration on existing paths. Use grants continue to authorize agent/workflow binding, while editing, deleting, probing, reading call logs and changing sharing require management authority or an edit grant within the existing route gates. Existing role scopes and published-agent delegation remain in place; no grants are promoted and no new discovery endpoint is added.
+
 ### Added
 
 - Browser, Computer and Files controls on the right of every chat, with separate panels that open before tool activity. Hosted-tool start actions use the selected agent's published configuration and run permissions. Opening an empty panel starts no run; completed browser and desktop images are clearly marked as the last view, and closing a panel keeps it closed as new results arrive.

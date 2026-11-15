@@ -2992,7 +2992,7 @@ class AgentRegistryService:
                 connection is not None
                 and connection.visibility != Visibility.ORG.value
                 and not await resolve_access(
-                    self.db, ctx, connection, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+                    self.db, ctx, connection, Perm.MCP_USE, resource_type=MCP_CONNECTION
                 )
             ):
                 # Narrowed to groups the publisher is not in (#2072): binding it
