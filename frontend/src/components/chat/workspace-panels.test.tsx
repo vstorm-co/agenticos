@@ -95,6 +95,57 @@ beforeEach(() => {
 });
 
 describe("manual workspace launchers", () => {
+  it("keeps both rail controls linked to one unique target in every workspace state", async () => {
+    const props = defaults();
+    const test = render(<WorkspacePanels {...props} />, { wrapper });
+    const controlIds = (): [string, string] => {
+      const browser = screen.getByRole("button", { name: "Open Browser" });
+      const computer = screen.getByRole("button", { name: "Open Computer" });
+      const browserId = browser.getAttribute("aria-controls");
+      const computerId = computer.getAttribute("aria-controls");
+      if (browserId === null || computerId === null)
+        throw new Error("Workspace controls need panel IDs");
+      return [browserId, computerId];
+    };
+    const expectTargets = (ids: [string, string]) => {
+      expect(new Set(ids).size).toBe(2);
+      for (const id of ids) {
+        const targets = [...document.querySelectorAll("[id]")].filter(
+          (element) => element.id === id,
+        );
+        expect(targets).toHaveLength(1);
+        const target = targets.at(0);
+        if (target?.hasAttribute("hidden")) {
+          expect(
+            target.querySelectorAll("a, button, input, select, textarea, [tabindex]"),
+          ).toHaveLength(0);
+        }
+      }
+    };
+
+    const ids = controlIds();
+    expectTargets(ids);
+    await userEvent.click(screen.getByRole("button", { name: "Open Browser" }));
+    expectTargets(ids);
+    await userEvent.click(screen.getByRole("button", { name: "Open Computer" }));
+    expectTargets(ids);
+    await userEvent.click(screen.getByRole("button", { name: /Show the files/ }));
+    expectTargets(ids);
+
+    test.rerender(<WorkspacePanels {...props} compact />);
+    expect(screen.queryByRole("navigation", { name: "Workspace" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open Browser" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open Computer" })).toBeNull();
+    expectTargets(ids);
+
+    act(() => useBrowserPanelStore.getState().openSurface("browser"));
+    expectTargets(ids);
+    expect(screen.getByRole("complementary", { name: "Browser" })).toHaveAttribute("id", ids[0]);
+    act(() => useBrowserPanelStore.getState().openSurface("computer"));
+    expectTargets(ids);
+    expect(screen.getByRole("complementary", { name: "Computer" })).toHaveAttribute("id", ids[1]);
+  });
+
   it("does not attach a personal native browser when the hosted Browser opener is used", async () => {
     const props = defaults();
     render(
