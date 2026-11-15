@@ -46,11 +46,7 @@ export function MySignIns() {
         tour="my-sign-ins"
         action={
           <div className="flex items-center gap-2">
-            <WorkspaceFullscreenButton
-              expanded={expanded}
-              onToggle={toggle}
-              className="md:inline-flex"
-            />
+            <WorkspaceFullscreenButton expanded={expanded} onToggle={toggle} />
             {available && (
               <Button size="sm" onClick={() => setSigningIn(true)} data-tour="sign-in-to-site">
                 <LogIn className="h-4 w-4" aria-hidden />
