@@ -296,6 +296,12 @@ An update or delete that names an old revision is refused with `REVISION_CONFLIC
 and retry. An upsert that finds an existing record and no `expected_revision` gets
 `REVISION_REQUIRED` (428), again with the revision to send.
 
+Current Write access is checked before disclosing a stored revision. An upsert
+for a hidden existing external ID and one for a new ID the caller cannot create
+both return `NOT_FOUND` (404), with the same message and table ID. Creating a row
+also requires table Edit and a row policy that lets its creator read that row;
+a row Write grant alone does not grant creation rights.
+
 An external id is 1 to 255 characters and may contain `/`, as in `2026/ORD-1`. It cannot
 contain NUL or a line break. The service checks this as well as the routes. Over HTTP the route refuses it first,
 with `VALIDATION_ERROR`; a caller that uses the service directly gets `INVALID_RECORD`.

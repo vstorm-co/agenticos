@@ -1,5 +1,5 @@
 ---
-source_sha: "16f1ccc99be3"
+source_sha: "a8d2071361f0"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -308,6 +308,12 @@ Una actualización o un borrado que indica una revision antigua se rechaza con
 registro de nuevo y reintenta. Un upsert que encuentra un registro existente y no recibe
 `expected_revision` obtiene `REVISION_REQUIRED` (428), de nuevo con la revision que debe
 enviar.
+
+Se comprueba el acceso Write actual antes de revelar una revision almacenada.
+Un upsert para un external id existente pero oculto y otro para un ID nuevo que
+el usuario no puede crear devuelven `NOT_FOUND` (404), con el mismo mensaje e ID
+de tabla. Crear una fila también requiere Edit en la tabla y una política que
+permita al creador leerla; un grant Write de fila no permite crear registros.
 
 Un external id tiene de 1 a 255 caracteres y puede contener `/`, como en `2026/ORD-1`. No puede contener NUL ni un salto de línea. El servicio lo comprueba
 igual que las rutas. Por HTTP la ruta lo rechaza primero, con `VALIDATION_ERROR`; un

@@ -101,6 +101,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Table upserts return the same refusal for a hidden external ID and an unavailable creation, including absent or stale revisions, so row-grant readers cannot use error messages to discover hidden records.
+
 - **DNS parser security update (CVE-2026-128089).** Upgrade dnspython to 2.9.2
   to reject out-of-range WKS service numbers before allocating their bitmaps.
 - Match workflow editor loading to its full-height workspace and remove the

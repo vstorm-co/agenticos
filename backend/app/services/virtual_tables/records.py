@@ -1795,7 +1795,9 @@ class RecordOperations(Operations):
     ) -> VirtualTableRecord | None:
         """Insert a record with its history and created event, or `None` if the id is taken."""
         if not await resolve_access(self.db, ctx, table, Perm.TABLES_EDIT, resource_type=TABLE):
-            raise NotFoundError(message="Table not found", details={"table_id": table.id})
+            # Upserts must not distinguish an unavailable existing external ID
+            # from a new ID this caller cannot create.
+            raise NotFoundError(message="Record not found", details={"table_id": table.id})
         columns = await self._columns(table)
         merged = await normalize_task_cells(
             self.db, ctx.organization_id, table.id, _merge(columns, values, None)

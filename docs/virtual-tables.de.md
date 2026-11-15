@@ -1,5 +1,5 @@
 ---
-source_sha: "16f1ccc99be3"
+source_sha: "a8d2071361f0"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -328,6 +328,13 @@ Ein Update oder Delete mit einer alten Revision wird mit `REVISION_CONFLICT` (40
 erneut und versuchen Sie es noch einmal. Ein Upsert, der einen bestehenden Datensatz findet
 und kein `expected_revision` erhält, bekommt `REVISION_REQUIRED` (428), wieder mit der
 zu sendenden Revision.
+
+Der aktuelle Write-Zugriff wird geprüft, bevor eine gespeicherte Revision
+offengelegt wird. Ein Upsert für eine verborgene bestehende external id und einer
+für eine neue ID, die der Aufrufer nicht erstellen darf, liefern beide
+`NOT_FOUND` (404) mit derselben Meldung und Tabellen-ID. Das Erstellen braucht
+außerdem Edit auf der Tabelle und eine Zeilenrichtlinie, die dem Ersteller das
+Lesen der neuen Zeile erlaubt; ein Write-Grant auf einer Zeile genügt nicht.
 
 Eine external id hat 1 bis 255 Zeichen und darf `/` enthalten, wie in `2026/ORD-1`. Sie darf weder NUL noch einen Zeilenumbruch enthalten. Der Service
 prüft das ebenso wie die Routen. Über HTTP lehnt die Route es zuerst ab, mit
