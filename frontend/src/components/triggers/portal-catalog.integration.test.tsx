@@ -350,6 +350,15 @@ describe("PortalCatalog", () => {
     expect(card.getByRole("button", { name: "Create trigger" })).toBeInTheDocument();
   });
 
+  it("names the provider webhooks available from the API card in the compact routine picker", async () => {
+    serve([]);
+    render(<PortalCatalog compact canRun canManageConnections />, { wrapper });
+
+    const card = within(await screen.findByRole("group", { name: "API trigger" }));
+    expect(card.getByText(/Linear, HubSpot and Zendesk webhooks/)).toBeVisible();
+    expect(card.getByRole("button", { name: "Create trigger" })).toBeEnabled();
+  });
+
   it("keeps the API trigger reachable when a search matches no portal", async () => {
     // The filter searches portals; the API card is not one, and a filter must not
     // take away the only way to trigger from a provider no portal covers.

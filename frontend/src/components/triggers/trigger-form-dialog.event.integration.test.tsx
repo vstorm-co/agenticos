@@ -116,6 +116,119 @@ beforeEach(() => {
  * grid is), so it is exercised here directly rather than through a panel button.
  */
 describe("TriggerFormDialog custom-webhook event form", () => {
+  it("creates a raw-body HMAC trigger and refuses an invalid header", async () => {
+    const user = userEvent.setup();
+    vi.mocked(apiClient.post).mockResolvedValue(trigger({ event_source: "webhook" }));
+    const dialog = await openEvent();
+    await user.type(dialog.getByLabelText("Signing secret"), "a-provider-issued-secret");
+    await user.click(dialog.getByRole("combobox", { name: "Signature format" }));
+    await user.click(await screen.findByRole("option", { name: "HMAC-SHA256 (base64)" }));
+    expect(dialog.getByText(/does not authenticate a timestamp or prevent replay/)).toBeVisible();
+    const header = dialog.getByLabelText("Signature header");
+    expect(dialog.getByRole("button", { name: "Continue" })).toBeDisabled();
+    await user.type(header, "bad header");
+    expect(dialog.getByRole("button", { name: "Continue" })).toBeDisabled();
+    await user.clear(header);
+    await user.type(header, "X-Shopify-Hmac-Sha256");
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.type(dialog.getByLabelText("Message"), "Handle it");
+    await user.click(dialog.getByRole("button", { name: "Create" }));
+    expect(apiClient.post).toHaveBeenCalledWith(
+      `/agents/${AGENT_ID}/triggers`,
+      expect.objectContaining({
+        event_secret: "a-provider-issued-secret",
+        event_config: {
+          signature_scheme: "hmac-sha256-base64",
+          signature_header: "X-Shopify-Hmac-Sha256",
+        },
+      }),
+    );
+  });
+
+  it("does not send webhook signature settings when switching to another source", async () => {
+    const user = userEvent.setup();
+    vi.mocked(apiClient.post).mockResolvedValue(trigger({ event_source: "hubspot" }));
+    const dialog = await openEvent();
+    await user.type(dialog.getByLabelText("Signing secret"), "a-provider-issued-secret");
+    await user.click(dialog.getByRole("combobox", { name: "Signature format" }));
+    await user.click(await screen.findByRole("option", { name: "HMAC-SHA256 (hex)" }));
+    await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
+    await user.click(await screen.findByRole("option", { name: "A HubSpot webhook" }));
+    await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
+    await user.click(await screen.findByRole("option", { name: "API (your own code)" }));
+    expect(dialog.getByRole("button", { name: "Continue" })).toBeDisabled();
+    await user.type(dialog.getByLabelText("Signature header"), "x-signature");
+    await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
+    await user.click(await screen.findByRole("option", { name: "A HubSpot webhook" }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.type(dialog.getByLabelText("Message"), "Handle it");
+    await user.click(dialog.getByRole("button", { name: "Create" }));
+    expect(apiClient.post).toHaveBeenCalledWith(
+      `/agents/${AGENT_ID}/triggers`,
+      expect.objectContaining({ event_source: "hubspot", event_config: undefined }),
+    );
+  });
+
+  it("preserves a saved HMAC configuration on unrelated edits and can switch back to the default", async () => {
+    const user = userEvent.setup();
+    vi.mocked(apiClient.patch).mockResolvedValue(trigger());
+    const configured = trigger({
+      event_source: "webhook",
+      event_config: { signature_scheme: "hmac-sha256-hex", signature_header: "x-signature" },
+    });
+    const { unmount } = render(
+      <TriggerFormDialog agentId={AGENT_ID} open onOpenChange={vi.fn()} trigger={configured} />,
+      { wrapper },
+    );
+    let dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.getByLabelText<HTMLInputElement>("Signature header").value).toBe("x-signature");
+    await user.clear(dialog.getByLabelText("Signature header"));
+    expect(dialog.getByRole("button", { name: "Save" })).toBeDisabled();
+    await user.type(dialog.getByLabelText("Signature header"), "x-signature");
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+    expect(vi.mocked(apiClient.patch).mock.calls.at(-1)?.[1]).not.toHaveProperty("event_config");
+    unmount();
+    vi.mocked(apiClient.patch).mockClear();
+    render(
+      <TriggerFormDialog agentId={AGENT_ID} open onOpenChange={vi.fn()} trigger={configured} />,
+      { wrapper },
+    );
+    dialog = within(await screen.findByRole("dialog"));
+    await user.click(dialog.getByRole("combobox", { name: "Signature format" }));
+    await user.click(await screen.findByRole("option", { name: "Default relay signature" }));
+    expect(dialog.queryByLabelText("Signature header")).toBeNull();
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+    expect(vi.mocked(apiClient.patch).mock.calls.at(-1)?.[1]).toHaveProperty("event_config", {});
+  });
+
+  it("updates the signature header and encoding of an existing webhook", async () => {
+    const user = userEvent.setup();
+    vi.mocked(apiClient.patch).mockResolvedValue(trigger());
+    render(
+      <TriggerFormDialog
+        agentId={AGENT_ID}
+        open
+        onOpenChange={vi.fn()}
+        trigger={trigger({ event_source: "webhook", event_config: {} })}
+      />,
+      { wrapper },
+    );
+    const dialog = within(await screen.findByRole("dialog"));
+    await user.click(dialog.getByRole("combobox", { name: "Signature format" }));
+    await user.click(await screen.findByRole("option", { name: "HMAC-SHA256 (hex)" }));
+    await user.type(dialog.getByLabelText("Signature header"), "X-Custom-Signature");
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+    expect(vi.mocked(apiClient.patch).mock.calls.at(-1)?.[1]).toHaveProperty("event_config", {
+      signature_scheme: "hmac-sha256-hex",
+      signature_header: "X-Custom-Signature",
+    });
+  });
+
   it("offers no schedule/event type switch - the kind is fixed by the entry point", async () => {
     const dialog = await openEvent();
 
@@ -251,7 +364,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     expect(dialog.getByText(/Create a Zendesk webhook pointing at this URL/)).toBeInTheDocument();
   });
 
-  it("uses Linear's secret and shows the URL to paste into Linear", async () => {
+  it("uses a shared Linear secret and shows the webhook URL", async () => {
     const user = userEvent.setup();
     const url = "https://api.example.com/api/v1/webhooks/triggers/linear/t1";
     vi.mocked(apiClient.post).mockResolvedValue(
@@ -262,6 +375,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
     await user.click(await screen.findByRole("option", { name: "A Linear webhook" }));
     expect(dialog.queryByRole("button", { name: "Generate" })).toBeNull();
+    expect(dialog.getByText(/Keep it to create the Linear webhook/)).toBeVisible();
     await user.type(dialog.getByLabelText("Signing secret"), "linear-signing-secret");
     await user.click(dialog.getByRole("button", { name: "Continue" }));
     await user.click(dialog.getByRole("button", { name: "Continue" }));
@@ -274,7 +388,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     );
     const createdDialog = within(await screen.findByRole("dialog", { name: "One more step" }));
     expect(createdDialog.getByLabelText<HTMLInputElement>("Webhook URL").value).toBe(url);
-    expect(createdDialog.getByText(/Paste this URL into Linear/)).toBeInTheDocument();
+    expect(createdDialog.getByText(/Linear API accepts both/)).toBeInTheDocument();
   });
 
   it("does not offer Gmail at all, because this form is the signed-POST one", async () => {
