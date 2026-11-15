@@ -147,7 +147,9 @@ export function SidebarNav({
   const groups = NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter((item) => !item.permission || can(item.permission)),
-  })).filter((group) => group.items.length > 0 && (!group.adminOnly || admin));
+  })).filter(
+    (group) => !group.switcherOnly && group.items.length > 0 && (!group.adminOnly || admin),
+  );
 
   return (
     <nav

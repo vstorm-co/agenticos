@@ -209,18 +209,14 @@ describe("SidebarNav", () => {
     expect(screen.getByRole("button", { name: "connections" })).toBeDisabled();
   });
 
-  it("opens a group somebody opened before", () => {
+  it("leaves organizations and groups to the organization switcher even after an old rail preference", () => {
     can.mockReturnValue(true);
-    currentPath.mockReturnValue("/dashboard");
+    currentPath.mockReturnValue("/orgs/example/members");
     sidebar.openGroups = ["organization"];
-
     renderNav();
-
-    expect(screen.getByRole("link", { name: "groups" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "organization" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
+    expect(screen.queryByRole("link", { name: "groups" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "organizations" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "organization" })).not.toBeInTheDocument();
   });
 
   it("lists the reader's recent projects above all of them, lighting the one open", () => {
