@@ -1465,11 +1465,30 @@ class TestConfigurationAccess:
     @pytest.mark.parametrize(
         "changes", [{"workflow_id": uuid.uuid4()}, {"status": AgentStatus.ARCHIVED.value}]
     )
-    async def test_workflow_and_archived_agents_have_no_standalone_editor(self, changes):
+    async def test_workflow_and_archived_agents_keep_the_listings_resource_access(self, changes):
         ctx = _ctx()
-        assert await AgentRegistryService(_db()).configuration_access(
-            ctx, _agent(ctx, **changes)
-        ) == (False, False)
+        agent = _agent(ctx, **changes)
+        service = AgentRegistryService(_db())
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([agent], 1)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+        ):
+            rows, _total = await service.list_agents(ctx, include_archived=True)
+        assert (
+            (rows[0].can_edit, rows[0].can_publish)
+            == await service.configuration_access(ctx, agent)
+            == (True, True)
+        )
 
     @pytest.mark.anyio
     async def test_the_detail_response_carries_resolved_edit_access(self):

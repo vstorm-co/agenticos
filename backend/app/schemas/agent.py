@@ -367,17 +367,12 @@ class AgentRead(BaseSchema):
 
 
 class AgentDetail(AgentRead):
-    """An agent plus the spec currently being edited."""
+    """An agent plus its draft, with the listing's same resource access hints.
+
+    Views additionally gate configuration by lifecycle and workflow ownership.
+    """
 
     draft_spec: AgentSpec
-    can_edit: bool = Field(
-        default=False,
-        description="Whether this caller may edit this agent's draft, including explicit resource grants.",
-    )
-    can_publish: bool = Field(
-        default=False,
-        description="Whether this caller may publish this agent, including explicit resource grants.",
-    )
 
 
 class AgentCeiling(BaseSchema):

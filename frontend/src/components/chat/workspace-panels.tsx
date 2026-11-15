@@ -76,7 +76,8 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
       before.account !== account ||
       before.organization !== organization ||
       before.agent !== props.agentId ||
-      (before.conversation !== props.conversationId && !adopted)
+      (before.conversation !== props.conversationId && !adopted) ||
+      (surface === "settings" && props.agentId === null)
     )
       close();
   }, [
@@ -86,6 +87,7 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
     props.conversationId,
     props.busy,
     props.loading,
+    surface,
     close,
   ]);
   const access: WorkspaceStartAccess = {

@@ -1411,17 +1411,14 @@ class AgentRegistryService:
             self.db, ctx, agent, Perm.AGENTS_PUBLISH, resource_type=AGENT
         )
 
-    async def configuration_access(
-        self, ctx: AuthContext, agent: Agent
-    ) -> tuple[bool, bool]:
-        """Whether this caller may edit and publish this agent in the console.
+    async def configuration_access(self, ctx: AuthContext, agent: Agent) -> tuple[bool, bool]:
+        """The same caller-specific resource authority returned by the listing.
 
-        Workflow-owned agents are configured by their owning step, and archived
-        agents must be restored before this editor offers work. The per-permission
-        checks also retain the system-agent restrictions enforced on write paths.
+        Lifecycle and workflow ownership decide which configuration controls a
+        particular view offers. They must not erase these permission hints: the
+        full editor and gallery also use edit authority to offer Restore for an
+        archived agent. Every write still checks its own resource and state rules.
         """
-        if agent.workflow_id is not None or agent.status == AgentStatus.ARCHIVED.value:
-            return False, False
         return await self.may_edit(ctx, agent), await self.may_publish(ctx, agent)
 
     async def _visible_scope(

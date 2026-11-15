@@ -24,7 +24,14 @@ export function useChatAgentSettings(agentId: string, readOnly: boolean) {
     fetchedAt: detail.fetchedAt,
     adopt: setSpec,
   });
-  const editable = !readOnly && !detail.error && agent?.can_edit === true && !agent.workflow_id;
+  // Resource authority also enables Restore elsewhere; this pane offers only
+  // standalone, active configuration.
+  const editable =
+    !readOnly &&
+    !detail.error &&
+    agent?.can_edit === true &&
+    !agent.workflow_id &&
+    agent.status !== "archived";
   const dirty = spec !== null && JSON.stringify(spec) !== JSON.stringify(agent?.draft_spec);
   const blocked = !editable || detail.saveDraft.isPending || remote.held || !spec?.name.trim();
 

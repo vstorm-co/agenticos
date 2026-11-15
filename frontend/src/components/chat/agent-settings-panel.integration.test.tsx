@@ -253,7 +253,12 @@ describe("agent settings beside the chat", () => {
     });
   });
 
-  it.each([{ can_edit: false }, { can_edit: undefined }, { workflow_id: "workflow" }])(
+  it.each([
+    { can_edit: false },
+    { can_edit: undefined },
+    { workflow_id: "workflow" },
+    { status: "archived" as const },
+  ])(
     "does not render mutation controls when the resource cannot be edited: %j",
     async (changes) => {
       records["agent-a"] = agent("agent-a", changes);
@@ -384,13 +389,20 @@ describe("agent settings beside the chat", () => {
     expect(await screen.findByRole("textbox", { name: "Name" })).toHaveValue("agent-a");
   });
 
-  it("closes with Escape and can expand without losing the draft", async () => {
+  it("scopes Escape to the pane and can expand without losing the draft", async () => {
+    render(<textarea aria-label="Chat composer" />);
+    const composer = screen.getByRole("textbox", { name: "Chat composer" });
+    composer.focus();
     const view = mount();
     await screen.findByRole("textbox", { name: "Name" });
     await userEvent.click(screen.getByRole("button", { name: "Expand agent settings" }));
     expect(screen.getByRole("complementary")).toHaveAttribute("data-browser-panel", "fullscreen");
     await userEvent.click(screen.getByRole("button", { name: "Dock agent settings" }));
-    fireEvent.keyDown(window, { key: "Escape" });
+    composer.focus();
+    fireEvent.keyDown(composer, { key: "Escape" });
+    expect(view.props.onClose).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Name" }), { key: "Escape" });
     expect(view.props.onClose).toHaveBeenCalledOnce();
+    expect(composer).toHaveFocus();
   });
 });

@@ -42,6 +42,7 @@ function SettingsEditor({ agentId, open, readOnly, onClose }: SettingsPanelProps
     if (!open) return;
     opener.current = document.activeElement;
     closeButton.current?.focus();
+    const panel = closeButton.current?.closest<HTMLElement>("[data-browser-panel]");
     const keydown = (event: KeyboardEvent) => {
       if (
         event.key !== "Escape" ||
@@ -50,13 +51,15 @@ function SettingsEditor({ agentId, open, readOnly, onClose }: SettingsPanelProps
           event.target.closest('[role="dialog"], [role="menu"], [role="listbox"]'))
       )
         return;
+      event.preventDefault();
+      event.stopPropagation();
       onClose();
       if (opener.current instanceof HTMLElement && opener.current.isConnected)
         opener.current.focus();
     };
-    window.addEventListener("keydown", keydown);
+    panel?.addEventListener("keydown", keydown);
     return () => {
-      window.removeEventListener("keydown", keydown);
+      panel?.removeEventListener("keydown", keydown);
     };
   }, [open, onClose]);
   if (!open) return null;

@@ -408,6 +408,23 @@ describe("workspace selection ownership", () => {
       expect(useBrowserPanelStore.getState().surface).toBeNull();
     },
   );
+  it("clears an unavailable settings selection on mount and when opened later", () => {
+    const props = { ...defaults(), agentId: null };
+    useBrowserPanelStore.getState().openSurface("settings");
+    render(<WorkspacePanels {...props} />, { wrapper });
+    expect(useBrowserPanelStore.getState().surface).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open agent settings" })).toBeNull();
+    act(() => useBrowserPanelStore.getState().openSurface("settings"));
+    expect(useBrowserPanelStore.getState().surface).toBeNull();
+  });
+  it("closes settings when the selected agent disappears", () => {
+    const props = defaults();
+    const test = render(<WorkspacePanels {...props} />, { wrapper });
+    act(() => useBrowserPanelStore.getState().openSurface("settings"));
+    expect(useBrowserPanelStore.getState().surface).toBe("settings");
+    test.rerender(<WorkspacePanels {...props} agentId={null} />);
+    expect(useBrowserPanelStore.getState().surface).toBeNull();
+  });
   it("keeps an explicitly opened pane when its first turn gets a conversation ID", async () => {
     const props = { ...defaults(), conversationId: null };
     const test = render(<WorkspacePanels {...props} />, { wrapper });
