@@ -1,5 +1,6 @@
 """Historical policy SQL, disabled rollout state and non-destructive orphan refusal."""
 
+import asyncio
 import importlib.util
 from pathlib import Path
 from uuid import uuid4
@@ -7,7 +8,7 @@ from uuid import uuid4
 import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.db import table_rls
@@ -51,6 +52,25 @@ async def test_historical_sql_installs_exact_policies_without_enabling_them(engi
         assert not (await table_rls.table_rls_state(db)).active
         await table_rls.require_table_policy_inventory(db)
         assert module._POLICIES == table_rls.TENANT_POLICIES
+
+
+async def test_sync_migration_fingerprints_are_accepted_by_the_async_runtime(engine):
+    module = _migration()
+
+    def install_with_sync_driver() -> None:
+        synchronous = create_engine(engine.url.set(drivername="postgresql+psycopg2"))
+        try:
+            with synchronous.begin() as connection:
+                _apply(connection, module, "downgrade")
+                _apply(connection, module, "upgrade")
+        finally:
+            synchronous.dispose()
+
+    # Production Alembic and runtime use different drivers. Internal PostgreSQL
+    # types must not give them different policy representations or fingerprints.
+    await asyncio.to_thread(install_with_sync_driver)
+    async with async_sessionmaker(engine)() as db:
+        await table_rls.require_table_policy_inventory(db)
 
 
 async def test_orphan_tables_grants_abort_before_schema_mutation_and_other_namespaces_survive(
