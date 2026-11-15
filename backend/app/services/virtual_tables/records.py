@@ -276,7 +276,7 @@ def _link_delta_values(
         linked = [target for target in current if target not in removed]
         linked.extend(str(target) for target in change.add if str(target) not in linked)
         if len(linked) > MAX_LINKS:
-            raise InvalidRecordError([(field, f"A cell links at most {MAX_LINKS} records")])
+            raise InvalidRecordError([(field, "This cell exceeds the maximum number of links")])
         if linked != current:
             values[key] = linked
     return values
@@ -1779,12 +1779,12 @@ class RecordOperations(Operations):
         *,
         field_prefix: str = "values",
     ) -> None:
-        """Every record a submitted link names exists in the table it links to, which the
-        writer can see - a link is not a way to learn which ids another table holds.
+        """Require every explicitly submitted link target to be currently visible.
 
         "Can see" is row-level here too: a linked row outside the writer's
         visibility fails with the same message as a missing one, so the error
-        cannot be used as an oracle for which ids the linked table holds.
+        cannot be used as an oracle for which ids the linked table holds. This
+        includes removals and no-ops; only omitted hidden targets are retained.
         """
         problems: list[tuple[str, str]] = []
         for column in columns:
@@ -1832,7 +1832,7 @@ class RecordOperations(Operations):
                 problems.append(
                     (
                         f"{field_prefix}.{column.id}",
-                        f"No record {sorted(missing)[0]} in the linked table",
+                        "No record is available in the linked table",
                     )
                 )
         if problems:
@@ -2012,20 +2012,15 @@ class RecordOperations(Operations):
         before = dict(record.values)
         merged = _merge(columns, values, baseline)
         if link_changes:
-            # Validate only the explicitly named targets, including removals and no-ops.
-            # Do this before applying deltas: a full cell must not distinguish an
-            # already-linked hidden ID from an unknown ID through its limit error.
-            # Internally retained links may be invisible to this writer.
-            await self._check_links(
-                ctx,
-                columns,
-                {
-                    str(column_id): [str(target) for target in [*change.add, *change.remove]]
-                    for column_id, change in link_changes.items()
-                    if change.add or change.remove
-                },
-                field_prefix="link_changes",
-            )
+            # Check explicit intent before applying it or checking cardinality:
+            # hidden membership must not change the error, revision or no-op result.
+            submitted: dict[str, CellValue] = {
+                str(column_id): [str(target) for target in [*change.add, *change.remove]]
+                for column_id, change in link_changes.items()
+                if change.add or change.remove
+            }
+            if submitted:
+                await self._check_links(ctx, columns, submitted, field_prefix="link_changes")
             merged = _merge(columns, _link_delta_values(columns, baseline, link_changes), merged)
         merged = await normalize_task_cells(self.db, ctx.organization_id, table.id, merged)
         # A submitted ID needs current Read even when it is already linked or

@@ -20,6 +20,7 @@ from app.services.virtual_tables.exceptions import (
     RevisionConflictError,
 )
 from app.services.virtual_tables.records import RecordOperations
+from app.services.virtual_tables.types import MAX_LINKS
 
 pytestmark = pytest.mark.anyio
 
@@ -146,7 +147,7 @@ async def test_a_delta_preserves_hidden_targets_and_writes_one_revision_history_
     )
     assert state.row.values == {str(LINK): [str(HIDDEN), str(ADDED)], str(TEXT): "After"}
     assert state.row.revision == 2
-    assert state.queried.await_args.args[1] == [ADDED, VISIBLE]
+    assert [args.args[1] for args in state.queried.await_args_list] == [[ADDED, VISIBLE]]
     state.written.assert_awaited_once()
     state.history.assert_awaited_once()
     assert state.history.await_args.kwargs["revision"] == 2
@@ -209,13 +210,13 @@ async def test_hidden_and_missing_explicit_targets_are_refused_identically(
             state.row,
             {str(TEXT): "Must not land"},
             1,
-            link_changes={LINK: RecordLinkChange.model_validate({operation: [target]})},
+            link_changes={LINK: RecordLinkChange(**{operation: [target]})},
         )
     assert refused.value.details == {
         "fields": [
             {
                 "field": f"link_changes.{LINK}",
-                "message": f"No record {target} in the linked table",
+                "message": "No record is available in the linked table",
             }
         ]
     }
@@ -223,6 +224,67 @@ async def test_hidden_and_missing_explicit_targets_are_refused_identically(
     state.written.assert_not_awaited()
     state.history.assert_not_awaited()
     state.outbox.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("target", [HIDDEN, UUID("00000000-0000-4000-8000-000000000099")])
+@pytest.mark.parametrize("was_linked", [False, True])
+async def test_removing_an_unavailable_target_does_not_reveal_stored_membership(
+    linked, target, was_linked
+):
+    state = linked
+    original = [str(VISIBLE), *([str(target)] if was_linked else [])]
+    state.row.values[str(LINK)] = original
+    with pytest.raises(InvalidRecordError) as refused:
+        await state.service._apply(
+            state.ctx,
+            state.source,
+            state.row,
+            {},
+            1,
+            link_changes={LINK: RecordLinkChange(remove=[target])},
+        )
+    assert refused.value.details == {
+        "fields": [
+            {
+                "field": f"link_changes.{LINK}",
+                "message": "No record is available in the linked table",
+            }
+        ]
+    }
+    assert state.row.values == {str(LINK): original, str(TEXT): "Before"}
+    assert state.row.revision == 1
+    state.written.assert_not_awaited()
+    state.history.assert_not_awaited()
+    state.outbox.assert_not_awaited()
+
+
+async def test_link_limit_error_does_not_reveal_hidden_link_count(linked):
+    state = linked
+    state.row.values[str(LINK)] = [str(HIDDEN), str(VISIBLE)] + [
+        str(uuid4()) for _ in range(MAX_LINKS - 2)
+    ]
+
+    with pytest.raises(InvalidRecordError) as refused:
+        await state.service._apply(
+            state.ctx,
+            state.source,
+            state.row,
+            {str(TEXT): "Must not land"},
+            1,
+            link_changes={LINK: RecordLinkChange(add=[ADDED])},
+        )
+
+    assert refused.value.details == {
+        "fields": [
+            {
+                "field": f"link_changes.{LINK}",
+                "message": "This cell exceeds the maximum number of links",
+            }
+        ]
+    }
+    assert state.row.revision == 1 and state.row.values[str(TEXT)] == "Before"
+    state.written.assert_not_awaited()
 
 
 @pytest.mark.security
