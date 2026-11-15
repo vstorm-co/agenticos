@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+MAX_ROUTINE_ACTIONS = 1000
+
 ActionName = Annotated[str, StringConstraints(min_length=1, max_length=128)]
 
 
@@ -51,13 +53,17 @@ type RoutineConsent = RoutineActionConsent | RoutineMcpActionConsent
 class RoutineActions(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    actions: list[RoutineAction] = Field(default_factory=list, max_length=100)
+    actions: list[RoutineAction] = Field(default_factory=list, max_length=MAX_ROUTINE_ACTIONS)
     review_token: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
 class RoutineActionOption(RoutineActionKey):
     name: str
     consented: bool
+    previously_consented: bool = Field(
+        default=False,
+        description="Previously selected by this owner; not current authority or automatic consent.",
+    )
     waivable: bool
 
 
@@ -66,13 +72,22 @@ class RoutineMcpActionOption(RoutineMcpActionKey):
     account_name: str
     account_scope: Literal["personal", "organization"]
     consented: bool
+    previously_consented: bool = Field(
+        default=False,
+        description="Previously selected by this owner; not current authority or automatic consent.",
+    )
     waivable: bool
 
 
 type RoutineOption = RoutineActionOption | RoutineMcpActionOption
 
 
+type RoutineReviewChange = Literal["version", "intent", "instructions", "actions"]
+
+
 class RoutineActionOptions(BaseModel):
+    max_actions: int = MAX_ROUTINE_ACTIONS
+    review_changes: list[RoutineReviewChange] = Field(default_factory=list)
     can_waive: bool
     review_token: str
     items: list[RoutineOption]

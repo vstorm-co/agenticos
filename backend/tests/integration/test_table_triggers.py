@@ -8,6 +8,7 @@ pauses, and that a chain of runs writing into each other's tables stops at the
 trigger it already passed.
 """
 
+import asyncio
 import json
 import uuid
 from collections.abc import AsyncGenerator, AsyncIterator
@@ -30,7 +31,7 @@ from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.organization import Organization, OrganizationMember
-from app.db.models.resource_grant import Visibility
+from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.user import User
 from app.db.models.virtual_table import (
     VirtualTableOutbox,
@@ -45,6 +46,7 @@ from app.db.models.virtual_table_trigger import (
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_run import WorkflowRun, WorkflowRunStatus, WorkflowRunTrigger
 from app.main import app
+from app.repositories import resource_grant_repo
 from app.schemas.virtual_table import (
     ColumnInput,
     OptionInput,
@@ -57,6 +59,7 @@ from app.schemas.virtual_table import (
 )
 from app.schemas.virtual_table_trigger import TableTriggerUpdate
 from app.schemas.workflow import WorkflowPublish
+from app.services.access import TABLE
 from app.services.virtual_tables import triggers
 from app.services.virtual_tables.exceptions import SchemaDependencyError
 from app.services.virtual_tables.facade import VirtualTableService
@@ -67,6 +70,7 @@ from app.services.virtual_tables.triggers import (
     TableTriggerService,
 )
 from app.services.workflow_execution.exceptions import (
+    WorkflowArchivedError,
     WorkflowBudgetReachedError,
     WorkflowRunInputTooLargeError,
 )
@@ -1292,6 +1296,140 @@ async def test_table_trigger_rechecks_current_app_admin_authority(world):
         user.is_app_admin = False
         await db.flush()
         assert await consumer._fire_context(trigger, table) is None
+
+
+async def _table_editor(world: _World) -> AuthContext:
+    """A member who may edit the Leads table through a grant, and nothing else."""
+    async with world.factory() as db:
+        member = User(
+            id=uuid.uuid4(), email=f"{uuid.uuid4().hex}@x.com", hashed_password="x", is_active=True
+        )
+        db.add(member)
+        await db.flush()
+        db.add(
+            OrganizationMember(
+                id=uuid.uuid4(), organization_id=world.org.id, user_id=member.id, role="member"
+            )
+        )
+        await resource_grant_repo.upsert(
+            db,
+            organization_id=world.org.id,
+            subject_user_id=member.id,
+            resource_type=TABLE.key,
+            resource_id=world.leads.id,
+            level=GrantLevel.EDIT,
+        )
+        await db.commit()
+    return AuthContext(user_id=member.id, organization_id=world.org.id, role="member")
+
+
+@pytest.mark.security
+async def test_a_table_editor_pauses_but_cannot_resume_a_private_workflows_trigger(world):
+    workflow = await world.workflow()
+    async with world.factory() as db:
+        await db.execute(
+            update(Workflow)
+            .where(Workflow.id == workflow.id)
+            .values(visibility=Visibility.PRIVATE.value)
+        )
+        await db.commit()
+    trigger_id = await world.trigger(workflow)
+    editor = await _table_editor(world)
+
+    async with world.factory() as db:
+        service = TableTriggerService(db)
+        paused = await service.set_active(
+            editor, world.leads.id, trigger_id, TableTriggerUpdate(is_active=False)
+        )
+        await db.commit()
+        assert paused.is_active is False
+        with pytest.raises(NotFoundError):
+            await service.set_active(
+                editor, world.leads.id, trigger_id, TableTriggerUpdate(is_active=True)
+            )
+    async with world.factory() as db:
+        stored = await db.get(VirtualTableTrigger, trigger_id)
+        assert stored is not None and stored.is_active is False
+
+    await world.pause(trigger_id, active=True)
+    async with world.factory() as db:
+        stored = await db.get(VirtualTableTrigger, trigger_id)
+        assert stored is not None and stored.is_active is True
+
+
+async def test_a_trigger_of_an_archived_workflow_is_not_resumed_from_the_table(world):
+    workflow = await world.workflow()
+    trigger_id = await world.trigger(workflow)
+    await world.pause(trigger_id)
+    async with world.factory() as db:
+        await db.execute(
+            update(Workflow)
+            .where(Workflow.id == workflow.id)
+            .values(status=WorkflowStatus.ARCHIVED.value)
+        )
+        await db.commit()
+
+    with pytest.raises(WorkflowArchivedError):
+        await world.pause(trigger_id, active=True)
+    async with world.factory() as db:
+        stored = await db.get(VirtualTableTrigger, trigger_id)
+        assert stored is not None and stored.is_active is False
+
+
+async def test_a_resume_waits_for_an_archive_in_flight_and_then_refuses(world):
+    workflow = await world.workflow()
+    trigger_id = await world.trigger(workflow)
+    await world.pause(trigger_id)
+
+    async with world.factory() as archiving:
+        await WorkflowRegistryService(archiving).archive(world.ctx, workflow.id)
+        resume = asyncio.create_task(world.pause(trigger_id, active=True))
+        await asyncio.sleep(0.5)
+        assert not resume.done()
+        await archiving.commit()
+
+    with pytest.raises(WorkflowArchivedError):
+        await asyncio.wait_for(resume, timeout=10)
+    async with world.factory() as db:
+        stored = await db.get(VirtualTableTrigger, trigger_id)
+        assert stored is not None and stored.is_active is False
+
+
+async def test_a_resume_after_a_pause_it_read_too_early_still_switches_it_on(world):
+    trigger_id = await world.trigger()
+
+    async with world.factory() as db:
+        service = TableTriggerService(db)
+        early = await service._trigger(world.ctx, world.leads.id, trigger_id)
+        assert early.is_active is True
+        await world.pause(trigger_id)
+        await service.set_active(
+            world.ctx, world.leads.id, trigger_id, TableTriggerUpdate(is_active=True)
+        )
+        await db.commit()
+
+    async with world.factory() as db:
+        stored = await db.get(VirtualTableTrigger, trigger_id)
+        assert stored is not None and stored.is_active is True
+
+
+@pytest.mark.security
+async def test_resuming_from_the_table_needs_the_right_to_run_the_workflow(world):
+    trigger_id = await world.trigger()
+    await world.pause(trigger_id)
+    real = triggers.resolve_access
+
+    async def without_run(db, ctx, resource, perm, **kwargs):
+        return perm is not Perm.WORKFLOWS_RUN and await real(db, ctx, resource, perm, **kwargs)
+
+    with (
+        patch.object(triggers, "resolve_access", new=without_run),
+        pytest.raises(AuthorizationError),
+    ):
+        await world.pause(trigger_id, active=True)
+    async with world.factory() as db:
+        stored = await db.get(VirtualTableTrigger, trigger_id)
+        assert stored is not None and stored.is_active is False
 
 
 @pytest.mark.security

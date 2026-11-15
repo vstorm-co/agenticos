@@ -29,6 +29,7 @@ async function start(deployment: "local" | "server", notice: string | null, pend
     if (command === "onboarding_state")
       return { deployment, server_url: "https://example.com/", local_setup_pending: pending };
     if (command === "startup_notice") return notice;
+    if (command === "set_onboarding_language") return undefined;
     throw new Error(`Unexpected startup command: ${command}`);
   });
   Object.defineProperty(window, "__TAURI__", {

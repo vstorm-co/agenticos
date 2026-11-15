@@ -1,0 +1,37 @@
+.heading {
+  margin-bottom: 28px;
+}
+.workspaceCard {
+  min-height: 390px;
+}
+.workspaceRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 56px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  padding: 10px 16px;
+}
+.profileCard {
+  min-height: 450px;
+}
+.taskCanvas {
+  min-width: 0;
+  min-height: 460px;
+  padding: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-card);
+}
+.welcome {
+  min-height: 390px;
+}
+.still {
+  animation: none !important;
+}
+
+.decorative {
+  pointer-events: none;
+  user-select: none;
+}

@@ -283,6 +283,8 @@ services:
       - OIDC_ICON=${OIDC_ICON:-}
       - LDAP_DISPLAY_NAME=${LDAP_DISPLAY_NAME:-}
       - KERBEROS_DISPLAY_NAME=${KERBEROS_DISPLAY_NAME:-}
+      # Distinct session cookie names, for a second deployment on the same host name.
+      - SESSION_COOKIE_NAMESPACE=${SESSION_COOKIE_NAMESPACE:-}
       # `instrumentation.ts` registers an OpenTelemetry SDK on every boot, and
       # `@vercel/otel` off Vercel takes its exporter from these two - so without
       # them the frontend's server-side spans are built and dropped in-process.
@@ -470,10 +472,13 @@ services:
       # alive; it did not make them readable.
       #
       # `/tmp` rather than the `/var/lib` of the server files: it is shared by
-      # Docker Desktop by default, so this works on a laptop with no host setup,
-      # and it is world-writable, so the service's uid 10001 needs no `install
-      # -d -o`. The cost is that a reboot sweeps it - fine for local dev, wrong
-      # for a host somebody's work lives on. See docker-compose-prod.yml.
+      # Docker Desktop by default, so this works on a laptop with no host setup.
+      # `make dev` creates it world-writable first (`sandbox-workspace`): left to
+      # the daemon, a missing bind source is created as root:root 755 on Linux
+      # and under Docker Desktop's WSL integration, which the service's uid
+      # 10001 cannot write. The cost is that a reboot sweeps it - fine for local
+      # dev, wrong for a host somebody's work lives on. See
+      # docker-compose-prod.yml.
       SANDBOXD_WORKSPACE_ROOT: ${SANDBOX_WORKSPACE_ROOT:-/tmp/agenticos-sandbox-workspaces}
       # Which environments an agent may ask for. **Generated - do not edit here.**
       # `make sandbox-runtimes` writes it from

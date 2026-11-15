@@ -9,7 +9,9 @@ closes all of it, so that every way a run ends does the same:
   so nothing starts it;
 - a pending `human.approval` request is closed, so nobody decides it for nothing;
 - the agent run a step parked on is stopped (`AgentRunnerService.stop_parked_for_workflow`);
-- the step moves to `cancelled`, with a `node.cancelled` event.
+- the step moves to `cancelled`, with a `node.cancelled` event;
+- a run its steps called, and every run those called, is cancelled the same way when
+  the run is cancelled or runs out of budget (`stop_called_runs`).
 
 An attempt already executing is not interrupted: it settles on its own, and
 `dispatcher.settle` records what it did without advancing the run. A step that parks
@@ -19,6 +21,8 @@ Lock order: every caller already holds the organization's advisory locks and the
 row. The agent run's row is locked after them, and no path locks an agent run and then
 waits for a workflow run - an approval decision wakes the workflow run after its commit.
 Several parked agent runs are claimed in id order and audited only after the last claim.
+A called run is locked after its caller, which is the reverse of the order
+`delivery.wake_caller` takes, so it is never waited for (`stop_called_runs`).
 """
 
 from collections.abc import Sequence
@@ -28,11 +32,11 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.workflow_run import NodeRun, NodeRunStatus, WorkflowRun
+from app.db.models.workflow_run import NodeRun, NodeRunStatus, WorkflowRun, WorkflowRunStatus
 from app.repositories import background_job as background_job_repo
 from app.repositories import workflow_approval as workflow_approval_repo
 from app.repositories import workflow_run as workflow_run_repo
-from app.services.workflow_execution import events
+from app.services.workflow_execution import delivery, events
 from app.worker.jobs import WORKFLOW_DISPATCH_NODE
 
 if TYPE_CHECKING:
@@ -140,6 +144,43 @@ async def stop_run_work(db: AsyncSession, *, run: WorkflowRun, now: datetime) ->
     live = await workflow_run_repo.list_live_node_runs(db, workflow_run_id=run.id)
     await _cancel_nodes(db, run=run, node_runs=live, now=now)
     return live
+
+
+async def stop_called_runs(db: AsyncSession, *, run: WorkflowRun, now: datetime) -> None:
+    """Cancel every unfinished run `run` called, and every run those called in turn.
+
+    The caller holds `run`'s lock and has already ended it, so a called run that
+    reports its result finds nobody waiting. One whose own dispatch holds its row at
+    this moment is skipped rather than waited for: that dispatch may be waiting on
+    `run`'s lock to wake it, and it stops before its next step, because its caller
+    is stopped (`dispatcher._principal_context`). The runs it called are still found
+    and cancelled here.
+    """
+    # A failed intermediate can leave live descendants. Traverse it without
+    # changing its terminal outcome, so an ancestor cancellation still reaches them.
+    frontier = [run.id]
+    while frontier:
+        frontier = await workflow_run_repo.list_called_run_ids(
+            db, workflow_run_ids=frontier, organization_id=run.organization_id
+        )
+        for run_id in frontier:
+            child = await workflow_run_repo.try_lock_run(
+                db, run_id, organization_id=run.organization_id
+            )
+            if child is None or WorkflowRunStatus(child.status).is_terminal:
+                continue
+            await stop_run_work(db, run=child, now=now)
+            child = await workflow_run_repo.update_run(
+                db,
+                run=child,
+                update_data={
+                    "status": WorkflowRunStatus.CANCELLED.value,
+                    "ended_at": now,
+                    "paused_reason": None,
+                },
+            )
+            await events.append(db, run=child, kind=events.EventKind.RUN_CANCELLED)
+            await delivery.deliver_result(db, run=child)
 
 
 async def withdraw_late_wait(

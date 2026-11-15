@@ -1,5 +1,5 @@
 ---
-source_sha: "6be4e8d3a870"
+source_sha: "f0b3009ed75d"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -10,6 +10,10 @@ source_sha: "6be4e8d3a870"
     i każdy klucz API strony trzeciej na tej platformie przechodzi przez
     `app/core/vault.py`. Dodanie drugiego sposobu przechowywania poświadczenia
     w spoczynku to defekt, który usunęły dwie migracje.
+
+## W konsoli { #in-the-console }
+
+Vault pokazuje klucze, Twoje połączone konta i konta organizacji w jednej tabeli. **Dodaj klucz** zapisuje poświadczenie; **Połącz konto** pozwala wybrać konto własne lub, z odpowiednim uprawnieniem, konto organizacji. Każdy wiersz zachowuje własny dostęp i akcje: udostępnianie lub rotację klucza albo ponowne połączenie lub odłączenie konta. Tokeny OAuth pozostają ukryte, a odłączenie konta wymaga potwierdzenia.
 
 ## Szyfrowanie kopertowe { #envelope-encryption }
 
@@ -379,7 +383,7 @@ wciąż istnieje. Przepieczętowywany jest tylko opakowany klucz danych — ład
 pozostają nietknięte i to właśnie czyni rotację tanią.
 
 ```bash
-uv run agenticos cmd doctor    # reports whether a vault key is configured at all
+uv run agenticos cmd doctor    # says whether a dedicated key or the SECRET_KEY fallback seals the vault
 ```
 
 `make platform-bootstrap BOOTSTRAP_API_KEY=sk-...` zapisuje za ciebie pierwszy

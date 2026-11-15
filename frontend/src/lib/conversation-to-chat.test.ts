@@ -357,7 +357,7 @@ describe("a replayed turn whose run was stopped", () => {
 
   it("marks only a cancelled run", () => {
     // A completed run needs no marker; a run still going has no answer on screen
-    // to mark; a failed one already says so through the error frame.
+    // to mark; a failed one has its own persisted failure marker.
     for (const status of ["completed", "running", "failed", "budget_exceeded", null]) {
       expect(conversationMessageToChatMessage(raw({ run_status: status })).wasStopped).toBe(false);
     }
@@ -498,6 +498,23 @@ it("preserves the parent run start instead of using the segment save time", () =
   expect(converted.runStartedAt?.toISOString()).toBe("2026-11-05T18:11:13.000Z");
 });
 
+it("replays a persisted setup reply with its original agent and configuration card", () => {
+  const message = conversationMessageToChatMessage(
+    raw({
+      agent_id: "starter",
+      content: "Connect a model.",
+      parts: [
+        { type: "text", text: "Connect a model." },
+        { type: "model_setup", setup_agent_id: "starter" },
+      ],
+    }),
+  );
+  expect(message.agentId).toBe("starter");
+  expect(message.runId).toBeUndefined();
+  expect(message.parts?.map((part) => part.type)).toEqual(["text", "model_setup"]);
+  expect(message.parts?.[1]?.setupAgentId).toBe("starter");
+});
+
 it("keeps renderer identity when rebuilding a saved or run-timeline turn", () => {
   const message = conversationMessageToChatMessage(
     raw({
@@ -520,3 +537,36 @@ it("keeps renderer identity when rebuilding a saved or run-timeline turn", () =>
     presentation_kind: "draft",
   });
 });
+
+it("restores a failed turn's state and safe cause after reloading", () => {
+  const message = conversationMessageToChatMessage(
+    raw({
+      run_status: "failed",
+      run_error: "The model provider blocked this response with its content filter.",
+    }),
+  );
+  expect(message.runFailed).toBe(true);
+  expect(message.runError).toContain("content filter");
+});
+
+it("marks a failed turn even when no detailed cause is available", () => {
+  const message = conversationMessageToChatMessage(raw({ run_status: "failed", run_error: null }));
+  expect(message.runFailed).toBe(true);
+  expect(message.runError).toBeUndefined();
+});
+
+it("does not show a stale failure on a completed turn", () => {
+  const message = conversationMessageToChatMessage(
+    raw({ run_status: "completed", run_error: "old failure" }),
+  );
+  expect(message.runFailed).toBe(false);
+  expect(message.runError).toBeUndefined();
+});
+
+for (const status of ["budget_exceeded", "guardrail_blocked", "loop_stopped"]) {
+  it(`keeps the failure notice after reloading a ${status} turn`, () => {
+    const message = conversationMessageToChatMessage(raw({ run_status: status }));
+    expect(message.runFailed).toBe(true);
+    expect(message.wasStopped).toBe(false);
+  });
+}

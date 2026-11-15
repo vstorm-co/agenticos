@@ -85,11 +85,16 @@ export function IngestionDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!isSaving) onOpenChange(next);
+      }}
+    >
       {/* Header and footer stay put; only the settings scroll. Save is the way
           out of a long form and must not be the thing that scrolls away. Wide
           because the settings form lays its fields out in columns. */}
-      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
+      <DialogContent dismissible={!isSaving} className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
         <DialogHeader>
           <DialogTitle>{t("ingestionSettings")}</DialogTitle>
           <DialogDescription>
@@ -111,7 +116,12 @@ export function IngestionDialog({
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isSaving}
+            onClick={() => onOpenChange(false)}
+          >
             {t("cancel2")}
           </Button>
           <Button type="button" onClick={handleSave} disabled={!canSave || isSaving}>

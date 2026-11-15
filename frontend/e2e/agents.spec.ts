@@ -329,6 +329,15 @@ test.describe("Agents", () => {
     // there. Everything below the click — the spec the Builder assembles, the
     // draft the API stores, the spec it hands back — is only exercised here.
     const tool = await openToolRow(page);
+    const settingsPanel = page.getByRole("group", { name: CAPABILITY_WITH_TOOLS, exact: true });
+    await settingsPanel.getByRole("tab", { name: "Settings", exact: true }).click();
+    const approval = settingsPanel.getByRole("combobox", { name: "Human approval" });
+    if (!(await approval.textContent())?.includes("Never ask")) {
+      await approval.click();
+      await page.getByRole("option", { name: "Never ask", exact: true }).click();
+      await saveDraft(page);
+    }
+    await settingsPanel.getByRole("tab", { name: "Tools", exact: true }).click();
 
     // Establish the starting state rather than assume it. This test asserts on
     // a *transition* — an unsaved change appearing — so it needs the override
@@ -343,7 +352,7 @@ test.describe("Agents", () => {
     }
 
     await tool.getByRole("combobox").click();
-    await page.getByRole("option", { name: "Always ask" }).click();
+    await page.getByRole("option", { name: "Always ask", exact: true }).click();
     await expect(tool.getByText("overridden")).toBeVisible();
 
     // Only then is there anything to save: the badge in the title is the
@@ -372,7 +381,7 @@ test.describe("Agents", () => {
     const panel = page.getByRole("group", { name: CAPABILITY_WITH_TOOLS, exact: true });
     await panel.getByRole("tab", { name: "Settings", exact: true }).click();
 
-    await expect(panel.getByLabel("Human approval")).toContainText("Follow the capability");
+    await expect(panel.getByLabel("Human approval")).toContainText("Never ask");
   });
 
   test("a tool renamed for one agent sticks, and the code default can be had back", async ({

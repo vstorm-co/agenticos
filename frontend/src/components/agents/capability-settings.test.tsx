@@ -38,7 +38,8 @@ vi.mock("./council-members-field", () => ({
 // name or a kind, and a stub that ignored them would assert against a message no
 // reader ever sees.
 const words = (key: string, values?: Record<string, string>): string => {
-  const message = (en.agents as Record<string, string>)[key] ?? key;
+  const found = (en.agents as Record<string, unknown>)[key];
+  const message = typeof found === "string" ? found : key;
   return Object.entries(values ?? {}).reduce(
     (filled, [name, value]) => filled.replaceAll(`{${name}}`, value),
     message,
@@ -302,6 +303,22 @@ describe("CapabilitySettings", () => {
 
     expect(screen.getByText(/because this capability only reads/)).toBeInTheDocument();
     expect(screen.getByText(/Choose Always ask if a person should see/)).toBeInTheDocument();
+  });
+
+  it("shows legacy default as Never ask without rewriting it and offers only two capability choices", async () => {
+    const onChange = vi.fn();
+    render(
+      <CapabilitySettings
+        catalog={[KNOWLEDGE]}
+        selected={[binding("knowledge")]}
+        onChange={onChange}
+      />,
+    );
+    expect(screen.getByLabelText("Human approval")).toHaveTextContent("Never ask");
+    expect(onChange).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByLabelText("Human approval"));
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    expect(screen.queryByRole("option", { name: "Follow the capability" })).not.toBeInTheDocument();
   });
 
   it("records the approval mode that was chosen", async () => {

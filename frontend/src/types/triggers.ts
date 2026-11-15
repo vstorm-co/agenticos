@@ -251,3 +251,22 @@ export interface TriggerUpdate {
   local_target?: LocalTarget | null;
   event_config?: Record<string, unknown>;
 }
+
+/** An activation that stopped before creating an agent run; no model cost. */
+export interface TriggerAttempt {
+  id: string;
+  activation_id: string;
+  status: "blocked" | "failed";
+  stage: "source_review" | "preparation";
+  reason:
+    | "platform_identity_required"
+    | "source_review_required"
+    | "agent_unavailable"
+    | "preparation_failed";
+  occurred_at: string;
+}
+
+export interface TriggerAttemptList {
+  items: TriggerAttempt[];
+  total: number;
+}

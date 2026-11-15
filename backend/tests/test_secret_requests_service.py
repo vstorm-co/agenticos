@@ -584,6 +584,90 @@ async def test_decline_refuses_a_run_that_is_not_waiting() -> None:
 
 
 @pytest.mark.security
+async def test_decline_refuses_a_workflow_run() -> None:
+    service = _service()
+    run = _run(surface="workflow")
+    with (
+        patch(
+            "app.services.secret_requests.agent_run_repo.claim_parked_run",
+            AsyncMock(return_value=run),
+        ),
+        patch(
+            "app.services.secret_requests.secret_request_repo.claim",
+            AsyncMock(return_value=_request()),
+        ),
+        pytest.raises(BadRequestError, match="through its workflow"),
+    ):
+        await service.decline(_ctx(), RUN_ID, REQUEST_ID)
+
+
+@pytest.mark.security
+async def test_decline_refuses_while_an_approval_is_still_pending() -> None:
+    service = _service()
+    run = _run(status=RunStatus.AWAITING_APPROVAL.value)
+    pending = MagicMock(status=ApprovalStatus.PENDING.value)
+    with (
+        patch(
+            "app.services.secret_requests.agent_run_repo.claim_parked_run",
+            AsyncMock(return_value=run),
+        ),
+        patch(
+            "app.services.secret_requests.secret_request_repo.claim",
+            AsyncMock(return_value=_request()),
+        ),
+        patch(
+            "app.services.secret_requests.agent_run_repo.list_approvals_for_run",
+            AsyncMock(return_value=[pending]),
+        ),
+        pytest.raises(BadRequestError, match="Decide the run's approvals"),
+    ):
+        await service.decline(_ctx(), RUN_ID, REQUEST_ID)
+
+
+@pytest.mark.security
+async def test_decline_refuses_an_api_key_on_a_person_started_run() -> None:
+    service = _service()
+    keyed = replace(_ctx(), api_key_id=uuid.uuid4(), key_scopes=frozenset(Perm))
+    with (
+        patch(
+            "app.services.secret_requests.agent_run_repo.claim_parked_run",
+            AsyncMock(return_value=_run()),
+        ),
+        patch(
+            "app.services.secret_requests.secret_request_repo.claim",
+            AsyncMock(return_value=_request()),
+        ),
+        pytest.raises(AuthorizationError, match="not with an API key"),
+    ):
+        await service.decline(keyed, RUN_ID, REQUEST_ID)
+
+
+@pytest.mark.security
+async def test_decline_refuses_an_api_key_without_the_run_scope() -> None:
+    service = _service()
+    run = _run(user_id=None)
+    keyed = AuthContext(
+        user_id=None,
+        organization_id=ORG_ID,
+        role=OrgRoleName.OWNER,
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset(),
+    )
+    with (
+        patch(
+            "app.services.secret_requests.agent_run_repo.claim_parked_run",
+            AsyncMock(return_value=run),
+        ),
+        patch(
+            "app.services.secret_requests.secret_request_repo.claim",
+            AsyncMock(return_value=_request()),
+        ),
+        pytest.raises(AuthorizationError, match="may not run agents"),
+    ):
+        await service.decline(keyed, RUN_ID, REQUEST_ID)
+
+
+@pytest.mark.security
 async def test_decline_declines_a_pending_sibling_with_the_run() -> None:
     service = _service()
     run = _run()

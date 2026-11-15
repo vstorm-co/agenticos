@@ -35,6 +35,7 @@ from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
 from app.db.models.agent_run import AgentRun
+from app.db.models.api_key import ApiKey
 from app.db.models.conversation import Conversation, Message
 from app.db.models.credential import ModelProfile
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
@@ -691,12 +692,15 @@ async def test_each_uploaded_file_is_converted_summarised_totalled_and_filed_int
     upsert = _node("table.record.upsert", _pin(batches))
     collect = _node("loop.yield")
     report = _node("core.output")
+    item, convert, read, shape, total, summarise, upsert, collect = (
+        n.model_copy(update={"scope_id": loop.id})
+        for n in (item, convert, read, shape, total, summarise, upsert, collect)
+    )
     graph = WorkflowGraph(
         entry_node_id=entry.id,
         nodes=(entry, loop, item, convert, read, shape, total, summarise, upsert, collect, report),
         edges=(
             _edge(entry, loop),
-            _edge(loop, item, "body"),
             *_chain(item, convert, read, shape, total, summarise, upsert, collect),
             _edge(loop, report, "done"),
         ),
@@ -882,10 +886,12 @@ async def test_a_member_who_loses_access_halfway_stops_the_journey_before_the_wr
     assert json.dumps(run.error or {}).find("ada@example.com") == -1
 
 
-@pytest.mark.parametrize("revoked", [False, True])
+@pytest.mark.parametrize("since", ["nothing", "expired", "revoked"])
 async def test_a_key_started_workflow_keeps_its_scope_ceiling_and_stops_after_revocation(
-    world: _World, mock_redis: MagicMock, revoked: bool
+    world: _World, mock_redis: MagicMock, since: str
 ) -> None:
+    """A key that expires while its run is under way does not stop it; revoking it does."""
+    revoked = since == "revoked"
     entry, output = _node("core.input"), _node("core.output")
     graph = WorkflowGraph(
         entry_node_id=entry.id,
@@ -925,6 +931,13 @@ async def test_a_key_started_workflow_keeps_its_scope_ceiling_and_stops_after_re
             if revoked:
                 await ApiKeyService(db).revoke(world.ctx, run.execution_api_key_id)
                 await db.commit()
+            if since == "expired":
+                await db.execute(
+                    update(ApiKey)
+                    .where(ApiKey.id == run.execution_api_key_id)
+                    .values(expires_at=datetime.now(UTC) - timedelta(minutes=1))
+                )
+                await db.commit()
         final = await drive(await world.seeded(run_id, graph))
         if revoked:
             assert final.status == WorkflowRunStatus.FAILED.value
@@ -932,5 +945,7 @@ async def test_a_key_started_workflow_keeps_its_scope_ceiling_and_stops_after_re
         else:
             assert final.status == WorkflowRunStatus.SUCCEEDED.value, final.error
             read = await client.get(f"{settings.API_V1_STR}/workflow-runs/{run_id}")
-            assert read.status_code == 200, read.text
-            assert read.json()["output"]["text"] == "Finished through the public API"
+            # The run finished; an expired key still cannot ask for anything new.
+            assert read.status_code == (401 if since == "expired" else 200), read.text
+            if since == "nothing":
+                assert read.json()["output"]["text"] == "Finished through the public API"

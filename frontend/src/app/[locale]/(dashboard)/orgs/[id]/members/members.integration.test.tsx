@@ -390,6 +390,14 @@ describe("the members table's role control", () => {
 });
 
 describe("organization settings tabs", () => {
+  it("keeps setup hint controls outside the tablist's interaction model", async () => {
+    serve("owner");
+    await mount();
+    const list = screen.getByRole("tablist");
+    expect(within(list).getAllByRole("tab").length).toBeGreaterThan(1);
+    expect(within(list).queryByRole("button")).not.toBeInTheDocument();
+  });
+
   it("shows members by default and preserves a profile draft while switching tabs", async () => {
     serve("owner");
     await mount();

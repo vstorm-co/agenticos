@@ -117,9 +117,9 @@ describe("an address in the text", () => {
     expect(github).toHaveAttribute("href", "https://github.com/vstorm-co/agenticos");
     expect(github).toHaveTextContent("github.com/vstorm-co/agenticos");
     expect(github).toHaveAttribute("rel", "noopener noreferrer");
-    // A site with no bundled mark asks for its own favicon, and shows a globe when it has none.
+    // A site with no bundled mark asks the same-origin icon proxy, and shows a globe when it has none.
     const icon = example!.querySelector("img")!;
-    expect(icon).toHaveAttribute("src", "https://example.org/favicon.ico");
+    expect(icon).toHaveAttribute("src", "/api/link-icon?host=example.org");
     expect(icon).toHaveAttribute("referrerpolicy", "no-referrer");
     fireEvent.error(icon);
     expect(example!.querySelector("img")).toBeNull();

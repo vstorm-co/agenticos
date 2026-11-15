@@ -37,6 +37,7 @@ beforeEach(() => {
     updated_at: null,
     can_edit: true,
     can_restore: false,
+    can_manage: true,
     columns: [
       {
         id: "notes",
@@ -99,8 +100,11 @@ describe("document template library", () => {
     expect(apply).toHaveBeenCalledWith("# Our brief");
   });
 
-  it("does not expose template creation when table editing is refused", async () => {
-    if (state.table) state.table.can_edit = false;
+  it.each([
+    ["table editing is refused", { can_edit: false }],
+    ["a task board's member may not change the board", { can_manage: false }],
+  ])("does not expose template creation when %s", async (_why, refused) => {
+    if (state.table) Object.assign(state.table, refused);
     render(<DocumentTemplates tableId="table" columnId="notes" body="" onApply={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: "Document templates" }));
     expect(screen.getByRole("button", { name: "New template" })).toBeDisabled();
@@ -218,16 +222,19 @@ it("reports library loading and failure without offering writes", async () => {
   expect(screen.getByRole("button", { name: "New template" })).toBeDisabled();
 });
 
-it("rechecks editing access before saving a form opened earlier", async () => {
-  seedLibrary();
-  const { rerender } = await openLibrary();
-  await userEvent.click(screen.getByRole("button", { name: "Edit Brief" }));
-  if (!state.table) throw new Error("Missing table");
-  state.table = { ...state.table, can_edit: false };
-  rerender(<DocumentTemplates tableId="table" columnId="notes" body="" onApply={vi.fn()} />);
-  fireEvent.submit(screen.getByRole("textbox", { name: "Template name" }));
-  expect(state.save).not.toHaveBeenCalled();
-});
+it.each([{ can_edit: false }, { can_manage: false }])(
+  "rechecks editing access before saving a form opened earlier (%o)",
+  async (refused) => {
+    seedLibrary();
+    const { rerender } = await openLibrary();
+    await userEvent.click(screen.getByRole("button", { name: "Edit Brief" }));
+    if (!state.table) throw new Error("Missing table");
+    state.table = { ...state.table, ...refused };
+    rerender(<DocumentTemplates tableId="table" columnId="notes" body="" onApply={vi.fn()} />);
+    fireEvent.submit(screen.getByRole("textbox", { name: "Template name" }));
+    expect(state.save).not.toHaveBeenCalled();
+  },
+);
 it("refuses an empty template name even if the form is submitted directly", async () => {
   await openLibrary();
   await userEvent.click(screen.getByRole("button", { name: "New template" }));

@@ -28,6 +28,7 @@ import {
   jsonBytes,
   knownInput,
   knownOutputs,
+  stepDataAt,
   testEntryGraph,
 } from "@/lib/workflows/step-data";
 import { effectiveDefinition } from "@/lib/workflows/ports";
@@ -40,6 +41,7 @@ import {
 import type { NodeDefinition, NodeInstance, WorkflowGraph } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
+import { ApprovalVerdict } from "./approval-verdict";
 import { DataView, DeclaredOutput } from "./data-view";
 import { StepTestRun } from "./step-test-run";
 import { WebhookListener } from "./webhook-listener";
@@ -97,6 +99,8 @@ export function InputPane({
 }) {
   const t = useTranslations("workflows");
   const stepData = useWorkflowEditorStore((state) => state.stepData);
+  const iterationData = useWorkflowEditorStore((state) => state.iterationData);
+  const iteration = useWorkflowEditorStore((state) => state.editingIteration);
   const steps = useMemo(
     () =>
       earlierSteps(
@@ -150,7 +154,7 @@ export function InputPane({
 
   const instance = graph.nodes.find((candidate) => candidate.id === source);
   const pinned = readOnly ? null : instance?.pinned_output;
-  const output = pinned ?? stepData[source]?.output ?? null;
+  const output = pinned ?? stepDataAt(stepData, iterationData, source, iteration)?.output ?? null;
   const definition = declared(source);
   const known = output !== null || (definition?.ports ?? []).some((port) => port.kind === "output");
 
@@ -247,6 +251,8 @@ export function OutputPane({
   const t = useTranslations("workflows");
   const tp = useTranslations("pages.workflows");
   const stepData = useWorkflowEditorStore((state) => state.stepData);
+  const iterationData = useWorkflowEditorStore((state) => state.iterationData);
+  const iteration = useWorkflowEditorStore((state) => state.editingIteration);
   const isDirty = useWorkflowEditorStore((state) => state.isDirty);
   const testingNodeId = useWorkflowEditorStore((state) => state.testingNodeId);
   const lastStepTest = useWorkflowEditorStore((state) => state.lastStepTest);
@@ -267,21 +273,23 @@ export function OutputPane({
     () => validateGraph(graph, { items: catalog, total: catalog.length }, t),
     [graph, catalog, t],
   );
-  const data = stepData[node.id];
+  const data = stepDataAt(stepData, iterationData, node.id, iteration);
   const pinned = readOnly ? null : (node.pinned_output ?? null);
   const testing = testingNodeId === node.id || start.isPending;
   const canPin = !readOnly && definition.kind !== "control";
   const blocked = isInsideALoop(graph, node.id)
     ? t("stepTestInsideALoop")
-    : problems.length > 0
-      ? tp("runBlockedByProblems", { count: problems.length })
-      : isDirty
-        ? t("publishSaving")
-        : null;
+    : branch === null
+      ? t("stepTestNotReachable")
+      : problems.length > 0
+        ? tp("runBlockedByProblems", { count: problems.length })
+        : isDirty
+          ? t("publishSaving")
+          : null;
 
   const test = (input: Record<string, unknown>) => {
-    // A step no entry reaches cannot be tested; validation blocks the button, so
-    // this only guards the degenerate case instead of starting the wrong entry.
+    // A parked step can be valid without an entry reaching it. Keep this guard
+    // as well as the disabled button if the graph changes during confirmation.
     if (branch === null) return;
     start.mutate(
       {
@@ -414,6 +422,9 @@ export function OutputPane({
             >
               {t("stepReviewSetup")}
             </Button>
+          )}
+          {readOnly && data?.approval !== undefined && (
+            <ApprovalVerdict approval={data.approval} output={data.output} />
           )}
           {shown === null ? (
             failed == null && (

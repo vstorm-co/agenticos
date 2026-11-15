@@ -10,6 +10,10 @@ have a home in the chat and in the [workspace](sandbox.md). An app is the
 thing that is *served*: it has an owner, a visibility and grants like an agent
 or a skill, and it can be given a public link for somebody with no account.
 
+## Shared-page attribution { #shared-page-attribution }
+
+Public app viewers show a floating badge with the AgenticOS logo and a GitHub link by default. Shared conversation pages show the same badge below the conversation. An Owner or Admin can hide the footer for the whole organization in **Organization settings → Governance → AgenticOS on shared pages**. The next page load uses the current setting. Password-protected apps show the footer only after unlocking. The footer belongs to the viewer; downloaded files and embedded app content are not modified.
+
 ## App appearance { #app-appearance }
 
 The signed-in app viewer and its public link have independent **light** and
@@ -973,7 +977,7 @@ The agent says so in its answer: that no map server is connected, and that an
 administrator turns real maps on with this setting.
 A chat app's picture of a map is drawn finished, with every pin in place.
 
-**World maps need none.** For anything about countries - customers by country, offices, a route between two cities - `AOWorldMap` draws a map in SVG from country outlines the deployment serves itself: no tile server, no network and no extra container. The agent prefers it; the tile map stays for street level.
+**World maps need none.** For anything about countries - customers by country, offices, a route between two cities - `AOWorldMap` draws a map in SVG from country outlines the deployment serves itself: no tile server, no network and no extra container. This is the default for new maps, including itineraries between cities. The agent loads the bundled country outlines and draws pins and routes without requiring configuration. Street-level maps remain an administrator opt-in through `VISUAL_MAP_TILES`; an unavailable tile service should fall back to this SVG map.
 
 **Choosing the form.** The `visual-design` skill tells the agent when a drawing
 is the right answer at all: text for a fact or advice, a Markdown table for

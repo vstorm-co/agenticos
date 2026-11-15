@@ -1863,6 +1863,50 @@ class TestConversationServiceAddMessage:
         )
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize("kind", ["conversation", "local"])
+    async def test_a_runner_file_origin_survives_jsonb_serialization(
+        self, service: ConversationService, kind: str
+    ) -> None:
+        import json
+
+        from app.schemas.conversation import MessageCreate, MessagePart
+
+        conv_id, source_id = uuid4(), uuid4()
+        data = MessageCreate(
+            role="assistant",
+            content="Answer with a file link.",
+            parts=[
+                MessagePart.model_validate(
+                    {
+                        "type": "text",
+                        "text": "Answer with a file link. ",
+                        "file_source": {"kind": kind, "id": str(source_id)},
+                    }
+                )
+            ],
+        )
+        with (
+            patch("app.services.conversation.conversation_repo") as repo,
+            patch("app.services.follow_ups.queue_next_steps"),
+        ):
+            repo.get_conversation_by_id = AsyncMock(return_value=MockConversation(id=conv_id))
+            repo.create_message = AsyncMock(return_value=MockMessage())
+            await service.add_message(conv_id, data, organization_id=TEST_ORG_ID, run_id=uuid4())
+
+        # The same JSON encoder used by the JSONB column must accept the payload.
+        stored = json.loads(json.dumps(repo.create_message.await_args.kwargs["parts"]))
+        assert stored == [
+            {
+                "type": "text",
+                "text": "Answer with a file link. ",
+                "file_source": {"kind": kind, "id": str(source_id)},
+            }
+        ]
+        parsed = MessagePart.model_validate(stored[0])
+        assert parsed.file_source is not None
+        assert parsed.file_source.id == source_id
+
+    @pytest.mark.anyio
     async def test_add_message_to_archived_conversation_raises_bad_request(
         self, service: ConversationService
     ):
@@ -2240,7 +2284,13 @@ class TestSayingATurnWasStopped:
     async def _listed(service: ConversationService, conv_id):
         """Listed as the transcript route lists them - with a reader, so the
         schema-enriching branch runs rather than the raw-row one."""
-        with patch("app.services.conversation.message_rating_repo") as ratings:
+        with (
+            patch("app.services.conversation.message_rating_repo") as ratings,
+            patch(
+                "app.services.conversation.conversation_share_repo.get_share",
+                AsyncMock(return_value=SimpleNamespace(permission="view")),
+            ),
+        ):
             ratings.get_user_ratings_for_messages = AsyncMock(return_value={})
             ratings.get_rating_counts_for_messages = AsyncMock(return_value={})
             items, total, _cost = await service.transcript(
@@ -2289,6 +2339,36 @@ class TestSayingATurnWasStopped:
             items, _total = await self._listed(service, conv_id)
 
         assert items[0].run_status is None
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "stored",
+        [
+            "The run did not finish (ContentFilterError) - retry it",
+            "https://private.example/?api_key=secret",
+        ],
+    )
+    async def test_a_failed_turn_has_a_safe_explanation(self, service: ConversationService, stored):
+        from app.agents.failures import CONTENT_FILTER_SUMMARY
+
+        conv_id, run_id = uuid4(), uuid4()
+        with patch("app.services.conversation.conversation_repo") as repo:
+            repo.get_conversation_by_id = AsyncMock(
+                return_value=MockConversation(id=conv_id, organization_id=TEST_ORG_ID)
+            )
+            repo.favourite_ids = AsyncMock(return_value=set())
+            repo.get_messages_by_conversation = AsyncMock(return_value=[MockMessage(run_id=run_id)])
+            repo.count_messages = AsyncMock(return_value=1)
+            repo.run_outcomes = AsyncMock(
+                return_value={run_id: RunOutcome(status="failed", duration_ms=10_000, error=stored)}
+            )
+            repo.conversation_cost = AsyncMock(return_value=None)
+            items, _total = await self._listed(service, conv_id)
+        assert items[0].run_status == "failed"
+        assert items[0].run_error == (
+            CONTENT_FILTER_SUMMARY if "ContentFilterError" in stored else None
+        )
 
 
 class TestWhatTheThreadCost:

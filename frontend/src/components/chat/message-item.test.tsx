@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MessageItem } from "./message-item";
 import { draftsAsText, draftsOf } from "@/lib/drafts";
 import * as motion from "@/lib/motion";
-import { foldWork, runsOf } from "./turn-parts";
+import { foldWork, runsOf, TurnParts } from "./turn-parts";
 import { useAuthStore, useChatStore, useFilePreviewStore } from "@/stores";
 import { ChatScope } from "@/stores/chat-scope";
 import { useWorkingStore } from "@/stores/working-store";
@@ -750,7 +750,7 @@ describe("citations", () => {
 
     // Two passages of one file are one source.
     const footer = screen.getByRole("button", { name: /2 sources/ });
-    expect(footer.querySelector("img")).toHaveAttribute("src", "https://a.example/favicon.ico");
+    expect(footer.querySelector("img")).toHaveAttribute("src", "/api/link-icon?host=a.example");
     expect(footer.querySelectorAll("svg")).toHaveLength(2);
   });
 
@@ -1399,8 +1399,8 @@ describe("the work before an answer", () => {
     expect(foldWork(runsOf([text("n", "First."), text("ans", "Second.")]))).toBeNull();
   });
 
-  it("keeps long progress, questions and errors in history before the final answer", () => {
-    // All progress stays chronological inside the one completed history.
+  it("keeps text delivered before a question visible beside the final answer", () => {
+    // A question can follow a completed report; its length is not the signal.
     const long = text("long", "x".repeat(401));
     const asked: MessagePart = { id: "p-q", type: "ask_user", question: "Which?", answer: "A" };
     const steer: MessagePart = { id: "p-s", type: "steer", content: "Also B." };
@@ -1408,8 +1408,8 @@ describe("the work before an answer", () => {
       runsOf([call("a"), long, asked, steer, call("bad", "error"), text("ans", "Done.")]),
     );
     expect(split?.steps).toBe(2);
-    expect(split?.shown).toHaveLength(1);
-    expect(split?.folded).toHaveLength(5);
+    expect(split?.shown).toHaveLength(2);
+    expect(split?.folded).toHaveLength(4);
   });
 
   it("keeps routine and failed calls in the same live history", () => {
@@ -1455,6 +1455,26 @@ describe("the work before an answer", () => {
 
     item({ parts, runDurationMs: 12_400 }, { endsTurn: false });
     expect(screen.getByRole("button", { name: "Worked · 1 step" })).toBeInTheDocument();
+  });
+
+  it("shows a report before a declined question even when this segment is not the last", () => {
+    item(
+      {
+        parts: [
+          thought,
+          call("inspect"),
+          text("report", "Audit findings that the person needs to read."),
+          call("question", "completed", "ask_user_question"),
+        ],
+        isStreaming: false,
+      },
+      { endsTurn: false },
+    );
+    expect(screen.getByText("Audit findings that the person needs to read.")).toBeVisible();
+    expect(screen.getByRole("button", { name: /Worked/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
   });
 
   it("uses the shared run clock instead of a resumed segment timestamp", () => {
@@ -1775,4 +1795,84 @@ it("keeps a successful watch write visible as an authorized management reference
     ],
   });
   expect(screen.getByText(`Manage watch ${id}`)).toBeInTheDocument();
+});
+
+vi.mock("./model-setup-card", () => ({
+  ModelSetupCard: ({ interactive = false }: { interactive?: boolean }) => (
+    <div data-testid="model-setup" data-interactive={String(interactive)} />
+  ),
+}));
+
+it("offers setup actions in the main chat without a secondary chat scope", () => {
+  render(
+    <MessageItem
+      message={message({ parts: [{ id: "setup", type: "model_setup", setupAgentId: "starter" }] })}
+    />,
+  );
+  expect(screen.getByTestId("model-setup")).toHaveAttribute("data-interactive", "true");
+});
+
+it("keeps shared turn parts free of private setup actions by default", () => {
+  render(
+    <TurnParts
+      parts={[{ id: "setup", type: "model_setup", setupAgentId: "starter" }]}
+      isStreaming={false}
+      isUser={false}
+      mcpServers={[]}
+    />,
+  );
+  expect(screen.getByTestId("model-setup")).toHaveAttribute("data-interactive", "false");
+});
+
+it("defers a newly received setup card until its answer has been revealed", () => {
+  render(
+    <MessageItem
+      message={message({
+        content: "Connect a model to continue.",
+        animateSetupReply: true,
+        parts: [
+          { id: "text", type: "text", content: "Connect a model to continue." },
+          { id: "setup", type: "model_setup", setupAgentId: "starter" },
+        ],
+      })}
+    />,
+  );
+  expect(screen.queryByTestId("model-setup")).not.toBeInTheDocument();
+});
+
+it("keeps a failed run's cause visible outside folded tool work", () => {
+  render(
+    <MessageItem
+      message={message({
+        content: "",
+        runFailed: true,
+        runError: "The model provider blocked this response with its content filter.",
+        parts: [{ id: "thinking-failure", type: "thinking", content: "Working" }],
+      })}
+    />,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "The model provider blocked this response with its content filter.",
+  );
+});
+
+it("shows a generic failure notice without inventing an answer", () => {
+  render(<MessageItem message={message({ content: "", runFailed: true })} />);
+  expect(screen.getByRole("alert")).toHaveTextContent("No final answer was produced.");
+});
+
+it("does not repeat the failure notice on an earlier continuation segment", () => {
+  render(
+    <MessageItem endsTurn={false} message={message({ runFailed: true, runError: "filtered" })} />,
+  );
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+it("offers regeneration when a failed response contains only the failure notice", async () => {
+  const onRegenerate = vi.fn();
+  render(
+    <MessageItem message={message({ content: "", runFailed: true })} onRegenerate={onRegenerate} />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Regenerate response" }));
+  expect(onRegenerate).toHaveBeenCalledOnce();
 });

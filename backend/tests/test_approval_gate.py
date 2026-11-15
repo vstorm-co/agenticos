@@ -743,6 +743,8 @@ class TestApprovalQueue:
             # Nobody waived it either: a parked call is one somebody still has to
             # read, and `None` here is what leaves the row `pending` (#925).
             "standing_consent_by": None,
+            # An ordinary gated tool: a person may remember their answer to it.
+            "always_asks": False,
         }
 
     @pytest.mark.anyio

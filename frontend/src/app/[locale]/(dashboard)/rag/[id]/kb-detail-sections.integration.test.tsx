@@ -333,6 +333,30 @@ describe("the three sections are tabs (#939)", () => {
 });
 
 describe("editing a sync source", () => {
+  it.each([false, true])("offers a manual sync only when is_active=%s", async (isActive) => {
+    mockApi({
+      canEdit: true,
+      syncSources: [{ id: "src-1", name: "Drive folder", is_active: isActive }],
+    });
+    vi.mocked(apiClient.post).mockResolvedValue({});
+
+    await renderPage();
+    await openTab("pages.kb.syncSources");
+    const trigger = await screen.findByRole("button", { name: "pages.kb.triggerSyncNow2" });
+
+    if (isActive) {
+      expect(trigger).toBeEnabled();
+    } else {
+      expect(trigger).toBeDisabled();
+      expect(trigger).toHaveAttribute("title", "pages.kb.sourcePaused");
+    }
+    await userEvent.click(trigger);
+    expect(apiClient.post).toHaveBeenCalledTimes(isActive ? 1 : 0);
+    if (isActive) {
+      expect(apiClient.post).toHaveBeenCalledWith(`/kb/${KB_ID}/sync-sources/src-1/trigger`);
+    }
+  });
+
   it("is not offered to a reader who cannot change the collection", async () => {
     mockApi({ syncSources: [{ id: "src-1", name: "Drive folder" }] });
 

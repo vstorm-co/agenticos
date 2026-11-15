@@ -44,6 +44,9 @@ class _FakeRedis:
         self.store: dict[str, str] = {}
         self.ttls: dict[str, int | None] = {}
 
+    async def get(self, key: str) -> str | None:
+        return self.store.get(key)
+
     async def set(self, key: str, value: str, ttl: int | None = None, nx: bool = False) -> bool:
         if nx and key in self.store:
             return False
@@ -58,6 +61,9 @@ class _FakeRedis:
 
 class _BrokenRedis:
     """A Redis that cannot be reached mid-flight."""
+
+    async def get(self, key: str) -> str | None:
+        raise ConnectionError("redis unreachable")
 
     async def set(self, key: str, value: str, ttl: int | None = None, nx: bool = False) -> bool:
         raise ConnectionError("redis unreachable")
@@ -236,3 +242,67 @@ async def test_a_redis_error_while_releasing_is_logged_not_raised(
         await dedupe.release_delivery(_message())
 
     assert "channel_dedupe_release_failed" in caplog.text
+
+
+async def test_an_edited_mention_only_admits_a_previously_ignored_post(
+    fake_redis: _FakeRedis,
+) -> None:
+    incoming = _message(platform="mattermost")
+    edited = _message(platform="mattermost", raw={"event": "post_edited"})
+    assert await dedupe.claim_delivery(edited) is False
+    assert await dedupe.claim_delivery(incoming) is True
+    assert await dedupe.claim_delivery(edited) is False
+    await dedupe.remember_unaddressed(incoming)
+    assert await dedupe.claim_delivery(edited) is True
+    assert await dedupe.claim_delivery(edited) is False
+    assert await dedupe.claim_delivery(incoming) is False
+    await dedupe.release_delivery(edited)
+    assert await dedupe.claim_delivery(edited) is True
+    fake_redis.store.clear()
+    assert await dedupe.claim_delivery(edited) is False
+
+
+async def test_edit_admission_fails_closed_without_shared_receipts() -> None:
+    edited = _message(platform="mattermost", raw={"event": "post_edited"})
+    dedupe.configure(None)
+    assert await dedupe.claim_delivery(edited) is False
+    dedupe.configure(cast(RedisClient, _BrokenRedis()))
+    assert await dedupe.claim_delivery(edited) is False
+
+
+@pytest.mark.security
+async def test_only_one_concurrent_edit_can_start_work(fake_redis: _FakeRedis) -> None:
+    original = _message(platform="mattermost")
+    await dedupe.claim_delivery(original)
+    await dedupe.remember_unaddressed(original)
+    edited = _message(platform="mattermost", raw={"event": "post_edited"})
+    claims = await asyncio.gather(*(dedupe.claim_delivery(edited) for _ in range(10)))
+    assert sum(claims) == 1
+
+
+async def test_ignored_post_tracking_is_platform_scoped_and_best_effort() -> None:
+    dedupe.configure(None)
+    await dedupe.remember_unaddressed(_message(platform="mattermost", dedupe_claimed=True))
+    redis = _FakeRedis()
+    dedupe.configure(cast(RedisClient, redis))
+    await dedupe.remember_unaddressed(_message())
+    await dedupe.remember_unaddressed(_message(platform="mattermost", message_id=None))
+    assert redis.store == {}
+    dedupe.configure(cast(RedisClient, _BrokenRedis()))
+    await dedupe.remember_unaddressed(_message(platform="mattermost", dedupe_claimed=True))
+
+
+@pytest.mark.security
+async def test_a_fail_open_original_cannot_become_an_edit_candidate() -> None:
+    original = _message(platform="mattermost")
+    dedupe.configure(None)
+    assert await dedupe.claim_delivery(original) is True
+    assert original.dedupe_claimed is False
+    redis = _FakeRedis()
+    dedupe.configure(cast(RedisClient, redis))
+    await dedupe.remember_unaddressed(original)
+    assert redis.store == {}
+    assert (
+        await dedupe.claim_delivery(_message(platform="mattermost", raw={"event": "post_edited"}))
+        is False
+    )

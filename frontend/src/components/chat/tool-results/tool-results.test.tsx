@@ -205,7 +205,7 @@ describe("the knowledge search", () => {
 
     const { container } = render(<WebSearchResults data={parseWebSearch(mixed)!} />);
 
-    const favicon = container.querySelector('img[src="https://blog.example/favicon.ico"]');
+    const favicon = container.querySelector('img[src="/api/link-icon?host=blog.example"]');
     expect(favicon).not.toBeNull();
     fireEvent.error(favicon!);
     expect(container.querySelectorAll(".lucide-globe")).toHaveLength(1);

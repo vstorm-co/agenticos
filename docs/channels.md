@@ -1045,7 +1045,7 @@ is written out in full - and is cut at about 1,500 characters with a note that t
 in AgenticOS, so one question costs a few segments, not a dozen. SMS cannot stream, edit a
 message or press a button, so an approval or a question arrives as numbered lines and is
 answered by texting the number. A lone number that names a choice
-of a prompt sent to that number is the answer. Prompts waiting at once never share numbers - the second carries on where the first stopped, so 3 and 4 follow 1 and 2 - and deciding one leaves the other open. A prompt stays open for a day, so a multi-select takes several numbers; any other text is an ordinary message.
+of a prompt sent to that number is the answer. Prompts waiting at once never share numbers - the second carries on where the first stopped, so 3 and 4 follow 1 and 2 - and deciding one leaves the other open. A prompt stays open for a day, so a multi-select takes several numbers; any other text is an ordinary message. Numbers run to 999 and then start again at 1, skipping any still open and any handed out in the last week, so a reply to an old text cannot decide a newer request unless it is more than a week late.
 
 Incoming MMS files, including messages with no text, use the ordinary channel
 attachment pipeline after identity and access checks. Up to ten files are read;
@@ -1857,6 +1857,9 @@ nothing else. Slack needs the
 
 ## Reactions and ratings
 
+New bots acknowledge questions with 👀 (`eyes`) on Slack, Telegram and Mattermost, or the native `emphasize` tapback on iMessage. Answer ratings start disabled. Both settings can be changed; existing bots keep their saved choices. Mattermost approval and question cards retain the request and show the final decision after their buttons are removed. Repeated clicks on an answered request are acknowledged silently. A mention added by an edit can start a turn only for a post observed and ignored within the last 15 minutes; already handled or older posts never start a new turn from an edit, and unavailable shared receipts disable edit admission.
+
+
 Two touches every chat platform here shares, both switched in the bot's
 settings:
 
@@ -2245,7 +2248,9 @@ surface, so a difference between the console and Mattermost remains visible.
     Teams requires the updated app package to be installed or upgraded in the target team or chat, with owner consent to `ChannelMessage.Read.Group` and `ChatMessage.Read.Chat`. Those grants are requested only when this switch is on. Telegram uses explicit text aliases `@all`, `@here`, `@channel` and `@everyone`; these do not notify the group. Telegram must deliver group messages to the bot, so check BotFather privacy mode. Own mentions, commands and replies are resolved against the bot's actual Telegram identity. Discord counts `@everyone` and `@here` only when the sender may ping them, which is when Discord notifies the room.
 
 - **Requested workspace-file delivery also requires approval.** Granting `send_channel_file` makes it available; a request still waits for explicit confirmation before bytes are posted.
-- **Linked senders' MCP reads use the binding's approval policy; writes still require approval.** Read-only tools do not ask solely because a run is in a chat app. Tools without a `readOnlyHint: true` still ask, and an explicit `all` policy includes reads. This applies to personal, organization and platform connections, delegates and resumed calls. Personal connections still belong to the current sender, never the publisher or another participant.
+- **Linked senders use the same MCP approval settings as web chat.** The binding’s policy and each tool’s override apply, including Run freely for a tool without a read-only annotation. Required approvals still ask. Platform connections keep their platform-wide minimum policy. This applies to personal and organization connections, delegates and resumed calls. Personal connections belong to the current sender; linking does not grant additional permissions. Unlinked participants still require approval for every MCP call. Channel reference metadata is sent after tool results, including after repeated approval resumptions.
+
+The full room history remains available, including messages from other participants. Run freely therefore also permits tool calls influenced by that context; choose it only for trusted tools and rooms, and use Ask first when each write needs confirmation.
 
 Channel messages store only the sender’s text. Author labels are resolved from channel identities immediately before model dispatch, outside system instructions. The console and copy, pin and shortcut actions receive the plain body. Persisted histories and paused runs keep opaque identity references, and manifests omit the injected channel reference parts. Deleting an account removes its channel identities, so future requests cannot resolve that person’s platform labels; shared message bodies remain.
 

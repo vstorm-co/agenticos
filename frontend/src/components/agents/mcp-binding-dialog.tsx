@@ -28,10 +28,27 @@ import { ROUTES } from "@/lib/constants";
 import { connectionState, MCP_STATE_LABEL } from "@/lib/mcp-servers";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import { cn } from "@/lib/utils";
-import type { McpApproval, McpServerRef } from "@/types/agents";
+import type { McpApproval, McpServerRef, McpToolApproval } from "@/types/agents";
 
 /** A binding through somebody's account - every kind but the platform's own server. */
 export type AccountRef = Exclude<McpServerRef, { account: "platform" }>;
+
+/**
+ * The binding under this approval, written as the API answers it: each tool's
+ * own sorted by name and left out where there is none, so the draft compares
+ * equal to the stored one and autosave settles.
+ */
+function withApproval(
+  ref: AccountRef,
+  approval: McpApproval,
+  toolApproval: McpToolApproval,
+): AccountRef {
+  const { tool_approval: _replaced, ...rest } = ref;
+  const own = Object.entries(toolApproval).sort(([a], [b]) => (a < b ? -1 : 1));
+  return own.length === 0
+    ? { ...rest, approval }
+    : { ...rest, approval, tool_approval: Object.fromEntries(own) };
+}
 
 interface McpBindingDialogProps {
   open: boolean;
@@ -138,6 +155,7 @@ export function McpBindingDialog({
     // speaks through is a different question.
     allowed_tools: from?.allowed_tools ?? null,
     approval: from?.approval ?? "none",
+    ...(from?.tool_approval && { tool_approval: from.tool_approval }),
   });
   const personalRef = (from?: AccountRef): AccountRef | null =>
     catalogKey === null
@@ -147,6 +165,7 @@ export function McpBindingDialog({
           catalog_key: catalogKey,
           allowed_tools: from?.allowed_tools ?? null,
           approval: from?.approval ?? "none",
+          ...(from?.tool_approval && { tool_approval: from.tool_approval }),
         };
   // Only ever called with something bound: an unused server is switched on, not rebound.
   const rebindPrimary = (next: AccountRef) =>
@@ -175,10 +194,11 @@ export function McpBindingDialog({
   const tools = listedBy?.last_tools ?? personalTools;
   const allowed = primary?.allowed_tools ?? null;
   const approval = primary?.approval ?? "none";
+  const toolApproval = primary?.tool_approval ?? {};
   const setTools = (next: string[] | null) =>
     onChange(bindings.map((ref) => ({ ...ref, allowed_tools: next })));
-  const setApproval = (next: McpApproval) =>
-    onChange(bindings.map((ref) => ({ ...ref, approval: next })));
+  const setApproval = (next: McpApproval, nextTools: McpToolApproval) =>
+    onChange(bindings.map((ref) => withApproval(ref, next, nextTools)));
   // Switched on from here, the server binds the kind the switch above shows -
   // the card's own switch, with no choice made, prefers the organization's.
   const enable = (on: boolean) => {
@@ -191,8 +211,14 @@ export function McpBindingDialog({
     if (next) onChange([next]);
     else onEnabled(on);
   };
+  // A further account takes the tools and approvals the dialog shows, which are
+  // the server's for every account: one added with none answered unasked.
   const add = () => {
-    const next = free[0] ? organizationRef(free[0]) : canAddPersonal ? personalRef() : null;
+    const next = free[0]
+      ? organizationRef(free[0], primary)
+      : canAddPersonal
+        ? personalRef(primary)
+        : null;
     if (next) onChange([...bindings, next]);
   };
   const primaryChoices =
@@ -414,12 +440,14 @@ export function McpBindingDialog({
           {(bindings.length > 0 || tools) && (
             <section className="min-w-0 space-y-2.5">
               <h3 className="text-sm font-medium">{t("serverTools")}</h3>
+              <p className="text-muted-foreground text-xs">{t("channelRunFreelyHint")}</p>
               {tools ? (
                 <McpToolChecklist
                   tools={tools}
                   allowed={allowed}
                   onChange={setTools}
                   approval={approval}
+                  toolApproval={toolApproval}
                   onApproval={setApproval}
                   prefix={catalogKey}
                   // What the server offers is worth reading before it is

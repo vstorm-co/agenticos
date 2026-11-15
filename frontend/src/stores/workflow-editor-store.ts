@@ -15,6 +15,7 @@ import { carryPortRenameToMerges } from "@/components/workflows/property-panel/m
 import { carryMergeKeyRename, mergeKeyRename } from "@/lib/workflows/merge-key-rename";
 import { carryPortRename, portRename } from "@/lib/workflows/port-rename";
 import type { StepData } from "@/lib/workflows/step-data";
+import { TRIGGER_IDS } from "@/lib/workflows/triggers";
 import {
   outputRefs,
   renameOutputRefs,
@@ -125,6 +126,8 @@ export interface NodeInsertion {
   split?: { edgeId: Uuid; tail: WorkflowEdge | null };
   /** The configs this changes on other steps - a merge the step now feeds - by step. */
   configs?: Record<Uuid, Record<string, unknown>>;
+  /** Steps that come with this one - a new loop's Loop item and Loop result. */
+  companions?: NodeInstance[];
 }
 
 /** What floats over the canvas on request: the step picker, or the shortcut sheet. */
@@ -179,6 +182,11 @@ export interface WorkflowEditorState {
   /** The step whose settings are open in the editor's dialog; null when none is. */
   editingNodeId: Uuid | null;
   /**
+   * The loop iteration the open step is shown at, as `iterationOf` gives it -
+   * empty for its latest data.
+   */
+  editingIteration: number[];
+  /**
    * Whether a missing required value is said yet: only once a run or a publish
    * was tried, so a step just added is not covered in red before anything is set.
    */
@@ -190,11 +198,18 @@ export interface WorkflowEditorState {
   /** Whether the canvas shows its minimap. */
   minimapShown: boolean;
   /**
+   * Whether it does on a phone: a choice of its own, off until made, so a narrow
+   * screen neither inherits the desktop's minimap nor overwrites that preference.
+   */
+  phoneMinimapShown: boolean;
+  /**
    * What each step handed on in the test runs watched since the editor opened,
    * the latest winning - what a step's Input and Output show, and what a step
    * test pins for the steps before it.
    */
   stepData: Record<Uuid, StepData>;
+  /** A run view's steps per loop iteration, from `iterationDataOf`, for `editingIteration`. */
+  iterationData: Record<string, StepData>;
   /** The test run whose steps feed `stepData`: the last one started, or found on opening. */
   watchedRunId: string | null;
   /** The step a step test is running for, until its run ends. */
@@ -224,8 +239,8 @@ export interface WorkflowEditorState {
   clearReveal: () => void;
   /** Select a step and ask the canvas to bring it into view - a problem pointing at it. */
   focusNode: (nodeId: Uuid) => void;
-  /** Open one step's settings, selecting it; `null` closes them. */
-  editNode: (nodeId: Uuid | null) => void;
+  /** Open one step's settings, selecting it, at a loop iteration; `null` closes them. */
+  editNode: (nodeId: Uuid | null, iteration?: number[]) => void;
   /**
    * Add an edge for a validated `@xyflow/react` connection, with any bindings it
    * implies and the configs it changes (a merge's mode and branch names), as one
@@ -260,7 +275,8 @@ export interface WorkflowEditorState {
   setOverlay: (overlay: CanvasOverlay) => void;
   /** Open the picker to put a step into the middle of `edgeId`. */
   beginSplit: (edgeId: Uuid) => void;
-  toggleMinimap: () => void;
+  /** Show or hide the minimap - the phone's own choice when `onPhone`. */
+  toggleMinimap: (onPhone?: boolean) => void;
   /** Move steps to new places at once - one undoable edit. */
   moveNodes: (layouts: ReadonlyMap<Uuid, NodePosition>) => void;
   /** Give a step a size - or `null` to put it back to the default - as one undoable edit. */
@@ -271,6 +287,8 @@ export interface WorkflowEditorState {
   watchRun: (runId: string, testing?: Uuid) => void;
   /** Fold what a watched run's steps did into `stepData`. */
   mergeStepData: (data: Record<Uuid, StepData>) => void;
+  /** Replace what a run view's steps did per loop iteration. */
+  setIterationData: (data: Record<string, StepData>) => void;
   /** The watched run ended. */
   finishTesting: () => void;
   /** Pin each named step's data at once - one undoable edit. A step not in the graph is left out. */
@@ -357,10 +375,12 @@ const CLEARED = {
   selection: EMPTY_SELECTION,
   revealNodeId: null,
   editingNodeId: null,
+  editingIteration: [] as number[],
   problemsRevealed: false,
   overlay: null as CanvasOverlay,
   splitEdgeId: null as Uuid | null,
   stepData: {} as Record<Uuid, StepData>,
+  iterationData: {} as Record<string, StepData>,
   watchedRunId: null as string | null,
   testingNodeId: null as Uuid | null,
   lastStepTest: null as { nodeId: Uuid; runId: string } | null,
@@ -404,11 +424,56 @@ function applyNoteChanges(notes: CanvasNote[], changes: NodeChange[]): CanvasNot
   return changed ? next : notes;
 }
 
+/** A loop's own Loop item and Loop result: they go only with their loop. */
+const LOOP_PARTS = new Set(["loop.item", "loop.yield"]);
+
+/**
+ * The ids in `removing` that may actually go: all but a Loop item or Loop result
+ * whose loop stays - every body keeps the step it starts at and the one it ends at.
+ */
+function removable(graph: WorkflowGraph, removing: ReadonlySet<string>): Set<string> {
+  const kept = new Set<string>();
+  for (const node of graph.nodes) {
+    if (!removing.has(node.id)) continue;
+    const stays = node.scope_id != null && !removing.has(node.scope_id);
+    if (LOOP_PARTS.has(node.definition_id) && stays) continue;
+    kept.add(node.id);
+  }
+  return kept;
+}
+
+/**
+ * `graph` without the bodies of the loops in `removed`, nested bodies too. Only a
+ * loop being deleted takes steps with it: a step naming a loop the graph never held
+ * stays, for validation to report.
+ */
+function withoutBodiesOf(graph: WorkflowGraph, removed: ReadonlySet<string>): WorkflowGraph {
+  const gone = new Set(removed);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const node of graph.nodes) {
+      if (node.scope_id != null && gone.has(node.scope_id) && !gone.has(node.id)) {
+        gone.add(node.id);
+        grew = true;
+      }
+    }
+  }
+  const nodes = graph.nodes.filter((node) => !gone.has(node.id));
+  return nodes.length === graph.nodes.length ? graph : { ...graph, nodes };
+}
+
+/** Whether `node` is a trigger on the top-level canvas - a way the workflow can start. */
+function isRootTrigger(node: NodeInstance | undefined): node is NodeInstance {
+  return node !== undefined && !node.scope_id && TRIGGER_IDS.has(node.definition_id);
+}
+
 /**
  * Drop everything the current node set no longer supports — an edge or binding
- * or scope that names a removed node — and re-home the entry on the first
- * surviving node if it was the one removed. The client mirror of the invariant
- * the server keeps: the graph never references a node it does not hold.
+ * or scope that names a removed node — and re-home the entry if it was the one
+ * removed: on a surviving trigger, else on the first surviving node. A step the
+ * trigger feeds would be a start that a wire leads into, which publishing
+ * refuses. The client mirror of the invariant the server keeps: the graph never
+ * references a node it does not hold.
  */
 function pruneToNodes(graph: WorkflowGraph): WorkflowGraph {
   const ids = new Set(graph.nodes.map((node) => node.id));
@@ -426,8 +491,8 @@ function pruneToNodes(graph: WorkflowGraph): WorkflowGraph {
       ids.has(scope.exit_node_id) &&
       scope.body_node_ids.every((id) => ids.has(id)),
   );
-  const firstNode = graph.nodes[0];
-  const entry_node_id = ids.has(graph.entry_node_id) ? graph.entry_node_id : (firstNode?.id ?? "");
+  const rehomed = graph.nodes.find(isRootTrigger) ?? graph.nodes[0];
+  const entry_node_id = ids.has(graph.entry_node_id) ? graph.entry_node_id : (rehomed?.id ?? "");
   // Notes name no step, so nothing here prunes them.
   return { ...graph, entry_node_id, edges, bindings, scopes };
 }
@@ -481,6 +546,7 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     expectedRevision: null,
     // The builder's own view preference: kept across workflows, not a draft's.
     minimapShown: true,
+    phoneMinimapShown: false,
     ...CLEARED,
 
     load: ({ workflowId, expectedRevision }) => {
@@ -522,7 +588,15 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       // resizes and removals change `notes`, never the steps.
       const noteIds = new Set((graph.notes ?? []).map((note) => note.id));
       const notes = graph.notes === undefined ? undefined : applyNoteChanges(graph.notes, changes);
-      const stepChanges = changes.filter((change) => !("id" in change && noteIds.has(change.id)));
+      const removing = new Set(
+        changes.flatMap((change) => (change.type === "remove" ? [change.id] : [])),
+      );
+      const allowed = removable(graph, removing);
+      const stepChanges = changes.filter(
+        (change) =>
+          !("id" in change && noteIds.has(change.id)) &&
+          !(change.type === "remove" && !allowed.has(change.id)),
+      );
       const flowNodes: FlowNode[] = graph.nodes.map((node) => ({
         id: node.id,
         position: node.layout,
@@ -562,7 +636,10 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
         nodes: nodesChanged ? nodes : graph.nodes,
         ...(notes !== undefined ? { notes } : {}),
       };
-      commit(nodesChanged ? pruneToNodes(updated) : updated);
+      const removed = new Set(
+        graph.nodes.flatMap((node) => (nodes.some((kept) => kept.id === node.id) ? [] : [node.id])),
+      );
+      commit(nodesChanged ? pruneToNodes(withoutBodiesOf(updated, removed)) : updated);
     },
 
     applyEdgeChanges: (changes) => {
@@ -583,7 +660,16 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       commit({ ...graph, edges: graph.edges.filter((edge) => kept.has(edge.id)) });
     },
 
-    insertNode: ({ node, edge, bindings, becomesEntry, replaces, split, configs = {} }) => {
+    insertNode: ({
+      node,
+      edge,
+      bindings,
+      becomesEntry,
+      replaces,
+      split,
+      configs = {},
+      companions = [],
+    }) => {
       const graph = get().graph ?? EMPTY_GRAPH;
       const base =
         split === undefined
@@ -618,7 +704,7 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       commit({
         ...kept,
         entry_node_id: becomesEntry ? node.id : kept.entry_node_id,
-        nodes: [...withConfigs(kept.nodes, configs), node],
+        nodes: [...withConfigs(kept.nodes, configs), node, ...companions],
         edges: edge === null ? kept.edges : [...kept.edges, edge],
         bindings: [...kept.bindings, ...bindings],
       });
@@ -634,11 +720,15 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     focusNode: (nodeId) =>
       set({ selection: { nodeIds: [nodeId], edgeIds: [] }, revealNodeId: nodeId }),
 
-    editNode: (nodeId) =>
+    editNode: (nodeId, iteration = []) =>
       set(
         nodeId === null
-          ? { editingNodeId: null }
-          : { editingNodeId: nodeId, selection: { nodeIds: [nodeId], edgeIds: [] } },
+          ? { editingNodeId: null, editingIteration: [] }
+          : {
+              editingNodeId: nodeId,
+              editingIteration: iteration,
+              selection: { nodeIds: [nodeId], edgeIds: [] },
+            },
       ),
 
     connectNodes: (connection, bindings = [], configs = {}) => {
@@ -663,8 +753,14 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
         target_node_id: target,
         target_port: targetHandle,
       };
+      // A trigger wired into the start takes its place: the start cannot be a
+      // wire's target, and the builder means the trigger to run what follows.
+      const takesEntry =
+        target === graph.entry_node_id &&
+        isRootTrigger(graph.nodes.find((node) => node.id === source));
       commit({
         ...graph,
+        entry_node_id: takesEntry ? source : graph.entry_node_id,
         nodes: withConfigs(graph.nodes, configs),
         edges: [...graph.edges, edge],
         bindings: [...graph.bindings, ...bindings],
@@ -674,13 +770,22 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     deleteSelection: () => {
       const { graph, selection } = get();
       if (graph === null) return;
-      const nodeIds = new Set(selection.nodeIds);
+      const noteIds = new Set(
+        (graph.notes ?? []).flatMap((note) =>
+          selection.nodeIds.includes(note.id) ? [note.id] : [],
+        ),
+      );
+      const nodeIds = new Set([...removable(graph, new Set(selection.nodeIds)), ...noteIds]);
       const edgeIds = new Set(selection.edgeIds);
       if (nodeIds.size === 0 && edgeIds.size === 0) return;
       const nodes = graph.nodes.filter((node) => !nodeIds.has(node.id));
       const edges = graph.edges.filter((edge) => !edgeIds.has(edge.id));
       const notes = graph.notes?.filter((note) => !nodeIds.has(note.id));
-      commit(pruneToNodes({ ...graph, nodes, edges, ...(notes ? { notes } : {}) }));
+      commit(
+        pruneToNodes(
+          withoutBodiesOf({ ...graph, nodes, edges, ...(notes ? { notes } : {}) }, nodeIds),
+        ),
+      );
       set({ selection: EMPTY_SELECTION });
     },
 
@@ -743,6 +848,8 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
 
     mergeStepData: (data) => set({ stepData: { ...get().stepData, ...data } }),
 
+    setIterationData: (data) => set({ iterationData: data }),
+
     finishTesting: () => set({ testingNodeId: null }),
 
     setOverlay: (overlay) =>
@@ -750,7 +857,12 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
 
     beginSplit: (edgeId) => set({ overlay: "picker", splitEdgeId: edgeId }),
 
-    toggleMinimap: () => set({ minimapShown: !get().minimapShown }),
+    toggleMinimap: (onPhone = false) =>
+      set(
+        onPhone
+          ? { phoneMinimapShown: !get().phoneMinimapShown }
+          : { minimapShown: !get().minimapShown },
+      ),
 
     moveNodes: (layouts) => {
       const { graph } = get();

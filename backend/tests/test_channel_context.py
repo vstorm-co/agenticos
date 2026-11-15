@@ -190,7 +190,7 @@ async def test_untrusted_metadata_never_reaches_system_instructions_through_cust
 
 @pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram"])
 @pytest.mark.security
-def test_channel_mcp_preserves_read_access_and_requires_approval_for_writes(surface):
+def test_linked_channel_mcp_preserves_the_authored_policy(surface):
     from app.db.models.agent_run import RunSurface
     from app.services.agent_runner import _with_channel_service_approval
 
@@ -201,7 +201,7 @@ def test_channel_mcp_preserves_read_access_and_requires_approval_for_writes(surf
         ],
     )
     result = _with_channel_service_approval(spec, RunSurface(surface), linked_sender=True)
-    assert result.mcp_servers[0].approval == "writes"
+    assert result.mcp_servers[0].approval == "none"
     assert spec.mcp_servers[0].approval == "none"
     assert _with_channel_service_approval(spec, RunSurface.WEB) is spec
 
@@ -221,8 +221,49 @@ def test_channel_mcp_approval_includes_organization_and_platform_connections():
         ],
     )
     result = _with_channel_service_approval(spec, RunSurface.SLACK, linked_sender=True)
-    assert [ref.approval for ref in result.mcp_servers] == ["writes", "writes"]
+    assert [ref.approval for ref in result.mcp_servers] == ["writes", "none"]
     assert [ref.approval for ref in spec.mcp_servers] == ["writes", "none"]
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("linked_sender", [True, False])
+def test_linked_senders_keep_tool_policy_and_unlinked_senders_cannot_bypass_approval(linked_sender):
+    """The linked member gets web chat policy; an unlinked sender cannot opt out."""
+    from uuid import uuid4
+
+    from pydantic_ai.tools import ToolDefinition
+
+    from app.agents.mcp import needs_approval
+    from app.db.models.agent_run import RunSurface
+    from app.services.agent_runner import _with_channel_service_approval
+
+    spec = AgentSpec(
+        name="A",
+        mcp_servers=[
+            {
+                "connection_id": uuid4(),
+                "approval": "writes",
+                "tool_approval": {"search": "never", "purge": "required"},
+            },
+            {"account": "personal", "catalog_key": "notion", "tool_approval": {"fetch": "never"}},
+            {"account": "platform"},
+        ],
+    )
+
+    result = _with_channel_service_approval(spec, RunSurface.SLACK, linked_sender=linked_sender)
+
+    org, personal, platform = result.mcp_servers
+    assert (org.tool_approval, personal.tool_approval) == (
+        ({"search": "never", "purge": "required"}, {"fetch": "never"})
+        if linked_sender
+        else ({"purge": "required"}, {})
+    )
+    unhinted = ToolDefinition(name="search", metadata={"annotations": None})
+    assert needs_approval(unhinted, org.approval, org.tool_approval.get("search", "default")) is (
+        not linked_sender
+    )
+    assert platform.approval == ("writes" if linked_sender else "all")
+    assert spec.mcp_servers[0].tool_approval == {"purge": "required", "search": "never"}
 
 
 @pytest.mark.parametrize(

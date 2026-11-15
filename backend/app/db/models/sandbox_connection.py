@@ -30,7 +30,7 @@ them stays where it can be done safely.
 
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, String, UniqueConstraint, false
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -59,7 +59,7 @@ class SandboxConnection(Base, TimestampMixin):
     """What an operator calls this host. Shown wherever an agent picks one."""
 
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
-    """`docker` for a `sandboxd` service, `daytona` or `e2b` for the cloud.
+    """`docker` for a `sandboxd` service, `daytona` or `e2b` for the cloud, or `opensandbox` for an independently operated server.
 
     The *kind* decides what `base_url` and the credential mean, which is why an
     agent spec does not carry it: naming the connection is naming the kind.
@@ -82,8 +82,13 @@ class SandboxConnection(Base, TimestampMixin):
     disappearing along with the reason.
     """
 
-    default_runtime: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    default_runtime: Mapped[str | None] = mapped_column(String(512), nullable=True)
     """The alias an agent gets when its spec names none. Null takes the service's own."""
+
+    secure_access: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    """Require OpenSandbox's Kubernetes gateway tokens on newly created sandbox endpoints."""
 
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     """Which connection a spec with no `connection_id` resolves to.

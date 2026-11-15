@@ -1,5 +1,6 @@
 "use client";
 
+import { sameLocalTarget } from "@/lib/desktop/local-target-content";
 import { ZoneField, isTimeZone } from "./zone-field";
 import { RoutineDialogFrame } from "./routine-dialog-frame";
 
@@ -57,7 +58,7 @@ import { FailurePolicyField } from "@/components/triggers/failure-policy-field";
 import { NotificationChannelsField } from "@/components/triggers/notification-channels-field";
 import type { RoutineNotificationChannel } from "@/types/routines";
 import { AnswerToField } from "@/components/triggers/answer-to-field";
-import { BudgetField, parseBudget } from "@/components/triggers/budget-field";
+import { BudgetField, parseBudget, raisesBudget } from "@/components/triggers/budget-field";
 import { OverlapField } from "@/components/triggers/overlap-field";
 import { ConversationModeField } from "@/components/triggers/conversation-mode-field";
 import { NO_TEAMS_POST, TeamsPostField } from "@/components/triggers/teams-post-field";
@@ -96,7 +97,7 @@ import type {
   TriggerUpdate,
 } from "@/types/triggers";
 import type { TriggerTemplate } from "@/types/trigger-templates";
-import { DIALOG_CONFIRM, DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_CONFIRM, DIALOG_FORM } from "@/lib/dialog-sizes";
 
 /** The backend's floor for a webhook secret; the generator comfortably clears it. */
 const MIN_SECRET = 16;
@@ -270,7 +271,7 @@ export function TriggerFormDialog({
   const [budget, setBudget] = useState(
     trigger?.monthly_budget_usd != null ? String(Number(trigger.monthly_budget_usd)) : "",
   );
-  const budgetLimit = parseBudget(budget);
+  const parsedBudget = parseBudget(budget);
   const [maxFailures, setMaxFailures] = useState<number | null>(
     trigger?.max_failures === undefined ? 3 : trigger.max_failures,
   );
@@ -295,7 +296,19 @@ export function TriggerFormDialog({
   );
   // A new trigger is the caller's own; an existing one is whoever made it.
   const me = useAuthStore((state) => state.user?.id ?? null);
-  const isCreator = trigger === null || trigger.created_by_user_id === me;
+  const impersonating = useAuthStore((state) => Boolean(state.user?.impersonation));
+  // An administrator acting as the creator is not the creator, as the server sees it.
+  const isCreator = trigger === null || (trigger.created_by_user_id === me && !impersonating);
+  // The server refuses anybody else resuming, moving the end of or loosening a routine
+  // that acts as its creator; tightening a limit stays theirs to do.
+  const limitsLocked = !isCreator && runsAsCreator;
+  const budgetRaised =
+    limitsLocked &&
+    raisesBudget(
+      parsedBudget,
+      trigger?.monthly_budget_usd != null ? Number(trigger.monthly_budget_usd) : null,
+    );
+  const budgetLimit = budgetRaised ? undefined : parsedBudget;
 
   const seed = trigger?.interval_seconds
     ? intervalToUnit(trigger.interval_seconds)
@@ -620,7 +633,7 @@ export function TriggerFormDialog({
         if (runsAsCreator !== trigger.runs_as_creator) patch.runs_as_creator = runsAsCreator;
         // Turning acting-as-me off clears the folder on the server; say nothing then.
         const before = trigger.local_target ?? null;
-        if (runsAsCreator && JSON.stringify(localTarget) !== JSON.stringify(before)) {
+        if (runsAsCreator && !sameLocalTarget(localTarget, before)) {
           const approved = localTarget ? (approvedLocal ?? (await approveTarget())) : null;
           if (!stillHere()) return;
           if (localTarget && !approved) return;
@@ -845,7 +858,7 @@ export function TriggerFormDialog({
   if (editing) {
     return (
       <Dialog open={open} onOpenChange={changeOpen}>
-        <DialogContent className={cn(DIALOG_SCROLL, DIALOG_FORM)}>
+        <DialogContent className={cn(DIALOG_COLUMN, DIALOG_FORM)} dismissible={!pending}>
           <DialogHeader>
             <DialogTitle>
               {type === "event" ? t("editTitleEvent") : t("editTitleSchedule")}
@@ -855,142 +868,165 @@ export function TriggerFormDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <NameField value={name} onChange={setName} />
-            <PromptField value={prompt} onChange={setPrompt} />
+          <div className={DIALOG_BODY}>
+            <fieldset disabled={pending} className="min-w-0 space-y-4">
+              <legend className="sr-only">
+                {type === "event" ? t("editTitleEvent") : t("editTitleSchedule")}
+              </legend>
+              <NameField value={name} onChange={setName} />
+              <PromptField value={prompt} onChange={setPrompt} disabled={pending} />
 
-            {scheduleFields}
+              {scheduleFields}
 
-            {trigger.trigger_type === "event" && trigger.webhook_url && (
-              <WebhookField url={trigger.webhook_url} />
-            )}
+              {trigger.trigger_type === "event" && trigger.webhook_url && (
+                <WebhookField url={trigger.webhook_url} />
+              )}
 
-            {/* The filter is the one event field that is editable in place -
+              {/* The filter is the one event field that is editable in place -
                 narrowing "which deliveries fire" is a filter edit, not a new
                 trigger. The source and secret stay fixed (the secret rotates
                 below instead). */}
-            {trigger.trigger_type === "event" &&
-              trigger.event_source &&
-              (() => {
-                const filters = FILTER_KEYS[trigger.event_source];
-                return filters ? (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <FormField
-                      label={tp(FILTER_COPY[filters[0]]!.labelKey)}
-                      htmlFor="edit-filter-a"
-                    >
-                      <Input
-                        id="edit-filter-a"
-                        readOnly={filters[0] === "site_url" && !can("mcp:manage")}
-                        value={filterA}
-                        onChange={(event) => setFilterA(event.target.value)}
-                        placeholder={t("filterOptional")}
-                      />
-                    </FormField>
-                    <FormField
-                      label={tp(FILTER_COPY[filters[1]]!.labelKey)}
-                      htmlFor="edit-filter-b"
-                      description={t("senderVouchedHint")}
-                    >
-                      <Input
-                        id="edit-filter-b"
-                        value={filterB}
-                        onChange={(event) => setFilterB(event.target.value)}
-                        placeholder={t("filterOptional")}
-                      />
-                    </FormField>
-                  </div>
-                ) : null;
-              })()}
+              {trigger.trigger_type === "event" &&
+                trigger.event_source &&
+                (() => {
+                  const filters = FILTER_KEYS[trigger.event_source];
+                  return filters ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <FormField
+                        label={tp(FILTER_COPY[filters[0]]!.labelKey)}
+                        htmlFor="edit-filter-a"
+                      >
+                        <Input
+                          id="edit-filter-a"
+                          readOnly={filters[0] === "site_url" && !can("mcp:manage")}
+                          value={filterA}
+                          onChange={(event) => setFilterA(event.target.value)}
+                          placeholder={t("filterOptional")}
+                        />
+                      </FormField>
+                      <FormField
+                        label={tp(FILTER_COPY[filters[1]]!.labelKey)}
+                        htmlFor="edit-filter-b"
+                        description={t("senderVouchedHint")}
+                      >
+                        <Input
+                          id="edit-filter-b"
+                          value={filterB}
+                          onChange={(event) => setFilterB(event.target.value)}
+                          placeholder={t("filterOptional")}
+                        />
+                      </FormField>
+                    </div>
+                  ) : null;
+                })()}
 
-            {trigger.trigger_type === "event" && trigger.event_source && (
-              <EventOptions
-                source={trigger.event_source}
-                config={extraConfig}
-                onChange={setExtraConfig}
-                canManageConnections={can("mcp:manage")}
-              />
-            )}
-            {trigger.trigger_type === "event" &&
-              trigger.can_manage &&
-              trigger.delivery_mode !== "polling" &&
-              trigger.delivery_mode !== "app_webhook" && (
-                <RotateSecretSection triggerId={trigger.id} rotate={rotateSecret} />
-              )}
-
-            <ResultModeField value={resultMode} onChange={setResultMode} />
-            <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
-              {namedEnvironments.length > 0 && (
-                <EnvironmentField
-                  value={environmentId}
-                  onChange={changeEnvironment}
-                  environments={namedEnvironments}
-                  defaultEnvironment={defaultEnvironment}
+              {trigger.trigger_type === "event" && trigger.event_source && (
+                <EventOptions
+                  source={trigger.event_source}
+                  config={extraConfig}
+                  onChange={setExtraConfig}
+                  canManageConnections={can("mcp:manage")}
                 />
               )}
+              {trigger.trigger_type === "event" &&
+                trigger.can_manage &&
+                trigger.delivery_mode !== "polling" &&
+                trigger.delivery_mode !== "app_webhook" && (
+                  <RotateSecretSection triggerId={trigger.id} rotate={rotateSecret} />
+                )}
 
-              {environmentId === DEFAULT_ENV && effectiveAgentId && (
-                <VersionField
-                  key={effectiveAgentId}
-                  agentId={effectiveAgentId}
-                  value={pinnedVersion}
-                  onChange={setPinnedVersion}
-                  onValidChange={setVersionValid}
+              <ResultModeField value={resultMode} onChange={setResultMode} />
+              <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
+                {namedEnvironments.length > 0 && (
+                  <EnvironmentField
+                    value={environmentId}
+                    onChange={changeEnvironment}
+                    environments={namedEnvironments}
+                    defaultEnvironment={defaultEnvironment}
+                  />
+                )}
+
+                {environmentId === DEFAULT_ENV && effectiveAgentId && (
+                  <VersionField
+                    key={effectiveAgentId}
+                    agentId={effectiveAgentId}
+                    value={pinnedVersion}
+                    onChange={setPinnedVersion}
+                    onValidChange={setVersionValid}
+                  />
+                )}
+
+                {resultMode === "report" && (
+                  <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
+                )}
+
+                {resultMode === "report" && (
+                  <AnswerToField
+                    value={answerTo}
+                    onChange={setAnswerTo}
+                    hasConversation={hasConversation}
+                  />
+                )}
+                <ConversationModeField value={conversationMode} onChange={setConversationMode} />
+                <FailurePolicyField
+                  value={maxFailures}
+                  onChange={setMaxFailures}
+                  highest={limitsLocked ? (trigger.max_failures ?? undefined) : undefined}
                 />
-              )}
-
-              {resultMode === "report" && (
-                <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
-              )}
-
-              {resultMode === "report" && (
-                <AnswerToField
-                  value={answerTo}
-                  onChange={setAnswerTo}
-                  hasConversation={hasConversation}
+                <NotificationChannelsField
+                  value={notificationChannels}
+                  onChange={setNotificationChannels}
                 />
-              )}
-              <ConversationModeField value={conversationMode} onChange={setConversationMode} />
-              <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
-              <NotificationChannelsField
-                value={notificationChannels}
-                onChange={setNotificationChannels}
-              />
+                <EndsAtField
+                  value={endsAt}
+                  onChange={changeEnd}
+                  invalid={invalidEnd}
+                  disabled={limitsLocked}
+                />
 
-              <EndsAtField value={endsAt} onChange={changeEnd} invalid={invalidEnd} />
+                <BudgetField
+                  value={budget}
+                  onChange={setBudget}
+                  error={budgetRaised ? t("budgetCreatorOnly") : undefined}
+                />
+                {limitsLocked && (
+                  <p className="text-muted-foreground text-xs sm:col-span-2">
+                    {t("limitsCreatorOnly")}
+                  </p>
+                )}
 
-              <BudgetField value={budget} onChange={setBudget} />
-
-              <RunAsCreatorField
-                checked={runsAsCreator}
-                onChange={setRunsAsCreator}
-                type={trigger.trigger_type}
-                isCreator={isCreator}
-              />
-              <LocalTargetField
-                value={localTarget}
-                onChange={(target) => {
-                  setLocalTarget(target);
-                  setApprovedLocal(null);
-                }}
-                visible={runsAsCreator && isCreator}
-              />
-            </RoutineOptions>
+                <RunAsCreatorField
+                  checked={runsAsCreator}
+                  onChange={setRunsAsCreator}
+                  type={trigger.trigger_type}
+                  isCreator={isCreator}
+                />
+                <LocalTargetField
+                  value={localTarget}
+                  onChange={(target) => {
+                    setLocalTarget(target);
+                    setApprovedLocal(null);
+                  }}
+                  visible={runsAsCreator && isCreator}
+                />
+              </RoutineOptions>
+            </fieldset>
           </div>
 
-          <DialogFooter className="sm:justify-between">
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-between">
             <Button
               variant="secondary"
-              disabled={!trigger.is_active || runNow.isPending}
+              className="col-span-2"
+              disabled={pending || !trigger.is_active || runNow.isPending}
               onClick={() => runNow.mutate(trigger.id)}
             >
               {t("runNow")}
             </Button>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => changeOpen(false)}>
+            <div className="col-span-2 grid grid-cols-2 gap-2 sm:flex">
+              <Button variant="outline" disabled={pending} onClick={() => changeOpen(false)}>
                 {t("cancel")}
               </Button>
-              <Button onClick={submit} disabled={!canSubmit}>
+              <Button onClick={submit} disabled={!canSubmit} loading={pending}>
                 {t("save")}
               </Button>
             </div>
@@ -1006,11 +1042,13 @@ export function TriggerFormDialog({
         title={type === "event" ? t("newEvent") : t("newSchedule")}
         description={t("createDescription")}
         progress={{ steps, current: step }}
+        pending={pending}
         disabled={preparedLocal !== null || pending}
         bodyKey={step}
         footer={
           <WizardNav
             backIsStep={!onFirstStep}
+            backDisabled={pending}
             backLabel={onFirstStep ? t("cancel") : t("back")}
             onBack={onFirstStep ? () => changeOpen(false) : handleBack}
             nextLabel={isLastStep ? t("create") : t("continue")}
@@ -1148,7 +1186,7 @@ export function TriggerFormDialog({
 
             {/* The step is the message's own, so the editor gets the room a
                   long prompt needs. */}
-            <PromptField value={prompt} onChange={setPrompt} rows={8} />
+            <PromptField value={prompt} onChange={setPrompt} rows={8} disabled={pending} />
           </div>
         )}
 
@@ -1177,8 +1215,10 @@ function PromptField({
   value,
   onChange,
   rows = 6,
+  disabled = false,
 }: {
   value: string;
+  disabled?: boolean;
   onChange: (value: string) => void;
   /** The wizard's message step passes more - a prompt is often long. */
   rows?: number;
@@ -1189,6 +1229,7 @@ function PromptField({
     <div className="space-y-1.5">
       <MarkdownEditor
         id="trigger-prompt"
+        disabled={disabled}
         toolbar={
           <>
             <Label htmlFor="trigger-prompt" className="flex-1">
