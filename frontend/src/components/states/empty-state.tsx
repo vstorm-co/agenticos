@@ -1,8 +1,7 @@
 import Link from "next/link";
-import type { LucideIcon } from "lucide-react";
+import { Inbox, type LucideIcon } from "lucide-react";
 
-import { WorkspaceAtmosphere } from "@/components/illustrations/workspace-atmosphere";
-import { SectionGlyph } from "@/components/states/section-glyph";
+import { EmptyIllustration } from "@/components/illustrations/empty-illustration";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -34,12 +33,7 @@ export function EmptyState({
         className,
       )}
     >
-      {Icon && (
-        <div className="relative mb-3 flex h-24 w-64 max-w-full items-center justify-center">
-          <WorkspaceAtmosphere className="absolute inset-0 h-full w-full opacity-70" />
-          <SectionGlyph icon={Icon} className="relative" />
-        </div>
-      )}
+      <EmptyIllustration icon={Icon ?? Inbox} className="mb-3" />
       <h3 className="text-foreground max-w-full text-base font-semibold tracking-tight break-words">
         {title}
       </h3>

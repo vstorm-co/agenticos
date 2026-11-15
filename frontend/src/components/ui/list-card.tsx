@@ -4,7 +4,7 @@ import { Search, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { HTMLAttributes, ReactNode } from "react";
 
-import { SectionGlyph } from "@/components/states/section-glyph";
+import { EmptyIllustration } from "@/components/illustrations/empty-illustration";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -228,11 +228,18 @@ export function ListCardEmpty({
   const t = useTranslations("ui");
   const action = onClearFilters ? { label: t("clearFilters"), onClick: onClearFilters } : cta;
   return (
-    <div className="flex min-h-56 shrink-0 flex-col items-center justify-center px-5 py-8 text-center">
-      <SectionGlyph icon={onClearFilters ? Search : Icon} className="mx-auto" />
-      <p className="text-foreground mt-4 text-sm font-medium">{title}</p>
+    <div
+      className={cn(
+        "flex min-h-56 shrink-0 flex-col items-center justify-center px-5 py-8 text-center",
+        !onClearFilters && "flex-1",
+      )}
+    >
+      <EmptyIllustration icon={onClearFilters ? Search : Icon} />
+      <p className="text-foreground mt-4 text-base font-semibold tracking-tight">{title}</p>
       {description && (
-        <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">{description}</p>
+        <p className="text-muted-foreground mx-auto mt-1.5 max-w-sm text-sm leading-relaxed">
+          {description}
+        </p>
       )}
       {action && (
         <Button variant="outline" size="sm" className="mt-5" onClick={action.onClick}>
