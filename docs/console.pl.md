@@ -1,8 +1,10 @@
 ---
-source_sha: "9f68fa732bb7"
+source_sha: "00bf011263fe"
 ---
 
 # Konsola { #the-console }
+
+Widok Me zaczyna się od karty podsumowania okresu, a następnie zwartego Briefingu z tytułami, źródłami i akcjami. Pełne opisy propozycji pozostają w Inbox.
 
 Osobisty dashboard odczytuje onboarding i Briefing razem przed pokazaniem pierwszego wiersza. Jedno zarezerwowane miejsce ładowania zapobiega zmianom układu placeholderów; pozostałe widżety ładują się niezależnie. Błędy odczytu zachowują możliwość ponowienia. Rozszerzanie obszaru roboczego jest dostępne na telefonach; przejście na desktop przywraca nawigację i zachowuje niezapisane pola.
 

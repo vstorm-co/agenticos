@@ -1,8 +1,10 @@
 ---
-source_sha: "9f68fa732bb7"
+source_sha: "00bf011263fe"
 ---
 
 # Die Konsole { #the-console }
+
+Die Me-Ansicht beginnt mit einer Zusammenfassung des Zeitraums als Karte, gefolgt von einem kompakten Briefing mit Titeln, Quellen und Aktionen. Vollständige Vorschläge bleiben im Posteingang.
 
 Das persönliche Dashboard liest Onboarding und Briefing gemeinsam, bevor es die erste Zeile anzeigt. Ein reservierter Ladebereich verhindert wechselnde Platzhalterlayouts; andere Widgets laden unabhängig. Fehlgeschlagene Lesevorgänge können erneut versucht werden. Arbeitsbereiche lassen sich auf Smartphones erweitern; beim Wechsel zum Desktop kehrt die Navigation zurück und ungespeicherte Felder bleiben erhalten.
 

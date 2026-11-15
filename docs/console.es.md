@@ -1,8 +1,10 @@
 ---
-source_sha: "9f68fa732bb7"
+source_sha: "00bf011263fe"
 ---
 
 # La consola { #the-console }
+
+La vista Me empieza con una tarjeta de resumen del período, seguida de un Briefing compacto con títulos, fuentes y acciones. Los detalles completos siguen en Inbox.
 
 El dashboard personal lee onboarding y Briefing juntos antes de mostrar su primera fila. Una zona de carga reservada evita cambios entre diseños de marcadores; los demás widgets cargan por separado. Los errores de lectura permiten reintentar. La ampliación del área de trabajo se ofrece en teléfonos; al pasar al escritorio se recupera la navegación y se conservan los campos sin guardar.
 

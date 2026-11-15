@@ -21,6 +21,7 @@ import { QuietGroup } from "@/components/dashboard/quiet-group";
 import { StartChecklist } from "@/components/dashboard/start-checklist";
 import { ViewSwitcher } from "@/components/dashboard/view-switcher";
 import { WIDGET_COMPONENTS } from "@/components/dashboard/widgets";
+import { MySummaryWidget } from "@/components/dashboard/widgets/my-summary";
 import { Button } from "@/components/ui";
 import { EmptyState } from "@/components/states";
 import { useDashboardLayout, useDashboardPresets, useGroups, usePermissions } from "@/hooks";
@@ -306,9 +307,23 @@ export default function DashboardPage() {
   const selectedSections = parseSectionsParam(sectionsParam, visible);
   const sections = applySectionsFilter(visible, selectedSections);
 
+  const personalSummary =
+    view === "me"
+      ? sections
+          .flatMap((section) => section.entries)
+          .find((entry) => entry.widget === "my-summary")
+      : undefined;
+
+  const bandSections = personalSummary
+    ? sections.map((section) => ({
+        ...section,
+        entries: section.entries.filter((entry) => entry.widget !== "my-summary"),
+      }))
+    : sections;
+
   const bands = (
     <div className={cn(BAND_GAP, "mt-6")}>
-      {sections.map((section) => {
+      {bandSections.map((section) => {
         // A custom divider carries the person's own caption (`title`) and an
         // accent; the curated defaults carry a translated `titleKey` and no
         // colour. Neutral is the absence of an accent — rendered plain, like a
@@ -443,6 +458,21 @@ export default function DashboardPage() {
           own view or the organization's - not beside a group's or the host's
           numbers. */}
       {activeOrgId && view === "org" && <StartChecklist orgId={activeOrgId} />}
+      {personalSummary && (
+        <div className="mt-6 min-h-64 lg:h-[18.5rem]">
+          <MySummaryWidget
+            title={t(personalSummary.titleKey ?? "widgets.my-summary.title")}
+            hint={t("widgets.my-summary.description")}
+            period={
+              personalSummary.options?.period
+                ? resolvePreset(personalSummary.options.period)
+                : period
+            }
+            options={personalSummary.options}
+            seeAll={WIDGETS["my-summary"].seeAll}
+          />
+        </div>
+      )}
       {view === "me" && <MeOpening orgId={activeOrgId} period={period} pending={openingLoading} />}
       {/* The bands own a rhythm of their own, four times the gap between two
           cards, which is what makes a band read as a band. The header and the

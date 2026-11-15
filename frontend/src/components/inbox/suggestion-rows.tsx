@@ -25,11 +25,13 @@ export function SuggestionRows({
   items,
   dense = false,
   expandedDetails = false,
+  showDetails = true,
   className,
 }: {
   items: Suggestion[];
   dense?: boolean;
   expandedDetails?: boolean;
+  showDetails?: boolean;
   className?: string;
 }) {
   const t = useTranslations("chat.suggestions");
@@ -127,7 +129,7 @@ export function SuggestionRows({
                     })
                   )}
                 </span>
-                {suggestion.detail && (
+                {showDetails && suggestion.detail && (
                   <p
                     className={cn(
                       "text-muted-foreground mt-1 max-w-3xl text-sm leading-relaxed",

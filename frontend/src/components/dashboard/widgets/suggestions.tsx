@@ -29,7 +29,7 @@ export function SuggestionsWidget({ title, hint, seeAll, options }: DashboardWid
   const on = activeOrg?.proactive_enabled === true || activeOrg?.proactive_watches_enabled === true;
 
   return (
-    <WidgetFrame surface="plain" title={title} hint={hint} seeAll={seeAll} options={options}>
+    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (
@@ -45,6 +45,7 @@ export function SuggestionsWidget({ title, hint, seeAll, options }: DashboardWid
           <SuggestionRows
             items={first}
             dense
+            showDetails={false}
             className="divide-border divide-y [&>li]:py-3 [&>li:first-child]:pt-0 [&>li:last-child]:pb-0"
           />
           {suggestions.length > SHOWN && (

@@ -1093,3 +1093,15 @@ it("keeps one loading state until onboarding and briefing can mount in their fin
   ).toBeInTheDocument();
   expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull();
 });
+
+it("shows personal metrics once, before the briefing", async () => {
+  render(<DashboardPage />, { wrapper });
+  const briefing = await screen.findByRole("heading", {
+    name: "dashboard.widgets.suggestions.title",
+  });
+  const summary = screen.getByRole("heading", { name: "dashboard.widgets.my-summary.title" });
+  expect(
+    screen.getAllByRole("heading", { name: "dashboard.widgets.my-summary.title" }),
+  ).toHaveLength(1);
+  expect(summary.compareDocumentPosition(briefing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
