@@ -249,6 +249,15 @@ class WebhookTriggerConfig(BaseSchema):
     model_config = ConfigDict(extra="forbid")
 
 
+class LinearTriggerConfig(BaseSchema):
+    """Optional filters on Linear payload types and actions."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event_types: list[str] | None = Field(default=None, min_length=1, max_length=50)
+    actions: list[str] | None = Field(default=None, min_length=1, max_length=50)
+
+
 class HubspotTriggerConfig(BaseSchema):
     """Which HubSpot webhook events fire the trigger.
 
@@ -288,6 +297,7 @@ EventSourceName = Literal[
     "google_calendar",
     "google_drive",
     "hubspot",
+    "linear",
     "microsoft_files",
     "outlook",
     "outlook_calendar",
@@ -396,6 +406,7 @@ _EVENT_CONFIG_MODELS: dict[str, type[BaseSchema]] = {
     EventSource.GOOGLE_CALENDAR.value: CalendarTriggerConfig,
     EventSource.GOOGLE_DRIVE.value: GoogleDriveTriggerConfig,
     EventSource.HUBSPOT.value: HubspotTriggerConfig,
+    EventSource.LINEAR.value: LinearTriggerConfig,
     EventSource.MICROSOFT_FILES.value: MicrosoftFilesTriggerConfig,
     EventSource.OUTLOOK_CALENDAR.value: CalendarTriggerConfig,
     EventSource.OUTLOOK.value: OutlookTriggerConfig,

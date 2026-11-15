@@ -43,6 +43,7 @@ from app.schemas.agent_trigger import (
     GmailTriggerConfig,
     GoogleDriveTriggerConfig,
     HubspotTriggerConfig,
+    LinearTriggerConfig,
     MicrosoftFilesTriggerConfig,
     OutlookTriggerConfig,
     ZendeskTriggerConfig,
@@ -63,6 +64,7 @@ logger = logging.getLogger(__name__)
 _SIGNATURE_HEADER = {
     EventSource.GITHUB.value: "x-hub-signature-256",
     EventSource.HUBSPOT.value: "x-hubspot-signature-v3",
+    EventSource.LINEAR.value: "linear-signature",
     EventSource.WEBHOOK.value: "x-signature-256",
     EventSource.ZENDESK.value: "x-zendesk-webhook-signature",
 }
@@ -112,6 +114,12 @@ def delivery_id(source: str, headers: Mapping[str, str], payload: Mapping[str, A
     """
     if source == EventSource.HUBSPOT.value:
         return _hubspot_delivery(payload)
+    if source == EventSource.LINEAR.value:
+        # The delivery header is not signed. The authenticated payload is. A retry
+        # whose timestamp changes has a different key; Linear does not document
+        # whether its retry body changes.
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
+        return "linear:" + hashlib.sha256(encoded).hexdigest()
     value = headers.get(_DELIVERY_ID_HEADER[source], "").strip()
     return value or None
 
@@ -188,6 +196,8 @@ def verify_signature(
         return _hubspot_verified(secret, body=body, headers=headers, url=url, now=moment)
     if source == EventSource.ZENDESK.value:
         return _zendesk_verified(secret, body=body, headers=headers, now=moment)
+    if source == EventSource.LINEAR.value:
+        return _linear_verified(secret, body=body, headers=headers, now=moment)
     signature = headers.get(_SIGNATURE_HEADER[source], "")
     if not signature.startswith("sha256="):
         return False
@@ -239,6 +249,26 @@ def _hubspot_verified(
     return _same(expected, headers.get("x-hubspot-signature", "").strip())
 
 
+def _linear_verified(secret: str, *, body: bytes, headers: Mapping[str, str], now: float) -> bool:
+    """Linear signs the raw JSON body, including its millisecond timestamp."""
+    expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    received = headers.get("linear-signature", "")
+    if len(received) != 64 or any(c not in "0123456789abcdef" for c in received):
+        return False
+    if not _same(expected, received):
+        return False
+    try:
+        payload = json.loads(body)
+    except ValueError, UnicodeDecodeError:
+        return False
+    if not isinstance(payload, dict):
+        return False
+    stamp = payload.get("webhookTimestamp")
+    if type(stamp) is not int:
+        return False
+    return abs(now * 1000 - stamp) <= 60_000
+
+
 def _zendesk_verified(secret: str, *, body: bytes, headers: Mapping[str, str], now: float) -> bool:
     """Zendesk's signature: an HMAC over its ISO timestamp and the body.
 
@@ -272,6 +302,11 @@ def event_matches(
         return _outlook_matches(payload, config)
     if source == EventSource.HUBSPOT.value:
         return _hubspot_matches(payload, config)
+    if source == EventSource.LINEAR.value:
+        parsed = LinearTriggerConfig.model_validate(dict(config))
+        return (parsed.event_types is None or payload.get("type") in parsed.event_types) and (
+            parsed.actions is None or payload.get("action") in parsed.actions
+        )
     if source == EventSource.ZENDESK.value:
         parsed = ZendeskTriggerConfig.model_validate(dict(config))
         return parsed.event_types is None or payload.get("type") in parsed.event_types
@@ -296,6 +331,10 @@ def render_context(source: str, *, payload: Mapping[str, Any]) -> str:
         return clean_text(_outlook_context(payload))
     if source == EventSource.HUBSPOT.value:
         return _hubspot_context(payload)
+    if source == EventSource.LINEAR.value:
+        return "A Linear webhook arrived.\n\n" + _clip(
+            json.dumps(dict(payload), indent=2, ensure_ascii=False, default=str)
+        )
     if source == EventSource.ZENDESK.value:
         return _zendesk_context(payload)
     if source in _FILE_PROVIDERS:

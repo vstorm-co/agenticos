@@ -5407,3 +5407,72 @@ def test_pending_source_metadata_is_safe_and_readable_without_a_migration():
     assert not trigger.setup_required and trigger.setup_issues == []
     trigger.approved_sources = {"pending_review": True, "unavailable_sources": "malformed"}
     assert trigger.setup_issues == []
+
+
+@pytest.mark.security
+async def test_linear_secret_rotation_does_not_replace_provider_secret():
+    agent = _agent()
+    service = _service(agent)
+    trigger = _event_trigger(agent_id=agent.id, event_source="linear", delivery_mode="manual")
+    with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+        repo.get = AsyncMock(return_value=trigger)
+        repo.update = AsyncMock()
+        with pytest.raises(BadRequestError, match="recreate the Linear trigger"):
+            await service.rotate_secret(_ctx(), agent.id, trigger.id)
+        repo.update.assert_not_called()
+
+
+@pytest.mark.security
+async def test_linear_trigger_create_seals_the_supplied_secret_without_revealing_it():
+    agent = _agent()
+    service = _service(agent)
+    trigger = _event_trigger(agent_id=agent.id, event_source="linear", conversation_id=uuid.uuid4())
+    data = TriggerCreate(
+        prompt="triage",
+        trigger_type="event",
+        event_source="linear",
+        event_secret=_SIGNING_SECRET,
+        event_config={"event_types": ["Issue"], "actions": ["create"]},
+    )
+    audit = AsyncMock()
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch(
+            "app.services.agent_trigger.seal",
+            return_value=MagicMock(ciphertext="CT", key_version=1),
+        ) as seal_fn,
+        patch("app.services.agent_trigger.record_audit", new=audit),
+    ):
+        repo.create = AsyncMock(return_value=trigger)
+        created = await service.create(_ctx(), agent.id, data)
+    assert seal_fn.call_args.args[0] == _SIGNING_SECRET
+    assert repo.create.call_args.kwargs["event_secret_encrypted"] == "CT"
+    assert repo.create.call_args.kwargs["event_source"] == "linear"
+    assert created.reveal_secret is None
+    assert _SIGNING_SECRET not in str(audit.call_args.kwargs["details"])
+
+
+async def test_linear_signed_matching_delivery_produces_a_decision():
+    import hashlib
+    import hmac
+    import json
+    import time
+
+    service = _service()
+    trigger = _event_trigger(event_source="linear", event_config={"event_types": ["Issue"]})
+    body = json.dumps(
+        {"webhookTimestamp": int(time.time() * 1000), "type": "Issue", "action": "create"}
+    ).encode()
+    signature = hmac.new(_SIGNING_SECRET.encode(), body, hashlib.sha256).hexdigest()
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch("app.services.agent_trigger.unseal", return_value=_SIGNING_SECRET),
+        patch.object(service, "_claim", new=AsyncMock(return_value=True)),
+    ):
+        repo.get_by_id = AsyncMock(return_value=trigger)
+        decision = await service.prepare_event_fire(
+            "linear", trigger.id, body=body, headers={"linear-signature": signature}
+        )
+    assert decision is not None
+    assert decision.trigger_id == trigger.id
+    assert "Issue" in decision.event_context

@@ -16,6 +16,7 @@ describe("EventSourceMark", () => {
     "gmail",
     "outlook",
     "hubspot",
+    "linear",
     "zendesk",
     "google_drive",
     "microsoft_files",

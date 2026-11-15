@@ -1638,6 +1638,11 @@ class AgentTriggerService:
                 message="a polled trigger is read from a connected account and has no secret",
                 details={"trigger_id": str(trigger.id)},
             )
+        if trigger.event_source == EventSource.LINEAR.value:
+            raise BadRequestError(
+                message="recreate the Linear trigger with its new provider-issued secret",
+                details={"trigger_id": str(trigger.id)},
+            )
         plaintext = secrets.token_urlsafe(32)
         sealed = seal(plaintext, scope=VaultScope.organization(ctx.organization_id))
         updated = await agent_trigger_repo.update(

@@ -801,3 +801,53 @@ def test_a_plain_sender_fragment_narrows_the_address(source, fragment, matches):
         )
         is matches
     )
+
+
+class TestLinearWebhook:
+    def test_fresh_authentic_delivery_and_filters(self):
+        body = b'{"webhookTimestamp":1000000,"type":"Issue","action":"create"}'
+        headers = {"linear-signature": _sign(_SECRET, body)[7:]}
+        assert trigger_events.verify_signature(
+            "linear", secret=_SECRET, body=body, headers=headers, now=1000
+        )
+        assert trigger_events.event_matches(
+            "linear",
+            headers=headers,
+            payload={"type": "Issue", "action": "create"},
+            config={"event_types": ["Issue"], "actions": ["create"]},
+        )
+        assert not trigger_events.event_matches(
+            "linear",
+            headers=headers,
+            payload={"type": "Issue", "action": "update"},
+            config={"actions": ["create"]},
+        )
+        assert "Linear" in trigger_events.render_context("linear", payload={"type": "Issue"})
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "body,sign_body,now",
+        [
+            (b'{"webhookTimestamp":1000000}', b'{"webhookTimestamp":1000001}', 1000),
+            (b'{"webhookTimestamp":1000000}', b'{"webhookTimestamp":1000000}', 1061),
+            (b'{"webhookTimestamp":1000000}', b'{"webhookTimestamp":1000000}', 939),
+            (b"{}", b"{}", 1000),
+            (b'{"webhookTimestamp":true}', b'{"webhookTimestamp":true}', 1000),
+            (b"[]", b"[]", 1000),
+            (b"{", b"{", 1000),
+        ],
+    )
+    def test_invalid_or_stale_delivery_is_refused(self, body, sign_body, now):
+        headers = {"linear-signature": _sign(_SECRET, sign_body)[7:]}
+        assert not trigger_events.verify_signature(
+            "linear", secret=_SECRET, body=body, headers=headers, now=now
+        )
+
+    def test_unsigned_delivery_id_cannot_change_replay_identity(self):
+        payload = {"webhookTimestamp": 1000000, "type": "Issue"}
+        one = trigger_events.delivery_id("linear", {"linear-delivery": "one"}, payload)
+        assert one == trigger_events.delivery_id("linear", {"linear-delivery": "two"}, payload)
+        # A provider retry that changes the signed timestamp gets a different key.
+        assert one != trigger_events.delivery_id(
+            "linear", {}, {**payload, "webhookTimestamp": 1000001}
+        )
