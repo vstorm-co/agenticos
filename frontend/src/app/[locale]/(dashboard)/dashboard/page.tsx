@@ -474,6 +474,7 @@ export default function DashboardPage() {
         </div>
       )}
       {view === "me" && <MeOpening orgId={activeOrgId} period={period} pending={openingLoading} />}
+      {view === "me" && <DiscoverTips />}
       {/* The bands own a rhythm of their own, four times the gap between two
           cards, which is what makes a band read as a band. The header and the
           control strip above keep the 24px every other page uses. */}
@@ -488,7 +489,6 @@ export default function DashboardPage() {
       ) : (
         bands
       )}
-      {view === "me" && <DiscoverTips />}
     </div>
   );
 }

@@ -78,7 +78,7 @@ function VisualTile({ visual }: { visual: VisualListItem }) {
           {timeAgo(visual.created_at, tTime, locale)}
         </span>
       </span>
-      <span className="bg-foreground/[0.04] relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg">
+      <span className="bg-foreground/[0.04] relative flex aspect-[16/9] items-center justify-center overflow-hidden rounded-lg">
         {live && visual.artifact_id !== null ? (
           <ArtifactThumbnail artifactId={visual.artifact_id} title={visual.title} />
         ) : pictured && !broken ? (
@@ -89,7 +89,7 @@ function VisualTile({ visual }: { visual: VisualListItem }) {
             src={visualThumbnailUrl(visual.id)}
             alt=""
             onError={() => setBroken(true)}
-            className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
+            className="h-full w-full object-contain object-center transition-transform group-hover:scale-[1.02]"
           />
         ) : (
           <VisualPreviewFallback

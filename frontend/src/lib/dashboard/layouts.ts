@@ -319,14 +319,11 @@ const ME_SECTIONS: SectionDef[] = [
     titleKey: null,
     entries: [
       { widget: "my-summary", span: "s12", rows: "r3" },
-      { widget: "conversations", span: "s8", rows: "r3" },
-      { widget: "approvals", span: "s4", rows: "r3" },
-      { widget: "background-tasks", span: "s4", rows: "r2" },
+      { widget: "conversations", span: "s12", rows: "r3" },
       { widget: "projects", span: "s6", rows: "r3" },
       { widget: "my-top-agents", span: "s6", rows: "r3" },
-      { widget: "my-agents", span: "s8", rows: "r3" },
-      { widget: "shared-with-you", span: "s4", rows: "r3" },
-      { widget: "recent-visuals", span: "s12", rows: "r4" },
+      { widget: "my-agents", span: "s12", rows: "r3" },
+      { widget: "recent-visuals", span: "s12", rows: "r6" },
     ],
   },
 ];

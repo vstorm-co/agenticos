@@ -55,12 +55,9 @@ describe("the layouts", () => {
       ).toEqual([
         "my-summary",
         "conversations",
-        "approvals",
-        "background-tasks",
         "projects",
         "my-top-agents",
         "my-agents",
-        "shared-with-you",
         "recent-visuals",
       ]);
     }
@@ -140,11 +137,7 @@ describe("visibleSections", () => {
     );
 
     expect(sections.map((section) => section.id)).toEqual(["workspace"]);
-    expect(sections[0]?.entries.map((entry) => entry.widget)).toEqual([
-      "background-tasks",
-      "my-agents",
-      "shared-with-you",
-    ]);
+    expect(sections[0]?.entries.map((entry) => entry.widget)).toEqual(["my-agents"]);
   });
 
   it("a caller with nothing still sees their own notifications, and nothing else", () => {
