@@ -1,5 +1,5 @@
 ---
-source_sha: "8e813ce8ee8c"
+source_sha: "cd236f0fa9fc"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -158,6 +158,10 @@ exportaciones y consultas de páginas aplican esta condición antes de paginar.
 El array devuelto es el subconjunto visible para quien consulta. Sustituirlo desde
 un cliente antiguo conserva los enlaces existentes que el usuario no puede leer;
 editar otro campo conserva todos los enlaces.
+
+Cada ID de enlace enviado explícitamente debe ser legible, aunque ya esté
+enlazado o no cambie la fila. Un ID oculto se rechaza igual que uno desconocido.
+Solo se conservan en nombre del usuario los enlaces ocultos que este omite.
 
 Una política de filas almacenada que sea inválida bloquea la lectura y escritura
 de registros con `ROW_POLICY_INVALID` (409), sin desactivar la política. Los
@@ -344,6 +348,12 @@ Una actualización o un borrado que indica una revision antigua se rechaza con
 registro de nuevo y reintenta. Un upsert que encuentra un registro existente y no recibe
 `expected_revision` obtiene `REVISION_REQUIRED` (428), de nuevo con la revision que debe
 enviar.
+
+Se comprueba el acceso Write actual antes de revelar una revision almacenada.
+Un upsert para un external id existente pero oculto y otro para un ID nuevo que
+el usuario no puede crear devuelven `NOT_FOUND` (404), con el mismo mensaje e ID
+de tabla. Crear una fila también requiere Edit en la tabla y una política que
+permita al creador leerla; un grant Write de fila no permite crear registros.
 
 Un external id tiene de 1 a 255 caracteres y puede contener `/`, como en `2026/ORD-1`. No puede contener NUL ni un salto de línea. El servicio lo comprueba
 igual que las rutas. Por HTTP la ruta lo rechaza primero, con `VALIDATION_ERROR`; un

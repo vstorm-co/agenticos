@@ -149,6 +149,10 @@ apply this condition before pagination. Treat a returned link array as the
 caller's visible subset. Replacing that array through an older client preserves
 existing links the caller cannot read; unrelated field edits preserve all links.
 
+Every explicitly submitted link ID must be readable, including an ID that is
+already linked or would leave the row unchanged. A hidden ID is refused just like
+an unknown ID. Only omitted hidden links are preserved on the caller's behalf.
+
 An invalid stored row policy blocks record reads and writes with
 `ROW_POLICY_INVALID` (409). It never disables the policy. Authorized users can
 still read table metadata, which reports `row_policy_valid: false`, and an
@@ -329,6 +333,12 @@ An update or delete that names an old revision is refused with `REVISION_CONFLIC
 (409) and `details.current_revision`; nothing is overwritten. Read the record again
 and retry. An upsert that finds an existing record and no `expected_revision` gets
 `REVISION_REQUIRED` (428), again with the revision to send.
+
+Current Write access is checked before disclosing a stored revision. An upsert
+for a hidden existing external ID and one for a new ID the caller cannot create
+both return `NOT_FOUND` (404), with the same message and table ID. Creating a row
+also requires table Edit and a row policy that lets its creator read that row;
+a row Write grant alone does not grant creation rights.
 
 An external id is 1 to 255 characters and may contain `/`, as in `2026/ORD-1`. It cannot
 contain NUL or a line break. The service checks this as well as the routes. Over HTTP the route refuses it first,

@@ -1,5 +1,5 @@
 ---
-source_sha: "8e813ce8ee8c"
+source_sha: "cd236f0fa9fc"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -155,6 +155,11 @@ liczniki, eksporty i zapytania stron sprawdzają ten warunek przed paginacją.
 Zwrócona tablica powiązań jest widocznym podzbiorem dla wywołującego. Zastąpienie
 jej przez starszego klienta zachowuje istniejące powiązania, których wywołujący
 nie może odczytać; zmiana innego pola zachowuje wszystkie powiązania.
+
+Każdy jawnie przesłany identyfikator powiązania musi być dostępny do odczytu,
+także gdy jest już powiązany lub nie zmienia wiersza. Ukryty identyfikator jest
+odrzucany tak samo jak nieznany. W imieniu wywołującego zachowywane są wyłącznie
+pominięte ukryte powiązania.
 
 Nieprawidłowa zapisana polityka wierszy blokuje odczyt i zapis rekordów błędem
 `ROW_POLICY_INVALID` (409), zamiast wyłączać politykę. Uprawnieni użytkownicy nadal
@@ -344,6 +349,12 @@ Aktualizacja lub usunięcie ze starą revision jest odrzucane kodem `REVISION_CO
 (409) i `details.current_revision`; nic nie zostaje nadpisane. Odczytaj rekord ponownie
 i spróbuj jeszcze raz. Upsert, który znajdzie istniejący rekord i nie dostanie
 `expected_revision`, otrzymuje `REVISION_REQUIRED` (428), znów z revision do wysłania.
+
+Bieżący dostęp Write jest sprawdzany przed ujawnieniem zapisanej revision.
+Upsert dla istniejącego, ale ukrytego external id oraz dla nowego ID, którego
+wywołujący nie może utworzyć, zwracają `NOT_FOUND` (404) z taką samą wiadomością
+i ID tabeli. Utworzenie wiersza wymaga też Edit na tabeli oraz polityki pozwalającej
+twórcy odczytać ten wiersz; sam grant Write do wiersza nie pozwala tworzyć rekordów.
 
 External id ma od 1 do 255 znaków i może zawierać `/`, jak w `2026/ORD-1`. Nie może zawierać NUL ani znaku nowego wiersza. Serwis sprawdza to
 tak samo jak trasy. Przez HTTP trasa odrzuca to pierwsza, kodem `VALIDATION_ERROR`;

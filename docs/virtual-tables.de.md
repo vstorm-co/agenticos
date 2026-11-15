@@ -1,5 +1,5 @@
 ---
-source_sha: "8e813ce8ee8c"
+source_sha: "cd236f0fa9fc"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -161,6 +161,11 @@ Zählungen, Exporte und Seitenabfragen prüfen dies vor der Paginierung. Ein
 zurückgegebenes Verknüpfungsarray ist die sichtbare Teilmenge des Aufrufers.
 Ersetzt ein älterer Client dieses Array, bleiben bestehende unlesbare Verknüpfungen
 erhalten; Änderungen anderer Felder behalten alle Verknüpfungen bei.
+
+Jede ausdrücklich übermittelte Verknüpfungs-ID muss lesbar sein, auch wenn sie
+bereits verknüpft ist oder die Zeile unverändert ließe. Eine verborgene ID wird
+wie eine unbekannte ID abgelehnt. Nur ausgelassene verborgene Verknüpfungen
+bleiben im Namen des Aufrufers erhalten.
 
 Eine ungültige gespeicherte Zeilenrichtlinie blockiert Datensatzlesevorgänge und
 Schreibvorgänge mit `ROW_POLICY_INVALID` (409), statt die Richtlinie abzuschalten.
@@ -365,6 +370,13 @@ Ein Update oder Delete mit einer alten Revision wird mit `REVISION_CONFLICT` (40
 erneut und versuchen Sie es noch einmal. Ein Upsert, der einen bestehenden Datensatz findet
 und kein `expected_revision` erhält, bekommt `REVISION_REQUIRED` (428), wieder mit der
 zu sendenden Revision.
+
+Der aktuelle Write-Zugriff wird geprüft, bevor eine gespeicherte Revision
+offengelegt wird. Ein Upsert für eine verborgene bestehende external id und einer
+für eine neue ID, die der Aufrufer nicht erstellen darf, liefern beide
+`NOT_FOUND` (404) mit derselben Meldung und Tabellen-ID. Das Erstellen braucht
+außerdem Edit auf der Tabelle und eine Zeilenrichtlinie, die dem Ersteller das
+Lesen der neuen Zeile erlaubt; ein Write-Grant auf einer Zeile genügt nicht.
 
 Eine external id hat 1 bis 255 Zeichen und darf `/` enthalten, wie in `2026/ORD-1`. Sie darf weder NUL noch einen Zeilenumbruch enthalten. Der Service
 prüft das ebenso wie die Routen. Über HTTP lehnt die Route es zuerst ab, mit
