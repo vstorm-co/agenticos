@@ -991,7 +991,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   // button before that, sat between the title and the first conversation.
   // The rail stands the same three in a column, in the same order, so collapsing
   // the list changes its width and nothing a hand has learned.
-  const filters = () => (
+  const filters = (beside = false) => (
     <ConversationFilters
       agentId={agentId}
       onAgentChange={changeAgent}
@@ -1001,7 +1001,8 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
       onHideApiChange={changeHideApi}
       view={view}
       onViewChange={changeView}
-      beside
+      compact
+      beside={beside}
     />
   );
   const sharedNotice = sharedState.failed ? (
@@ -1028,7 +1029,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
       >
         <Search />
       </IconButton>
-      {filters()}
+      {filters(column)}
       {column && sharedState.failed && (
         <IconButton
           size="icon"
