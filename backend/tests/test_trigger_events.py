@@ -822,7 +822,22 @@ class TestLinearWebhook:
             payload={"type": "Issue", "action": "update"},
             config={"actions": ["create"]},
         )
+        assert not trigger_events.event_matches(
+            "linear",
+            headers=headers,
+            payload={"type": "Comment", "action": "create"},
+            config={"event_types": ["Issue"]},
+        )
         assert "Linear" in trigger_events.render_context("linear", payload={"type": "Issue"})
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("signature", [None, "", "a" * 63, "g" * 64, "ÿ" * 64])
+    def test_missing_or_malformed_signature_is_refused(self, signature):
+        body = b'{"webhookTimestamp":1000000}'
+        headers = {} if signature is None else {"linear-signature": signature}
+        assert not trigger_events.verify_signature(
+            "linear", secret=_SECRET, body=body, headers=headers, now=1000
+        )
 
     @pytest.mark.security
     @pytest.mark.parametrize(
