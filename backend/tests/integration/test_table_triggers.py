@@ -34,6 +34,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.user import User
 from app.db.models.virtual_table import (
+    VirtualTable,
     VirtualTableOutbox,
     VirtualTableRecord,
     VirtualTableRecordHistory,
@@ -52,6 +53,7 @@ from app.schemas.virtual_table import (
     OptionInput,
     RecordCreate,
     RecordFilter,
+    RecordUpdate,
     RecordUpsert,
     SchemaUpdate,
     TableCreate,
@@ -59,7 +61,7 @@ from app.schemas.virtual_table import (
 )
 from app.schemas.virtual_table_trigger import TableTriggerUpdate
 from app.schemas.workflow import WorkflowPublish
-from app.services.access import TABLE
+from app.services.access import TABLE, WORKFLOW
 from app.services.virtual_tables import triggers
 from app.services.virtual_tables.exceptions import SchemaDependencyError
 from app.services.virtual_tables.facade import VirtualTableService
@@ -1189,6 +1191,106 @@ class TestChangesAndDeletions:
             ("queued", None),
         ]
 
+    @pytest.mark.security
+    async def test_triggers_use_publisher_visible_links_for_filters_and_payloads(
+        self, world: _World
+    ):
+        async with world.factory() as db:
+            service = VirtualTableService(db)
+            destinations = await service.create_table(
+                world.ctx,
+                TableCreate(
+                    name="Destinations",
+                    visibility=Visibility.ORG.value,
+                    columns=[ColumnInput(label="Assignee", type="user")],
+                ),
+            )
+            assignee = str(world.column("Assignee", destinations))
+            destination = await db.get(VirtualTable, destinations.id)
+            assert destination is not None
+            destination.row_policy = {
+                "rule": "assignee",
+                "view_column_id": assignee,
+                "edit_column_id": assignee,
+            }
+            hidden = await service.create_record(
+                world.ctx,
+                destinations.id,
+                RecordCreate(values={assignee: str(world.owner.id)}),
+            )
+            hidden_id = str(hidden.record.id)
+            source = await service.create_table(
+                world.ctx,
+                TableCreate(
+                    name="Sources",
+                    columns=[
+                        ColumnInput(label="Name", type="text"),
+                        ColumnInput(label="Related", type="link", link_table_id=destinations.id),
+                    ],
+                ),
+            )
+            name_id, link_id = (str(world.column(label, source)) for label in ("Name", "Related"))
+            source_record = await service.create_record(
+                world.ctx,
+                source.id,
+                RecordCreate(values={name_id: "Before", link_id: [hidden_id]}),
+            )
+            source_record_id = source_record.record.id
+            await db.commit()
+
+        publisher = await _table_editor(world, source)
+        assert publisher.user_id is not None
+        publisher_user_id = publisher.user_id
+        workflows = [await world.workflow(), await world.workflow()]
+        async with world.factory() as db:
+            for workflow in workflows:
+                await resource_grant_repo.upsert(
+                    db,
+                    organization_id=world.org.id,
+                    subject_user_id=publisher_user_id,
+                    resource_type=WORKFLOW.key,
+                    resource_id=workflow.id,
+                    level=GrantLevel.EDIT,
+                )
+            await db.commit()
+
+        filtered_trigger = await world.trigger(
+            workflows[0],
+            table=source,
+            ctx=publisher,
+            events=("updated",),
+            filters=[RecordFilter(column_id=uuid.UUID(link_id), op="contains", value=hidden_id)],
+        )
+        payload_trigger = await world.trigger(
+            workflows[1], table=source, ctx=publisher, events=("updated",)
+        )
+        async with world.factory() as db:
+            await VirtualTableService(db).update_record(
+                world.ctx,
+                source.id,
+                source_record_id,
+                RecordUpdate(expected_revision=1, values={name_id: "After"}),
+            )
+            await db.commit()
+
+        pairs = await world.consume()
+        assert _statuses(await world.admissions(filtered_trigger)) == [
+            ("filtered", "filter_mismatch")
+        ]
+        (queued,) = await world.admissions(payload_trigger)
+        assert len(pairs) == 1
+        assert queued.workflow_run_id is not None
+        assert (queued.status, queued.reason, queued.workflow_run_id) == (
+            "queued",
+            None,
+            pairs[0][0],
+        )
+        run = await world.run(queued.workflow_run_id)
+        assert run.input["values"][link_id] == []
+        assert run.input["before"][link_id] == []
+        assert run.input["fields"]["Related"] == []
+        assert hidden_id not in json.dumps(run.input)
+
     async def test_a_deletion_starts_it_with_the_record_as_it_was(self, world: _World):
         await world.add({"Email": "gone@x", "Score": 3})
         trigger_id = await world.trigger(events=("created", "deleted"))
@@ -1298,7 +1400,7 @@ async def test_table_trigger_rechecks_current_app_admin_authority(world):
         assert await consumer._fire_context(trigger, table) is None
 
 
-async def _table_editor(world: _World) -> AuthContext:
+async def _table_editor(world: _World, table: TableRead | None = None) -> AuthContext:
     """A member who may edit the Leads table through a grant, and nothing else."""
     async with world.factory() as db:
         member = User(
@@ -1316,7 +1418,7 @@ async def _table_editor(world: _World) -> AuthContext:
             organization_id=world.org.id,
             subject_user_id=member.id,
             resource_type=TABLE.key,
-            resource_id=world.leads.id,
+            resource_id=(table or world.leads).id,
             level=GrantLevel.EDIT,
         )
         await db.commit()

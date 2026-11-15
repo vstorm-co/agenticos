@@ -27,15 +27,16 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import ValidationError
-from sqlalchemy import ColumnElement, false
+from sqlalchemy import ColumnElement, false, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.virtual_table import VirtualTable
-from app.repositories import virtual_table_repo
+from app.repositories import resource_grant_repo, virtual_table_repo
 from app.repositories.virtual_table import FilterClause, SqlKind, policy_expression
-from app.schemas.virtual_table import ColumnDef, RowPolicy
+from app.schemas.virtual_table import ColumnDef, RowPolicy, RowPolicyUpdate
 from app.services.virtual_tables.deadline import ReadDeadline, arm_if_set
+from app.services.virtual_tables.exceptions import InvalidRowPolicyError
 
 logger = logging.getLogger(__name__)
 
@@ -46,19 +47,21 @@ _PRINCIPAL_COLUMNS = frozenset({"user", "multi_user"})
 def parse_policy(raw: dict[str, object] | None) -> RowPolicy | None:
     """The stored policy document, or `None` for no policy.
 
-    A document that no longer validates - written before the shape changed, or
-    edited by hand - is read as no policy rather than taking the table down
-    with it; the audit log still shows who set it. Only the policy-setting
-    path writes these documents, and it validates them first.
+    A malformed document refuses record access until an authorized table editor
+    repairs it. Only an absent document or an explicitly valid `none` policy
+    means unrestricted rows; schema drift must never widen the audience.
     """
     if raw is None:
         return None
     try:
+        configured = RowPolicyUpdate.model_validate(raw)
+        if configured.rule == "none":
+            return None
         policy = RowPolicy.model_validate(raw)
     except ValidationError:
-        logger.warning("Ignoring a row policy that does not validate: %r", raw)
-        return None
-    return None if policy.rule == "none" else policy
+        logger.warning("Stored row policy is invalid; refusing record access")
+        raise InvalidRowPolicyError() from None
+    return policy
 
 
 def bypasses_policy(ctx: AuthContext, *, owner_user_id: UUID | None) -> bool:
@@ -78,25 +81,34 @@ def bypasses_policy(ctx: AuthContext, *, owner_user_id: UUID | None) -> bool:
     return ctx.role in {OrgRoleName.OWNER.value, OrgRoleName.ADMIN.value}
 
 
-def _driving(column_id: UUID, columns: list[ColumnDef]) -> ColumnDef | None:
+def _driving(column_id: UUID | None, columns: list[ColumnDef]) -> ColumnDef | None:
     """The live column a policy names, or `None` when it is gone or archived."""
     column = next((column for column in columns if column.id == column_id), None)
     return column if column is not None and not column.archived else None
 
 
+def policy_columns_valid(policy: RowPolicy | None, columns: list[ColumnDef]) -> bool:
+    """A grant must not widen a policy whose Read or Write field cannot be evaluated."""
+    if policy is None or policy.rule != "assignee":
+        return True
+    return all(
+        (column := _driving(column_id, columns)) is not None and column.type in _PRINCIPAL_COLUMNS
+        for column_id in (policy.view_column_id, policy.edit_column_id)
+    )
+
+
 def _assignee_clause(
     policy: RowPolicy, columns: list[ColumnDef], subject: UUID, *, kind: Literal["view", "edit"]
-) -> FilterClause | None:
-    """The caller's membership in the policy's driving column, as one clause.
+) -> FilterClause:
+    """The caller's membership in a validated policy's driving column, as one clause.
 
     A `user` column holds one member id as text; a `multi_user` column holds
-    several as a JSON array. Any other type, or a column that is gone, is not
-    a clause the predicate can use - the caller then matches nothing.
+    several as a JSON array. Callers check `policy_columns_valid` before reaching
+    this conversion, including before any owner or administrator bypass.
     """
     column_id = policy.view_column_id if kind == "view" else policy.edit_column_id
     column = _driving(column_id, columns)
-    if column is None or column.type not in _PRINCIPAL_COLUMNS:
-        return None
+    assert column is not None and column.type in _PRINCIPAL_COLUMNS
     if column.type == "user":
         return FilterClause(column_id=column.id, kind=SqlKind.TEXT, op="eq", value=str(subject))
     return FilterClause(column_id=column.id, kind=SqlKind.ARRAY, op="contains", value=str(subject))
@@ -160,18 +172,30 @@ async def visible_project_ids(
             value=str(subject),
         )
     ]
-    own = parse_policy(projects.row_policy)
+    try:
+        own = parse_policy(projects.row_policy)
+    except InvalidRowPolicyError:
+        return []
+    if not policy_columns_valid(own, project_columns):
+        return []
+    extra = None
     if own is not None and not bypasses_policy(ctx, owner_user_id=projects.owner_user_id):
-        own_clause = _assignee_clause(own, project_columns, subject, kind="view")
-        if own_clause is None:
-            return []
-        filters.append(own_clause)
+        extra = virtual_table_repo.record_grant_expression(
+            organization_id=ctx.organization_id, subject_user_id=subject
+        )
+        if own.rule == "assignee":
+            own_clause = _assignee_clause(own, project_columns, subject, kind="view")
+            own_writer = _assignee_clause(own, project_columns, subject, kind="edit")
+            inherited = policy_expression(own_clause, writer=own_writer)
+            assert inherited is not None
+            extra = or_(inherited, extra)
     await arm_if_set(db, deadline)
     return await virtual_table_repo.list_record_ids(
         db,
         table_id=projects.id,
         organization_id=ctx.organization_id,
         filters=filters,
+        extra=extra,
     )
 
 
@@ -191,12 +215,15 @@ def row_matches(
     row with an empty assignee matches nobody. A missing driving column, or no
     subject at all, matches nobody too.
     """
-    if subject is None:
+    if subject is None or policy.rule != "assignee":
         return False
+    if not policy_columns_valid(policy, columns):
+        return False
+    if kind == "view" and row_matches(values, policy, columns, subject, kind="edit"):
+        return True
     column_id = policy.view_column_id if kind == "view" else policy.edit_column_id
     column = _driving(column_id, columns)
-    if column is None or column.type not in _PRINCIPAL_COLUMNS:
-        return False
+    assert column is not None and column.type in _PRINCIPAL_COLUMNS
     cell = values.get(str(column.id))
     if column.type == "user":
         matched = isinstance(cell, str) and cell == str(subject)
@@ -223,16 +250,28 @@ async def _may(
     *,
     kind: Literal["view", "edit"],
     project_ids: list[UUID] | None = None,
+    record_id: UUID | None = None,
 ) -> bool:
     """Whether `ctx` may see (`view`) or change (`edit`) one row's values."""
     policy = parse_policy(table.row_policy)
+    if not policy_columns_valid(policy, columns):
+        return False
     if policy is None or bypasses_policy(ctx, owner_user_id=table.owner_user_id):
         return True
     if kind == "view" and project_ids is None:
         project_ids = await visible_project_ids(db, ctx, policy)
-    return row_matches(
+    matched = row_matches(
         values, policy, columns, ctx.user_id, kind=kind, project_ids=project_ids or ()
     )
+    if matched or kind == "edit" or record_id is None or ctx.user_id is None:
+        return matched
+    grants = await resource_grant_repo.record_levels(
+        db,
+        organization_id=ctx.organization_id,
+        subject_user_id=ctx.user_id,
+        record_ids=[record_id],
+    )
+    return record_id in grants
 
 
 async def may_view_row(
@@ -243,9 +282,12 @@ async def may_view_row(
     values: Mapping[str, object],
     *,
     project_ids: list[UUID] | None = None,
+    record_id: UUID | None = None,
 ) -> bool:
     """Whether `ctx` may see one row's values: the view predicate, in Python."""
-    return await _may(db, ctx, table, columns, values, kind="view", project_ids=project_ids)
+    return await _may(
+        db, ctx, table, columns, values, kind="view", project_ids=project_ids, record_id=record_id
+    )
 
 
 async def may_edit_row(
@@ -275,17 +317,26 @@ async def view_expression(
     no subject: such a caller sees no rows, rather than every row.
     """
     policy = parse_policy(table.row_policy)
+    if not policy_columns_valid(policy, columns):
+        return false()
     if policy is None or bypasses_policy(ctx, owner_user_id=table.owner_user_id):
         return None
     subject = ctx.user_id
     if subject is None:
         return false()
+    granted = virtual_table_repo.record_grant_expression(
+        organization_id=ctx.organization_id, subject_user_id=subject
+    )
+    if policy.rule == "grants":
+        return granted
     clause = _assignee_clause(policy, columns, subject, kind="view")
-    if clause is None:
-        return false()
+    writer = _assignee_clause(policy, columns, subject, kind="edit")
     project_ids = await visible_project_ids(db, ctx, policy, deadline=deadline)
-    return policy_expression(
+    rule = policy_expression(
         clause,
+        writer=writer,
         link_column_id=policy.view_project_link_column_id,
         project_ids=project_ids,
     )
+    assert rule is not None
+    return or_(rule, granted)

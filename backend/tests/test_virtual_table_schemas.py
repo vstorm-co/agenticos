@@ -1,11 +1,14 @@
 """The request models are the API contract: what they preserve and what they refuse."""
 
+from uuid import UUID
+
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from app.schemas.virtual_table import (
     OperationKey,
     RecordCreate,
+    RecordLinkChange,
     RecordQuery,
     RecordUpdate,
     RecordUpsert,
@@ -36,6 +39,57 @@ def test_an_unknown_request_field_is_refused_rather_than_ignored():
 def test_an_update_cannot_omit_its_expected_revision():
     with pytest.raises(ValidationError):
         RecordUpdate.model_validate({"values": {}})
+
+
+LINK_COLUMN = UUID("00000000-0000-4000-8000-000000000001")
+TARGET = UUID("00000000-0000-4000-8000-000000000002")
+
+
+def test_a_link_only_update_preserves_typed_explicit_intent():
+    update = RecordUpdate.model_validate(
+        {"expected_revision": 2, "link_changes": {str(LINK_COLUMN): {"add": [str(TARGET)]}}}
+    )
+    assert update.values == {}
+    assert update.link_changes[LINK_COLUMN] == RecordLinkChange(add=[TARGET])
+    assert update.model_dump(mode="json")["link_changes"] == {
+        str(LINK_COLUMN): {"add": [str(TARGET)], "remove": []}
+    }
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"add": [str(TARGET), str(TARGET)]},
+        {"remove": [str(TARGET), str(TARGET)]},
+        {"add": [str(TARGET)], "remove": [str(TARGET)]},
+        {"add": ["not-a-uuid"]},
+        {"add": [str(TARGET)] * 101},
+        {"remove": [str(TARGET)] * 101},
+        {"replace": []},
+    ],
+)
+def test_an_ambiguous_or_unbounded_link_change_is_refused(change):
+    with pytest.raises(ValidationError):
+        RecordUpdate.model_validate(
+            {"expected_revision": 1, "link_changes": {str(LINK_COLUMN): change}}
+        )
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"link_changes": {str(LINK_COLUMN): {"add": [str(TARGET)]}}},
+        {"expected_revision": 1, "link_changes": {"Items": {"add": [str(TARGET)]}}},
+        {
+            "expected_revision": 1,
+            "values": {str(LINK_COLUMN): []},
+            "link_changes": {str(LINK_COLUMN): {"add": [str(TARGET)]}},
+        },
+    ],
+)
+def test_link_changes_require_a_revision_and_one_unambiguous_column_id(body):
+    with pytest.raises(ValidationError):
+        RecordUpdate.model_validate(body)
 
 
 def test_a_query_is_bounded():

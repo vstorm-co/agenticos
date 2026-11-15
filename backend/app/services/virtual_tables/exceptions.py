@@ -60,6 +60,17 @@ class InvalidSchemaError(ValidationError):
         super().__init__(message=message, details=field_details(field, message))
 
 
+class InvalidRowPolicyError(AppException):
+    """A stored row policy cannot be enforced; records remain unavailable until repair (409)."""
+
+    message = "The table's row access policy must be repaired before records can be accessed"
+    code = "ROW_POLICY_INVALID"
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__(message=self.message, details={})
+
+
 class RevisionConflictError(AppException):
     """The record changed since the caller read it (409). Nothing was written."""
 
