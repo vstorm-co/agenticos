@@ -5,7 +5,7 @@ import { Building2, Lock, Users } from "lucide-react";
 import { ResourceIcon } from "@/components/ui/resource-icon";
 import { useLocale, useTranslations } from "next-intl";
 
-import { Badge } from "@/components/ui";
+import { Badge, Card } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { timeAgo } from "@/lib/utils";
 import type { TaskBoard } from "@/lib/tasks-api";
@@ -27,7 +27,7 @@ export function TableCard({ table, taskBoard }: { table: TableListItem; taskBoar
   const edited = table.updated_at ?? table.created_at;
 
   return (
-    <div className="h-full rounded-xl">
+    <Card className="h-full overflow-hidden">
       <div className="hover:bg-foreground/[0.035] relative flex h-full flex-col gap-3 rounded-xl p-4 transition-colors">
         <Link
           href={ROUTES.TABLE_DETAIL(table.id)}
@@ -72,6 +72,6 @@ export function TableCard({ table, taskBoard }: { table: TableListItem; taskBoar
           {t("editedWhen", { when: timeAgo(edited, tt, locale) })}
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
