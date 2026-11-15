@@ -284,6 +284,22 @@ export function AppSidebar() {
   const stored = useSidebarStore((state) => state.isCollapsed);
   const collapsed = mounted && stored;
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed);
+  const collapseControl = (
+    <button
+      type="button"
+      onClick={toggleCollapsed}
+      aria-label={collapsed ? t("expandSidebar") : t("collapseSidebar")}
+      aria-expanded={!collapsed}
+      title={collapsed ? t("expandSidebar") : t("collapseSidebar")}
+      className="pressable-icon text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-2"
+    >
+      {collapsed ? (
+        <PanelLeftOpen className="h-[1.1rem] w-[1.1rem]" aria-hidden />
+      ) : (
+        <PanelLeftClose className="h-[1.1rem] w-[1.1rem]" aria-hidden />
+      )}
+    </button>
+  );
 
   return (
     // `bg-sidebar`, a surface of its own, where this used to be `bg-card/55`
@@ -325,21 +341,17 @@ export function AppSidebar() {
             <BrandLink />
           </div>
         )}
-        <SidebarSearch />
-        <button
-          type="button"
-          onClick={toggleCollapsed}
-          aria-label={collapsed ? t("expandSidebar") : t("collapseSidebar")}
-          aria-expanded={!collapsed}
-          title={collapsed ? t("expandSidebar") : t("collapseSidebar")}
-          className="pressable-icon text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-2"
-        >
-          {collapsed ? (
-            <PanelLeftOpen className="h-[1.1rem] w-[1.1rem]" aria-hidden />
-          ) : (
-            <PanelLeftClose className="h-[1.1rem] w-[1.1rem]" aria-hidden />
-          )}
-        </button>
+        {collapsed ? (
+          <>
+            {collapseControl}
+            <SidebarSearch />
+          </>
+        ) : (
+          <>
+            <SidebarSearch />
+            {collapseControl}
+          </>
+        )}
       </div>
       <SidebarShell collapsed={collapsed}>
         <SidebarNav collapsed={collapsed} />
