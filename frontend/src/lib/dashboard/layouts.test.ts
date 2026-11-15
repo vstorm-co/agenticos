@@ -57,10 +57,10 @@ describe("the layouts", () => {
         "conversations",
         "approvals",
         "background-tasks",
-        "shared-with-you",
         "projects",
-        "my-agents",
         "my-top-agents",
+        "my-agents",
+        "shared-with-you",
         "recent-visuals",
       ]);
     }
@@ -142,8 +142,8 @@ describe("visibleSections", () => {
     expect(sections.map((section) => section.id)).toEqual(["workspace"]);
     expect(sections[0]?.entries.map((entry) => entry.widget)).toEqual([
       "background-tasks",
-      "shared-with-you",
       "my-agents",
+      "shared-with-you",
     ]);
   });
 
