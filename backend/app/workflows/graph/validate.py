@@ -110,7 +110,7 @@ from app.workflows.graph.joins import (
 from app.workflows.graph.model import Edge, NodeInstance, ScopeBoundary, WorkflowGraph
 from app.workflows.graph.quick_log import references, refused_reference
 from app.workflows.nodes._port_names import clash_message
-from app.workflows.nodes.control_foreach._handler import BODY_PORT, DONE_PORT
+from app.workflows.nodes.control_foreach._handler import DONE_PORT
 from app.workflows.triggers import UNATTENDED, entry_graph, entry_nodes
 
 Problems = list[tuple[str, str]]
@@ -236,43 +236,50 @@ def _structure_problems(graph: WorkflowGraph, definitions: DefinitionMap) -> Pro
 
 
 def derive_scopes(graph: WorkflowGraph) -> WorkflowGraph:
-    """Recompute `scopes` from the graph's own topology.
+    """Recompute `scopes` from the loop each step names.
 
     Server-derived, never client-authored: the editor sends nodes, edges and
     bindings, and whatever it claims about `scopes` is discarded and replaced
-    with this. See the module docstring for the control-node convention and
-    the `ScopeBoundary` docstring for what `entry_port`/`exit_port` mean.
+    with this. A body is every step whose chain of `scope_id`s leads to the
+    loop - wires play no part, so removing one never moves a step out of its
+    loop (#2770). See the `ScopeBoundary` docstring for what `exit_port` means.
     """
-    forward = _forward_edges(graph)
+    children: dict[UUID, list[UUID]] = {}
+    for node in graph.nodes:
+        if node.scope_id is not None:
+            children.setdefault(node.scope_id, []).append(node.id)
     scopes: list[ScopeBoundary] = []
     for node in graph.nodes:
         definition = _try_get_definition(node)
         if definition is None or not _owns_a_scope(definition):
             continue
         output_ports = [port.id for port in definition.ports if port.kind == "output"]
-        if len(output_ports) < 2:
+        if not output_ports:
             continue
-        entry_port, exit_port = output_ports[0], output_ports[1]
-        body = _body_reachable_from(graph, forward, scope_node_id=node.id, entry_port=entry_port)
         scopes.append(
             ScopeBoundary(
                 scope_node_id=node.id,
-                body_node_ids=frozenset(body),
-                entry_port=entry_port,
-                # No registered control node designates a body-interior exit
-                # (#1790's `loop.yield` does not exist here), so the only
-                # sound derivation is the control node's own port. See the
-                # module docstring: `exit_node_id` need not always equal
-                # `scope_node_id`, but discovering a value other than the
-                # control node's own id from topology alone is exactly the
-                # circular problem `1786-node-contracts.md` warns about, and
-                # would require metadata #1790's real `control.foreach` does
-                # not exist yet to define.
+                body_node_ids=frozenset(_descendants(node.id, children)),
+                # The loop continues the outer graph through its own port;
+                # `exit_node_id` may name a body-interior step, but none does.
                 exit_node_id=node.id,
-                exit_port=exit_port,
+                exit_port=output_ports[0],
             )
         )
     return graph.model_copy(update={"scopes": tuple(scopes)})
+
+
+def _descendants(scope_node_id: UUID, children: dict[UUID, list[UUID]]) -> set[UUID]:
+    """Every step inside `scope_node_id`, nested loops' steps included; never the loop itself."""
+    seen: set[UUID] = set()
+    queue = deque(children.get(scope_node_id, ()))
+    while queue:
+        current = queue.popleft()
+        if current in seen or current == scope_node_id:
+            continue
+        seen.add(current)
+        queue.extend(children.get(current, ()))
+    return seen
 
 
 def analyze_graph(graph: WorkflowGraph) -> GraphAnalysis:
@@ -301,34 +308,6 @@ def _owns_a_scope(definition: NodeDefinition) -> bool:
     return definition.kind == "control" and definition.id.startswith("control.")
 
 
-def _body_reachable_from(
-    graph: WorkflowGraph, forward: dict[UUID, list[Edge]], *, scope_node_id: UUID, entry_port: str
-) -> set[UUID]:
-    """Forward BFS from `entry_port`'s targets, never re-entering `scope_node_id`.
-
-    Excluding `scope_node_id` from the walk (rather than special-casing
-    `exit_port` during it) is what stops the body from absorbing everything
-    downstream of the scope: the only edges that lead back into the outer
-    graph are the ones leaving `scope_node_id` itself, and those are never
-    traversed because the walk never revisits it.
-    """
-    seen: set[UUID] = set()
-    queue: deque[UUID] = deque(
-        edge.target_node_id
-        for edge in graph.edges
-        if edge.source_node_id == scope_node_id and edge.source_port == entry_port
-    )
-    while queue:
-        current = queue.popleft()
-        if current in seen or current == scope_node_id:
-            continue
-        seen.add(current)
-        for edge in forward.get(current, ()):
-            if edge.target_node_id not in seen:
-                queue.append(edge.target_node_id)
-    return seen
-
-
 def _forward_edges(graph: WorkflowGraph) -> dict[UUID, list[Edge]]:
     adjacency: dict[UUID, list[Edge]] = {}
     for edge in graph.edges:
@@ -339,10 +318,9 @@ def _forward_edges(graph: WorkflowGraph) -> dict[UUID, list[Edge]]:
 def node_scope_map(graph: WorkflowGraph) -> dict[UUID, UUID]:
     """Which scope owns each node, for nodes inside one at all.
 
-    Nested scopes overlap: an outer scope's body BFS (`_body_reachable_from`)
-    only refuses to re-enter its own `scope_node_id`, so it walks straight
-    through a nested control node into that scope's body too - both
-    boundaries list the same interior nodes. Ownership must resolve to the
+    Nested scopes overlap: an outer scope's body holds every step nested
+    inside it, a nested loop's body included - both boundaries list the same
+    interior nodes. Ownership must resolve to the
     innermost one regardless of `graph.scopes`' own order (which follows
     `graph.nodes`, an editor's or a client's to reorder) - the smallest body
     containing a node is always the more deeply nested one, since a nested
@@ -365,7 +343,9 @@ def owner_chain(node_id: UUID, node_scope: dict[UUID, UUID]) -> list[UUID]:
     """The loops enclosing `node_id`, innermost first - empty at the top level."""
     chain: list[UUID] = []
     owner = node_scope.get(node_id)
-    while owner is not None:
+    # A loop named inside itself is refused with the dangling references; the
+    # guard only keeps the walk finite until then.
+    while owner is not None and owner not in chain and owner != node_id:
         chain.append(owner)
         owner = node_scope.get(owner)
     return chain
@@ -442,6 +422,20 @@ def _dangling_reference_problems(graph: WorkflowGraph) -> Problems:
     """
     node_ids = set(graph.node_by_id)
     problems: Problems = []
+    owner_of = {node.id: node.scope_id for node in graph.nodes}
+    for node in graph.nodes:
+        if node.scope_id is None:
+            continue
+        if node.scope_id not in node_ids:
+            problems.append((f"nodes.{node.id}.scope_id", "This step's loop is not in this graph"))
+            continue
+        seen = {node.id}
+        owner: UUID | None = node.scope_id
+        while owner is not None and owner not in seen:
+            seen.add(owner)
+            owner = owner_of.get(owner)
+        if owner is not None:
+            problems.append((f"nodes.{node.id}.scope_id", "A loop cannot sit inside itself"))
     for edge in graph.edges:
         if edge.source_node_id not in node_ids:
             problems.append((f"edges.{edge.id}", "This edge's source node is not in this graph"))
@@ -521,7 +515,8 @@ def _config_schema_problems(graph: WorkflowGraph, definitions: DefinitionMap) ->
     `node.config` because a binding supplies it instead is not "missing" - it
     is bound; that is the only error class set aside for a bound field, and a
     wrong-shaped value the client *did* supply is still refused exactly as
-    before.
+    before. A step switched off reads no config at all, so its config is not
+    checked: switching it back on is a change to publish, which checks it then.
     """
     problems: Problems = []
     bound_fields_by_node: dict[UUID, set[str]] = {}
@@ -532,7 +527,7 @@ def _config_schema_problems(graph: WorkflowGraph, definitions: DefinitionMap) ->
 
     for node in graph.nodes:
         definition = definitions[node.id]
-        if definition is None:
+        if definition is None or node.disabled:
             continue
         if definition.config_schema is None:
             if node.config:
@@ -578,7 +573,7 @@ def _error_port_clash_problems(graph: WorkflowGraph, definitions: DefinitionMap)
     problems: Problems = []
     for node in graph.nodes:
         definition = definitions.get(node.id)
-        if definition is None or not node.routes_errors:
+        if definition is None or node.disabled or not node.routes_errors:
             continue
         named = _AUTHOR_NAMED_PORTS.get(definition.id)
         if named is None:
@@ -606,12 +601,14 @@ async def _resource_problems(
     Only for a config that validates on its own: a config with a field still to
     be bound at run time, or one already refused above, has nothing settled to
     check yet, and a second refusal about the same field would only repeat it.
+    A step switched off reaches nothing its config names.
     """
     problems: Problems = []
     for node in graph.nodes:
         definition = definitions[node.id]
         if (
             definition is None
+            or node.disabled
             or definition.resource_check is None
             or definition.config_schema is None
         ):
@@ -629,21 +626,32 @@ async def _table_binding_problems(
     db: AsyncSession, ctx: AuthContext, graph: WorkflowGraph
 ) -> Problems:
     problems: Problems = []
-    for index, binding in enumerate(graph.bindings):
-        if not isinstance(binding.source, TableIORef):
-            continue
-        problems += await table_ref_problems(db, ctx, binding.source, field=f"bindings.{index}")
+    for field, ref in graph_table_refs(graph):
+        problems += await table_ref_problems(db, ctx, ref, field=field)
     return problems
 
 
-def graph_file_refs(graph: WorkflowGraph) -> Iterator[tuple[str, FileRef]]:
-    """File imports named by direct bindings and recursively by pinned outputs."""
-    seen: set[UUID] = set()
+def graph_table_refs(graph: WorkflowGraph) -> Iterator[tuple[str, TableIORef]]:
+    """Table bindings consumed by enabled steps; switched-off steps read no input."""
+    disabled = {node.id for node in graph.nodes if node.disabled}
     for index, binding in enumerate(graph.bindings):
+        if binding.target_node_id not in disabled and isinstance(binding.source, TableIORef):
+            yield f"bindings.{index}", binding.source
+
+
+def graph_file_refs(graph: WorkflowGraph) -> Iterator[tuple[str, FileRef]]:
+    """File imports consumed by enabled bindings and recursively by enabled pins."""
+    seen: set[UUID] = set()
+    disabled = {node.id for node in graph.nodes if node.disabled}
+    for index, binding in enumerate(graph.bindings):
+        if binding.target_node_id in disabled:
+            continue
         if isinstance(binding.source, FileRef) and binding.source.file_id not in seen:
             seen.add(binding.source.file_id)
             yield f"bindings.{index}", binding.source
     for node in graph.nodes:
+        if node.disabled:
+            continue
         for ref in file_refs(node.pinned_output):
             if ref.file_id not in seen:
                 seen.add(ref.file_id)
@@ -764,6 +772,25 @@ def _rule_1_single_entry(graph: WorkflowGraph) -> Problems:
 # Rule 2 - reachable outputs
 
 
+def set_aside(graph: WorkflowGraph) -> set[UUID]:
+    """Steps switched off with no edge at all: parked beside the graph, never run.
+
+    The run never reaches one and it would do nothing if it did, so it need not
+    be reachable, and it may be a step that decides the way. Rule 13 still
+    refuses a read of one, since it hands nothing on. A trigger is never one: a
+    run can start at it wired or not.
+    """
+    wired = {edge.source_node_id for edge in graph.edges} | {
+        edge.target_node_id for edge in graph.edges
+    }
+    entries = {node.id for node in entry_nodes(graph)}
+    return {
+        node.id
+        for node in graph.nodes
+        if node.disabled and node.id not in wired and node.id not in entries
+    }
+
+
 def _rule_2_reachable_outputs(
     graph: WorkflowGraph, node_scope: dict[UUID, UUID], outer_order: list[UUID] | None
 ) -> Problems:
@@ -771,11 +798,14 @@ def _rule_2_reachable_outputs(
 
     Checking only sinks would let a second, unreachable zero-in-degree source
     pass undetected - rule 1 only proves the *named* entry has in-degree 0,
-    not that it is the only one.
+    not that it is the only one. A step `set_aside` is not asked to be reached.
     """
     if graph.entry_node_id not in graph.node_by_id:
         return []
-    top_level = [node.id for node in graph.nodes if node.id not in node_scope]
+    parked = set_aside(graph)
+    top_level = [
+        node.id for node in graph.nodes if node.id not in node_scope and node.id not in parked
+    ]
     adjacency = _forward_edges(graph)
     exit_edges = _scope_exit_edges(graph)
     seen: set[UUID] = set()
@@ -1243,7 +1273,6 @@ def _rule_5_exclusive_merge(graph: WorkflowGraph, definitions: DefinitionMap) ->
 
 
 def _rule_6_nested_scope_boundaries(graph: WorkflowGraph, node_scope: dict[UUID, UUID]) -> Problems:
-    entry_boundary_by_node = {scope.scope_node_id: scope for scope in graph.scopes}
     exit_boundary_by_node = {scope.exit_node_id: scope for scope in graph.scopes}
     problems: Problems = []
     for edge in graph.edges:
@@ -1251,7 +1280,7 @@ def _rule_6_nested_scope_boundaries(graph: WorkflowGraph, node_scope: dict[UUID,
         target_scope = node_scope.get(edge.target_node_id)
         if source_scope == target_scope:
             continue
-        if _is_sanctioned_boundary_edge(edge, entry_boundary_by_node, exit_boundary_by_node):
+        if _is_scope_exit_edge(edge, exit_boundary_by_node):
             continue
         problems.append((f"edges.{edge.id}", "This edge crosses a scope boundary"))
     for index, binding, ref, _templated in _output_reads(graph):
@@ -1275,22 +1304,13 @@ def _rule_6_nested_scope_boundaries(graph: WorkflowGraph, node_scope: dict[UUID,
     return problems
 
 
-def _is_sanctioned_boundary_edge(
-    edge: Edge,
-    entry_boundary_by_node: dict[UUID, ScopeBoundary],
-    exit_boundary_by_node: dict[UUID, ScopeBoundary],
-) -> bool:
-    """Whether `edge` is one of the two edges a `ScopeBoundary` declares.
+def _is_scope_exit_edge(edge: Edge, exit_boundary_by_node: dict[UUID, ScopeBoundary]) -> bool:
+    """Whether `edge` is a scope's exit, the one edge allowed to cross out of a body.
 
-    The entry edge (`source_port == entry_port`) always sources at
-    `scope_node_id`. The exit edge (`source_port == exit_port`) sources at
-    `exit_node_id`, which is `scope_node_id` for every scope #1786 derives
-    today but may be a body-interior node - #1790's `loop.yield` - once a
-    real `control.foreach` registers one.
+    It sources at `exit_node_id`, the loop itself for every scope derived today,
+    or a body-interior step designated as the exit. No edge crosses *into* a
+    body: it starts at its `loop.item` (#2770).
     """
-    entry_scope = entry_boundary_by_node.get(edge.source_node_id)
-    if entry_scope is not None and edge.source_port == entry_scope.entry_port:
-        return True
     exit_scope = exit_boundary_by_node.get(edge.source_node_id)
     return exit_scope is not None and edge.source_port == exit_scope.exit_port
 
@@ -1412,7 +1432,8 @@ def _split_problems(graph: WorkflowGraph, definitions: DefinitionMap) -> Problem
     return [
         (f"nodes.{node.id}.policy", "A Split cannot route its errors; route each branch's own")
         for node in graph.nodes
-        if node.routes_errors
+        if not node.disabled
+        and node.routes_errors
         and (definition := definitions.get(node.id)) is not None
         and definition.id == SPLIT
     ]
@@ -1516,7 +1537,8 @@ def _rule_9_required_inputs_bound(graph: WorkflowGraph, definitions: DefinitionM
 
     for node in graph.nodes:
         definition = definitions.get(node.id)
-        if definition is None or definition.input_schema is None:
+        # A step switched off, wired or not, is never handed its input.
+        if definition is None or definition.input_schema is None or node.disabled:
             continue
         if (
             definition.id in _DECIDES_ON_VALUE
@@ -1556,6 +1578,8 @@ def _rule_10_error_routes(graph: WorkflowGraph, definitions: DefinitionMap) -> P
     """
     problems: Problems = []
     for node in graph.nodes:
+        if node.disabled:
+            continue
         definition = definitions.get(node.id)
         if node.routes_errors and not _port_edges(graph, node.id, ERROR_PORT):
             problems.append(
@@ -1641,6 +1665,9 @@ def _rule_11_loop_bodies(
         definition = by_id[node.id]
         if definition is None:
             continue
+        named = by_id.get(node.scope_id) if node.scope_id is not None else None
+        if named is not None and not _owns_a_scope(named):
+            problems.append((f"nodes.{node.id}.scope_id", "This step's loop is not a loop"))
         if definition.loop_body_only:
             owner = node_scope.get(node.id)
             owner_definition = by_id.get(owner) if owner is not None else None
@@ -1671,7 +1698,6 @@ def _foreach_body_problems(
 ) -> Problems:
     problems: Problems = []
     field = f"nodes.{loop_id}"
-    entries = _port_edges(graph, loop_id, BODY_PORT)
     direct = [node_id for node_id, owner in node_scope.items() if owner == loop_id]
 
     def _count(definition_id: str) -> int:
@@ -1681,9 +1707,15 @@ def _foreach_body_problems(
             if (definition := by_id.get(node_id)) is not None and definition.id == definition_id
         )
 
-    entry_definition = by_id.get(entries[0].target_node_id) if len(entries) == 1 else None
-    if entry_definition is None or entry_definition.id != LOOP_ITEM or _count(LOOP_ITEM) != 1:
+    items = [
+        node_id
+        for node_id in direct
+        if (definition := by_id.get(node_id)) is not None and definition.id == LOOP_ITEM
+    ]
+    if len(items) != 1:
         problems.append((field, "A loop's body must start at exactly one loop item step"))
+    else:
+        problems += _body_reachability_problems(graph, items[0], direct)
     if _count(LOOP_YIELD) != 1:
         problems.append((field, "A loop's body must end at exactly one loop result step"))
     body = {node_id for node_id in node_scope if loop_id in owner_chain(node_id, node_scope)}
@@ -1695,6 +1727,36 @@ def _foreach_body_problems(
     return problems
 
 
+def _body_reachability_problems(graph: WorkflowGraph, item: UUID, direct: list[UUID]) -> Problems:
+    """Every step directly in a body must be reached from its `loop.item` by the body's wires.
+
+    The body's counterpart of rule 2: nothing wires a body to its loop, so a step
+    the item never leads to would never run in any iteration. A nested loop is one
+    step here; its own body is checked on its own. A step `set_aside` is not asked
+    to be reached, as at the top level.
+    """
+    parked = set_aside(graph)
+    members = set(direct)
+    adjacency = _forward_edges(graph)
+    seen: set[UUID] = set()
+    queue: deque[UUID] = deque([item])
+    while queue:
+        current = queue.popleft()
+        if current in seen:
+            continue
+        seen.add(current)
+        queue.extend(
+            edge.target_node_id
+            for edge in adjacency.get(current, ())
+            if edge.target_node_id in members
+        )
+    return [
+        (f"nodes.{node_id}", "This step is not reachable from its loop's item step")
+        for node_id in direct
+        if node_id not in seen and node_id not in parked
+    ]
+
+
 # Rule 12 - a policy only promises what the step can keep
 
 
@@ -1703,12 +1765,13 @@ def _rule_12_policies(graph: WorkflowGraph, definitions: DefinitionMap) -> Probl
 
     The retry guarantee is the call's own when the definition decides it per
     configuration - an `http.request` `GET` may retry, a `POST` without an
-    idempotency header may not.
+    idempotency header may not. A step switched off is never called, so it is
+    never retried either.
     """
     problems: Problems = []
     for node in graph.nodes:
         definition = definitions.get(node.id)
-        if definition is None or node.policy is None:
+        if definition is None or node.policy is None or node.disabled:
             continue
         if definition.handler is None:
             problems.append(
@@ -1761,12 +1824,14 @@ def _rule_13_named_and_switched_off_steps(
 
     Two steps may not share a name, ignoring case: the name is how a builder tells
     them apart in every list of bindings and problems. A step switched off does
-    nothing, so it may be neither the trigger nor a step that decides which way the
-    run goes, and nothing may read its output unless it hands the field on - what
-    came into it has that field (`_hands_on`).
+    nothing, so it may be neither the trigger nor a loop's item or result step, nor
+    - unless it is `set_aside`, with no way to decide - a step that decides which
+    way the run goes. Nothing may read its output unless it hands the field on -
+    what came into it has that field (`_hands_on`).
     """
     problems: Problems = []
     named: dict[str, UUID] = {}
+    parked = set_aside(graph)
     for node in graph.nodes:
         label = (node.label or "").strip()
         if label:
@@ -1782,7 +1847,15 @@ def _rule_13_named_and_switched_off_steps(
         definition = definitions.get(node.id)
         if node.id == graph.entry_node_id:
             problems.append((f"nodes.{node.id}.disabled", "The trigger cannot be switched off"))
-        elif definition is not None and definition.kind == "control":
+        elif node.definition_id in (LOOP_ITEM, LOOP_YIELD):
+            # Started by every iteration whether wired or not, so never set aside.
+            problems.append(
+                (
+                    f"nodes.{node.id}.disabled",
+                    "A loop's item or result step cannot be switched off",
+                )
+            )
+        elif definition is not None and definition.kind == "control" and node.id not in parked:
             problems.append(
                 (
                     f"nodes.{node.id}.disabled",

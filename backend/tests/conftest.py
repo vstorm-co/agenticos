@@ -308,6 +308,23 @@ async def mock_db_session() -> AsyncGenerator[AsyncMock]:
 
 
 @pytest.fixture
+def kb_contents_unread(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A knowledge base described over a mocked session: nothing in it, nothing using it.
+
+    `KnowledgeBaseService.describe` reads a base's documents, the agents bound to it
+    and the groups it is shared with, none of which a mocked session can answer.
+    """
+    monkeypatch.setattr(
+        "app.repositories.rag_document_repo.counts_by_scope", AsyncMock(return_value={})
+    )
+    for lookup in ("agents_using", "groups_sharing"):
+        monkeypatch.setattr(
+            f"app.services.knowledge_base.{lookup}",
+            AsyncMock(side_effect=lambda *_, resource_ids, **__: {i: [] for i in resource_ids}),
+        )
+
+
+@pytest.fixture
 async def client(
     mock_redis: MagicMock,
     mock_db_session,

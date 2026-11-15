@@ -44,6 +44,7 @@ def _conversation() -> MagicMock:
     conv = MagicMock()
     conv.id = uuid4()
     conv.title = "Weekly report"
+    conv.organization_id = uuid4()
     conv.project_id = None
     conv.messages = [message]
     return conv
@@ -64,17 +65,25 @@ def _client() -> AsyncClient:
 
 
 @pytest.mark.security
-async def test_a_share_link_opens_the_conversation_without_echoing_its_token(shares: None):
+@pytest.mark.parametrize("enabled", [True, False])
+async def test_a_share_link_opens_the_conversation_without_echoing_its_token(
+    shares: None, enabled: bool
+):
     share, conv = _share(), _conversation()
     with (
         patch(f"{MODULE}.conversation_share_repo.get_by_token", AsyncMock(return_value=share)),
         patch(f"{MODULE}.conversation_repo.get_conversation_by_id", AsyncMock(return_value=conv)),
+        patch(
+            f"{MODULE}.organization_repo.get_by_id",
+            AsyncMock(return_value=MagicMock(public_agenticos_attribution=enabled)),
+        ),
     ):
         async with _client() as client:
             response = await client.get(ENDPOINT)
 
     assert response.status_code == 200
     body = response.json()
+    assert body["show_agenticos_attribution"] is enabled
     assert body["conversation"]["title"] == "Weekly report"
     assert [m["content"] for m in body["conversation"]["messages"]] == [
         "Publish the weekly report."

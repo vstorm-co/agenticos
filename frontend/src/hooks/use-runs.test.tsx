@@ -100,6 +100,7 @@ describe("useRuns", () => {
           orderBy: "cost",
           statuses: ["failed", "budget_exceeded"],
           surface: "slack",
+          source: "conversation",
           modelLabel: "gpt-4o-mini",
         }),
       { wrapper },
@@ -110,6 +111,7 @@ describe("useRuns", () => {
         order_by: "cost",
         status: "failed,budget_exceeded",
         surface: "slack",
+        source: "conversation",
         model_label: "gpt-4o-mini",
       },
     });

@@ -280,7 +280,7 @@ async def _photograph(  # pragma: no cover - needs a live browser
 
     try:
         # ty: `cdp-use` arrives with the `browser` extra, as for `browser_use`.
-        from cdp_use import CDPClient  # ty: ignore[unresolved-import]
+        from cdp_use import CDPClient  # ty: ignore[import-not-found]
     except ImportError as exc:
         raise RenderUnavailableError("Drawing visuals needs the `browser` extra.") from exc
 

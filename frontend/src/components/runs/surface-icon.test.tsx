@@ -27,6 +27,7 @@ describe("SurfaceIcon", () => {
     "mattermost",
     "schedule",
     "trigger",
+    "eval",
     "follow_ups",
     "proactive",
   ])("draws a decorative mark for %s", (surface) => {

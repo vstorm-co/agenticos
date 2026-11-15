@@ -1,5 +1,5 @@
 ---
-source_sha: "a73281723216"
+source_sha: "4bd4dc67a376"
 ---
 
 # Abteilungen und Gruppen { #departments-and-groups }
@@ -19,6 +19,10 @@ mehrere auf einmal mit **Abteilungen hinzufügen**, das Vertrieb, Finanzen,
 Personal, Support, Entwicklung, Marketing, Recht und Betrieb anbietet, jeweils
 mit Symbol und kurzer Beschreibung. Umbenennen, Symbol ändern oder löschen geht
 danach wie bei jeder anderen Gruppe.
+
+Die Abteilungskarten zeigen Symbol, Beschreibung und Mitgliederzahl. Suche nach
+Name oder Beschreibung. Wähle unter **Neue Gruppe** das Symbol neben dem Namen;
+die optionale Monatsgrenze steht unter **Budgetlimit**.
 
 Personen kommen auf der Seite der Gruppe hinzu, von Hand oder über eine
 [Zuordnung einer Verzeichnisgruppe](directory.md#directory-group-mappings), wenn
@@ -82,6 +86,11 @@ nach Art gruppiert - Agents, Wissensdatenbanken, Skills, Kontext, Apps und
 MCP-Server - mit der Stufe, auf der jedes geteilt wurde. Wer liest, sieht nur, was er ohnehin
 öffnen könnte; ein Mitglied des Vertriebs erfährt auf der Seite der
 Finanzabteilung also nicht, was diese aufbewahrt.
+
+Geteilte Ressourcen stehen vor den Bereichen für Nutzung und Antwortqualität.
+Auf dem Smartphone findest du die Bearbeitung unter den weiteren Seitenaktionen.
+Beim Speichern von Mitgliedschaften oder Freigaben sind die Eingaben und das
+Schließen gesperrt. Bei einer Ablehnung bleibt die Auswahl für einen neuen Versuch erhalten.
 
 **Zu dieser Gruppe hinzufügen** teilt mehreres auf einmal: Es listet alles, was
 die lesende Person bearbeiten darf und die Gruppe noch nicht hat, mit Suche,

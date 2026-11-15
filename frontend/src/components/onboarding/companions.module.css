@@ -1,0 +1,42 @@
+.companions {
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  isolation: isolate;
+}
+.character {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 72px;
+  transform: rotate(-4deg);
+}
+.character + .character {
+  margin-left: -8px;
+}
+.character:nth-child(2) {
+  transform: translateY(-10px) rotate(3deg);
+  z-index: 1;
+}
+.character:nth-child(3) {
+  transform: rotate(5deg);
+}
+:global(html:not([data-motion="reduce"])) .character {
+  animation: companion-arrive 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+:global(html:not([data-motion="reduce"])) .character:nth-child(2) {
+  animation-delay: 65ms;
+}
+:global(html:not([data-motion="reduce"])) .character:nth-child(3) {
+  animation-delay: 130ms;
+}
+@keyframes companion-arrive {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}

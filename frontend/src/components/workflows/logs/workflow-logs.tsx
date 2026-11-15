@@ -38,6 +38,7 @@ import { ROUTES } from "@/lib/constants";
 import { formatDateTimeSeconds } from "@/lib/utils";
 import { LogAlerts } from "./log-alerts";
 import { outcomeLabels } from "./outcome-labels";
+import { logStepName } from "@/lib/workflows/node-copy";
 import { LOG_PAGE } from "@/lib/workflows/logs-api";
 import { effectiveDefinition, ERROR_PORT } from "@/lib/workflows/ports";
 import {
@@ -83,6 +84,7 @@ function loggedOutcomes(node: NodeInstance, definition: NodeDefinition | undefin
 
 export function WorkflowLogs({ workflowId }: { workflowId: string }) {
   const t = useTranslations("pages.workflows");
+  const tNode = useTranslations("workflowNodes");
   const locale = useLocale();
   const router = useRouter();
   const { workflow } = useWorkflow(workflowId);
@@ -181,13 +183,11 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
   }, [workflow, version, catalog, catalogLoading]);
   // A value the address carries stays an option when no graph has it any more, so
   // the select never reads blank: named by a line that step wrote, else as it is.
+  const selectedEntry = entries.find((entry) => entry.node_instance_id === step);
   const stepOptions: [string, string][] =
     step === null || steps.some(([id]) => id === step)
       ? steps
-      : [
-          ...steps,
-          [step, entries.find((entry) => entry.node_instance_id === step)?.step_label ?? step],
-        ];
+      : [...steps, [step, selectedEntry ? logStepName(selectedEntry, tNode) : step]];
   // Values the address carries stay options when no graph has them. Several at once
   // (an alert's link) read as one option naming them all, until another is chosen.
   const single = outcomes.length === 1 ? (outcomes[0] as string) : null;
@@ -225,7 +225,7 @@ export function WorkflowLogs({ workflowId }: { workflowId: string }) {
     {
       key: "step",
       header: t("logColumns.step"),
-      cell: (entry) => entry.step_label,
+      cell: (entry) => logStepName(entry, tNode),
     },
     {
       key: "outcome",

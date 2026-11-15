@@ -15,6 +15,7 @@ import { rehypeStreamWords } from "@/lib/stream-words";
 import { cn } from "@/lib/utils";
 
 import { CollapsibleBlock } from "./collapsible-block";
+import { LinkFavicon } from "./link-favicon";
 import { MarkdownQuote } from "./markdown-quote";
 import { MarkdownTable } from "./markdown-table";
 import type { MarkdownContentProps } from "./markdown-content";
@@ -307,8 +308,14 @@ export const MarkdownContent = memo(function MarkdownContent({
                 className="inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
               />
             )}
+            {external && !brand && !inertImages && (
+              <LinkFavicon
+                url={external}
+                className="inline h-[0.95em] w-[0.95em] translate-y-[0.1em]"
+              />
+            )}
             {label}
-            {isExternal && !brand && (
+            {isExternal && !brand && inertImages && (
               <ExternalLink className="text-foreground/60 inline h-[0.8em] w-[0.8em] shrink-0 -translate-y-[1px]" />
             )}
           </a>

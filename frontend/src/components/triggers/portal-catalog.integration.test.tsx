@@ -248,6 +248,7 @@ function orgConnection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpC
     visibility: "org",
     catalog_key: "github",
     is_default: false,
+    trust_read_only_hints: false,
     label: null,
     last_tools: null,
     granted_scopes: ["repo", "admin:repo_hook"],
@@ -297,6 +298,16 @@ const emailRow = () => within(screen.getByRole("group", { name: "Email" }));
 const trackerRow = () => within(screen.getByRole("group", { name: "Tracker" }));
 
 describe("PortalCatalog", () => {
+  it("keeps compact service choices short until expanded, with their connection actions intact", async () => {
+    serve([], "oauth_app_secret");
+    render(<PortalCatalog compact canRun canManageConnections />, { wrapper });
+    const entry = await screen.findByRole("group", { name: "GitHub" });
+    expect(entry.querySelector("details")).not.toHaveAttribute("open");
+    await userEvent.click(within(entry).getByText("GitHub", { exact: true }));
+    expect(entry.querySelector("details")).toHaveAttribute("open");
+    expect(within(entry).getByRole("button", { name: "Add credentials" })).toBeInTheDocument();
+  });
+
   beforeEach(() => vi.clearAllMocks());
 
   it("draws a card per portal with its own brand mark", async () => {

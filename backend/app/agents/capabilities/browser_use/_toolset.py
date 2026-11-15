@@ -92,6 +92,8 @@ from app.agents.deps import AgentDeps
 from app.core.sanitize import UrlRefusedError
 from app.services import browse_plans, browser_sign_in, live_browse
 
+BROWSER_TAB_REQUIREMENT = "agenticos_browser_tab_requirement"
+
 PageFactory = Callable[..., AbstractAsyncContextManager[PageSession]]
 """Opens a browser tab on a starting URL. The default is `_page.open_page`."""
 
@@ -946,5 +948,16 @@ def build_toolset(
         browser_scroll,
         browser_back,
     ):
-        toolset.add_function(on_the_tab(direct), takes_ctx=True)
+        metadata = None
+        if direct in (browser_switch_tab, browser_close_tab):
+            metadata = {BROWSER_TAB_REQUIREMENT: "any"}
+        elif direct in (
+            browser_click,
+            browser_type,
+            browser_select,
+            browser_scroll,
+            browser_back,
+        ):
+            metadata = {BROWSER_TAB_REQUIREMENT: "active"}
+        toolset.add_function(on_the_tab(direct), takes_ctx=True, metadata=metadata)
     return toolset

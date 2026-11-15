@@ -44,6 +44,7 @@ class _RecordingSession:
 class TestRecording:
     async def test_a_window_is_written_with_everything_a_bill_needs(self):
         organization_id, document_id = uuid.uuid4(), uuid.uuid4()
+        improvement_run_id = uuid.uuid4()
         # The organization and the document are still there: both lookups find them.
         session = _RecordingSession(organization_id, document_id)
 
@@ -56,9 +57,11 @@ class TestRecording:
             output_tokens=0,
             cost_usd=Decimal("0.13"),
             cost_is_partial=False,
+            improvement_run_id=improvement_run_id,
         )
 
         assert spend is not None
+        assert spend.improvement_run_id == improvement_run_id
         assert session.added == [spend]
         assert (spend.organization_id, spend.rag_document_id) == (organization_id, document_id)
         assert (spend.model, spend.input_tokens, spend.output_tokens) == (

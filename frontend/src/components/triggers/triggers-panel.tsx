@@ -52,7 +52,7 @@ export function TriggersPanel({ agentId, canCreate, reachesPersonal = false }: T
   const [creatingEvent, setCreatingEvent] = useState(false);
   const [creatingWatch, setCreatingWatch] = useState(false);
 
-  if (isLoading) return <LoadingState variant="skeleton-panel" rows={2} />;
+  if (isLoading) return <LoadingState variant="pending" />;
 
   return (
     <div className="space-y-4">

@@ -117,19 +117,25 @@ function Bridge({ shell }: { shell: ShellInfo }) {
     const fresh = seenApprovals.current ? newApprovals(seenApprovals.current, approvals) : [];
     seenApprovals.current = new Set(approvals.map((approval) => approval.id));
     for (const approval of fresh) {
+      const title = t("approvalTitle", {
+        agent: approval.agent_name ?? t("anAgent"),
+        tool: approval.tool_id,
+      });
+      const body = argumentsPreview(approval.tool_args);
+      // A call that always asks is decided on the card that shows what it does;
+      // a notification carries only its arguments, so it only leads there.
       sendNotice(
-        {
-          kind: "approval",
-          title: t("approvalTitle", {
-            agent: approval.agent_name ?? t("anAgent"),
-            tool: approval.tool_id,
-          }),
-          body: argumentsPreview(approval.tool_args),
-          path: APPROVALS_PATH,
-          approval_id: approval.id,
-          approve_label: t("approve"),
-          reject_label: t("reject"),
-        },
+        approval.always_asks
+          ? { kind: "inbox", title, body, path: APPROVALS_PATH }
+          : {
+              kind: "approval",
+              title,
+              body,
+              path: APPROVALS_PATH,
+              approval_id: approval.id,
+              approve_label: t("approve"),
+              reject_label: t("reject"),
+            },
         "approval_requested",
         approval.run_id,
       ).catch((error: unknown) => reportShellFailure("could not notify an approval", error));

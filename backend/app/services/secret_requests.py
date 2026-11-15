@@ -186,14 +186,7 @@ class SecretRequestService:
         if run is None:
             raise NotFoundError(message="Run not found", details={"run_id": str(run_id)})
         request = await self._claimed_pending_request(ctx, run, request_id)
-        if run.status not in (
-            RunStatus.AWAITING_ANSWER.value,
-            RunStatus.AWAITING_APPROVAL.value,
-        ):
-            raise BadRequestError(
-                message="This run is not waiting for a secret",
-                details={"run_id": str(run.id), "status": run.status},
-            )
+        await self._refuse_unanswerable(ctx, run)
         state = (
             PausedRunState.model_validate(run.paused_state)
             if run.paused_state is not None
@@ -272,7 +265,7 @@ class SecretRequestService:
         return request
 
     async def _refuse_unanswerable(self, ctx: AuthContext, run: AgentRun) -> None:
-        """Refuse a fulfil on a run that cannot be continued from here.
+        """Refuse a secret decision on a run that cannot be continued from here.
 
         A run parked on an approval beside its secret is answerable once the
         approvals are decided: refusing it outright would strand the run,

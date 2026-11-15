@@ -34,6 +34,7 @@ from app.repositories import agent_exposure as agent_exposure_repo
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import failure_learning as failure_learning_repo
 from app.repositories import agent_trigger as agent_trigger_repo
+from app.repositories import intercepted_tool_call as intercepted_tool_call_repo
 from app.repositories import run_manifest as run_manifest_repo
 from app.repositories import agent_workspace as agent_workspace_repo
 from app.repositories import agent_message as agent_message_repo
@@ -41,6 +42,11 @@ from app.repositories import pending_sandbox_destroy as pending_sandbox_destroy_
 from app.repositories import sandbox_connection as sandbox_connection_repo
 from app.repositories import sandbox_operation as sandbox_operation_repo
 from app.repositories import skill_proposal as skill_proposal_repo
+from app.repositories import skill_improvement as skill_improvement_repo
+from app.repositories import skill_check as skill_check_repo
+from app.repositories import skill_merge as skill_merge_repo
+from app.repositories import skill_usage as skill_usage_repo
+from app.repositories import authoring as authoring_repo
 from app.repositories import audit_log as audit_log_repo
 from app.repositories import personal_data as personal_data_repo
 from app.repositories import ingestion_spend as ingestion_spend_repo
@@ -51,11 +57,21 @@ from app.repositories import group as group_repo
 from app.repositories import directory_mapping as directory_mapping_repo
 from app.repositories import discord_role_mapping as discord_role_mapping_repo
 from app.repositories import skill as skill_repo
+from app.repositories import skill_version as skill_version_repo
 from app.repositories import api_key as api_key_repo
 from app.repositories import oauth as oauth_repo
 from app.repositories import artifact as artifact_repo
 from app.repositories import artifact_share_request as artifact_share_request_repo
 from app.repositories import context as context_repo
+from app.repositories import context_proposal as context_proposal_repo
+from app.repositories import case_score as case_score_repo
+from app.repositories import dataset as dataset_repo
+from app.repositories import case_generation as case_generation_repo
+from app.repositories import eval_run as eval_run_repo
+from app.repositories import eval_suite as eval_suite_repo
+from app.repositories import improvement as improvement_repo
+from app.repositories import knowledge_gap as knowledge_gap_repo
+from app.repositories import promotion_gate as promotion_gate_repo
 from app.repositories import virtual_table as virtual_table_repo
 from app.repositories import table_view as table_view_repo
 from app.repositories import memory as memory_repo
@@ -91,6 +107,7 @@ from app.repositories import voice_call as voice_call_repo
 from app.repositories import generated_media as generated_media_repo
 
 __all__ = [
+    "onboarding_repo",
     "user_repo",
     "session_repo",
     "conversation_repo",
@@ -142,6 +159,7 @@ __all__ = [
     "agent_run_repo",
     "agent_trigger_repo",
     "failure_learning_repo",
+    "intercepted_tool_call_repo",
     "run_manifest_repo",
     "agent_workspace_repo",
     "agent_message_repo",
@@ -149,14 +167,29 @@ __all__ = [
     "sandbox_connection_repo",
     "sandbox_operation_repo",
     "skill_proposal_repo",
+    "authoring_repo",
     "ingestion_spend_repo",
     "retention_repo",
     "skill_repo",
+    "skill_version_repo",
     "api_key_repo",
     "oauth_repo",
     "artifact_repo",
-    "artifact_share_request_repo",
+    "context_proposal_repo",
     "context_repo",
+    "case_score_repo",
+    "dataset_repo",
+    "case_generation_repo",
+    "eval_run_repo",
+    "eval_suite_repo",
+    "improvement_repo",
+    "promotion_gate_repo",
+    "knowledge_gap_repo",
+    "skill_usage_repo",
+    "skill_improvement_repo",
+    "skill_check_repo",
+    "skill_merge_repo",
+    "artifact_share_request_repo",
     "virtual_table_repo",
     "table_view_repo",
     "memory_repo",
@@ -167,3 +200,5 @@ __all__ = [
     "voice_call_repo",
     "generated_media_repo",
 ]
+
+from app.repositories import onboarding as onboarding_repo

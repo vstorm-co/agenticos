@@ -227,6 +227,7 @@ export function ChatContainer({
   }, [shared, clearShared]);
   const {
     currentConversationId,
+    createdConversationId,
     pendingProjectId,
     currentMessages,
     loadedTranscript,
@@ -271,8 +272,12 @@ export function ChatContainer({
   const listed = conversations.find((conversation) => conversation.id === currentConversationId);
   const notListed = currentConversationId !== null && listed === undefined;
   const meId = useAuthStore((state) => state.user?.id);
+  // Naming the first turn is not opening an unknown thread: the socket has
+  // just confirmed creation, before its row reaches the sidebar's query.
+  const newlyCreated = notListed && createdConversationId === currentConversationId;
   const tenantId = useTenantId();
-  const needsAccess = currentConversationId !== null && (notListed || listed?.user_id !== meId);
+  const needsAccess =
+    currentConversationId !== null && !newlyCreated && (notListed || listed?.user_id !== meId);
   const access = useConversationAccess(currentConversationId, needsAccess);
   const sharedConversation = useSharedConversation(currentConversationId);
   const isArchived = listed?.is_archived ?? access.archived;

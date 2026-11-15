@@ -24,12 +24,16 @@ function Harness({
   checked,
   tools = TOOLS,
   appliesTo = "connection",
+  trustReadOnlyHints,
   onSave = vi.fn(),
+  onState = () => {},
 }: {
   checked?: string[];
-  tools?: { name: string; description: string; read_only?: boolean }[];
+  tools?: ToolPickerState["tools"];
   appliesTo?: ToolPickerState["appliesTo"];
+  trustReadOnlyHints?: boolean;
   onSave?: () => void;
+  onState?: (state: ToolPickerState | null) => void;
 }) {
   const [state, setState] = useState<ToolPickerState | null>({
     scope: "organization",
@@ -38,7 +42,9 @@ function Harness({
     tools,
     checked: new Set(checked ?? tools.map((tool) => tool.name)),
     appliesTo,
+    ...(trustReadOnlyHints === undefined ? {} : { trustReadOnlyHints }),
   });
+  onState(state);
   return (
     <McpToolPickerDialog
       toolPicker={state}
@@ -59,20 +65,21 @@ const list = () => within(screen.getByRole("dialog")).queryAllByRole("checkbox")
  * thing a person is deciding here was the one thing the dialog would not say.
  */
 describe("McpToolPickerDialog", () => {
-  it("says which tools only read and which write, where the server said (#2103)", () => {
+  it("distinguishes declared reads, possible writes and absent annotations", () => {
     render(
       <Harness
         tools={[
           { name: "search", description: "", read_only: true },
-          { name: "create", description: "", read_only: false },
+          { name: "create", description: "", read_only: false, read_only_hint: false },
           { name: "older", description: "" },
+          { name: "legacy-false", description: "", read_only: false },
         ]}
       />,
     );
 
-    expect(screen.getByText("reads")).toBeInTheDocument();
-    expect(screen.getByText("writes")).toBeInTheDocument();
-    expect(screen.getAllByText(/^(reads|writes)$/)).toHaveLength(2);
+    expect(screen.getByText("read-only")).toBeInTheDocument();
+    expect(screen.getByText("may change data")).toBeInTheDocument();
+    expect(screen.getAllByText("not declared")).toHaveLength(2);
   });
 
   it("says how many of how many are on", () => {
@@ -195,5 +202,46 @@ describe("a connection nothing has probed", () => {
 
     expect(screen.queryByLabelText("Search tools…")).toBeNull();
     expect(screen.queryByRole("button", { name: "Select all" })).toBeNull();
+  });
+});
+
+describe("whether evals believe the server's read-only mark", () => {
+  const [search, fetch, upload] = TOOLS as [
+    (typeof TOOLS)[number],
+    (typeof TOOLS)[number],
+    (typeof TOOLS)[number],
+  ];
+  const MARKED = [{ ...search, read_only: true }, { ...fetch, read_only: true }, upload];
+  const trust = "Let evals call tools this server marks read-only";
+
+  it("is offered only where the connection carries the choice", () => {
+    render(<Harness tools={MARKED} />);
+
+    expect(screen.queryByRole("switch", { name: trust })).not.toBeInTheDocument();
+  });
+
+  it("says how many tools the belief would cover", () => {
+    render(<Harness tools={MARKED} trustReadOnlyHints={false} />);
+
+    expect(screen.getByRole("switch", { name: trust })).not.toBeChecked();
+    expect(screen.getByText(/2 tools here claim it\./)).toBeInTheDocument();
+  });
+
+  it("is part of what Save sends, not a setting that takes effect alone", async () => {
+    let latest: ToolPickerState | null = null;
+    const onSave = vi.fn();
+    render(
+      <Harness
+        tools={MARKED}
+        trustReadOnlyHints={false}
+        onSave={onSave}
+        onState={(state) => (latest = state)}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("switch", { name: trust }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(latest).toMatchObject({ trustReadOnlyHints: true });
   });
 });

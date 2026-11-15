@@ -7,7 +7,6 @@ from typing import Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from croniter import CroniterBadDateError, croniter
 from pydantic import (
     AwareDatetime,
     ConfigDict,
@@ -18,6 +17,7 @@ from pydantic import (
 )
 
 from app.core.config import settings
+from app.core.cron import cron_has_next
 from app.db.models.agent_trigger import MIN_INTERVAL_SECONDS, EventSource, TriggerDeliveryStatus
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.local_target import LocalTarget
@@ -41,33 +41,6 @@ def valid_time_zone(value: str | None) -> str | None:
     except ZoneInfoNotFoundError, ValueError:
         raise ValueError("Not an IANA time zone, such as Europe/Warsaw") from None
     return value
-
-
-def _cron_has_next(expression: str) -> bool:
-    """Whether a cron expression is valid *and* ever actually fires.
-
-    `croniter.is_valid` checks only syntax, so `0 0 31 2 *` - the 31st of a
-    February that never has one - passes it, and then `_cron_next` exhausts its
-    forward search and raises `CroniterBadDateError`, turning a user's cadence
-    into a 500 at create or retime time. Resolving one occurrence here proves the
-    expression has a future, so an unschedulable one is refused as a 422 naming
-    the field instead.
-
-    Only the five-field crontab shape is accepted. croniter also parses a
-    six-field expression with a seconds column, but the heartbeat that fires
-    schedules ticks once a minute, so `* * * * * *` would be accepted promising
-    once a second and then fire once a minute, permanently overdue - a cadence
-    the platform cannot honour is refused rather than quietly rounded.
-    """
-    if len(expression.split()) != 5:
-        return False
-    if not croniter.is_valid(expression):
-        return False
-    try:
-        croniter(expression).get_next()
-    except CroniterBadDateError:
-        return False
-    return True
 
 
 TriggerOverlapName = Literal["skip", "queue", "allow"]
@@ -617,7 +590,7 @@ class TriggerCreate(BaseSchema):
                 raise ValueError("cron_expression is required for a cron schedule")
             if self.interval_seconds is not None:
                 raise ValueError("interval_seconds is not valid for a cron schedule")
-            if not _cron_has_next(self.cron_expression):
+            if not cron_has_next(self.cron_expression):
                 raise ValueError(
                     "cron_expression is not a valid crontab expression that ever fires"
                 )
@@ -951,3 +924,36 @@ class TriggerCreateRead(TriggerRead):
 class TriggerList(BaseSchema):
     items: list[TriggerRead]
     total: int
+
+
+TriggerAttemptStatus = Literal["blocked", "failed"]
+TriggerAttemptStage = Literal["source_review", "preparation"]
+TriggerAttemptReason = Literal[
+    "platform_identity_required",
+    "source_review_required",
+    "agent_unavailable",
+    "preparation_failed",
+]
+
+
+class TriggerAttemptRead(BaseSchema):
+    """A safely redacted failure before an agent run existed; never a billed run."""
+
+    id: UUID
+    activation_id: UUID
+    status: TriggerAttemptStatus
+    stage: TriggerAttemptStage
+    reason: TriggerAttemptReason
+    occurred_at: datetime
+
+
+class TriggerAttemptList(BaseSchema):
+    items: list[TriggerAttemptRead]
+    total: int
+
+
+class TriggerFireResult(BaseSchema):
+    """Worker processing is separate from successful execution by an agent."""
+
+    outcome: Literal["processed", "blocked", "failed"]
+    attempt_id: UUID | None = None

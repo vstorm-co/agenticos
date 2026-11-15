@@ -16,7 +16,11 @@ export { useAdminOrganizationDetail } from "./use-admin-organization-detail";
 export { useWebSocket } from "./use-websocket";
 export { useChat } from "./use-chat";
 export { useRoomRequests, useRoomActions, useRoomSync, useCreateTeamRoom } from "./use-room";
-export { useCodingChanges } from "./use-coding-changes";
+export {
+  useCodingChanges,
+  useCodingChangeSets,
+  useRevertCodingChanges,
+} from "./use-coding-changes";
 export { useConversationWorkspace } from "./use-conversation-workspace";
 export { useConversationSearch, useConversations } from "./use-conversations";
 export { useConversationShares } from "./use-conversation-shares";
@@ -75,6 +79,7 @@ export {
   useAgentVersion,
   useAgentVersions,
   useAllAgentVersions,
+  useDraftBase,
   VERSIONS_PAGE_SIZE,
   useCapabilityCatalog,
   useAddToAgent,
@@ -137,6 +142,7 @@ export {
   useSpend,
 } from "./use-runs";
 export {
+  useAgentAttention,
   usePeopleUsage,
   useRatingsSummary,
   useUsageByHour,
@@ -158,6 +164,13 @@ export { useAllWorkspaceFiles, useWorkspaceFiles } from "./use-sandbox-workspace
 export { useFileActions, useFileBytes, useFileText } from "./use-file-content";
 export { useSkillChanges } from "./use-skill-changes";
 export { useSkill, useSkillResource, useSkills } from "./use-skills";
+export {
+  useSkillAgents,
+  useSkillForks,
+  useSkillVersion,
+  useSkillVersions,
+  useSkillVersionWrites,
+} from "./use-skill-versions";
 export { useSharing } from "./use-sharing";
 export { useEmbeds } from "./use-embeds";
 export { useChannelBots } from "./use-channel-bots";

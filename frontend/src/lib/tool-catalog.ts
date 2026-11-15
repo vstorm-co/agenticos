@@ -701,6 +701,7 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "memoryCorrecting",
     displayNameKey: "correctMemory",
     staysClosed: true,
+    approvalSummary: { key: "approveCorrectMemory", needs: ["before", "after"] },
   },
   share_memory: {
     kind: "write",
@@ -708,6 +709,7 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "memorySharing",
     displayNameKey: "shareMemory",
     staysClosed: true,
+    approvalSummary: { key: "approveShareMemory", needs: ["claim", "audience"] },
   },
   remember: {
     kind: "write",

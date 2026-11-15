@@ -6,7 +6,12 @@ there, from the handle the subagents library settles. It lives here so both
 layers write the same sentence for the same failure (#699).
 """
 
-from pydantic_ai.exceptions import ModelHTTPError, ModelRequestTimeout, UsageLimitExceeded
+from pydantic_ai.exceptions import (
+    ContentFilterError,
+    ModelHTTPError,
+    ModelRequestTimeout,
+    UsageLimitExceeded,
+)
 
 from app.core.exceptions import AppException
 
@@ -30,6 +35,26 @@ def first_leaf(exc: BaseException) -> BaseException:
     while isinstance(cause, BaseExceptionGroup):
         cause = cause.exceptions[0]
     return cause
+
+
+CONTENT_FILTER_SUMMARY = (
+    "The model provider blocked this response with its content filter. "
+    "The run stopped without a final answer."
+)
+
+
+def stored_failure_summary(error: str | None) -> str | None:
+    """Recognize controlled provider refusals without publishing arbitrary historical errors.
+
+    Older runs stored this provider refusal under its exception class. Other
+    stored messages may predate redaction; shared transcripts get a generic
+    failure state rather than copying an unknown error into another audience.
+    """
+    if error == CONTENT_FILTER_SUMMARY or (
+        error is not None and error.startswith("The run did not finish (ContentFilterError) -")
+    ):
+        return CONTENT_FILTER_SUMMARY
+    return None
 
 
 def run_failure_summary(exc: BaseException) -> str:
@@ -101,6 +126,8 @@ def run_failure_summary(exc: BaseException) -> str:
             "thinking, no tool call. Try again; if it keeps happening, "
             "check the agent's model profile."
         )
+    if isinstance(cause, ContentFilterError):
+        return CONTENT_FILTER_SUMMARY
     diagnosis = type(cause).__name__
     if isinstance(cause, UsageLimitExceeded):
         # Not a fault to retry: the same task stops at the same limit again.

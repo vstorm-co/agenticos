@@ -7,6 +7,13 @@ import Link from "next/link";
 import { AddModel } from "@/components/agents/add-model";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { ErrorState, LoadingState } from "@/components/states";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge, Button } from "@/components/ui";
 import { useModelProviders } from "@/hooks";
 import { useChanged } from "@/hooks/use-changed";
@@ -19,6 +26,8 @@ import { useTranslations } from "next-intl";
 
 interface ModelProfilePickerProps {
   profiles: ModelProfile[];
+  /** A single selector for setup dialogs; model management keeps its full editor. */
+  compact?: boolean;
   /**
    * What `profiles` is: the organization's answer, a read still in flight, or
    * one that failed.
@@ -107,6 +116,7 @@ export function ModelProfilePicker({
   value,
   onChange,
   onCreationPendingChange,
+  compact = false,
   allowAdd = false,
   allowRemove = false,
   disabled,
@@ -260,6 +270,42 @@ export function ModelProfilePicker({
           <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-xs">
             {t("noModelAskAdmin")}
           </p>
+        </div>
+      );
+    }
+    if (compact) {
+      return (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">{t("model2")}</p>
+          <Select
+            value={value ?? "default"}
+            disabled={disabled || profilesStatus !== "loaded"}
+            onValueChange={(id) => {
+              if (id === "default") onChange(null);
+              else if (offered.some((profile) => profile.id === id && usableForAgents(profile)))
+                selectProfile(id);
+            }}
+          >
+            <SelectTrigger aria-label={t("model2")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">{t("useDefaultModel")}</SelectItem>
+              {offered.map((profile) => (
+                <SelectItem
+                  key={profile.id}
+                  value={profile.id}
+                  disabled={!usableForAgents(profile)}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <ProviderIcon provider={profile.provider} />
+                    <span className="truncate">{profile.label}</span>
+                    {!hasKey(profile) && <Badge variant="destructive">{t("noKey")}</Badge>}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       );
     }

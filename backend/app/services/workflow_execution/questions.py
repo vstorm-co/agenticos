@@ -107,6 +107,25 @@ async def link_agent_run(
     A crash after the child parks but before the handler settles can then recover
     the same child. A cancelled workflow refuses admission before any tool runs.
     """
+    node = await own_agent_run(db, current, child)
+    await workflow_run_repo.update_node_run(
+        db, node_run=node, update_data={"waiting_agent_run_id": child.id}
+    )
+    context.report_waiting_agent_run(child.id)
+
+
+async def own_agent_run(
+    db: AsyncSession, current: context.DispatchContext, child: AgentRun
+) -> NodeRun:
+    """Tie `child` to this attempt before the runner commits admission.
+
+    Settling reads the cost the runner committed for the child off this link, so
+    an attempt that crashed after spending is still billed. A step that never
+    parks on its child links only this; `link_agent_run` also waits on it.
+
+    Raises:
+        BadRequestError: The step no longer accepts an agent run.
+    """
     run = await workflow_run_repo.get_run_by_id_for_update(db, current.workflow_run_id)
     node = await workflow_run_repo.get_node_run_by_id_for_update(db, current.node_run_id)
     latest = await workflow_run_repo.get_latest_attempt(db, node_run_id=current.node_run_id)
@@ -123,8 +142,5 @@ async def link_agent_run(
             message="This workflow step no longer accepts an agent run",
             details={"node_run_id": current.node_run_id},
         )
-    await workflow_run_repo.update_node_run(
-        db, node_run=node, update_data={"waiting_agent_run_id": child.id}
-    )
     await workflow_run_repo.link_attempt_agent_run(db, attempt=latest, agent_run_id=child.id)
-    context.report_waiting_agent_run(child.id)
+    return node

@@ -20,7 +20,12 @@ vi.mock("@/hooks", () => ({
 }));
 
 function mutation() {
-  return { mutate: vi.fn(), mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false };
+  return {
+    reset: vi.fn(),
+    mutate: vi.fn((_id: string, options: { onSuccess: () => void }) => options.onSuccess()),
+    mutateAsync: vi.fn().mockResolvedValue(undefined),
+    isPending: false,
+  };
 }
 
 function key(overrides: Partial<ApiKey> = {}): ApiKey {
@@ -64,17 +69,22 @@ describe("ApiKeysManager", () => {
     useApiKeysMock.mockReturnValue(state({ revoke }));
     render(<ApiKeysManager />);
 
-    expect(screen.getByText("aos_0123abcd…")).toBeInTheDocument();
-    expect(screen.getByText("2 permissions")).toBeInTheDocument();
-    expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(within(screen.getByRole("table")).getByText("aos_0123abcd…")).toBeInTheDocument();
+    expect(within(screen.getByRole("table")).getByText("2 permissions")).toBeInTheDocument();
+    expect(within(screen.getByRole("table")).getByText("Active")).toBeInTheDocument();
     expect(screen.getAllByText("Never").length).toBeGreaterThan(0);
     expect(screen.queryByText("Issued by")).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Revoke" }));
+    await userEvent.click(
+      within(screen.getByRole("table")).getByRole("button", { name: "Revoke" }),
+    );
     const dialog = await screen.findByRole("dialog");
     await userEvent.click(within(dialog).getByRole("button", { name: "Revoke" }));
 
-    expect(revoke.mutateAsync).toHaveBeenCalledWith("k1");
+    expect(revoke.mutate).toHaveBeenCalledWith(
+      "k1",
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
   });
 
   it("revokes nothing when the confirmation is dismissed", async () => {
@@ -82,12 +92,14 @@ describe("ApiKeysManager", () => {
     useApiKeysMock.mockReturnValue(state({ revoke }));
     render(<ApiKeysManager />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Revoke" }));
+    await userEvent.click(
+      within(screen.getByRole("table")).getByRole("button", { name: "Revoke" }),
+    );
     await userEvent.click(
       within(await screen.findByRole("dialog")).getByRole("button", { name: "Cancel" }),
     );
 
-    expect(revoke.mutateAsync).not.toHaveBeenCalled();
+    expect(revoke.mutate).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -103,11 +115,13 @@ describe("ApiKeysManager", () => {
     );
     render(<ApiKeysManager />);
 
-    expect(screen.getByText("Issued by")).toBeInTheDocument();
-    expect(screen.getByText("Revoked")).toBeInTheDocument();
-    expect(screen.getByText("Expired")).toBeInTheDocument();
-    expect(screen.getByText("No expiry")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Revoke" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("table")).getByText("Issued by")).toBeInTheDocument();
+    expect(within(screen.getByRole("table")).getByText("Revoked")).toBeInTheDocument();
+    expect(within(screen.getByRole("table")).getByText("Expired")).toBeInTheDocument();
+    expect(within(screen.getByRole("table")).getByText("No expiry")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("table")).queryByRole("button", { name: "Revoke" }),
+    ).not.toBeInTheDocument();
   });
 
   it("does not draw the create control without api_keys:create", () => {
@@ -145,4 +159,100 @@ describe("ApiKeysManager", () => {
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(refetch).toHaveBeenCalled();
   });
+});
+
+it("searches key names, prefixes and issuers, and resets unmatched searches", async () => {
+  useApiKeysMock.mockReturnValue(
+    state({
+      keys: [
+        key(),
+        key({
+          id: "k2",
+          name: "Support automation",
+          prefix: "aos_other",
+          issuer_email: "grace@example.com",
+        }),
+      ],
+    }),
+  );
+  render(<ApiKeysManager />);
+  const search = screen.getByPlaceholderText("Search API keys…");
+  await userEvent.type(search, "grace@example.com");
+  expect(within(screen.getByRole("table")).getByText("Support automation")).toBeInTheDocument();
+  expect(screen.queryByText("Nightly import")).not.toBeInTheDocument();
+  await userEvent.clear(search);
+  await userEvent.type(search, "aos_0123");
+  expect(within(screen.getByRole("table")).getByText("Nightly import")).toBeInTheDocument();
+  await userEvent.clear(search);
+  await userEvent.type(search, "missing");
+  expect(screen.getByText("No matching API keys")).toBeInTheDocument();
+  const [clear] = screen.getAllByRole("button", { name: "Clear search" });
+  if (!clear) throw new Error("Missing search reset");
+  await userEvent.click(clear);
+  expect(within(screen.getByRole("table")).getByText("Support automation")).toBeInTheDocument();
+});
+
+it("keeps refused revocation open for retry and clears creation state on Done", async () => {
+  held = ["api_keys:create"];
+  const revoke = mutation();
+  revoke.mutate.mockImplementationOnce(() => {});
+  const create = mutation();
+  create.mutateAsync.mockResolvedValue({ ...key(), key: "aos_0123abcdsecret" });
+  useApiKeysMock.mockReturnValue(state({ revoke, create }));
+  render(<ApiKeysManager />);
+  await userEvent.click(within(screen.getByRole("table")).getByRole("button", { name: "Revoke" }));
+  const dialog = screen.getByRole("dialog");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Revoke" }));
+  expect(dialog).toBeInTheDocument();
+  await userEvent.click(within(dialog).getByRole("button", { name: "Revoke" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Create key" }));
+  await userEvent.type(screen.getByLabelText("Name"), "ci");
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Done" }));
+  expect(create.reset).toHaveBeenCalledOnce();
+  await userEvent.click(screen.getByRole("button", { name: "Create key" }));
+  expect(screen.getByLabelText("Name")).toHaveValue("");
+  expect(screen.queryByDisplayValue("aos_0123abcdsecret")).not.toBeInTheDocument();
+});
+
+it("offers recovery when the permissions catalog fails instead of silently hiding creation", async () => {
+  held = ["api_keys:create"];
+  const retryCatalog = vi.fn();
+  useApiKeysMock.mockReturnValue(
+    state({ catalog: null, catalogError: new Error("refused"), retryCatalog }),
+  );
+  render(<ApiKeysManager />);
+  expect(screen.getByText("Could not load available permissions")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(retryCatalog).toHaveBeenCalledOnce();
+});
+
+it("keeps a phone card's complete identity and lets its revoke action open confirmation", async () => {
+  held = ["api_keys:create", "api_keys:manage"];
+  const name = "Customer-support knowledge synchronisation";
+  useApiKeysMock.mockReturnValue(state({ keys: [key({ name })] }));
+  render(<ApiKeysManager />);
+  const card = screen.getByRole("listitem");
+  expect(within(card).getByRole("heading", { name })).toBeInTheDocument();
+  expect(within(card).getByText("ada@example.com")).toBeInTheDocument();
+  expect(within(card).getByText("Jan 1, 2027")).toBeInTheDocument();
+  expect(within(card).getByText("2 permissions")).toBeInTheDocument();
+  await userEvent.click(within(card).getByRole("button", { name: "Revoke" }));
+  expect(
+    within(screen.getByRole("dialog")).getByRole("heading", { name: `Revoke ${name}?` }),
+  ).toBeInTheDocument();
+});
+
+it("clears an unmatched API key search from the empty state", async () => {
+  useApiKeysMock.mockReturnValue(state({ keys: [key()] }));
+  render(<ApiKeysManager />);
+  await userEvent.type(screen.getByPlaceholderText("Search API keys…"), "no-match-at-all");
+  const clear = screen
+    .getAllByRole("button", { name: "Clear search" })
+    .find((button) => button.textContent === "Clear search");
+  if (!clear) throw new Error("Missing empty-state search action");
+  await userEvent.click(clear);
+  expect(screen.getByPlaceholderText("Search API keys…")).toHaveValue("");
+  expect(screen.getByRole("table")).toHaveTextContent(key().name);
 });

@@ -165,11 +165,22 @@ class MessagePart(BaseSchema):
     )
 
     type: Literal[
-        "text", "thinking", "tool", "ask_user", "workflow_run", "steer", "mention", "phone_call"
+        "text",
+        "thinking",
+        "tool",
+        "ask_user",
+        "workflow_run",
+        "steer",
+        "mention",
+        "phone_call",
+        "model_setup",
     ] = Field(description="What this entry is.")
     text: str | None = Field(
         default=None,
         description="The words, for a `text` or `thinking` entry, or what the person added for a `steer`.",
+    )
+    setup_agent_id: UUID | None = Field(
+        default=None, description="The shipped starter needing a model; never evidence of a run"
     )
     phone_call_id: UUID | None = Field(
         default=None, description="The owned telephone receipt for a phone_call entry."
@@ -507,6 +518,10 @@ class MessageRead(MessageBase, TimestampSchema):
             "transcript can say a turn was *stopped*: a cancelled run leaves a "
             "half-written answer that reads exactly like a complete one."
         ),
+    )
+    run_error: str | None = Field(
+        default=None,
+        description="The safe failure explanation for a failed run, never a raw provider exception",
     )
     run_started_at: datetime | None = Field(
         default=None, description="The parent run start shared by transcript and sidebar timers"

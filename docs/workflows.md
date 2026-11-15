@@ -1,5 +1,7 @@
 # Workflows
 
+Choose a workflow’s icon beside its name in the editor. The same neutral tile appears in the catalog. A selected mark survives reload; **Use default icon** resets it. This changes presentation metadata, not the draft revision or published graph.
+
 A **workflow** chains steps into an automation your agents carry out: read a
 [table](virtual-tables.md), call an agent, branch on the result, loop over a
 list. You build it on a canvas, wire the steps together, and publish it as an
@@ -78,7 +80,11 @@ the same list.
 
 **More → Settings** contains the workflow's name, description, tags and runtime settings, saved automatically. The step editor fills the available window: Input on the left, Parameters and Settings in the middle, Output on the right. Triggers use two panes because they have no incoming data. Each pane scrolls independently on larger screens; phones use one scrolling column. Recorded executions show the parameters read-only beside their data. Record values are fields named after table columns. Notes offer Open note, size presets and resize handles.
 
-The app picker includes catalog MCP servers before they are connected; its generic Call an MCP tool entry is hidden. Connect a service in place, then choose one of its discovered tools. The connection's allowlist remains enforced. The canvas starts with colored steps and a minimap. AI model steps expose instructions, temperature and reasoning effort; unset controls retain provider defaults. Jev decisions expose their model, question and confidence threshold. Send an email uses the platform sender, or connects Gmail or Outlook and switches to that mailbox's actual MCP tool after confirmation. Switching clears incompatible input mappings and is undoable.
+The app picker includes catalog MCP servers before they are connected; its generic Call an MCP tool entry is hidden, and those nobody has connected wait under **more apps to connect** at the end of their section. Connect a service in place, then choose one of its discovered tools. The connection's allowlist remains enforced.
+
+The canvas starts with colored steps and a minimap. On a phone it opens with the whole flow in view and the minimap hidden; **Canvas options** shows it again.
+
+AI model steps expose instructions, temperature and reasoning effort; unset controls retain provider defaults. **Decisions** steps, answered by the Jev decision model, expose their model, question and confidence threshold. Send an email uses the platform sender, or connects Gmail or Outlook and switches to that mailbox's actual MCP tool after confirmation. Switching clears incompatible input mappings and is undoable.
 
 The **Send an email** step also offers **SMTP account → New SMTP account**. Enter the server, port, username, password and sender in the vault dialog. STARTTLS usually uses 587; implicit TLS usually uses 465, with certificate verification in both modes. Only `smtp_secret_id` is stored in the workflow. Select **Platform sender** to clear it. Publication and execution enforce secret access; an unavailable account fails instead of silently changing senders.
 
@@ -109,6 +115,8 @@ Agents called from workflows can use their AgenticOS MCP tools in the background
 
 ## The canvas and adding steps { #the-canvas-and-the-palette }
 
+After **Test draft**, the canvas shows the run's status and completed-step count. **Open run** opens its details. On narrow screens the status bar wraps inside the canvas so the link and close button remain reachable.
+
 The editor keeps **Runs**, **Test draft** and **Publish** visible. **More** contains **Versions** and the edit/view switch. **Canvas options** holds the minimap, connection style and shortcuts. A step with no incoming connection leaves more room for parameters by omitting the empty Input pane; **Expected output fields** expands the output schema. **Review setup before testing** opens the unfinished setup.
 
 The **canvas** is where a workflow's steps and connections appear, and it has the
@@ -118,7 +126,7 @@ connection that sets the order: the step it points to runs after the one it leav
 Each node is a card with the step's icon, its name and one line under it: what it
 is set up to do - a condition, a URL, the number of mapped fields - after the
 agent, model or table it works with. A step with more than one way
-out lists its ports by name: **true** and **false**, **Each item** and **Done**,
+out lists its ports by name: **true** and **false**, a loop's **Done**,
 and a red **Error** port on a step that handles its errors. A step that stops a
 publish carries a setup mark (red after testing or publishing): hovering lists the first items, and clicking it
 opens the step.
@@ -128,7 +136,7 @@ pinch - or Ctrl or Cmd with the wheel - zooms it; its controls sit in the corner
 
 Steps are chosen in the **step picker**. It lists sections - **Start**, **AI**,
 **Flow**, **Data**, **Apps and the web** - with the groups under each. A group such
-as **Slack**, **Tables** or **Jev decisions** opens to its steps, and a group of one
+as **Slack**, **Tables** or **Decisions** opens to its steps, and a group of one
 step is that step. **Search steps** finds any step by its name, what it does or its
 group. You add a step four ways:
 
@@ -175,10 +183,11 @@ connects a server. An app's action rows are picked, not dragged: only
 the step's own rows can be dragged onto the canvas.
 
 A new step never lands on top of another, is selected, opens its settings when it
-has any, and the canvas scrolls to it when it falls outside the view. Inside a
-loop's body every new step is wired into the body, so it stays there. The picker
-shows what is valid where you are: **Loop item** and **Loop result** only inside a
-loop's body, and a loop until loops are nested as deep as publishing allows.
+has any, and the canvas scrolls to it when it falls outside the view. A step added
+or pasted inside a loop's body belongs to that body, wired after the last step with
+an output free or, when none has one, left for you to wire. A new loop already holds
+its **Loop item** and **Loop result**, so the picker never offers them; it offers a
+loop until loops are nested as deep as publishing allows.
 
 Right-clicking a step offers **Open settings**, **Duplicate**, **Switch off** and
 **Delete step**. With several steps selected, a bar at the bottom deletes them together.
@@ -338,10 +347,25 @@ on the card, and the tab carries a dot once anything there is changed.
 Turning off
 **Run this step** there, or **Switch off** in its right-click menu, keeps a step on
 the canvas, dimmed, and skips it when a run reaches it: it does nothing and hands on
-what came into it. Publishing refuses the trigger or a step that decides the way
+what came into it. Publishing refuses the trigger or a connected step that decides the way
 switched off, and a step that reads one that is off, unless what comes into it -
 along its one incoming connection, from a step that is on - has the field read,
 which it then hands on. All three are saved in the graph, so versions keep them.
+
+A step that is off, connected or not, is not checked for its inputs or its settings:
+it reads neither. Switching it back on is a change to publish, and publishing checks
+them then.
+
+A step that is off with no connection at all is set aside: it can sit beside the
+workflow or inside a loop - a **Combine lists** holding test data, say - without
+being reachable. A run ignores it, and it does not count towards the run's step
+limit. Connect it to anything and it must be reachable again. Any step can be set
+aside, even one that decides the way, such as **If**: with no connection it has no
+way to choose. Only the trigger and a loop's **Loop item** and **Loop result**
+always stay on.
+
+
+A switched-off step may keep its saved error policy and file or table bindings even when the resource is no longer accessible. It reads none of them; switching it back on checks them again. A step set aside appears as **Switched off** in the run's Steps tab without an execution row. Connect it to a trigger before using **Test step**.
 
 ### A step's data, test data and testing one step { #a-steps-data-pinning-and-testing-one-step }
 
@@ -516,9 +540,14 @@ loop body** on the step, which says how many steps the body holds, enters that
 view, and the **Workflow scope** breadcrumb in the canvas's corner shows where you
 are, from **Workflow** down to the loop you opened. Each crumb navigates back out.
 
-A body starts at **Loop item**, which the loop's **Each item** port connects to,
-and ends at **Loop result**; nothing in it connects back to the loop, which
-continues through **Done** once every item has been through the body. The step picker and the binding sources follow the scope you are in, and a step in a body may read
+A body starts at **Loop item** and ends at **Loop result**. Every step remembers
+the loop it belongs to, so removing a wire never moves a step out of a body; a step
+**Loop item** does not lead to is reported until you connect it. No wire runs from
+the loop into its body or back to the loop, which continues through **Done** once
+every item has been through the body. **Loop item** and **Loop result** go only with
+their loop: deleting the loop deletes its whole body, and copying it copies the body.
+
+The step picker and the binding sources follow the scope you are in, and a step in a body may read
 anything that ran before the loop. What the loop does is in the
 [node reference](reference/workflow-nodes.md#loops).
 
@@ -800,7 +829,12 @@ faded. Only a page open while the run went on moves; one opened later is still. 
 
 The run's answer - its text, its structured result, the passages it drew on and how
 many files it made, with the JSON itself under **Raw output** - and every step it
-took, iteration by iteration, sit alongside. A run still going
+took, iteration by iteration, sit alongside.
+
+The list holds the steps that started, in the order they started. Failures remain
+visible even if a step failed before starting. Other steps that never started stay
+on the canvas; skipped steps appear faded. Clicking a loop step's row shows its
+input and output in that iteration. A run still going
 refreshes itself every couple of seconds, and **Cancel run** stops it, and withdraws the timers its waiting steps had queued. Its **Files** list what its steps stored - a download, a rendered page, a script's output - each one downloadable.
 
 A run waiting on an [**Ask for approval**](reference/workflow-nodes.md#human-approval)
@@ -811,6 +845,12 @@ approves their version. The step then hands on `final`, `original` and `edited`,
 a later step sends what the person approved. A decider the step does not name sees
 the proposal read-only, and a request decided with a changed version
 shows an **Edited** badge under **Decided**.
+
+In the run itself, a finished approval step opens with who decided it and when -
+**Approved by** or **Rejected by** the person and the time - only the decision and the time
+when the account is gone or the reader may not list members - above the step's output. When the approver changed the
+proposal, **Show changes** compares the two. A request that expired or was cancelled
+with its run says so instead.
 
 When the step lists **Ways to approve**, the queue shows one button for each, with the
 label its author wrote, in place of **Approve**; **Reject** stays. Each way is an output
@@ -846,7 +886,9 @@ a loop, or **Fail the run**. If the step reported a result after it was given up
 siblings, approvals and timers go on.
 
 Only the person who started the run, or an editor of the workflow, may resolve a
-step, and in a test run only an editor may resolve a step or retry the run. Over the
+step, and in a test run only an editor may resolve a step or retry the run. A cancelled run
+is retried only by the person who started it or an editor, the people who could have
+cancelled it. Over the
 API it is `POST /api/v1/workflow-runs/{id}/steps/{node_run_id}/rerun` with a `choice`, and the
 decision is audited. A run that was cancelled, or that failed, has no step to resolve:
 **Retry from failed step** starts a new run. A step that finished after its run
@@ -864,6 +906,8 @@ characters of it (at least four); **Show only this run** on a line fills it in, 
 that wrote it. In the run view, each step's own lines sit under it, in the order they
 were written. An organization API key with `workflows:view` reads them too, for
 public-origin runs: see [Reading a workflow's log](api.md#reading-a-workflows-log).
+
+New Quick Log lines show default step names in the reader's language, including on the dashboard. The saved run graph identifies default names, including in older lines. Custom labels and lines whose saved graph no longer identifies the step keep their stored words.
 
 ### Alerts { #log-alerts }
 
@@ -960,6 +1004,16 @@ in `X-Signature-256`, and names each delivery in `X-Delivery-Id`; GitHub's own
 headers work as well. The trigger hands on the delivery's JSON as `body`, with its
 `delivery_id`. A retry that repeats an id is answered with the first run and starts
 nothing, because the id is recorded with the run it admitted, in one transaction.
+
+The id is not part of what the sender signs, so the same signed request under another id
+within 24 hours is a copy too: it is answered with the first run and starts nothing,
+whichever of the two signature headers carries it. Identical content sent again after 24
+hours starts a run. A sender that sends the same body more often on purpose makes each one
+differ, with its own id or time in the body, or signs the time: with
+`X-Signature-Timestamp` (Unix seconds) the signature covers `{timestamp}.{body}` and is
+refused more than five minutes from the server's clock.
+
+Deliveries admitted before signed digests were recorded retain delivery-ID deduplication. Their signed copies under a different ID cannot be recognized from those older rows; signature-based copy detection starts with deliveries recorded by the new version.
 
 A **Schedule** trigger runs every so often, daily at a set time or on a cron
 expression, in the workflow's timezone (UTC unless its **Settings** name another)
@@ -1086,9 +1140,37 @@ read it starts from the moment the workflow was published or last switched on, s
 mail already there starts nothing.
 
 Naming a shared mailbox the organization's Microsoft grant can open takes the permission
-to manage connections, as it does for Outlook agent triggers; a workflow already
-listening to one keeps it through later publishes, and changing it needs the permission again. If Outlook says the folder can no longer be read, the workflow is
+to manage connections, as it does for Outlook agent triggers; every publish that names one needs it, because whoever publishes becomes the member
+the mailbox is read as, and a message reaching a workflow whose publisher no longer
+holds it starts no run. If Outlook says the folder can no longer be read, the workflow is
 switched off and the audit log says why.
+
+Before upgrading to a release with this check, an administrator can find the
+Outlook triggers it will stop: those reading a shared mailbox for a publisher who is not an owner, admin or builder,
+and so lacks `mcp:manage`. Each needs a republish by someone who holds it, or its
+publisher's role raised. Run against the deployment's database:
+
+```sql
+SELECT o.name AS organization,
+       w.name AS workflow,
+       u.email AS publisher,
+       m.role AS publisher_role,
+       node -> 'config' ->> 'mailbox' AS shared_mailbox
+FROM workflow_exposures AS e
+JOIN workflow_versions AS v ON v.id = e.workflow_version_id
+JOIN workflows AS w ON w.id = e.workflow_id
+JOIN organizations AS o ON o.id = e.organization_id
+JOIN users AS u ON u.id = e.execution_principal_user_id
+LEFT JOIN organization_members AS m
+  ON m.organization_id = e.organization_id AND m.user_id = e.execution_principal_user_id
+CROSS JOIN LATERAL jsonb_array_elements(v.graph -> 'nodes') AS node
+WHERE e.adapter = 'outlook'
+  AND e.is_active
+  AND (node ->> 'id')::uuid = e.node_instance_id
+  AND coalesce(node -> 'config' ->> 'mailbox', '') <> ''
+  AND NOT u.is_app_admin
+  AND coalesce(m.role, '') NOT IN ('owner', 'admin', 'builder');
+```
 
 The run gets the same fields as a Gmail
 run, with `labels` holding the message's categories and `mailbox` the shared
@@ -1131,7 +1213,8 @@ topic only inside a forum topic.
 
 A **Send a message** step added after a **Channel message** trigger starts as the
 trigger's bot, with `channel_id` and `thread_id` bound, when the two platforms match. A
-bot's messages start one workflow at most, and listening to a bot needs `channels:manage`.
+bot's messages start one workflow at most, and listening to a bot needs `channels:manage`, checked again
+at every message: once the publisher loses it, the bot's own agent answers instead.
 A voice note arrives as its transcript; other attachments are not handed on. See
 [trigger.channel_message](reference/workflow-nodes.md#trigger-channel-message).
 
@@ -1153,12 +1236,17 @@ already running in the chain, or more than five calls deep, is refused.
 Called workflows inherit the caller's remaining run budget and the earlier deadline.
 Their spend counts toward the caller's total; `own_cost` exposes the caller's direct
 fees for consumers aggregating run records without counting descendants twice.
-With a finite caller budget, **Wait for it to finish** must stay on. Cancelling a
-caller or revoking its access stops a child before its next dispatch; an external
-request already in flight may finish. Retrying a failed call reuses successful
-steps of its original, frozen child rather than repeating their effects. A still
-running original child must finish or be stopped first. File outputs are explicitly
-imported into the caller, and callee access is rechecked when a waiting call resumes.
+With a finite caller budget, **Wait for it to finish** must stay on.
+
+Cancelling a caller, or its running out of budget, cancels every unfinished run it
+called and every run those called, with their approval requests and questions. A called
+run whose step is executing at that moment stops before its next dispatch, as does one
+whose caller lost its access; an external request already in flight may finish.
+
+Retrying a failed call reuses successful steps of its original, frozen child rather than
+repeating their effects. A still running original child must finish or be stopped first.
+File outputs are explicitly imported into the caller, and callee access is rechecked
+when a waiting call resumes.
 
 The caller's daily chart and per-step statistics include called-run fees too.
 
@@ -1218,7 +1306,7 @@ needs an idempotency key of its own. Each step's retry promise is listed in the
 | What you see | Why | What to do |
 |---|---|---|
 | **Needs attention** | A step that may have acted was interrupted, or stopped waiting with nothing to wake it | Check whether its effect happened, then **Resolve** the step on the run: run it again, use a result it reported late, take its error route or fail the run. Cancelling the run, then **Retry from failed step**, starts over |
-| `PRINCIPAL_REVOKED` | The member the run acts as lost access, or their account was deactivated | Have a member who may run the workflow publish it again, so its trigger runs as them |
+| `PRINCIPAL_REVOKED` | The member the run acts as lost access, or their account was deactivated, or the API key that started the run was revoked | Have a member who may run the workflow publish it again, so its trigger runs as them |
 | `WORKFLOW_TRIGGER_MISMATCH` | The run was asked for through a door its live trigger is not: by hand or the API for a workflow that starts from a webhook, or in the chat for one that does not start from a chat message | Start it the way its trigger says, or test the draft, which takes any trigger |
 | `INVALID_BINDING` | A value did not fit the field it was bound to | The step's error names the field; fix the binding or the value upstream |
 | `REVISION_CONFLICT` | Someone changed a record after the step read it | Route the step's error to a fresh read with `error.handle` |
@@ -1257,7 +1345,7 @@ steps read from each other rather than from the originals. Every edit shortcut i
 inert while the editor is read-only - a published version, or **View only**;
 `Escape` still cancels a stray connection, and `?` still shows the shortcuts.
 
-Copy and paste have three limits:
+Copy and paste have four limits:
 
 - **A bound step reads from where it read before.** A copied step keeps its
   bindings. One that reads from a step you did not copy keeps reading from the
@@ -1269,6 +1357,10 @@ Copy and paste have three limits:
 - **The shortcuts belong to the canvas.** They work while focus is on the canvas, and
   clicking anywhere in it — a step, empty canvas, a connection — keeps it there. Focus in a step's settings or the step picker keeps the keys for those fields, so click
   the canvas before pressing them.
+- **A paste lands only where the palette would put it.** Inside a loop, pasting a
+  trigger is refused, and so is a loop that would nest more than three deep with the
+  loops it carries. The whole paste is refused and the clipboard keeps it, so open
+  the top level, or a shallower loop, and paste there.
 
 Agent image attachments share a 20 MB byte ceiling, checked before each file
 is loaded, including repeated references. MCP results redact resolved authentication

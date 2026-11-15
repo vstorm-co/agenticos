@@ -22,9 +22,11 @@ import { Perm } from "@/types/permissions";
  *
  * Publication and permission are separate: a visible published agent is not
  * necessarily one this member may run. The server re-checks both on submission.
+ * Published agents can run. The trusted, never-published starter can instead
+ * explain model setup; selecting it never executes its draft.
  */
 const isRunnable = (agent: Agent): boolean =>
-  agent.status === "published" && agent.can_run === true;
+  agent.can_run === true && (agent.status === "published" || agent.setup_required === true);
 
 /**
  * A workflow the chat can hand a message to: one whose live version starts from
@@ -58,11 +60,9 @@ interface AgentPickerProps {
  * here, showing the agent's face, because "which of these five agents am I
  * talking to" is answered faster by a picture than by reading five names.
  *
- * Only the organization's published agents are offered - there is no general
- * assistant to fall back to. An empty or stale selection resolves to the
- * user's default agent - the one starred here - or, absent that, the first
- * published agent as soon as the list arrives, so the composer always
- * addresses someone real.
+ * An empty or stale selection resolves to the user's explicit default, then
+ * the shipped AgenticOS starter, then the first published agent. The starter
+ * remains selectable before publication so it can guide first-time setup.
  *
  * A member who may run workflows is offered the published ones as well: a
  * message addressed to one starts a run of it, and its answer - a card with the
@@ -104,7 +104,7 @@ export function AgentPicker({
     selectedWorkflow?.name ?? (selected ? (selectedLabel ?? selected.name) : null);
 
   // No selection, or one pointing at an agent that has since been unpublished,
-  // resolves to the default agent, then the first published one. The store is
+  // resolves to the explicit default, starter, then a published agent. The store is
   // read at send time, so this is also what keeps a frame from going out
   // without an agent.
   useEffect(() => {
@@ -118,7 +118,9 @@ export function AgentPicker({
     // else, having been told exactly who was wanted.
     if (isFetching && selectedAgentId !== null) return;
     const fallback =
-      runnable.find((agent) => allowDefault && agent.id === defaultAgentId) ?? runnable[0];
+      runnable.find((agent) => allowDefault && agent.id === defaultAgentId) ??
+      runnable.find((agent) => agent.is_starter) ??
+      runnable[0];
     if (fallback) selectAgent(fallback.id);
   }, [
     autoSelect,
