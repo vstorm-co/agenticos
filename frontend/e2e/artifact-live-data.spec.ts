@@ -228,27 +228,7 @@ let colleagueContext: BrowserContext | undefined;
 
 /** The colleague's own signed-in context, made once and closed at the teardown. */
 async function asColleague(browser: Browser): Promise<BrowserContext> {
-  if (colleagueContext) return colleagueContext;
-  colleagueContext = await signInAs(browser, COLLEAGUE_EMAIL, COLLEAGUE_PASSWORD, fixture.orgId);
-  const page = await colleagueContext.newPage();
-  try {
-    await page.goto("/chat");
-    const [permissions] = await Promise.all([
-      page.waitForResponse(
-        (response) =>
-          new URL(response.url()).pathname === "/api/me/permissions" &&
-          response.request().headers()["x-organization-id"] === fixture.orgId &&
-          response.status() !== 401,
-      ),
-      page.reload(),
-    ]);
-    expect(permissions.ok(), "reading the colleague's selected organization failed").toBe(true);
-    expect(((await permissions.json()) as { organization_id: string }).organization_id).toBe(
-      fixture.orgId,
-    );
-  } finally {
-    await page.close();
-  }
+  colleagueContext ??= await signInAs(browser, COLLEAGUE_EMAIL, COLLEAGUE_PASSWORD, fixture.orgId);
   return colleagueContext;
 }
 

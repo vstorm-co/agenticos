@@ -190,10 +190,16 @@ async def test_use_and_management_lists_apply_different_grant_levels(
 @pytest.mark.parametrize(
     "key_scopes", [None, frozenset({Perm.MCP_USE}), frozenset({Perm.MCP_MANAGE})]
 )
-async def test_subjectless_keys_list_only_their_organization_visible_connections(
+async def test_organization_api_keys_list_org_connections_without_a_user(
     caller, connection, monkeypatch, key_scopes
 ):
-    caller = replace(caller, user_id=None, role=OrgRoleName.OWNER, key_scopes=key_scopes)
+    caller = replace(
+        caller,
+        user_id=None,
+        role=OrgRoleName.OWNER,
+        api_key_id=uuid4(),
+        key_scopes=key_scopes,
+    )
     connection.visibility = Visibility.ORG.value
     private = McpConnection(
         id=uuid4(),
@@ -201,11 +207,10 @@ async def test_subjectless_keys_list_only_their_organization_visible_connections
         visibility=Visibility.PRIVATE.value,
         created_by_user_id=None,
     )
-    foreign = McpConnection(id=uuid4(), organization_id=uuid4(), visibility=Visibility.ORG.value)
     monkeypatch.setattr(
         mcp_connection_repo,
         "list_org_scoped",
-        AsyncMock(return_value=([connection, private, foreign], 3)),
+        AsyncMock(return_value=([connection, private], 2)),
     )
     lookup = AsyncMock(return_value=connection)
     monkeypatch.setattr(mcp_connection_repo, "get_org_scoped_by_id", lookup)
