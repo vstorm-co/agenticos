@@ -8,43 +8,26 @@ import { ArrowRightLeft, Building2, Check, Plus } from "lucide-react";
 
 import { CreateOrgDialog } from "@/components/teams";
 import { PageHeader } from "@/components/dashboard/page-header";
-import {
-  Button,
-  Badge,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Skeleton,
-  EntityAvatar,
-} from "@/components/ui";
+import { Button, Badge, ListCard, Skeleton, EntityAvatar } from "@/components/ui";
 import { useOrganizations } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
 
-/**
- * The list's frame, drawn whether or not there is anything in it - the same
- * always-visible container the vault draws around its keys. Same header, same
- * border, in every state: what changes is what is inside it.
- */
+/** A gallery shares the page surface, including while its count is loading. */
 function WorkspacesCard({ count, children }: { count: number | null; children: ReactNode }) {
   const t = useTranslations("pages.orgs");
   return (
-    <Card className="flex flex-1 flex-col">
-      <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
-        <div className="space-y-1">
-          <CardTitle className="text-sm">{t("workspaces")}</CardTitle>
-          <CardDescription className="text-xs">
-            {/* `null` is "the request has not answered". Rendering "0 workspaces"
-                there would state something nothing has said yet. */}
-            {count === null ? <Skeleton className="h-3 w-24" /> : t("storedCount", { count })}
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="flex-1 p-4">{children}</CardContent>
-    </Card>
+    <ListCard
+      fill
+      namedByPage
+      layout="grid"
+      title={t("workspaces")}
+      counted={count === null ? null : t("storedCount", { count })}
+      contentClassName="p-0 pt-2"
+    >
+      {children}
+    </ListCard>
   );
 }
 
