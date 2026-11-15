@@ -1132,3 +1132,5 @@ The dashboard puts Discover tips after its data. Briefing uses rows with actions
 The agent builder keeps Test, Open in chat and Publish prominent. More actions contains sharing, the visual map, continuing your conversation and export. Activity combines period, filters, column selection and export in one toolbar. Columns can show the author, surface, model and token count; cost, duration and start time stay in the main table.
 
 Settings uses a section index on desktop and a section menu on phones. Standard settings sections use dividers, while destructive actions retain their warning frame. In chat, project context appears above the composer and usage is available inside Chat controls. Page navigation preserves the shared layout without fading its contents.
+
+Sidebar groups expand and collapse smoothly. Hidden destinations cannot receive focus, and collapsing the sidebar keeps the current destination visible. Motion follows your Appearance settings; reduced motion keeps these controls static.

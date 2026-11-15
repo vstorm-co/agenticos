@@ -1,5 +1,5 @@
 ---
-source_sha: "ee2a66cbf78c"
+source_sha: "32dd7a1e9b03"
 ---
 
 # La consola { #the-console }
@@ -1197,3 +1197,5 @@ El dashboard muestra los consejos Discover después de sus datos. Briefing utili
 El editor de agentes destaca Probar, Abrir en el chat y Publicar. Más acciones contiene compartir, el mapa visual, continuar la conversación y exportar. Actividad reúne período, filtros, selección de columnas y exportación en una barra. Las columnas pueden mostrar autor, superficie, modelo y tokens; coste, duración y hora de inicio permanecen en la tabla principal.
 
 Ajustes ofrece un índice de secciones en escritorio y un menú en teléfonos. Las secciones habituales usan separadores y las acciones destructivas mantienen su marco de advertencia. En el chat, el contexto del proyecto aparece sobre el editor y el uso está en los controles del chat. La navegación conserva el diseño compartido sin desvanecer el contenido.
+
+Los grupos de la barra lateral se expanden y contraen con suavidad. Los destinos ocultos no reciben el foco y, al contraer la barra, el destino actual sigue visible. Las animaciones respetan los ajustes de apariencia; el movimiento reducido mantiene estos controles estáticos.

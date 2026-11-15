@@ -2600,11 +2600,11 @@ body .tour-spotlight {
 }
 
 @utility animate-in {
-  animation: overlay-enter var(--tw-duration, var(--duration-base)) var(--tw-ease, var(--ease-out))
+  animation: overlay-enter var(--tw-duration, var(--duration-fast)) var(--tw-ease, var(--ease-out))
     both;
 }
 @utility animate-out {
-  animation: overlay-exit var(--tw-duration, var(--duration-fast)) var(--ease-out) both;
+  animation: overlay-exit var(--tw-duration, calc(var(--duration-fast) * 0.8)) var(--ease-out) both;
 }
 @utility fade-in-* {
   --tw-enter-opacity: calc(--value(integer) * 1%);
@@ -3066,4 +3066,49 @@ body .tour-spotlight {
 }
 .soft-enter {
   animation: soft-enter var(--duration-base) var(--ease-out) both;
+}
+
+/* Closed groups retain their DOM for an interruptible reveal. Inert and
+   aria-hidden remove their links from interaction as soon as they close. */
+.sidebar-group-content {
+  display: grid;
+  width: 100%;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+}
+.sidebar-group-content[data-open] {
+  grid-template-rows: 1fr;
+  visibility: visible;
+}
+.sidebar-group-links {
+  overflow: hidden;
+}
+.sidebar-nav-link:active {
+  background-color: color-mix(in oklab, var(--color-foreground) 8%, transparent);
+}
+.pressable-icon:active {
+  background-color: var(--color-control-active);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="reduce"]) {
+    .sidebar-width-motion {
+      transition: width var(--duration-base) var(--ease-out);
+    }
+    .sidebar-group-content {
+      transition:
+        grid-template-rows var(--duration-base) var(--ease-out),
+        visibility var(--duration-base);
+    }
+    .pressable-icon {
+      transition:
+        background-color var(--duration-fast),
+        color var(--duration-fast),
+        box-shadow var(--duration-fast),
+        scale var(--duration-fast) var(--ease-out);
+    }
+    .pressable-icon:active {
+      scale: 0.94;
+      transition-duration: 70ms;
+    }
+  }
 }

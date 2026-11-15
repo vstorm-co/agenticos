@@ -25,9 +25,9 @@ const buttonVariants = cva(
         default: "h-10 px-4 py-2",
         sm: "h-8 px-3.5 text-[13px]",
         lg: "h-11 px-6",
-        icon: "h-9 w-9",
-        "icon-sm": "h-8 w-8 [&_svg]:size-3.5",
-        "icon-lg": "h-10 w-10",
+        icon: "pressable-icon h-9 w-9",
+        "icon-sm": "pressable-icon h-8 w-8 [&_svg]:size-3.5",
+        "icon-lg": "pressable-icon h-10 w-10",
       },
     },
     // The small secondary buttons - Export CSV, a filter, a period - are lower

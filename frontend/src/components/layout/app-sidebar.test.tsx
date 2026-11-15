@@ -1,7 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { scrollWithin } from "@/lib/scroll-within";
 import { NAV_GROUPS, SidebarNav, isActive } from "./app-sidebar";
+
+vi.mock("@/lib/scroll-within", () => ({ scrollWithin: vi.fn() }));
 
 const can = vi.fn<(permission: string) => boolean>();
 const currentPath = vi.fn<() => string>(() => "/dashboard");
@@ -419,5 +422,26 @@ describe("daily-work navigation", () => {
       "false",
     );
     expect(screen.queryByRole("link", { name: "skills" })).not.toBeInTheDocument();
+    const hiddenLink = screen.getByRole("link", { name: "skills", hidden: true });
+    expect(hiddenLink.closest("[inert]")).toHaveAttribute("aria-hidden", "true");
+    sidebar.openGroups = ["knowledge"];
+    sidebar.closedGroups = [];
+    rerender(<SidebarNav />);
+    expect(screen.getByRole("link", { name: "skills" })).toBe(hiddenLink);
+    expect(hiddenLink.closest("[inert]")).toBeNull();
   });
+});
+
+it("keeps the active destination in view when collapsing the navigation", () => {
+  can.mockReturnValue(true);
+  currentPath.mockReturnValue("/agents");
+  const view = render(<SidebarNav />);
+  vi.mocked(scrollWithin).mockClear();
+  view.rerender(<SidebarNav collapsed />);
+  expect(scrollWithin).toHaveBeenCalledWith(
+    screen.getByRole("link", { name: "agents" }),
+    "nearest",
+    "instant",
+  );
+  currentPath.mockReturnValue("/dashboard");
 });

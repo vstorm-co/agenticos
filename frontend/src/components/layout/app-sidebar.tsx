@@ -21,6 +21,8 @@
  * reveals entries rather than briefly offering ones about to disappear.
  */
 
+import { useEffect, useRef } from "react";
+import { scrollWithin } from "@/lib/scroll-within";
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -67,10 +69,10 @@ function NavLink({
       title={collapsed ? label : undefined}
       aria-label={collapsed ? label : undefined}
       className={cn(
-        "touch:min-h-11 focus-visible:ring-ring relative flex items-center rounded-lg text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset",
+        "sidebar-nav-link touch:min-h-11 focus-visible:ring-ring relative flex shrink-0 items-center rounded-lg text-sm font-medium transition-colors duration-[var(--duration-fast)] outline-none focus-visible:ring-2 focus-visible:ring-inset",
         // One row height in both states, so collapsing the column moves no icon
         // up or down - the rail is the same list with its words taken away.
-        collapsed ? "touch:min-w-11 h-8 w-8 justify-center" : "h-9 gap-2.5 px-2.5",
+        collapsed ? "touch:min-w-11 h-9 w-9 justify-center" : "h-9 gap-2.5 px-2.5",
         // Selected is a neutral raised pill with a dark label. Section hues live
         // on the page's own tile, not here: a column of coloured pills competed
         // with the content it points at.
@@ -114,7 +116,7 @@ function InboxCount({ collapsed }: { collapsed: boolean }) {
 function NavIcon({ icon: Icon }: { icon: NavItem["icon"] }) {
   const { pending } = useLinkStatus();
   return pending ? (
-    <Loader2 className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />
+    <Loader2 className="size-[18px] shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />
   ) : (
     <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} aria-hidden />
   );
@@ -131,6 +133,12 @@ export function SidebarNav({
   onNavigate?: () => void;
   collapsed?: boolean;
 }) {
+  const nav = useRef<HTMLElement>(null);
+  const pathname = usePathname();
+  useEffect(() => {
+    const active = nav.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (active) scrollWithin(active, "nearest", "instant");
+  }, [collapsed, pathname]);
   const { can } = usePermissions();
   const { user } = useAuthStore();
   const t = useTranslations("nav");
@@ -143,6 +151,7 @@ export function SidebarNav({
 
   return (
     <nav
+      ref={nav}
       aria-label={t("primary")}
       className={cn("flex flex-col gap-3 py-3", collapsed ? "items-center px-2" : "px-3")}
     >
@@ -206,7 +215,10 @@ function NavGroupBlock({
             >
               <span aria-hidden className="bg-border h-px w-3" />
               <ChevronRight
-                className={cn("size-3 transition-transform", open && "rotate-90")}
+                className={cn(
+                  "size-3 transition-transform duration-[var(--duration-fast)]",
+                  open && "rotate-90",
+                )}
                 aria-hidden
               />
             </button>
@@ -225,7 +237,10 @@ function NavGroupBlock({
           >
             <span className="flex-1">{t(group.labelKey)}</span>
             <ChevronRight
-              className={cn("size-3.5 transition-transform", open && "rotate-90")}
+              className={cn(
+                "size-3.5 transition-transform duration-[var(--duration-fast)]",
+                open && "rotate-90",
+              )}
               aria-hidden
             />
           </button>
@@ -235,11 +250,23 @@ function NavGroupBlock({
           </div>
         ))}
       {key === "projects" && <ProjectRows onNavigate={onNavigate} collapsed={collapsed} />}
-      {open
-        ? group.items.map((item) => (
+      <div
+        className="sidebar-group-content"
+        data-open={open || undefined}
+        inert={!open}
+        aria-hidden={!open || undefined}
+      >
+        <div
+          className={cn(
+            "sidebar-group-links flex min-h-0 flex-col gap-0.5",
+            collapsed && "items-center",
+          )}
+        >
+          {group.items.map((item) => (
             <NavLink key={item.href} item={item} onNavigate={onNavigate} collapsed={collapsed} />
-          ))
-        : null}
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -264,13 +291,13 @@ export function AppSidebar() {
     // whatever was behind it - it read as one shade over the page and another
     // over a card scrolled underneath - and the blur cost a compositor layer
     // the width of the window on every scroll. A token is one colour, it is the
-    // deepest of the four surfaces in both themes, and a deployment can
+    // navigation surface in both themes, and a deployment can
     // retheme it.
     <aside
       data-collapsed={collapsed ? "" : undefined}
       className={cn(
         "bg-sidebar hidden shrink-0 md:flex md:flex-col",
-        mounted && "transition-[width] duration-200",
+        mounted && "sidebar-width-motion",
         collapsed ? "w-14" : "w-[240px]",
       )}
     >
@@ -281,8 +308,7 @@ export function AppSidebar() {
           it to head instead, and the collapse control sits beside it: the one
           control that is about the column rather than about anything in it,
           on the column's own title bar - where every editor and console with a
-          collapsible panel puts one. Search and the bell are actions and live
-          with the account at the foot, where a hand rests. */}
+          collapsible panel puts one. Search shares this title bar; notifications stay by the account. */}
       {/* In the desktop app this row also drags the window. "deep", so its
           empty space drags and its controls still click -
           Tauri's drag script skips buttons and links on its own. */}
@@ -306,7 +332,7 @@ export function AppSidebar() {
           aria-label={collapsed ? t("expandSidebar") : t("collapseSidebar")}
           aria-expanded={!collapsed}
           title={collapsed ? t("expandSidebar") : t("collapseSidebar")}
-          className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-1"
+          className="pressable-icon text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-2"
         >
           {collapsed ? (
             <PanelLeftOpen className="h-[1.1rem] w-[1.1rem]" aria-hidden />

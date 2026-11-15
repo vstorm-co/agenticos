@@ -25,6 +25,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Lighten the sidebar in both themes and refine navigation disclosures, focus transitions and menu timings. Hidden navigation stays inert, and collapsing brings the active destination into view.
+
 - Simplify console surfaces, galleries, sidebar search, dashboard rows, agent actions and settings navigation. Add optional Activity detail columns, integrate project context above the chat composer and move usage into Chat controls. Preserve page contents during navigation without a fade.
 
 - Make evaluation optional when reviewing skill proposals: apply a reviewed update directly, or run a check before deciding. Edit permissions and proposal/version conflict checks still apply.

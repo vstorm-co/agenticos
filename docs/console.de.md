@@ -1,5 +1,5 @@
 ---
-source_sha: "ee2a66cbf78c"
+source_sha: "32dd7a1e9b03"
 ---
 
 # Die Konsole { #the-console }
@@ -1253,3 +1253,5 @@ Das Dashboard zeigt Discover-Tipps nach seinen Daten. Briefing verwendet Zeilen 
 Der Agenteneditor hebt Test, Im Chat öffnen und Veröffentlichen hervor. Weitere Aktionen enthält Teilen, die Übersichtskarte, das Fortsetzen des Gesprächs und Export. Aktivität vereint Zeitraum, Filter, Spaltenauswahl und Export in einer Leiste. Spalten können Autor, Oberfläche, Modell und Tokenanzahl anzeigen; Kosten, Dauer und Startzeit bleiben in der Haupttabelle.
 
 Einstellungen bietet auf dem Desktop einen Abschnittsindex und auf dem Telefon ein Abschnittsmenü. Gewöhnliche Abschnitte verwenden Trennlinien; destruktive Aktionen behalten ihren Warnrahmen. Im Chat steht der Projektkontext über dem Eingabefeld, die Nutzung findest du in den Chat-Einstellungen. Navigation erhält das gemeinsame Layout ohne Ausblenden der Inhalte.
+
+Gruppen der Seitenleiste öffnen und schließen sich fließend. Verborgene Ziele erhalten keinen Fokus; beim Einklappen bleibt das aktuelle Ziel sichtbar. Animationen beachten deine Darstellungseinstellungen; bei reduzierter Bewegung bleiben diese Bedienelemente statisch.

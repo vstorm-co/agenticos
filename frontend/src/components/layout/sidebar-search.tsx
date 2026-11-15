@@ -18,7 +18,7 @@ export function SidebarSearch() {
       // i18n-exempt: ARIA keyboard shortcut tokens are platform syntax, not translated labels
       aria-keyshortcuts="Meta+K Control+K"
       title={`${t("search")} (${shortcut})`}
-      className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-2"
+      className="pressable-icon text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-2"
     >
       <Search className="size-[1.1rem]" aria-hidden />
     </button>
