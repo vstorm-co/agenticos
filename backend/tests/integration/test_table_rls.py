@@ -18,7 +18,7 @@ from app.core.config import settings
 from app.core.exceptions import AuthenticationError, AuthorizationError, NotFoundError
 from app.db import table_rls
 from app.db.base import Base
-from app.db.models.organization import OrganizationMember
+from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import ResourceGrant
 from app.db.models.user import User
 from app.db.models.virtual_table import VirtualTable, VirtualTableOutbox, VirtualTableRecord
@@ -227,7 +227,7 @@ async def test_trigger_consumer_and_worker_fanout_do_not_claim_another_tenant(
         pending = set(
             await db.scalars(
                 select(VirtualTableOutbox.organization_id).where(
-                    VirtualTableOutbox.delivered_at.is_(None)
+                    VirtualTableOutbox.dispatched_at.is_(None)
                 )
             )
         )
@@ -249,7 +249,7 @@ async def test_trigger_consumer_and_worker_fanout_do_not_claim_another_tenant(
             await db.scalar(
                 select(func.count())
                 .select_from(VirtualTableOutbox)
-                .where(VirtualTableOutbox.delivered_at.is_(None))
+                .where(VirtualTableOutbox.dispatched_at.is_(None))
             )
             == 0
         )
@@ -631,25 +631,30 @@ async def test_global_account_export_delete_and_rollback_share_one_maintenance_t
         actor.is_app_admin = True
         target = await make_user(db)
         for tenant in world.tenants:
+            await db.execute(
+                update(Organization)
+                .where(Organization.id == tenant.organization.id)
+                .values(created_by_user_id=target.id)
+            )
             db.add(
                 OrganizationMember(
                     organization_id=tenant.organization.id,
                     user_id=target.id,
-                    role="builder",
+                    role="owner",
                 )
             )
         await db.commit()
     private_records = []
     retained_tables = []
     for tenant in world.tenants:
-        ctx = AuthContext(user_id=target.id, organization_id=tenant.organization.id, role="builder")
+        ctx = AuthContext(user_id=target.id, organization_id=tenant.organization.id, role="owner")
         async with world.runtime() as db:
             task = await TaskService(db).create(ctx, TaskCreate(title="Personal reminder"))
             table = await VirtualTableService(db).create_table(
                 ctx, TableCreate(name="Retained team data")
             )
             private_records.append(task.id)
-            retained_tables.append((table.id, tenant.owner.id))
+            retained_tables.append((table.id, tenant.organization.id, tenant.owner.id))
             await db.commit()
     async with world.runtime() as db:
         exported = await admin_users.export_user_data(
@@ -688,6 +693,19 @@ async def test_global_account_export_delete_and_rollback_share_one_maintenance_t
                 select(VirtualTableRecord.id).where(VirtualTableRecord.id.in_(private_records))
             )
         ) == set(private_records)
+        for table_id, organization_id, _ in retained_tables:
+            retained = await db.get(VirtualTable, table_id)
+            assert retained is not None
+            assert retained.owner_user_id == target.id
+            assert retained.organization_id == organization_id
+            assert (
+                await db.scalar(
+                    select(Organization.created_by_user_id).where(
+                        Organization.id == organization_id
+                    )
+                )
+                == target.id
+            )
         assert (
             await db.scalar(
                 select(func.count())
@@ -717,10 +735,18 @@ async def test_global_account_export_delete_and_rollback_share_one_maintenance_t
                 select(VirtualTableRecord.id).where(VirtualTableRecord.id.in_(private_records))
             )
         )
-        for table_id, heir in retained_tables:
+        for table_id, organization_id, heir in retained_tables:
+            retained = await db.get(VirtualTable, table_id)
+            assert retained is not None
+            # Tables remain in the organization with a cleared user owner;
+            # the shared organization's creator is handed to its other Owner.
+            assert retained.owner_user_id is None
+            assert retained.organization_id == organization_id
             assert (
                 await db.scalar(
-                    select(VirtualTable.owner_user_id).where(VirtualTable.id == table_id)
+                    select(Organization.created_by_user_id).where(
+                        Organization.id == organization_id
+                    )
                 )
                 == heir
             )
@@ -794,6 +820,7 @@ async def test_workflow_table_node_uses_its_persisted_principal_in_a_fresh_runti
         resumed_agent_run_id=None,
         idempotency_key="tenant-node-attempt",
     )
+    writes = []
 
     async def create(service, auth):
         assert auth is dispatch.auth
@@ -806,12 +833,17 @@ async def test_workflow_table_node_uses_its_persisted_principal_in_a_fresh_runti
             RecordCreate(values={cid(first.target, "Name"): "workflow"}),
             operation_key=_tables.operation_key(),
         )
-        return Completed(output=result)
+        writes.append(result)
+        return Completed[_tables.TableRecordOutput](
+            output=_tables.record_output(first.target, result.record, created=result.created)
+        )
 
     with context.dispatching_as(dispatch):
         first_result = await _tables.with_service(create)
         replay = await _tables.with_service(create)
     assert isinstance(first_result, Completed)
     assert isinstance(replay, Completed)
-    assert replay.output.replayed
-    assert replay.output.record.id == first_result.output.record.id
+    assert len(writes) == 2
+    assert not writes[0].replayed
+    assert writes[1].replayed
+    assert replay.output.record_id == first_result.output.record_id
