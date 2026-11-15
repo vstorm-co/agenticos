@@ -981,6 +981,51 @@ async def test_expired_link_is_not_sent_to_browser(harness):
         await start(harness)
 
 
+async def test_dynamic_expired_link_is_not_sent_to_browser(harness, monkeypatch):
+    monkeypatch.setattr(settings, "COMPOSIO_CATALOG_API_KEY", SecretStr("catalog-read-only-key"))
+    metadata = ComposioToolkitMetadata.model_validate(
+        {
+            "slug": "salesforce",
+            "name": "Salesforce",
+            "composio_managed_auth_schemes": ["OAUTH2"],
+            "composio_managed_auth": {"scheme": "OAUTH2", "scopes": ["read"]},
+            "description": "Search your customer records.",
+            "categories": [{"slug": "crm", "name": "CRM"}],
+            "tools_count": 2,
+        }
+    )
+
+    class CatalogStub:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def get_toolkit(self, slug):
+            assert slug == "salesforce"
+            return metadata
+
+        async def direct_tool_names(self, *, toolkit):
+            assert toolkit == "salesforce"
+            return ["SALESFORCE_SEARCH_RECORDS", "SALESFORCE_GET_RECORD"]
+
+    monkeypatch.setattr(lifecycle, "ComposioCatalogClient", CatalogStub)
+    harness.provider.create_link_session.return_value = "trs_salesforce_expired"
+    harness.provider.link_session.return_value = ComposioLink(
+        connected_account_id="ca_salesforce_expired",
+        redirect_url="https://connect.composio.dev/link/salesforce",
+        expires_at=datetime.now(UTC) - timedelta(minutes=1),
+    )
+
+    with pytest.raises(ExternalServiceError, match="expired"):
+        await harness.service.connect(
+            user_id=harness.user_id, data=AppConnectionCreate(toolkit="salesforce")
+        )
+
+    assert not any(connection.oauth_state for connection in harness.store.values())
+
+
 async def test_reconnect_cleanup_failure_retains_old_grant_and_verified_pending(harness):
     first = await start(harness)
     await finish(harness, first)
