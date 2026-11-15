@@ -3100,6 +3100,20 @@ body .tour-spotlight {
         grid-template-rows var(--duration-base) var(--ease-out),
         visibility var(--duration-base);
     }
+    .pressable-control:not(.pressable-icon) {
+      transition:
+        background-color var(--duration-fast),
+        border-color var(--duration-fast),
+        color var(--duration-fast),
+        box-shadow var(--duration-fast),
+        translate var(--duration-fast) var(--ease-out);
+    }
+    .pressable-control:not(.pressable-icon):not(:disabled):not([aria-disabled="true"]):not(
+        [data-loading="true"]
+      ):active {
+      translate: 0 1px;
+      transition-duration: 70ms;
+    }
     .pressable-icon {
       transition:
         background-color var(--duration-fast),

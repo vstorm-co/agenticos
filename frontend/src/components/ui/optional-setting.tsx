@@ -64,7 +64,7 @@ export function OptionalSetting({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-6 px-2 text-xs"
+            className="h-8 px-2.5 text-[13px]"
             disabled={disabled}
             onClick={onReset}
           >
