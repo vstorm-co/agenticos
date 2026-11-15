@@ -179,6 +179,51 @@ def migration_database() -> Iterator[None]:
         _outside_a_transaction(maintenance, drop)
 
 
+def test_account_appearance_migration_preserves_existing_profiles() -> None:
+    """The nullable preference is additive and downgrade leaves profile fields intact."""
+    script = ScriptDirectory.from_config(Config("alembic.ini"))
+    revision = script.get_revision("0329_user_appearance")
+    assert revision is not None
+    parent = revision.down_revision
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("downgrade", parent)
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    person = uuid4()
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO users (id, email, full_name, locale, is_active, is_app_admin, notify_budget_alerts, notify_approval_requests, notify_usage_reports) VALUES (:id, :email, 'Saved name', 'en', true, false, true, true, true)"
+                ),
+                {"id": person, "email": f"{person}@example.com"},
+            )
+        result = _alembic("upgrade", "0329_user_appearance")
+        assert result.returncode == 0, result.stderr
+        with engine.begin() as connection:
+            row = connection.execute(
+                text("SELECT full_name, locale, appearance FROM users WHERE id = :id"),
+                {"id": person},
+            ).one()
+            assert tuple(row) == ("Saved name", "en", None)
+            connection.execute(
+                text("UPDATE users SET appearance = CAST(:preferences AS jsonb) WHERE id = :id"),
+                {"id": person, "preferences": '{"theme":"dark"}'},
+            )
+        result = _alembic("downgrade", parent)
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as connection:
+            row = connection.execute(
+                text("SELECT full_name, locale FROM users WHERE id = :id"), {"id": person}
+            ).one()
+            assert tuple(row) == ("Saved name", "en")
+        result = _alembic("upgrade", "0329_user_appearance")
+        assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()
+
+
 def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs() -> None:
     """0322_coding_task_revert.py and 0323_coding_revert_admission.py preserve legacy diffs."""
     from app.db.models.conversation import Conversation

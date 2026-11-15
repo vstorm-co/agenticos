@@ -7,6 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile, status
 
 from app.api.deps import (
+    Auth,
     CurrentAppAdmin,
     CurrentSessionId,
     CurrentUser,
@@ -15,7 +16,7 @@ from app.api.deps import (
     UserSvc,
     key_needs,
 )
-from app.api.public_api import PUBLIC
+from app.api.public_api import ASSISTANT, PUBLIC
 from app.api.routes.v1._stored_bytes import stored_image_response
 from app.api.routes.v1.admin_users import delete_user as admin_delete_user
 from app.api.routes.v1.admin_users import update_user as admin_update_user
@@ -23,7 +24,9 @@ from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import Perm
 from app.schemas.user import UserAgentContext, UserLocale, UserRead, UserUpdate
+from app.schemas.user_appearance import UserAppearance
 from app.services.email.service import get_email_service
+from app.services.user_appearance import UserAppearanceService
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +132,38 @@ async def set_current_user_agent_context(
     )
     updated = await user_service.update(current_user.id, changes)
     return UserAgentContext(job_title=updated.job_title, about=updated.about)
+
+
+@router.get(
+    "/me/appearance",
+    response_model=UserAppearance,
+    dependencies=[ASSISTANT, Depends(key_needs(Perm.AGENTS_RUN))],
+)
+async def read_current_user_appearance(ctx: Auth, db: DBSession) -> UserAppearance:
+    """Read only my appearance tokens, without exposing my profile."""
+    return await UserAppearanceService(db).get(ctx)
+
+
+@router.patch(
+    "/me/appearance",
+    response_model=UserAppearance,
+    dependencies=[ASSISTANT, Depends(key_needs(Perm.AGENTS_RUN))],
+)
+async def update_current_user_appearance(
+    data: UserAppearance, ctx: Auth, db: DBSession
+) -> UserAppearance:
+    """Save only the supplied appearance tokens for the person asking."""
+    return await UserAppearanceService(db).update(ctx, data)
+
+
+@router.delete(
+    "/me/appearance",
+    response_model=UserAppearance,
+    dependencies=[ASSISTANT, Depends(key_needs(Perm.AGENTS_RUN))],
+)
+async def reset_current_user_appearance(ctx: Auth, db: DBSession) -> UserAppearance:
+    """Reset my appearance to the console defaults."""
+    return await UserAppearanceService(db).reset(ctx)
 
 
 @router.post("/me/avatar", response_model=UserRead)

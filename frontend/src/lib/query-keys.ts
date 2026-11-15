@@ -60,6 +60,7 @@ export const qk = {
   },
   auth: {
     me: () => ["auth", "me"] as const,
+    appearance: (owner: string | undefined) => ["auth", "appearance", owner] as const,
   },
   health: () => ["health"] as const,
   appVersion: (buildId: string | null) => ["app-version", buildId] as const,
