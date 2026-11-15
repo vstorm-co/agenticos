@@ -125,7 +125,7 @@ export function NotificationBell({ variant = "row" }: NotificationBellProps) {
         // Keep desktop panels clear of the window edge.
         collisionPadding={12}
         aria-label={t("notifications")}
-        className="bg-card w-[min(26rem,calc(100vw-1.5rem))] p-0"
+        className="bg-popover w-[min(26rem,calc(100vw-1.5rem))] p-0"
       >
         {panel}
       </PopoverContent>
@@ -207,12 +207,12 @@ function NotificationPanel({
             <UnreadBadge count={unread} />
           </div>
         )}
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex shrink-0 items-center gap-0.5">
           {hasUnread ? (
             <button
               type="button"
               onClick={() => void markAllRead().catch(() => {})}
-              className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 min-h-8 rounded-md px-2 text-xs transition-colors outline-none focus-visible:ring-2"
+              className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 min-h-8 rounded-md px-2 text-[13px] transition-colors outline-none focus-visible:ring-2"
             >
               {t("markAllRead")}
             </button>
@@ -221,7 +221,7 @@ function NotificationPanel({
             <button
               type="button"
               onClick={() => void clearAll().catch(() => {})}
-              className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 min-h-8 rounded-md px-2 text-xs transition-colors outline-none focus-visible:ring-2"
+              className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 min-h-8 rounded-md px-2 text-[13px] transition-colors outline-none focus-visible:ring-2"
             >
               {t("clearAll")}
             </button>
@@ -301,7 +301,7 @@ function NotificationRow({
   const locale = useLocale();
   const unread = item.read_at === null;
   const rowClassName =
-    "hover:bg-muted/60 focus-visible:ring-ring flex w-full items-start gap-3 rounded-lg px-3 py-3 pr-12 text-left outline-none focus-visible:ring-2";
+    "hover:bg-foreground/[0.04] focus-visible:ring-ring flex w-full items-start gap-2.5 rounded-lg px-3 py-2.5 pr-9 text-left outline-none focus-visible:ring-2";
 
   // A row's own click is fire-and-forget: nothing here needs to know its
   // outcome, but an unhandled rejection (a row the read-time gate has since
@@ -330,7 +330,7 @@ function NotificationRow({
         </span>
         <span
           className={cn(
-            "block text-sm leading-relaxed break-words",
+            "block text-sm leading-5 break-words",
             unread ? "text-foreground font-medium" : "text-muted-foreground",
           )}
         >
@@ -341,7 +341,7 @@ function NotificationRow({
       <span
         aria-hidden
         className={cn(
-          "mt-1.5 size-2 shrink-0 rounded-full",
+          "mt-1.5 size-1.5 shrink-0 rounded-full",
           unread ? "bg-primary" : "bg-transparent",
         )}
       />
@@ -377,7 +377,7 @@ function NotificationRow({
     // `group` and a sibling, not a button inside the row: the row is itself an
     // anchor or a button, and a nested one is invalid markup that swallows the
     // outer click in whichever direction the browser resolves it.
-    <li className={cn("group relative rounded-lg", unread && "bg-foreground/[0.035]")}>
+    <li className="border-border/50 group relative border-b last:border-b-0">
       {body}
       {item.outcome_id && item.event_type !== "approval_requested" && (
         <OutcomeActions id={item.outcome_id} via="inbox" className="px-3 pb-3 pl-14" />

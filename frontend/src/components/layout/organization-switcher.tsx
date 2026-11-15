@@ -37,7 +37,7 @@ export function OrganizationSwitcher({
           aria-label={label}
           title={label}
           className={cn(
-            "hover:bg-accent focus-visible:ring-ring data-[state=open]:bg-accent touch:min-h-11 touch:min-w-11 flex items-center rounded-xl text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset",
+            "hover:bg-control-hover focus-visible:ring-ring data-[state=open]:bg-control touch:min-h-11 touch:min-w-11 flex items-center rounded-xl text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset",
             collapsed ? "size-10 justify-center" : "h-10 w-full gap-2.5 px-2.5",
           )}
         >
@@ -72,7 +72,7 @@ export function OrganizationSwitcher({
         side={collapsed ? "right" : "bottom"}
         align="start"
         sideOffset={8}
-        className="w-64"
+        className="w-68 p-1.5 [&_[role=separator]]:opacity-60"
       >
         <DropdownMenuLabel className="text-muted-foreground text-xs font-medium">
           {t("organizationLabel")}

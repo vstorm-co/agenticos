@@ -55,7 +55,7 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
           aria-label={compact ? user.full_name || user.email : undefined}
           title={compact ? user.email : undefined}
           className={cn(
-            "hover:bg-accent/60 data-[state=open]:bg-accent focus-visible:ring-ring flex items-center rounded-lg text-left transition-colors outline-none focus-visible:ring-2",
+            "hover:bg-control-hover data-[state=open]:bg-control focus-visible:ring-ring flex items-center rounded-lg text-left transition-colors outline-none focus-visible:ring-2",
             compact
               ? "touch:min-h-11 touch:min-w-11 h-9 w-9 justify-center"
               : "w-full gap-2.5 px-2 py-1.5",
@@ -91,9 +91,9 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
         align="start"
         sideOffset={8}
         collisionPadding={12}
-        className="w-64 p-1.5"
+        className="w-68 p-1.5 [&_[role=menuitem]]:min-h-9 [&_[role=separator]]:opacity-60"
       >
-        <div className="flex min-w-0 items-center gap-2.5 px-2 py-2.5">
+        <div className="flex min-w-0 items-center gap-3 px-2.5 py-3">
           <EntityAvatar
             seed={user.id}
             name={user.full_name || user.email}
@@ -127,7 +127,7 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
             until you click both. */}
         <DropdownMenuItem asChild>
           <Link href={ROUTES.SETTINGS_PROFILE}>
-            <UserCircle className="mr-2 h-4 w-4" />
+            <UserCircle className="h-4 w-4" />
             {t("profileAndSettings")}
           </Link>
         </DropdownMenuItem>
@@ -136,9 +136,9 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => useUnsavedChangesStore.getState().leave(() => void logout())}
-          className="text-destructive focus:text-destructive"
+          className="text-muted-foreground focus:text-foreground"
         >
-          <LogOut className="mr-2 h-4 w-4" />
+          <LogOut className="h-4 w-4" />
           {t("logout")}
         </DropdownMenuItem>
       </DropdownMenuContent>
