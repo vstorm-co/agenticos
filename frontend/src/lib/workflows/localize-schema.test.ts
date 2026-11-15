@@ -108,5 +108,11 @@ describe("localizeSchema", () => {
     expect(localizeSchema({ properties: { x: { $ref: "#/$defs/Gone" } } }, copyOf)).toEqual({
       properties: { x: { $ref: "#/$defs/Gone" } },
     });
+    // A boolean branch is a schema too - "anything" - and has nothing to word.
+    expect(
+      localizeSchema({ properties: { y: { anyOf: [true, { type: "null" }] } } }, copyOf),
+    ).toEqual({
+      properties: { y: { anyOf: [true, { type: "null" }] } },
+    });
   });
 });
