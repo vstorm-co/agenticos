@@ -927,6 +927,9 @@ async def test_an_upsert_refuses_both_branches_outside_visibility(ops, monkeypat
         virtual_table_repo, "get_record_by_external_id", AsyncMock(return_value=existing)
     )
     with pytest.raises(NotFoundError):
+        await service.upsert_record(ctx, table.id, "EXT-1", RecordUpsert(values=_mine()))
+
+    with pytest.raises(NotFoundError):
         await service.upsert_record(
             ctx, table.id, "EXT-1", RecordUpsert(values=_mine(), expected_revision=1)
         )

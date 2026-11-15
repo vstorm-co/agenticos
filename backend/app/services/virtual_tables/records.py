@@ -1317,6 +1317,10 @@ class RecordOperations(Operations):
                 existing = await self._lookup(ctx, table, external_id)
                 if existing is None:
                     raise ConcurrentChangeError()
+            if not await may_edit_row(
+                self.db, ctx, table, await self._columns(table), existing.values
+            ):
+                raise NotFoundError(message="Record not found")
             revision = existing.revision if at_current_revision else expected_revision
             if revision is None:
                 raise RevisionRequiredError(
