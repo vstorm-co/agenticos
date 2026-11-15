@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import insert, select
+from sqlalchemy import insert, select, text
 
 from app.db.base import Base
 from app.db.models.virtual_table import VirtualTableRecord, VirtualTableSchemaVersion
@@ -203,3 +203,12 @@ async def test_invalid_cross_organization_definition_aborts_cutover_without_rewr
     await db.refresh(schema)
     assert schema.columns == original
     assert await virtual_table_repo.get_table(db, source.id, organization_id=org.id) is not None
+    constraint_exists = await db.scalar(
+        text(
+            "SELECT EXISTS ("
+            "SELECT 1 FROM pg_constraint "
+            "WHERE conname = 'uq_virtual_table_record_org_table_id' "
+            "AND conrelid = 'virtual_table_records'::regclass)"
+        )
+    )
+    assert not constraint_exists

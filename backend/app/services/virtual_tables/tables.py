@@ -457,7 +457,7 @@ class TableOperations(Operations):
             table = await virtual_table_repo.update_table(
                 self.db, table=table, update_data={"schema_version": version}
             )
-            await enforce_storage(self.db, ctx, table)
+            await enforce_storage(self.db, ctx, table.id)
             await record_audit(
                 self.db,
                 actor_user_id=ctx.subject_id,

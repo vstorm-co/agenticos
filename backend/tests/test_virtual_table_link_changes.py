@@ -226,7 +226,7 @@ async def test_a_delta_cannot_change_a_source_row_the_writer_cannot_edit(linked)
     state.source.row_policy = RowPolicy(
         rule="assignee", view_column_id=READER, edit_column_id=READER
     ).model_dump(mode="json")
-    with pytest.raises(NotFoundError):
+    with pytest.raises(NotFoundError) as refused:
         await state.service._apply(
             state.ctx,
             state.source,
@@ -235,6 +235,7 @@ async def test_a_delta_cannot_change_a_source_row_the_writer_cannot_edit(linked)
             1,
             link_changes={LINK: RecordLinkChange(add=[ADDED])},
         )
+    assert refused.value.details == {"table_id": state.source.id}
     state.queried.assert_not_awaited()
     state.written.assert_not_awaited()
 

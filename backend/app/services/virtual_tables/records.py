@@ -1027,7 +1027,7 @@ class RecordOperations(Operations):
                     made = await self._create_one(
                         ctx, table, record, update=data.update_existing, as_of=as_of
                     )
-                    await quotas.enforce_storage(self.db, ctx, table)
+                    await quotas.enforce_storage(self.db, ctx, table.id)
             except _ChangedSince as changed:
                 failed.append(
                     RecordBatchFailure(
@@ -1095,7 +1095,7 @@ class RecordOperations(Operations):
             # The stored outcome counts toward storage too, and a batch whose rows all
             # failed wrote nothing else that was checked.
             if not replayed:
-                await quotas.enforce_storage(self.db, ctx, table)
+                await quotas.enforce_storage(self.db, ctx, table.id)
         if replayed:
             await self._authorize_batch_replay(ctx, table, data, result)
         return result, replayed
@@ -1992,7 +1992,7 @@ class RecordOperations(Operations):
             self.db, record=record, column_ids=[item.id for item in columns if item.type == "link"]
         )
         if not await can_write_record(self.db, ctx, table, record.id, columns, baseline):
-            raise NotFoundError(message="Record not found", details={"record_id": record.id})
+            raise NotFoundError(message="Record not found", details={"table_id": table.id})
         self._check_revision(record, expected_revision)
         before = dict(record.values)
         merged = _merge(columns, values, baseline)

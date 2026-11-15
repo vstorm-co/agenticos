@@ -9,7 +9,7 @@ application version. Old application versions do not maintain the new edges.
 Malformed, duplicate and dangling values are retained as repair evidence.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -37,11 +37,22 @@ def _timestamps() -> list[sa.Column]:
 
 
 def upgrade() -> None:
-    op.create_unique_constraint(
-        "uq_virtual_table_record_org_table_id",
-        "virtual_table_records",
-        ["organization_id", "table_id", "id"],
-    )
+    _validate_relationship_definitions(op.get_bind())
+    # Build the referenced key without blocking reads for the duration of the backfill.
+    # Attaching it in autocommit keeps the table lock limited to this DDL statement.
+    with op.get_context().autocommit_block():
+        op.create_index(
+            "uq_virtual_table_record_org_table_id",
+            "virtual_table_records",
+            ["organization_id", "table_id", "id"],
+            unique=True,
+            postgresql_concurrently=True,
+        )
+        op.execute(
+            "ALTER TABLE virtual_table_records "
+            "ADD CONSTRAINT uq_virtual_table_record_org_table_id "
+            "UNIQUE USING INDEX uq_virtual_table_record_org_table_id"
+        )
     op.create_table(
         "virtual_table_relations",
         sa.Column("organization_id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -219,6 +230,53 @@ def _split_cell(
     return links, evidence
 
 
+def _relationship_definition(
+    schema: Mapping[str, Any], column: Mapping[str, Any], table_orgs: dict[UUID, UUID]
+) -> dict[str, Any] | None:
+    if column.get("type") != "link":
+        return None
+    column_id = _uuid(column.get("id"))
+    target_table_id = _uuid(column.get("link_table_id"))
+    max_links = column.get("link_limit") or 100
+    if (
+        column_id is None
+        or target_table_id is None
+        or table_orgs.get(target_table_id) != schema["organization_id"]
+        or type(max_links) is not int
+        or not 1 <= max_links <= 100
+    ):
+        raise RuntimeError(
+            f"Invalid relationship definition in table {schema['id']}; "
+            "repair the schema before retrying this migration"
+        )
+    return {
+        "organization_id": schema["organization_id"],
+        "source_table_id": schema["id"],
+        "column_id": column_id,
+        "target_table_id": target_table_id,
+        "archived": bool(column.get("archived", False)),
+        "max_links": max_links,
+    }
+
+
+def _validate_relationship_definitions(connection: sa.Connection) -> None:
+    table_orgs = dict(
+        connection.execute(sa.text("SELECT id, organization_id FROM virtual_tables")).all()
+    )
+    schemas = connection.execute(
+        sa.text(
+            "SELECT t.id, t.organization_id, s.columns "
+            "FROM virtual_tables AS t "
+            "JOIN virtual_table_schema_versions AS s "
+            "ON s.table_id = t.id AND s.version = t.schema_version "
+            "ORDER BY t.id"
+        )
+    ).mappings()
+    for schema in schemas:
+        for column in schema["columns"]:
+            _relationship_definition(schema, column, table_orgs)
+
+
 def _backfill(connection: sa.Connection) -> None:
     # This protects the snapshot, not a rolling deployment with old writers.
     connection.execute(
@@ -247,31 +305,8 @@ def _backfill(connection: sa.Connection) -> None:
     for schema in schemas:
         definitions = []
         for column in schema["columns"]:
-            if column.get("type") != "link":
-                continue
-            column_id = _uuid(column.get("id"))
-            target_table_id = _uuid(column.get("link_table_id"))
-            max_links = column.get("link_limit") or 100
-            if (
-                column_id is None
-                or target_table_id is None
-                or table_orgs.get(target_table_id) != schema["organization_id"]
-                or type(max_links) is not int
-                or not 1 <= max_links <= 100
-            ):
-                raise RuntimeError(
-                    f"Invalid relationship definition in table {schema['id']}; "
-                    "repair the schema before retrying this migration"
-                )
-            definition = {
-                "organization_id": schema["organization_id"],
-                "source_table_id": schema["id"],
-                "column_id": column_id,
-                "target_table_id": target_table_id,
-                "archived": bool(column.get("archived", False)),
-                "max_links": max_links,
-            }
-            definitions.append(definition)
+            if (definition := _relationship_definition(schema, column, table_orgs)) is not None:
+                definitions.append(definition)
         if not definitions:
             continue
         connection.execute(sa.insert(relations), definitions)

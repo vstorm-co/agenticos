@@ -574,6 +574,14 @@ async def test_aggregate_storage_includes_history_receipts_and_outbox_and_rolls_
             ),
         )
     assert caught.value.details["quota"] == "storage_bytes"
+    async with factory() as audit_db:
+        target_id = await audit_db.scalar(
+            select(AppAdminAuditLog.target_id).where(
+                AppAdminAuditLog.organization_id == ctx.organization_id,
+                AppAdminAuditLog.action == "table.quota_refused",
+            )
+        )
+    assert target_id == str(table.id)
     async with factory() as db:
         assert (
             await virtual_table_repo.storage_bytes(db, organization_id=ctx.organization_id) == used
