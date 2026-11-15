@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { ArrowRight, Brain, ChevronDown, Loader2, Newspaper, Wallet } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
+import Link from "next/link";
 import { toast } from "sonner";
 
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
@@ -10,7 +11,7 @@ import { SetupIndicator } from "@/components/settings/setup-indicator";
 import { systemAgentSetupHints } from "@/lib/setup-hints";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { ErrorState } from "@/components/states";
-import { Badge, Button, Input, Label, Switch } from "@/components/ui";
+import { Badge, Button, Input, Label, Skeleton, Switch } from "@/components/ui";
 import { FormField } from "@/components/ui/form-field";
 import { useModelProviders, usePermissions } from "@/hooks";
 import { useChanged } from "@/hooks/use-changed";
@@ -43,38 +44,75 @@ export function OrgSystemAgents({ org }: { org: Organization }) {
   // budget under that other name would be a settings page lying about whose it is.
   const allowed = can(Perm.budgetsManage) && tenantId === org.id;
   const { roles, isLoading, error } = useSystemAgents(allowed);
-  if (!allowed || isLoading) return null;
+  if (!allowed) return null;
+  if (isLoading) return <RolesLoading />;
   // Said, not hidden: an operator must not read a failed request as a product with no
   // system-agent settings.
   if (error || !roles) return <ErrorState />;
   return (
-    <SettingsSection title={t("title")}>
-      <p
-        data-tour="org-system-agents"
-        className="text-muted-foreground mb-4 max-w-3xl text-sm leading-relaxed"
-      >
-        {t("description")}
-      </p>
-      <div className="grid items-stretch gap-4 lg:grid-cols-2">
+    <SettingsSection title={t("title")} description={t("description")}>
+      <div data-tour="org-system-agents" className="grid items-stretch gap-4 lg:grid-cols-2">
         {roles.map((role) => (
-          <Role key={role.role} agent={role} />
+          <Role key={role.role} agent={role} orgId={org.id} />
         ))}
       </div>
     </SettingsSection>
   );
 }
 
-function Role({ agent }: { agent: SystemAgent }) {
+function RolesLoading() {
+  const t = useTranslations("teams.systemAgents");
+  const states = useTranslations("states");
+  return (
+    <SettingsSection title={t("title")} description={t("description")}>
+      <div
+        role="status"
+        aria-label={states("loading")}
+        aria-busy="true"
+        className="grid gap-4 lg:grid-cols-2"
+      >
+        {[0, 1].map((item) => (
+          <div key={item} aria-hidden className="bg-background overflow-hidden rounded-xl border">
+            <div className="flex min-h-32 gap-3 border-b p-4 sm:p-5">
+              <Skeleton className="size-9 shrink-0 rounded-lg" />
+              <div className="flex-1 space-y-3">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-3 w-full max-w-72" />
+              </div>
+            </div>
+            <div className="min-h-24 p-4 sm:p-5">
+              <Skeleton className="h-9 w-full rounded-lg" />
+            </div>
+            <div className="bg-muted/30 space-y-3 border-t p-4 sm:px-5">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-3 w-28" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </SettingsSection>
+  );
+}
+
+function Role({ agent, orgId }: { agent: SystemAgent; orgId: string }) {
+  const nav = useTranslations("pages.orgs");
   const t = useTranslations("teams.systemAgents");
   return (
     <div
       role="region"
       aria-label={t(`roles.${agent.role}.name`)}
-      className="bg-background space-y-4 rounded-xl border p-4"
+      className="bg-background flex min-w-0 flex-col overflow-hidden rounded-xl border"
       data-testid={`system-agent-${agent.role}`}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
+      <div className="flex min-h-32 items-start gap-3 border-b p-4 sm:p-5">
+        <span className="bg-muted text-muted-foreground grid size-9 shrink-0 place-items-center rounded-lg">
+          {agent.role === "daily_briefing" ? (
+            <Newspaper className="size-4" aria-hidden />
+          ) : (
+            <Brain className="size-4" aria-hidden />
+          )}
+        </span>
+        <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-1.5">
             <h3 className="text-sm font-medium">{t(`roles.${agent.role}.name`)}</h3>
             <SetupIndicator hints={systemAgentSetupHints(agent)} />
@@ -83,33 +121,49 @@ function Role({ agent }: { agent: SystemAgent }) {
             {t(`roles.${agent.role}.what`)}
           </p>
         </div>
-        <Badge variant="outline">{agent.enabled ? t("on") : t("off")}</Badge>
+        <Badge variant={agent.enabled ? "success" : "secondary"}>
+          {agent.enabled ? t("on") : t("off")}
+        </Badge>
       </div>
-      {agent.unavailable ? (
-        <p role="status" className="text-destructive text-xs">
-          {t("starterAgentMissing")}
-        </p>
-      ) : null}
-      {agent.managed_in ? (
-        <p className="text-muted-foreground text-xs">
-          {agent.model_label ? t("managedIn", { model: agent.model_label }) : t("managedInNoModel")}
-        </p>
-      ) : (
-        <details className="group rounded-lg border">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
-            {t("configure")}
-            <ChevronDown
-              className="text-muted-foreground size-4 shrink-0 transition-transform group-open:rotate-180"
-              aria-hidden
-            />
-          </summary>
-          <div className="border-t p-3">
-            <Profile agent={agent} />
+      <div className="flex min-h-24 flex-1 flex-col gap-4 p-4 sm:p-5">
+        {agent.unavailable ? (
+          <p role="status" className="text-destructive text-xs">
+            {t("starterAgentMissing")}
+          </p>
+        ) : null}
+        {agent.managed_in ? (
+          <div className="flex flex-1 flex-col items-start gap-3">
+            <p className="text-muted-foreground text-xs">
+              {agent.model_label
+                ? t("managedIn", { model: agent.model_label })
+                : t("managedInNoModel")}
+            </p>
+            <Button asChild variant="outline" size="sm" className="mt-auto">
+              <Link href={`/orgs/${orgId}/members?tab=proactivity`}>
+                {nav("tabProactivity")}
+                <ArrowRight className="size-3.5" aria-hidden />
+              </Link>
+            </Button>
           </div>
-        </details>
-      )}
-      <Spend agent={agent} />
-      <History agent={agent} />
+        ) : (
+          <details className="group open:bg-muted/30 rounded-lg border">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
+              {t("configure")}
+              <ChevronDown
+                className="text-muted-foreground size-4 shrink-0 transition-transform group-open:rotate-180"
+                aria-hidden
+              />
+            </summary>
+            <div className="border-t p-3">
+              <Profile agent={agent} />
+            </div>
+          </details>
+        )}
+      </div>
+      <div className="bg-muted/30 mt-auto space-y-3 border-t p-4 sm:px-5">
+        <Spend agent={agent} />
+        <History agent={agent} />
+      </div>
     </div>
   );
 }
@@ -221,7 +275,8 @@ function Spend({ agent }: { agent: SystemAgent }) {
   const money = (value: number) =>
     format.number(value, { style: "currency", currency: "USD", maximumFractionDigits: 4 });
   return (
-    <p className="text-muted-foreground text-xs">
+    <p className="text-foreground flex items-center gap-2 text-sm font-medium tabular-nums">
+      <Wallet className="text-muted-foreground size-4 shrink-0" aria-hidden />
       {agent.monthly_budget_usd === null
         ? t("spent", { amount: money(spent) })
         : t("spentOf", { amount: money(spent), budget: money(Number(agent.monthly_budget_usd)) })}

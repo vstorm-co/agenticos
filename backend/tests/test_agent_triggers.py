@@ -11,6 +11,8 @@ mocked, so these tests are about triggers, not about re-proving that.
 
 import asyncio
 import contextlib
+import hashlib
+import hmac
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -31,7 +33,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_run import RunStatus, RunSurface
-from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
+from app.schemas.agent_trigger import TriggerAttemptRead, TriggerCreate, TriggerRead, TriggerUpdate
 from app.services.agent_trigger import (
     AgentTriggerService,
     EventFireDecision,
@@ -63,12 +65,30 @@ def _named(**attributes: object) -> MagicMock:
 
 
 def _agent(*, agent_id: uuid.UUID | None = None, name: str = "Nightly") -> MagicMock:
-    return _named(id=agent_id or uuid.uuid4(), name=name, has_avatar=True, avatar_color=3)
+    return _named(
+        id=agent_id or uuid.uuid4(),
+        name=name,
+        has_avatar=True,
+        avatar_color=3,
+        system_key=None,
+        kind="agent",
+    )
 
 
 def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     service = AgentTriggerService(MagicMock())
     service.db.flush = AsyncMock()
+    service.db.scalar = AsyncMock(return_value=None)
+    service._record_attempt = AsyncMock(
+        return_value=TriggerAttemptRead(
+            id=uuid.uuid4(),
+            activation_id=uuid.uuid4(),
+            status="blocked",
+            stage="source_review",
+            reason="source_review_required",
+            occurred_at=datetime.now(UTC),
+        )
+    )
     # `record_audit` reads the chain head and takes the per-org lock, both via
     # `execute`; the mock must await and answer the head read with an empty chain.
     service.db.execute = AsyncMock()
@@ -159,6 +179,9 @@ def _trigger(**overrides: object) -> MagicMock:
         "delivery_conversation_id": None,
         "ends_at": None,
         "monthly_budget_usd": None,
+        "consecutive_failures": 0,
+        "setup_required": False,
+        "setup_issues": [],
     }
     defaults.update(overrides)
     return MagicMock(**defaults)
@@ -391,7 +414,7 @@ class TestCreate:
 
     def test_a_syntactically_valid_cron_that_never_fires_is_a_422(self):
         """`0 0 31 2 *` - the 31st of February - passes croniter's syntax check
-        and then makes `_cron_next` exhaust its search and raise. The schema
+        and then makes `cron_next` exhaust its search and raise. The schema
         resolves one occurrence, so it is a 422 here rather than a 500 at create."""
         with pytest.raises(PydanticValidationError, match="ever fires"):
             TriggerCreate(prompt="run", schedule_kind="cron", cron_expression="0 0 31 2 *")
@@ -1410,9 +1433,11 @@ class TestFiring:
         assert trigger.is_active is False
         assert audit.call_args.kwargs["details"]["reason"] == "agent_not_runnable"
         # The run preparation flushed is rolled back rather than left `running`, and
-        # the owner reads the refusal itself.
+        # the owner gets a repair direction without raw preparation errors.
         service.db.rollback.assert_awaited()
-        assert notices.return_value.routine_blocked.await_args.kwargs["detail"] == "not runnable"
+        detail = notices.return_value.routine_blocked.await_args.kwargs["detail"]
+        assert "published version" in detail and "routine settings" in detail
+        assert "not runnable" not in detail
 
     async def test_a_fired_run_runs_as_the_creator_and_is_stamped_schedule(self):
         agent = _agent()
@@ -2044,6 +2069,41 @@ class TestEventTriggerSchema:
                 event_config={"path_contains": "x"},
             )
 
+    @pytest.mark.parametrize(
+        "config",
+        [
+            {"signature_scheme": "hmac-sha256-hex"},
+            {"signature_scheme": "hmac-sha256-base64", "signature_header": "bad header"},
+            {"signature_header": "X-Signature"},
+            {"signature_scheme": "none"},
+        ],
+    )
+    def test_invalid_generic_signature_configuration_is_refused(self, config):
+        with pytest.raises(PydanticValidationError):
+            TriggerCreate(
+                prompt="x",
+                trigger_type="event",
+                event_source="webhook",
+                event_secret=_SIGNING_SECRET,
+                event_config=config,
+            )
+
+    def test_generic_signature_configuration_is_normalized_at_creation(self):
+        trigger = TriggerCreate(
+            prompt="x",
+            trigger_type="event",
+            event_source="webhook",
+            event_secret=_SIGNING_SECRET,
+            event_config={
+                "signature_scheme": "hmac-sha256-base64",
+                "signature_header": "X-Shopify-Hmac-Sha256",
+            },
+        )
+        assert trigger.event_config == {
+            "signature_scheme": "hmac-sha256-base64",
+            "signature_header": "x-shopify-hmac-sha256",
+        }
+
     def test_an_event_read_exposes_its_webhook_url_on_the_public_api_host(self):
         read = TriggerRead(
             id=uuid.uuid4(),
@@ -2084,6 +2144,28 @@ class TestPreparingAnEventFire:
     """`prepare_event_fire` orchestrates the verifiers; the crypto itself is proven
     in `test_trigger_events.py`, so here `trigger_events` is mocked and what is
     asserted is the branching - what is ignored, what is a 403, what fires."""
+
+    async def test_configured_generic_signature_is_used_to_admit_delivery(self):
+        service = _service()
+        trigger = _event_trigger(
+            event_source="webhook",
+            event_config={"signature_scheme": "hmac-sha256-hex", "signature_header": "X-Provider"},
+        )
+        body = b'{"ticket":7}'
+        digest = hmac.new(b"secret", body, hashlib.sha256).hexdigest()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            decision = await service.prepare_event_fire(
+                "webhook", trigger.id, body=body, headers={"x-provider": digest}
+            )
+            assert decision is not None
+            with pytest.raises(AuthorizationError):
+                await service.prepare_event_fire(
+                    "webhook", trigger.id, body=body + b" ", headers={"x-provider": digest}
+                )
 
     async def test_an_unknown_trigger_is_ignored(self):
         service = _service()
@@ -4288,6 +4370,132 @@ class TestRunningAsTheCreator:
         assert "runs_as_creator" not in paused
         assert "runs_as_creator" not in reworded
 
+    @staticmethod
+    def _limited(**overrides: object) -> MagicMock:
+        return _trigger(
+            runs_as_creator=True,
+            ends_at=datetime.now(UTC) + timedelta(days=7),
+            max_failures=3,
+            monthly_budget_usd=Decimal("5"),
+            **overrides,
+        )
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("edit", "field"),
+        [
+            ({"is_active": True}, "is_active"),
+            ({"ends_at": None}, "ends_at"),
+            ({"ends_at": datetime.now(UTC) + timedelta(days=30)}, "ends_at"),
+            ({"ends_at": datetime.now(UTC) + timedelta(days=1)}, "ends_at"),
+            ({"max_failures": 10}, "max_failures"),
+            ({"max_failures": None}, "max_failures"),
+            ({"monthly_budget_usd": Decimal("50")}, "monthly_budget_usd"),
+            ({"monthly_budget_usd": None}, "monthly_budget_usd"),
+        ],
+    )
+    async def test_somebody_else_cannot_resume_or_extend_it(self, edit, field):
+        trigger = self._limited(is_active=False)
+
+        with pytest.raises(AuthorizationError) as refused:
+            await self._update(trigger, TriggerUpdate(**edit), as_creator=False)
+
+        assert refused.value.details["fields"][0]["field"] == field
+        assert "Run as me" in refused.value.message
+
+    @pytest.mark.parametrize(
+        "edit",
+        [
+            {"is_active": True},
+            {"ends_at": None},
+            {"max_failures": None},
+            {"monthly_budget_usd": Decimal("50")},
+        ],
+    )
+    async def test_the_creator_resumes_and_extends_their_own(self, edit):
+        changes = await self._update(
+            self._limited(is_active=False), TriggerUpdate(**edit), as_creator=True
+        )
+
+        assert changes.items() >= edit.items()
+
+    async def test_somebody_else_may_narrow_it_or_resume_it_once_it_stops_acting(self):
+        narrowed = await self._update(
+            self._limited(),
+            TriggerUpdate(max_failures=1, monthly_budget_usd=Decimal("1")),
+            as_creator=False,
+        )
+        resumed = await self._update(
+            self._limited(is_active=False),
+            TriggerUpdate(is_active=True, runs_as_creator=False),
+            as_creator=False,
+        )
+        not_acting = await self._update(
+            _trigger(is_active=False, max_failures=3),
+            TriggerUpdate(is_active=True),
+            as_creator=False,
+        )
+
+        assert narrowed["max_failures"] == 1
+        assert resumed["is_active"] is True
+        assert not_acting["is_active"] is True
+
+    @pytest.mark.security
+    async def test_somebody_else_cannot_give_it_an_end_it_did_not_have(self):
+        with pytest.raises(AuthorizationError):
+            await self._update(
+                _trigger(runs_as_creator=True, ends_at=None, is_active=True),
+                TriggerUpdate(ends_at=datetime.now(UTC) + timedelta(days=1)),
+                as_creator=False,
+            )
+
+    async def test_sending_the_same_end_again_is_not_a_change(self):
+        trigger = self._limited()
+
+        changes = await self._update(
+            trigger, TriggerUpdate(ends_at=trigger.ends_at, name="Renamed"), as_creator=False
+        )
+
+        assert changes["name"] == "Renamed"
+
+    @pytest.mark.security
+    async def test_somebody_else_tightening_its_failure_limit_keeps_the_failures_counted(self):
+        tightened = await self._update(
+            self._limited(), TriggerUpdate(max_failures=1), as_creator=False
+        )
+        by_creator = await self._update(
+            self._limited(), TriggerUpdate(max_failures=1), as_creator=True
+        )
+
+        assert tightened == {"max_failures": 1}
+        paused = await self._update(
+            self._limited(), TriggerUpdate(max_failures=1, is_active=False), as_creator=False
+        )
+        assert paused == {"max_failures": 1, "is_active": False, "auto_stopped_at": None}
+        assert by_creator["consecutive_failures"] == 0
+        assert by_creator["auto_stopped_at"] is None
+
+    @pytest.mark.security
+    async def test_a_limit_somebody_else_lowers_below_its_failures_pauses_it_now(self):
+        stopped = await self._update(
+            self._limited(consecutive_failures=2), TriggerUpdate(max_failures=1), as_creator=False
+        )
+        running = await self._update(
+            self._limited(consecutive_failures=1), TriggerUpdate(max_failures=2), as_creator=False
+        )
+
+        assert stopped["is_active"] is False and stopped["auto_stopped_at"] is not None
+        assert running == {"max_failures": 2}
+
+    @pytest.mark.security
+    async def test_changing_what_it_does_does_not_open_a_resume_by_somebody_else(self):
+        with pytest.raises(AuthorizationError):
+            await self._update(
+                self._limited(is_active=False),
+                TriggerUpdate(prompt="and my calendar", is_active=True),
+                as_creator=False,
+            )
+
     def test_an_explicit_null_is_refused_at_the_schema(self):
         with pytest.raises(PydanticValidationError):
             TriggerUpdate.model_validate({"runs_as_creator": None})
@@ -5202,3 +5410,59 @@ async def test_inbox_mode_only_delivers_relevant_cases_to_the_owner(findings):
 async def test_invalid_or_null_routine_result_policy_is_refused(mode):
     with pytest.raises(PydanticValidationError):
         TriggerUpdate.model_validate({"result_mode": mode})
+
+
+@pytest.mark.parametrize("reason", ["sources", "platform_identity"])
+async def test_unavailable_sources_save_a_paused_routine_without_losing_its_schedule(reason):
+    from app.services.routine_sources import PlatformRoutineIdentityRequired, RoutineSourcesRequired
+
+    agent = _agent()
+    service = _service(agent)
+    refusal = RoutineSourcesRequired if reason == "sources" else PlatformRoutineIdentityRequired
+    service.sources.initial.side_effect = refusal(details={"unavailable_sources": ["notion"]})
+    trigger = _trigger(agent_id=agent.id)
+    service._run_log = AsyncMock()
+    with (
+        patch(
+            "app.services.agent_trigger.agent_trigger_repo.create", AsyncMock(return_value=trigger)
+        ),
+        patch("app.services.agent_trigger.record_audit", AsyncMock()),
+    ):
+        result = await service.create(_ctx(), agent.id, _interval(interval_seconds=900))
+    assert result is trigger and trigger.is_active is False
+    assert trigger.approved_sources == {
+        "pending_review": True,
+        "unavailable_sources": ["notion"],
+        "reason": refusal.code,
+    }
+    assert trigger.next_fire_at is not None and trigger.prompt == "summarise the day"
+
+
+@pytest.mark.security
+async def test_a_pending_source_setup_cannot_be_activated_before_review():
+    from app.services.routine_sources import RoutineSourcesRequired
+
+    agent = _agent()
+    service = _service(agent)
+    trigger = _trigger(agent_id=agent.id, setup_required=True, setup_issues=["notion"])
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo.get", AsyncMock(return_value=trigger)),
+        pytest.raises(RoutineSourcesRequired, match="schedule and prompt are saved"),
+    ):
+        await service.update(_ctx(), agent.id, trigger.id, TriggerUpdate(is_active=True))
+
+
+def test_pending_source_metadata_is_safe_and_readable_without_a_migration():
+    from app.db.models.agent_trigger import AgentTrigger
+
+    trigger = AgentTrigger(
+        approved_sources={
+            "pending_review": True,
+            "unavailable_sources": ["Notion", {"unsafe": "ignored"}],
+        }
+    )
+    assert trigger.setup_required and trigger.setup_issues == ["Notion"]
+    trigger.approved_sources = {"id": str(uuid.uuid4())}
+    assert not trigger.setup_required and trigger.setup_issues == []
+    trigger.approved_sources = {"pending_review": True, "unavailable_sources": "malformed"}
+    assert trigger.setup_issues == []

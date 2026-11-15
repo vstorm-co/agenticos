@@ -27,8 +27,10 @@ import { RichText } from "./mention-chip";
 import { ToolCallCard } from "./tool-call-card";
 import { ToolGroup } from "./tool-group";
 import { PhoneCallCard } from "@/components/phone/phone-call-card";
+import { ModelSetupCard } from "./model-setup-card";
 import { WorkflowRunCard } from "./workflow-run-card";
 import { TurnVisuals } from "./visual-panel";
+import { ChartMessage, parseChartResult } from "./chart-message";
 import { YouFace } from "./you-face";
 import { ReplyQuote } from "./reply-quote";
 import { useTurnElapsed, WorkFold } from "./work-fold";
@@ -66,8 +68,12 @@ export function TurnParts({
   startedAt,
   durationMs,
   stopped = false,
+  failed = false,
   waitingFor,
+  allowSetupActions = false,
 }: {
+  /** Private configuration actions are opt-in; shared transcripts remain read-only. */
+  allowSetupActions?: boolean;
   parts: MessagePart[];
   isStreaming: boolean;
   isUser: boolean;
@@ -84,6 +90,7 @@ export function TurnParts({
   durationMs?: number;
   /** The run was stopped part-way, so its work ends without an answer or a "Done". */
   stopped?: boolean;
+  failed?: boolean;
   /** Includes a delegate paused outside the parent's own tool parts. */
   waitingFor?: "approval" | "answer";
 }) {
@@ -130,7 +137,10 @@ export function TurnParts({
                 agents={agents}
                 // Rich outputs may open on arrival; routine action details stay opt-in.
                 startOpen={openLastStep && run.isLast && step === run.parts.length - 1}
-                autoExpand={toolEntry(toolLookupName(part.toolCall!))?.opensOnSight === true}
+                autoExpand={
+                  toolLookupName(part.toolCall!) !== "create_chart" &&
+                  toolEntry(toolLookupName(part.toolCall!))?.opensOnSight === true
+                }
               />
             ))}
           </AgentSteps>
@@ -147,6 +157,12 @@ export function TurnParts({
         // turn: the orb marks where the thinking is arriving, and a turn
         // that thought twice would otherwise show two of them.
         isStreaming={isStreaming && run.isLast}
+      />
+    ) : run.part.type === "model_setup" ? (
+      <ModelSetupCard
+        key={run.part.id}
+        agentId={run.part.setupAgentId}
+        interactive={allowSetupActions}
       />
     ) : run.part.type === "steer" ? (
       <SteerBlock key={run.part.id} text={run.content} />
@@ -172,7 +188,7 @@ export function TurnParts({
       />
     );
 
-  const active = isStreaming || waiting !== undefined;
+  const active = !failed && (isStreaming || waiting !== undefined);
   const split = foldWork(runs, stopped, active);
   if (split === null) {
     return <>{runs.map((run) => render(run))}</>;
@@ -180,14 +196,14 @@ export function TurnParts({
   return (
     <>
       <WorkFold
-        key={active ? "live" : "finished"}
         live={active}
         steps={split.steps}
         durationMs={durationMs ?? elapsed}
         stopped={stopped}
-        running={isStreaming && !waiting}
+        failed={failed}
+        running={isStreaming && !waiting && !failed}
         activity={activity}
-        waiting={waiting}
+        waiting={failed ? undefined : waiting}
       >
         {split.folded.map((run, index) => {
           const previous = split.folded[index - 1];
@@ -199,6 +215,7 @@ export function TurnParts({
         })}
       </WorkFold>
       <TurnBrowses calls={browseCalls(runs)} />
+      <TurnCharts calls={chartCalls(runs)} />
       <TurnVisuals calls={visualCalls(split.folded)} />
       <TurnDrafts calls={draftCalls(split.folded)} />
       {split.shown.map((run, index) => render(run, true, index === 0))}
@@ -221,12 +238,12 @@ export const ThinkingBlock = memo(function ThinkingBlock({
       {/* A line, not a box. The reasoning is an aside on the way to an answer, and a
           bordered panel around it gives it more weight on the page than the answer
           itself - which is backwards, and was the loudest thing in every turn. */}
-      <summary className="text-muted-foreground hover:text-foreground/80 flex cursor-pointer items-center gap-2 text-[13px] select-none">
+      <summary className="text-muted-foreground hover:text-foreground/80 flex min-h-8 cursor-pointer items-center gap-2 px-1.5 text-[13px] select-none">
         {/* A bulb, not the orb. The orb is the turn at work, and it sits on the
             line above while the turn runs - two of them stacked read as the same
             thing said twice. This row is an aside you can open, drawn like the
             steps beside it: its own mark in the same slot, then its name. */}
-        <span aria-hidden className="flex h-6 w-6 shrink-0 items-center justify-center">
+        <span aria-hidden className="flex size-5 shrink-0 items-center justify-center">
           <Lightbulb className="h-3.5 w-3.5" />
         </span>
         <span className={cn(isStreaming && "shimmer-text")}>{t("thoughtAboutIt")}</span>
@@ -237,7 +254,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
           and the underscores literally, in a face that says "this is output"
           about the one part of a turn that is prose. Still the muted, smaller,
           scrollable aside it was; only the text is read properly now. */}
-      <div className="text-muted-foreground border-foreground/10 mt-2 max-h-72 overflow-y-auto border-l pl-3.5 text-[13px] leading-relaxed">
+      <div className="text-muted-foreground border-border/70 mt-2 ml-4 max-h-72 overflow-y-auto border-l pl-5 text-[13px] leading-relaxed">
         <MarkdownContent content={text} />
       </div>
     </details>
@@ -452,7 +469,12 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
       else runs.push({ kind: "tools", parts: [part], isLast: false });
       continue;
     }
-    if (part.type === "ask_user" || part.type === "workflow_run" || part.type === "phone_call") {
+    if (
+      part.type === "ask_user" ||
+      part.type === "workflow_run" ||
+      part.type === "phone_call" ||
+      part.type === "model_setup"
+    ) {
       runs.push({ kind: "other", part, content: "", isLast: false });
       continue;
     }
@@ -493,6 +515,31 @@ export function browseCalls(runs: PartRun[]): ToolCall[] {
  * a drawing is shown whether or not the steps around it fold: it is what the
  * turn produced, not a step of the work.
  */
+export function chartCalls(runs: PartRun[]): ToolCall[] {
+  return runs.flatMap((run) =>
+    run.kind === "tools"
+      ? run.parts.flatMap((part) =>
+          part.toolCall &&
+          toolLookupName(part.toolCall) === "create_chart" &&
+          part.toolCall.status === "completed"
+            ? [part.toolCall]
+            : [],
+        )
+      : [],
+  );
+}
+
+function TurnCharts({ calls }: { calls: ToolCall[] }) {
+  return calls.map((call) => {
+    const spec = parseChartResult(call.result);
+    return spec === null ? null : (
+      <div key={call.id} className="my-4">
+        <ChartMessage spec={spec} />
+      </div>
+    );
+  });
+}
+
 export function visualCalls(runs: PartRun[]): ToolCall[] {
   return runs.flatMap((run) =>
     run.kind === "tools"
@@ -516,8 +563,9 @@ export function draftCalls(runs: PartRun[]): ToolCall[] {
 
 /**
  * Keep the live timeline chronological. Only a settled turn separates its final
- * text from the complete work history; prose length and reasoning markup never
- * decide whether something was a progress update.
+ * text from the work history. Text delivered before asking the person a question
+ * is also output, even when more work follows on resume. Prose length and
+ * reasoning markup never decide whether something was a progress update.
  */
 export function foldWork(
   runs: PartRun[],
@@ -526,6 +574,23 @@ export function foldWork(
 ): { folded: PartRun[]; shown: PartRun[]; steps: number } | null {
   const hasWork = runs.some((run) => run.kind === "tools" || run.part.type === "thinking");
   if (!hasWork) return null;
+  const delivered = new Set<PartRun>();
+  if (!active) {
+    for (let index = 0; index < runs.length; index += 1) {
+      const run = runs[index]!;
+      const question =
+        run.kind === "other"
+          ? run.part.type === "ask_user"
+          : run.parts[0]?.toolCall !== undefined &&
+            toolLookupName(run.parts[0].toolCall) === "ask_user_question";
+      if (!question) continue;
+      for (let previous = index - 1; previous >= 0; previous -= 1) {
+        const candidate = runs[previous]!;
+        if (candidate.kind !== "other" || candidate.part.type !== "text") break;
+        delivered.add(candidate);
+      }
+    }
+  }
   let answer = runs.length;
   if (!active && !stopped) {
     while (answer > 0) {
@@ -534,10 +599,10 @@ export function foldWork(
       answer -= 1;
     }
   }
-  const folded = runs.slice(0, answer);
+  const folded = runs.slice(0, answer).filter((run) => !delivered.has(run));
   return {
     folded,
-    shown: runs.slice(answer),
+    shown: runs.filter((run, index) => index >= answer || delivered.has(run)),
     steps: folded.reduce((sum, run) => sum + (run.kind === "tools" ? run.parts.length : 0), 0),
   };
 }

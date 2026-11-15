@@ -302,14 +302,14 @@ export function ComposerEditor({
   };
 
   return (
-    <div className="relative">
+    <div className="composer-editor-shell relative [--composer-padding:0.375rem] sm:[--composer-padding:0.625rem]">
       {value === "" &&
         (idle && !focused ? (
           idle
         ) : (
           <span
             aria-hidden
-            className="text-muted-foreground pointer-events-none absolute inset-x-0 top-0 truncate py-1.5 text-base sm:py-2.5"
+            className="text-muted-foreground pointer-events-none absolute inset-x-0 top-0 truncate py-(--composer-padding) text-base"
           >
             {placeholder}
           </span>
@@ -328,7 +328,7 @@ export function ComposerEditor({
         autoCapitalize="sentences"
         spellCheck
         className={cn(
-          "composer-editor relative block max-h-[min(8rem,calc(var(--app-height,100dvh)*0.25))] min-h-9 w-full scrollbar-thin overflow-y-auto py-1.5 text-base break-words whitespace-pre-wrap focus:outline-none sm:max-h-[200px] sm:min-h-10 sm:py-2.5",
+          "composer-editor relative block max-h-[min(8rem,calc(var(--app-height,100dvh)*0.25))] min-h-9 w-full scrollbar-thin overflow-y-auto py-(--composer-padding) text-base break-words whitespace-pre-wrap focus:outline-none sm:max-h-[200px] sm:min-h-10",
           disabled && "cursor-not-allowed opacity-50",
           readOnly && "text-foreground/55",
           className,

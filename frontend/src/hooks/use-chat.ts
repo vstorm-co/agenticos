@@ -1,5 +1,7 @@
 "use client";
 
+import { clearApprovalNotice } from "@/lib/approval-cache";
+
 import { toolLookupName } from "@/lib/tool-identity";
 
 import type { Mentionable } from "@/types/mention";
@@ -139,6 +141,7 @@ const TYPING_SHOWN_MS = 6000;
 
 /** What a running turn streams - drawn only into a turn this tab writes or follows. */
 const TURN_FRAMES: ReadonlySet<string> = new Set([
+  "model_setup_required",
   "model_request_start",
   "part_start",
   "tool_call_delta",
@@ -193,6 +196,7 @@ export function useChat(options: UseChatOptions = {}) {
   const selectionApi = useAgentSelectionStore.useApi();
   const scoped = useInChatScope();
   const {
+    adoptCreatedConversation,
     setCurrentConversationId,
     setCurrentCost,
     currentConversationId: currentConversationIdFromStore,
@@ -330,6 +334,7 @@ export function useChat(options: UseChatOptions = {}) {
   const decidedApprovalIdsRef = useRef(new Set<string>());
   const terminalRunIdsRef = useRef(new Set<string>());
   const decidingApprovalRef = useRef<object | null>(null);
+  const [continuingApproval, setContinuingApproval] = useState(false);
   const [resumingDelegations, setResumingDelegations] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -697,6 +702,19 @@ export function useChat(options: UseChatOptions = {}) {
           }
           declinedRef.current = null;
           followingRef.current = conversation_id;
+          // Attachment replays the turn from its beginning. A local bubble left
+          // by the previous socket is that same unsaved stream, not another answer.
+          for (const message of chatApi.getState().messages) {
+            if (
+              message.conversationId === conversation_id &&
+              message.role === "assistant" &&
+              message.isTemporaryId &&
+              message.isStreaming &&
+              !message.isLocalContinuation
+            ) {
+              chatApi.getState().removeMessage(message.id);
+            }
+          }
           resumedRunIdRef.current = undefined;
           stoppedMessageIdRef.current = null;
           stopRequestedRef.current = false;
@@ -864,7 +882,11 @@ export function useChat(options: UseChatOptions = {}) {
           useWorkOnStore.getState().adopt(conversation_id);
           createdConversationIdRef.current = conversation_id;
           attachedRef.current = conversation_id;
-          setCurrentConversationId(conversation_id);
+          if (conversationApi.getState().currentConversationId === null) {
+            adoptCreatedConversation(conversation_id);
+          } else {
+            setCurrentConversationId(conversation_id);
+          }
           // Reflect the new ID in the URL so the page is refreshable + shareable.
           if (!scoped) setUrlParam("id", conversation_id);
           const { updateMessagesWhere } = chatApi.getState();
@@ -950,6 +972,33 @@ export function useChat(options: UseChatOptions = {}) {
           // Whichever branch renamed the bubble, the row exists now - and with
           // it the only record of which agent answered here.
           onTurnSaved?.();
+          break;
+        }
+
+        case "model_setup_required": {
+          const data = wsEvent.data;
+          if (
+            !data ||
+            typeof data !== "object" ||
+            !("agent_id" in data) ||
+            !("text" in data) ||
+            typeof data.agent_id !== "string" ||
+            typeof data.text !== "string"
+          )
+            break;
+          const agentId = data.agent_id;
+          const text = data.text;
+          turnAgentIdRef.current = agentId;
+          const id = createNewMessage(text);
+          updateMessage(id, (message) => ({
+            ...message,
+            parts: [
+              { id: `${id}-text`, type: "text", content: text },
+              { id: `${id}-setup`, type: "model_setup", setupAgentId: agentId },
+            ],
+            animateSetupReply: true,
+            isStreaming: false,
+          }));
           break;
         }
 
@@ -1260,14 +1309,13 @@ export function useChat(options: UseChatOptions = {}) {
             currentMessageIdRef.current ??
             (unanswered ? createNewMessage("") : null);
           if (id) {
-            // Into the timeline rather than onto `content` directly: the store's
-            // append keeps the two in step, and it starts a parts list for a
-            // message that has none - which is what a replayed turn looks like.
-            appendTextDelta(
-              id,
-              `\n\n${t("streamError", { message: message || t("unknownError") })}`,
-            );
-            updateMessage(id, (msg) => ({ ...msg, isStreaming: false }));
+            // A failure belongs to the run, not to the assistant's answer.
+            updateMessage(id, (msg) => ({
+              ...msg,
+              isStreaming: false,
+              runFailed: true,
+              runError: message || t("unknownError"),
+            }));
             abandonOpenCalls(id);
           }
           if (followingRef.current === null) setIsProcessing(false);
@@ -1577,6 +1625,7 @@ export function useChat(options: UseChatOptions = {}) {
       updateToolCallPart,
       abandonOpenCalls,
       offerParkedQuestion,
+      adoptCreatedConversation,
       setCurrentConversationId,
       setCurrentMessageId,
       onConversationCreated,
@@ -1780,6 +1829,7 @@ export function useChat(options: UseChatOptions = {}) {
       processingRef.current = true;
       const payload: Record<string, unknown> = {
         message: content,
+        allow_setup_reply: true,
         client_message_id: userMessageId,
         conversation_id: conversationId || null,
       };
@@ -1855,12 +1905,9 @@ export function useChat(options: UseChatOptions = {}) {
         if (test.draft) payload.draft = true;
         else if (test.environmentId) payload.environment_id = test.environmentId;
       }
-      // Ordinary queued messages follow the picker at send time. A computer
-      // access continuation instead stays with the agent that requested it.
-      // The picker keeps a published agent selected
-      // whenever the organization has one, so a frame without an `agent_id`
-      // only happens when nothing is published at all - and the backend
-      // refuses it with the message that says to publish one.
+      // Ordinary queued messages follow the picker at send time, including the
+      // trusted setup-only starter. Computer access continuations stay with the
+      // agent that requested access; the server checks execution or setup access.
       const agentId =
         agentOverride === undefined ? selectionApi.getState().selectedAgentId : agentOverride;
       if (agentId) payload.agent_id = agentId;
@@ -2226,6 +2273,8 @@ export function useChat(options: UseChatOptions = {}) {
               capability_tool_id: call.capability_tool_id,
               context: call.context,
               account: call.account,
+              content_hidden: call.content_hidden,
+              always_asks: call.always_asks,
             })),
             reviewConfigs: actionable.map((call) => ({
               tool_name: call.tool_name,
@@ -2244,6 +2293,8 @@ export function useChat(options: UseChatOptions = {}) {
       disposed = true;
     };
   }, [messages, pendingApproval, canDecide, activeConversationId]);
+
+  const queryClient = useQueryClient();
 
   /** Record one decision on the `approvals` row it belongs to. */
   const decideApproval = useCallback(
@@ -2419,6 +2470,8 @@ export function useChat(options: UseChatOptions = {}) {
             capability_tool_id: call.capability_tool_id,
             context: call.context,
             account: call.account,
+            content_hidden: call.content_hidden,
+            always_asks: call.always_asks,
           })),
           reviewConfigs: parkedAgain.map((call) => ({
             tool_name: call.tool_name,
@@ -2505,7 +2558,6 @@ export function useChat(options: UseChatOptions = {}) {
   // Query owns retries and cancellation; deriving the control from the current
   // permission and transcript prevents late responses from reviving stale UI.
   const stopAccountId = useAuthStore((state) => state.user?.id ?? null);
-  const queryClient = useQueryClient();
   const stopCandidates = useMemo(() => {
     const candidates = new Map<string, { runId: string; messageId: string }>();
     if (!permissionsLoaded || isProcessing || pendingApproval !== null || pendingQuestions !== null)
@@ -2551,6 +2603,7 @@ export function useChat(options: UseChatOptions = {}) {
       // HTTP continuations can park again without a WebSocket approval frame.
       const decisionToken = {};
       decidingApprovalRef.current = decisionToken;
+      setContinuingApproval(true);
       offeredApprovalBatchesRef.current.add(
         JSON.stringify([
           parked.runId,
@@ -2588,6 +2641,12 @@ export function useChat(options: UseChatOptions = {}) {
               result: decision.type === "approve" ? undefined : "Refused",
             });
           }
+        }
+        if (
+          parked.actionRequests.every((request) => decidedApprovalIdsRef.current.has(request.id))
+        ) {
+          await clearApprovalNotice(queryClient, activeConversationId, parked.runId);
+          void queryClient.invalidateQueries({ queryKey: qk.runs.all() });
         }
         if (continuesInChat) {
           // Approval queues the continuation; it does not complete the tool.
@@ -2681,6 +2740,7 @@ export function useChat(options: UseChatOptions = {}) {
             updateMessage(parked.messageId, (message) => ({ ...message, isStreaming: false }));
           }
           decidingApprovalRef.current = null;
+          setContinuingApproval(false);
           setResumingDelegations(new Set());
           setDrainTick((tick) => tick + 1);
         }
@@ -2689,6 +2749,8 @@ export function useChat(options: UseChatOptions = {}) {
     [
       pendingApproval,
       delegations,
+      queryClient,
+      activeConversationId,
       updateToolCallPart,
       updateMessage,
       decideApproval,
@@ -3459,6 +3521,7 @@ export function useChat(options: UseChatOptions = {}) {
       approvalModeRef.current = mode;
     },
     pendingApproval,
+    continuingApproval,
     mayRememberApproval:
       canDecide &&
       controlOrgs?.find((org) => org.id === activeOrgId)?.chat_may_waive_approvals === true,

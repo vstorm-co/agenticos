@@ -158,5 +158,5 @@ jobs:
           SITE_URL: ${{ vars.SITE_URL }}
         run: |
           set -e
-          curl -fsS --max-time 20 "$API_URL/api/v1/health" | tee /dev/stderr | grep -q '"status"'
+          curl -fsS --max-time 20 "$API_URL/api/v1/health/ready" | tee /dev/stderr | grep -q '"status"'
           curl -fsS --max-time 20 -o /dev/null -w 'site: %{http_code}\n' "$SITE_URL"

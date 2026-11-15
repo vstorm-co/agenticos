@@ -1,10 +1,8 @@
-"""Erasing an agent's memory - the only thing a person does to it directly.
+"""Personal memory inspection, corrections and erasure.
 
-Notes are written by the agent and by nothing else, so there is no authoring
-surface here and no listing: an operator browsing what an agent learned about a
-named colleague is a surveillance affordance, not a feature (#1470). What is left
-is deletion, in two shapes, and both are refusals-first the way the rest of this
-platform is.
+A person may correct only their own notes. Agent-write timestamps remain intact;
+corrections have separate audit entries. Organization authority does not grant
+access to a colleague's personal memory.
 
 **Forgetting one person** spans every agent in the organization, because "forget
 everything you know about me" is a fact about a person rather than about one agent
@@ -28,7 +26,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    ConflictError,
+    NotFoundError,
+)
 from app.core.memory_keys import INDEX_NAME, person_owner_key
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
@@ -43,6 +47,7 @@ from app.schemas.memory import (
     MemoryClaimList,
     MemoryClaimRead,
     MemoryErasureResult,
+    MemoryNoteEdit,
     MemoryNoteList,
     MemoryNoteRead,
 )
@@ -293,6 +298,38 @@ class MemoryService:
             details={"notes": notes.total, "reason": reason},
         )
         return notes
+
+    async def edit_note(
+        self, ctx: AuthContext, file_id: UUID, data: MemoryNoteEdit
+    ) -> MemoryNoteRead:
+        """Correct only the subject's own note, refusing a stale editor revision."""
+        row = await memory_repo.get_owned(
+            self.db,
+            organization_id=ctx.organization_id,
+            owner_key=person_owner_key(ctx.subject_id),
+            file_id=file_id,
+            for_update=True,
+        )
+        if row is None:
+            raise NotFoundError(message="Memory note not found", details={"file_id": file_id})
+        if row.updated_at != data.expected_updated_at:
+            raise AlreadyExistsError(
+                message="This note changed. Reopen it before saving your correction."
+            )
+        await memory_repo.update(self.db, file=row, update_data={"content": data.content})
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.note.corrected",
+            target_type="memory_file",
+            target_id=str(file_id),
+            details={"agent_id": str(row.agent_id), "fields": ["content"]},
+        )
+        names = await self._agent_names({row.agent_id})
+        return MemoryNoteRead.model_validate(row).model_copy(
+            update={"agent_name": names.get(row.agent_id)}
+        )
 
     async def set_active(self, ctx: AuthContext, file_id: UUID, *, active: bool) -> MemoryNoteRead:
         """Suppress one of the caller's own notes, or restore it.

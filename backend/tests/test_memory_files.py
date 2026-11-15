@@ -105,6 +105,17 @@ class TestWhichStoreARunTouches:
     def test_the_personal_lever_off_drops_the_person_store_entirely(self):
         assert memory_owner_key(RunAudience(user_id=PERSON), allow_personal=False) is None
 
+    def test_a_chat_others_read_has_no_personal_store(self):
+        audience = RunAudience(user_id=PERSON, shared_transcript=True)
+
+        assert memory_owner_key(audience, allow_personal=True) is None
+        assert not may_inject_memory(audience, allow_personal=True)
+
+    def test_a_group_chat_shared_for_editing_keeps_its_own_store(self):
+        audience = RunAudience(user_id=PERSON, room_key=ROOM_KEY, shared_transcript=True)
+
+        assert memory_owner_key(audience, allow_personal=True) == ROOM_KEY
+
     def test_the_personal_lever_off_leaves_group_chats_alone(self):
         """A compliance switch about private notes is not a switch about a channel
         everybody in it already reads."""

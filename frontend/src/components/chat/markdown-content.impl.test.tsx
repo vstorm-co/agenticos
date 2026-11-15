@@ -478,3 +478,43 @@ it("renders direct video links in documents without autoplay and leaves chat lin
     "https://cdn.example.com/demo.mp4",
   );
 });
+
+it("shows an unknown site's own favicon without any MCP connection", () => {
+  const { container } = markdown("Read [the article](https://independent.example/post).");
+  const icon = container.querySelector("img");
+  expect(icon).toHaveAttribute("src", "/api/link-icon?host=independent.example");
+  expect(icon).toHaveAttribute("referrerpolicy", "no-referrer");
+  expect(icon).toHaveAttribute("alt", "");
+  expect(screen.getByRole("link", { name: "the article" })).toHaveAttribute(
+    "rel",
+    "noopener noreferrer",
+  );
+});
+
+it("does not fetch unknown-site favicons in an inert shared transcript", () => {
+  const { container } = render(
+    <MarkdownContent content="[the article](https://independent.example/post)" inertImages />,
+  );
+  expect(container.querySelector("img")).toBeNull();
+  expect(screen.getByRole("link", { name: "the article" })).toHaveAttribute(
+    "href",
+    "https://independent.example/post",
+  );
+});
+
+it("highlights prompt variables only when requested and preserves code and URLs", () => {
+  const content =
+    "Hello {{agent_name}} and **{{ user_name }}**. `{{literal}}` [source](https://example.com/{{path}})";
+  const { container, rerender } = render(<MarkdownContent content={content} highlightVariables />);
+  expect(Array.from(container.querySelectorAll("mark"), (node) => node.textContent)).toEqual([
+    "{{agent_name}}",
+    "{{ user_name }}",
+  ]);
+  expect(container.querySelector("code")?.textContent).toBe("{{literal}}");
+  expect(screen.getByRole("link", { name: /source/ })).toHaveAttribute(
+    "href",
+    "https://example.com/%7B%7Bpath%7D%7D",
+  );
+  rerender(<MarkdownContent content={content} />);
+  expect(container.querySelector("mark")).toBeNull();
+});

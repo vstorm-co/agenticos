@@ -16,6 +16,7 @@ import {
   Switch,
 } from "@/components/ui";
 import { MemberIdentity, displayName } from "@/components/orgs/member-identity";
+import { GroupPicker } from "@/components/orgs/group-picker";
 import { MemberPicker } from "@/components/orgs/member-picker";
 import type { IdentifiedMember } from "@/components/orgs/member-identity";
 import { useMembers } from "@/hooks";
@@ -29,6 +30,8 @@ interface AlertsPanelProps {
   value: NotificationSpec | undefined;
   onChange: (notifications: NotificationSpec) => void;
   disabled?: boolean;
+  /** Whether the agent can wait on an approval at all; a system agent never does. */
+  approvals?: boolean;
 }
 
 /**
@@ -104,7 +107,7 @@ const ALERTS: readonly AlertKindMeta[] = [
  * settings, and an agent's author cannot raise it - so its alert goes to the
  * people who can, and no agent can redirect or silence it.
  */
-export function AlertsPanel({ value, onChange, disabled }: AlertsPanelProps) {
+export function AlertsPanel({ value, onChange, disabled, approvals = true }: AlertsPanelProps) {
   const t = useTranslations("agents");
   /* v8 ignore next -- the selector never runs: every test here mocks the store */
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -131,7 +134,7 @@ export function AlertsPanel({ value, onChange, disabled }: AlertsPanelProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {ALERTS.map((meta) => (
+        {ALERTS.filter((meta) => approvals || meta.key !== "approvals").map((meta) => (
           <AlertRow
             key={meta.key}
             meta={meta}
@@ -172,6 +175,7 @@ function AlertRow({
       // spec carrying ids without it - so dropping the audience drops the list
       // rather than leaving one the save would reject.
       user_ids: to.includes("chosen") ? alert.user_ids : [],
+      group_ids: to.includes("chosen") ? (alert.group_ids ?? []) : [],
     });
   };
 
@@ -188,7 +192,7 @@ function AlertRow({
   const problem =
     alert.enabled && alert.to.length === 0
       ? t("nobodySetHearAdd")
-      : alert.to.includes("chosen") && alert.user_ids.length === 0
+      : alert.to.includes("chosen") && alert.user_ids.length === 0 && !alert.group_ids?.length
         ? "“Specific people” is chosen and nobody is named, so this would mail nobody."
         : null;
 
@@ -313,6 +317,17 @@ function AlertRow({
                 )}
               </div>
             ))}
+
+          {alert.to.includes("chosen") && (
+            <div className="mt-3 space-y-2">
+              <GroupPicker
+                selected={alert.group_ids ?? []}
+                onChange={(group_ids) => onChange({ ...alert, group_ids })}
+                disabled={disabled}
+              />
+              <p className="text-muted-foreground text-xs">{t("groupsNotifyOnly")}</p>
+            </div>
+          )}
 
           {problem && (
             // A span rather than a `Badge`: that component renders a `div`, and a

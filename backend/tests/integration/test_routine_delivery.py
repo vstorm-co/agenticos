@@ -282,9 +282,20 @@ async def test_a_failed_enqueue_cannot_commit_an_orphaned_handoff(
     )
 
 
+@pytest.mark.parametrize("cascade_last", [False, True])
 async def test_removing_the_owner_erases_the_extra_answer_copy(
-    db: AsyncSession, world: World
+    db: AsyncSession, world: World, cascade_last: bool
 ) -> None:
+    if cascade_last:
+        # Exercise the trigger order produced when the cascade is installed last.
+        # This DDL is rolled back together with the test's rows.
+        await db.execute(
+            text(
+                "ALTER TABLE conversations DROP CONSTRAINT conversations_user_id_fkey, "
+                "ADD CONSTRAINT conversations_user_id_fkey "
+                "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+            )
+        )
     await RoutineDeliveryService(db).queue(world.run, answer="Private canonical output")
     run_id, organization_id = world.run.id, world.org.id
     successor = User(email=f"{uuid4()}@example.com", hashed_password="x")
@@ -295,6 +306,10 @@ async def test_removing_the_owner_erases_the_extra_answer_copy(
     await db.flush()
     await db.delete(world.user)
     await db.flush()
+    await db.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+    await db.refresh(world.trigger)
+    assert world.trigger.delivery_conversation_id is None
+    assert world.trigger.created_by_user_id is None
     assert await delivery_repo.get(db, run_id=run_id, organization_id=organization_id) is None
     await AgentTriggerService(db).deliver_resumed_answer(organization_id, run_id)
 

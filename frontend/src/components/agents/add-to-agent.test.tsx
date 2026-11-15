@@ -58,7 +58,7 @@ describe("AddToAgent", () => {
       resource: { kind: "skill", id: "s1" },
     });
     const [message, options] = vi.mocked(toast.success).mock.calls[0]!;
-    expect(message).toBe("refunds added to Support's draft.");
+    expect(message).toBe("refunds added to the draft of Support.");
     const action = options?.action as { onClick: () => void } | undefined;
     action?.onClick();
     expect(push).toHaveBeenCalledWith("/agents/a1");
@@ -72,6 +72,19 @@ describe("AddToAgent", () => {
     await userEvent.click(screen.getByRole("button", { name: /Support/ }));
 
     expect(toast.info).toHaveBeenCalledWith("Support already has refunds.", expect.anything());
+  });
+
+  it("marks the agents that already use it, and still offers them", async () => {
+    agents.mockReturnValue({
+      agents: [SUPPORT, { ...SUPPORT, id: "a2", slug: "sales", name: "Sales" }],
+      isLoading: false,
+    });
+    render(<AddToAgent resource={{ kind: "skill", id: "s1" }} name="refunds" has={["a1"]} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Add to an agent" }));
+
+    expect(screen.getByRole("button", { name: /Support.*Uses it/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Sales" })).toBeEnabled();
   });
 
   it("keeps the list open after a refusal, which the mutation has already said", async () => {

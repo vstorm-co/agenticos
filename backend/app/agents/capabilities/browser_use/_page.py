@@ -1378,7 +1378,7 @@ async def open_page(  # pragma: no cover - needs a live browser
         # that everything but this function works without it. The import is
         # inside the `try` for the same reason, and the `except` below is what a
         # deployment missing the extra actually gets.
-        from cdp_use import CDPClient  # ty: ignore[unresolved-import]
+        from cdp_use import CDPClient  # ty: ignore[import-not-found]
     except ImportError as exc:
         raise RuntimeError(MISSING_EXTRA) from exc
 

@@ -40,7 +40,7 @@ class ArtifactsConfig(BaseModel):
         "Let the agent publish a finished app - a report, a small dashboard, a one-page "
         "summary - under a link people open in a browser. Publishing again under the same "
         "name updates the app behind the same link and keeps the earlier versions, and the "
-        "agent can list its apps, read one back to change part of it, preview one to "
+        "agent can list its apps, export a report or browser presentation to PDF, read one back to change part of it, preview one to "
         "see it as a reader would, and ask for one to be shared, which its owner approves. "
         "A new app is private to the person the run was for until they share it."
     ),
@@ -57,10 +57,12 @@ class ArtifactsConfig(BaseModel):
             description=(
                 "Read a published app's source across conversations and sandboxes before updating it."
             ),
+            read_only=True,
         ),
         CapabilityToolInfo(
             id="list_artifacts",
             description="List the pages this agent published that this run may open, newest first.",
+            read_only=True,
         ),
         CapabilityToolInfo(
             id="preview_artifact",
@@ -68,6 +70,12 @@ class ArtifactsConfig(BaseModel):
                 "See a page you published as somebody opening it would: a picture, and what "
                 "went wrong."
             ),
+            read_only=True,
+        ),
+        CapabilityToolInfo(
+            id="export_artifact",
+            description="Export a published App or browser presentation to a PDF file in the workspace.",
+            side_effecting=False,
         ),
         CapabilityToolInfo(
             id="share_artifact",

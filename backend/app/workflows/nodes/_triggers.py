@@ -15,8 +15,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
+from app.core.cron import cron_has_next
 from app.db.models.workflow_exposure import MIN_INTERVAL_SECONDS
-from app.schemas.agent_trigger import MAX_INTERVAL_SECONDS, _cron_has_next
+from app.schemas.agent_trigger import MAX_INTERVAL_SECONDS
 from app.schemas.virtual_table import RecordFilter
 from app.schemas.virtual_table_trigger import MAX_FILTERS
 from app.services.workflow_execution import context
@@ -68,7 +69,7 @@ class ScheduleTriggerConfig(_Frozen):
         if self.schedule_kind == "interval" and self.interval_seconds is None:
             raise ValueError("An interval schedule needs interval_seconds")
         if self.schedule_kind == "cron" and (
-            self.cron_expression is None or not _cron_has_next(self.cron_expression)
+            self.cron_expression is None or not cron_has_next(self.cron_expression)
         ):
             raise ValueError("A cron schedule needs a crontab expression that ever fires")
         return self

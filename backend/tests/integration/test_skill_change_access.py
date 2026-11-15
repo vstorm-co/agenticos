@@ -13,12 +13,13 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.core.permissions import OrgRoleName
+from app.core.permissions import ROLE_PERMS, OrgRoleName, Perm, Scope
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.user import User
 from app.repositories import resource_grant_repo, skill_proposal_repo, skill_repo
+from app.schemas.resource_usage import ProposalDecision
 from app.services.access import SKILL
 from app.services.skill_proposal import SkillProposalService
 from tests.integration.virtual_table_support import ctx_for, make_org, make_user
@@ -36,7 +37,7 @@ async def _member(db: AsyncSession, org: Organization) -> User:
 async def _proposal_for_skill_of(
     db: AsyncSession, org: Organization, owner: User | None, name: str
 ) -> SkillProposal:
-    skill_id = None
+    skill = None
     if owner is not None:
         skill = await skill_repo.create(
             db,
@@ -46,21 +47,31 @@ async def _proposal_for_skill_of(
             description="A private skill.",
             content="Do it this way.",
         )
-        skill_id = skill.id
     return await skill_proposal_repo.create(
         db,
         organization_id=org.id,
-        skill_id=skill_id,
+        skill_id=None if skill is None else skill.id,
         agent_id=None,
         conversation_id=None,
         name=name,
         description="Proposed.",
         content="Do it the new way.",
         resources={},
+        base_version=None if skill is None else skill.version,
+        base_version_id=None if skill is None else skill.latest_version_id,
+        fork_id=None,
     )
 
 
-async def test_a_member_lists_and_reads_only_proposals_they_may_decide(db: AsyncSession) -> None:
+async def test_a_member_lists_and_reads_only_proposals_they_may_decide(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Evidence access is separate from the resource grants this test narrows.
+    monkeypatch.setitem(
+        ROLE_PERMS,
+        OrgRoleName.MEMBER,
+        {**ROLE_PERMS[OrgRoleName.MEMBER], Perm.RUNS_VIEW: Scope.ALL},
+    )
     org = await make_org(db, owner=await make_user(db))
     ada, bo = await _member(db, org), await _member(db, org)
     adas = await _proposal_for_skill_of(db, org, ada, f"ada-{uuid.uuid4().hex[:6]}")
@@ -79,7 +90,7 @@ async def test_a_member_lists_and_reads_only_proposals_they_may_decide(db: Async
         await service.get(ada_ctx, uuid.uuid4())
     assert refused.value.message == missing.value.message
     with pytest.raises(NotFoundError):
-        await service.discard(ada_ctx, bos.id)
+        await service.discard(ada_ctx, bos.id, ProposalDecision(revision=bos.revision))
 
     assert bos.skill_id is not None
     await resource_grant_repo.upsert(

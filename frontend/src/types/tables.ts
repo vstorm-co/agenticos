@@ -1,3 +1,4 @@
+import type { ResourceIconName } from "@/types/resource-icons";
 /**
  * Types for Virtual Tables, mirroring `backend/app/schemas/virtual_table.py`
  * and `backend/app/schemas/table_view.py`.
@@ -195,6 +196,7 @@ export interface ColumnInput {
 }
 
 export interface TableSummary {
+  icon?: ResourceIconName | null;
   default_view_id?: string | null;
   id: string;
   name: string;
@@ -220,6 +222,12 @@ export interface TableRead extends TableSummary {
    * false on an archived table, since no write to one succeeds.
    */
   can_restore: boolean;
+  /**
+   * Whether this caller may rename the table, change its columns or default view, or
+   * archive it. The same as `can_edit` except on a task board, where its audience edits
+   * tasks and only an administrator or the leader of its scope changes the board.
+   */
+  can_manage: boolean;
 }
 
 /** A table as the catalog lists it: how much it holds. Mirrors `TableListItem`. */
@@ -242,6 +250,7 @@ export interface TableCreate {
 }
 
 export interface TableUpdate {
+  icon?: ResourceIconName | null;
   default_view_id?: string | null;
   name?: string;
   description?: string | null;
@@ -298,6 +307,8 @@ export interface RecordBatchResult {
   /** How many existing records an `update_existing` batch changed. */
   updated?: number;
   failed: RecordBatchFailure[];
+  /** When the import began, by the server's clock: sent back with its later batches. */
+  as_of: string;
 }
 
 export interface RecordExportQuery extends RecordCountQuery {
@@ -391,7 +402,7 @@ export interface TableViewRead {
   kind: ViewKind;
   visibility: ViewVisibility;
   config: TableViewConfig;
-  /** Whether this caller may rename, reconfigure or reshare this view - needs `tables:edit` on the table. */
+  /** Whether this caller may rename or reconfigure this view - needs `tables:edit` on the table. Only its owner reshares it. */
   can_manage: boolean;
   /** Whether this caller may delete this view - its owner, even without edit access to the table. */
   can_delete: boolean;

@@ -41,17 +41,64 @@ from app.db.models.mcp_server_check import McpServerCheck
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.embed_visitor import EmbedVisitor
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
-from app.db.models.agent_environment import AgentEnvironment
+from app.db.models.agent_environment import (
+    AgentEnvironment,
+    AgentEnvironmentConnection,
+    ConnectionKind,
+)
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.sandbox_operation import SandboxOperation
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
+from app.db.models.channel_observation import ChannelObservation, ChannelObservationReceipt
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
-from app.db.models.agent_trigger import AgentTrigger, ScheduleKind
+from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerAttempt
 from app.db.models.run_manifest import RunManifest
+from app.db.models.intercepted_tool_call import (
+    InterceptedToolCall,
+    InterceptionOutcome,
+    InterceptionReason,
+)
+from app.db.models.authoring import (
+    AuthoringKind,
+    AuthoringRequest,
+    AuthoringStatus,
+    AuthoringTarget,
+    BatchStatus,
+    HunkKind,
+    HunkOrigin,
+    HunkStatus,
+    SpecProposalBatch,
+    SpecProposalHunk,
+)
+from app.db.models.improvement import (
+    ImprovementIteration,
+    ImprovementRun,
+    ImprovementStage,
+    ImprovementStatus,
+    ImprovementVerdict,
+    StopReason,
+)
+from app.db.models.eval_run import (
+    ArmRole,
+    ArmSource,
+    CaseAttemptStatus,
+    EvalRun,
+    EvalRunArm,
+    EvalRunCase,
+    EvalRunPurpose,
+    EvalRunStatus,
+)
+from app.db.models.eval_suite import (
+    EvalSuite,
+    EvalSuiteResult,
+    EvalSuiteResultStatus,
+    EvalSuiteTrigger,
+)
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.ml_service_call import MLCallStatus, MLServiceCall
 from app.db.models.pending_sandbox_destroy import PendingSandboxDestroy
+from app.db.models.promotion_gate import EnvironmentGuard, PromotionOverride
 from app.db.models.background_job import BackgroundJob
 from app.db.models.background_schedule import BackgroundSchedule
 from app.db.models.background_task_kind import BackgroundTaskKind
@@ -60,6 +107,7 @@ from app.db.models.purged_run_spend import PurgedRunSpend
 from app.db.models.credential import ModelProfile
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.context import ContextFile, ContextMode
+from app.db.models.context_proposal import ContextProposal
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.memory_claim import MemoryClaim, MemoryScopeState
 from app.db.models.primary_conversation import PrimaryConversation
@@ -75,7 +123,12 @@ from app.db.models.virtual_table import (
 )
 from app.db.models.table_view import TableView
 from app.db.models.skill import Skill, SkillResource
+from app.db.models.skill_usage import RunSkillUse
+from app.db.models.skill_improvement import SkillImprovementIteration, SkillImprovementRun
+from app.db.models.skill_check import SkillCheck, SkillCheckAgent
+from app.db.models.skill_merge import SkillMerge
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
+from app.db.models.skill_version import SkillFile, SkillFork, SkillVersion, SkillVersionSource
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.group import Group, GroupMember
 from app.db.models.directory_mapping import DirectoryGroupMapping
@@ -111,6 +164,15 @@ from app.db.models.artifact import (
     ArtifactFollower,
     ArtifactMediaType,
     ArtifactVersion,
+)
+from app.db.models.case_score import CaseScore
+from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
+from app.db.models.case_generation import CaseGeneration, CaseProposal
+from app.db.models.knowledge_gap import (
+    KnowledgeGapClassification,
+    KnowledgeGapMember,
+    KnowledgeGapTopic,
+    KnowledgeSearch,
 )
 from app.db.models.voice_call import VoiceCall, VoiceEndReason
 from app.db.models.generated_media import GeneratedMedia, GeneratedMediaReservation
@@ -185,6 +247,16 @@ __all__ = [
     "ArtifactMediaType",
     "ArtifactShareRequest",
     "ArtifactVersion",
+    "CaseGeneration",
+    "CaseProposal",
+    "CaseScore",
+    "Dataset",
+    "DatasetCase",
+    "DatasetVersion",
+    "KnowledgeGapClassification",
+    "KnowledgeGapMember",
+    "KnowledgeGapTopic",
+    "KnowledgeSearch",
     "User",
     "Session",
     "Conversation",
@@ -228,16 +300,54 @@ __all__ = [
     "AgentStatus",
     "AgentVersion",
     "AgentEnvironment",
+    "AgentEnvironmentConnection",
+    "ConnectionKind",
     "AgentWorkspace",
     "LocalService",
     "SandboxConnection",
     "SandboxOperation",
     "AgentExposure",
+    "ChannelObservation",
+    "ChannelObservationReceipt",
     "ExposureSurface",
     "AgentTrigger",
+    "TriggerAttempt",
     "ScheduleKind",
     "AgentRun",
     "RunManifest",
+    "InterceptedToolCall",
+    "AuthoringKind",
+    "AuthoringRequest",
+    "AuthoringStatus",
+    "AuthoringTarget",
+    "BatchStatus",
+    "HunkKind",
+    "HunkOrigin",
+    "HunkStatus",
+    "SpecProposalBatch",
+    "SpecProposalHunk",
+    "ImprovementIteration",
+    "ImprovementRun",
+    "ImprovementStage",
+    "ImprovementStatus",
+    "ImprovementVerdict",
+    "StopReason",
+    "EvalRun",
+    "EvalRunArm",
+    "EvalRunCase",
+    "EvalRunStatus",
+    "EvalRunPurpose",
+    "EvalSuite",
+    "EvalSuiteResult",
+    "EvalSuiteResultStatus",
+    "EvalSuiteTrigger",
+    "EnvironmentGuard",
+    "PromotionOverride",
+    "ArmRole",
+    "ArmSource",
+    "CaseAttemptStatus",
+    "InterceptionOutcome",
+    "InterceptionReason",
     "IngestionSpend",
     "MLServiceCall",
     "MLCallStatus",
@@ -255,6 +365,7 @@ __all__ = [
     "BackgroundWorker",
     "Project",
     "ContextFile",
+    "ContextProposal",
     "ContextMode",
     "AgentMemoryFile",
     "MemoryClaim",
@@ -269,10 +380,20 @@ __all__ = [
     "VirtualTableRecordHistory",
     "VirtualTableSchemaVersion",
     "TableView",
+    "RunSkillUse",
     "Skill",
+    "SkillImprovementIteration",
+    "SkillImprovementRun",
     "SkillProposal",
     "ProposalStatus",
     "SkillResource",
+    "SkillCheck",
+    "SkillCheckAgent",
+    "SkillMerge",
+    "SkillVersion",
+    "SkillVersionSource",
+    "SkillFork",
+    "SkillFile",
     "ResourceGrant",
     "GrantLevel",
     "Group",

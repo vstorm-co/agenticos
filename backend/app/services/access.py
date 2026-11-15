@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.resource_grant import GRANT_ORDER, GrantLevel, Visibility
+from app.db.models.skill import Skill
 from app.repositories import member_repo, resource_grant_repo, user_repo
 
 
@@ -70,6 +71,7 @@ WORKFLOW = ResourceType(key="workflow", view=Perm.WORKFLOWS_VIEW, edit=Perm.WORK
 # permission that gated the entire vault.
 SECRET = ResourceType(key="secret", view=Perm.SECRETS_VIEW, edit=Perm.SECRETS_EDIT)
 ARTIFACT = ResourceType(key="artifact", view=Perm.ARTIFACTS_VIEW, edit=Perm.ARTIFACTS_EDIT)
+DATASET = ResourceType(key="dataset", view=Perm.DATASETS_VIEW, edit=Perm.DATASETS_EDIT)
 PROJECT = ResourceType(key="project", view=Perm.PROJECTS_VIEW, edit=Perm.PROJECTS_EDIT)
 # An organization's MCP server. One permission both sees and manages it, as it
 # always has; what changed is that a server can be narrowed to groups (#2072).
@@ -102,6 +104,9 @@ _PERM_MIN_GRANT: dict[Perm, GrantLevel] = {
     Perm.SECRETS_EDIT: GrantLevel.EDIT,
     Perm.ARTIFACTS_VIEW: GrantLevel.READ,
     Perm.ARTIFACTS_EDIT: GrantLevel.EDIT,
+    Perm.DATASETS_VIEW: GrantLevel.READ,
+    Perm.DATASETS_RUN: GrantLevel.USE,
+    Perm.DATASETS_EDIT: GrantLevel.EDIT,
     Perm.PROJECTS_VIEW: GrantLevel.READ,
     # Working in a project - a chat, a file added - is `use`, the level a
     # project shared with a group grants, so a group can work in it without
@@ -128,6 +133,17 @@ def _scope_allows(scope: Scope, resource: OwnedResource, user_id: UUID) -> bool:
     if scope is Scope.OWN:
         return is_owner
     return False
+
+
+def platform_skill_write_allowed(ctx: AuthContext, name: str) -> bool:
+    """Bundled instructions are part of the shipped assistants' authority boundary."""
+    from app.services import skill_library
+
+    protected = (
+        name in {entry.name for entry in skill_library.library()}
+        or name in skill_library.architect_names()
+    )
+    return not protected or ctx.scope_for(Perm.AGENTS_EDIT) is Scope.ALL
 
 
 async def resolve_access(
@@ -158,6 +174,14 @@ async def resolve_access(
         return False
 
     if resource.organization_id != ctx.organization_id:
+        return False
+
+    if (
+        resource_type is SKILL
+        and perm is Perm.SKILLS_EDIT
+        and isinstance(resource, Skill)
+        and not platform_skill_write_allowed(ctx, resource.name)
+    ):
         return False
 
     if resource_type is TABLE:
@@ -231,6 +255,12 @@ async def accessible_ids(
         if resource.organization_id == ctx.organization_id
         and (_scope_allows(scope, resource, subject) or resource.id in granted)
     }
+    if resource_type is SKILL and perm is Perm.SKILLS_EDIT:
+        allowed.difference_update(
+            resource.id
+            for resource in resources
+            if isinstance(resource, Skill) and not platform_skill_write_allowed(ctx, resource.name)
+        )
     if resource_type is TABLE:
         from app.services.task_access import table_access
 

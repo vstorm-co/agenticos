@@ -1,5 +1,5 @@
 ---
-source_sha: "628f3497bb0d"
+source_sha: "f5b9c5b37782"
 ---
 
 # Über einen Host hinaus skalieren { #scale-beyond-one-host }
@@ -16,17 +16,20 @@ kleinen Host ist CPU-Steal oder ein zu kleiner Pool, nicht eine fehlende
 Replika. Die [Lasttests](load-testing.md) führen dieselbe Last gegen jedes
 Deployment aus.
 
+Das [Kubernetes-Helm-Chart](kubernetes.md) setzt dieses Modell externer Dienste
+für API-, Worker- und Konsolen-Pods um. OpenShift bleibt unvalidiert.
+
 ## Was Zustand hält und was nicht { #what-holds-state-and-what-does-not }
 
-| Teil | Was er hält | Wie er wächst |
-|---|---|---|
-| API (`app`) | Nichts Eigenes. Sitzungen, Anwesenheit, laufende Chat-Turns und der Live-Update-Feed liegen in Postgres und Redis | Mehr uvicorn-Worker, dann mehr Hosts hinter einem Load Balancer |
-| Worker | Nichts. Jobs, Leases und Zeitpläne sind Zeilen in Postgres | Mehr Prozesse, auf beliebigen Hosts, mit den Pools auf sie verteilt |
-| Konsole (`frontend`) | Das Branding, das sie fünf Minuten lang cacht | Mehr Instanzen |
-| Postgres | Alles Dauerhafte: Organisationen, Agenten, Unterhaltungen, Vektoren, die Job-Warteschlange | Eine größere Instanz oder eine verwaltete |
-| Redis (Valkey) | Ein Cache und seine Pub/Sub-Kanäle, nach einem Neustart neu aufgebaut | Eine Instanz, die sich alle Hosts teilen |
-| Hochgeladene Dateien | Ein Volume auf dem Host oder ein Bucket | Ein Bucket, sobald mehr als ein Host sie liest oder schreibt |
-| Sandbox-Dienst | Die Sandboxes, in denen Agenten Befehle ausführen | Ein eigener Host, siehe [Agent-Arbeitsbereiche](configuration.md#running-the-service-on-another-host) |
+| Teil                 | Was er hält                                                                                                       | Wie er wächst                                                                                         |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| API (`app`)          | Nichts Eigenes. Sitzungen, Anwesenheit, laufende Chat-Turns und der Live-Update-Feed liegen in Postgres und Redis | Mehr uvicorn-Worker, dann mehr Hosts hinter einem Load Balancer                                       |
+| Worker               | Nichts. Jobs, Leases und Zeitpläne sind Zeilen in Postgres                                                        | Mehr Prozesse, auf beliebigen Hosts, mit den Pools auf sie verteilt                                   |
+| Konsole (`frontend`) | Das Branding, das sie fünf Minuten lang cacht                                                                     | Mehr Instanzen                                                                                        |
+| Postgres             | Alles Dauerhafte: Organisationen, Agenten, Unterhaltungen, Vektoren, die Job-Warteschlange                        | Eine größere Instanz oder eine verwaltete                                                             |
+| Redis (Valkey)       | Ein Cache und seine Pub/Sub-Kanäle, nach einem Neustart neu aufgebaut                                             | Eine Instanz, die sich alle Hosts teilen                                                              |
+| Hochgeladene Dateien | Ein Volume auf dem Host oder ein Bucket                                                                           | Ein Bucket, sobald mehr als ein Host sie liest oder schreibt                                          |
+| Sandbox-Dienst       | Die Sandboxes, in denen Agenten Befehle ausführen                                                                 | Ein eigener Host, siehe [Agent-Arbeitsbereiche](configuration.md#running-the-service-on-another-host) |
 
 ## Eine Datenbank pro Deployment { #one-database-per-deployment }
 
@@ -49,6 +52,12 @@ brauchen eigene Datenbanken (`POSTGRES_DB`), auf einem Redis eigene
 bleiben. Auch ein Bucket gehört zu genau einem Deployment. Ein Agent wechselt
 als seine Spec zwischen ihnen: auf dem einen als YAML exportieren
 (`GET /agents/{id}/spec.yaml`) und auf dem anderen in einen Agenten importieren.
+
+Zwei Deployments unter einem Hostnamen auf verschiedenen Ports teilen sich auch
+die Cookies der Konsole, denn ein Browser unterscheidet Cookies nach Host, nicht
+nach Port: Die Anmeldung am einen meldet Sie vom anderen ab. Geben Sie jedem einen
+eigenen Hostnamen oder setzen Sie in jeder Konsole
+[`SESSION_COOKIE_NAMESPACE`](configuration.md#docker-production).
 
 ## Ein externes Postgres { #an-external-postgres }
 
@@ -149,7 +158,7 @@ Warum die Warteschlange aus Zeilen in Postgres besteht, gemessen an neun anderen
 Engines, steht im [Benchmark der Hintergrund-Jobs](task-queue-benchmark.md).
 
 Die Pools trennen, wenn Parsen mit Agenten-Läufen konkurriert.
-`WORKER_POOLS=agent,system,workflow` auf einer Gruppe von Prozessen und
+`WORKER_POOLS=agent,eval,system,workflow` auf einer Gruppe von Prozessen und
 `WORKER_POOLS=ingest` auf Hosts mit Speicherreserve verhindern, dass ein großer
 Upload eine Routine verzögert. Die Health-Probe und `agenticos cmd doctor`
 melden einen Pool, den kein lebender Worker bedient. Die Einstellungen unter
@@ -180,6 +189,3 @@ sobald sie eintrifft, statt Frame für Frame.
 - Lese-Repliken oder eine eigene Vektordatenbank.
 - Sharding von Organisationen über Datenbanken innerhalb eines Deployments.
 - PgBouncer im Transaction-Modus oder Redis Cluster.
-- Kubernetes-Manifeste. Die Images sind dieselben, die die Compose-Dateien
-  ausführen, und jeder Dienst bringt seinen eigenen Health-Check mit, also
-  betreibt ein Cluster sie mit der Umgebung, die diese Seite beschreibt.

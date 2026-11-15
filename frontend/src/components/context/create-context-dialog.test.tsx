@@ -1,5 +1,6 @@
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -47,7 +48,115 @@ function mount(onOpenChange = vi.fn(), onCreated = vi.fn()) {
 }
 
 describe("CreateContextDialog", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
+  });
+
+  it("keeps the audience visible in the mobile details control", async () => {
+    mount();
+    const details = screen.getByRole("button", { name: "Details · Everyone" });
+    expect(details).toHaveAttribute("aria-expanded", "false");
+    const panel = document.getElementById(details.getAttribute("aria-controls") ?? "");
+    expect(panel).toHaveClass("max-md:hidden");
+    await userEvent.click(details);
+    expect(details).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(screen.getByRole("radio", { name: /Only me/ }));
+    expect(details).toHaveTextContent("Only me");
+    await userEvent.click(details);
+    expect(panel).toHaveClass("max-md:hidden");
+  });
+
+  it("opens mobile details when their hidden field is refused", async () => {
+    vi.mocked(apiClient.post).mockRejectedValueOnce(
+      new ApiError(422, "Invalid description", {
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid description",
+          details: { fields: [{ field: "description", message: "Description needs attention" }] },
+        },
+      }),
+    );
+    mount();
+    await userEvent.type(name(), "mobile-policy");
+    await userEvent.click(create());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Details · Everyone" })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      ),
+    );
+    expect(description()).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText("Description needs attention")).toBeInTheDocument();
+  });
+
+  it("locks the source and dismissal while creating, then retains the draft after refusal", async () => {
+    let rejectWrite: (error: Error) => void = () => {
+      throw new Error("Not started");
+    };
+    vi.mocked(apiClient.post).mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectWrite = reject;
+        }),
+    );
+    const { onOpenChange } = mount();
+    await userEvent.type(name(), "mobile-policy");
+    await userEvent.type(content(), "Keep this policy.");
+    await userEvent.click(create());
+    await waitFor(() => expect(name()).toBeDisabled());
+    expect(content()).toHaveAttribute("readonly");
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalled();
+    const proceed = vi.fn();
+    act(() => useUnsavedChangesStore.getState().leave(proceed));
+    await act(() => useUnsavedChangesStore.getState().answer("save"));
+    expect(proceed).not.toHaveBeenCalled();
+    await act(async () => rejectWrite(new Error("Controlled refusal")));
+    await waitFor(() => expect(name()).toBeEnabled());
+    expect(content()).not.toHaveAttribute("readonly");
+    expect(content()).toHaveValue("Keep this policy.");
+    expect(name()).toHaveAttribute("aria-describedby", "new-context-name-note");
+  });
+
+  it("keeps a new draft on Stay and clears it only on Discard", async () => {
+    const { onOpenChange } = mount();
+    await userEvent.type(name(), "mobile-policy");
+    await userEvent.type(content(), "Draft policy.");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(useUnsavedChangesStore.getState().prompt).not.toBeNull();
+    await act(() => useUnsavedChangesStore.getState().answer("stay"));
+    expect(content()).toHaveValue("Draft policy.");
+    await userEvent.keyboard("{Escape}");
+    await act(() => useUnsavedChangesStore.getState().answer("discard"));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(name()).toHaveValue("");
+    expect(content()).toHaveValue("");
+  });
+
+  it("does not save one dropped file and silently abandon the remaining queue on close", async () => {
+    render(
+      <CreateContextDialog
+        open
+        initial={{ key: "first", name: "first-policy", format: "md", content: "First policy." }}
+        remaining={1}
+        onOpenChange={vi.fn()}
+        onCreated={vi.fn()}
+      />,
+      { wrapper },
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    const prompt = useUnsavedChangesStore.getState().prompt;
+    expect(prompt).not.toBeNull();
+    expect(
+      prompt?.ids.every((id) => useUnsavedChangesStore.getState().sources[id]?.save === undefined),
+    ).toBe(true);
+    await act(() => useUnsavedChangesStore.getState().answer("stay"));
+    expect(name()).toHaveValue("first-policy");
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
 
   it("creates an injected file by default and reports it", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ id: "c1", name: "glossary" });

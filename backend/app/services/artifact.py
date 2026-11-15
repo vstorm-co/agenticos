@@ -114,6 +114,7 @@ from app.schemas.artifact import (
     ArtifactPublicLinkRead,
     ArtifactPublicLinkUpdate,
     ArtifactRead,
+    ArtifactThumbnailRead,
     ArtifactUpdate,
     ArtifactVersionList,
     ArtifactVersionRead,
@@ -3637,6 +3638,32 @@ class ArtifactService:
         shown.actions = offered
         return shown
 
+    async def thumbnail(
+        self, ctx: AuthContext, artifact_id: UUID, *, version_id: UUID | None = None
+    ) -> ArtifactThumbnailRead:
+        """A cached static preview of a version this caller may open, without live data.
+
+        Access and visible-version checks run before the cache. Snapshot data
+        already published in the page is visible; live records and actions are
+        never supplied to the renderer or cached across readers.
+        """
+        from app.services.artifact_render import RenderRequest
+        from app.services.artifact_thumbnails import render_thumbnail
+
+        shown = await self.view(ctx, artifact_id, version_id=version_id)
+        version = await artifact_repo.get_version(
+            self.db, shown.version.id, artifact_id=artifact_id
+        )
+        if version is None:
+            raise NotFoundError(
+                message="App version no longer available", details={"artifact_id": str(artifact_id)}
+            )
+        source = await _load_version(version, missing="App version no longer available")
+        document = render(version, source, title="", nonce=shown.nonce, live=bool(version.bindings))
+        return await render_thumbnail(
+            version.id, RenderRequest(document=document, nonce=shown.nonce, bindings={})
+        )
+
     async def start_action(
         self,
         ctx: AuthContext,
@@ -4075,8 +4102,12 @@ class ArtifactService:
                 raise AuthorizationError(
                     message="That password is not right.", details={"password_required": True}
                 )
+        org = await organization_repo.get_by_id(self.db, artifact.organization_id)
+        if org is None:
+            raise NotFoundError(message="App not found")
         await artifact_repo.count_public_view(self.db, artifact.id, at=datetime.now(UTC))
         return PublicArtifactRead(
+            show_agenticos_attribution=org.public_agenticos_attribution,
             title=artifact.title,
             published_at=artifact.published_at,
             # A stranger is nobody the data could be read as: the page is served with it

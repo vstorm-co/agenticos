@@ -226,6 +226,7 @@ It runs on your own infrastructure with Docker Compose and works with 28 model p
 |---|---|
 | Your company already has AgenticOS | Ask for the workspace URL and sign in through your browser, or [install the desktop app](#install-the-desktop-app). |
 | You want a workspace for your company | Have your IT team [deploy a server](#deploy-a-company-server), or [ask Vstorm to help](https://vstorm.co/contact-us/). |
+| You want to try it on your computer without terminal commands | [Install the desktop app](#install-the-desktop-app), choose **On this computer** and follow setup. Review the [requirements](https://vstorm-co.github.io/agenticos/desktop/#running-it) first; AI requires a configured model, while recorded examples need none. |
 | You are a developer exploring locally | [Run the Docker quickstart](#try-it-locally). |
 
 ### Try it locally
@@ -258,10 +259,12 @@ For manual Docker Compose setup, pinned versions and troubleshooting, follow the
 
 </details>
 
-## ☁️ One-Click Deploy
+## ☁️ One-click deploy
 
 <a href="https://repocloud.io/details/Agenticos/"><img src="https://d16t0pc4846x52.cloudfront.net/deploylobe.svg" alt="Deploy on RepoCloud" height="42"></a>
 <a href="https://railway.com/deploy/agenticos"><img src="https://railway.com/button.svg" alt="Deploy on Railway" height="42"></a>
+
+Review the provider's instructions, image versions and included services before deploying. These hosting templates are maintained separately from this repository. The Railway template currently pins an older AgenticOS release and does not include the local code sandbox.
 
 ## Run on your server. Open it anywhere.
 

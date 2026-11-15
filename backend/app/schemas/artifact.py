@@ -944,6 +944,14 @@ class ArtifactPublicDataDisclosure(BaseSchema):
     )
 
 
+class ArtifactThumbnailRead(BaseSchema):
+    """A versioned, data-free preview; never an executable document."""
+
+    version_id: UUID
+    state: Literal["ready", "unavailable"]
+    image: str | None
+
+
 class ArtifactView(BaseSchema):
     """Where a frame loads one version from, and until when that address holds."""
 
@@ -989,9 +997,11 @@ class PublicArtifactRead(BaseSchema):
     """What a stranger holding the link learns: the page, and nothing about who made it.
 
     Behind a password, nothing at all until the password is given: `password_required`
-    is true and the other fields are empty.
+    is true and the content fields are empty. The viewer uses the footer preference
+    only after unlocking.
     """
 
+    show_agenticos_attribution: bool = True
     password_required: bool = False
     title: str | None = None
     published_at: datetime | None = None

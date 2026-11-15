@@ -275,3 +275,16 @@ async def test_only_the_reviewed_personal_decision_fields_leave_memory():
     assert prepared.await_args.args[0].user_id == PERSON
     assert prepared.await_args.args[1] == _CLAIM_ID
     prepared.assert_awaited_once()
+
+
+async def test_personal_note_correction_keeps_revision_and_content() -> None:
+    edit = AsyncMock(return_value=_NOTE)
+    with patch("app.services.memory.MemoryService.edit_note", edit):
+        async with _client() as client:
+            response = await client.patch(
+                f"{ROOT}/mine/{NOTE}/content",
+                json={"content": "Corrected", "expected_updated_at": None},
+            )
+    assert response.status_code == 200
+    assert edit.await_args.args[2].content == "Corrected"
+    assert edit.await_args.args[2].expected_updated_at is None

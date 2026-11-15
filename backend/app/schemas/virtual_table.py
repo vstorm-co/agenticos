@@ -22,12 +22,15 @@ from uuid import UUID
 
 from pydantic import (
     AfterValidator,
+    AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
     StringConstraints,
     model_validator,
 )
+
+from app.core.resource_icons import ResourceIconName
 
 ColumnTypeName = Literal[
     "text",
@@ -260,6 +263,7 @@ class ColumnInput(_Request):
 
 
 class TableCreate(_Request):
+    icon: ResourceIconName | None = None
     name: Label = Field(description="Unique among the organization's live tables")
     description: Description | None = None
     columns: list[ColumnInput] = Field(default_factory=list, max_length=MAX_COLUMNS)
@@ -271,6 +275,7 @@ class TableUpdate(_Request):
         default=None,
         description="Shared saved view opened by default; null resets to the plain table",
     )
+    icon: ResourceIconName | None = None
     name: Label | None = None
     description: Description | None = None
 
@@ -285,6 +290,7 @@ class SchemaUpdate(_Request):
 class TableSummary(_Schema):
     default_view_id: UUID | None = None
     id: UUID
+    icon: ResourceIconName | None = None
     name: str
     description: str | None = None
     visibility: VisibilityName
@@ -303,6 +309,13 @@ class TableSummary(_Schema):
 
 class TableRead(TableSummary):
     columns: list[ColumnDef]
+    can_manage: bool = Field(
+        default=False,
+        description="Whether this caller may rename the table, change its columns or "
+        "default view, or archive it. The same as `can_edit`, except on a task board, "
+        "where adding and editing tasks stays open to its audience and changing the "
+        "board is for an administrator or the leader of its scope.",
+    )
     can_restore: bool = Field(
         default=False,
         description="Whether the table is archived and this caller may restore it with "
@@ -355,6 +368,12 @@ class RecordBatchCreate(_Request):
         description="Update a record whose external id the table already holds with the "
         "values given, rather than refusing it as taken - importing a file again.",
     )
+    as_of: AwareDatetime | None = Field(
+        default=None,
+        description="When the import began: the `as_of` its first batch answered, never a future time. An "
+        "`update_existing` row leaves a record changed after it as it is and reports it as "
+        "`REVISION_CONFLICT`. Omitted, the batch begins an import of its own.",
+    )
 
 
 class RecordBatchFailure(_Schema):
@@ -370,6 +389,10 @@ class RecordBatchResult(_Schema):
         default=0, description="How many existing records an `update_existing` batch changed"
     )
     failed: list[RecordBatchFailure] = Field(description="Each record that was not, and why")
+    as_of: datetime = Field(
+        description="When the import began, by the server's clock: send it as `as_of` with "
+        "the rest of the import's batches"
+    )
 
 
 class RecordUpdate(_Request):

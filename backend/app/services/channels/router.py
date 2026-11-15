@@ -56,7 +56,7 @@ from app.services.channels.base import (
     memory_room_key,
     split_thread,
 )
-from app.services.channels.dedupe import claim_delivery, release_delivery
+from app.services.channels.dedupe import claim_delivery, release_delivery, remember_unaddressed
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.discord_roles import PLATFORM as DISCORD_PLATFORM
 from app.services.channels.discord_roles import DiscordRoleSync
@@ -569,6 +569,17 @@ class ChannelMessageRouter:
             )
         self._apply_broadcast_policy(incoming, bot)
 
+        # Passive collection is silent when the bot's admission policy refuses it.
+        # It must not create identities or post refusals for overheard bystanders.
+        try:
+            self._check_access(incoming, bot)
+        except AuthorizationError:
+            pass
+        else:
+            from app.services.channels.observation import observe
+
+            await observe(db, bot, incoming, addressed=not self._is_overheard(incoming))
+
         if self._is_overheard(incoming):
             # Decided before anything is created or refused, not after. A bot in a
             # channel hears every post, so a refusal - a whitelist that does not
@@ -578,6 +589,7 @@ class ChannelMessageRouter:
             # minted for every bystander the bot would never answer. A message
             # naming a handle is not overheard even here - whether that handle is
             # ours is `_answer_mention`'s to judge, and its refusal stays its own.
+            await remember_unaddressed(incoming)
             logger.debug(
                 "channel_message_not_addressed",
                 extra={"platform": incoming.platform, "bot_id": incoming.bot_id},
@@ -645,6 +657,11 @@ class ChannelMessageRouter:
         except BadRequestError as exc:
             await self._send_reply(bot, incoming, exc.message)
             return
+
+        # The platform MCP credential is committed on an independent session during
+        # preparation. Its provenance references this conversation, so admission
+        # must be visible before preparation (not only before the model call).
+        await db.commit()
 
         # A run parked on a question to this person that takes a typed answer:
         # the message is that answer, not a new turn beside a run still waiting.
@@ -1202,6 +1219,7 @@ class ChannelMessageRouter:
             # whatever else the room had been saying (#1353).
             thread_id=thread_id or None,
             private_chat=incoming.chat_type == "private",
+            message_id=incoming.message_id,
         )
 
     @staticmethod

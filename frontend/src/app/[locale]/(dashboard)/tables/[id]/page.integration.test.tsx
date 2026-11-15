@@ -55,7 +55,8 @@ vi.mock("@/components/tables/table-grid-view", () => ({
     onOpenRecord: (r: RecordRead) => void;
     canEdit: boolean;
     onAddRecord?: (initial?: Record<string, unknown>) => void;
-    columnActions?: Record<"onSort" | "onRename" | "onHide" | "onArchive", (arg: unknown) => void>;
+    columnActions?: Record<"onSort" | "onHide", (arg: unknown) => void> &
+      Partial<Record<"onRename" | "onArchive", (arg: unknown) => void>>;
     onAddColumn?: () => void;
     records: RecordRead[];
     onEndReached: () => void;
@@ -78,9 +79,13 @@ vi.mock("@/components/tables/table-grid-view", () => ({
       {columnActions &&
         columns.map((column) => (
           <span key={column.id}>
-            <button onClick={() => columnActions.onRename(column)}>rename-{column.id}</button>
+            {columnActions.onRename && (
+              <button onClick={() => columnActions.onRename?.(column)}>rename-{column.id}</button>
+            )}
             <button onClick={() => columnActions.onHide(column)}>hide-{column.id}</button>
-            <button onClick={() => columnActions.onArchive(column)}>archive-{column.id}</button>
+            {columnActions.onArchive && (
+              <button onClick={() => columnActions.onArchive?.(column)}>archive-{column.id}</button>
+            )}
           </span>
         ))}
     </div>
@@ -257,6 +262,7 @@ function table(overrides: Partial<TableRead> = {}): TableRead {
     updated_at: null,
     can_edit: true,
     can_restore: false,
+    can_manage: true,
     columns: [
       {
         id: "c1",
@@ -842,6 +848,25 @@ describe("the table detail page", () => {
         columns: { id?: string; label: string; archived?: boolean }[];
       };
 
+    it("offers a task board's member hiding columns but no change to the board", async () => {
+      serve({ tableFixture: table({ can_manage: false }) });
+      const user = userEvent.setup();
+      renderPage();
+      await screen.findByTestId("grid-view");
+
+      expect(screen.getByRole("button", { name: "hide-c1" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "rename-c1" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "archive-c1" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "add-column" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /columns/i })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /add record/i })).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "View settings" }));
+      expect(screen.queryByRole("button", { name: "Set as default" })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "View settings" }));
+      await user.click(screen.getByRole("button", { name: "More actions" }));
+      expect(screen.queryByRole("menuitem", { name: "Archive table" })).not.toBeInTheDocument();
+    });
+
     it("offers a reader no column actions", async () => {
       serve({ tableFixture: table({ can_edit: false }) });
       renderPage();
@@ -1122,6 +1147,7 @@ describe("the table detail page", () => {
     serve({ tableFixture: table({ default_view_id: "v-kanban" }) });
     renderPage();
     expect(await screen.findByTestId("kanban-view")).toHaveAttribute("data-group-by", "c2");
+    await userEvent.click(screen.getByRole("button", { name: "View settings" }));
     expect(screen.getByRole("button", { name: "Default view" })).toBeDisabled();
   });
 
@@ -1133,6 +1159,7 @@ describe("the table detail page", () => {
     );
     renderPage();
     await screen.findByTestId("kanban-view");
+    await userEvent.click(screen.getByRole("button", { name: "View settings" }));
     await userEvent.click(screen.getByRole("button", { name: "Set as default" }));
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1", {
@@ -1291,6 +1318,7 @@ describe("the table detail page", () => {
     expect(screen.getByRole("combobox", { name: "Select a table view" })).toHaveTextContent(
       "All records",
     );
+    await userEvent.click(screen.getByRole("button", { name: "View settings" }));
     await userEvent.click(screen.getByRole("button", { name: "Set as default" }));
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1", {
@@ -1581,6 +1609,9 @@ describe("the table detail page", () => {
       expect(await screen.findByText(/^Archived on/)).toBeInTheDocument();
       expect(screen.getByText(/Restore the table to change them again/)).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /add record/i })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "View settings" }));
+      expect(screen.queryByRole("button", { name: "Set as default" })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "View settings" }));
       await user.click(screen.getByRole("button", { name: "More actions" }));
       expect(screen.queryByRole("menuitem", { name: "Archive table" })).not.toBeInTheDocument();
       await user.keyboard("{Escape}");

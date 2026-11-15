@@ -1,5 +1,5 @@
 ---
-source_sha: "df184b376180"
+source_sha: "a2ae2fb2e890"
 ---
 
 # Aplicaciones { #artifacts }
@@ -15,6 +15,10 @@ workspace ya tienen su sitio en el chat y en el [workspace](sandbox.md). Una
 aplicación es lo que se *sirve*: tiene un propietario, una visibilidad y grants
 como un agent o un skill, y se le puede dar un enlace público para alguien sin
 cuenta.
+
+## Identificación de páginas compartidas { #shared-page-attribution }
+
+Los visores públicos de aplicaciones muestran por defecto una insignia flotante con el logotipo de AgenticOS y un enlace a GitHub. Las conversaciones compartidas muestran la misma insignia debajo de la conversación. Un Owner o Admin puede ocultar el pie para toda la organización en **Configuración de la organización → Gobernanza → AgenticOS en páginas compartidas**. La siguiente carga de la página usa la configuración actual. Las aplicaciones protegidas con contraseña muestran el pie solo después de desbloquearlas. El pie pertenece al visor; no se modifican los archivos descargados ni el contenido de la aplicación incrustada.
 
 ## Apariencia de la app { #app-appearance }
 
@@ -976,7 +980,7 @@ un servidor de mapas conectado y que un administrador activa los mapas reales co
 este ajuste. La imagen de un mapa en una app de chat se
 dibuja terminada, con todas las chinchetas en su sitio.
 
-**Los mapas del mundo no necesitan ninguno.** Para todo lo que trate de países - clientes por país, oficinas, una ruta entre dos ciudades - `AOWorldMap` dibuja un mapa en SVG a partir de contornos de países que el despliegue sirve por sí mismo: sin servidor de teselas, sin red y sin contenedor adicional. El agente lo prefiere; el mapa de teselas queda para el nivel de calle.
+**Los mapas del mundo no necesitan ninguno.** Para todo lo que trate de países - clientes por país, oficinas, una ruta entre dos ciudades - `AOWorldMap` dibuja un mapa en SVG a partir de contornos de países que el despliegue sirve por sí mismo: sin servidor de teselas, sin red y sin contenedor adicional. Es la opción predeterminada para mapas nuevos, incluidos itinerarios entre ciudades. El agente carga los contornos de países incluidos y dibuja puntos y rutas sin configuración adicional. El administrador puede activar el mapa de calles mediante `VISUAL_MAP_TILES`; si las teselas no están disponibles, el agente debe usar este mapa SVG.
 
 **Elegir la forma.** El skill `visual-design` le dice al agent cuándo un dibujo es
 siquiera la respuesta correcta: texto para un dato o un consejo, una tabla Markdown
@@ -1436,3 +1440,11 @@ del despliegue, bajo `artifacts/<organization>/<artifact>/`.
 - Archivar conserva una página y no sirve nada de ella, con el enlace público
   desactivado, hasta que alguien que puede editarla la restaura.
 - Una clase de retención propia, medida desde la última publicación.
+
+## Carga de vistas previas y uso compartido { #preview-loading-and-sharing }
+
+Las vistas previas del chat reservan espacio mientras carga el renderizador visual o la miniatura de Apps. Aparecen gradualmente cuando termina el renderizado o la decodificación; la preferencia de movimiento reducido desactiva la animación. Las listas de Apps usan miniaturas estáticas en caché por versión, en lugar de ejecutar cada aplicación al volver a la lista.
+
+El skill Apps incluye presentaciones HTML interactivas, estilos de impresión PDF y ejemplos de componentes reutilizables. Exportar PDF requiere configurar el renderizador; validar una vista previa no demuestra que el script se ejecutara correctamente. Comprueba gráficos, tablas y contenido interactivo en la vista renderizada. No se incluye exportación a PowerPoint.
+
+La herramienta MCP de la plataforma `create_app_public_link` requiere acceso de edición y confirmación explícita de publicación. Reutiliza los enlaces existentes y conserva contraseña, caducidad y versión fijada. Los datos en vivo requieren consentimiento separado del propietario. La llamada solo tiene éxito cuando la API confirma la URL pública.

@@ -54,6 +54,8 @@ export interface Trigger {
   /** A human title for this trigger; null lists it by the agent's name instead. */
   name: string | null;
   created_by_user_id: string | null;
+  setup_required?: boolean;
+  setup_issues?: string[];
   is_active: boolean;
   /**
    * Whether *this* caller may edit, pause, run-now or delete this trigger. The
@@ -237,4 +239,23 @@ export interface TriggerUpdate {
   runs_as_creator?: boolean;
   local_target?: LocalTarget | null;
   event_config?: Record<string, unknown>;
+}
+
+/** An activation that stopped before creating an agent run; no model cost. */
+export interface TriggerAttempt {
+  id: string;
+  activation_id: string;
+  status: "blocked" | "failed";
+  stage: "source_review" | "preparation";
+  reason:
+    | "platform_identity_required"
+    | "source_review_required"
+    | "agent_unavailable"
+    | "preparation_failed";
+  occurred_at: string;
+}
+
+export interface TriggerAttemptList {
+  items: TriggerAttempt[];
+  total: number;
 }

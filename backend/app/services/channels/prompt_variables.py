@@ -35,7 +35,7 @@ from app.agents.capabilities.channel_tools import ChannelDirectory, ChannelDirec
 
 logger = logging.getLogger(__name__)
 
-PLACEHOLDER = re.compile(r"\{([a-z_]+)\}")
+PLACEHOLDER = re.compile(r"(?<!\{)(?:\{\{([a-z_]+)\}\}|\{([a-z_]+)\})(?!\})")
 """What counts as a placeholder. Lower case and underscores only, so JSON, code
 fences and set literals in a prompt are left exactly as they were written."""
 
@@ -112,7 +112,10 @@ def used_in(prompt: str) -> frozenset[str]:
     a code example is not a mistake, and refusing to run over one would make the
     feature a trap for anybody quoting JSON.
     """
-    return frozenset(PLACEHOLDER.findall(prompt)) & VARIABLE_NAMES
+    return (
+        frozenset(match.group(1) or match.group(2) for match in PLACEHOLDER.finditer(prompt))
+        & VARIABLE_NAMES
+    )
 
 
 def _flatten(value: str) -> str:
@@ -201,14 +204,13 @@ async def resolve(prompt: str, directory: ChannelDirectory | None) -> str:
         except Exception:
             logger.exception("channel_variable_failed")
 
-    filled = PLACEHOLDER.sub(
-        lambda match: (
-            _flatten(values[match.group(1)]) or UNAVAILABLE
-            if match.group(1) in values
-            else (UNAVAILABLE if match.group(1) in wanted else match.group(0))
-        ),
-        prompt,
-    )
+    def substitute(match: re.Match[str]) -> str:
+        name = match.group(1) or match.group(2)
+        if name in values:
+            return _flatten(values[name]) or UNAVAILABLE
+        return UNAVAILABLE if name in wanted else match.group(0)
+
+    filled = PLACEHOLDER.sub(substitute, prompt)
     # Only warn when real writing was actually substituted. If every source
     # failed and every placeholder resolved to `(unavailable)`, nothing external
     # reached the agent and there is nothing to call information-not-orders.

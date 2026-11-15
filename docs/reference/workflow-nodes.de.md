@@ -1,5 +1,5 @@
 ---
-source_sha: "b4d9ec998c26"
+source_sha: "68ac0f7695b1"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -323,9 +323,9 @@ gelesen, deshalb sind **Folder** und **Shared mailbox** zugleich der Ort, an dem
 Poller sucht, und ein Filter; das erste Lesen eines Ordners beginnt mit dem Zeitpunkt
 der Veröffentlichung oder des letzten Einschaltens des Workflows. Ein gemeinsames Postfach, das der
 Microsoft-Grant der Organisation öffnen kann, zu nennen, erfordert die Berechtigung,
-Verbindungen zu verwalten, wie bei Outlook-Agent-Triggern; ein Workflow, der schon eines
-liest, behält es bei späteren Veröffentlichungen, und es zu ändern erfordert die
-Berechtigung erneut. **Sender contains** prüft die Adresse des
+Verbindungen zu verwalten, wie bei Outlook-Agent-Triggern; jede Veröffentlichung, die eines nennt, braucht sie, weil die veröffentlichende
+Person zu dem Mitglied wird, als das das Postfach gelesen wird, und eine Nachricht
+an einen Workflow, dessen Veröffentlicher sie nicht mehr hat, startet keinen Run. **Sender contains** prüft die Adresse des
 Absenders wie bei Gmail und verlangt Post, die die Absenderdomain authentifiziert hat
 oder die aus dem Tenant stammt. Ein Ordner oder gemeinsames Postfach, das Outlook als
 nicht lesbar meldet, schaltet den Workflow aus, mit `mailbox_folder_unreadable` im
@@ -341,7 +341,7 @@ Poller. Die Anhänge werden wie bei [trigger.gmail](#trigger-gmail) gespeichert,
 **Channel message.** Gestartet von einer Nachricht an einen der Slack-, Mattermost-
 oder Telegram-Bots der Organisation, die der Bot mit seinem eigenen Agenten
 beantwortet hätte und die zum Filter des Knotens passt. Das Veröffentlichen braucht
-`channels:manage`, und die Nachrichten eines Bots starten höchstens einen Workflow.
+`channels:manage`, bei jeder Nachricht erneut geprüft, und die Nachrichten eines Bots starten höchstens einen Workflow.
 `triggered_by` ist `channel_message`.
 Ein Teams-Bot wird beim Veröffentlichen und im Testlauf abgelehnt; ein früher
 veröffentlichter Teams-Listener gibt seine Nachrichten an den Agenten des Bots zurück.
@@ -455,6 +455,8 @@ Palette zeigt den Schritt mit einem Diff-Symbol bei den Datenschritten.
 ::: app.workflows.nodes.text_compare._handler.TextCompareOutput
 
 ## html.parse { #html-parse }
+
+Seit Version 1.72.0 schließen Dokumentselektoren und die Linkextraktion inaktive Inhalte von `<template>` aus. Die Auswahl des Elements `template` selbst liefert weiterhin dessen HTML und Text. Soup Sieve 4 gleicht Formularzustandsselektoren an das Browserverhalten an; prüfen Sie beim Upgrade Workflows, die von den bisherigen Auswahlregeln abhängen. Die Selektorauswertung nutzt einen Cache; Zeit- und Speicherlimits des Leseprozesses bleiben bestehen.
 
 **Parse HTML** liest HTML als Text, als Links und als die Elemente, die ein
 CSS-Selektor auswählt. Es ist für das HTML gedacht, dem ein Ablauf begegnet: ein
@@ -746,17 +748,9 @@ schicken oder zwei Kategorien zu einem Protokollschritt.
 
 ## Entscheidungen { #decisions }
 
-Drei Schritte stellen TypeSafes Jev eine typisierte Frage zu einem gebundenen
-`text`, mit einem TypeSafe-API-Key aus dem Vault. Jev schreibt keinen Text: Er
-beantwortet die Frage mit einer Konfidenz von 0 bis 1, in einer Anfrage, und kann
-nur mit einer der Antworten antworten, die der Schritt zulässt. Unter dem
-`min_confidence` des Schritts verlässt er ihn stattdessen über seinen Port
-`unsure`, sodass ein Workflow dort entscheidet, was ein Mensch oder ein Agent mit
-einem zweifelhaften Fall tut.
+Drei Schritte stellen einem nativen Entscheidungsmodell eine typisierte Frage zum gebundenen `text`. Wähle ein Modellprofil mit Anbieter, Tresorschlüssel und Endpunkt. Bestehende Konfigurationen mit TypeSafe-Schlüssel und Jev-Modell bleiben unverändert gültig. Der Anbieter bestimmt die unterstützten Frageformen.
 
-`decide.*` ruft nur TypeSafes gehostetes Jev auf. Um zweifelhafte Fälle mit einem
-selbst gehosteten Modell zu routen, nehmen Sie `ai.classify` mit `min_confidence`,
-das den Schritt genauso über `unsure` verlässt.
+Das Modell liefert Antwort und Konfidenz. Unter `min_confidence` folgt der Schritt `unsure`; der Workflow kann eskalieren oder einen anderen Pfad wählen. Native Profile nutzen OpenAI, Google, OpenRouter, TypeSafe oder einen eigenen System-One-Endpunkt über Pydantic AI. Verfügbarkeit und den Unterschied zu LLM-Bewertungen erläutern die [Entscheidungsmodelle](../models.md#decision-models).
 
 | Schritt | Fragt | Verlässt über |
 |---|---|---|
@@ -764,12 +758,7 @@ das den Schritt genauso über `unsure` verlässt.
 | `decide.choose` | welche von bis zu 255 Optionen passt | `out` mit der `choice`, oder `unsure` |
 | `decide.score` | wo der Text auf einer Skala von 2 bis 10 Stufen liegt | `out` mit dem `score`, oder `unsure` |
 
-Der Key wird beim Veröffentlichen geprüft und bei jedem Run neu gelesen. Ein Key,
-der weg oder nicht mehr geteilt ist, lässt den Schritt mit `SECRET_NOT_USABLE`
-fehlschlagen, ein Modell, das nicht antwortet, mit `DECISION_FAILED`, das nach der
-Policy des Schritts wiederholt wird, und eine Bereitstellung ohne das Extra
-`browser` mit `DECISION_MODEL_UNAVAILABLE`. Ein Merge darf die Zweige einer
-Entscheidung wieder zusammenführen, wie die eines If.
+Zugangsdaten und Zugriff werden beim Veröffentlichen und bei jeder Ausführung geprüft. Ein entfernter alter Schlüssel ergibt `SECRET_NOT_USABLE`, ein Profil ohne native API `DECISION_MODEL_REQUIRED`. Anbieterfehler ergeben `DECISION_FAILED` gemäß Wiederholungsrichtlinie. Kosten zählen zum Workflow- und Organisationsbudget. Merge kann Entscheidungszweige zusammenführen.
 
 ::: app.workflows.nodes._decide.DecisionConfig
 
@@ -1056,7 +1045,7 @@ Tab **Approvals** unter Activity oder über `GET /api/v1/workflow-approvals`.
 `approvers` nennt, wer entscheiden darf, und diese Personen werden in der App
 benachrichtigt; leer darf jeder mit `approvals:decide`. Nach `timeout_hours`
 läuft die Anfrage ab, und der Schritt geht über `rejected` mit
-`decision: "expired"` weiter. Einen Run abzubrechen bricht seine Anfragen ab.
+`decision: "expired"` weiter. Einen Run abzubrechen bricht seine Anfragen ab, ebenso der Abbruch eines Workflows, der diesen Run aufgerufen hat.
 Jeder Lauf des Schritts fragt einmal, sodass eine Wiederholung oder eine
 Schleifeniteration nie zweimal nach demselben fragt.
 
@@ -1261,9 +1250,13 @@ wiederholt, weil dieselbe Eingabe genauso scheitert.
 `control.foreach` führt seinen Rumpf einmal für jedes Element einer gebundenen
 Liste `items` aus, ein Element nach dem anderen und in Reihenfolge. Danach geht
 es über seinen Port `done` weiter, mit `results` in Eingabereihenfolge, `errors`
-und `count`. Der Rumpf beginnt bei `loop.item`, verbunden vom Port `body` der
-Schleife, das `item`, `index` und `count` bereitstellt. Er endet bei
-`loop.yield`, dessen gebundenes `value` das Ergebnis der Iteration ist. Keine
+und `count`. Der Rumpf sind die Schritte, die die Schleife in `scope_id` nennen;
+keine Kante führt in ihn hinein. Er beginnt bei `loop.item`, das `item`, `index`
+und `count` bereitstellt, und jeder Schritt darin muss von `loop.item` über die
+eigenen Kanten des Rumpfs erreicht werden. Er endet bei
+`loop.yield`, dessen gebundenes `value` das Ergebnis der Iteration ist.
+
+Keine
 Kante führt zur Schleife zurück. Ein Schritt im Rumpf darf an alles binden, was
 vor der Schleife lief, und nichts außerhalb des Rumpfs darf in ihn hinein
 binden.
@@ -1464,6 +1457,7 @@ vertrauenswürdige Arbeit eine Runtime ohne Netzwerk.
 | Der Job lief länger als `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, Sitzung gelöscht |
 | Keine nutzbare `sandboxd`-Verbindung | `SANDBOX_UNAVAILABLE` |
 | Es schrieb mehr als 20 Dateien oder 100 MB oder gab mehr als 10 MB aus | `PYTHON_OUTPUT_TOO_LARGE`, in der Sandbox gemessen, bevor etwas abgeholt wird, und die Session gelöscht |
+| Der Host antwortete, konnte die Sandbox aber nicht starten - ein Workspace-Verzeichnis, in das er nicht schreiben darf, ein Image, das sich nicht bauen ließ | `SANDBOX_START_FAILED` mit einer sicheren Diagnose; die rohe Host-Ausgabe bleibt in den Host-Logs, wiederholt |
 | Der Host war nicht erreichbar | `SANDBOX_UNREACHABLE`, wiederholt |
 
 ::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig

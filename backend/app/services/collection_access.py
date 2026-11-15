@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # answers "nothing collides" with no error to say so.
 import app.db.models  # noqa: F401
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.base import Base
 from app.db.locks import LockScope, hold_name, hold_name_within
@@ -265,6 +266,8 @@ class CollectionAccessService:
         sources = await sync_source_repo.list_for_collections(self.db, names)
         return SyncLogScope(
             collections=names,
+            organization_id=ctx.organization_id,
+            knowledge_base_ids=tuple(kb.id for kb in kbs),
             sync_source_ids=[
                 source.id
                 for source in sources
@@ -502,8 +505,8 @@ class CollectionAccessService:
         candidates = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
         if not _reaches_source(ctx, source) or not _feeds(source, kb, candidates):
             raise NotFoundError(
-                message="Sync source not found in this knowledge base",
-                details={"kb_id": kb.id, "source_id": source_id},
+                message="Sync source not found",
+                details={"source_id": source_id},
             )
         return source
 
@@ -533,12 +536,29 @@ class CollectionAccessService:
         by the name, else an app-scoped one. Authorizing any writable base of the
         name instead let a member who owns a newer same-named personal base point
         a source at the organization's base they cannot edit (#2537).
+
+        Raises:
+            BadRequestError: Eligible bases tie on the oldest creation time.
         """
         await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, name)
         candidates = await knowledge_base_repo.list_by_collection_name(self.db, name)
         target = knowledge_base_repo.choose_for_collection(candidates, ctx.organization_id)
         if target is None or not await writable_kb(self.db, ctx, target):
             raise _no_collection(name)
+        if any(
+            kb.id != target.id
+            and kb.organization_id == target.organization_id
+            and (target.organization_id is not None or kb.scope == target.scope)
+            and kb.created_at == target.created_at
+            for kb in candidates
+        ):
+            raise refused_field(
+                "collection_name",
+                (
+                    "This collection name has more than one knowledge base with the same "
+                    "creation time. Use a knowledge base with a unique collection name."
+                ),
+            )
         return target
 
     async def new_source_feeds(self, ctx: AuthContext, kb: KnowledgeBase) -> None:
@@ -607,7 +627,9 @@ class CollectionAccessService:
             raise NotFoundError(message="Sync source not found", details={"source_id": source_id})
         return source
 
-    async def writable_sync_source(self, ctx: AuthContext, source_id: str) -> SyncSource:
+    async def writable_sync_source(
+        self, ctx: AuthContext, source_id: str, *, for_update: bool = True
+    ) -> SyncSource:
         """A sync source of the caller's organization they may change, run or delete.
 
         :meth:`sync_source`, and when the source feeds a base, write access to
@@ -624,15 +646,23 @@ class CollectionAccessService:
         until this transaction ends (:meth:`_hold_source`), so a route moving the
         source calls :meth:`source_target` first.
         """
-        source = await self._hold_source(ctx, await self.sync_source(ctx, source_id))
+        source = await self.sync_source(ctx, source_id)
+        if for_update:
+            source = await self._hold_source(ctx, source)
         if source is None:
             raise NotFoundError(message="Sync source not found", details={"source_id": source_id})
         if source.collection_name is None:
+            if not ctx.has(Perm.CONNECTIONS_MANAGE):
+                raise NotFoundError(
+                    message="Sync source not found", details={"source_id": source_id}
+                )
             return source
         candidates = await knowledge_base_repo.list_by_collection_name(
             self.db, source.collection_name
         )
         target = knowledge_base_repo.choose_for_collection(candidates, source.organization_id)
+        if target is None and not ctx.has(Perm.CONNECTIONS_MANAGE):
+            raise NotFoundError(message="Sync source not found", details={"source_id": source_id})
         if target is not None and not await writable_kb(self.db, ctx, target):
             raise NotFoundError(message="Sync source not found", details={"source_id": source_id})
         return source
@@ -647,6 +677,13 @@ class CollectionAccessService:
         """
         parsed = _as_uuid(sync_id)
         log = None if parsed is None else await sync_log_repo.get_by_id(self.db, parsed)
+        if log is not None and log.sync_source_id is not None:
+            try:
+                await self.writable_sync_source(ctx, str(log.sync_source_id))
+            except NotFoundError as exc:
+                raise NotFoundError(
+                    message="Sync log not found", details={"sync_id": sync_id}
+                ) from exc
         if log is None or not await self._writes_run(ctx, log):
             raise NotFoundError(message="Sync log not found", details={"sync_id": sync_id})
         return log
@@ -658,9 +695,16 @@ class CollectionAccessService:
             if log.sync_source_id is None
             else await sync_source_repo.get_by_id(self.db, log.sync_source_id)
         )
+        if source is None and log.organization_id != ctx.organization_id:
+            return False
         for kb in candidates:
-            if (source is None or _feeds(source, kb, candidates)) and await writable_kb(
-                self.db, ctx, kb
-            ):
+            if (
+                (
+                    source is not None
+                    and _reaches_source(ctx, source)
+                    and _feeds(source, kb, candidates)
+                )
+                or (source is None and log.knowledge_base_id == kb.id)
+            ) and await writable_kb(self.db, ctx, kb):
                 return True
         return False

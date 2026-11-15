@@ -39,6 +39,7 @@ from app.agents.capabilities.thinking import ThinkingConfig
 from app.agents.deps import AgentDeps
 from app.agents.mcp import NEEDS_APPROVAL
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
+from app.agents.tool_errors import tool_error
 
 DeferredHandler = Callable[
     [RunContext[AgentDeps], DeferredToolRequests], Awaitable[DeferredToolResults]
@@ -185,6 +186,9 @@ class WithoutApprovalTools(AbstractCapability[AgentDeps]):
 _UNAVAILABLE = "agenticos_unavailable"
 """The metadata key that marks a tool standing in for a name the session does not have."""
 
+_UNAVAILABLE_ROUTE = "agenticos_unavailable_route"
+"""A supported recovery route established from this step's registered tools."""
+
 
 _NO_ARGUMENTS = SchemaValidator(core_schema.dict_schema())
 """Never run: a stand-in is refused before its arguments are validated."""
@@ -202,18 +206,45 @@ class _ToolsOrUnavailable(dict[str, ToolsetTool[AgentDeps]]):
     """
 
     def __init__(
-        self, tools: dict[str, ToolsetTool[AgentDeps]], toolset: AbstractToolset[AgentDeps]
+        self,
+        tools: dict[str, ToolsetTool[AgentDeps]],
+        toolset: AbstractToolset[AgentDeps],
+        ctx: RunContext[AgentDeps],
+        *,
+        structured: bool,
     ) -> None:
         super().__init__(tools)
         self._toolset = toolset
+        self._ctx = ctx
+        self._structured = structured
 
     def get(self, key: object, _default: object = None, /) -> ToolsetTool[AgentDeps]:
         tool = super().get(key)
-        if tool is not None:
+        if tool is not None and (
+            not self._structured or self._ctx.is_tool_available(tool.tool_def)
+        ):
             return tool
+        metadata: dict[str, bool | str] = {_UNAVAILABLE: True}
+        if tool is not None:
+            capability = tool.tool_def.capability_id
+            loader = super().get("load_capability")
+            search = super().get("search_tools")
+            if (
+                capability is not None
+                and capability not in self._ctx.active_capability_ids
+                and loader is not None
+                and self._ctx.is_tool_available(loader.tool_def)
+            ):
+                metadata[_UNAVAILABLE_ROUTE] = (
+                    f"Load capability {capability!r} with `load_capability`, then invoke the tool."
+                )
+            elif search is not None and self._ctx.is_tool_available(search.tool_def):
+                metadata[_UNAVAILABLE_ROUTE] = (
+                    "Discover this tool with `search_tools` before invoking it."
+                )
         return ToolsetTool(
             toolset=self._toolset,
-            tool_def=ToolDefinition(name=str(key), metadata={_UNAVAILABLE: True}),
+            tool_def=ToolDefinition(name=str(key), metadata=metadata),
             max_retries=0,
             args_validator=_NO_ARGUMENTS,
         )
@@ -221,28 +252,34 @@ class _ToolsOrUnavailable(dict[str, ToolsetTool[AgentDeps]]):
 
 @dataclass
 class _UnknownToolsAnswered(WrapperToolset[AgentDeps]):
+    structured: bool = False
+
     async def get_tools(self, ctx: RunContext[AgentDeps]) -> dict[str, ToolsetTool[AgentDeps]]:
-        return _ToolsOrUnavailable(await super().get_tools(ctx), self)
+        return _ToolsOrUnavailable(
+            await super().get_tools(ctx), self, ctx, structured=self.structured
+        )
 
 
 @dataclass
 class AnswerUnknownTools(AbstractCapability[AgentDeps]):
-    """Tells a call's model that a tool it called is not available, rather than ending the call.
+    """Answer unregistered names without exhausting a tool's retry budget.
 
     gpt-realtime calls tools it was never given: a visitor's session leaves gated
     tools out, and asked to open a page, it called `web_fetch` anyway - twice,
-    which ended the call. A text run is not given this: an unknown name there
-    costs one run, not a live conversation.
+    which ended the call. Text runs receive the same boundary with a structured
+    explanation, so discovery is not mistaken for direct registration.
     """
+
+    structured: bool = False
 
     def get_ordering(self) -> CapabilityOrdering:
         # Outermost, so no other wrapper rebuilds the tools into a plain dict.
-        return CapabilityOrdering(position="outermost")
+        return CapabilityOrdering(position="outermost", wraps=[AbstractCapability])
 
     def get_wrapper_toolset(
         self, toolset: AbstractToolset[AgentDeps]
     ) -> AbstractToolset[AgentDeps]:
-        return _UnknownToolsAnswered(toolset)
+        return _UnknownToolsAnswered(toolset, structured=self.structured)
 
     async def before_tool_validate(
         self,
@@ -255,6 +292,22 @@ class AnswerUnknownTools(AbstractCapability[AgentDeps]):
         # `ToolFailed` reaches the model without spending a retry, and before any
         # execution hook - an approval gate - could ask about a tool that is not there.
         if tool_def.metadata and tool_def.metadata.get(_UNAVAILABLE):
+            if self.structured:
+                route = tool_def.metadata.get(_UNAVAILABLE_ROUTE)
+                message = (
+                    "This tool is not registered for direct invocation in the current context."
+                )
+                if isinstance(route, str):
+                    message += f" {route}"
+                raise ToolFailed(
+                    tool_error(
+                        tool=call.tool_name,
+                        code="tool_unavailable",
+                        execution="not_started",
+                        message=message,
+                        recovery="rediscover_tools",
+                    )
+                )
             raise ToolFailed(UNAVAILABLE_TOOL.format(name=call.tool_name))
         return args
 

@@ -2,6 +2,8 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DEFAULT_DESKTOP_NOTIFICATIONS } from "@/stores/desktop-preferences-store";
+
 import { DesktopWelcome } from "./desktop-welcome";
 import { DESKTOP_STATE, MAC_MAIN } from "./fixtures";
 
@@ -81,14 +83,28 @@ describe("DesktopWelcome", () => {
     expect(screen.queryByRole("button", { name: "Skip for now" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Open AgenticOS" }));
     expect(env.finish).toHaveBeenCalled();
-    await vi.waitFor(() => expect(env.replace).toHaveBeenCalledWith("/dashboard"));
+    await vi.waitFor(() => expect(env.replace).toHaveBeenCalledWith("/onboarding"));
+  });
+
+  it("promises only what a notification does by default, with previews hidden", async () => {
+    expect(DEFAULT_DESKTOP_NOTIFICATIONS.hide_previews).toBe(true);
+    render(<DesktopWelcome />);
+    await next();
+    await next();
+    expect(screen.getByRole("heading", { name: "Stay in the loop" })).toBeInTheDocument();
+    expect(screen.queryByText(/answer without opening/i)).toBeNull();
+    expect(
+      screen.getByText(
+        "Approval requests arrive as notifications. To answer most of them there, turn on previews in Settings → Desktop app.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("can be skipped, and still marks itself as done", async () => {
     render(<DesktopWelcome />);
     await userEvent.click(screen.getByRole("button", { name: "Skip for now" }));
     expect(env.finish).toHaveBeenCalled();
-    await vi.waitFor(() => expect(env.replace).toHaveBeenCalledWith("/dashboard"));
+    await vi.waitFor(() => expect(env.replace).toHaveBeenCalledWith("/onboarding"));
   });
 
   it("reports a shell that would not remember it, and still moves on", async () => {
@@ -99,7 +115,7 @@ describe("DesktopWelcome", () => {
     await next();
     await userEvent.click(screen.getByRole("button", { name: "Send a test" }));
     await userEvent.click(screen.getByRole("button", { name: "Skip for now" }));
-    await vi.waitFor(() => expect(env.replace).toHaveBeenCalledWith("/dashboard"));
+    await vi.waitFor(() => expect(env.replace).toHaveBeenCalledWith("/onboarding"));
     expect(env.report).toHaveBeenCalledWith("could not finish onboarding", expect.any(Error));
     expect(env.report).toHaveBeenCalledWith(
       "could not send a test notification",
@@ -131,8 +147,6 @@ describe("DesktopWelcome", () => {
   it("says it belongs to the app in a browser", () => {
     env.shell = null;
     render(<DesktopWelcome />);
-    expect(
-      screen.getByText("This welcome belongs to the AgenticOS desktop app."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("This opens in the AgenticOS desktop app.")).toBeInTheDocument();
   });
 });

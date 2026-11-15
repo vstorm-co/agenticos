@@ -7,6 +7,14 @@ export function useWorkspaceFullscreen(initialExpanded = false) {
   const ref = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(initialExpanded);
   useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 768px)");
+    const collapseOnDesktop = () => {
+      if (desktop.matches) setExpanded(false);
+    };
+    desktop.addEventListener("change", collapseOnDesktop);
+    return () => desktop.removeEventListener("change", collapseOnDesktop);
+  }, []);
+  useEffect(() => {
     if (!expanded || ref.current === null) return;
     const focused = document.activeElement;
     if (!(focused instanceof HTMLElement) || !ref.current.contains(focused)) {

@@ -956,6 +956,36 @@ async def list_waited_child_runs(
     return list(result.scalars().all())
 
 
+async def list_called_run_ids(
+    db: AsyncSession, *, workflow_run_ids: Sequence[UUID], organization_id: UUID
+) -> list[UUID]:
+    """All runs called by these runs, including terminal intermediates with live descendants."""
+    result = await db.execute(
+        select(WorkflowRun.id)
+        .join(NodeRun, NodeRun.id == WorkflowRun.parent_node_run_id)
+        .where(
+            NodeRun.workflow_run_id.in_(workflow_run_ids),
+            NodeRun.organization_id == organization_id,
+            WorkflowRun.organization_id == organization_id,
+        )
+        .order_by(WorkflowRun.created_at, WorkflowRun.id)
+    )
+    return list(result.scalars().all())
+
+
+async def try_lock_run(
+    db: AsyncSession, run_id: UUID, *, organization_id: UUID
+) -> WorkflowRun | None:
+    """The run, row-locked - or None when another transaction holds it right now."""
+    result = await db.execute(
+        select(WorkflowRun)
+        .where(WorkflowRun.id == run_id, WorkflowRun.organization_id == organization_id)
+        .with_for_update(skip_locked=True)
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_stale_question_waits(db: AsyncSession, *, limit: int = 100) -> list[NodeRun]:
     """Question waits with accepted answers or an ended child, and no queued continuation."""
     live_outbox = select(DispatchOutbox.node_run_id).where(
@@ -1438,8 +1468,13 @@ async def create_outbox(
     return outbox
 
 
+async def database_time(db: AsyncSession) -> datetime:
+    """The database's clock now - the one a lease is written and checked against."""
+    return (await db.execute(select(func.clock_timestamp()))).scalar_one()
+
+
 async def claim_outbox(
-    db: AsyncSession, *, node_run_id: UUID, token: UUID, lease_expires_at: datetime
+    db: AsyncSession, *, node_run_id: UUID, token: UUID, lease_seconds: float
 ) -> DispatchOutbox | None:
     """The compare-and-swap claim: a `pending` row, or a `claimed` one whose lease expired.
 
@@ -1454,6 +1489,11 @@ async def claim_outbox(
     instant its worker died mid-lease. `available_at <= now()` keeps a
     scheduled-but-not-yet-due retry from being claimed early by a direct wake
     racing the poller.
+
+    The lease ends `lease_seconds` after the database's clock, the one every
+    expiry check reads: an application host whose clock runs ahead or behind
+    would otherwise hand out a lease that is already over, or one that outlives
+    its holder.
     """
     result = await db.execute(
         sql_update(DispatchOutbox)
@@ -1468,7 +1508,8 @@ async def claim_outbox(
         )
         .values(
             claimed_by=token,
-            lease_expires_at=lease_expires_at,
+            lease_expires_at=func.clock_timestamp()
+            + literal(timedelta(seconds=lease_seconds), Interval()),
             status=DispatchOutboxStatus.CLAIMED.value,
         )
         .returning(DispatchOutbox)

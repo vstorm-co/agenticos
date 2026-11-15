@@ -16,7 +16,10 @@ vi.mock("@/lib/api-client", async () => {
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 // The page refreshes the server-rendered branding after a save.
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
 
 /** `GET /admin/settings` for a deployment that has never accepted compressed audio. */
 const SETTINGS = {

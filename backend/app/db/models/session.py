@@ -104,6 +104,9 @@ class Session(Base):
     device_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     device_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    # Only this sign-in proved this mailbox. A different password session must
+    # never inherit proof supplied by the real owner in another session.
+    proved_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
     app_platform: Mapped[str | None] = mapped_column(String(16), nullable=True)
     """The AgenticOS app this session is signed in through - `macos`, `windows`,

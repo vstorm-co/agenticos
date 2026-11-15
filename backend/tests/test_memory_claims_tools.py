@@ -15,7 +15,12 @@ from pydantic_ai.usage import RunUsage
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities.memory_files import MemoryFiles
-from app.agents.capabilities.memory_files._toolset import _NO_STORE, _READ_ONLY, MemoryToolset
+from app.agents.capabilities.memory_files._toolset import (
+    _NO_STORE,
+    _READ_ONLY,
+    _SHARED,
+    MemoryToolset,
+)
 from app.agents.deps import AgentDeps
 from app.agents.memory_scope import claim_write_scope, readable_claim_scopes
 from app.core.memory_keys import (
@@ -144,6 +149,45 @@ class TestScopes:
             ClaimScope(organization_owner_key(ORG), None),
         ]
 
+    def test_a_chat_others_read_reads_the_project_and_organization_but_not_the_person(self):
+        scopes = readable_claim_scopes(
+            RunAudience(user_id=PERSON, shared_transcript=True),
+            organization_id=ORG,
+            agent_id=AGENT,
+            project_id=PROJECT,
+            allow_personal=True,
+        )
+
+        assert scopes == [
+            ClaimScope(project_owner_key(PROJECT), None),
+            ClaimScope(organization_owner_key(ORG), None),
+        ]
+
+    def test_a_chat_others_read_keeps_shared_claims_without_personal_memory(self):
+        scopes = readable_claim_scopes(
+            RunAudience(user_id=PERSON, shared_transcript=True),
+            organization_id=ORG,
+            agent_id=AGENT,
+            project_id=PROJECT,
+            allow_personal=False,
+        )
+
+        assert scopes == [
+            ClaimScope(project_owner_key(PROJECT), None),
+            ClaimScope(organization_owner_key(ORG), None),
+        ]
+
+    def test_a_chat_others_read_writes_no_personal_claim(self):
+        assert (
+            claim_write_scope(
+                RunAudience(user_id=PERSON, shared_transcript=True),
+                agent_id=AGENT,
+                allow_personal=True,
+                shared_with_agents=True,
+            )
+            is None
+        )
+
     def test_a_room_reads_only_its_own_claims(self):
         scopes = readable_claim_scopes(
             RunAudience(user_id=PERSON, room_key=ROOM),
@@ -213,6 +257,20 @@ class TestRemember:
         assert ledger["remember"].await_args.kwargs["effective_from"] == datetime(
             2026, 11, 3, tzinfo=UTC
         )
+
+    async def test_a_chat_others_read_keeps_no_personal_claim_and_says_why(self, ledger):
+        deps = _deps()
+        deps.audience = RunAudience(user_id=PERSON, writes_memory=True, shared_transcript=True)
+
+        assert await _tools().remember(_ctx(deps), "x", profile=True) == _SHARED
+        ledger["remember"].assert_not_awaited()
+
+    async def test_a_chat_others_read_keeps_no_personal_note_and_says_why(self):
+        deps = _deps()
+        deps.audience = RunAudience(user_id=PERSON, writes_memory=True, shared_transcript=True)
+
+        assert await _tools().write_memory(_ctx(deps), "prefs", "Short") == _SHARED
+        assert await _tools().list_memory(_ctx(deps)) == _SHARED
 
     async def test_the_person_being_gone_is_said_plainly(self, ledger):
         ledger["remember"].return_value = None

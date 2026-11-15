@@ -495,6 +495,7 @@ class TestTheWidgetRemembersWhatWasSaid:
             role=role,
             content=content,
             attachment_context=None,
+            model_content=None,
             author_user_id=None,
             reply_to_message_id=None,
             guardrail_refused=False,
@@ -1527,6 +1528,7 @@ def _published_agent(**overrides) -> MagicMock:
     agent.name = "Support"
     agent.current_version_id = uuid.uuid4()
     agent.status = "published"
+    agent.kind = "agent"
     for key, value in overrides.items():
         setattr(agent, key, value)
     return agent

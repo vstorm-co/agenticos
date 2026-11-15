@@ -25,7 +25,9 @@ read identically in pytest's output, and only one of them is acceptable on a
 runner; `_demand_a_server` below is where they are told apart.
 """
 
+import json
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -33,8 +35,12 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import create_engine, select, text
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+from sqlalchemy import create_engine, delete, select, text, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session as DatabaseSession
 
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError
@@ -173,6 +179,324 @@ def migration_database() -> Iterator[None]:
         _outside_a_transaction(maintenance, drop)
 
 
+def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs() -> None:
+    """0322_coding_task_revert.py and 0323_coding_revert_admission.py preserve legacy diffs."""
+    from app.db.models.conversation import Conversation
+    from app.db.models.organization import Organization
+
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("downgrade", "0321_resource_icons")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    fields = (
+        "revert_patch",
+        "workspace_ref",
+        "reverted_at",
+        "snapshot_isolated",
+        "revert_job_id",
+        "revert_started_at",
+        "revert_failure",
+    )
+    change_id = uuid4()
+    files = [{"path": "old.py", "status": "modified", "patch": "-before\n+after\n"}]
+    try:
+        with DatabaseSession(engine) as db:
+            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            db.add(owner)
+            db.flush()
+            organization = Organization(
+                name="Legacy diff", slug=f"legacy-{uuid4()}", created_by_user_id=owner.id
+            )
+            db.add(organization)
+            db.flush()
+            conversation = Conversation(
+                organization_id=organization.id, user_id=owner.id, title="Old task"
+            )
+            db.add(conversation)
+            db.flush()
+            db.execute(
+                text(
+                    "INSERT INTO coding_task_changes (id, organization_id, conversation_id, harness, files, omitted, truncated) "
+                    "VALUES (:id, :organization, :conversation, 'codex', CAST(:files AS jsonb), 0, false)"
+                ),
+                {
+                    "id": change_id,
+                    "organization": organization.id,
+                    "conversation": conversation.id,
+                    "files": json.dumps(files),
+                },
+            )
+            db.commit()
+        with engine.connect() as db:
+            before = set(
+                db.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns WHERE table_name = 'coding_task_changes'"
+                    )
+                ).scalars()
+            )
+        assert not set(fields) & before
+        for action, target in (
+            ("upgrade", "head"),
+            ("downgrade", "0321_resource_icons"),
+            ("upgrade", "head"),
+        ):
+            result = _alembic(action, target)
+            assert result.returncode == 0, result.stderr
+            if action == "upgrade":
+                with engine.connect() as db:
+                    row = db.execute(
+                        text(
+                            "SELECT files, revert_patch, workspace_ref, reverted_at, snapshot_isolated, revert_job_id, revert_started_at, revert_failure FROM coding_task_changes WHERE id = :id"
+                        ),
+                        {"id": change_id},
+                    ).one()
+                assert row == (files, None, None, None, False, None, None, None)
+        with engine.connect() as db:
+            after = set(
+                db.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns WHERE table_name = 'coding_task_changes'"
+                    )
+                ).scalars()
+            )
+        assert after - before == set(fields)
+        result = _alembic("check")
+        assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()
+
+
+def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> None:
+    """Both cascade orders work on migrated data; dangling references still fail."""
+    from app.db.models.agent import Agent, AgentVersion
+    from app.db.models.agent_environment import AgentEnvironment
+    from app.db.models.agent_trigger import AgentTrigger
+    from app.db.models.artifact import Artifact
+    from app.db.models.conversation import Conversation
+
+    for action, revision in (
+        ("upgrade", "head"),
+        ("downgrade", "0304_merge_evals_platform"),
+    ):
+        result = _alembic(action, revision)
+        assert result.returncode == 0, result.stderr
+
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with DatabaseSession(engine, expire_on_commit=False) as db:
+            creator = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            db.add_all([creator, owner])
+            db.flush()
+            # This is the 0304 schema, before columns added by later migrations.
+            org_id = uuid4()
+            db.execute(
+                text(
+                    "INSERT INTO organizations (id, name, slug, is_personal, created_by_user_id) "
+                    "VALUES (:id, 'Crosslinks', :slug, false, :creator)"
+                ),
+                {"id": org_id, "slug": f"crosslinks-{org_id}", "creator": creator.id},
+            )
+            agent = Agent(organization_id=org_id, name="Reporter", slug=f"reporter-{uuid4()}")
+            chat = Conversation(organization_id=org_id, user_id=owner.id, title="Private")
+            db.add_all([agent, chat])
+            db.flush()
+            version = AgentVersion(organization_id=org_id, agent_id=agent.id, version=1, spec={})
+            db.add(version)
+            db.flush()
+            environment = AgentEnvironment(
+                organization_id=org_id, agent_id=agent.id, version_id=version.id, name="staging"
+            )
+            db.add(environment)
+            db.flush()
+            page = Artifact(
+                organization_id=org_id,
+                agent_id=agent.id,
+                environment_id=environment.id,
+                name="report",
+                title="Report",
+            )
+            routine = AgentTrigger(
+                organization_id=org_id,
+                agent_id=agent.id,
+                created_by_user_id=owner.id,
+                prompt="Report",
+                interval_seconds=300,
+                next_fire_at=datetime.now(UTC),
+                answer_to="conversation",
+                delivery_conversation_id=chat.id,
+            )
+            db.add_all([page, routine])
+            db.commit()
+            owner_id, agent_id = owner.id, agent.id
+            page_id, routine_id = page.id, routine.id
+            environment_id, chat_id = environment.id, chat.id
+
+        constraints = (
+            "agent_triggers_delivery_conversation_id_fkey",
+            "artifacts_environment_id_fkey",
+        )
+        # Per parent table: its SET NULL key, then its cascade, each (table, name, column).
+        cascades = (
+            (
+                "users",
+                (
+                    (
+                        "agent_triggers",
+                        "agent_triggers_created_by_user_id_fkey",
+                        "created_by_user_id",
+                    ),
+                    ("conversations", "conversations_user_id_fkey", "user_id"),
+                ),
+                delete(User).where(User.id == owner_id),
+                constraints[0],
+            ),
+            (
+                "agents",
+                (
+                    ("artifacts", "artifacts_agent_id_fkey", "agent_id"),
+                    ("agent_environments", "agent_environments_agent_id_fkey", "agent_id"),
+                ),
+                delete(Agent).where(Agent.id == agent_id),
+                constraints[1],
+            ),
+        )
+
+        def cascade_last(
+            db: DatabaseSession, parent: str, keys: tuple[tuple[str, str, str], ...]
+        ) -> None:
+            """Re-create the SET NULL key, then the cascade, so the cascade fires last.
+
+            A table's triggers fire in name order, and an RI trigger is named after its
+            OID, so the comparison is textual: once the cluster's OID counter gains a
+            digit, a newly created trigger sorts before every older one. Re-creating
+            both keys gives them neighbouring OIDs, whatever the counter has reached.
+            """
+            for (table, name, column), action in zip(keys, ("SET NULL", "CASCADE"), strict=True):
+                db.execute(
+                    text(
+                        f"ALTER TABLE {table} DROP CONSTRAINT {name}, ADD CONSTRAINT {name} "
+                        f"FOREIGN KEY ({column}) REFERENCES {parent}(id) ON DELETE {action}"
+                    )
+                )
+            fired = db.scalars(
+                text(
+                    "SELECT c.confdeltype FROM pg_trigger t "
+                    "JOIN pg_constraint c ON c.oid = t.tgconstraint "
+                    "WHERE t.tgrelid = CAST(:parent AS regclass) "
+                    "AND c.conname IN (:set_null, :cascade) ORDER BY t.tgname"
+                ),
+                {"parent": parent, "set_null": keys[0][1], "cascade": keys[1][1]},
+            ).all()
+            assert fired == ["n", "n", "c", "c"]
+
+        # Prove the old, migrated schema has the same defect as create_all.
+        for parent, keys, deletion, constraint in cascades:
+            with DatabaseSession(engine) as db:
+                cascade_last(db, parent, keys)
+                # Unchanged FK columns are rechecked when this transaction has
+                # already written the surviving row, as in the integration tests.
+                db.execute(
+                    update(AgentTrigger)
+                    .where(AgentTrigger.id == routine_id)
+                    .values(prompt="Updated report")
+                )
+                db.execute(
+                    update(Artifact).where(Artifact.id == page_id).values(title="Updated report")
+                )
+                with pytest.raises(IntegrityError, match=constraint):
+                    db.execute(deletion)
+
+        for action, revision, deferred in (
+            ("upgrade", "head", True),
+            ("downgrade", "0304_merge_evals_platform", False),
+            ("upgrade", "head", True),
+        ):
+            result = _alembic(action, revision)
+            assert result.returncode == 0, result.stderr
+            with engine.connect() as connection:
+                rows = connection.execute(
+                    text(
+                        "SELECT conname, condeferrable, condeferred, confdeltype FROM pg_constraint WHERE conname IN (:routine, :page)"
+                    ),
+                    {"routine": constraints[0], "page": constraints[1]},
+                ).all()
+                assert len(rows) == 2
+                assert all(
+                    row.condeferrable == deferred
+                    and row.condeferred == deferred
+                    and row.confdeltype == "n"
+                    for row in rows
+                )
+
+        for reordered in (False, True):
+            with DatabaseSession(engine) as db:
+                assert (
+                    db.scalar(select(Artifact.environment_id).where(Artifact.id == page_id))
+                    == environment_id
+                )
+                assert (
+                    db.scalar(
+                        select(AgentTrigger.delivery_conversation_id).where(
+                            AgentTrigger.id == routine_id
+                        )
+                    )
+                    == chat_id
+                )
+                if reordered:
+                    for parent, keys, _, _ in cascades:
+                        cascade_last(db, parent, keys)
+                db.execute(
+                    update(AgentTrigger)
+                    .where(AgentTrigger.id == routine_id)
+                    .values(prompt="Updated report")
+                )
+                db.execute(
+                    update(Artifact).where(Artifact.id == page_id).values(title="Updated report")
+                )
+                db.execute(delete(User).where(User.id == owner_id))
+                db.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+                assert (
+                    db.scalar(
+                        select(AgentTrigger.delivery_conversation_id).where(
+                            AgentTrigger.id == routine_id
+                        )
+                    )
+                    is None
+                )
+                db.execute(text("SET CONSTRAINTS ALL DEFERRED"))
+                db.execute(delete(Agent).where(Agent.id == agent_id))
+                db.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+                surviving_page = db.get(Artifact, page_id)
+                assert surviving_page is not None
+                assert surviving_page.agent_id is None
+                assert surviving_page.environment_id is None
+                # Roll back rows and reordered constraints before the next case.
+
+        for statement, constraint in (
+            (
+                update(AgentTrigger)
+                .where(AgentTrigger.id == routine_id)
+                .values(delivery_conversation_id=uuid4()),
+                constraints[0],
+            ),
+            (
+                update(Artifact).where(Artifact.id == page_id).values(environment_id=uuid4()),
+                constraints[1],
+            ),
+        ):
+            with DatabaseSession(engine) as db:
+                db.execute(statement)
+                with pytest.raises(IntegrityError, match=constraint):
+                    db.commit()
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
+    finally:
+        engine.dispose()
+
+
 class TestMigrations:
     """Test Alembic migration integrity."""
 
@@ -219,6 +543,117 @@ class TestMigrations:
         assert "(head)" in result.stdout, (
             f"Current revision is not at head:\nstdout: {result.stdout}\nstderr: {result.stderr}"
         )
+
+
+@pytest.mark.parametrize(
+    "starting_revision",
+    [
+        "0248_merge_self_improvement",
+        "0250_discord_channel",
+        "0252_index_rag_parent_doc_id",
+        "0253_helper_snapshots",
+        "0254_merge_eval_rag_index",
+        "0295_tool_approval_consent",
+        "0296_merge_evals_main",
+        "0303_merge_workflow_onboarding",
+        "0312_skill_check_reasons",
+        "0314_tool_approval_always_asks",
+        "0306_shared_page_attribution",
+    ],
+)
+def test_improvement_merge_upgrades_either_existing_history(starting_revision: str) -> None:
+    down = _alembic("downgrade", "base")
+    assert down.returncode == 0, down.stderr
+    prior = _alembic("upgrade", starting_revision)
+    assert prior.returncode == 0, prior.stderr
+    user_id = uuid4()
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO users (id, email, is_active, is_app_admin) "
+                    "VALUES (:id, 'merge-upgrade@example.com', true, false)"
+                ),
+                {"id": user_id},
+            )
+        upgraded = _alembic("upgrade", "head")
+        assert upgraded.returncode == 0, upgraded.stderr
+        with engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT email FROM users WHERE id = :id"), {"id": user_id}
+                ).scalar_one()
+                == "merge-upgrade@example.com"
+            )
+            assert (
+                connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+                == ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
+            )
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize("table", ["notifications", "notification_preferences"])
+def test_eval_upgrade_preserves_existing_main_notification_rows(table: str) -> None:
+    """Intermediate eval checks must accept populated, already deployed main events."""
+    down = _alembic("downgrade", "base")
+    assert down.returncode == 0, down.stderr
+    prior = _alembic("upgrade", "0303_merge_workflow_onboarding")
+    assert prior.returncode == 0, prior.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.begin() as connection:
+            user_id = uuid4()
+            connection.execute(
+                text(
+                    "INSERT INTO users (id, email, is_active, is_app_admin) "
+                    "VALUES (:id, 'notification-upgrade@example.com', true, false)"
+                ),
+                {"id": user_id},
+            )
+            definition = connection.execute(
+                text(
+                    "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                    "WHERE conrelid = to_regclass(:table) AND contype = 'c' "
+                    "AND pg_get_constraintdef(oid) LIKE '%event_type%'"
+                ),
+                {"table": table},
+            ).scalar_one()
+            events = set(re.findall(r"'([^']+)'", definition))
+            assert {"capability_requested", "suggestion", "finding"} <= events
+            if table == "notifications":
+                insert = text(
+                    "INSERT INTO notifications "
+                    "(id, recipient_user_id, event_type, occurrence_id, summary, in_app_visible) "
+                    "VALUES (:id, :user, :event, :event, 'Retain this notification', true)"
+                )
+            else:
+                insert = text(
+                    "INSERT INTO notification_preferences "
+                    "(id, user_id, event_type, channel, enabled) "
+                    "VALUES (:id, :user, :event, 'in_app', false)"
+                )
+            connection.execute(
+                insert,
+                [{"id": uuid4(), "user": user_id, "event": event} for event in sorted(events)],
+            )
+            snapshot = text(
+                "SELECT row_to_json(t)::text FROM notifications t ORDER BY id"
+                if table == "notifications"
+                else "SELECT row_to_json(t)::text FROM notification_preferences t ORDER BY id"
+            )
+            before = connection.execute(snapshot).scalars().all()
+        upgraded = _alembic("upgrade", "head")
+        assert upgraded.returncode == 0, upgraded.stderr
+        with engine.connect() as connection:
+            assert connection.execute(snapshot).scalars().all() == before
+        checked = _alembic("check")
+        assert checked.returncode == 0, checked.stderr
+    finally:
+        engine.dispose()
 
 
 class TestBotTranscriptionSwitch:
@@ -415,6 +850,116 @@ class TestBotTranscriptionSwitch:
         assert keys[bots["pairless"][0]] is None
 
         down = _alembic("downgrade", "0150_org_speech_settings")
+        assert down.returncode == 0, down.stderr
+
+
+class TestReviewQueueKey:
+    """`0174_case_score_agent_key.py`: a score keeps the agent that answered, and
+    at most one score of a case waits for review for each agent."""
+
+    def test_each_agent_keeps_one_waiting_score_of_a_case_and_the_rest_leave(self):
+        assert _alembic("downgrade", "base").returncode == 0
+        up = _alembic("upgrade", "0178_eval_run_proposal_check")
+        assert up.returncode == 0, up.stderr
+
+        org, dataset, case, revision = (
+            "00000000-0000-0000-0000-0000000000a1",
+            "00000000-0000-0000-0000-0000000000d1",
+            "00000000-0000-0000-0000-0000000000c1",
+            "00000000-0000-0000-0000-0000000000c2",
+        )
+        first, second = (
+            "00000000-0000-0000-0000-0000000000e1",
+            "00000000-0000-0000-0000-0000000000e2",
+        )
+        runs = {
+            "first": ("00000000-0000-0000-0000-0000000000f1", first),
+            "second": ("00000000-0000-0000-0000-0000000000f2", second),
+        }
+        eval_run = "00000000-0000-0000-0000-0000000000b1"
+        # (run, eval run, passed, review state, minutes after the first score)
+        scores = {
+            "older fail": ("first", None, False, "pending", 0),
+            "newer fail": ("first", None, False, "pending", 1),
+            "judge error": (None, eval_run, None, "pending", 2),
+            "decided": ("first", None, True, "done", 3),
+            "other agent": ("second", None, None, "pending", 0),
+            "no agent": (None, None, False, "pending", 0),
+        }
+        ids = {name: f"00000000-0000-0000-0000-{n:012d}" for n, name in enumerate(scores, 1)}
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        try:
+            with engine.begin() as connection:
+                # Replica mode skips the foreign-key triggers, so the agents,
+                # the dataset and its version need not exist.
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                for run_id, agent_id in runs.values():
+                    connection.execute(
+                        text(
+                            "INSERT INTO agent_runs (id, organization_id, agent_id, surface, "
+                            "status, input_tokens, output_tokens, cost_usd, cost_is_partial) "
+                            "VALUES (:id, :org, :agent, 'api', 'completed', 0, 0, 0, false)"
+                        ),
+                        {"id": run_id, "org": org, "agent": agent_id},
+                    )
+                connection.execute(
+                    text(
+                        "INSERT INTO eval_runs (id, organization_id, agent_id, dataset_id, "
+                        "dataset_version_id, status, purpose, paired, from_recordings, "
+                        "live_reads, reruns, scoring, scoring_hash, estimate_usd, "
+                        "rerun_ceiling_usd, routed_to_review, routed_replacing) VALUES "
+                        "(:id, :org, :agent, :dataset, :dataset, 'completed', 'manual', false, "
+                        "false, false, 0, '{}', 'x', 0, 0, 0, 0)"
+                    ),
+                    {"id": eval_run, "org": org, "agent": first, "dataset": dataset},
+                )
+                for name, (run, evaluated, passed, state, minutes) in scores.items():
+                    connection.execute(
+                        text(
+                            "INSERT INTO case_scores (id, organization_id, dataset_id, "
+                            "case_revision_id, case_id, run_id, eval_run_id, scoring, results, "
+                            "passed, review_state, created_at) VALUES (:id, :org, :dataset, "
+                            ":revision, :case, :run, :eval_run, '{}', '[]', :passed, :state, "
+                            "TIMESTAMPTZ '2026-10-01 12:00+00' + make_interval(mins => :minutes))"
+                        ),
+                        {
+                            "id": ids[name],
+                            "org": org,
+                            "dataset": dataset,
+                            "revision": revision,
+                            "case": case,
+                            "run": None if run is None else runs[run][0],
+                            "eval_run": evaluated,
+                            "passed": passed,
+                            "state": state,
+                            "minutes": minutes,
+                        },
+                    )
+
+            up = _alembic("upgrade", "0174_case_score_agent_key")
+            assert up.returncode == 0, up.stderr
+
+            with engine.connect() as connection:
+                rows = {
+                    str(row[0]): (None if row[1] is None else str(row[1]), row[2])
+                    for row in connection.execute(
+                        text("SELECT id, agent_id, review_state FROM case_scores")
+                    )
+                }
+        finally:
+            engine.dispose()
+
+        assert {name: rows[ids[name]] for name in scores} == {
+            "older fail": (first, "none"),
+            "newer fail": (first, "pending"),
+            "judge error": (first, "none"),
+            "decided": (first, "done"),
+            "other agent": (second, "pending"),
+            "no agent": (None, "pending"),
+        }
+        assert "2 duplicate scores waiting for review left the queue undecided" in up.stderr
+
+        down = _alembic("downgrade", "0178_eval_run_proposal_check")
         assert down.returncode == 0, down.stderr
 
 
@@ -895,6 +1440,151 @@ class TestSkillBindingAvailability:
             upgraded_again = _alembic("upgrade", "0180_remove_skill_enabled")
             assert upgraded_again.returncode == 0, upgraded_again.stderr
         finally:
+            # Their organization was never written, so a later upgrade past 0250,
+            # which gives every skill a version in its organization, would fail on them.
+            with engine.begin() as connection:
+                connection.execute(text("DELETE FROM skills WHERE id IN (:a, :b)"), selected)
+            engine.dispose()
+
+
+class TestRunSkillUsesBackfill:
+    def test_transcripts_become_uses_and_every_older_run_reads_unknown(self) -> None:
+        """Loads and file reads are copied by skill, never to a skill named so later.
+
+        The runs stay unrecorded - an old transcript proves a load, never the
+        absence of one - while a run written after the upgrade is recorded.
+        """
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        before = _alembic("upgrade", "0306_shared_page_attribution")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        org, agent = uuid4(), uuid4()
+        refunds, shipping, renamed = uuid4(), uuid4(), uuid4()
+        loaded, quiet, later = uuid4(), uuid4(), uuid4()
+        now = datetime.now(UTC)
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                # The parents a use points at; nothing else about them matters here.
+                connection.execute(
+                    text(
+                        "INSERT INTO organizations (id, name, slug, is_personal, created_by_user_id) "
+                        "VALUES (:id, 'Skills', :slug, false, :user)"
+                    ),
+                    {"id": org, "slug": f"skills-{org.hex[:8]}", "user": uuid4()},
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO agents (id, organization_id, visibility, slug, name, status) "
+                        "VALUES (:id, :org, 'org', :slug, 'Refund desk', 'draft')"
+                    ),
+                    {"id": agent, "org": org, "slug": f"refunds-{agent.hex[:8]}"},
+                )
+                for skill_id, name, created in (
+                    (refunds, "refunds", now - timedelta(days=10)),
+                    (shipping, "shipping", now - timedelta(days=10)),
+                    # Named like a skill a run loaded, and created after that run.
+                    (renamed, "returns", now),
+                ):
+                    connection.execute(
+                        text(
+                            "INSERT INTO skills (id, organization_id, name, description, content, "
+                            "version, visibility, created_at) VALUES "
+                            "(:id, :org, :name, 'A procedure', 'Check', 1, 'org', :created)"
+                        ),
+                        {"id": skill_id, "org": org, "name": name, "created": created},
+                    )
+                calls = {
+                    loaded: [
+                        ("load_capability", {"id": "refunds"}, "completed"),
+                        ("read_skill_resource", {"skill_name": "refunds"}, "completed"),
+                        ("read_skill_resource", {"skill_name": "refunds"}, "completed"),
+                        ("load_skill", {"skill_name": "shipping"}, "completed"),
+                        ("load_capability", {"id": "returns"}, "completed"),
+                        ("search_documents", {"query": "refunds"}, "completed"),
+                    ],
+                    # Calls that never ran opened nothing.
+                    quiet: [
+                        ("load_capability", {"id": "refunds"}, "failed"),
+                        ("read_skill_resource", {"skill_name": "refunds"}, "awaiting_approval"),
+                        ("read_skill_resource", {"skill_name": "refunds"}, "rejected"),
+                    ],
+                }
+                for run_id, made in calls.items():
+                    connection.execute(
+                        text(
+                            "INSERT INTO agent_runs (id, organization_id, agent_id, surface, status, "
+                            "input_tokens, output_tokens, cost_usd, cost_is_partial, started_at) "
+                            "VALUES (:id, :org, :agent, 'chat', 'completed', 0, 0, 0, false, :at)"
+                        ),
+                        {"id": run_id, "org": org, "agent": agent, "at": now - timedelta(days=5)},
+                    )
+                    message = uuid4()
+                    connection.execute(
+                        text(
+                            "INSERT INTO messages (id, conversation_id, role, content, ordinal, run_id) "
+                            "VALUES (:id, :conversation, 'assistant', 'Done', 1, :run)"
+                        ),
+                        {"id": message, "conversation": uuid4(), "run": run_id},
+                    )
+                    for index, (tool, args, status) in enumerate(made):
+                        connection.execute(
+                            text(
+                                "INSERT INTO tool_calls (id, message_id, tool_call_id, tool_name, "
+                                "args, status, started_at) VALUES "
+                                "(:id, :message, :call, :tool, CAST(:args AS jsonb), :status, :at)"
+                            ),
+                            {
+                                "id": uuid4(),
+                                "message": message,
+                                "call": f"c{index}",
+                                "tool": tool,
+                                "args": json.dumps(args),
+                                "status": status,
+                                "at": now,
+                            },
+                        )
+            up = _alembic("upgrade", "0305_run_skill_uses")
+            assert up.returncode == 0, up.stderr
+            with engine.begin() as connection:
+                uses = connection.execute(
+                    text(
+                        "SELECT run_id, agent_id, skill_id, loaded, resource_reads, workspace_reads, "
+                        "skill_version_id FROM run_skill_uses WHERE organization_id = :org"
+                    ),
+                    {"org": org},
+                ).all()
+                assert sorted(
+                    (use.skill_id, use.loaded, use.resource_reads) for use in uses
+                ) == sorted([(refunds, True, 2), (shipping, True, 0)])
+                assert {(use.run_id, use.agent_id) for use in uses} == {(loaded, agent)}
+                assert {(use.workspace_reads, use.skill_version_id) for use in uses} == {(0, None)}
+                assert connection.execute(
+                    text("SELECT skill_uses_recorded FROM agent_runs WHERE id IN (:a, :b)"),
+                    {"a": loaded, "b": quiet},
+                ).scalars().all() == [False, False]
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO agent_runs (id, organization_id, agent_id, surface, status, "
+                        "input_tokens, output_tokens, cost_usd, cost_is_partial) "
+                        "VALUES (:id, :org, :agent, 'chat', 'completed', 0, 0, 0, false)"
+                    ),
+                    {"id": later, "org": org, "agent": agent},
+                )
+                assert (
+                    connection.execute(
+                        text("SELECT skill_uses_recorded FROM agent_runs WHERE id = :id"),
+                        {"id": later},
+                    ).scalar_one()
+                    is True
+                )
+            back = _alembic("downgrade", "0306_shared_page_attribution")
+            assert back.returncode == 0, back.stderr
+            again = _alembic("upgrade", "head")
+            assert again.returncode == 0, again.stderr
+        finally:
             engine.dispose()
 
 
@@ -1156,3 +1846,226 @@ class TestDraftPresentationMigration:
             assert check.returncode == 0, check.stderr
         finally:
             engine.dispose()
+
+
+def test_shared_attribution_defaults_and_opt_out_survive_upgrade() -> None:
+    for action, revision in (("upgrade", "head"), ("downgrade", "0305_defer_delete_crosslinks")):
+        result = _alembic(action, revision)
+        assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    user_id, existing_id, new_id = uuid4(), uuid4(), uuid4()
+    insert_org = text(
+        "INSERT INTO organizations (id, name, slug, is_personal, created_by_user_id) "
+        "VALUES (:id, 'Attribution', :slug, false, :creator)"
+    )
+    preference = text("SELECT public_agenticos_attribution FROM organizations WHERE id = :id")
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO users (id, email, is_active, is_app_admin) VALUES (:id, :email, true, false)"
+                ),
+                {"id": user_id, "email": f"{user_id}@example.com"},
+            )
+            connection.execute(
+                insert_org, {"id": existing_id, "slug": str(existing_id), "creator": user_id}
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.begin() as connection:
+            assert connection.execute(preference, {"id": existing_id}).scalar_one() is True
+            connection.execute(insert_org, {"id": new_id, "slug": str(new_id), "creator": user_id})
+            assert connection.execute(preference, {"id": new_id}).scalar_one() is True
+            connection.execute(
+                text(
+                    "UPDATE organizations SET public_agenticos_attribution = false WHERE id = :id"
+                ),
+                {"id": existing_id},
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as connection:
+            assert connection.execute(preference, {"id": existing_id}).scalar_one() is False
+            assert connection.execute(preference, {"id": new_id}).scalar_one() is True
+        result = _alembic("downgrade", "0305_defer_delete_crosslinks")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text(
+                        "SELECT count(*) FROM information_schema.columns WHERE table_name = 'organizations' AND column_name = 'public_agenticos_attribution'"
+                    )
+                ).scalar_one()
+                == 0
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
+    finally:
+        engine.dispose()
+
+
+def test_a_call_still_waiting_that_always_asks_is_marked() -> None:
+    """A call parked before the column existed never expires, so one that always asks is marked."""
+    for action, revision in (("upgrade", "head"), ("downgrade", "0306_shared_page_attribution")):
+        result = _alembic(action, revision)
+        assert result.returncode == 0, result.stderr
+    wide_claim, own_claim = uuid4(), uuid4()
+    rows = {
+        "waiting share": ("share_memory", "pending", {}),
+        "decided share": ("share_memory", "approved", {}),
+        "waiting email": ("send_email", "pending", {}),
+        "waiting wide correction": ("correct_memory", "pending", {"claim_id": str(wide_claim)}),
+        "waiting own correction": ("correct_memory", "pending", {"claim_id": str(own_claim)}),
+        "waiting nonsense correction": ("correct_memory", "pending", {"claim_id": "not-an-id"}),
+    }
+    ids = {name: str(uuid4()) for name in rows}
+    org, agent, run = uuid4(), uuid4(), uuid4()
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.begin() as connection:
+            # Replica mode skips the foreign-key triggers, so no organization,
+            # agent or run has to exist for the approvals to name.
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            for claim_id, scope_key in (
+                (wide_claim, f"org:{org}"),
+                (own_claim, f"person:{uuid4()}"),
+            ):
+                connection.execute(
+                    text(
+                        "INSERT INTO memory_claims (id, organization_id, scope_key, statement, "
+                        "kind, origin, status) "
+                        "VALUES (:id, :org, :scope, 'Office closes at six', 'fact', 'person', "
+                        "'current')"
+                    ),
+                    {"id": claim_id, "org": org, "scope": scope_key},
+                )
+            for name, (tool, status, args) in rows.items():
+                connection.execute(
+                    text(
+                        "INSERT INTO tool_approvals (id, organization_id, run_id, agent_id, "
+                        "tool_id, capability_tool_id, status, tool_args) "
+                        "VALUES (:id, :org, :run, :agent, :tool, :tool, :status, "
+                        "CAST(:args AS jsonb))"
+                    ),
+                    {
+                        "id": ids[name],
+                        "org": org,
+                        "run": run,
+                        "agent": agent,
+                        "tool": tool,
+                        "status": status,
+                        "args": json.dumps(args),
+                    },
+                )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as connection:
+            marked = {
+                name: connection.execute(
+                    text("SELECT always_asks FROM tool_approvals WHERE id = :id"),
+                    {"id": ids[name]},
+                ).scalar_one()
+                for name in rows
+            }
+        assert marked == {
+            "waiting share": True,
+            "decided share": False,
+            "waiting email": False,
+            "waiting wide correction": True,
+            "waiting own correction": False,
+            "waiting nonsense correction": False,
+        }
+    finally:
+        with engine.begin() as connection:
+            connection.execute(
+                text("DELETE FROM tool_approvals WHERE id::text = ANY(:ids)"),
+                {"ids": list(ids.values())},
+            )
+            connection.execute(
+                text("DELETE FROM memory_claims WHERE id::text = ANY(:ids)"),
+                {"ids": [str(wide_claim), str(own_claim)]},
+            )
+        engine.dispose()
+
+
+def test_opensandbox_upgrade_and_guarded_downgrade_preserve_connection_settings() -> None:
+    """Images widen without changing old connections, and rollback never drops live settings."""
+    prior = _alembic("upgrade", "0316_trigger_attempts")
+    assert prior.returncode == 0, prior.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    owner, organization, legacy, remote = (uuid4() for _ in range(4))
+    image = "registry.example/" + "a" * 150 + ":latest"
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO users (id, email, is_active, is_app_admin) VALUES (:id, :email, true, false)"
+                ),
+                {"id": owner, "email": f"{owner}@example.com"},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO organizations (id, name, slug, is_personal, created_by_user_id) VALUES (:id, 'Sandbox migration', :slug, false, :owner)"
+                ),
+                {"id": organization, "slug": f"sandbox-{organization}", "owner": owner},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO sandbox_connections (id, organization_id, name, kind, default_runtime, is_default, is_active) VALUES (:id, :org, 'Legacy sandbox', 'docker', 'python', false, true)"
+                ),
+                {"id": legacy, "org": organization},
+            )
+        upgraded = _alembic("upgrade", "0317_opensandbox_connections")
+        assert upgraded.returncode == 0, upgraded.stderr
+        with engine.begin() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT secure_access FROM sandbox_connections WHERE id=:id"),
+                    {"id": legacy},
+                ).scalar_one()
+                is False
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO sandbox_connections (id, organization_id, name, kind, base_url, default_runtime, secure_access, is_default, is_active) VALUES (:id, :org, 'OpenSandbox', 'opensandbox', 'https://sandbox.example', :image, true, false, true)"
+                ),
+                {"id": remote, "org": organization, "image": image},
+            )
+        refused = _alembic("downgrade", "0316_trigger_attempts")
+        assert refused.returncode != 0 and "Remove OpenSandbox connections" in refused.stderr
+        with engine.begin() as connection:
+            assert connection.execute(
+                text("SELECT default_runtime, secure_access FROM sandbox_connections WHERE id=:id"),
+                {"id": remote},
+            ).one() == (image, True)
+            connection.execute(text("DELETE FROM sandbox_connections WHERE id=:id"), {"id": remote})
+            connection.execute(
+                text("UPDATE sandbox_connections SET default_runtime=:image WHERE id=:id"),
+                {"id": legacy, "image": image},
+            )
+        refused_long = _alembic("downgrade", "0316_trigger_attempts")
+        assert refused_long.returncode != 0 and "64 characters" in refused_long.stderr
+        with engine.begin() as connection:
+            connection.execute(
+                text("UPDATE sandbox_connections SET default_runtime='python' WHERE id=:id"),
+                {"id": legacy},
+            )
+        downgraded = _alembic("downgrade", "0316_trigger_attempts")
+        assert downgraded.returncode == 0, downgraded.stderr
+        with engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text(
+                        "SELECT character_maximum_length FROM information_schema.columns WHERE table_name='sandbox_connections' AND column_name='default_runtime'"
+                    )
+                ).scalar_one()
+                == 64
+            )
+        restored = _alembic("upgrade", "head")
+        assert restored.returncode == 0, restored.stderr
+        drift = _alembic("check")
+        assert drift.returncode == 0, drift.stderr
+    finally:
+        engine.dispose()
