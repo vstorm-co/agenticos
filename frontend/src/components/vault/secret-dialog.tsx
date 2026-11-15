@@ -269,10 +269,15 @@ export function AddSecretDialog({
           about the form. */}
       <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)} dismissible={!pending}>
         <DialogHeader>
-          <DialogTitle>
-            {t(fixedKind === "smtp_account" ? "addSmtpAccount" : "addSecret")}
-          </DialogTitle>
-          <DialogDescription>{t("encryptedBoundOrganizationAgent")}</DialogDescription>
+          <div className="flex items-center gap-1.5">
+            <DialogTitle>
+              {t(fixedKind === "smtp_account" ? "addSmtpAccount" : "addSecret")}
+            </DialogTitle>
+            <ContextHelp>{t("encryptedBoundOrganizationAgent")}</ContextHelp>
+          </div>
+          <DialogDescription className="sr-only">
+            {t("encryptedBoundOrganizationAgent")}
+          </DialogDescription>
         </DialogHeader>
 
         <div className={DIALOG_BODY}>

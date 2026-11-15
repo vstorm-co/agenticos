@@ -116,7 +116,7 @@ function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
   return (
     <div
       className={cn(
-        "mt-2 flex min-w-0 shrink-0 flex-row flex-wrap items-center justify-end gap-2 pt-3 sm:pt-4 max-sm:[&>button]:h-auto max-sm:[&>button]:min-h-11 max-sm:[&>button]:max-w-full max-sm:[&>button]:whitespace-normal",
+        "border-border mt-2 flex min-w-0 shrink-0 flex-row flex-wrap items-center justify-end gap-2 border-t pt-3 sm:pt-4 max-sm:[&>button]:h-auto max-sm:[&>button]:min-h-11 max-sm:[&>button]:max-w-full max-sm:[&>button]:whitespace-normal",
         className,
       )}
       {...props}
@@ -145,7 +145,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn("text-muted-foreground text-[13px] leading-relaxed", className)}
+    className={cn("text-muted-foreground text-sm leading-relaxed", className)}
     {...props}
   />
 ));
