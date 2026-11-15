@@ -300,24 +300,24 @@ async function instruct(page: Page, instructions: string): Promise<void> {
  * first-class provider here.
  */
 async function addStubModel(page: Page, label: string): Promise<void> {
-  await page.locator("#add-model-provider").click();
+  await page.locator('[id$="-add-model-provider"]:visible').click();
   await page.getByRole("option", { name: PROVIDER_LABEL, exact: true }).click();
-  await page.locator("#add-model-id").click();
+  await page.locator('[id$="-add-model-id"]:visible').click();
   await page.getByPlaceholder("Search models…").fill(PROVIDER_MODEL);
   await page.getByRole("option", { name: new RegExp(`^(Use )?${PROVIDER_MODEL}\\b`) }).click();
 
   // The key picker only appears once a provider has more than one key stored -
   // with exactly one there is nothing to decide. Whichever it lands on is the
   // seed's, and no request is authenticated: the stub does not check.
-  const keyPicker = page.locator("#add-model-key");
+  const keyPicker = page.locator('[id$="-add-model-key"]:visible');
   if (await keyPicker.isVisible()) {
     await keyPicker.click();
     await page.getByRole("option").first().click();
   }
 
-  await page.locator("#add-model-endpoint").fill(MODEL_ENDPOINT);
+  await page.locator('[id$="-add-model-endpoint"]:visible').fill(MODEL_ENDPOINT);
   await page.getByRole("button", { name: "Name it something else" }).click();
-  await page.locator("#add-model-label").fill(label);
+  await page.locator('[id$="-add-model-label"]:visible').fill(label);
   await page.getByRole("button", { name: "Add model" }).click();
 
   await expectModel(page, label);

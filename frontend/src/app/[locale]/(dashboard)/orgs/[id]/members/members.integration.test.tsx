@@ -453,10 +453,14 @@ describe("organization settings tabs", () => {
   });
 
   it("combines service settings while preserving drafts across tabs and disclosure changes", async () => {
-    serve("owner", [
-      { permission: Perm.orgSettings, scope: "all" },
-      { permission: Perm.budgetsManage, scope: "all" },
-    ]);
+    serve(
+      "owner",
+      [
+        { permission: Perm.orgSettings, scope: "all" },
+        { permission: Perm.budgetsManage, scope: "all" },
+      ],
+      { proactive_model_profile_id: "profile-1" },
+    );
     await mount();
     await screen.findByRole("tab", { name: "AI & services" });
     expect(screen.getAllByRole("tab").map((item) => item.textContent)).toEqual([
@@ -493,7 +497,7 @@ describe("organization settings tabs", () => {
     expect(screen.queryByRole("heading", { name: "Voice" })).not.toBeInTheDocument();
   });
 
-  it("combines setup hints on the services tab", async () => {
+  it("shows actionable Voice setup without warning about disabled services", async () => {
     serve(
       "owner",
       [
@@ -510,10 +514,9 @@ describe("organization settings tabs", () => {
     await mount();
     const services = await screen.findByRole("tab", { name: "AI & services" });
     await waitFor(() =>
-      expect(services).toHaveAccessibleDescription(
-        /Voice has no default provider.*Nightly suggestions are off.*Memory maintenance has no model/,
-      ),
+      expect(services).toHaveAccessibleDescription(/Voice has no default provider/),
     );
+    expect(services).not.toHaveAccessibleDescription(/Nightly suggestions|Memory maintenance/);
     expect(screen.queryByRole("tab", { name: "Workspace" })).not.toBeInTheDocument();
   });
 
