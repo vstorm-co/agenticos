@@ -553,8 +553,7 @@ export function AddModel({
   return (
     <div className="border-border bg-muted/20 space-y-4 rounded-xl border p-4">
       <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-        <div className="space-y-1.5">
-          <Label htmlFor="add-model-provider">{t("provider")}</Label>
+        <FormField htmlFor="add-model-provider" label={t("provider")}>
           <Select
             value={providerId}
             onValueChange={(value) => {
@@ -567,7 +566,7 @@ export function AddModel({
               setFailure(NO_FAILURE);
             }}
           >
-            <SelectTrigger id="add-model-provider">
+            <SelectTrigger id="add-model-provider" className="h-10">
               <SelectValue placeholder={t("chooseProvider")} />
             </SelectTrigger>
             <SelectContent className="max-h-80">
@@ -596,7 +595,7 @@ export function AddModel({
               })}
             </SelectContent>
           </Select>
-        </div>
+        </FormField>
 
         {/*
           The provider's catalog, searchable, and still able to carry an id that
