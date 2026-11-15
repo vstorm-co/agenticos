@@ -158,7 +158,7 @@ test("phone event wizard preserves back navigation and a refused draft before cr
     await page.getByRole("button", { name: "New routine", exact: true }).click();
     await page.getByRole("menuitem", { name: "Run when an event arrives", exact: true }).click();
     await page
-      .getByRole("group", { name: "API trigger", exact: true })
+      .getByRole("group", { name: "Webhook or API trigger", exact: true })
       .getByRole("button", { name: "Create trigger", exact: true })
       .click();
     const dialog = page.getByRole("dialog").last();
