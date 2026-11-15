@@ -158,6 +158,11 @@ async def test_schema_quota_refusal_rolls_back_retype_and_definition_together(
         assert (
             await virtual_table_repo.storage_bytes(db, organization_id=ctx.organization_id) == used
         )
+        refusal = await db.scalar(
+            select(AppAdminAuditLog).where(AppAdminAuditLog.action == "table.quota_refused")
+        )
+        assert refusal is not None
+        assert refusal.target_type == "table" and refusal.target_id == str(source.id)
         assert (
             await db.scalar(
                 select(func.count())
