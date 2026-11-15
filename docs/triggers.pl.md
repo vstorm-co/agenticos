@@ -1,5 +1,5 @@
 ---
-source_sha: "e665c681d628"
+source_sha: "6740bcc477b4"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -162,11 +162,19 @@ flowchart TD
 
   GitHub, HubSpot i Zendesk podpisują swoje dostarczenia same, więc dajesz
   providerowi sekret - albo, przy HubSpocie i Zendesku, bierzesz ten, który on
-  wydał - a on robi podpisywanie. Źródło API używa schematu GitHuba pod
+  wydał - a on robi podpisywanie. Źródło API domyślnie używa schematu GitHuba pod
   `X-Signature-256`, który to, co skierujesz na ten URL, musi ustawić samo.
   Źródło **odpytywane** nic nie podpisuje i nie trzyma sekretu: nie było
   adresowane, tylko odczytane, a autoryzacją odczytu jest własna zgoda OAuth tego
   konta.
+
+Ogólny `webhook` domyślnie używa powyższego podpisu. Tworząc lub zmieniając trigger przez API, ustaw `event_config` na `{"signature_scheme":"hmac-sha256-base64","signature_header":"X-Shopify-Hmac-Sha256"}` dla Shopify albo użyj `X-Hookdeck-Signature` dla domyślnego podpisu Hookdeck. `hmac-sha256-hex` przyjmuje skrót szesnastkowy bez prefiksu. Oba podpisują dokładne surowe body i wymagają sekretu dostawcy jako `event_secret`; wielkość liter w nazwie nagłówka nie ma znaczenia.
+
+Te tryby nie uwierzytelniają czasu, więc przechwycone żądanie można ponowić. Ogólny nagłówek ID dostarczenia nie jest podpisany i można go zmienić. Filtruj u dostawcy i użyj dedykowanej integracji, gdy jego kontrakt wymaga kontroli czasu, innej odpowiedzi sukcesu lub innego schematu podpisu. Te opcje nie implementują kontraktu webhooków Linear. Konsola tworzy obecnie domyślny schemat; alternatywy konfiguruje się przez API.
+
+Shopify i Hookdeck zwykle nie wysyłają `X-Delivery-ID`, więc ponowienia mogą ponownie uruchomić trigger. Ten trigger nie sprawdza ich identyfikatorów dostarczenia. Podpis body nie wiąże docelowego URL ani nagłówków dostawcy: używaj osobnego sekretu dla każdej granicy zaufania i nie autoryzuj dostarczeń na podstawie niepodpisanych nagłówków sklepu lub tematu. Sekret aplikacji Shopify może być współdzielony przez sklepy; nie używaj tego trybu, gdy podpis ma dowodzić, z którego sklepu lub subskrypcji pochodzi zdarzenie.
+
+Rotate generuje nowy sekret AgenticOS; nie pozwala wprowadzić nowego sekretu wydanego przez dostawcę. Gdy sekretem zarządza dostawca, utwórz nowy trigger i po zmianie sekretu zaktualizuj jego URL u dostawcy. Drugi podpis Hookdeck przy opóźnionej rotacji nie jest sprawdzany.
 
 !!! danger "Podpis nie jest ozdobą"
 
