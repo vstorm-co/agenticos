@@ -255,7 +255,7 @@ export function ProfileIdentitySettings({
                   />
                 </MoreOptions>
               </div>
-              <div className="grid items-start gap-4 md:grid-cols-2">
+              <div className={cn("grid items-start gap-4", !unifiedSave && "md:grid-cols-2")}>
                 <FormField label={t("displayName")} htmlFor="profile-name">
                   <Input
                     id="profile-name"
