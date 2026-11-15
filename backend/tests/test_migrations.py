@@ -1791,6 +1791,13 @@ class TestConnectedAccountSources:
 
 
 class TestRoomThreadMigration:
+    def test_revision_follows_the_room_merge_and_keeps_one_head(self) -> None:
+        script = ScriptDirectory.from_config(Config("alembic.ini"))
+        revision = script.get_revision("0326_room_threads")
+        assert revision is not None
+        assert revision.down_revision == "0325_merge_t3_rooms_v173"
+        assert script.get_heads() == ["0326_room_threads"]
+
     def test_existing_quotes_survive_roundtrip_and_models_match_head(self) -> None:
         reset = _alembic("downgrade", "base")
         assert reset.returncode == 0, reset.stderr
@@ -1835,6 +1842,40 @@ class TestRoomThreadMigration:
                     )
                 )
                 assert cascade == "c"
+                indexes = connection.execute(
+                    text(
+                        "SELECT c.relname, i.indisvalid, i.indisunique "
+                        "FROM pg_class c JOIN pg_index i ON i.indexrelid = c.oid "
+                        "WHERE c.relname IN ('uq_messages_conversation_id_id', 'messages_thread_ordinal_idx')"
+                    )
+                ).all()
+                assert {row.relname for row in indexes} == {
+                    "uq_messages_conversation_id_id",
+                    "messages_thread_ordinal_idx",
+                }
+                assert all(row.indisvalid for row in indexes)
+                assert next(
+                    row for row in indexes if row.relname == "uq_messages_conversation_id_id"
+                ).indisunique
+                assert (
+                    connection.scalar(
+                        text(
+                            "SELECT conindid = 'uq_messages_conversation_id_id'::regclass "
+                            "FROM pg_constraint WHERE conrelid = 'messages'::regclass "
+                            "AND conname = 'uq_messages_conversation_id_id'"
+                        )
+                    )
+                    is True
+                )
+                assert (
+                    connection.scalar(
+                        text(
+                            "SELECT convalidated FROM pg_constraint WHERE conrelid = 'messages'::regclass "
+                            "AND conname = 'fk_messages_thread_root'"
+                        )
+                    )
+                    is True
+                )
             check = _alembic("check")
             assert check.returncode == 0, check.stderr
             child_id = uuid4()
@@ -1925,8 +1966,7 @@ class TestRoomThreadMigration:
         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
             connection.execute(
                 text(
-                    "CREATE UNIQUE INDEX CONCURRENTLY uq_messages_conversation_id_id "
-                    "ON messages (conversation_id, id)"
+                    "CREATE UNIQUE INDEX CONCURRENTLY uq_messages_conversation_id_id ON messages (conversation_id, id)"
                 )
             )
             index_id = connection.scalar(
@@ -2023,33 +2063,43 @@ class TestRoomThreadMigration:
                 == index_id
             )
 
-    def test_an_existing_partial_thread_column_and_its_rows_are_left_intact(
+    def test_retry_resumes_from_the_expected_thread_column_and_preserves_rows(
         self, thread_migration_engine: Engine
     ) -> None:
         engine = thread_migration_engine
-        message_id, root_id = uuid4(), uuid4()
+        root_id, message_id, conversation_id = uuid4(), uuid4(), uuid4()
         with engine.begin() as connection:
             connection.execute(text("ALTER TABLE messages ADD COLUMN thread_root_message_id uuid"))
             connection.execute(text("SET LOCAL session_replication_role = replica"))
             connection.execute(
                 text(
+                    "INSERT INTO messages (id, conversation_id, role, content) "
+                    "VALUES (:root, :room, 'user', 'Thread root')"
+                ),
+                {"root": root_id, "room": conversation_id},
+            )
+            connection.execute(
+                text(
                     "INSERT INTO messages (id, conversation_id, role, content, thread_root_message_id) "
                     "VALUES (:id, :room, 'user', 'Preserve partial thread', :root)"
                 ),
-                {"id": message_id, "room": uuid4(), "root": root_id},
+                {"id": message_id, "room": conversation_id, "root": root_id},
             )
-        refused = _alembic("upgrade", "head")
-        assert refused.returncode != 0
-        assert "Room thread column already exists" in refused.stderr
-        self._assert_thread_revision_pending(engine, column_exists=True)
+        resumed = _alembic("upgrade", "head")
+        assert resumed.returncode == 0, resumed.stderr
         with engine.connect() as connection:
+            assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
+                "0326_room_threads"
+            ]
             assert connection.execute(
                 text("SELECT content, thread_root_message_id FROM messages WHERE id = :id"),
                 {"id": message_id},
             ).one() == ("Preserve partial thread", root_id)
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
 
     @pytest.mark.parametrize("prebuilt", [False, True], ids=["ordinary-index", "prebuilt-index"])
-    def test_interrupted_schema_change_rolls_back_and_retries_cleanly(
+    def test_interrupted_upgrade_reuses_committed_concurrent_indexes(
         self, thread_migration_engine: Engine, prebuilt: bool
     ) -> None:
         engine = thread_migration_engine
@@ -2073,20 +2123,36 @@ class TestRoomThreadMigration:
                 "from alembic import command\n"
                 "from alembic.config import Config\n"
                 "from alembic.operations import Operations\n"
+                "import sys\n"
                 "from sqlalchemy import text\n"
-                "original = Operations.create_foreign_key\n"
-                "def interrupt(operations, name, *args, **kwargs):\n"
-                "    if name == 'fk_messages_thread_root':\n"
+                "prebuilt = sys.argv[1] == 'true'\n"
+                "original_create_index = Operations.create_index\n"
+                "built_indexes = []\n"
+                "def track_index(operations, name, *args, **kwargs):\n"
+                "    assert kwargs.get('postgresql_concurrently') is True\n"
+                "    built_indexes.append(name)\n"
+                "    return original_create_index(operations, name, *args, **kwargs)\n"
+                "original = Operations.execute\n"
+                "def interrupt(operations, operation, *args, **kwargs):\n"
+                "    if 'ADD CONSTRAINT fk_messages_thread_root' in str(operation):\n"
                 "        connection = operations.get_bind()\n"
+                "        expected_indexes = ['messages_thread_ordinal_idx']\n"
+                "        if not prebuilt:\n"
+                "            expected_indexes.insert(0, 'uq_messages_conversation_id_id')\n"
+                "        assert built_indexes == expected_indexes\n"
                 '        assert connection.scalar(text("SELECT EXISTS (SELECT 1 FROM pg_attribute '
                 "WHERE attrelid = 'messages'::regclass AND attname = 'thread_root_message_id' "
                 'AND NOT attisdropped)"))\n'
+                '        assert connection.scalar(text("SELECT indisvalid FROM pg_index '
+                "WHERE indexrelid = 'uq_messages_conversation_id_id'::regclass\")) is True\n"
                 '        assert connection.scalar(text("SELECT count(*) FROM pg_constraint '
                 "WHERE conrelid = 'messages'::regclass AND conname = 'uq_messages_conversation_id_id'\")) == 1\n"
                 "        raise RuntimeError('injected interruption after room thread DDL')\n"
-                "    return original(operations, name, *args, **kwargs)\n"
-                "with patch.object(Operations, 'create_foreign_key', interrupt):\n"
+                "    return original(operations, operation, *args, **kwargs)\n"
+                "with patch.object(Operations, 'create_index', track_index), "
+                "patch.object(Operations, 'execute', interrupt):\n"
                 "    command.upgrade(Config('alembic.ini'), '0326_room_threads')\n",
+                "true" if prebuilt else "false",
             ],
             capture_output=True,
             text=True,
@@ -2096,7 +2162,7 @@ class TestRoomThreadMigration:
         )
         assert interrupted.returncode != 0
         assert "injected interruption after room thread DDL" in interrupted.stderr
-        self._assert_thread_revision_pending(engine)
+        self._assert_thread_revision_pending(engine, column_exists=True)
         with engine.connect() as connection:
             assert (
                 connection.scalar(
@@ -2107,9 +2173,24 @@ class TestRoomThreadMigration:
                 )
                 == 0
             )
+            root_index_id = connection.scalar(
+                text("SELECT to_regclass('uq_messages_conversation_id_id')::oid")
+            )
+            assert root_index_id is not None
+            if index_id is not None:
+                assert root_index_id == index_id
             assert (
-                connection.scalar(text("SELECT to_regclass('uq_messages_conversation_id_id')::oid"))
-                == index_id
+                connection.scalar(
+                    text("SELECT indisvalid FROM pg_index WHERE indexrelid = :index"),
+                    {"index": root_index_id},
+                )
+                is True
+            )
+            assert (
+                connection.scalar(
+                    text("SELECT to_regclass('messages_thread_ordinal_idx') IS NOT NULL")
+                )
+                is True
             )
         retried = _alembic("upgrade", "head")
         assert retried.returncode == 0, retried.stderr
@@ -2121,10 +2202,7 @@ class TestRoomThreadMigration:
     ) -> None:
         engine = thread_migration_engine
         build_pid: Queue[int] = Queue()
-        concurrent_index = (
-            "CREATE UNIQUE INDEX CONCURRENTLY uq_messages_conversation_id_id "
-            "ON messages (conversation_id, id)"
-        )
+        concurrent_index = "CREATE UNIQUE INDEX CONCURRENTLY uq_messages_conversation_id_id ON messages (conversation_id, id)"
 
         def build_index() -> None:
             with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
@@ -2186,15 +2264,23 @@ class TestRoomThreadMigration:
                         )
                         is False
                     )
-                    interrupted = _alembic("upgrade", "head")
-                    assert interrupted.returncode != 0
-                    assert "is not valid and ready" in interrupted.stderr
-                    self._assert_thread_revision_pending(engine)
+                    retried = _alembic("upgrade", "head")
+                    assert retried.returncode == 0, retried.stderr
                     assert (
                         observer.scalar(
                             text("SELECT 'uq_messages_conversation_id_id'::regclass::oid")
                         )
-                        == index_id
+                        != index_id
+                    )
+                    assert (
+                        observer.scalar(
+                            text(
+                                "SELECT i.indisvalid FROM pg_index i "
+                                "JOIN pg_class c ON c.oid = i.indexrelid "
+                                "WHERE c.relname = 'uq_messages_conversation_id_id'"
+                            )
+                        )
+                        is True
                     )
                 finally:
                     if pid is not None and not build.done():
