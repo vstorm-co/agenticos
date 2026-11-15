@@ -1,5 +1,5 @@
 ---
-source_sha: "5dc84d64a18d"
+source_sha: "dce4a3c21c3f"
 ---
 
 # Die Konsole { #the-console }
@@ -40,7 +40,7 @@ neben dem Mikrofon.
 
 Ressourcenlisten, darunter Inbox und Routines, füllen auch im leeren Zustand die verbleibende Seitenhöhe. Routines bietet Vorlagen im Erstellungsformular statt in einem eigenen Ideenbereich an.
 
-Im Chat sind Agentenporträts größer und ohne Ringe. Der Files-Schalter bleibt beim Öffnen und Schließen des Bereichs in den Bedienelementen des Arbeitsbereichs; reduzierte Bewegung wird berücksichtigt. Die Chat-Einstellungen zeigen zuerst das aktuelle Modell. Unter **Modell ändern** lassen sich vorausgefüllter Anbieter und Modell bearbeiten; erst die Bestätigung übernimmt die Änderung. Anhangskarten stehen ohne zusätzliches Schattenpanel über dem Eingabefeld.
+Im Chat sind Agentenporträts größer und ohne Ringe. In der vollständigen Desktop-Chatansicht bleibt der Files-Schalter beim Öffnen und Schließen des Bereichs in den Bedienelementen des Arbeitsbereichs; reduzierte Bewegung wird berücksichtigt. Die Chat-Einstellungen zeigen zuerst das aktuelle Modell. Unter **Modell ändern** lassen sich vorausgefüllter Anbieter und Modell bearbeiten; erst die Bestätigung übernimmt die Änderung. Anhangskarten stehen ohne zusätzliches Schattenpanel über dem Eingabefeld.
 
 Seiteneinführungen und Erläuterungen zu Einstellungen sind über das Informationssymbol neben der Überschrift erreichbar. Aktuelle Zusammenfassungen und Warnungen vor destruktiven Aktionen bleiben sichtbar.
 
@@ -711,12 +711,15 @@ als Karte in seiner Antwort. Jeder Teil hat ein eigenes Kopiersymbol, das reinen
 kopiert; mehrere Varianten eines Entwurfs sind Tabs in derselben Karte. Das eigene
 **Kopieren** einer Nachricht enthält auch ihre Entwürfe.
 
-**Browser, Computer und Dateien (Files).** In breiten Chats stehen die Schaltflächen
-rechts, in schmalen Chats unter dem Eingabefeld. Sie öffnen das Panel Browser,
-Computer oder Dateien. Browser und Computer lassen sich
+**Browser, Computer und Dateien (Files).** In der vollständigen Desktop-Chatansicht
+stehen die Schaltflächen rechts und öffnen das Panel Browser, Computer oder Dateien.
+Diese Leiste ist auf Telefonen und in kompakten Chats ausgeblendet.
+
+Browser und Computer lassen sich
 bereits öffnen, bevor der Agent sie verwendet hat. Das Öffnen eines leeren Panels
-startet weder einen Run noch eine gehostete Sitzung. Geben Sie im Browser-Panel
-zuerst die Website-Adresse ein. Hat der ausgewählte Agent die
+startet weder einen Run noch eine gehostete Sitzung.
+
+Geben Sie im Browser-Panel zuerst die Website-Adresse ein. Hat der ausgewählte Agent die
 entsprechende gehostete Capability und dürfen Sie ihn ausführen, bittet eine
 ausdrückliche Startaktion ihn, den Browser zu öffnen oder ein Desktop-Bild
 aufzunehmen. Andernfalls erklärt das Panel, was nicht verfügbar ist. Die

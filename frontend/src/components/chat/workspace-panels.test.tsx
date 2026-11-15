@@ -53,6 +53,7 @@ const view = (callId: string, more: Partial<Browse> = {}): Browse => ({
 });
 const defaults = (): ComponentProps<typeof WorkspacePanels> => ({
   teamRoom: false,
+  compact: false,
   agentId: "agent",
   hostedCapabilities: ["browser_use", "computer_use"],
   canRun: true,
@@ -142,6 +143,15 @@ describe("manual workspace launchers", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Open Computer" }));
     expect(useBrowserPanelStore.getState().surface).toBeNull();
+  });
+
+  it("hides the workspace rail in compact chats and below lg", () => {
+    const props = defaults();
+    const test = render(<WorkspacePanels {...props} />, { wrapper });
+    expect(screen.getByRole("navigation", { name: "Workspace" })).toHaveClass("hidden", "lg:flex");
+
+    test.rerender(<WorkspacePanels {...props} compact />);
+    expect(screen.queryByRole("navigation", { name: "Workspace" })).toBeNull();
   });
 
   it("sends the chosen web destination only on submit and sends the hosted computer request explicitly", async () => {

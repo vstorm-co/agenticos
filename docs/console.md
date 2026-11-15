@@ -35,7 +35,7 @@ settings, the sliders beside the microphone.
 
 Resource lists, including Inbox and Routines, fill the remaining page height even when empty. Routines keeps its templates in the creation form rather than a separate ideas panel.
 
-Chat uses larger agent portraits without rings. Its Files toggle stays in the workspace controls while the panel opens or closes, with reduced motion respected. Chat settings show the current model first. Expand **Change model** to edit the prefilled provider and model; the choice applies only after **Run on this model**. Attachment cards sit above the composer without an extra shadowed panel.
+Chat uses larger agent portraits without rings. In full desktop chats, the Files toggle stays in the workspace controls while the panel opens or closes, with reduced motion respected. Chat settings show the current model first. Expand **Change model** to edit the prefilled provider and model; the choice applies only after **Run on this model**. Attachment cards sit above the composer without an extra shadowed panel.
 
 On phones, skill and context editors keep descriptions, categories and file management folded away while writing. One button switches between source and preview. Apps use floating back and options buttons; opening options reveals the title, version, theme and sharing controls.
 
@@ -636,10 +636,13 @@ send or paste elsewhere - an e-mail, a reply, a post - as a card in its answer. 
 part has its own copy icon, which copies plain text; several variants of one draft
 are tabs in the same card. A message's own **Copy** includes its drafts.
 
-**Browser, Computer and Files.** In wide chats, the controls sit on the right.
-In narrow chats, they sit below the composer. They open a Browser, Computer or
-Files panel. Browser and Computer can be opened before the
+**Browser, Computer and Files.** In full desktop chats, the controls sit on the
+right and open a Browser, Computer or Files panel. This rail is hidden on phones
+and in compact chats.
+
+Browser and Computer can be opened before the
 agent has used them; opening an empty panel starts no run or hosted session.
+
 Enter the website address in Browser before starting it. If
 the selected agent has the corresponding hosted capability and you may run it,
 an explicit start action asks it to open the browser or take a desktop screenshot.

@@ -1,5 +1,5 @@
 ---
-source_sha: "5dc84d64a18d"
+source_sha: "dce4a3c21c3f"
 ---
 
 # La consola { #the-console }
@@ -40,7 +40,7 @@ al micrófono.
 
 Las listas de recursos, incluidas Inbox y Routines, ocupan la altura restante de la página incluso cuando están vacías. Las plantillas de Routines siguen en el formulario de creación, sin un panel de ideas aparte.
 
-El chat usa retratos de agentes más grandes y sin marcos. El control Files permanece entre los controles del espacio de trabajo al abrir y cerrar el panel; la animación respeta la preferencia de movimiento reducido. Los ajustes del chat muestran primero el modelo actual. **Change model** abre el formulario del proveedor y del modelo ya rellenados; el cambio solo se aplica al confirmarlo. Las tarjetas de adjuntos aparecen sobre el cuadro de mensaje sin otro panel con sombra.
+El chat usa retratos de agentes más grandes y sin marcos. En la vista completa del chat de escritorio, el control Files permanece entre los controles del espacio de trabajo al abrir y cerrar el panel; la animación respeta la preferencia de movimiento reducido. Los ajustes del chat muestran primero el modelo actual. **Change model** abre el formulario del proveedor y del modelo ya rellenados; el cambio solo se aplica al confirmarlo. Las tarjetas de adjuntos aparecen sobre el cuadro de mensaje sin otro panel con sombra.
 
 Las introducciones de páginas y explicaciones de ajustes están en el icono de información junto al encabezado. Los resúmenes actuales y avisos de acciones destructivas siguen visibles.
 
@@ -679,12 +679,15 @@ publicación - como una tarjeta en su respuesta. Cada parte tiene su propio icon
 copiar, que copia texto plano; varias variantes de un borrador son pestañas en la
 misma tarjeta. El **Copiar** propio de un mensaje incluye también sus borradores.
 
-**Navegador (Browser), Equipo (Computer) y Archivos (Files).** En chats anchos, los
-controles están a la derecha; en chats estrechos, debajo del cuadro de mensaje.
-Abren un panel de navegador, equipo o archivos. Puedes abrir
+**Navegador (Browser), Equipo (Computer) y Archivos (Files).** En la vista completa
+del chat de escritorio, los controles están a la derecha y abren un panel de
+navegador, equipo o archivos. Esta barra está oculta en teléfonos y chats compactos.
+
+Puedes abrir
 los paneles de navegador y equipo antes de que el agent los use. Abrir un panel
-vacío no inicia ningún run ni sesión alojada. Introduce la dirección de la página
-en el panel Navegador antes de iniciarlo. Si el agent seleccionado tiene la
+vacío no inicia ningún run ni sesión alojada.
+
+Introduce la dirección de la página en el panel Navegador antes de iniciarlo. Si el agent seleccionado tiene la
 capability alojada correspondiente y puedes ejecutarlo, una acción explícita de
 inicio le pide que abra el navegador o capture el escritorio. De lo contrario,
 el panel explica qué no está disponible. Siguen vigentes la configuración

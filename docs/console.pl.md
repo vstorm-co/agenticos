@@ -1,5 +1,5 @@
 ---
-source_sha: "5dc84d64a18d"
+source_sha: "dce4a3c21c3f"
 ---
 
 # Konsola { #the-console }
@@ -39,7 +39,7 @@ ustawieniach czatu, pod suwakami obok mikrofonu.
 
 Listy zasobów, w tym Inbox i Routines, wypełniają pozostałą wysokość strony również wtedy, gdy są puste. Szablony Routines pozostają w formularzu tworzenia zamiast osobnego panelu pomysłów.
 
-Czat używa większych portretów agentów bez obwódek. Przełącznik Files pozostaje wśród elementów sterujących obszaru roboczego podczas otwierania i zamykania panelu; animacja respektuje ograniczenie ruchu. Ustawienia czatu pokazują najpierw bieżący model. Rozwiń **Zmień model**, aby edytować uzupełnionego dostawcę i model; wybór zaczyna działać po zatwierdzeniu. Karty załączników znajdują się nad polem wiadomości bez dodatkowego panelu z cieniem.
+Czat używa większych portretów agentów bez obwódek. W pełnym widoku czatu na komputerze przełącznik Files pozostaje wśród elementów sterujących obszaru roboczego podczas otwierania i zamykania panelu; animacja respektuje ograniczenie ruchu. Ustawienia czatu pokazują najpierw bieżący model. Rozwiń **Zmień model**, aby edytować uzupełnionego dostawcę i model; wybór zaczyna działać po zatwierdzeniu. Karty załączników znajdują się nad polem wiadomości bez dodatkowego panelu z cieniem.
 
 Wprowadzenia do stron i objaśnienia ustawień są dostępne pod ikoną informacji obok nagłówka. Bieżące podsumowania i ostrzeżenia o nieodwracalnych działaniach pozostają widoczne.
 
@@ -658,12 +658,15 @@ jako kartę w swojej odpowiedzi. Każda część ma własną ikonę kopiowania, 
 kopiuje zwykły tekst; kilka wariantów jednej wersji roboczej to zakładki w jednej
 karcie. Własne **Kopiuj** wiadomości obejmuje też jej wersje robocze.
 
-**Przeglądarka (Browser), Komputer (Computer) i Pliki (Files).** W szerokich czatach
-przyciski znajdują się po prawej stronie, a w wąskich pod polem wiadomości.
-Otwierają panel przeglądarki, komputera lub plików. Panele
+**Przeglądarka (Browser), Komputer (Computer) i Pliki (Files).** W pełnym widoku czatu
+na komputerze przyciski znajdują się po prawej stronie i otwierają panel przeglądarki,
+komputera lub plików. Ten pasek jest ukryty na telefonach i w kompaktowych czatach.
+
+Panele
 przeglądarki i komputera można otworzyć, zanim agent ich użyje. Otwarcie pustego
-panelu nie uruchamia runu ani hostowanej sesji. Przed uruchomieniem przeglądarki
-wpisz adres strony. Jeśli wybrany agent ma odpowiednią
+panelu nie uruchamia runu ani hostowanej sesji.
+
+Przed uruchomieniem przeglądarki wpisz adres strony. Jeśli wybrany agent ma odpowiednią
 hostowaną capability i możesz go uruchomić, osobna akcja rozpoczęcia prosi go o
 otwarcie przeglądarki lub wykonanie zrzutu pulpitu. W przeciwnym razie panel
 wyjaśnia, co jest niedostępne. Opublikowane ustawienia agenta i kontrola dostępu

@@ -1594,7 +1594,7 @@ function ChatUI({
           a column narrowed by the sidebar and the conversation list. */}
         <div
           className={cn(
-            "@container/chat relative flex h-[calc(100%_-_3rem)] min-h-0 min-w-0 flex-1 basis-full flex-col @min-[900px]/browser-layout:h-full @min-[900px]/browser-layout:basis-0",
+            "@container/chat relative flex h-full min-h-0 min-w-0 flex-1 basis-full flex-col @min-[900px]/browser-layout:basis-0",
             showWorkspaceHome && "chat-home-column justify-center-safe overflow-y-auto",
           )}
         >
@@ -2161,6 +2161,7 @@ function ChatUI({
         {/* The browser shares the chat's width; a narrow chat opens it full screen. */}
         <WorkspacePanels
           teamRoom={roomProjectId !== null}
+          compact={compact}
           browses={browses}
           surfaces={surfaces}
           onComment={commentOnPage}

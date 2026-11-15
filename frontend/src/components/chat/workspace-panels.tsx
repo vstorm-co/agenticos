@@ -18,6 +18,7 @@ import { WorkspaceRail } from "./workspace-rail";
 
 interface WorkspacePanelsProps {
   teamRoom: boolean;
+  compact: boolean;
   agentId: string | null;
   hostedCapabilities: readonly string[] | null;
   canRun: boolean;
@@ -134,7 +135,7 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
         onOpenChange={(shown) => (shown ? open("files") : close())}
         responsive
       />
-      <WorkspaceRail filesSlot={setFilesSlot} panelIds={panelIds} />
+      {!props.compact && <WorkspaceRail filesSlot={setFilesSlot} panelIds={panelIds} />}
     </>
   );
 }
