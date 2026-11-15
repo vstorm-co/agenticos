@@ -96,6 +96,8 @@ ends up sending email unattended.
   neither.
 - Bugs ship with a regression test that fails without the fix.
 - Say what you decided and why in the description. The code shows the what.
+- Fast CI runs on every pull request. Full CI requires the `full-ci` label, a
+  `sync/upstream-*` pull request head, or a release point (`v*` tag push).
 
 ## Security
 
