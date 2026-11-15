@@ -13,12 +13,14 @@ interface ArchitectAsk {
   text: string;
   /** Optional for existing callers; account-derived requests must name their context. */
   scope?: ArchitectAskScope;
+  /** Written into the Architect's message box for the person to send, rather than sent. */
+  draft: boolean;
 }
 
 interface ArchitectAskState {
   /** The last thing somewhere else in the console asked the Architect, or null. */
   request: ArchitectAsk | null;
-  ask: (text: string, scope?: ArchitectAskScope) => void;
+  ask: (text: string, options?: ArchitectAskScope | { draft?: boolean }) => void;
   /** Taken by the widget once asked, so a widget mounted later does not ask it again. */
   answered: (id: number) => void;
 }
@@ -33,7 +35,15 @@ let asks = 0;
  */
 export const useArchitectAskStore = create<ArchitectAskState>((set) => ({
   request: null,
-  ask: (text, scope) => set({ request: { id: ++asks, text, ...(scope ? { scope } : {}) } }),
+  ask: (text, options) =>
+    set({
+      request: {
+        id: ++asks,
+        text,
+        scope: options !== undefined && "userId" in options ? options : undefined,
+        draft: options !== undefined && "draft" in options ? (options.draft ?? false) : false,
+      },
+    }),
   answered: (id) => set((state) => (state.request?.id === id ? { request: null } : state)),
 }));
 

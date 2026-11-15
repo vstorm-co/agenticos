@@ -1,9 +1,13 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { toast } from "sonner";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { RetentionForm } from "./retention-form";
 import type { RetentionPolicy } from "@/lib/retention-api";
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 vi.mock("next-intl", () => ({
   useTranslations:
@@ -29,6 +33,37 @@ function renderForm(over: Partial<RetentionPolicy> = {}, onSave = vi.fn()) {
 }
 
 describe("the retention form", () => {
+  it("keeps a refused write editable and blocks navigation until discarded", async () => {
+    const onSave = vi.fn().mockRejectedValue(new Error("Refused save"));
+    renderForm({}, onSave);
+    const box = screen.getByLabelText("classes.runs");
+    await userEvent.type(box, "30");
+    await userEvent.click(screen.getByRole("button", { name: "save" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(box).toHaveValue(30);
+    const proceed = vi.fn();
+    act(() => useUnsavedChangesStore.getState().leave(proceed));
+    await act(() => useUnsavedChangesStore.getState().answer("save"));
+    expect(proceed).not.toHaveBeenCalled();
+    expect(box).toHaveValue(30);
+    act(() => useUnsavedChangesStore.getState().leave(proceed));
+    await act(() => useUnsavedChangesStore.getState().answer("discard"));
+    expect(proceed).toHaveBeenCalledOnce();
+    expect(box).toHaveValue(null);
+  });
+
+  it("validates the period before direct or navigation-guard submission", async () => {
+    const onSave = renderForm();
+    await userEvent.type(screen.getByLabelText("classes.runs"), "0");
+    await userEvent.click(screen.getByRole("button", { name: "save" }));
+    expect(onSave).not.toHaveBeenCalled();
+    const proceed = vi.fn();
+    act(() => useUnsavedChangesStore.getState().leave(proceed));
+    await act(() => useUnsavedChangesStore.getState().answer("save"));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(proceed).not.toHaveBeenCalled();
+  });
+
   it("shows a row per class", () => {
     renderForm();
 

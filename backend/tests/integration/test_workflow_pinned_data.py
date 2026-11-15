@@ -179,12 +179,13 @@ class TestTheStepsGraph:
 
     def test_a_loop_before_the_step_comes_whole_and_runs(self):
         entry, loop, item = _node("core.input"), _node("control.foreach"), _node("loop.item")
+        item = item.model_copy(update={"scope_id": loop.id})
         out = _node("core.output")
         graph = derive_scopes(
             WorkflowGraph(
                 entry_node_id=entry.id,
                 nodes=(entry, loop, item, out),
-                edges=(_edge(entry, loop), _edge(loop, item, "body"), _edge(loop, out, "done")),
+                edges=(_edge(entry, loop), _edge(loop, out, "done")),
             )
         )
 
@@ -197,6 +198,21 @@ class TestTheStepsGraph:
         with pytest.raises(StepNotTestableError) as refused:
             step_subgraph(graph, item.id, {})
         assert refused.value.details["reason"] == "inside_a_loop"
+
+    def test_a_step_reached_two_ways_keeps_each_ancestor_once(self):
+        entry = _node("core.input")
+        left, right = _node("data.map", MAPPING), _node("data.map", MAPPING)
+        out = _node("core.output")
+        graph = WorkflowGraph(
+            entry_node_id=entry.id,
+            nodes=(entry, left, right, out),
+            edges=(_edge(entry, left), _edge(entry, right), _edge(left, out), _edge(right, out)),
+        )
+
+        narrowed = step_subgraph(graph, out.id, {})
+
+        assert [node.id for node in narrowed.nodes] == [entry.id, left.id, right.id, out.id]
+        assert len(narrowed.edges) == 4
 
     def test_a_step_the_draft_does_not_have_is_refused(self):
         with pytest.raises(StepNotTestableError) as refused:

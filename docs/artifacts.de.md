@@ -1,5 +1,5 @@
 ---
-source_sha: "a1c685490bed"
+source_sha: "dd46ea746100"
 ---
 
 # Apps { #artifacts }
@@ -16,6 +16,10 @@ Workspace haben bereits ein Zuhause im Chat und im [Workspace](sandbox.md). Eine
 App ist das, was *ausgeliefert* wird: Sie hat einen Besitzer, eine
 Sichtbarkeit und Grants wie ein Agent oder ein Skill, und sie kann einen
 öffentlichen Link für jemanden ohne Konto bekommen.
+
+## Kennzeichnung geteilter Seiten { #shared-page-attribution }
+
+Öffentliche App-Ansichten zeigen standardmäßig ein schwebendes Badge mit dem AgenticOS-Logo und einem GitHub-Link. Geteilte Unterhaltungen zeigen dasselbe Badge unter der Unterhaltung. Owner oder Admins können die Fußzeile für die gesamte Organisation unter **Organisationseinstellungen → Governance → AgenticOS auf geteilten Seiten** ausblenden. Beim nächsten Seitenaufruf gilt die aktuelle Einstellung. Passwortgeschützte Apps zeigen die Fußzeile erst nach dem Entsperren. Die Fußzeile gehört zur Ansicht; heruntergeladene Dateien und eingebettete App-Inhalte werden nicht verändert.
 
 ## App-Darstellung { #app-appearance }
 
@@ -1106,7 +1110,7 @@ seiner Antwort: dass kein Kartenserver angebunden ist und dass ein Administrator
 echte Karten mit dieser Einstellung einschaltet. Das Bild einer Karte in
 einer Chat-App wird fertig gezeichnet, mit allen Pins an ihrem Platz.
 
-**Weltkarten brauchen keinen.** Für alles rund um Länder - Kunden nach Land, Standorte, eine Route zwischen zwei Städten - zeichnet `AOWorldMap` eine SVG-Karte aus Ländergrenzen, die das Deployment selbst ausliefert: kein Kachelserver, kein Netz, kein zusätzlicher Container. Der Agent bevorzugt sie; die Kachelkarte bleibt für die Straßenebene.
+**Weltkarten brauchen keinen.** Für alles rund um Länder - Kunden nach Land, Standorte, eine Route zwischen zwei Städten - zeichnet `AOWorldMap` eine SVG-Karte aus Ländergrenzen, die das Deployment selbst ausliefert: kein Kachelserver, kein Netz, kein zusätzlicher Container. Dies ist der Standard für neue Karten, auch für Reiserouten zwischen Städten. Der Agent lädt die mitgelieferten Ländergrenzen und zeichnet Pins und Verbindungen ohne zusätzliche Konfiguration. Straßenkarten bleiben über `VISUAL_MAP_TILES` eine Option für Administratoren; bei nicht verfügbaren Kacheln soll der Agent diese SVG-Karte verwenden.
 
 **Die Form wählen.** Der Skill `visual-design` sagt dem Agent, wann eine Zeichnung
 überhaupt die richtige Antwort ist: Text für eine Tatsache oder einen Rat, eine

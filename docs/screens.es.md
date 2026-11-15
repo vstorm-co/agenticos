@@ -1,5 +1,5 @@
 ---
-source_sha: "3946000309d5"
+source_sha: "12c6776e073b"
 ---
 
 # Todas las pantallas de la consola { #every-screen-in-the-console }
@@ -72,7 +72,7 @@ El Builder, pestaña por pestaña.
 
 ### Build { #build }
 
-Instrucciones, modelo y endpoint. El comportamiento vive aquí en lugar de en el código, en Markdown que el modelo lee como estructura — y la cabecera lleva `published` junto a `Draft differs from v40`, que es justo el objetivo: editar no despliega.
+Instrucciones, modelo y endpoint. El comportamiento vive aquí en lugar de en el código, en Markdown que el modelo lee como estructura — y la cabecera lleva `published` junto a `Draft differs from agent v40`, que es justo el objetivo: editar no despliega.
 
 ![Build](assets/screens/light/agent-builder.webp?v=20261102-industrial#only-light)
 ![Build](assets/screens/dark/agent-builder.webp?v=20261102-industrial#only-dark)
@@ -193,6 +193,88 @@ La elección que nadie más expone: **PyMuPDF**, **LiteParse** o **LlamaParse**,
 ![Parsing, por subida](assets/screens/light/kb-parse-options.webp?v=20261102-industrial#only-light)
 ![Parsing, por subida](assets/screens/dark/kb-parse-options.webp?v=20261102-industrial#only-dark)
 
+## Probar y mejorar un agente { #testing-and-improving-an-agent }
+
+Estas pantallas vienen de una segunda organización de demo, Demo, y de su agente Refund desk: preguntas de la tienda Acme sobre reembolsos y envíos, calificadas con checks y un juez. Las preguntas son inventadas; las respuestas, las calificaciones y las sesiones de Improve son runs reales.
+
+### Datasets { #datasets }
+
+Las preguntas de prueba con las que se comprueban tus agentes. Cada cambio en los casos de un dataset crea una versión nueva, así que dos eval runs se comparan sobre las mismas preguntas o no se comparan.
+
+![Datasets](assets/screens/light/datasets.webp#only-light)
+![Datasets](assets/screens/dark/datasets.webp#only-dark)
+
+### Los casos de un dataset { #a-datasets-cases }
+
+Cada pregunta con su origen, cuántos checks lleva y si Improve la usa para escribir los cambios o la aparta para comprobar el resultado.
+
+![Los casos de un dataset](assets/screens/light/dataset-cases.webp#only-light)
+![Los casos de un dataset](assets/screens/dark/dataset-cases.webp#only-dark)
+
+### Grading { #grading }
+
+Lo que hace que una respuesta pase: los checks que recibe cada caso, qué juez la califica, con qué criterios y desde qué puntuación. Los checks no cuestan nada; cada calificación del juez es un run en un modelo.
+
+![Grading](assets/screens/light/dataset-grading.webp#only-light)
+![Grading](assets/screens/dark/dataset-grading.webp#only-dark)
+
+### Los evals de un dataset { #a-datasets-evals }
+
+Cada run contra este dataset como una línea de tasa de aprobados por agente; el color de cada punto dice si arregló o rompió casos, y debajo están los runs.
+
+![Los evals de un dataset](assets/screens/light/dataset-evals.webp#only-light)
+![Los evals de un dataset](assets/screens/dark/dataset-evals.webp#only-dark)
+
+### Un eval run { #one-eval-run }
+
+Primero el veredicto, en una frase; después la tasa de aprobados antes y después, lo que costó frente a su estimación y los casos que cambiaron. Una respuesta que salió distinta al preguntarla otra vez no cuenta como cambio.
+
+![Un eval run](assets/screens/light/eval-run.webp#only-light)
+![Un eval run](assets/screens/dark/eval-run.webp#only-dark)
+
+### Los evals de un agente { #an-agents-evals }
+
+La misma tendencia desde el lado del agente: cada dataset contra el que se ejecutó, una línea por dataset, con Run evals al lado.
+
+![Los evals de un agente](assets/screens/light/agent-evals.webp#only-light)
+![Los evals de un agente](assets/screens/dark/agent-evals.webp#only-dark)
+
+### Improve { #improve }
+
+Donde empieza una mejora: las respuestas valoradas negativamente, las respuestas de prueba que fallan, cómo se reparten las preguntas de prueba entre escribir los cambios y comprobarlos, y lo que cuesta el primer paso. Cada paso siguiente se presupuesta antes de pulsarlo.
+
+![Improve](assets/screens/light/improve-start.webp#only-light)
+![Improve](assets/screens/dark/improve-start.webp#only-dark)
+
+### Improve · Understand { #improve-understand }
+
+Qué salió mal, separado en lo que el agente puede corregir y lo que le falta a la base de conocimiento, una tarjeta por pregunta con las calificaciones en palabras. La sesión se detiene aquí para que lo mires.
+
+![Improve · Understand](assets/screens/light/improve-understand.webp#only-light)
+![Improve · Understand](assets/screens/dark/improve-understand.webp#only-dark)
+
+### Improve · Changes { #improve-changes }
+
+Los cambios que escribió el asistente, como un diff del propio texto del agente, con el porqué y en qué se basan. Puedes reformular uno antes de que se compruebe; la comprobación mide tu redacción.
+
+![Improve · Changes](assets/screens/light/improve-changes.webp#only-light)
+![Improve · Changes](assets/screens/dark/improve-changes.webp#only-dark)
+
+### Improve · Result { #improve-result }
+
+A qué llegó la sesión: cada intento con cuántas de las preguntas apartadas arregló y rompió, lo que costó y cuál conservar. Nada pasa a producción hasta que una persona lo acepta.
+
+![Improve · Result](assets/screens/light/improve-result.webp#only-light)
+![Improve · Result](assets/screens/dark/improve-result.webp#only-dark)
+
+### Knowledge gaps { #knowledge-gaps }
+
+Preguntas para las que un agente buscó en sus bases de conocimiento y no encontró nada relevante, agrupadas por tema. Nada se añade solo a una base de conocimiento; una persona redacta el documento y lo añade.
+
+![Knowledge gaps](assets/screens/light/knowledge-gaps.webp#only-light)
+![Knowledge gaps](assets/screens/dark/knowledge-gaps.webp#only-dark)
+
+
 ## Qué ha pasado, y qué está esperando { #what-happened-and-what-is-waiting }
 
 ### Runs { #runs }
@@ -218,7 +300,7 @@ Todo lo que espera a una persona, con lo que el agent pretende hacer. Una aproba
 
 ### Spend { #spend }
 
-Lo que se gastó realmente, por periodo. Un budget se comprueba *antes* de la petición al modelo en lugar de sumarse después, así que un run que rompe uno se detiene a mitad de la respuesta y aun así registra su coste.
+Lo que se gastó realmente, por periodo. Un budget se comprueba _antes_ de la petición al modelo en lugar de sumarse después, así que un run que rompe uno se detiene a mitad de la respuesta y aun así registra su coste.
 
 ![Spend](assets/screens/light/spend.webp?v=20261102-industrial#only-light)
 ![Spend](assets/screens/dark/spend.webp?v=20261102-industrial#only-dark)

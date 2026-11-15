@@ -4,6 +4,7 @@ import type { Delegation } from "@/types";
 
 import { memo, useId, useState } from "react";
 
+import { ModelSetupReply } from "./model-setup-reply";
 import { MentionChip } from "./mention-chip";
 import { stillMentioned } from "@/lib/mentions";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -34,6 +35,7 @@ import { useInChatScope } from "@/stores/chat-scope-context";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import {
   Bot,
+  CircleAlert,
   CornerUpLeft,
   GitBranch,
   Loader2,
@@ -56,6 +58,7 @@ import { FileCard, FileIcon } from "@/components/files";
 import { extractSources, toolCallsOf } from "@/lib/chat-sources";
 import { draftsOf, withDraftText } from "@/lib/drafts";
 import type { DelegateRef } from "@/lib/delegations";
+import type { AskedBefore } from "@/components/datasets/follows-on";
 import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
 import { writtenRoutines, RoutineResult } from "./tool-results/routine";
 import { writtenWatches, WatchResult } from "./tool-results/watch";
@@ -117,6 +120,8 @@ interface MessageItemProps {
   pins?: PinnedPrompts;
   /** The agents the reader can see, which name the one a delegation asked. */
   agents?: readonly DelegateRef[];
+  /** The question an answer replied to, when `MessageList` can see it. */
+  asked?: AskedBefore;
   /** What the person asked for, on the answer that ends the turn: a skill can be made of it. */
   request?: string;
 }
@@ -135,6 +140,7 @@ export const MessageItem = memo(function MessageItem({
   forkingMessageId = null,
   pins,
   agents = [],
+  asked,
   request,
 }: MessageItemProps) {
   const t = useTranslations("chat");
@@ -178,7 +184,9 @@ export const MessageItem = memo(function MessageItem({
   // timeline part - the latter is the ask-only turn that was stopped after
   // answering a question and before any text (#502), which otherwise loses its
   // stopped indicator, timestamp and cost.
-  const hasBody = Boolean(message.content) || (!isUser && (message.parts?.length ?? 0) > 0);
+  const hasBody =
+    Boolean(message.content) ||
+    (!isUser && ((message.parts?.length ?? 0) > 0 || message.runFailed === true));
   const sources = !isUser ? extractSources(message, t) : [];
   const canShowActions = !message.isStreaming && hasBody && endsTurn;
   const hasSources = sources.length > 0 && !message.isStreaming;
@@ -388,6 +396,21 @@ export const MessageItem = memo(function MessageItem({
           onCiteClick={onCiteClick}
         />
 
+        {!isUser && message.runFailed && endsTurn && (
+          <div
+            role="alert"
+            className="border-destructive/25 bg-destructive/5 flex max-w-2xl gap-3 rounded-xl border px-4 py-3 text-sm"
+          >
+            <CircleAlert aria-hidden className="text-destructive mt-0.5 size-4 shrink-0" />
+            <div className="min-w-0 space-y-1">
+              <p className="font-medium">{t("runFailedTitle")}</p>
+              <p className="text-muted-foreground break-words">
+                {message.runError || t("runFailedHint")}
+              </p>
+            </div>
+          </div>
+        )}
+
         {!isUser && <PlatformObjects calls={toolCallsOf(message)} />}
 
         {!isUser && routines.length > 0 && (
@@ -595,6 +618,7 @@ export const MessageItem = memo(function MessageItem({
                 currentRating={message.user_rating ?? null}
                 ratingCount={message.rating_count ?? undefined}
                 isAssistant={!isUser}
+                asked={asked}
                 onRatingChange={(updatedData) => {
                   updateMessage(message.id, (msg) => ({
                     ...msg,
@@ -659,6 +683,7 @@ function MessageBody({
       : null;
   const parts = message.parts ?? [];
   const useParts = !isUser && parts.length > 0;
+  const setupPart = parts.find((part) => part.type === "model_setup");
   const legacyCalls = message.toolCalls ?? [];
 
   // "Thinking…" placeholder - shown until anything streams in.
@@ -686,10 +711,13 @@ function MessageBody({
         </div>
       )}
 
-      {useParts ? (
+      {!isUser && message.animateSetupReply && setupPart ? (
+        <ModelSetupReply text={message.content} agentId={setupPart.setupAgentId} />
+      ) : useParts ? (
         /* Ordered timeline: each part in arrival order, with runs of tool
            calls on one rail. The same component the hosted page renders. */
         <TurnParts
+          allowSetupActions
           parts={parts}
           isStreaming={Boolean(message.isStreaming)}
           isUser={isUser}
@@ -701,6 +729,7 @@ function MessageBody({
           startedAt={startedAt}
           durationMs={endsTurn ? message.runDurationMs : undefined}
           stopped={message.wasStopped === true}
+          failed={message.runFailed === true}
           waitingFor={message.runWaitingFor}
           lastHeartbeatAt={lastHeartbeatAt}
         />

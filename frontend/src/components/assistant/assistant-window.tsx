@@ -11,11 +11,12 @@ import { ChatContainer, type ChatPrompt } from "@/components/chat/chat-container
 import type { IncomingFiles } from "@/components/chat/chat-input";
 import { useAgents } from "@/hooks/use-agents";
 import { useConversations } from "@/hooks/use-conversations";
+import { recallConversation, rememberConversation } from "@/lib/architect-conversation";
 import { consoleLink, type ConsoleLink } from "@/lib/assistant-highlight";
 import { captureThisTab } from "@/lib/assistant-screenshot";
 import type { AssistantPageContext } from "@/lib/assistant-page-context";
 import { cn } from "@/lib/utils";
-import { useAgentSelectionStore } from "@/stores";
+import { useAgentSelectionStore, useAuthStore, useOrgStore } from "@/stores";
 import type { AssistantState } from "@/types/assistant";
 
 import { AssistantHistory } from "./assistant-history";
@@ -29,6 +30,8 @@ interface AssistantWindowProps {
   open: boolean;
   /** A prompt a bubble asked, sent as the reader. */
   prompt: ChatPrompt | null;
+  /** Words written into the message box for the reader to send, once per id. */
+  draft?: { id: number; text: string } | null;
   /** The current registered page, shown before it accompanies a question. */
   page: AssistantPageContext;
   getPageContext: () => AssistantPageContext;
@@ -50,6 +53,7 @@ export function AssistantWindow({
   agentId,
   open,
   prompt,
+  draft = null,
   page,
   getPageContext,
   tipsOff,
@@ -67,10 +71,34 @@ export function AssistantWindow({
   const name = isMainAgent
     ? architectName(assistant, t("defaultName"))
     : (selected?.name ?? tPicker("noneSelected"));
-  const { startNewChat } = useConversations({ agentId: selectedAgentId });
+  const { startNewChat, selectConversation, currentConversationId } = useConversations({
+    agentId: selectedAgentId,
+  });
+  const userId = useAuthStore((state) => state.user?.id);
+  const organizationId = useOrgStore((state) => state.activeOrgId);
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current || !userId || !organizationId) return;
+    restored.current = true;
+    const last = recallConversation(userId, organizationId);
+    if (last && !currentConversationId) void selectConversation(last);
+  }, [userId, organizationId, currentConversationId, selectConversation]);
+  useEffect(() => {
+    if (userId && organizationId && currentConversationId)
+      rememberConversation(userId, organizationId, currentConversationId);
+  }, [userId, organizationId, currentConversationId]);
+  const startAfresh = () => {
+    if (userId && organizationId) rememberConversation(userId, organizationId, null);
+    void startNewChat();
+  };
   const [showHistory, setShowHistory] = useState(false);
   const [incoming, setIncoming] = useState<IncomingFiles | null>(null);
   const [includePage, setIncludePage] = useState(true);
+  const [wroteDraft, setWroteDraft] = useState<number | null>(null);
+  if (draft !== null && wroteDraft !== draft.id) {
+    setWroteDraft(draft.id);
+    setIncoming((last) => ({ id: (last?.id ?? 0) + 1, files: [], text: draft.text }));
+  }
   const pageContext = useCallback(
     () => (includePage ? getPageContext() : null),
     [includePage, getPageContext],
@@ -170,7 +198,7 @@ export function AssistantWindow({
           label={t("newConversation")}
           onClick={() => {
             setShowHistory(false);
-            void startNewChat();
+            startAfresh();
           }}
         >
           <MessageSquarePlus className="h-4 w-4" />
@@ -194,7 +222,7 @@ export function AssistantWindow({
             onClose={() => setShowHistory(false)}
             onNew={() => {
               setShowHistory(false);
-              void startNewChat();
+              startAfresh();
             }}
           />
         )}
@@ -209,6 +237,11 @@ export function AssistantWindow({
               isMainAgent
                 ? (onPick) => (
                     <AssistantWelcome
+                      setup={
+                        assistant.status === "needs_model"
+                          ? { agentId, canConfigure: assistant.can_configure }
+                          : undefined
+                      }
                       greeting={assistant.greeting}
                       name={name}
                       mark={<AssistantFace assistant={assistant} agentId={agentId} size="lg" />}

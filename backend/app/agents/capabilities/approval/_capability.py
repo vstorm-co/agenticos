@@ -45,9 +45,12 @@ from app.agents.capabilities._registry import (
     FRAMEWORK_TOOL_NAMES,
     LOAD_CAPABILITY,
     READ_SKILL,
-    ApprovalDescriber,
+    AlwaysAsksWhen,
+    BoundDescriber,
 )
+from app.agents.code_checkpoint import CodeApprovalPause
 from app.agents.deps import AgentDeps
+from app.agents.durable_code import active_code
 from app.agents.mcp import ACCOUNT, NEEDS_APPROVAL
 from app.agents.routine_actions import RoutineToolDecision, RoutineToolPolicy
 from app.core.exceptions import AuthorizationError
@@ -94,9 +97,14 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     # nobody can be asked. Named by the factory for the tools it attached, never
     # read off tool metadata, which an MCP server writes.
     asking_tool_names: frozenset[str] = frozenset()
+    # Tools whose every call waits for a person's answer to it, from
+    # `always_asking_tools`: nothing decided in advance may stand in for one.
+    always_asking_tool_names: frozenset[str] = frozenset()
+    # Tools that decide per call whether it always asks, from `always_asking_checks`.
+    always_asking_checks: Mapping[str, AlwaysAsksWhen] = field(default_factory=dict)
     # Effective tool name to the capability's describer for it, resolved from the
     # spec by `approval_describers` - a renamed tool keeps its describer.
-    describers: Mapping[str, ApprovalDescriber] = field(default_factory=dict)
+    describers: Mapping[str, BoundDescriber] = field(default_factory=dict)
     # Effective tool name to the stable id its capability declares it under, from
     # `approval_tool_ids`, so the request names the tool the way a surface words it.
     tool_ids: Mapping[str, str] = field(default_factory=dict)
@@ -132,7 +140,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     async def _describe(
         ctx: RunContext[AgentDeps],
         tool_def: ToolDefinition,
-        describe: ApprovalDescriber,
+        describe: BoundDescriber,
         args: dict[str, Any],
     ) -> dict[str, str] | None:
         """The call's ids as names for the person deciding, or `None`.
@@ -154,6 +162,56 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
             return None
         return described or None
 
+    async def _always_asks(
+        self, ctx: RunContext[AgentDeps], tool_def: ToolDefinition, args: dict[str, Any]
+    ) -> bool:
+        """Whether only a person's answer to this call may let it run.
+
+        A check that fails or answers late is a yes: what it guards is a call
+        that must not run on consent given in advance.
+        """
+        if tool_def.capability_id is None:
+            return False
+        if tool_def.name in self.always_asking_tool_names:
+            return True
+        check = self.always_asking_checks.get(tool_def.name)
+        if check is None:
+            return False
+        try:
+            async with asyncio.timeout(DESCRIBE_TIMEOUT_SECONDS):
+                return await check(ctx.deps, args)
+        except Exception:
+            logger.warning(
+                "Could not decide whether %s on run %s always asks; asking",
+                tool_def.name,
+                ctx.deps.run_id,
+                exc_info=True,
+            )
+            return True
+
+    def gates(self, tool_def: ToolDefinition) -> bool:
+        """Whether a call to this tool waits for a person's decision."""
+        # A capability id is what tells this deployment's tool from an MCP
+        # server's, whose approval is a different question - except for the
+        # framework's own, which carries no capability id and is still ours to
+        # gate: `load_capability` is how a skill is opened, so a spec that asked
+        # for approval before a skill is loaded has nowhere else to put it
+        # (#1704 review).
+        # An MCP server's tool carries its binding's verdict, set by
+        # `ApprovalMarked` from the binding's policy and the server's read-only
+        # hint (#2060) - only for a tool no capability owns, so a capability's
+        # tool cannot be released by metadata.
+        capability_id = tool_def.capability_id
+        marked = capability_id is None and (tool_def.metadata or {}).get(NEEDS_APPROVAL) is True
+        return tool_def.name not in self.asking_tool_names and (
+            self.gate_every_tool
+            or marked
+            or (
+                tool_def.name in self.required_tool_names
+                and (capability_id is not None or tool_def.name in FRAMEWORK_TOOL_NAMES)
+            )
+        )
+
     async def wrap_tool_execute(
         self,
         ctx: RunContext[AgentDeps],
@@ -165,23 +223,13 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     ) -> Any:
         """Ask before executing, and execute only what was asked about."""
         capability_id = tool_def.capability_id
-        # A capability id is what tells this deployment's tool from an MCP
-        # server's, whose approval is a different question - except for the
-        # framework's own, which carries no capability id and is still ours to
-        # gate: `load_capability` is how a skill is opened, so a spec that asked
-        # for approval before a skill is loaded has nowhere else to put it
-        # (#1704 review).
-        # An MCP server's tool carries its binding's verdict, set by
-        # `ApprovalMarked` from the binding's policy and the server's read-only
-        # hint (#2060) - only for a tool no capability owns, so a capability's
-        # tool cannot be released by metadata.
-        marked = capability_id is None and (tool_def.metadata or {}).get(NEEDS_APPROVAL) is True
-        gated = tool_def.name not in self.asking_tool_names and (
-            self.gate_every_tool
-            or marked
+        always_asks = await self._always_asks(ctx, tool_def, args)
+        gated = (
+            always_asks
+            or self.gates(tool_def)
             or (
-                tool_def.name in self.required_tool_names
-                and (capability_id is not None or tool_def.name in FRAMEWORK_TOOL_NAMES)
+                active_code.get() == call.tool_call_id
+                and ctx.deps.code_continuations.requires_approval(call.tool_call_id)
             )
         )
         try:
@@ -191,6 +239,8 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
                 else await self.routine_policy(tool_def)
             )
         except AuthorizationError as error:
+            if active_code.get() == call.tool_call_id:
+                raise RuntimeError("The tool call is not authorized") from error
             return refusal(tool_def.name, error.message)
         if tool_def.name in self.asking_tool_names:
             return await handler(args)
@@ -206,6 +256,8 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
                 tool_def.name,
                 ctx.deps.run_id,
             )
+            if active_code.get() == call.tool_call_id:
+                raise RuntimeError("This surface cannot ask anyone to approve the tool call")
             return refusal(tool_def.name, "this surface cannot ask anyone to approve it")
 
         # As JSON, which is how the queue stores them and a person reads them: a tool
@@ -221,6 +273,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
             ApprovalRequest(
                 capability_id=capability_id,
                 routine_consented_by=consented_by,
+                always_asks=always_asks,
                 tool_name=tool_def.name,
                 tool_call_id=call.tool_call_id,
                 tool_args=asked,
@@ -240,8 +293,12 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
         if isinstance(decision, ApprovalPending):
             # Ends the run with the parked call recorded against it, rather than
             # holding a coroutine open for however long a person takes.
+            if active_code.get() == call.tool_call_id:
+                raise CodeApprovalPause()
             raise ApprovalRequired()
         if isinstance(decision, ApprovalRejected):
+            if active_code.get() == call.tool_call_id:
+                raise RuntimeError("The tool call was not approved")
             return refusal(tool_def.name, decision.note or "a reviewer rejected it")
         # The arguments approved are what runs. When they are this call's own, run
         # them as the tool validated them, so an id is a `UUID` again and not its text.

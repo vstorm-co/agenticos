@@ -98,6 +98,8 @@ export function entryGraph(graph: WorkflowGraph, entryId: string): WorkflowGraph
       ...graph.edges
         .filter((edge) => edge.source_node_id === id)
         .map((edge) => edge.target_node_id),
+      // A loop the branch reaches brings its whole body: no wire leads into one.
+      ...graph.nodes.filter((node) => node.scope_id === id).map((node) => node.id),
     );
   }
   return {

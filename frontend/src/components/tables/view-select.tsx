@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { Lock, Pencil, Plus, Trash2, Users } from "lucide-react";
+import { Lock, MoreHorizontal, Pencil, Plus, Trash2, Users } from "lucide-react";
 import {
   Button,
   ConfirmDialog,
@@ -11,6 +11,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
   Input,
   Select,
   SelectContent,
@@ -18,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import type { TableViewRead, ViewKind, ViewVisibility } from "@/types/tables";
@@ -171,18 +176,22 @@ export function ViewSelect({
   const active = views.find((view) => view.id === activeViewId) ?? null;
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="min-w-0 flex-1 sm:flex-none">
       {/* Said in words: a dropdown reading "All records" did not say it holds views. */}
       <span className="sr-only">{t("label")}</span>
-      <div className="flex items-center gap-1">
+      <div className="flex min-w-0 flex-wrap items-center gap-1">
         {/* The view and saving the screen as a new one read as one control. */}
-        <div className="border-border bg-background flex h-8 items-stretch rounded-lg border">
+        <div className="border-input bg-field touch:min-h-11 flex h-10 min-w-0 flex-1 items-stretch rounded-lg sm:h-9 sm:flex-none">
           <Select
             value={activeViewId ?? "__default__"}
             onValueChange={(id) => onSelect(id === "__default__" ? null : id)}
           >
             <SelectTrigger
-              className="h-full w-24 rounded-r-none border-0 bg-transparent text-sm shadow-none sm:w-40"
+              className={cn(
+                "h-full min-w-0 flex-1 bg-transparent text-[13px] shadow-none sm:w-40 sm:flex-none",
+                (canCreate || active?.can_manage || active?.can_delete) && "max-sm:rounded-r-none",
+                canCreate && "sm:rounded-r-none",
+              )}
               aria-label={t("selectViewFor", { kind })}
             >
               <SelectValue placeholder={t("unsavedView")} />
@@ -196,6 +205,65 @@ export function ViewSelect({
               ))}
             </SelectContent>
           </Select>
+          {(active?.can_manage || active?.can_delete) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={t("label")}
+                  title={t("label")}
+                  className="border-input text-muted-foreground hover:bg-accent focus-visible:outline-foreground/60 touch:min-h-11 touch:min-w-11 flex min-h-10 min-w-9 shrink-0 touch-manipulation items-center justify-center rounded-r-lg border border-l-0 focus-visible:outline-2 focus-visible:outline-offset-2 sm:hidden"
+                >
+                  <MoreHorizontal className="size-4" aria-hidden />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {canCreate && (
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setDraftVisibility("private");
+                      setCreateOpen(true);
+                    }}
+                  >
+                    <Plus className="size-4" />
+                    {t("newView")}
+                  </DropdownMenuItem>
+                )}
+                {active.can_manage && active.owner_user_id === meId && (
+                  <DropdownMenuItem
+                    onSelect={() =>
+                      void onSetVisibility(
+                        active.id,
+                        active.visibility === "private" ? "shared" : "private",
+                      )
+                    }
+                  >
+                    {active.visibility === "private" ? (
+                      <Users className="size-4" />
+                    ) : (
+                      <Lock className="size-4" />
+                    )}
+                    {active.visibility === "private" ? t("makeShared") : t("makePrivate")}
+                  </DropdownMenuItem>
+                )}
+                {active.can_manage && (
+                  <DropdownMenuItem onSelect={() => setRenaming(active)}>
+                    <Pencil className="size-4" />
+                    {t("rename")}
+                  </DropdownMenuItem>
+                )}
+                {active.can_delete && (
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onSelect={() => setDeleting(active)}
+                  >
+                    <Trash2 className="size-4" />
+                    {t("delete")}
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           {canCreate && (
             <button
               type="button"
@@ -206,7 +274,10 @@ export function ViewSelect({
               }}
               aria-label={t("newView")}
               title={t("newView")}
-              className="border-border text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex w-8 items-center justify-center rounded-r-lg border-l outline-none focus-visible:ring-2"
+              className={cn(
+                "border-input text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-w-11 flex w-9 shrink-0 touch-manipulation items-center justify-center rounded-r-lg border border-l-0 outline-none focus-visible:ring-2",
+                (active?.can_manage || active?.can_delete) && "max-sm:hidden",
+              )}
             >
               <Plus className="h-4 w-4" />
             </button>
@@ -219,7 +290,7 @@ export function ViewSelect({
             type="button"
             variant="ghost"
             size="sm"
-            className="text-muted-foreground h-8 gap-1.5 px-2 text-xs"
+            className="text-muted-foreground h-8 gap-1.5 px-2 text-xs max-sm:hidden"
             title={active.visibility === "private" ? t("makeShared") : t("makePrivate")}
             onClick={() =>
               void onSetVisibility(
@@ -241,7 +312,7 @@ export function ViewSelect({
             type="button"
             variant="ghost"
             size="icon"
-            className="text-muted-foreground size-8"
+            className="text-muted-foreground size-8 max-sm:hidden"
             aria-label={t("rename")}
             title={t("rename")}
             onClick={() => setRenaming(active)}
@@ -254,7 +325,7 @@ export function ViewSelect({
             type="button"
             variant="ghost"
             size="icon"
-            className="text-muted-foreground size-8"
+            className="text-muted-foreground size-8 max-sm:hidden"
             aria-label={t("delete")}
             title={t("delete")}
             onClick={() => setDeleting(active)}

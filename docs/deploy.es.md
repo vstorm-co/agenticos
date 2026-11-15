@@ -1,20 +1,14 @@
 ---
-source_sha: "a41c7a2c6e87"
+source_sha: "0d080c65b077"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
 
-Un host, Docker Compose, un proxy inverso delante. Ese es todo el camino que se
-publica, y es el que hace funcionar los despliegues en los que se usa este
-proyecto.
-
-No hay manifiestos de Kubernetes, ni quickstarts de un clic para los proveedores
-de plataforma como servicio. No es modestia sobre la escala. El stack son seis
-contenedores, dos de los cuales guardan estado, uno de los cuales puede arrancar
-contenedores propios, y uno de los cuales es un Postgres que debe ser pgvector -
-que ya es más de lo que modela un destino de despliegue a base de `git push`, y
-una guía que fingiera lo contrario estaría describiendo un despliegue que nadie
-ha ejecutado.
+Un host, Docker Compose y un proxy inverso siguen siendo la vía publicada para
+un solo servidor. Para clústeres, usa el [chart Helm de Kubernetes](kubernetes.md)
+mantenido, con servicios de datos externos y un Job de migración bloqueante.
+La configuración de OpenShift es una propuesta todavía sin validar. No hay
+quickstarts de un clic para proveedores PaaS.
 
 Más allá de un host - un Postgres gestionado, varios hosts de API, varios
 despliegues - está [Escalar más allá de un host](scaling.md).
@@ -657,6 +651,55 @@ herramientas.
 No es un despliegue sin interrupción. Compose recrea los contenedores cuya imagen
 ha cambiado, así que el sitio no está disponible durante los pocos segundos que
 eso lleva.
+
+### Retención de imágenes de versiones { #release-image-retention }
+
+Antes de descargar, el script elimina imágenes antiguas y sin uso únicamente de
+`ghcr.io/vstorm-co/agenticos-backend`, `agenticos-frontend` y `agenticos-browser`.
+Conserva dos identificadores adicionales de imágenes sin uso por repositorio,
+empezando por los más recientes. Varias etiquetas SHA o de versión del mismo ID
+cuentan como una imagen. Solo son elegibles las etiquetas `sha-<hex>` y las
+versiones numéricas. Todos los alias de un ID eliminable se retiran juntos,
+sin `--force`. `--no-prune` también impide eliminar implícitamente las imágenes
+padre sin etiqueta.
+
+Cada contenedor del host, en ejecución o detenido, protege su imagen, incluidos
+otros proyectos Compose. La imagen de destino, cualquier etiqueta mutable o
+manual y las etiquetas o digests de otro repositorio también protegen todo el
+ID. Las imágenes de sandbox y entornos de ejecución, las imágenes sin etiqueta
+y los volúmenes de la aplicación quedan fuera de esta limpieza. Estas
+protecciones pueden conservar más imágenes que el cupo de imágenes sin uso.
+
+El hash del directorio de despliegue separa los marcadores de varios despliegues
+en el mismo host. Las etiquetas locales `deploy-<stack-hash>-current` y `deploy-<stack-hash>-rollback` conservan la última
+imagen sana de cada componente y su predecesora tras reemplazar los contenedores.
+En el primer uso, `deploy-<stack-hash>-current` se obtiene de los contenedores sanos de este
+despliegue, no del checkout; varios ID sanos para un mismo componente rechazan
+el despliegue. Las referencias avanzan solo después de superar las comprobaciones
+de salud de los nuevos servicios. Los despliegues fallidos conservan las
+referencias y repetir la misma imagen no sustituye su rollback. Las reversiones
+siguen usando un SHA de commit aprobado; estas etiquetas locales son marcadores
+de retención, no versiones del registro.
+
+El script exige al menos **5 GiB libres** en el sistema de archivos del almacén
+Docker antes de cada descarga y después de preparar los entornos opcionales.
+Comprueba `DockerRootDir` y el almacén predeterminado `/var/lib/containerd` cuando
+existe. Es un umbral mínimo, no una reserva ni una estimación del tamaño de las
+imágenes; los almacenes containerd personalizados requieren supervisión aparte.
+Las imágenes del backend y frontend se descargan antes de reiniciar cualquiera
+de los servicios. Si falta espacio, el rechazo indica el sistema de archivos y
+la capacidad disponible: libera espacio fuera de las protecciones o amplía el
+almacenamiento y repite el despliegue aprobado. No implementes esta política
+mediante un `docker image prune -a` global.
+
+En Docker Desktop, el directorio de almacenamiento está dentro de la VM Linux.
+El script mide su espacio libre mediante un contenedor temporal, de solo lectura
+y sin red, usando una imagen del backend ya disponible localmente, preferentemente
+la última sana. La prueba no puede descargar imágenes y el contenedor se elimina
+automáticamente. También comprueba el sistema de archivos del host que contiene
+el directorio de despliegue; supervisa por separado el de un disco VM
+personalizado. Este procedimiento de actualización requiere una imagen local
+del backend; completa primero la instalación inicial normal.
 
 ### Desde GitHub, con una aprobación { #from-github-with-an-approval }
 

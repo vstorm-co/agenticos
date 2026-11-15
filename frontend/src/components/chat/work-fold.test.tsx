@@ -247,3 +247,22 @@ it("opens the full history as a labelled keyboard-accessible scroll region", asy
   await userEvent.click(toggle);
   expect(screen.queryByRole("region")).toBeNull();
 });
+
+it("does not label failed work as completed", () => {
+  render(
+    <WorkFold steps={2} durationMs={10_000} failed>
+      <p>the steps</p>
+    </WorkFold>,
+  );
+  expect(screen.getByRole("button", { name: "Failed after 10s · 2 steps" })).toBeInTheDocument();
+  expect(screen.queryByText(/Worked/)).not.toBeInTheDocument();
+});
+
+it("marks failed work even when the duration was not recorded", () => {
+  render(
+    <WorkFold steps={2} durationMs={null} failed>
+      <p>the steps</p>
+    </WorkFold>,
+  );
+  expect(screen.getByRole("button", { name: "Failed · 2 steps" })).toBeInTheDocument();
+});

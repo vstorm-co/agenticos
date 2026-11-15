@@ -13,7 +13,8 @@ import {
 } from "@/components/artifacts/artifact-archive";
 import { ArtifactCard } from "@/components/artifacts/artifact-card";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { CatalogLoading } from "@/components/states/catalog-loading";
+import { EmptyState, ErrorState } from "@/components/states";
 import {
   ListCard,
   ListCardEmpty,
@@ -167,7 +168,7 @@ export default function ArtifactsPage() {
         }
       >
         {isLoading || isLoadingPermissions ? (
-          <LoadingState variant="skeleton-cards" rows={3} />
+          <CatalogLoading kind="document" />
         ) : error ? (
           <ErrorState
             description={getErrorMessage(error, tErrors)}

@@ -36,10 +36,13 @@ export function ListFilters({
           setOwn(!open);
           onOpenChange?.(!open);
         }}
-        className="border-input bg-field touch:min-h-11 touch:min-w-11 hover:bg-control-hover focus-visible:outline-foreground/40 inline-flex min-h-9 touch-manipulation items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+        className={cn(
+          "border-input bg-field touch:min-h-11 touch:min-w-11 hover:bg-control-hover focus-visible:outline-foreground/40 inline-flex min-h-9 shrink-0 touch-manipulation items-center justify-center gap-1.5 rounded-lg border px-3 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2",
+          compact && "max-sm:min-w-11 max-sm:px-2.5",
+        )}
       >
         <SlidersHorizontal className="size-4" aria-hidden />
-        <span className={cn(compact && "max-[359px]:sr-only")}>{t("filters")}</span>
+        <span className={cn(compact && "max-sm:sr-only")}>{t("filters")}</span>
         {/* A space for whoever hears the name: "Filters 3", not "Filters3". */}
         {active > 0 && " "}
         {active > 0 && (
@@ -51,7 +54,7 @@ export function ListFilters({
           className={cn(
             "text-muted-foreground size-4 transition-transform",
             open && "rotate-180",
-            compact && "max-[359px]:hidden",
+            compact && "max-sm:hidden",
           )}
           aria-hidden
         />

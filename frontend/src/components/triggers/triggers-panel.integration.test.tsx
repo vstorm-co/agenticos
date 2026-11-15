@@ -443,6 +443,110 @@ describe("TriggersPanel", () => {
     });
   });
 
+  it("offers somebody else a pause but no resume of a routine acting as its creator", async () => {
+    useAuthStore.setState({ user: { id: "me" } as never });
+    serve([
+      trigger({ created_by_user_id: "someone-else", runs_as_creator: true }),
+      trigger({
+        id: "t2",
+        created_by_user_id: "someone-else",
+        runs_as_creator: true,
+        is_active: false,
+      }),
+      trigger({ id: "t3", created_by_user_id: "me", runs_as_creator: true, is_active: false }),
+    ]);
+    await mount();
+
+    expect(await screen.findByRole("button", { name: "Pause" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Resume" })).toHaveLength(1);
+  });
+
+  it("lets somebody else only tighten the limits until running as its creator is cleared", async () => {
+    const user = userEvent.setup();
+    useAuthStore.setState({ user: { id: "me" } as never });
+    serve([
+      trigger({
+        created_by_user_id: "someone-else",
+        runs_as_creator: true,
+        max_failures: 3,
+        monthly_budget_usd: "5",
+      }),
+    ]);
+    vi.mocked(apiClient.patch).mockResolvedValue(trigger());
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText(/Ends at/)).toBeDisabled();
+    expect(within(dialog).getByText(/only they can resume it/)).toBeInTheDocument();
+    const budget = within(dialog).getByLabelText(/Monthly budget/);
+    await user.clear(budget);
+    await user.type(budget, "50");
+    expect(within(dialog).getByText(/can raise or remove its limit/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+    await user.clear(budget);
+    await user.type(budget, "2");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
+      monthly_budget_usd: 2,
+    });
+  });
+
+  it("offers no failure limit above the creator's, nor turning it off", async () => {
+    const user = userEvent.setup();
+    useAuthStore.setState({ user: { id: "me" } as never });
+    serve([
+      trigger({ created_by_user_id: "someone-else", runs_as_creator: true, max_failures: 3 }),
+    ]);
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(
+      within(dialog).getByRole("combobox", { name: /Pause after repeated failures/ }),
+    );
+
+    expect(screen.getByRole("option", { name: "After 3 unsuccessful checks" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "After 4 unsuccessful checks" })).toBeNull();
+    expect(screen.queryByRole("option", { name: /Do not pause/ })).toBeNull();
+  });
+
+  it("treats an administrator acting as the creator as somebody else", async () => {
+    useAuthStore.setState({
+      user: { id: "me", impersonation: { session_id: "s1" } } as never,
+    });
+    serve([
+      trigger({
+        created_by_user_id: "me",
+        runs_as_creator: true,
+        is_active: false,
+      }),
+    ]);
+    await mount();
+
+    await screen.findByText("As its creator");
+    expect(screen.queryByRole("button", { name: "Resume" })).toBeNull();
+  });
+
+  it("locks the end for somebody else until running as its creator is cleared", async () => {
+    const user = userEvent.setup();
+    useAuthStore.setState({ user: { id: "me" } as never });
+    serve([trigger({ created_by_user_id: "someone-else", runs_as_creator: true })]);
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText(/Ends at/)).toBeDisabled();
+    expect(within(dialog).getByText(/only they can resume it/)).toBeInTheDocument();
+
+    await user.click(
+      within(dialog).getByRole("checkbox", { name: /Runs as the person who made it/ }),
+    );
+
+    expect(within(dialog).getByLabelText(/Ends at/)).toBeEnabled();
+    expect(within(dialog).queryByText(/only they can resume it/)).toBeNull();
+  });
+
   it("says an event acting as its creator reads memory without writing it", async () => {
     const user = userEvent.setup();
     useAuthStore.setState({ user: { id: "me" } as never });
@@ -529,7 +633,7 @@ describe("TriggersPanel", () => {
 
     await user.click(await screen.findByRole("button", { name: "Edit" }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Edit schedule")).toBeVisible();
+    expect(within(dialog).getByRole("heading", { name: "Edit schedule" })).toBeVisible();
     expect(within(dialog).queryByText("Edit trigger")).toBeNull();
   });
 

@@ -85,6 +85,14 @@ SCHEDULES: tuple[Schedule, ...] = (
     # A call a dead worker left is billed by the minute, and its heartbeat goes
     # stale 45 s after the worker died (#54).
     Schedule("reap-voice-calls", jobs.REAP_VOICE_CALLS, _MINUTE),
+    # Schedule, start and settle the eval suites.
+    Schedule("check-eval-suites", jobs.CHECK_EVAL_SUITES, _MINUTE),
+    Schedule("sweep-improvements", jobs.SWEEP_IMPROVEMENTS, _MINUTE),
+    Schedule("sweep-skill-improvements", jobs.SWEEP_SKILL_IMPROVEMENTS, _MINUTE),
+    # Carry a skill check on when a stage's eval run settled without waking it.
+    Schedule("sweep-skill-checks", jobs.SWEEP_SKILL_CHECKS, _MINUTE),
+    # Fail the eval runs whose worker went silent, freeing the eval slots they hold.
+    Schedule("reap-abandoned-evals", jobs.REAP_ABANDONED_EVALS, _MINUTE),
     # The workflow engine's sweeps. Postgres holds a run's position and every
     # outbox row has its own job, so the poll is only the backstop for a job that
     # died or was lost; the reconcile outlasts the 120 s dispatch lease
@@ -106,6 +114,9 @@ SCHEDULES: tuple[Schedule, ...] = (
     # Renew OAuth tokens near expiry and dial every organization server: often
     # enough that a dead grant is noticed within a coffee break.
     Schedule("sweep-mcp-connections", jobs.SWEEP_MCP_CONNECTIONS, timedelta(minutes=15)),
+    # A gap is read by a person deciding what to write, so a quarter-hour's delay
+    # costs nothing. A knowledge base with no new misses embeds nothing.
+    Schedule("group-knowledge-gaps", jobs.GROUP_KNOWLEDGE_GAPS, timedelta(minutes=15)),
     # Memory that changed since it was last folded (#2090): deterministic, no model,
     # and a scope nobody wrote to costs nothing - only changed scopes are listed.
     Schedule("consolidate-memory", jobs.CONSOLIDATE_MEMORY, timedelta(minutes=15)),
@@ -156,7 +167,13 @@ async def declare(db: AsyncSession, schedules: Sequence[Schedule], *, now: datet
     a share of that minute after the last, so a fresh deployment's sweeps do not
     all wake at once.
     """
+    starts: set[datetime] = set()
     for index, schedule in enumerate(schedules):
+        first_run_at = now + min(_spread(index, len(schedules)), schedule.every)
+        # Clamping a short interval can coincide with another schedule's share.
+        while first_run_at in starts:
+            first_run_at -= timedelta(microseconds=1)
+        starts.add(first_run_at)
         await schedule_repo.declare(
             db,
             name=schedule.name,
@@ -166,7 +183,7 @@ async def declare(db: AsyncSession, schedules: Sequence[Schedule], *, now: datet
             misfire=schedule.misfire.value,
             grace_seconds=int(schedule.grace.total_seconds()),
             now=now,
-            first_run_at=now + _spread(index, len(schedules)),
+            first_run_at=first_run_at,
         )
     removed = await schedule_repo.forget_undeclared(db, declared=[s.name for s in schedules])
     if removed:
@@ -243,7 +260,7 @@ def _spread(index: int, count: int) -> timedelta:
 
     No two schedules may start at the same instant, and one whose interval is
     shorter than its share starts one interval out instead
-    (`background_schedule.declare`). In `count + 1` shares, so no share of the
-    current set lands on such a clamped start; `test_background_schedules` checks it.
+    (`background_schedule.declare`). Declaration resolves collisions between
+    such clamped starts and these shares before storing them.
     """
     return _MINUTE * index / (count + 1)

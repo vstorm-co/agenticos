@@ -19,6 +19,7 @@ when nobody said otherwise.
 | **Version** | Which published version answers here. There is no unpinned state |
 | **Tracks latest** | Whether publishing repoints this environment on its own. Off by default |
 | **Tracing** | A Logfire write token from the vault, so this environment's runs land in their own project |
+| **Test connections** | MCP servers and vault keys this environment answers with test ones — a sandbox CRM, a test mailbox. Named environments only |
 
 !!! info "There is no environment without a version"
 
@@ -48,6 +49,75 @@ flowchart LR
 Rolling back is the same move backwards: repoint `production` at the version
 that worked. The old version is still there, still readable, still runnable.
 
+An [eval suite](evals.md#suites) set to run on promotion checks each version
+promoted onto its environment against the one it replaced, and tells its owner
+when the result fails. On its own it reports; an environment that names it as a
+[guard](#guarding-a-promotion-with-evals) waits for it to pass.
+
+## Guarding a promotion with evals { #guarding-a-promotion-with-evals }
+
+An environment can name the [eval suites](evals.md#suites) that **guard** it.
+It then takes a version only once each guard has passed on that exact version,
+over the dataset version, the scoring and the judge publication the guard is
+pinned to, and under the
+threshold it holds now - a pass from before the pin moved, or before the bar was
+raised, does not count. A promotion that does not meet that is refused (`409`,
+`PROMOTION_BLOCKED`), and the refusal names each guard and where it stands:
+failed, inconclusive, did not run and why, still checking, out of date, not
+checked, or paused.
+
+A pass counts for the environment it was run beside: measured against the
+version that environment serves now, and graded under the scoring of its pin -
+one beside staging's version says nothing about replacing production's. A
+paused guard holds the version back whatever it found before the pause.
+
+A suite that guards an environment is **pinned** to the dataset version, the
+scoring and the judge's published version it had when it became a guard. Editing the dataset - its cases, its
+grading, its judge - stays open to anybody who may edit it, and does not change
+what the guard checks.
+
+The suite's panel says when the dataset or its judge has moved on, and
+**Move the pin** (`POST /api/v1/agents/{id}/eval-suites/{suite}/pin`) moves the
+guard onto the latest version, scoring and judge publication; it needs `promotions:override` and is
+recorded as a change to the guards. A suite that stops guarding reads the latest
+again, and one whose dataset has no cases yet cannot become a guard. A guard set
+up before guards were pinned, on a dataset that had no cases then, is not
+pinned: it holds every version back until somebody who may override promotions
+pins it.
+
+The judge - the dataset's own, or the Eval judge - stays at the publication it
+had when the guard was pinned. A republished judge does not grade the guard
+until the pin moves, and a pass graded by another publication does not count.
+A guard pinned while its judge had no publication leaves the judge's criteria
+ungraded until the pin moves.
+
+The promotion dialog shows the same, and runs the guards that have not passed
+on the version, each beside the version the environment serves now
+(`POST /api/v1/agents/{id}/environments/{env}/gate/run`;
+`GET …/gate?version_id=` reads the gate). A guard that needs the judge while
+[AI assistance](governance.md#ai-assistance) is off says so, rather than
+blocking without a reason.
+
+An **override** promotes past the guards anyway. It needs
+`promotions:override` - owners and admins hold it - and a reason of at least
+ten characters, given by a person signed in as themselves, not through an API
+key. The override, who
+made it and each guard's result go to the audit log and onto the version in
+the history, and each failing guard's owner is told.
+
+Changing which suites guard an environment needs the same permission, since
+taking a guard off lets through what it would have stopped, and so does
+weakening what a guarding suite checks: a lower or removed bar in its threshold,
+another dataset, another environment, or that environment's test connections. A
+stricter threshold needs no override; it is recorded all the same, and a pass
+under the old bar no longer counts. A suite that guards, or a dataset one
+checks, cannot be deleted until it is taken off.
+
+A guarded environment with **tracks latest** on does not follow a publish at
+once: the publish runs its guards on the new version, and the environment moves
+when all of them pass, recorded as promoted by the gate. One whose guards fail
+stays where it is, and its row says it is waiting.
+
 ## `tracks_latest`, and why it is off
 
 An environment with **tracks latest** on is repointed by every publish. That is
@@ -75,7 +145,75 @@ publishes an [app](artifacts.md#one-name-one-link) of its own, so trying
 `dev` on the weekly report never republishes the page production readers open.
 An environment with a run still working, or waiting for an approval, cannot be
 removed until the run ends: deleting it would hand that run to the default, and
-its pages to production's.
+its pages to production's. The same holds while an eval run in it is queued or
+running, which would otherwise go on against production's connections.
+
+## Test connections
+
+A version is the same spec wherever it runs, so `staging` would otherwise reach
+the same CRM and the same mailbox as `production`. A named environment can
+answer a binding with a **test connection** instead: an organization
+[MCP server](mcp.md) with a sandbox one, or a capability's vault key with a test
+key. The spec does not change, so promoting a version carries no test
+credential with it.
+
+| Binding | Replaced by | What the model sees |
+|---|---|---|
+| An organization MCP connection | Another organization MCP connection | The production connection's tool names, so staging and production are comparable |
+| A capability's vault key | Another key of the same kind and purpose | Nothing: the capability never learns which key it was handed |
+
+Every run in the environment uses them: a Slack bot bound to `staging`, an API
+call naming it, a schedule, and every delegate those runs call. The tools a
+test connection offers are narrowed by the production connection's allowlist,
+the test connection's own and the binding's.
+
+!!! warning "Off, never production"
+
+    A binding can be switched off in an environment instead of replaced. So can
+    one whose test side was deleted, disabled or lost its credentials: the
+    binding goes dark there until somebody picks another test connection. The
+    production side is never the fallback. A capability whose test key was
+    deleted refuses the run rather than run without its key.
+
+The default environment carries no test connections — it is what a surface
+naming no environment runs, which is production. Both sides of an override must
+be the organization's own, and a test key must be one the person setting it can
+see. Only ids are stored; a test key stays in [the vault](secrets.md), and the
+audit entry records how many overrides there are, not what they hold.
+
+### In an eval
+
+An eval runs the agent for real, so its tools would act for real: an agent that
+sends e-mail would send one per case. A run started **isolated** — which is how
+an eval runs — executes a tool only when that is safe:
+
+| The tool | What happens |
+|---|---|
+| Reaches a test MCP connection of the environment | Runs, against the test system |
+| Only reads | Runs on the normal connection |
+| Writes, on a test vault key | Runs only if its capability declares that the key alone picks the target; otherwise **not executed** and recorded |
+| Writes, with no test connection | **Not executed.** Recorded as an intended call, with its arguments |
+
+A test key stands in for a credential, but a URL or host in the capability's
+config can still point the writes at production. So a swapped key lets a
+capability write in an eval only when the capability declares
+`test_key_isolates`, and the [catalog](reference/capabilities.md#what-an-eval-runs)
+lists which do.
+
+An MCP tool counts as reading only when its server marks it `readOnlyHint` and
+the connection is set to trust that mark; by default it is not, because the mark
+is the server's own claim. A capability's tool declares it in the registry, and the
+[catalog](reference/capabilities.md#what-an-eval-runs) lists which do. **A tool
+that declares nothing writes.** The model is told the call was not sent, and
+the intended call is kept with the run for scoring.
+
+An isolated run can also be answered from the recording of the run a case was
+taken from - the calls its transcript kept. A call is matched by its tool, its
+arguments and its order among identical calls, and gets the original result; a
+call the recording does not hold is not executed and is recorded as divergent. A
+run whose transcript lost a call is not replayed at all. An isolated run has
+nobody to ask for an approval, so a call the agent gates is not executed either,
+and is recorded as one that needed an approval.
 
 ## Trying it from the Builder
 
@@ -139,5 +277,11 @@ released.
   serve different versions of one agent.
 - **Rolling back is repointing**, because old versions stay readable and
   runnable.
+- An environment can be **guarded by eval suites**: a version goes onto it only
+  once they pass on that version, or past them with a reason and
+  `promotions:override`.
+- A named environment can answer bindings with **test connections**; a binding
+  without one is off there, never production. In an eval, a tool that writes
+  with no test connection is **recorded, not run**.
 - The default environment is managed by publish, and deliberately not editable
   here.

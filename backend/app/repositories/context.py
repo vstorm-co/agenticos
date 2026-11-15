@@ -155,6 +155,17 @@ async def create(
     return file
 
 
+async def lock(db: AsyncSession, context_id: UUID, *, organization_id: UUID) -> ContextFile | None:
+    """The file locked until the transaction ends, read afresh."""
+    result = await db.execute(
+        select(ContextFile)
+        .where(ContextFile.id == context_id, ContextFile.organization_id == organization_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
 async def update(db: AsyncSession, *, file: ContextFile, update_data: dict) -> ContextFile:
     for field, value in update_data.items():
         setattr(file, field, value)

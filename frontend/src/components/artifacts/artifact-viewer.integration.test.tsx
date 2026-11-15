@@ -1449,7 +1449,12 @@ describe("ArtifactViewer requests", () => {
     await userEvent.click(screen.getByRole("button", { name: /waiting for you/ }));
 
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Bea Builder changed the data v3 shows")).toBeVisible();
+    const request = within(dialog).getByText("Bea Builder changed the data v3 shows");
+    expect(request).toBeVisible();
+    expect(
+      request.compareDocumentPosition(within(dialog).getByLabelText("Link to this app")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("opens the Share dialog at once when a notification linked to the requests", async () => {

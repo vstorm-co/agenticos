@@ -45,6 +45,11 @@ _NO_STORE = (
     "chat, so a note would have to land somewhere other people read. Answer from what "
     "you have rather than saving."
 )
+_SHARED = (
+    "Nothing personal is kept or recalled here: other people read this conversation - "
+    "it belongs to a project or is shared for editing - so what you know about the "
+    "person stays out of it. Answer from the conversation and shared knowledge."
+)
 _READ_ONLY = (
     "Your notes here can be read but not changed: this run was started by an event, "
     "and what it carries came from outside, so nothing from it is saved as a note. "
@@ -95,7 +100,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         audience = deps.audience or RunAudience()
         owner_key = memory_owner_key(audience, allow_personal=self._allow_personal)
         if deps.organization_id is None or deps.agent_id is None or owner_key is None:
-            return _NO_STORE
+            return _SHARED if audience.shared_transcript else _NO_STORE
         if writing and not audience.writes_memory:
             return _READ_ONLY
         return deps.organization_id, deps.agent_id, owner_key
@@ -336,7 +341,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             shared_with_agents=profile,
         )
         if target is None:
-            return _NO_STORE
+            return _SHARED if audience.shared_transcript else _NO_STORE
         if not statement.strip():
             return "Give the claim as one sentence."
         start = _parse_date(effective_from)
@@ -438,6 +443,9 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
                 statement=statement,
                 author_user_id=UUID(str(audience.user_id)),
                 effective_from=start,
+                run_id=deps.run_id,
+                conversation_id=deps.conversation_id,
+                agent_id=deps.agent_id,
             )
         except ShareRefused as refused:
             return f"Not corrected: {refused}"

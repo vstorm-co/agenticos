@@ -81,16 +81,18 @@ export function ListCard({
         {...rest}
       >
         <CardHeader
+          hidden={empty}
           data-tour={headerTour}
           className={cn(
             "shrink-0 flex-col gap-3 space-y-0 border-b px-4 py-3 sm:min-h-14 sm:flex-row sm:items-center sm:justify-between sm:px-5",
             layout === "grid" && "border-0 px-0 pt-0 pb-4 sm:px-0",
-            empty && "sr-only",
           )}
         >
           <CardTitle className="sr-only">{title}</CardTitle>
           {controls && (
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{controls}</div>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 max-sm:[&>div:only-child]:flex-1">
+              {controls}
+            </div>
           )}
           <div className="text-muted-foreground shrink-0 text-xs tabular-nums sm:ml-auto">
             {counted === null ? <Skeleton className="h-4 w-24" /> : counted}
@@ -229,7 +231,7 @@ export function ListCardEmpty({
 }: {
   icon: LucideIcon;
   title: string;
-  description?: string;
+  description?: ReactNode;
   cta?: { label: ReactNode; onClick: () => void };
 }) {
   return (

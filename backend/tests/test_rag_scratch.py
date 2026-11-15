@@ -1,6 +1,6 @@
 """The parse scratch copy of an upload goes when nothing will read it again (#2681).
 
-Every upload and every retry writes `MEDIA_DIR/_rag_tmp/<document>-<attempt><ext>`
+With local storage every upload and retry writes `MEDIA_DIR/_rag_tmp/<document>-<attempt><ext>`
 for its `ingest-document` job to parse, and until #2681 nothing removed it: the
 copy outlived the ingest, the document, its knowledge base and the account that
 uploaded it, so a deleted document's full content stayed on the API host's disk.
@@ -442,6 +442,7 @@ class TestDeletingADocument:
         row = SimpleNamespace(
             id=uuid.uuid4(),
             collection_name="docs",
+            organization_id=uuid.uuid4(),
             vector_document_id=None,
             storage_path="rag/docs/policy.pdf",
             knowledge_base_id=None,
@@ -595,3 +596,128 @@ async def test_a_settlement_that_could_not_be_written_is_left_owed(
         await rag_tasks.settle_lost_ingest(_job(path), "killed")
 
     assert not path.exists()
+
+
+class TestWorkerLocalS3Copies:
+    async def test_local_storage_keeps_the_shared_dispatch_path(self, media: Path) -> None:
+        path = _copy(media, f"{uuid.uuid4()}-1.md")
+        async with rag_scratch.parse_source(path, storage_path=None) as parsed:
+            assert parsed == path
+        assert path.exists()
+
+    async def test_s3_needs_no_api_scratch_and_overlapping_attempts_are_independent(
+        self, media: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        storage = MagicMock(load=AsyncMock(return_value=b"stored document"))
+        monkeypatch.setattr("app.services.file_storage.get_file_storage", lambda: storage)
+        api_path = media / f"{uuid.uuid4()}-1.MD"
+        async with rag_scratch.parse_source(api_path, storage_path="rag/object") as first:
+            assert first.read_bytes() == b"stored document"
+            assert first.suffix == ".md"
+            async with rag_scratch.parse_source(api_path, storage_path="rag/object") as second:
+                assert second != first
+                assert second.read_bytes() == b"stored document"
+            assert not second.exists()
+            assert first.exists()
+        assert not first.exists()
+        assert not api_path.exists()
+        assert storage.load.await_count == 2
+
+    @pytest.mark.parametrize("failure", [RuntimeError("parser failed"), asyncio.CancelledError()])
+    async def test_parser_failure_and_cancellation_remove_the_worker_copy(
+        self, media: Path, monkeypatch: pytest.MonkeyPatch, failure: BaseException
+    ) -> None:
+        storage = MagicMock(load=AsyncMock(return_value=b"document"))
+        monkeypatch.setattr("app.services.file_storage.get_file_storage", lambda: storage)
+        with pytest.raises(type(failure)):
+            async with rag_scratch.parse_source(
+                media / "copy.pdf", storage_path="rag/object"
+            ) as path:
+                assert path.exists()
+                raise failure
+        assert not path.exists()
+
+    async def test_storage_failure_is_not_hidden_by_an_api_copy(
+        self, media: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        api_path = _copy(media, f"{uuid.uuid4()}-1.pdf")
+        storage = MagicMock(load=AsyncMock(side_effect=OSError("object store unreachable")))
+        monkeypatch.setattr("app.services.file_storage.get_file_storage", lambda: storage)
+        with pytest.raises(OSError, match="object store unreachable"):
+            async with rag_scratch.parse_source(api_path, storage_path="rag/object"):
+                pytest.fail("A failed object download must not parse stale local bytes")
+        assert api_path.exists()
+
+    async def test_s3_dispatch_queues_without_writing_an_api_copy(
+        self, media: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(settings, "FILE_STORAGE_BACKEND", "s3")
+        enqueue = AsyncMock()
+        monkeypatch.setattr("app.services.rag_document.enqueue", enqueue)
+        document_id = uuid.uuid4()
+        await RAGDocumentService(MagicMock())._queue_parse(
+            document_id,
+            organization_id=uuid.uuid4(),
+            collection_name="handbook",
+            filename="policy.md",
+            file_data=b"stored in S3",
+            replace=False,
+            attempt=1,
+        )
+        enqueue.assert_awaited_once()
+        payload = enqueue.call_args.args[2]
+        assert payload.rag_document_id == document_id
+        assert payload.filepath == str(
+            rag_scratch.scratch_path(document_id, attempt=1, filename="policy.md")
+        )
+        assert list(media.iterdir()) == []
+
+    async def test_worker_parses_the_stored_object_without_the_api_filesystem(
+        self, media: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(settings, "FILE_STORAGE_BACKEND", "s3")
+        storage = MagicMock(load=AsyncMock(return_value=b"document from the bucket"))
+        monkeypatch.setattr("app.services.file_storage.get_file_storage", lambda: storage)
+        record = SimpleNamespace(
+            organization_id=None,
+            ingestion_config={},
+            organizational_unit=None,
+            knowledge_base_id=None,
+            storage_path="rag/handbooks/stored.md",
+        )
+        documents = MagicMock(
+            get_document=AsyncMock(return_value=record),
+            complete_ingestion=AsyncMock(return_value=True),
+        )
+        monkeypatch.setattr("app.services.rag_document.RAGDocumentService", lambda _db: documents)
+        monkeypatch.setattr(rag_tasks, "get_worker_db_context", _worker_db)
+        monkeypatch.setattr(
+            "app.services.ingestion_config.IngestionConfigService.build_processor", AsyncMock()
+        )
+        parsed: list[Path] = []
+
+        async def ingest(*, filepath: Path, **_kwargs: object) -> IngestionResult:
+            assert filepath.read_bytes() == b"document from the bucket"
+            parsed.append(filepath)
+            return IngestionResult(
+                status=IngestionStatus.DONE,
+                document_id=str(uuid.uuid4()),
+                chunk_count=1,
+            )
+
+        @asynccontextmanager
+        async def pipeline(**_kwargs: object) -> AsyncIterator[MagicMock]:
+            yield MagicMock(ingest_file=AsyncMock(side_effect=ingest))
+
+        monkeypatch.setattr(rag_tasks, "_ingestion_service", pipeline)
+        monkeypatch.setattr(rag_tasks, "_record_embedding_spend", AsyncMock())
+        api_path = media / f"{uuid.uuid4()}-1.md"
+        outcome = await rag_tasks._run_ingestion(
+            str(uuid.uuid4()), "handbooks", str(api_path), "policy.md", False, 1
+        )
+        assert outcome["status"] == "done"
+        storage.load.assert_awaited_once_with(record.storage_path)
+        assert len(parsed) == 1
+        assert parsed[0] != api_path
+        assert not parsed[0].exists()
+        assert not api_path.exists()

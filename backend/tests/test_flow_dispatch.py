@@ -94,6 +94,7 @@ async def test_a_triggered_source_sync_is_queued_waiting_behind_any_other_sync_o
         connector_type="google_drive",
         collection_name="handbooks",
         sync_mode="full",
+        is_active=True,
     )
     sync_log = SimpleNamespace(id=uuid4())
     savepoint = SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())
@@ -119,6 +120,7 @@ def _source() -> SimpleNamespace:
         connector_type="google_drive",
         collection_name="handbooks",
         sync_mode="full",
+        is_active=True,
     )
 
 

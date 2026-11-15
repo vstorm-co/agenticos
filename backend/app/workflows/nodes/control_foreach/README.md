@@ -5,15 +5,17 @@ at a time and in order, and then continues through `done` with every
 iteration's result.
 
 ```text
-query ─► for each ─body─► loop.item ─► agent.run ─► table.record.update ─► loop.yield
-             └─done─► notification.send
+query ─► for each ─done─► notification.send
+           ┆ body: loop.item ─► agent.run ─► table.record.update ─► loop.yield
 ```
 
-The body starts at `loop.item`, which provides `item`, `index` and `count` to
-bind to, and ends at `loop.yield`, whose bound `value` becomes the iteration's
-entry in `results`. Nothing inside the body is connected back to the loop and
-nothing inside it connects out of it: the loop continues through its own
-`done` port once the last iteration ends. A body node may bind to anything that
+The body is the steps whose `scope_id` names the loop - no wire connects the
+loop to them. It starts at `loop.item`, which provides `item`, `index` and
+`count` to bind to, and ends at `loop.yield`, whose bound `value` becomes the
+iteration's entry in `results`. Every step of the body must be reached from
+`loop.item` by the body's own wires. Nothing inside the body is connected back
+to the loop and nothing inside it connects out of it: the loop continues
+through its own `done` port once the last iteration ends. A body node may bind to anything that
 ran before the loop. Nothing outside the body may bind to a node inside it;
 read the loop's `results` instead.
 
@@ -55,7 +57,6 @@ publish. Every node run a run creates counts against
 | Port | Kind | Schema | What it carries |
 |---|---|---|---|
 | `in` | input | none | control flow; `items` is bound |
-| `body` | output | none | the edge to the body's `loop.item` |
 | `done` | output | `ForeachOutput` | `results`, `errors`, `count` |
 
 ## Effect kind and retries

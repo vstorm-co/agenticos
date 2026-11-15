@@ -1,0 +1,26 @@
+existingSecret: agenticos-smoke
+public:
+  siteUrl: http://localhost:13000
+  apiUrl: http://localhost:18000
+  websocketUrl: ws://localhost:18000
+postgres:
+  host: postgres.agenticos-smoke-deps.svc.cluster.local
+  sslMode: verify-full
+trust:
+  existingSecret: agenticos-smoke-ca
+redis:
+  host: valkey.agenticos-smoke-deps.svc.cluster.local
+  ssl: false
+storage:
+  bucket: uploads
+  endpoint: http://minio.agenticos-smoke-deps.svc.cluster.local:9000
+  pathStyle: true
+  encryption: none
+extraEnv:
+  WORKER_INGEST_CHILDREN: "1"
+  WORKER_INGEST_MEMORY_MB: "512"
+  OUTBOUND_PRIVATE_ALLOWLIST: '["model-fixture.agenticos-smoke-deps.svc.cluster.local"]'
+worker:
+  resources:
+    requests: {cpu: 100m, memory: 512Mi}
+    limits: {cpu: "2", memory: 2Gi}

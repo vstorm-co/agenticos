@@ -132,12 +132,12 @@ export function RecordFiltersPopover({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[min(40rem,calc(100vw-2rem))] p-0">
-        <div className="border-border border-b px-4 py-3">
+      <PopoverContent align="end" className="flex w-[min(40rem,calc(100vw-2rem))] flex-col p-0">
+        <div className="border-border shrink-0 border-b px-4 py-3">
           <p className="text-sm font-medium">{t("title")}</p>
           <p className="text-muted-foreground text-xs">{t("hint")}</p>
         </div>
-        <div className="max-h-[50vh] space-y-2 overflow-y-auto p-3">
+        <div className="max-h-[50dvh] min-h-0 space-y-2 overflow-y-auto p-3">
           {filters.length === 0 && (
             <p className="text-muted-foreground px-1 py-3 text-center text-sm">{t("none")}</p>
           )}
@@ -148,9 +148,9 @@ export function RecordFiltersPopover({
             return (
               <div
                 key={index}
-                className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-start gap-2 rounded-lg border p-3 sm:flex sm:border-0 sm:p-0"
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-lg border p-3 sm:flex sm:border-0 sm:p-0"
               >
-                <span className="text-muted-foreground col-span-3 text-xs sm:w-10 sm:shrink-0 sm:pt-2 sm:text-right">
+                <span className="text-muted-foreground self-center text-xs sm:w-10 sm:shrink-0 sm:self-start sm:pt-2 sm:text-right">
                   {index === 0 ? t("where") : t("and")}
                 </span>
                 <Select
@@ -158,7 +158,7 @@ export function RecordFiltersPopover({
                   onValueChange={(id) => replace(index, newFilter(byId.get(id) as ColumnDef))}
                 >
                   <SelectTrigger
-                    className="col-span-1 w-full min-w-0 sm:w-40 sm:shrink-0"
+                    className="col-span-2 w-full min-w-0 sm:w-40 sm:shrink-0"
                     aria-label={t("column")}
                   >
                     <SelectValue />
@@ -178,7 +178,7 @@ export function RecordFiltersPopover({
                   }
                 >
                   <SelectTrigger
-                    className="col-span-1 w-full min-w-0 sm:w-36 sm:shrink-0"
+                    className="col-span-2 w-full min-w-0 sm:w-36 sm:shrink-0"
                     aria-label={t("operator")}
                   >
                     <SelectValue />
@@ -191,7 +191,7 @@ export function RecordFiltersPopover({
                     ))}
                   </SelectContent>
                 </Select>
-                <div className="col-span-2 row-start-3 min-w-0 sm:flex-1">
+                <div className="col-span-2 min-w-0 sm:flex-1">
                   <Operand
                     id={`filter-${index}`}
                     column={column}
@@ -202,7 +202,7 @@ export function RecordFiltersPopover({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-muted-foreground col-start-3 row-start-2 size-9 shrink-0"
+                  className="text-muted-foreground col-start-2 row-start-1 size-9 shrink-0"
                   aria-label={t("remove")}
                   onClick={() => onChange(filters.filter((_, at) => at !== index))}
                 >
@@ -212,7 +212,7 @@ export function RecordFiltersPopover({
             );
           })}
         </div>
-        <div className="border-border flex items-center justify-between border-t px-3 py-2">
+        <div className="border-border flex shrink-0 flex-wrap items-center justify-between border-t px-3 py-2">
           <Button
             variant="ghost"
             size="sm"

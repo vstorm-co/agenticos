@@ -1,5 +1,5 @@
 ---
-source_sha: "083ce38797dc"
+source_sha: "85e967e18444"
 ---
 
 # Eine Seite übersetzen { #translate-a-page }
@@ -160,8 +160,8 @@ sein eigenes Repository exportiert, und auf jeder englischen Seite dieser Site.
 Sie hier und sonst nirgends zu übersetzen gibt einem Produkt zwei Vokabulare, und
 ein polnischer Leser, der das übersetzte Wort nachschlägt, findet nichts.
 
-**agent · spec · capability · skill · embed · budget · run · prompt · provider ·
-token · vault · workspace · sandbox · MCP**
+**agent · spec · capability · skill · dataset · embed · budget · run · prompt ·
+provider · token · vault · workspace · sandbox · MCP**
 
 Flektieren Sie sie, statt sie zu ersetzen, und übersetzen Sie alles darum herum.
 
@@ -191,6 +191,7 @@ Entscheidung fällt deshalb einmal, und zwar hier:
 | spec | der Spec | ten spec, speca | el spec |
 | capability | die Capability | ta capability (nieodmienne) | la capability |
 | skill | der Skill | ten skill, skilla | el skill |
+| dataset | das Dataset | ten dataset, datasetu | el dataset |
 | embed | das Embed | ten embed, embeda | el embed |
 | budget | das Budget | ten budżet | el budget |
 | run | der Run | ten run, runa | el run |
@@ -240,6 +241,38 @@ Wenn ein Satz aussagt, was die Plattform ablehnt, übersetzen Sie die Ablehnung
 wörtlich. Weichen Sie "is refused" nicht zu "funktioniert möglicherweise nicht"
 auf, und machen Sie aus einer Aussage darüber, was nicht passieren kann, keinen
 Rat darüber, was Sie nicht tun sollten.
+
+## Die Wörter der Eval-Ansichten { #the-words-the-eval-screens-use }
+
+Der Tab Evals eines Agents, ein Dataset und das Urteil eines Eval-Runs nennen
+jeden dieser Begriffe auf eine Weise, und ein Satz, der einen Tab nennt, nennt ihn
+so, wie der Tab heißt. Die Kataloge der Konsole halten sie fest, und
+`frontend/messages/eval-terms.test.ts` lehnt in den Eval-Namespaces die gemischten
+Formen ab, die sie ersetzt haben. Eine Seite, die eine dieser Ansichten zitiert,
+verwendet dasselbe Wort, und `scripts/check_docs_glossary.py` hält die polnischen
+und deutschen Seiten dazu in `make lint` daran fest, mit denselben Mustern aus
+`frontend/messages/eval-terms.json`.
+
+| English | Polish | German | Spanish |
+|---|---|---|---|
+| case | przypadek, przypadki, przypadków | der Fall, die Fälle | el caso |
+| eval, the Evals tab | ewaluacja, zakładka Ewaluacje | das Eval, der Tab Evals | el eval, la pestaña Evals |
+| judge | sędzia | der Bewerter | el juez |
+| review | przegląd | die Prüfung | la revisión |
+| environment | środowisko | die Umgebung | el entorno |
+| draft: an agent's unpublished spec | wersja robocza | der Entwurf | el borrador |
+| draft: a text waiting to be accepted - a gap's content, a generated case | szkic | der Entwurf | el borrador |
+| the Build tab | zakładka Budowa | der Tab Bauen | la pestaña Build |
+| breaks / fixes a case | psuje / naprawia przypadek | verschlechtert / behebt einen Fall | rompe / arregla un caso |
+| AI assistance | wsparcie AI | die KI-Unterstützung | la asistencia de IA |
+| the Activity page | Aktywność | die Aktivität | Activity |
+| the Publish button | Opublikuj | Veröffentlichen | Publicar |
+
+Ein Entwurf ist weiterhin nie die veröffentlichte Version: Das Paar published /
+draft unter [Terminologie, die exakt sein muss](#terminology-that-has-to-be-exact)
+behält seine Unterscheidung, welches Wort der Entwurf auch trägt. Die Konsole hat
+keinen spanischen Katalog, die spanische Spalte ist also das Vokabular der
+spanischen Seiten.
 
 ## Die vier Dateien, die GitHub rendert, nicht diese Site { #the-four-files-github-renders-not-this-site }
 

@@ -295,8 +295,9 @@ at a time, so **Folder** and **Shared mailbox** are where the poll looks as well
 filter, and the first read of a folder starts at the moment the workflow was
 published or last switched on. Naming a shared mailbox the organization's Microsoft
 grant can open takes the permission to manage connections, as it does for Outlook
-agent triggers; a workflow already listening to one keeps it through later publishes,
-and changing it needs the permission again. **Sender contains** matches the sender's
+agent triggers; every publish that names one needs it, because whoever publishes becomes the member
+the mailbox is read as, and a message reaching a workflow whose publisher no longer
+holds it starts no run. **Sender contains** matches the sender's
 address, as for Gmail, and needs mail the sender's domain authenticated or that came
 from inside the tenant. A folder or shared mailbox Outlook says cannot be read
 switches the workflow off, with `mailbox_folder_unreadable` in the audit log. A
@@ -310,7 +311,8 @@ categories. Its output is the one of [trigger.gmail](#trigger-gmail).
 
 **Channel message.** Started by a message to one of the organization's Slack,
 Mattermost or Telegram bots that the bot would have answered with its own agent and
-that fits the node's filter. Publishing it needs `channels:manage`, and a bot's
+that fits the node's filter. Publishing it needs `channels:manage`, checked again at every
+message, and a bot's
 messages start one workflow at most. `triggered_by` is `channel_message`.
 A Teams bot is refused at publish and on a test run; a Teams listener published before
 that hands its messages back to the bot's agent.
@@ -419,6 +421,8 @@ step with a diff icon, under the data steps.
 ::: app.workflows.nodes.text_compare._handler.TextCompareOutput
 
 ## html.parse { #html-parse }
+
+Since 1.72.0, document selectors and link extraction exclude inert `<template>` contents. Selecting `template` itself still returns its HTML and text. Soup Sieve 4 also aligns form-state selectors with browser behavior; review workflows that depend on the previous matching rules when upgrading. Selector matching is cached; reader time and memory limits remain in place.
 
 **Parse HTML** reads HTML into its text, its links and the elements a CSS selector
 picks. It is for the HTML a flow meets: a mail body, an `http.request` body, a page
@@ -980,7 +984,7 @@ Activity or over `GET /api/v1/workflow-approvals`. `approvers` names who may
 decide, and they are notified in the app; left empty, anyone holding
 `approvals:decide` may. Past `timeout_hours` the request expires and the step
 leaves by `rejected` with `decision: "expired"`. Cancelling the run cancels what
-it asked. Each run of the step asks once, so a retry or a loop iteration never
+it asked, and so does cancelling a workflow that called the run. Each run of the step asks once, so a retry or a loop iteration never
 asks twice for the same thing.
 
 Named approvers must be active members holding `approvals:decide`. Publishing checks this, and the step checks again before asking; a person who lost that permission fails the step with `APPROVER_UNAVAILABLE` rather than leaving an undecidable request.
@@ -1168,10 +1172,13 @@ because the same input fails the same way again.
 
 `control.foreach` runs its body once for every element of a bound `items` list,
 one element at a time and in order. It then continues through its `done` port
-with `results` in input order, `errors` and `count`. The body starts at
-`loop.item`, wired from the loop's `body` port, which provides `item`, `index`
-and `count`. It ends at `loop.yield`, whose bound `value` is the iteration's
-result. No edge leads back to the loop. A step in the body may bind to anything
+with `results` in input order, `errors` and `count`. The body is the steps that
+name the loop in `scope_id`; no wire leads into it. It starts at `loop.item`,
+which provides `item`, `index` and `count`, and every step in it must be reached
+from `loop.item` by the body's own wires. It ends at `loop.yield`, whose bound `value` is the iteration's
+result.
+
+No edge leads back to the loop. A step in the body may bind to anything
 that ran before the loop, and nothing outside the body may bind into it.
 
 The list is frozen when the loop starts, so an iteration never sees a source
@@ -1353,6 +1360,7 @@ configuration - choose a runtime without network for untrusted work.
 | The job ran past `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, the session purged |
 | No usable `sandboxd` connection | `SANDBOX_UNAVAILABLE` |
 | It wrote more than 20 files or 100 MB, or printed more than 10 MB | `PYTHON_OUTPUT_TOO_LARGE`, measured in the sandbox before anything is fetched, and the session purged |
+| The host answered but could not start the sandbox - a workspace directory it cannot write, an image that would not build | `SANDBOX_START_FAILED` with a safe diagnosis; raw host output stays in the host's logs, retried |
 | The host could not be reached | `SANDBOX_UNREACHABLE`, retried |
 
 ::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig

@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { Maximize2, Trash2 } from "lucide-react";
 
+import { EditorTextLoading } from "./editor-loading";
 import { FileTextView } from "./file-render";
 import { Button } from "@/components/ui";
 import { MarkdownModeToggle } from "@/components/ui/markdown-mode-toggle";
@@ -31,6 +32,7 @@ import { useTranslations } from "next-intl";
  */
 export function FileEditor({
   name,
+  label,
   content,
   loading,
   canEdit,
@@ -44,6 +46,8 @@ export function FileEditor({
   className,
 }: {
   name: string;
+  /** What the pane calls the file, where its name is not what a reader knows it by. */
+  label?: string;
   content: string;
   loading?: boolean;
   canEdit: boolean;
@@ -75,6 +79,7 @@ export function FileEditor({
   const tu = useTranslations("ui");
   const [mode, setMode] = useState<"preview" | "source">(initialMode);
   const [expanded, setExpanded] = useState(false);
+  const called = label ?? name;
 
   const pane = (
     <div
@@ -90,7 +95,9 @@ export function FileEditor({
           expanded && "pr-14",
         )}
       >
-        <span className="min-w-0 flex-1 truncate font-mono text-xs">{name}</span>
+        <span className={cn("min-w-0 flex-1 truncate text-xs", label === undefined && "font-mono")}>
+          {called}
+        </span>
         {!expanded && toolbar}
         <MarkdownModeToggle mode={mode} onChange={setMode} />
         {!expanded && (
@@ -99,7 +106,7 @@ export function FileEditor({
             variant="ghost"
             size="icon"
             data-tour="text-editor-expand"
-            aria-label={tu("expandEditor", { label: name })}
+            aria-label={tu("expandEditor", { label: called })}
             onClick={() => setExpanded(true)}
           >
             <Maximize2 className="size-4" aria-hidden />
@@ -109,7 +116,7 @@ export function FileEditor({
           <Button
             variant="ghost"
             size="icon"
-            aria-label={tc("removeNamed", { name })}
+            aria-label={tc("removeNamed", { name: called })}
             onClick={onDelete}
           >
             <Trash2 className="h-4 w-4" />
@@ -123,7 +130,9 @@ export function FileEditor({
           have to carry the same one to stay in register. */}
       <div className={cn("min-h-0 flex-1 overflow-auto", mode === "source" ? "p-0" : "p-3")}>
         {loading ? (
-          <p className="text-muted-foreground text-xs">{tc("loading")}</p>
+          <div role="status" aria-busy="true" aria-label={tc("loading")}>
+            <EditorTextLoading />
+          </div>
         ) : mode === "source" ? (
           // Fills the pane rather than sitting in it: a fixed-row box inside a
           // tall panel leaves the text in a letterbox with dead space under it.
@@ -133,7 +142,7 @@ export function FileEditor({
             readOnly={!canEdit}
             placeholder={placeholder}
             name={name}
-            aria-label={t("namedSource", { name })}
+            aria-label={t("namedSource", { name: called })}
             className="min-h-[14rem]"
           />
         ) : (
@@ -156,7 +165,7 @@ export function FileEditor({
           className={cn(DIALOG_WINDOW, "gap-0 p-0 sm:p-0")}
           aria-describedby={undefined}
         >
-          <DialogTitle className="sr-only">{name}</DialogTitle>
+          <DialogTitle className="sr-only">{called}</DialogTitle>
           {pane}
         </DialogContent>
       </Dialog>

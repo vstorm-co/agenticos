@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ContextPage from "./page";
+import { UnsavedChangesGuard } from "@/components/layout/unsaved-changes-guard";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 
 /**
  * Dropping files on `/context`.
@@ -53,7 +55,12 @@ function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      {children}
+      <UnsavedChangesGuard />
+    </QueryClientProvider>
+  );
 }
 
 async function mount() {
@@ -64,6 +71,7 @@ async function mount() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
   get.mockResolvedValue({ items: [], total: 0 });
 });
 
@@ -175,6 +183,7 @@ describe("dropping files on the context page", () => {
     expect(await screen.findByDisplayValue("one")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Discard" }));
 
     // Not the next of the queue: whoever closed it closed it, and a dialog that
     // reopens eight times is a dialog that will not go away.
