@@ -29,7 +29,7 @@ export function SuggestionsWidget({ title, hint, seeAll, options }: DashboardWid
   const on = activeOrg?.proactive_enabled === true || activeOrg?.proactive_watches_enabled === true;
 
   return (
-    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
+    <WidgetFrame surface="plain" title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
         <WidgetSkeleton />
       ) : error ? (

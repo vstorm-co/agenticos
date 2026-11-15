@@ -2459,6 +2459,13 @@ body .tour-spotlight {
   }
 }
 
+.dash-widget[data-widget-surface="plain"],
+.dash-widget[data-widget-surface="plain"]:hover {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
 /* A live thumbnail fades in once its frame has painted, rather than popping
    from the placeholder to the page. */
 .peek-frame {

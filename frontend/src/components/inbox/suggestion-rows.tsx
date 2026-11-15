@@ -70,7 +70,13 @@ export function SuggestionRows({
               )}
             >
               <SuggestionMark suggestion={suggestion} className="bg-muted shadow-none" />
-              <div className="min-w-0 flex-1">
+              <div
+                className={cn(
+                  "min-w-0 flex-1",
+                  dense &&
+                    "@[48rem]/widget:grid @[48rem]/widget:grid-cols-[minmax(0,1fr)_auto] @[48rem]/widget:gap-x-3",
+                )}
+              >
                 <div className="flex min-w-0 items-baseline gap-2">
                   <p
                     className={cn(
@@ -106,7 +112,12 @@ export function SuggestionRows({
                     </Badge>
                   )}
                 </div>
-                <span className="text-muted-foreground mt-1 block text-xs">
+                <span
+                  className={cn(
+                    "text-muted-foreground mt-1 block text-xs",
+                    dense && "@[48rem]/widget:mt-0.5 @[48rem]/widget:whitespace-nowrap",
+                  )}
+                >
                   {waitingSource ? (
                     <Skeleton aria-hidden className="h-4 w-32" />
                   ) : (
@@ -120,7 +131,9 @@ export function SuggestionRows({
                   <p
                     className={cn(
                       "text-muted-foreground mt-1 max-w-3xl text-sm leading-relaxed",
-                      dense ? "line-clamp-1" : !expandedDetails && "line-clamp-2",
+                      dense
+                        ? "line-clamp-1 @[48rem]/widget:col-span-2"
+                        : !expandedDetails && "line-clamp-2",
                     )}
                   >
                     {suggestion.detail}

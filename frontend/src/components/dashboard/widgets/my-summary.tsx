@@ -41,7 +41,7 @@ export function MySummaryWidget({ title, hint, period, seeAll, options }: Dashbo
   const waiting = waitingOn(usage?.pending_approvals ?? 0, others);
 
   return (
-    <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
+    <WidgetFrame surface="plain" title={title} hint={hint} seeAll={seeAll} options={options}>
       {error || others.failed ? (
         <WidgetErrorBody
           onRetry={() => {
