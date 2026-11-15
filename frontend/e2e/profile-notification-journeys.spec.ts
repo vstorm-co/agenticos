@@ -180,15 +180,10 @@ for (const device of [
 
         const read = await heldRefusal(page, "/api/notifications/preferences", "GET");
         release = read.release;
-        if (device.phone) {
-          await page.getByRole("button", { name: /^Section:/ }).click();
-          await page.getByRole("menuitem", { name: "Notifications", exact: true }).click();
-        } else {
-          await page
-            .getByRole("main")
-            .getByRole("link", { name: "Notifications", exact: true })
-            .click();
-        }
+        await page
+          .getByRole("main")
+          .getByRole("link", { name: "Notifications", exact: true })
+          .click();
         await read.started;
         read.release();
         const panel = page.locator("section").filter({
@@ -271,12 +266,7 @@ for (const device of [
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
           device.viewport.width,
         );
-        if (device.phone) {
-          await page.getByRole("button", { name: /^Section:/ }).click();
-          await page.getByRole("menuitem", { name: "Profile", exact: true }).click();
-        } else {
-          await page.getByRole("main").getByRole("link", { name: "Profile", exact: true }).click();
-        }
+        await page.getByRole("main").getByRole("link", { name: "Profile", exact: true }).click();
         await expect(page.getByLabel("Display name", { exact: true })).toHaveValue(name);
         await expect(page.getByLabel("Ends at", { exact: true })).toHaveValue("16:30");
       } finally {
