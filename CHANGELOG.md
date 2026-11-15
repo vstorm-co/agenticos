@@ -23,6 +23,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Sync upstream to v1.73.0 while preserving the T3 overlay; migration histories join at 0324_merge_t3_upstream_v173. CI and downstream compatibility remain unverified.
 
+### Security
+
+- Separate MCP connection use from administration on existing paths. Use grants continue to authorize agent/workflow binding, while editing, deleting, probing, reading call logs and changing sharing require management authority or an edit grant within the existing route gates. Existing role scopes and published-agent delegation remain in place; no grants are promoted and no new discovery endpoint is added.
+
 ### Added
 
 - The agent chat header has a compact model selector with provider icons, saved-model search, explicit account filtering and a return to the agent's model. It preserves chat preferences, permission gates and the advanced connection setup in Controls; disconnected or non-chat models stay unavailable.

@@ -73,9 +73,9 @@ SECRET = ResourceType(key="secret", view=Perm.SECRETS_VIEW, edit=Perm.SECRETS_ED
 ARTIFACT = ResourceType(key="artifact", view=Perm.ARTIFACTS_VIEW, edit=Perm.ARTIFACTS_EDIT)
 DATASET = ResourceType(key="dataset", view=Perm.DATASETS_VIEW, edit=Perm.DATASETS_EDIT)
 PROJECT = ResourceType(key="project", view=Perm.PROJECTS_VIEW, edit=Perm.PROJECTS_EDIT)
-# An organization's MCP server. One permission both sees and manages it, as it
-# always has; what changed is that a server can be narrowed to groups (#2072).
-MCP_CONNECTION = ResourceType(key="mcp_connection", view=Perm.MCP_MANAGE, edit=Perm.MCP_MANAGE)
+# A connection may be selected without handing over its credentials, endpoint
+# settings or sharing. Existing use grants remain usable; administration needs edit.
+MCP_CONNECTION = ResourceType(key="mcp_connection", view=Perm.MCP_USE, edit=Perm.MCP_MANAGE)
 
 
 # The grant level a member needs before a scope-based check is even consulted.
@@ -113,9 +113,8 @@ _PERM_MIN_GRANT: dict[Perm, GrantLevel] = {
     # being able to rename or delete it.
     Perm.PROJECTS_USE: GrantLevel.USE,
     Perm.PROJECTS_EDIT: GrantLevel.EDIT,
-    # A group's server is its members' to bind, and so to manage: `use`, the level
-    # an audience chosen at creation grants.
-    Perm.MCP_MANAGE: GrantLevel.USE,
+    Perm.MCP_USE: GrantLevel.USE,
+    Perm.MCP_MANAGE: GrantLevel.EDIT,
 }
 
 
