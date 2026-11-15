@@ -271,7 +271,12 @@ for (const device of [
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
           device.viewport.width,
         );
-        await page.getByRole("main").getByRole("link", { name: "Profile", exact: true }).click();
+        if (device.phone) {
+          await page.getByRole("button", { name: /^Section:/ }).click();
+          await page.getByRole("menuitem", { name: "Profile", exact: true }).click();
+        } else {
+          await page.getByRole("main").getByRole("link", { name: "Profile", exact: true }).click();
+        }
         await expect(page.getByLabel("Display name", { exact: true })).toHaveValue(name);
         await expect(page.getByLabel("Ends at", { exact: true })).toHaveValue("16:30");
       } finally {
