@@ -9,6 +9,10 @@ vi.mock("@/components/chat", () => ({
 vi.mock("@/components/chat/phone-chat-bar", () => ({ PhoneChatBar: () => null }));
 vi.mock("@/hooks", () => ({ useMcpOAuthOutcome: () => undefined }));
 vi.mock("@/hooks/use-chat-with", () => ({ useChatWith: () => undefined }));
+vi.mock("@/lib/locale-navigation", () => ({
+  usePathname: () => "/chat",
+  useRouter: () => ({ push: vi.fn() }),
+}));
 
 it("uses the full-bleed content layout without compensating margins", () => {
   const { container } = render(<ChatPage />);

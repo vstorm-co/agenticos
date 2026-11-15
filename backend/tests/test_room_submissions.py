@@ -1,5 +1,7 @@
 """Room posts keep human authorship, durable idempotency and current permissions."""
 
+import hashlib
+import json
 from dataclasses import replace
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -195,13 +197,36 @@ async def test_explicit_agent_is_pinned_and_retries_return_the_original_request(
 
 
 @pytest.mark.parametrize(
-    "changed", [{"content": "Different"}, {"reply_to_message_id": uuid4()}, {"agent_id": uuid4()}]
+    "changed",
+    [
+        {"content": "Different"},
+        {"reply_to_message_id": uuid4()},
+        {"agent_id": uuid4()},
+        {"thread_root_message_id": uuid4()},
+    ],
 )
-async def test_same_token_with_changed_content_reply_or_agent_conflicts(room, changed) -> None:
+async def test_same_token_with_changed_content_reply_thread_or_agent_conflicts(
+    room, changed
+) -> None:
     await room.service.post(room.ctx, room.topic.id, request(), room.user)
     with pytest.raises(AlreadyExistsError, match="different post"):
         await room.service.post(room.ctx, room.topic.id, request(**changed), room.user)
     room.add_message.assert_awaited_once()
+
+
+def test_main_room_fingerprint_keeps_the_deployed_digest_shape() -> None:
+    agent, quote = uuid4(), uuid4()
+    data = request(content="Hello 世界", agent_id=agent, reply_to_message_id=quote)
+    deployed = json.dumps(
+        {"content": data.content, "reply_to_message_id": str(quote), "agent_id": str(agent)},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode()
+    assert module.fingerprint(data) == hashlib.sha256(deployed).hexdigest()
+    assert module.fingerprint(data.model_copy(update={"thread_root_message_id": uuid4()})) != (
+        module.fingerprint(data)
+    )
 
 
 @pytest.mark.parametrize(

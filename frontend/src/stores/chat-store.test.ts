@@ -647,3 +647,84 @@ describe("HTTP continuation reconciliation", () => {
     expect(store().messages[0]?.renderKey).toBe("resume-local");
   });
 });
+
+describe("room thread reconciliation", () => {
+  const identity: TranscriptIdentity = {
+    conversationId: "room",
+    selectionVersion: 1,
+    accountId: "me",
+    tenantId: "org",
+  };
+  const reply = (id: string, root = "root-a", changes: Partial<ChatMessage> = {}) =>
+    message({ id, conversationId: "room", threadRootMessageId: root, content: id, ...changes });
+
+  it("merges only the authorized root while retaining an in-progress answer and other scopes", () => {
+    store().rereadMessages([message({ id: "main", conversationId: "room" })], identity);
+    store().addMessage(reply("live-a", "root-a", { isStreaming: true, content: "Half" }));
+    store().addMessage(reply("reply-b", "root-b"));
+    store().rereadRoomThread(
+      [reply("saved-a"), reply("live-a", "root-a", { content: "Old snapshot" })],
+      "root-a",
+      identity,
+    );
+    store().appendTextDelta("live-a", " finished");
+    expect(store().messages.map((row) => row.id)).toEqual(["main", "reply-b", "saved-a", "live-a"]);
+    expect(store().messages.at(-1)?.content).toBe("Half finished");
+    store().addMessage(message({ id: "main-new", conversationId: "room" }));
+    store().rereadMessages(
+      [
+        message({ id: "main", conversationId: "room" }),
+        message({ id: "main-new", conversationId: "room" }),
+      ],
+      identity,
+    );
+    expect(store().messages.find((row) => row.id === "saved-a")?.threadRootMessageId).toBe(
+      "root-a",
+    );
+    expect(store().messages.find((row) => row.id === "reply-b")?.threadRootMessageId).toBe(
+      "root-b",
+    );
+    store().appendTextDelta("live-a", " again");
+    expect(store().messages.find((row) => row.id === "live-a")?.content).toBe(
+      "Half finished again",
+    );
+  });
+
+  it.each([
+    null,
+    { ...identity, conversationId: "other" },
+    { ...identity, selectionVersion: 2 },
+    { ...identity, accountId: "other" },
+    { ...identity, tenantId: "other" },
+  ])("rejects scoped history without the exact committed identity (%j)", (loaded) => {
+    const before = [reply("held", "root-b")];
+    useChatStore.setState({ messages: before, loadedTranscript: loaded });
+    store().rereadRoomThread([reply("incoming")], "root-a", identity);
+    expect(store().messages).toBe(before);
+  });
+
+  it.each([
+    reply("foreign-room", "root-a", { conversationId: "elsewhere" }),
+    reply("foreign-root", "root-b"),
+  ])("rejects mixed-scope response rows (%j)", (foreign) => {
+    store().rereadMessages([], identity);
+    const before = store().messages;
+    store().rereadRoomThread([reply("allowed"), foreign], "root-a", identity);
+    expect(store().messages).toBe(before);
+  });
+
+  it("keeps empty history and drafts through a conversation close, then invalidates drafts on reset", () => {
+    store().rereadMessages([], identity);
+    store().addMessage(reply("live", "root-a", { isStreaming: true }));
+    store().rereadRoomThread([], "root-a", identity);
+    expect(store().messages[0]?.id).toBe("live");
+    store().updateRoomDraft("scope", (draft) => ({ ...draft, content: "Keep me" }));
+    store().updateRoomDraft("scope", (draft) => ({ ...draft, agentId: "writer" }));
+    store().clearMessages();
+    expect(store().roomDrafts.scope).toMatchObject({ content: "Keep me", agentId: "writer" });
+    const generation = store().roomDraftGeneration;
+    store().clearRoomDrafts();
+    expect(store().roomDrafts).toEqual({});
+    expect(store().roomDraftGeneration).toBe(generation + 1);
+  });
+});

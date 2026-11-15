@@ -169,6 +169,8 @@ export default defineConfig({
         "src/components/layout/notification-glyph.tsx",
         "src/components/chat/project-chip.tsx",
         "src/components/chat/chat-room-bar.tsx",
+        "src/components/chat/room-thread-button.tsx",
+        "src/components/chat/room-thread-panel.tsx",
         "src/components/chat/typing-indicator.tsx",
         "src/components/chat/reply-quote.tsx",
         // A thread's picture from the copy on the device, offline (#2097).

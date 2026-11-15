@@ -33,10 +33,12 @@ function useQuotedAuthor(reply: MessageReply, agents: readonly NamedAgent[]) {
 }
 
 /** Scroll to the quoted message and light it for a moment, so the eye finds it. */
-function jumpTo(messageId: string): void {
-  const target = document.querySelector<HTMLElement>(
-    `[data-message-id="${CSS.escape(messageId)}"]`,
-  );
+function jumpTo(messageId: string, from: HTMLElement): void {
+  const scope = from.closest('[data-tour="chat-room-thread-panel"]');
+  const id = CSS.escape(messageId);
+  const target =
+    scope?.querySelector<HTMLElement>(`[data-thread-root="${id}"], [data-message-id="${id}"]`) ??
+    document.querySelector<HTMLElement>(`[data-message-id="${id}"]`);
   if (!target) return;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   target.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "center" });
@@ -80,7 +82,7 @@ export function ReplyQuote({
     >
       <button
         type="button"
-        onClick={() => jumpTo(reply.messageId)}
+        onClick={(event) => jumpTo(reply.messageId, event.currentTarget)}
         title={t("jump")}
         className={cn(
           "border-foreground/20 hover:border-foreground/40 focus-visible:ring-ring block w-full min-w-0 border-l-2 py-1 pl-2.5 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none",

@@ -1786,6 +1786,103 @@ class TestConnectedAccountSources:
             engine.dispose()
 
 
+class TestRoomThreadMigration:
+    def test_existing_quotes_survive_roundtrip_and_models_match_head(self) -> None:
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        previous = _alembic("upgrade", "0325_merge_t3_rooms_v173")
+        assert previous.returncode == 0, previous.stderr
+        root_id, quote_id, conversation_id = uuid4(), uuid4(), uuid4()
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        try:
+            with engine.begin() as connection:
+                assert connection.scalars(
+                    text("SELECT version_num FROM alembic_version")
+                ).all() == ["0325_merge_t3_rooms_v173"]
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO messages (id,conversation_id,role,content,reply_to_message_id) "
+                        "VALUES (:root,:room,'user','Original',NULL), "
+                        "(:quote,:room,'user','Inline quote',:root)"
+                    ),
+                    {"root": root_id, "quote": quote_id, "room": conversation_id},
+                )
+            upgraded = _alembic("upgrade", "head")
+            assert upgraded.returncode == 0, upgraded.stderr
+            with engine.connect() as connection:
+                assert connection.scalars(
+                    text("SELECT version_num FROM alembic_version")
+                ).all() == ["0326_room_threads"]
+                rows = connection.execute(
+                    text(
+                        "SELECT id,reply_to_message_id,thread_root_message_id FROM messages "
+                        "WHERE id IN (:root,:quote) ORDER BY ordinal"
+                    ),
+                    {"root": root_id, "quote": quote_id},
+                ).all()
+                assert [tuple(row) for row in rows] == [
+                    (root_id, None, None),
+                    (quote_id, root_id, None),
+                ]
+                cascade = connection.scalar(
+                    text(
+                        "SELECT confdeltype FROM pg_constraint WHERE conname='fk_messages_thread_root'"
+                    )
+                )
+                assert cascade == "c"
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+            child_id = uuid4()
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO messages (id,conversation_id,role,content,thread_root_message_id) "
+                        "VALUES (:id,:room,'user','Keep in its thread',:root)"
+                    ),
+                    {"id": child_id, "room": conversation_id, "root": root_id},
+                )
+            refused = _alembic("downgrade", "0325_merge_t3_rooms_v173")
+            assert refused.returncode != 0
+            assert "Cannot remove room thread scopes" in refused.stderr
+            with engine.begin() as connection:
+                assert connection.scalars(
+                    text("SELECT version_num FROM alembic_version")
+                ).all() == ["0326_room_threads"]
+                assert (
+                    connection.scalar(
+                        text("SELECT thread_root_message_id FROM messages WHERE id=:id"),
+                        {"id": child_id},
+                    )
+                    == root_id
+                )
+                connection.execute(text("DELETE FROM messages WHERE id=:id"), {"id": child_id})
+            down = _alembic("downgrade", "0325_merge_t3_rooms_v173")
+            assert down.returncode == 0, down.stderr
+            with engine.connect() as connection:
+                assert connection.scalars(
+                    text("SELECT version_num FROM alembic_version")
+                ).all() == ["0325_merge_t3_rooms_v173"]
+                assert (
+                    connection.scalar(
+                        text("SELECT reply_to_message_id FROM messages WHERE id=:id"),
+                        {"id": quote_id},
+                    )
+                    == root_id
+                )
+            again = _alembic("upgrade", "head")
+            assert again.returncode == 0, again.stderr
+            with engine.connect() as connection:
+                assert connection.scalars(
+                    text("SELECT version_num FROM alembic_version")
+                ).all() == ["0326_room_threads"]
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+        finally:
+            engine.dispose()
+
+
 class TestDraftPresentationMigration:
     @pytest.mark.security
     def test_backfill_uses_published_bindings_not_provider_result_markers(self) -> None:

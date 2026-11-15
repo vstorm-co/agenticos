@@ -71,6 +71,7 @@ const PAGE_SIZE = 30;
 const MESSAGE_PAGE_SIZE = 100;
 const transcriptPath = (id: string, before?: string) => {
   const params = new URLSearchParams({ latest: "true", limit: String(MESSAGE_PAGE_SIZE + 1) });
+  params.set("top_level_only", "true");
   if (before) params.set("before", before);
   return `/conversations/${encodeURIComponent(id)}/messages?${params}`;
 };
@@ -456,7 +457,13 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       const selectionVersion = conversationApi.getState().selectionVersion;
       clearMessages();
       setCurrentMessages([]);
-      if (!scoped) setUrlParam("id", id);
+      if (!scoped) {
+        // A root belongs to the room in the URL. Keep a direct link on initial
+        // load, but do not carry it into a different conversation selection.
+        if (new URL(window.location.href).searchParams.get("id") !== id)
+          setUrlParam("thread", null);
+        setUrlParam("id", id);
+      }
       setLoading(true);
       setError(null);
       try {
@@ -885,7 +892,10 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
           clearMessages();
           setCurrentMessages([]);
           setCurrentConversationId(null);
-          if (!scoped) setUrlParam("id", null);
+          if (!scoped) {
+            setUrlParam("thread", null);
+            setUrlParam("id", null);
+          }
         }
         toast.success(t("conversationDeleted"));
       } catch (err) {
@@ -940,7 +950,10 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       // Strip the stale ?id= immediately so a refresh mid-flight lands on a
       // fresh /chat instead of the old conversation. The new id will be set
       // by the WS conversation_created event on first message.
-      if (!scoped) setUrlParam("id", null);
+      if (!scoped) {
+        setUrlParam("thread", null);
+        setUrlParam("id", null);
+      }
     },
     [
       clearMessages,

@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "4cf68409a9df"
+source_sha: "2ad663e05982"
 ---
 
 # Projekty { #projects }
@@ -276,11 +276,46 @@ Jeśli wynik wysłania jest niepewny, ponów oczekującą wiadomość, aby uży�
 dotychczasowej tożsamości. Przerwane żądanie agenta nie uruchamia się ponownie
 automatycznie; sprawdź zapisany run przed nowym żądaniem.
 
-To pole wiadomości obsługuje tekst i odpowiedzi z cytatem. Pliki referencyjne
+To pole wiadomości obsługuje tekst, odpowiedzi z cytatem i wątki boczne. Pliki referencyjne
 wgraj na karcie **Pliki (Files)** projektu; agenci pokoju używają tego wspólnego
-workspace'u. Lokalni agenci desktopowi, załączniki pojedynczych wiadomości i
-osobne wątki boczne nie należą do tej pierwszej wersji interfejsu. Czaty osobiste
+workspace'u. Lokalni agenci desktopowi i załączniki pojedynczych wiadomości
+nie należą do tego interfejsu. Czaty osobiste
 i pływający asystent zachowują dotychczasowe pola wiadomości.
+
+### Wątki boczne { #side-threads }
+
+Wybierz **Odpowiedz w wątku (Reply in thread)** przy zapisanej wiadomości pokoju, aby otworzyć jej
+wątek. Panel pokazuje pierwotną wiadomość nad odpowiedziami; liczba odpowiedzi
+w pokoju pozwala wrócić do dyskusji. Adres zawiera pokój i wątek, więc link lub
+odświeżenie otwiera tę samą dyskusję. Na wąskim ekranie wątek zajmuje dostępną
+szerokość. **Odpowiedz (Reply)** nadal dodaje cytat w bieżącej dyskusji.
+
+Wątek ma tych samych odbiorców i te same uprawnienia do pisania co jego pokój.
+Otwarcie go nie prosi agenta o odpowiedź. Pozostaw **Tylko zespół (Team only)**,
+aby rozmawiać z ludźmi, albo jawnie wybierz **Ask @agent**. Odpowiedź należy do
+tego wątku, także gdy run jest wznawiany po pytaniu lub zatwierdzeniu. Główny
+pokój i jego wątki korzystają z jednej kolejki żądań agenta; oczekujący run
+zatrzymuje późniejsze żądania w kolejce.
+
+Kontekst rozmowy agenta daje pierwszeństwo pierwotnej wiadomości i odpowiedziom
+wątku. Pozostałe miejsce w historii może zawierać wiadomości głównego pokoju
+sprzed pierwotnej wiadomości. Odpowiedzi z innych wątków i późniejsze wiadomości
+głównego pokoju są wykluczone. Nadal obowiązują instrukcje projektu, wspólne
+pliki i wiedza projektu. Cytaty w wątku odnoszą się do jego pierwotnej wiadomości
+lub jednej z odpowiedzi.
+
+Plany i oczekujące kroki należą do danego runa. Wznowienie je zachowuje;
+osobne żądanie odpowiedzi agenta w wątku zaczyna nowy plan.
+
+Każda dyskusja zachowuje własny szkic i oczekującą ponowną próbę wysłania, gdy
+przechodzisz między wątkami w bieżącej sesji. Wróć do pierwotnej dyskusji, aby
+ponowić niepewne wysłanie z tą samą tożsamością; wybranie innego wątku nie
+przekierowuje oczekującej wiadomości. Zmiana konta lub organizacji usuwa te szkice.
+
+Po odłączeniu czatu od projektu istniejące wątki pozostają widoczne dla osób,
+które nadal mają dostęp do tego czatu. Odpowiedzi w wątkach są tylko do odczytu,
+dopóki czat nie należy ponownie do projektu; samo wcześniejsze członkostwo
+w projekcie nie daje już dostępu.
 
 ## Usuwanie projektu { #deleting-a-project }
 

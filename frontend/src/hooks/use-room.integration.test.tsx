@@ -11,6 +11,10 @@ import { useAuthStore, useChatStore, useConversationStore, useOrgStore } from "@
 import type { RoomMessageResult } from "@/types/room";
 import { useCreateTeamRoom, useRoomActions, useRoomRequests, useRoomSync } from "./use-room";
 import { useRoomDraft } from "./use-room-draft";
+import { useRoomThread } from "./use-room-thread";
+import { getRoomThread } from "@/lib/room-api";
+import { resetTenantState } from "@/stores/session-reset";
+import type { RoomThreadPage } from "@/types/room";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn() },
@@ -54,7 +58,7 @@ beforeEach(() => {
   useAuthStore.setState({ user: user() });
   useOrgStore.setState({ activeOrgId: "org-a" });
   useConversationStore.setState({ currentConversationId: "room-a" });
-  useChatStore.setState({ messages: [], replyTo: null });
+  useChatStore.setState({ messages: [], replyTo: null, roomDrafts: {} });
   vi.mocked(apiClient.get).mockImplementation(async (path) =>
     path === "/orgs" ? { items: [] } : { items: [], total: 0, can_post: true },
   );
@@ -227,7 +231,7 @@ describe("posting to a room", () => {
     });
 
     expect(result.current.error).toBeNull();
-    expect(result.current.content).toBe("The original draft");
+    expect(result.current.content).toBe("");
     expect(apiClient.post).toHaveBeenCalledTimes(1);
   });
 });
@@ -434,5 +438,311 @@ describe("room cancellation ownership", () => {
     } finally {
       unsubscribe();
     }
+  });
+});
+
+function threadPage(root = "root-a", ids: string[] = [], total = ids.length): RoomThreadPage {
+  return {
+    root: {
+      id: root,
+      conversation_id: "room-a",
+      role: "user",
+      content: "Root",
+      created_at: "2026-11-14T00:00:00Z",
+    },
+    items: ids.map((id) => ({
+      id,
+      conversation_id: "room-a",
+      role: "user",
+      content: id,
+      created_at: "2026-11-14T00:00:00Z",
+      thread_root_message_id: root,
+    })),
+    total,
+    can_post: true,
+  };
+}
+
+describe("room thread drafts", () => {
+  it("does not post or create a retained attempt for an untouched empty draft", async () => {
+    const { result } = renderHook(() => useRoomDraft("room-a", "root-a"), { wrapper });
+    await act(async () => result.current.submit());
+    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(useChatStore.getState().roomDrafts).toEqual({});
+  });
+
+  it("posts an explicit thread root independently of the quoted message and main draft", async () => {
+    useChatStore.setState({ replyTo: { messageId: "main-quote", role: "user", excerpt: "Main" } });
+    const { result } = renderHook(() => useRoomDraft("room-a", "root-a"), { wrapper });
+    act(() => {
+      result.current.setContent("Thread answer");
+      result.current.setAgentId("writer");
+      result.current.setReply({
+        messageId: "reply-in-a",
+        role: "assistant",
+        excerpt: "Earlier answer",
+      });
+    });
+    await act(async () => result.current.submit());
+    expect(apiClient.post).toHaveBeenCalledWith("/conversations/room-a/room-messages", {
+      client_message_id: expect.any(String),
+      content: "Thread answer",
+      agent_id: "writer",
+      thread_root_message_id: "root-a",
+      reply_to_message_id: "reply-in-a",
+    });
+    expect(result.current.reply).toBeNull();
+    expect(useChatStore.getState().replyTo?.messageId).toBe("main-quote");
+  });
+
+  it("retains main and thread drafts and retries the original payload after switching roots", async () => {
+    const hook = renderHook(({ root }: { root: string | null }) => useRoomDraft("room-a", root), {
+      wrapper,
+      initialProps: { root: null as string | null },
+    });
+    act(() => hook.result.current.setContent("Main draft"));
+    hook.rerender({ root: "root-a" });
+    act(() => {
+      hook.result.current.setContent("Only in A");
+      hook.result.current.setAgentId("writer");
+      hook.result.current.setReply({ messageId: "root-a", role: "user", excerpt: "Root A" });
+    });
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new TypeError("Lost acknowledgement"));
+    await act(async () => hook.result.current.submit());
+    const frozen = vi.mocked(apiClient.post).mock.calls[0]![1];
+    hook.rerender({ root: "root-b" });
+    expect(hook.result.current.content).toBe("");
+    expect(hook.result.current.reply).toBeNull();
+    act(() => hook.result.current.setContent("Only in B"));
+    await act(async () => hook.result.current.submit());
+    expect(vi.mocked(apiClient.post).mock.calls[1]![1]).toMatchObject({
+      content: "Only in B",
+      thread_root_message_id: "root-b",
+    });
+    hook.rerender({ root: "root-a" });
+    expect(hook.result.current.retrying).toBe(true);
+    expect(hook.result.current.content).toBe("Only in A");
+    await act(async () => hook.result.current.submit());
+    expect(vi.mocked(apiClient.post).mock.calls[2]![1]).toEqual(frozen);
+    hook.rerender({ root: null });
+    expect(hook.result.current.content).toBe("Main draft");
+  });
+
+  it("keeps a closed thread's uncertain token retryable after its late acknowledgement", async () => {
+    const pending = deferred<RoomMessageResult>();
+    vi.mocked(apiClient.post).mockReturnValueOnce(pending.promise);
+    const first = renderHook(() => useRoomDraft("room-a", "root-a"), { wrapper });
+    act(() => first.result.current.setContent("Once"));
+    let posting!: Promise<void>;
+    act(() => {
+      posting = first.result.current.submit();
+    });
+    const frozen = vi.mocked(apiClient.post).mock.calls[0]![1];
+    first.unmount();
+    await act(async () => {
+      pending.resolve(saved);
+      await posting;
+    });
+    const reopened = renderHook(() => useRoomDraft("room-a", "root-a"), { wrapper });
+    expect(reopened.result.current.retrying).toBe(true);
+    await act(async () => reopened.result.current.submit());
+    expect(vi.mocked(apiClient.post).mock.calls[1]![1]).toEqual(frozen);
+  });
+
+  it("settles only the submitted root when another thread is edited before the ack", async () => {
+    const pending = deferred<RoomMessageResult>();
+    vi.mocked(apiClient.post).mockReturnValueOnce(pending.promise);
+    const hook = renderHook(({ root }) => useRoomDraft("room-a", root), {
+      wrapper,
+      initialProps: { root: "root-a" },
+    });
+    act(() => hook.result.current.setContent("A"));
+    let posting!: Promise<void>;
+    act(() => {
+      posting = hook.result.current.submit();
+    });
+    hook.rerender({ root: "root-b" });
+    act(() => {
+      hook.result.current.setContent("Keep B");
+      hook.result.current.setReply({ messageId: "root-b", role: "user", excerpt: "B" });
+    });
+    await act(async () => {
+      pending.resolve(saved);
+      await posting;
+    });
+    expect(hook.result.current.content).toBe("Keep B");
+    expect(hook.result.current.reply?.messageId).toBe("root-b");
+    hook.rerender({ root: "root-a" });
+    expect(hook.result.current.content).toBe("");
+  });
+
+  it.each(["resolve", "reject"] as const)(
+    "a tenant reset wins over a late %s even after returning to the same identity",
+    async (outcome) => {
+      const pending = deferred<RoomMessageResult>();
+      vi.mocked(apiClient.post).mockReturnValueOnce(pending.promise);
+      const hook = renderHook(() => useRoomDraft("room-a", "root-a"), { wrapper });
+      act(() => hook.result.current.setContent("Old tenant draft"));
+      let posting!: Promise<void>;
+      act(() => {
+        posting = hook.result.current.submit();
+      });
+      act(() => {
+        resetTenantState();
+        useConversationStore.setState({ currentConversationId: "room-a" });
+      });
+      await act(async () => {
+        if (outcome === "resolve") pending.resolve(saved);
+        else pending.reject(new ApiError(403, "Old refusal"));
+        await posting;
+      });
+      expect(useChatStore.getState().roomDrafts).toEqual({});
+      expect(hook.result.current.content).toBe("");
+      expect(hook.result.current.error).toBeNull();
+    },
+  );
+
+  it("preserves a newer thread quote and can cancel it without losing text", async () => {
+    const pending = deferred<RoomMessageResult>();
+    vi.mocked(apiClient.post).mockReturnValueOnce(pending.promise);
+    const { result } = renderHook(() => useRoomDraft("room-a", "root-a"), { wrapper });
+    act(() => {
+      result.current.setContent("A");
+      result.current.setReply({ messageId: "old", role: "user", excerpt: "Old" });
+    });
+    let posting!: Promise<void>;
+    act(() => {
+      posting = result.current.submit();
+    });
+    act(() => result.current.setReply({ messageId: "new", role: "user", excerpt: "New" }));
+    await act(async () => {
+      pending.resolve(saved);
+      await posting;
+    });
+    expect(result.current.reply?.messageId).toBe("new");
+    act(() => {
+      result.current.setContent("Next");
+      result.current.clearReply();
+    });
+    expect(result.current.reply).toBeNull();
+    expect(result.current.content).toBe("Next");
+  });
+});
+
+describe("authorized thread history", () => {
+  it("uses a root-specific cursor and oldest-to-newest pages", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path) =>
+      String(path).includes("before=reply-2")
+        ? threadPage("root-a", ["reply-1"], 3)
+        : path === "/orgs"
+          ? { items: [] }
+          : threadPage("root-a", ["reply-2", "reply-3"], 3),
+    );
+    const { result } = renderHook(() => useRoomThread("room-a", "root-a"), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/conversations/room-a/room-threads/root-a?latest=true&limit=50",
+    );
+    expect(result.current.hasNextPage).toBe(true);
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/conversations/room-a/room-threads/root-a?latest=true&limit=50&before=reply-2",
+    );
+    await waitFor(() => expect(result.current.data?.pages[1]?.items[0]?.id).toBe("reply-1"));
+    expect(result.current.hasNextPage).toBe(false);
+  });
+
+  it("ends pagination on an empty page and encodes the root and cursor", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(threadPage("root /", [], 4));
+    await getRoomThread("room-a", "root /", "reply /");
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/conversations/room-a/room-threads/root%20%2F?latest=true&limit=50&before=reply+%2F",
+    );
+    const { result } = renderHook(() => useRoomThread("room-a", "root /"), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.hasNextPage).toBe(false);
+  });
+
+  it("invalidates only the current account, tenant and conversation on room events", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(threadPage());
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useRoomThread("room-a", "root-a"), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    act(() => {
+      announceRoomChange({ conversationId: "room-b", accountId: "me", organizationId: "org-a" });
+      announceRoomChange({ conversationId: "room-a", accountId: "other", organizationId: "org-a" });
+      announceRoomChange({ conversationId: "room-a", accountId: "me", organizationId: "org-b" });
+    });
+    expect(invalidate).not.toHaveBeenCalled();
+    act(() =>
+      announceRoomChange({ conversationId: "room-a", accountId: "me", organizationId: "org-a" }),
+    );
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: qk.roomThreads.detail("me", "org-a", "room-a", "root-a"),
+    });
+  });
+
+  it("requires a fresh authorized read when reopening a cached thread", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(threadPage());
+    client.setDefaultOptions({ queries: { retry: false, staleTime: Infinity } });
+    const first = renderHook(() => useRoomThread("room-a", "root-a"), { wrapper });
+    await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
+    first.unmount();
+    const refused = deferred<RoomThreadPage>();
+    vi.mocked(apiClient.get).mockReturnValue(refused.promise);
+    const next = renderHook(() => useRoomThread("room-a", "root-a"), { wrapper });
+    expect(next.result.current.isFetchedAfterMount).toBe(false);
+    await act(async () => {
+      refused.reject(new ApiError(403, "Revoked"));
+    });
+    await waitFor(() => expect(next.result.current.isError).toBe(true));
+  });
+
+  it.each([
+    (page: RoomThreadPage) => {
+      page.root.id = "wrong";
+    },
+    (page: RoomThreadPage) => {
+      page.root.conversation_id = "wrong";
+    },
+    (page: RoomThreadPage) => {
+      page.root.thread_root_message_id = "another-root";
+    },
+    (page: RoomThreadPage) => {
+      page.root.role = "system";
+    },
+    (page: RoomThreadPage) => {
+      page.items[0]!.conversation_id = "wrong";
+    },
+    (page: RoomThreadPage) => {
+      page.items[0]!.thread_root_message_id = "wrong";
+    },
+  ])("rejects a response outside its requested scope (%#)", async (mutate) => {
+    const page = threadPage("root-a", ["reply"]);
+    mutate(page);
+    vi.mocked(apiClient.get).mockResolvedValue(page);
+    await expect(getRoomThread("room-a", "root-a")).rejects.toThrow("ROOM_THREAD_SCOPE_MISMATCH");
+  });
+
+  it("isolates cache entries across root, account, tenant and room", () => {
+    const base = qk.roomThreads.detail("me", "org-a", "room-a", "root-a");
+    expect([
+      qk.roomThreads.detail("other", "org-a", "room-a", "root-a"),
+      qk.roomThreads.detail("me", "org-b", "room-a", "root-a"),
+      qk.roomThreads.detail("me", "org-a", "room-b", "root-a"),
+      qk.roomThreads.detail("me", "org-a", "room-a", "root-b"),
+    ]).not.toContainEqual(base);
+  });
+
+  it("does not read a thread without an account or selected root", async () => {
+    useAuthStore.setState({ user: null });
+    renderHook(() => useRoomThread("room-a", "root-a"), { wrapper });
+    renderHook(() => useRoomThread(null, null), { wrapper });
+    await act(async () => {});
+    expect(
+      vi.mocked(apiClient.get).mock.calls.some(([path]) => String(path).includes("room-threads")),
+    ).toBe(false);
   });
 });

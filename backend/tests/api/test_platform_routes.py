@@ -1506,6 +1506,9 @@ class TestTheQueueNamesWhatItAsks:
 def ordinary_run_without_room_request(monkeypatch: pytest.MonkeyPatch) -> None:
     """These HTTP contracts resume a regular run, outside a room delivery."""
     monkeypatch.setattr("app.services.parked_runs.room_repo.for_run", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        "app.services.parked_runs.turn_repo.legacy_room_pause", AsyncMock(return_value=None)
+    )
 
 
 class TestResumeConveysAFailedContinuation:
