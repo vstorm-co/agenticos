@@ -162,6 +162,8 @@ export interface ColumnDef {
   archived: boolean;
   /** A link column: the table whose records it links to. */
   link_table_id?: string | null;
+  /** Maximum linked targets; absent means the default of 100. */
+  link_limit?: number | null;
   /** A lookup or rollup: the link column of this table it reads through. */
   link_column_id?: string | null;
   /** A lookup or rollup: the linked table's column it reads; none for a count. */
@@ -185,6 +187,7 @@ export interface ColumnInput {
   archived?: boolean;
   /** A link column: the table whose records it links to. */
   link_table_id?: string | null;
+  link_limit?: number | null;
   /** A lookup or rollup: the link column of this table it reads through. */
   link_column_id?: string | null;
   /** A lookup or rollup: the linked table's column it reads; none for a count. */
@@ -215,8 +218,20 @@ export interface TableSummary {
   can_edit: boolean;
 }
 
+export interface RowPolicy {
+  rule: "none" | "grants" | "assignee";
+  view_column_id?: string | null;
+  edit_column_id?: string | null;
+  view_project_link_column_id?: string | null;
+  view_projects_table_id?: string | null;
+  view_project_members_column_id?: string | null;
+}
+
 export interface TableRead extends TableSummary {
   columns: ColumnDef[];
+  row_policy?: RowPolicy | null;
+  row_policy_valid?: boolean;
+  can_manage_row_access?: boolean;
   /**
    * Whether the table is archived and this caller may restore it. `can_edit` is
    * false on an archived table, since no write to one succeeds.
@@ -330,6 +345,11 @@ export interface RecordSource {
 export interface RecordRead {
   id: string;
   table_id: string;
+  /** Server-resolved authority on this row; Write includes Read. */
+  access?: "read" | "write";
+  can_delete?: boolean;
+  can_manage_access?: boolean;
+  read_only_column_ids?: string[];
   external_id: string | null;
   schema_version: number;
   values: Record<string, CellValue>;
@@ -365,9 +385,16 @@ export interface RecordCreate {
   values: Record<string, CellValue>;
 }
 
+export interface RecordLinkChange {
+  add: string[];
+  remove: string[];
+}
+
 export interface RecordUpdate {
   expected_revision: number;
-  values: Record<string, CellValue>;
+  values?: Record<string, CellValue>;
+  /** Explicit changes, keyed by immutable link column id. */
+  link_changes?: Record<string, RecordLinkChange>;
 }
 
 export type ViewKind = "table" | "kanban" | "list";

@@ -1,5 +1,5 @@
 ---
-source_sha: "9bf7eb650d8e"
+source_sha: "3c45bb832299"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -140,12 +140,71 @@ una elección por su etiqueta. Un `rollup` calcula algo a partir de ellos:
 guardan, escriben, filtran ni ordenan.
 
 Lo que muestra una búsqueda no llega más allá de lo que su lector puede ver: una
-tabla enlazada que el lector no ve deja los enlaces sin nombre y vacía cada
-búsqueda y resumen a través de ellos. Un enlace conserva su tabla para siempre.
+tabla enlazada que el lector no ve deja vacíos los enlaces, las búsquedas y los
+resúmenes. También se aplica la política de filas del destino: los IDs en `values`
+y los nombres en `links` incluyen solo registros legibles. Los campos de enlace
+archivados se omiten de los valores devueltos.
+
+Un enlace conserva su tabla para siempre.
 Una búsqueda lee una columna con valores, no otro enlace ni otra búsqueda, y
 archivar una columna de enlace se rechaza mientras algo lea a través de ella. Una
 exportación escribe un enlace con los nombres de sus registros y una búsqueda con
 lo que leyó.
+
+Los filtros de enlaces usan esos mismos destinos legibles. `contains` nunca
+coincide con un destino inaccesible o eliminado; `is_null: true` significa que no
+hay ningún destino legible, aunque se conserven enlaces ocultos. Listas, recuentos,
+exportaciones y consultas de páginas aplican esta condición antes de paginar.
+El array devuelto es el subconjunto visible para quien consulta. Sustituirlo desde
+un cliente antiguo conserva los enlaces existentes que el usuario no puede leer;
+editar otro campo conserva todos los enlaces.
+
+Cada ID de enlace enviado explícitamente debe ser legible, aunque ya esté
+enlazado o no cambie la fila. Un ID oculto se rechaza igual que uno desconocido.
+Solo se conservan en nombre del usuario los enlaces ocultos que este omite.
+
+Una política de filas almacenada que sea inválida bloquea la lectura y escritura
+de registros con `ROW_POLICY_INVALID` (409), sin desactivar la política. Los
+usuarios autorizados aún pueden leer los metadatos, que indican
+`row_policy_valid: false`, y un editor autorizado de la tabla puede repararla
+mediante `PUT /tables/{id}/row-policy`. Hasta entonces, un destino con una política
+inválida no proporciona registros enlazados ni acceso heredado de un proyecto.
+
+### Cambios atómicos de enlaces { #atomic-link-changes }
+
+Usa `link_changes` en `PATCH /tables/{id}/records/{record_id}` para añadir o quitar
+destinos concretos. Las claves son los UUID inmutables de las columnas de enlace;
+`add` y `remove` contienen UUID de registros de destino. El campo opcional `values`
+permite cambiar otras celdas en la misma solicitud:
+
+```json
+{
+  "expected_revision": 7,
+  "link_changes": {
+    "00000000-0000-4000-8000-000000000001": {
+      "add": ["00000000-0000-4000-8000-000000000002"],
+      "remove": ["00000000-0000-4000-8000-000000000003"]
+    }
+  }
+}
+```
+
+El registro de origen debe permitir escritura, y cada destino añadido o quitado
+explícitamente debe poder leerse actualmente en la tabla enlazada y la organización.
+Los destinos ocultos, inexistentes o de otra tabla se rechazan sin distinguirlos.
+Los enlaces existentes que no se mencionan permanecen guardados, incluidos los
+ocultos para quien edita. La celda final, incluidos los enlaces ocultos, debe seguir
+respetando el límite de 100 destinos.
+
+Una columna no puede aparecer a la vez en `values` y `link_changes`. Se rechazan
+los destinos duplicados, las coincidencias entre añadir y quitar, las columnas
+desconocidas o archivadas y los cambios en columnas que no son enlaces. Todas las
+celdas cambian en la transacción existente con una revisión, una entrada de historial,
+un evento de trigger cuando corresponde y un recibo de idempotencia. Una revisión
+antigua falla incluso sin cambios; una operación autorizada sin cambios no crea
+historial ni recibo. La cuadrícula y el panel del registro envían estos cambios
+explícitos. Tras un conflicto, **Reload and reapply** repite las mismas elecciones
+con la revisión actual y conserva otros enlaces añadidos mientras tanto.
 
 ## Fórmulas { #formulas }
 
@@ -290,6 +349,12 @@ registro de nuevo y reintenta. Un upsert que encuentra un registro existente y n
 `expected_revision` obtiene `REVISION_REQUIRED` (428), de nuevo con la revision que debe
 enviar.
 
+Se comprueba el acceso Write actual antes de revelar una revision almacenada.
+Un upsert para un external id existente pero oculto y otro para un ID nuevo que
+el usuario no puede crear devuelven `NOT_FOUND` (404), con el mismo mensaje e ID
+de tabla. Crear una fila también requiere Edit en la tabla y una política que
+permita al creador leerla; un grant Write de fila no permite crear registros.
+
 Un external id tiene de 1 a 255 caracteres y puede contener `/`, como en `2026/ORD-1`. No puede contener NUL ni un salto de línea. El servicio lo comprueba
 igual que las rutas. Por HTTP la ruta lo rechaza primero, con `VALIDATION_ERROR`; un
 llamante que usa el servicio directamente recibe `INVALID_RECORD`.
@@ -425,8 +490,13 @@ la misma cadena y un mismo llamante puede usarla para un create y un upsert. Sol
 guardan los éxitos: una escritura rechazada no deja recibo, de modo que la corriges y
 reintentas con la misma clave.
 
-Una repetición solo se responde a un llamante que aún pueda editar la tabla. Una vez
-revocado el acceso, el mismo reintento es un 404.
+Un reintento comprueba el acceso actual a la tabla, los ámbitos de la clave API y el
+permiso Write de la fila. Revocar el acceso produce un 404 sin revelar el ID ni la revisión
+de una fila oculta. Archivar una tabla permite leer un recibo que siga autorizado, con
+indicadores de registro de solo lectura; no permite una escritura nueva. Los lotes aún
+requieren Edit en la tabla porque pueden crear registros. Sus reintentos conservan los
+recuentos y `as_of` originales, pero vuelven a comprobar las filas identificadas por IDs
+externos o detalles de errores guardados antes de devolver el informe.
 
 Un receipt dura 24 horas. Después la clave se olvida, y la misma clave con el mismo cuerpo
 es una escritura nueva: se ejecuta de nuevo en vez de devolver la primera respuesta.
@@ -737,6 +807,74 @@ que `Agent.can_run` - así una fila del catálogo o una página de detalle nunca
 tienen que adivinar si sus controles de edición serían rechazados. El propio
 `can_manage` y `can_delete` de una vista guardada son la misma idea, un nivel más abajo (ver
 [Vistas guardadas](#saved-views)).
+
+### Lectura y escritura de filas individuales { #row-read-write }
+
+El acceso a filas tiene dos niveles. **Read** muestra la fila y sus registros enlazados
+visibles. **Write** incluye Read y cambios en celdas normales. Write por sí solo no
+permite borrar una fila, compartirla, cambiar sus campos de acceso, crear registros ni
+modificar el esquema. Los administradores de la tabla conservan sus derechos.
+La persona sigue necesitando acceso a la tabla superior; un grant de fila por sí solo
+no abre otra tabla ni un registro enlazado.
+
+En el diálogo de uso compartido de la tabla, **Row access rules** establece el valor
+predeterminado:
+
+| Regla | Acceso de lectura | Acceso de escritura |
+|---|---|---|
+| `none` | Todos los que pueden leer la tabla | Los editores actuales de la tabla y los grants Write de fila |
+| `grants` | Un grant Read o Write vigente para la fila | Un grant Write vigente para la fila |
+| `assignee` | El campo Read, el campo Write, la membresía opcional del proyecto o un grant de fila | El campo Write o un grant Write de fila |
+
+El propietario de la tabla, los roles Owner/Admin de la organización y el administrador
+del despliegue conservan su excepción a la política. Siguen sujetos al acceso a la tabla
+y a los límites de la clave API. En modo `grants`, configure los grants antes de cambiar
+a los usuarios existentes.
+
+Crear una fila sigue requiriendo administración de la tabla. En modo `grants`, una creación
+directa que ocultaría la fila a su editor devuelve 403:
+`You do not have permission to write this row`. La creación por lotes informa
+`AUTHORIZATION_ERROR` para esa fila. Upsert devuelve el mismo 404 para un ID externo
+existente pero oculto y para una creación no permitida, sin revelar si ese ID existe.
+
+Los tableros de tareas administrados
+conservan sus propias reglas y no ofrecen estos controles.
+
+Abra una fila y elija **Row access** para añadir una persona o grupo, seleccionar Read
+o Write, fijar un vencimiento opcional, cambiar un nivel o revocar acceso. Los grants
+personales pueden ser permanentes; los de grupo vencen por defecto a los 90 días.
+Se aplican las membresías actuales de organización y grupo y los grants no vencidos.
+Prevalece el grant vigente más fuerte. Revocar un grant no elimina el acceso concedido
+por otro grant o por una regla de la tabla.
+
+Los endpoints REST están bajo `/tables/{table_id}/records/{record_id}/access`:
+
+- `GET` lista los grants explícitos para un administrador de tabla que puede leer la fila.
+- `PUT /grants` establece un único `subject_user_id` o `subject_group_id`,
+  un `level` de `read` o `write` y un `expires_at` opcional.
+- `DELETE /grants/{subject_user_id}` y
+  `DELETE /group-grants/{subject_group_id}` revocan el grant indicado.
+
+El mismo servicio protege las escrituras de consola, API, agent y workflow. Los grants
+de fila se guardan en la tabla existente `resource_grants` bajo `table_record`;
+solo allí, el `write` de la API se guarda como `edit`. Nunca se convierte en
+administración de tablas. Las claves API necesitan `tables:view` para leer y
+`tables:edit` para escribir; un grant no amplía la clave. Borrar un registro elimina
+sus grants en la misma transacción.
+
+Cada registro devuelto incluye `access`, `can_delete`, `can_manage_access` y
+`read_only_column_ids`. Esta última lista incluye los campos de política y de membresía
+del proyecto usados por otra tabla. Las celdas, el panel de registro y los movimientos
+kanban usan estas respuestas. Las listas, contadores del catálogo, exportaciones y etiquetas
+enlazadas aplican la misma regla de lectura. Repetir una escritura idempotente comprueba
+los derechos actuales para que un recibo guardado no conserve un permiso Write revocado.
+
+Los triggers de workflow vuelven a comprobar el permiso Read actual de quien publicó
+el workflow sobre la fila de origen. Sus filtros y entradas incluyen solo registros
+enlazados que esa persona puede leer, tanto en los valores actuales como en los
+anteriores. Una actualización que solo cambia enlaces ocultos no inicia un workflow.
+Una política de destino inválida no revela IDs enlazados; una política de origen
+inválida filtra el evento. El evento y el historial guardados permanecen intactos.
 
 ## Errores { #errors }
 

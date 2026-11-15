@@ -1,12 +1,15 @@
 """The public face of Virtual Tables: one class, whatever surface calls it."""
 
 from app.services.virtual_tables.media import MediaOperations
+from app.services.virtual_tables.record_grants import RecordAccessOperations
 from app.services.virtual_tables.records import RecordOperations
 from app.services.virtual_tables.table_views import TableViewOperations
 from app.services.virtual_tables.tables import TableOperations
 
 
-class VirtualTableService(TableOperations, RecordOperations, MediaOperations):
+class VirtualTableService(
+    TableOperations, RecordOperations, MediaOperations, RecordAccessOperations
+):
     """Tables, schemas and records for the caller's organization.
 
     The console, agent tools, workflow nodes and the public API all call this class

@@ -107,7 +107,11 @@ export function useRecordMutation(tableId: string) {
    * later one on the same observer supersedes.
    */
   const commit = useCallback(
-    (record: Pick<RecordRead, "id" | "revision">, values: RecordUpdate["values"]) => {
+    (
+      record: Pick<RecordRead, "id" | "revision">,
+      values: NonNullable<RecordUpdate["values"]>,
+      linkChanges?: RecordUpdate["link_changes"],
+    ) => {
       const { tails, revisions } = chainsFor(queryClient);
       const previous = tails.get(record.id) ?? Promise.resolve();
       const result = previous.then(async () => {
@@ -116,7 +120,11 @@ export function useRecordMutation(tableId: string) {
         const known = revisions.get(record.id) ?? record.revision;
         const updated = await mutateAsync({
           recordId: record.id,
-          data: { expected_revision: Math.max(known, record.revision), values },
+          data: {
+            expected_revision: Math.max(known, record.revision),
+            values,
+            ...(linkChanges ? { link_changes: linkChanges } : {}),
+          },
         });
         revisions.set(record.id, updated.revision);
         return updated;

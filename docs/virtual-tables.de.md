@@ -1,5 +1,5 @@
 ---
-source_sha: "9bf7eb650d8e"
+source_sha: "3c45bb832299"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -143,13 +143,73 @@ Werte, eine Auswahl nach ihrem Label. Ein `rollup` ermittelt daraus etwas:
 gespeichert, geschrieben, gefiltert oder sortiert.
 
 Was ein Nachschlagen zeigt, reicht nicht weiter als der Leser darf: Eine
-verknüpfte Tabelle, die der Leser nicht sieht, lässt die Verknüpfungen
-unbenannt und jedes Nachschlagen und jede Zusammenfassung darüber leer. Eine
-Verknüpfung behält ihre Tabelle für immer. Ein Nachschlagen liest eine Spalte
+verknüpfte Tabelle, die der Leser nicht sieht, lässt die Verknüpfungen sowie
+jedes Nachschlagen und jede Zusammenfassung darüber leer. Auch die Zeilenrichtlinie
+des Ziels gilt: IDs in `values` und Namen in `links` enthalten nur lesbare
+Datensätze. Archivierte Verknüpfungsspalten fehlen in den zurückgegebenen Werten.
+
+Eine Verknüpfung behält ihre Tabelle für immer. Ein Nachschlagen liest eine Spalte
 mit Werten, keine andere Verknüpfung und kein Nachschlagen, und das Archivieren
 einer Verknüpfungsspalte wird abgelehnt, solange etwas über sie liest. Ein
 Export schreibt eine Verknüpfung mit den Namen ihrer Datensätze und ein
 Nachschlagen mit dem Gelesenen.
+
+Verknüpfungsfilter verwenden dieselben lesbaren Ziele. `contains` trifft nie ein
+unlesbares oder gelöschtes Ziel; `is_null: true` bedeutet, dass kein lesbares Ziel
+vorhanden ist, auch wenn verborgene Verknüpfungen gespeichert bleiben. Listen,
+Zählungen, Exporte und Seitenabfragen prüfen dies vor der Paginierung. Ein
+zurückgegebenes Verknüpfungsarray ist die sichtbare Teilmenge des Aufrufers.
+Ersetzt ein älterer Client dieses Array, bleiben bestehende unlesbare Verknüpfungen
+erhalten; Änderungen anderer Felder behalten alle Verknüpfungen bei.
+
+Jede ausdrücklich übermittelte Verknüpfungs-ID muss lesbar sein, auch wenn sie
+bereits verknüpft ist oder die Zeile unverändert ließe. Eine verborgene ID wird
+wie eine unbekannte ID abgelehnt. Nur ausgelassene verborgene Verknüpfungen
+bleiben im Namen des Aufrufers erhalten.
+
+Eine ungültige gespeicherte Zeilenrichtlinie blockiert Datensatzlesevorgänge und
+Schreibvorgänge mit `ROW_POLICY_INVALID` (409), statt die Richtlinie abzuschalten.
+Berechtigte Benutzer können weiterhin Tabellenmetadaten mit
+`row_policy_valid: false` lesen. Ein berechtigter Tabelleneditor kann die Richtlinie
+über `PUT /tables/{id}/row-policy` reparieren. Bis dahin liefert ein Ziel mit
+ungültiger Richtlinie weder verknüpfte Datensätze noch geerbten Projektzugriff.
+
+### Atomare Änderungen an Verknüpfungen { #atomic-link-changes }
+
+Mit `link_changes` bei `PATCH /tables/{id}/records/{record_id}` lassen sich bestimmte
+Ziele hinzufügen oder entfernen. Die Schlüssel sind unveränderliche UUIDs der
+Verknüpfungsspalten; `add` und `remove` enthalten UUIDs der Zieldatensätze.
+Das optionale `values` kann andere Zellen in derselben Anfrage ändern:
+
+```json
+{
+  "expected_revision": 7,
+  "link_changes": {
+    "00000000-0000-4000-8000-000000000001": {
+      "add": ["00000000-0000-4000-8000-000000000002"],
+      "remove": ["00000000-0000-4000-8000-000000000003"]
+    }
+  }
+}
+```
+
+Der Quelldatensatz muss schreibbar sein. Jeder ausdrücklich hinzugefügte oder
+entfernte Datensatz muss aktuell in der verknüpften Tabelle und Organisation
+lesbar sein. Verborgene, fehlende und zur falschen Tabelle gehörende Ziele werden
+ohne Unterscheidung abgelehnt. Nicht genannte bestehende Verknüpfungen bleiben
+gespeichert, auch für den Bearbeiter verborgene. Die endgültige Zelle einschließlich
+verborgener Verknüpfungen muss weiterhin die Grenze von 100 Zielen einhalten.
+
+Eine Spalte darf nicht zugleich in `values` und `link_changes` stehen. Doppelte
+Ziele, Überschneidungen zwischen Hinzufügen und Entfernen, unbekannte oder archivierte
+Spalten und Änderungen an anderen Spaltentypen werden abgelehnt. Alle Zellen ändern
+sich in der bestehenden Transaktion mit einer Revision, einem Verlaufseintrag,
+gegebenenfalls einem Trigger-Ereignis und einer Idempotenzbestätigung. Eine veraltete
+Revision scheitert auch bei unveränderten Werten; eine erlaubte Anfrage ohne Änderung
+erzeugt weder Verlauf noch Bestätigung. Raster und Datensatzbereich senden diese
+expliziten Änderungen. Nach einem Konflikt wiederholt **Reload and reapply** dieselben
+Auswahlen mit der aktuellen Revision und erhält andere inzwischen hinzugefügte
+Verknüpfungen.
 
 ## Formeln { #formulas }
 
@@ -311,6 +371,13 @@ erneut und versuchen Sie es noch einmal. Ein Upsert, der einen bestehenden Daten
 und kein `expected_revision` erhält, bekommt `REVISION_REQUIRED` (428), wieder mit der
 zu sendenden Revision.
 
+Der aktuelle Write-Zugriff wird geprüft, bevor eine gespeicherte Revision
+offengelegt wird. Ein Upsert für eine verborgene bestehende external id und einer
+für eine neue ID, die der Aufrufer nicht erstellen darf, liefern beide
+`NOT_FOUND` (404) mit derselben Meldung und Tabellen-ID. Das Erstellen braucht
+außerdem Edit auf der Tabelle und eine Zeilenrichtlinie, die dem Ersteller das
+Lesen der neuen Zeile erlaubt; ein Write-Grant auf einer Zeile genügt nicht.
+
 Eine external id hat 1 bis 255 Zeichen und darf `/` enthalten, wie in `2026/ORD-1`. Sie darf weder NUL noch einen Zeilenumbruch enthalten. Der Service
 prüft das ebenso wie die Routen. Über HTTP lehnt die Route es zuerst ab, mit
 `VALIDATION_ERROR`; ein Aufrufer, der den Service direkt nutzt, erhält `INVALID_RECORD`.
@@ -452,8 +519,14 @@ Upsert nutzen kann. Nur Erfolge werden gespeichert: Ein abgelehnter Schreibzugri
 hinterlässt keine Quittung; Sie korrigieren ihn also und wiederholen ihn mit demselben
 Schlüssel.
 
-Eine Wiederholung wird nur einem Aufrufer beantwortet, der die Tabelle noch bearbeiten
-darf. Nach dem Entzug des Zugriffs ist dieselbe Wiederholung ein 404.
+Eine Wiederholung prüft den aktuellen Tabellenzugriff, die API-Key-Scopes und die
+Write-Berechtigung für den Datensatz. Ein Entzug führt zu 404, ohne ID oder Revision
+eines verborgenen Datensatzes offenzulegen. Nach dem Archivieren bleibt ein weiterhin
+autorisierter Receipt lesbar; seine Datensatz-Flags erlauben nur Lesen, keinen neuen
+Schreibzugriff. Batch-Importe benötigen weiterhin Edit auf Tabellenebene, da sie Datensätze
+anlegen können. Ihre Wiederholungen behalten die ursprünglichen Zähler und `as_of`,
+prüfen aber Datensätze aus externen IDs und gespeicherten Fehlerdetails erneut, bevor
+sie den Bericht zurückgeben.
 
 Ein Receipt hält 24 Stunden. Danach ist der Schlüssel vergessen, und derselbe Schlüssel mit
 demselben Body ist ein neuer Schreibzugriff: Er wird erneut ausgeführt, statt die erste
@@ -784,6 +857,74 @@ Lesen mitgeschickt, genau wie `Agent.can_run` - sodass eine Katalogzeile oder ei
 Detailseite nie raten muss, ob ihre Bearbeitungskontrollen abgelehnt würden. Das
 eigene `can_manage` und `can_delete` einer gespeicherten Ansicht sind dieselbe Idee,
 eine Ebene tiefer (siehe [Gespeicherte Ansichten](#saved-views)).
+
+### Lesen und Schreiben einzelner Zeilen { #row-read-write }
+
+Zeilenzugriff hat zwei Stufen. **Lesen (Read)** zeigt die Zeile und ihre sichtbaren
+verknüpften Datensätze. **Schreiben (Write)** umfasst Lesen und Änderungen an
+gewöhnlichen Zellen. Schreiben allein erlaubt weder Löschen noch Teilen der Zeile,
+Änderungen an Zugriffsfeldern, das Erstellen von Datensätzen oder Schemaänderungen.
+Tabellenadministratoren behalten ihre bisherigen Rechte. Die Person benötigt weiterhin
+Zugriff auf die übergeordnete Tabelle; eine Zeilenfreigabe öffnet allein keine andere
+Tabelle und keinen verknüpften Datensatz.
+
+Im Freigabedialog der Tabelle legen **Regeln für den Zeilenzugriff (Row access rules)**
+den Standard fest:
+
+| Regel | Lesezugriff | Schreibzugriff |
+|---|---|---|
+| `none` | Alle, die die Tabelle lesen dürfen | Bisherige Tabellenbearbeiter sowie Schreibfreigaben für die Zeile |
+| `grants` | Eine gültige Lese- oder Schreibfreigabe für die Zeile | Eine gültige Schreibfreigabe für die Zeile |
+| `assignee` | Lesefeld, Schreibfeld, optionale Projektmitgliedschaft oder Zeilenfreigabe | Schreibfeld oder Schreibfreigabe für die Zeile |
+
+Tabelleneigentümer, die Organisationsrollen Owner/Admin und der Deployment-Administrator
+behalten ihre Policy-Ausnahme. Tabellenzugriff und API-Key-Grenzen gelten weiterhin.
+Richten Sie im Modus `grants` Freigaben ein, bevor Sie bestehende Benutzer umstellen.
+
+Neue Zeilen benötigen weiterhin Tabellenverwaltung. Im Modus `grants` wird eine direkte
+Erstellung mit 403 abgelehnt, wenn die Zeile für den Tabellenbearbeiter unsichtbar wäre:
+`You do not have permission to write this row`. Die Stapelerstellung meldet für diese Zeile
+`AUTHORIZATION_ERROR`. Upsert liefert denselben 404 für eine verborgene bestehende externe
+ID und eine nicht erlaubte Erstellung. Die Ablehnung verrät somit nicht, ob diese ID existiert.
+
+Verwaltete Aufgabenboards behalten ihre eigenen Zugriffsregeln und bieten diese
+Zeilenfreigaben nicht an.
+
+Öffnen Sie eine Zeile und wählen Sie **Zeilenzugriff (Row access)**, um Personen oder
+Gruppen hinzuzufügen, Lesen oder Schreiben zu wählen, einen Ablauf festzulegen, die Stufe
+zu ändern oder Zugriff zu entziehen. Personenfreigaben können dauerhaft sein;
+Gruppenfreigaben laufen standardmäßig nach 90 Tagen ab. Es gelten aktuelle Organisations-
+und Gruppenmitgliedschaften sowie nicht abgelaufene Grants. Der stärkste gültige Grant
+gewinnt. Der Entzug eines Grants entfernt keinen Zugriff aus anderen Grants oder Tabellenregeln.
+
+Die REST-Endpunkte liegen unter `/tables/{table_id}/records/{record_id}/access`:
+
+- `GET` listet explizite Grants für einen Tabellenadministrator, der die Zeile lesen darf.
+- `PUT /grants` setzt genau eine `subject_user_id` oder `subject_group_id`,
+  einen `level` von `read` oder `write` und optional `expires_at`.
+- `DELETE /grants/{subject_user_id}` und
+  `DELETE /group-grants/{subject_group_id}` entziehen den angegebenen Grant.
+
+Derselbe Service schützt Schreibzugriffe aus Konsole, API, Agent und Workflow.
+Zeilengrants stehen in der bestehenden Tabelle `resource_grants` unter `table_record`;
+nur dort wird API-`write` als `edit` gespeichert. Sie werden nie zu
+Tabellenverwaltungsrechten. API-Keys benötigen `tables:view` zum Lesen und `tables:edit`
+zum Schreiben; ein Grant erweitert keinen Key. Das Löschen eines Datensatzes entfernt
+seine Grants in derselben Transaktion.
+
+Jeder gelieferte Datensatz enthält `access`, `can_delete`, `can_manage_access` und
+`read_only_column_ids`. Letzteres umfasst Policy-Felder und Projektmitgliedschaftsfelder,
+die eine andere Tabelle verwendet. Rasterzellen, Datensatzpanel und Kanban-Verschiebungen
+verwenden diese Antworten. Datensatzlisten, Katalogzähler, Exporte und verknüpfte Beschriftungen
+verwenden dieselbe Leseregel. Die Wiederholung eines idempotenten Schreibzugriffs prüft
+die aktuellen Rechte erneut, damit ein gespeicherter Beleg kein entzogenes Schreibrecht bewahrt.
+
+Workflow-Trigger prüfen das aktuelle Leserecht der veröffentlichenden Person für die
+Quellzeile erneut. Filter und Eingaben des Laufs enthalten nur lesbare verknüpfte
+Datensätze, sowohl in den aktuellen als auch in den vorherigen Werten. Eine Änderung
+ausschließlich verborgener Verknüpfungen startet keinen Workflow. Eine ungültige
+Zielrichtlinie zeigt keine verknüpften IDs; eine ungültige Quellrichtlinie filtert das
+Ereignis heraus. Gespeichertes Ereignis und Verlauf bleiben unverändert.
 
 ## Fehler { #errors }
 

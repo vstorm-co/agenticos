@@ -23,7 +23,7 @@ from app.schemas.virtual_table import ColumnDef, RowPolicy, RowPolicyUpdate, Tab
 from app.services.virtual_tables import row_policy
 from app.services.virtual_tables._base import Operations
 from app.services.virtual_tables.deadline import ReadDeadline
-from app.services.virtual_tables.exceptions import DeadlineReached
+from app.services.virtual_tables.exceptions import DeadlineReached, InvalidRowPolicyError
 from app.services.virtual_tables.row_policy import (
     bypasses_policy,
     may_edit_row,
@@ -137,9 +137,13 @@ def test_parse_policy_reads_none_as_no_policy_and_none_rule_as_no_policy():
     assert parse_policy(POLICY.model_dump(mode="json")) == POLICY
 
 
-def test_parse_policy_reads_an_unvalidatable_document_as_no_policy():
-    assert parse_policy({"rule": "assignee"}) is None
-    assert parse_policy({"rule": "grants", "view_column_id": str(ASSIGNEE)}) is None
+@pytest.mark.parametrize(
+    "document",
+    [{"rule": "assignee"}, {"rule": "unexpected"}, {"rule": "none", "view_column_id": "invalid"}],
+)
+def test_parse_policy_refuses_an_unvalidatable_document(document):
+    with pytest.raises(InvalidRowPolicyError):
+        parse_policy(document)
 
 
 # -- the bypass ---------------------------------------------------------------
@@ -358,9 +362,10 @@ async def test_a_bounded_project_lookup_refreshes_the_timeout_and_stops_on_expir
         events.append(("schema", None))
         return SimpleNamespace(columns=[MEMBERS_COL.model_dump(mode="json")])
 
-    async def records(session, *, table_id, organization_id, filters):
+    async def records(session, *, table_id, organization_id, filters, extra):
         assert session is db and table_id == PROJECTS_TABLE and organization_id == ORG
         assert len(filters) == 1 and filters[0].value == str(MEMBER)
+        assert extra is None
         events.append(("records", None))
         return [PROJECT_A]
 
@@ -392,8 +397,14 @@ async def test_a_bounded_project_lookup_refreshes_the_timeout_and_stops_on_expir
     ]
 
 
-async def test_the_project_lookup_honours_the_projects_table_own_policy(monkeypatch):
-    own_policy = RowPolicy(rule="assignee", view_column_id=ASSIGNEE, edit_column_id=ASSIGNEE)
+@pytest.mark.security
+@pytest.mark.parametrize("rule", ["assignee", "grants"])
+async def test_the_project_lookup_honours_the_projects_table_own_policy(monkeypatch, rule):
+    own_policy = (
+        RowPolicy(rule="assignee", view_column_id=ASSIGNEE, edit_column_id=ASSIGNEE)
+        if rule == "assignee"
+        else RowPolicy(rule="grants")
+    )
     projects = SimpleNamespace(
         id=PROJECTS_TABLE,
         archived_at=None,
@@ -419,7 +430,15 @@ async def test_the_project_lookup_honours_the_projects_table_own_policy(monkeypa
 
     assert await visible_project_ids(SimpleNamespace(), _ctx(MEMBER), PROJECT_POLICY) == [PROJECT_A]
     filters = listed.await_args.kwargs["filters"]
-    assert [clause.column_id for clause in filters] == [MEMBERS, ASSIGNEE]
+    assert [clause.column_id for clause in filters] == [MEMBERS]
+    extra = listed.await_args.kwargs["extra"]
+    assert "resource_grants" in _sql(extra)
+    if rule == "assignee":
+        assert "->>" in _sql(extra)
+        assert str(ASSIGNEE) in extra.compile().params.values()
+    else:
+        assert "->>" not in _sql(extra)
+        assert str(ASSIGNEE) not in extra.compile().params.values()
 
 
 # -- one row, through the service helpers -------------------------------------
@@ -429,8 +448,13 @@ async def test_a_bypass_caller_and_a_table_without_a_policy_see_every_row():
     table = _table(None)
     assert await may_view_row(SimpleNamespace(), _ctx(MEMBER, "builder"), table, [], {}) is True
     assert (
-        await may_view_row(SimpleNamespace(), _ctx(OWNER, "member"), _table(POLICY), [], {}) is True
+        await may_view_row(
+            SimpleNamespace(), _ctx(OWNER, "member"), _table(POLICY), [ASSIGNEE_COL], {}
+        )
+        is True
     )
+    # Even an owner cannot bypass policy columns that can no longer be evaluated.
+    assert not await may_view_row(SimpleNamespace(), _ctx(OWNER), _table(POLICY), [], {})
     assert await may_edit_row(SimpleNamespace(), _ctx(MEMBER, "member"), table, [], {}) is True
 
 
@@ -581,7 +605,7 @@ from unittest.mock import MagicMock
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.schemas.virtual_table import (
     RecordBatchCreate,
     RecordCountQuery,
@@ -592,6 +616,7 @@ from app.schemas.virtual_table import (
     RecordUpdate,
     RecordUpsert,
 )
+from app.services.virtual_tables import record_access as record_access_module
 from app.services.virtual_tables import records as records_module
 from app.services.virtual_tables.exceptions import InvalidRecordError
 from app.services.virtual_tables.records import RecordOperations
@@ -636,7 +661,9 @@ def ops(monkeypatch):
     service = RecordOperations(db=MagicMock(spec=AsyncSession))
     ctx = _ctx(MEMBER, "member")
 
-    async def load(ctx, table_id, perm, *, lock=False, share=False, deadline=None):
+    async def load(
+        ctx, table_id, perm, *, lock=False, share=False, deadline=None, alternative_perm=None
+    ):
         return table
 
     async def columns(table):
@@ -656,6 +683,10 @@ def ops(monkeypatch):
     monkeypatch.setattr(service, "_columns", columns)
     monkeypatch.setattr(records_module, "run_once", passthrough)
     monkeypatch.setattr(records_module, "resolve_access", AsyncMock(return_value=True))
+    monkeypatch.setattr(record_access_module, "resolve_access", AsyncMock(return_value=True))
+    monkeypatch.setattr(
+        record_access_module.resource_grant_repo, "record_levels", AsyncMock(return_value={})
+    )
     monkeypatch.setattr(records_module, "principal_problems", AsyncMock(return_value=[]))
     monkeypatch.setattr(records_module.quotas, "enforce_record_size", within_quota)
     monkeypatch.setattr(records_module.quotas, "enforce_record_count", within_quota)
@@ -830,6 +861,36 @@ async def test_a_create_assigned_to_someone_else_is_refused(ops, monkeypatch):
     assert written.created is True
 
 
+@pytest.mark.security
+async def test_a_table_editor_without_a_row_grant_cannot_create_in_grants_mode(ops):
+    service, ctx, table = ops
+    table.row_policy = {"rule": "grants"}
+
+    with pytest.raises(AuthorizationError) as refused:
+        await service.create_record(ctx, table.id, RecordCreate(values={}))
+
+    assert refused.value.status_code == 403
+    assert refused.value.message == "You do not have permission to write this row"
+    assert refused.value.details == {"table_id": table.id}
+
+
+@pytest.mark.security
+async def test_a_grants_mode_batch_reports_the_table_editor_refusal(ops, monkeypatch):
+    service, ctx, table = ops
+    table.row_policy = {"rule": "grants"}
+    monkeypatch.setattr(
+        virtual_table_repo, "database_time", AsyncMock(return_value=datetime.now(UTC))
+    )
+
+    result = await service.create_records(
+        ctx, table.id, RecordBatchCreate(records=[RecordCreate(values={})])
+    )
+
+    assert result.created == 0
+    assert len(result.failed) == 1
+    assert result.failed[0].code == "AUTHORIZATION_ERROR"
+
+
 async def test_a_batch_reports_the_refused_row_and_writes_the_rest(ops, monkeypatch):
     service, ctx, table = ops
     monkeypatch.setattr(
@@ -908,8 +969,10 @@ async def test_an_update_that_changes_nothing_on_a_visible_row_returns_it(ops, m
     assert written.created is False
 
 
+@pytest.mark.security
 async def test_an_upsert_refuses_both_branches_outside_visibility(ops, monkeypatch):
     service, ctx, table = ops
+    table.row_policy = {"rule": "grants"}
     monkeypatch.setattr(
         virtual_table_repo, "get_record_by_external_id", AsyncMock(return_value=None)
     )
@@ -996,7 +1059,7 @@ async def test_a_link_to_an_invisible_row_fails_like_a_missing_one(ops, monkeypa
         "fields": [
             {
                 "field": f"values.{LINK_COL.id}",
-                "message": f"No record {invisible_id} in the linked table",
+                "message": "No record is available in the linked table",
             }
         ]
     }
@@ -1093,6 +1156,21 @@ async def test_clearing_a_policy_stores_null(monkeypatch):
 
     stored = _tables.virtual_table_repo.update_table.await_args.kwargs["update_data"]
     assert stored == {"row_policy": None}
+
+
+async def test_an_authorized_editor_can_replace_an_invalid_stored_policy(monkeypatch):
+    damaged = _table(None)
+    damaged.row_policy = {"rule": "unexpected"}
+    ops = _table_ops(monkeypatch, table=damaged, columns=[ASSIGNEE_COL])
+
+    repaired = await ops.set_row_policy(
+        _ctx(OWNER),
+        TABLE_ID,
+        RowPolicyUpdate(rule="assignee", view_column_id=ASSIGNEE, edit_column_id=ASSIGNEE),
+    )
+
+    assert repaired.row_policy == POLICY
+    assert repaired.row_policy_valid is True
 
 
 async def test_setting_a_policy_on_a_board_table_is_refused(monkeypatch):

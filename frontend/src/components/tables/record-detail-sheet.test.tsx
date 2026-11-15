@@ -12,7 +12,7 @@ import type { ColumnDef, RecordRead } from "@/types/tables";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
-  return { ...actual, apiClient: { patch: vi.fn(), get: vi.fn(), delete: vi.fn() } };
+  return { ...actual, apiClient: { patch: vi.fn(), get: vi.fn(), post: vi.fn(), delete: vi.fn() } };
 });
 const deleteLater = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/use-deferred-delete", () => ({ useDeferredDelete: () => deleteLater }));
@@ -126,6 +126,34 @@ beforeEach(() => {
 });
 
 describe("RecordDetailSheet", () => {
+  it("offers row access only when the server grants audience management", () => {
+    renderSheet({ record: { ...record, access: "write", can_manage_access: true } });
+    expect(screen.getByRole("button", { name: "Row access" })).toBeVisible();
+  });
+
+  it("lets a row writer edit ordinary cells without delete or sharing controls", () => {
+    renderSheet({
+      canEdit: false,
+      record: { ...record, access: "write", can_delete: false, can_manage_access: false },
+    });
+    expect(screen.getByRole("textbox")).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Delete record" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Row access" })).not.toBeInTheDocument();
+  });
+
+  it("honors an explicit Read result and protected cells over table edit defaults", () => {
+    const { rerender } = renderSheet({ record: { ...record, access: "read", can_delete: false } });
+    expect(screen.getByRole("textbox")).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Delete record" })).not.toBeInTheDocument();
+    rerender(
+      sheet({
+        canEdit: false,
+        record: { ...record, access: "write", read_only_column_ids: ["c1"] },
+      }),
+    );
+    expect(screen.getByRole("textbox")).toBeDisabled();
+  });
+
   it("is titled by its first column, and says when it was added and changed", () => {
     const { rerender } = renderSheet({
       record: { ...record, updated_at: "2026-09-24T10:00:00Z" },
@@ -449,6 +477,20 @@ describe("RecordDetailSheet", () => {
     );
   });
 
+  it("does not reapply a conflicted edit after the server removes Write access", async () => {
+    const fresh: RecordRead = { ...record, revision: 5, access: "read" };
+    vi.mocked(apiClient.get).mockResolvedValue(fresh);
+    const onRecordUpdated = vi.fn();
+    renderSheet({ onRecordUpdated });
+    await raiseConflict();
+
+    await userEvent.click(screen.getByRole("button", { name: /reload and reapply/i }));
+
+    await waitFor(() => expect(onRecordUpdated).toHaveBeenCalledWith(fresh));
+    expect(apiClient.patch).toHaveBeenCalledTimes(1);
+    expect(useTableViewStore.getState().conflicts.r1?.c1?.pendingValues).toEqual({ c1: "x" });
+  });
+
   it("keeps the conflict banner when the retry commit itself fails, not only when the refetch does", async () => {
     // The refetch succeeding is not the retry write succeeding: the banner (and
     // the typed value) survive a retry PATCH that fails.
@@ -530,6 +572,20 @@ describe("RecordDetailSheet", () => {
       expect(deleteLater).toHaveBeenCalledWith([
         expect.objectContaining({ id: "r1", revision: 1 }),
       ]);
+    });
+
+    it("rechecks delete authority when an already-rendered confirmation is accepted", () => {
+      const pendingRecord: RecordRead = { ...record, can_delete: true };
+      const onOpenChange = vi.fn();
+      renderSheet({ record: pendingRecord, onOpenChange });
+      fireEvent.click(screen.getByRole("button", { name: "Delete record" }));
+      const accept = confirm();
+
+      pendingRecord.can_delete = false;
+      fireEvent.click(accept);
+
+      expect(deleteLater).not.toHaveBeenCalled();
+      expect(onOpenChange).not.toHaveBeenCalled();
     });
 
     it("offers no delete to a reader", () => {
@@ -750,6 +806,104 @@ it("places every property before document bodies, preserving property order", ()
     "cell-kind",
     "cell-doc",
   ]);
+});
+
+it("sends explicit link intent from the sheet and reapplies it without replacing concurrent links", async () => {
+  const user = userEvent.setup();
+  const link: ColumnDef = {
+    ...columns[0]!,
+    id: "items",
+    label: "Items",
+    type: "link",
+    link_table_id: "products",
+  };
+  const linked: RecordRead = {
+    ...record,
+    values: { items: ["old"] },
+    links: { items: [{ id: "old", label: "Existing" }] },
+  };
+  const fresh: RecordRead = { ...linked, revision: 4, values: { items: ["old", "concurrent"] } };
+  const updated: RecordRead = {
+    ...fresh,
+    revision: 5,
+    values: { items: ["old", "concurrent", "new"] },
+  };
+  vi.mocked(apiClient.get).mockImplementation((url) =>
+    Promise.resolve(url === "/tables/products" ? { columns: [columns[0]] } : fresh),
+  );
+  vi.mocked(apiClient.post).mockResolvedValue({
+    items: [{ ...record, id: "new", values: { c1: "New item" } }],
+  });
+  vi.mocked(apiClient.patch).mockRejectedValueOnce(conflict409()).mockResolvedValueOnce(updated);
+  const onRecordUpdated = vi.fn();
+  renderSheet({ columns: [link], record: linked, onRecordUpdated });
+  await user.click(screen.getByRole("button", { name: "Items" }));
+  await user.click(await screen.findByLabelText("New item"));
+  await screen.findByText(/someone else changed this field/i);
+  await user.keyboard("{Escape}");
+  await user.click(screen.getByRole("button", { name: /reload and reapply/i }));
+
+  await waitFor(() => expect(onRecordUpdated).toHaveBeenCalledWith(updated));
+  expect(vi.mocked(apiClient.patch).mock.calls).toEqual([
+    [
+      "/tables/t1/records/r1",
+      {
+        expected_revision: 1,
+        values: {},
+        link_changes: { items: { add: ["new"], remove: [] } },
+      },
+    ],
+    [
+      "/tables/t1/records/r1",
+      {
+        expected_revision: 4,
+        values: {},
+        link_changes: { items: { add: ["new"], remove: [] } },
+      },
+    ],
+  ]);
+  expect(useTableViewStore.getState().conflicts.r1).toBeUndefined();
+});
+
+it("keeps an earlier link conflict when a delta already in flight succeeds on another target", async () => {
+  const user = userEvent.setup();
+  const link: ColumnDef = {
+    ...columns[0]!,
+    id: "items",
+    label: "Items",
+    type: "link",
+    link_table_id: "products",
+  };
+  const linked: RecordRead = { ...record, revision: 2, values: { items: ["old"] } };
+  const updated: RecordRead = { ...linked, revision: 3, values: { items: ["old", "landed"] } };
+  const inFlight = deferred<RecordRead>();
+  vi.mocked(apiClient.get).mockResolvedValue({ columns: [columns[0]] });
+  vi.mocked(apiClient.post).mockResolvedValue({
+    items: [{ ...record, id: "landed", values: { c1: "Later choice" } }],
+  });
+  vi.mocked(apiClient.patch).mockReset().mockReturnValueOnce(inFlight.promise);
+  const onRecordUpdated = vi.fn();
+  renderSheet({ columns: [link], record: linked, onRecordUpdated });
+  await user.click(screen.getByRole("button", { name: "Items" }));
+  await user.click(await screen.findByLabelText("Later choice"));
+  await waitFor(() => expect(apiClient.patch).toHaveBeenCalledTimes(1));
+
+  // An older queued write's conflict arrives after the later request captured its intent.
+  act(() =>
+    useTableViewStore.getState().setConflict({
+      recordId: "r1",
+      fieldId: "items",
+      pendingValues: { items: ["old", "pending"] },
+      pendingLinkChanges: { items: { add: ["pending"], remove: [] } },
+    }),
+  );
+  inFlight.resolve(updated);
+  await waitFor(() => expect(onRecordUpdated).toHaveBeenCalledWith(updated));
+
+  expect(useTableViewStore.getState().conflicts.r1?.items).toMatchObject({
+    pendingValues: { items: ["old", "landed", "pending"] },
+    pendingLinkChanges: { items: { add: ["pending"], remove: [] } },
+  });
 });
 
 it("reads a replacement conflict even while the previous read is pending", async () => {

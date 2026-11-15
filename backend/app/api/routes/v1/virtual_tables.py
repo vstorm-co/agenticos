@@ -59,6 +59,7 @@ from app.api.public_api import PUBLIC
 from app.api.routes.v1._path_convertors import ANYTEXT
 from app.api.routes.v1._table_responses import answer
 from app.core.permissions import Perm
+from app.schemas.table_record_access import RecordAccessRead, RecordGrantUpdate
 from app.schemas.virtual_table import (
     ErrorEnvelope,
     OperationKey,
@@ -476,7 +477,7 @@ async def update_record(
     ctx: Auth,
     idempotency_key: IdempotencyKey = None,
 ) -> Any:
-    """Change the named cells, if the record is still at `expected_revision`.
+    """Change named cells and explicit links at `expected_revision`.
 
     An update that would leave every cell as it is changes nothing: the revision stays and
     the current record is returned.
@@ -510,6 +511,57 @@ async def delete_record(
         expected_revision=expected_revision,
         operation_key=idempotency_key,
     )
+
+
+@router.get(
+    "/{table_id}/records/{record_id}/access", response_model=RecordAccessRead, responses=_REFUSALS
+)
+async def get_record_access(
+    table_id: UUID, record_id: UUID, service: VirtualTableSvc, ctx: Auth
+) -> Any:
+    """The row's explicit Read and Write grants, for a table administrator."""
+    return await service.get_record_access(ctx, table_id, record_id)
+
+
+@router.put(
+    "/{table_id}/records/{record_id}/access/grants",
+    response_model=RecordAccessRead,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
+async def set_record_grant(
+    table_id: UUID, record_id: UUID, data: RecordGrantUpdate, service: VirtualTableSvc, ctx: Auth
+) -> Any:
+    """Give one member or group Read or Write on this row; table access remains separate."""
+    return await service.set_record_grant(ctx, table_id, record_id, data)
+
+
+@router.delete(
+    "/{table_id}/records/{record_id}/access/grants/{subject_user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
+async def revoke_record_user_grant(
+    table_id: UUID, record_id: UUID, subject_user_id: UUID, service: VirtualTableSvc, ctx: Auth
+) -> None:
+    """Revoke one member's explicit row grant."""
+    await service.revoke_record_grant(ctx, table_id, record_id, subject_user_id, kind="user")
+
+
+@router.delete(
+    "/{table_id}/records/{record_id}/access/group-grants/{subject_group_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    responses=_WRITE_REFUSALS,
+    dependencies=[Depends(limit_table_write)],
+)
+async def revoke_record_group_grant(
+    table_id: UUID, record_id: UUID, subject_group_id: UUID, service: VirtualTableSvc, ctx: Auth
+) -> None:
+    """Revoke one group's explicit row grant."""
+    await service.revoke_record_grant(ctx, table_id, record_id, subject_group_id, kind="group")
 
 
 @router.post(

@@ -15,7 +15,7 @@ import type { ColumnDef, RecordRead } from "@/types/tables";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
-  return { ...actual, apiClient: { patch: vi.fn(), delete: vi.fn() } };
+  return { ...actual, apiClient: { patch: vi.fn(), delete: vi.fn(), get: vi.fn(), post: vi.fn() } };
 });
 const deleteLater = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/use-deferred-delete", () => ({ useDeferredDelete: () => deleteLater }));
@@ -88,6 +88,41 @@ beforeEach(() => {
 });
 
 describe("TableGridView", () => {
+  it("rechecks Write access before a previously rendered boolean toggle writes", () => {
+    const flag: ColumnDef = { ...columns[0]!, type: "boolean", nullable: false, label: "Paid" };
+    const pendingRecord: RecordRead = {
+      ...records[0]!,
+      access: "write",
+      values: { [flag.id]: false },
+    };
+    renderEditable({ columns: [flag], records: [pendingRecord], canEdit: false });
+    const toggle = screen.getByRole("button", { name: "Edit Paid" });
+
+    pendingRecord.access = "read";
+    fireEvent.click(toggle);
+
+    expect(apiClient.patch).not.toHaveBeenCalled();
+  });
+
+  it("allows a row writer to edit ordinary cells while hiding delete selection", () => {
+    renderEditable({
+      canEdit: false,
+      records: [
+        { ...records[0]!, access: "write", can_delete: false, read_only_column_ids: ["c2"] },
+      ],
+    });
+    expect(screen.getByRole("button", { name: "Edit Name" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Edit Tags" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("never selects a Read-only row for bulk deletion", () => {
+    renderEditable({ records: [{ ...records[0]!, access: "read", can_delete: false }] });
+    expect(screen.queryByRole("button", { name: "Edit Name" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+    expect(screen.getByRole("checkbox", { name: "Select every row on this page" })).toBeDisabled();
+  });
+
   it("shows system metadata without exposing a cell editor", () => {
     renderEditable({ columns: [...columns, ...TABLE_SYSTEM_COLUMNS] });
     expect(screen.getByRole("columnheader", { name: /^Created$/ })).toBeVisible();
@@ -576,4 +611,36 @@ it("wraps full cell text and dates using view preferences without writing cells"
   expect(screen.getByText(/First line/)).toHaveClass("whitespace-pre-wrap");
   expect(screen.getAllByText("2026-09-23")).toHaveLength(2);
   expect(apiClient.patch).not.toHaveBeenCalled();
+});
+
+it("sends a grid link addition as a delta and keeps its intent when the record conflicts", async () => {
+  const user = userEvent.setup();
+  const link: ColumnDef = {
+    ...columns[0]!,
+    id: "items",
+    label: "Items",
+    type: "link",
+    link_table_id: "products",
+  };
+  const row: RecordRead = { ...records[0]!, values: { items: [] } };
+  vi.mocked(apiClient.get).mockResolvedValue({ columns: [columns[0]] });
+  vi.mocked(apiClient.post).mockResolvedValue({
+    items: [{ ...records[0]!, id: "new", values: { c1: "New item" } }],
+  });
+  vi.mocked(apiClient.patch).mockRejectedValueOnce(conflict409());
+  const { onOpenRecord } = renderEditable({ columns: [link], records: [row] });
+  await user.click(screen.getByRole("button", { name: "Edit Items" }));
+  await user.click(screen.getByRole("button", { name: "Not linked" }));
+  await user.click(await screen.findByLabelText("New item"));
+
+  await waitFor(() => expect(onOpenRecord).toHaveBeenCalledWith(row));
+  expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1/records/r1", {
+    expected_revision: 1,
+    values: {},
+    link_changes: { items: { add: ["new"], remove: [] } },
+  });
+  expect(useTableViewStore.getState().conflicts.r1?.items).toMatchObject({
+    pendingValues: { items: ["new"] },
+    pendingLinkChanges: { items: { add: ["new"], remove: [] } },
+  });
 });

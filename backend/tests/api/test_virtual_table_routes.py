@@ -22,6 +22,7 @@ from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
+from app.schemas.table_record_access import RecordAccessRead
 from app.schemas.virtual_table import (
     RecordBatchResult,
     RecordCount,
@@ -119,6 +120,13 @@ def service() -> MagicMock:
             return_value=RecordWrite(record=_record(), created=True, replayed=False)
         ),
         delete_record=AsyncMock(return_value=None),
+        get_record_access=AsyncMock(
+            return_value=RecordAccessRead(table_id=_TABLE, record_id=_RECORD, grants=[])
+        ),
+        set_record_grant=AsyncMock(
+            return_value=RecordAccessRead(table_id=_TABLE, record_id=_RECORD, grants=[])
+        ),
+        revoke_record_grant=AsyncMock(return_value=None),
     )
 
 
@@ -219,6 +227,71 @@ async def test_a_viewer_reaches_the_row_policy_service_because_no_route_gate_blo
 
     assert response.status_code == 200
     service.set_row_policy.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("subject_key", "level"), [("subject_user_id", "read"), ("subject_group_id", "write")]
+)
+async def test_record_grants_preserve_the_public_level_and_delegate_authority(
+    client, service, subject_key, level
+):
+    viewer = AuthContext(user_id=uuid.uuid4(), organization_id=_ORG, role=OrgRoleName.VIEWER)
+    app.dependency_overrides[deps.get_auth_context] = lambda: viewer
+    subject = uuid.uuid4()
+    async with client() as http:
+        response = await http.put(
+            _records(f"/{_RECORD}/access/grants"),
+            json={subject_key: str(subject), "level": level},
+        )
+        listed = await http.get(_records(f"/{_RECORD}/access"))
+
+    assert response.status_code == listed.status_code == 200
+    assert listed.json() == {"table_id": str(_TABLE), "record_id": str(_RECORD), "grants": []}
+    ctx, table_id, record_id, data = service.set_record_grant.await_args.args
+    assert ctx is viewer and table_id == _TABLE and record_id == _RECORD
+    assert data.level == level and getattr(data, subject_key) == subject
+    service.get_record_access.assert_awaited_once_with(viewer, _TABLE, _RECORD)
+
+
+async def test_record_grant_revocations_scope_user_and_group_subjects(client, service):
+    user, group = uuid.uuid4(), uuid.uuid4()
+    async with client() as http:
+        responses = [
+            await http.delete(_records(f"/{_RECORD}/access/grants/{user}")),
+            await http.delete(_records(f"/{_RECORD}/access/group-grants/{group}")),
+        ]
+
+    assert all(response.status_code == 204 and response.content == b"" for response in responses)
+    calls = service.revoke_record_grant.await_args_list
+    assert [(call.args[1:], call.kwargs) for call in calls] == [
+        ((_TABLE, _RECORD, user), {"kind": "user"}),
+        ((_TABLE, _RECORD, group), {"kind": "group"}),
+    ]
+
+
+@pytest.mark.parametrize("level", ["edit", "use", "manage"])
+async def test_record_grants_reject_administration_levels_before_the_service(
+    client, service, level
+):
+    async with client() as http:
+        response = await http.put(
+            _records(f"/{_RECORD}/access/grants"),
+            json={"subject_user_id": str(uuid.uuid4()), "level": level},
+        )
+
+    assert response.status_code == 422
+    service.set_record_grant.assert_not_awaited()
+
+
+async def test_record_grant_routes_preserve_a_service_access_refusal(client, service):
+    service.set_record_grant.side_effect = NotFoundError(message="Record not found")
+    async with client() as http:
+        response = await http.put(
+            _records(f"/{_RECORD}/access/grants"),
+            json={"subject_user_id": str(uuid.uuid4()), "level": "write"},
+        )
+    assert response.status_code == 404
+    service.set_record_grant.assert_awaited_once()
 
 
 async def test_creating_a_record_is_a_201_and_passes_the_operation_key_through(client, service):
@@ -469,7 +542,10 @@ def test_the_openapi_document_types_the_write_contract():
     }
     assert {"idempotency-key"} <= {p["name"] for p in patch["parameters"]}
     request = document["components"]["schemas"]["RecordUpdate"]
-    assert set(request["required"]) == {"expected_revision", "values"}
+    assert set(request["required"]) == {"expected_revision"}
+    assert request["properties"]["link_changes"]["additionalProperties"] == {
+        "$ref": "#/components/schemas/RecordLinkChange"
+    }
     assert request["additionalProperties"] is False
     assert {"created_at", "updated_at"} <= set(
         document["components"]["schemas"]["RecordRead"]["properties"]

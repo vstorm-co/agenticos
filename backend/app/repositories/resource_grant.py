@@ -4,11 +4,22 @@ from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, CursorResult, Delete, delete, func, or_, select, update
+from sqlalchemy import (
+    ColumnElement,
+    CursorResult,
+    Delete,
+    Select,
+    delete,
+    func,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.artifact import Artifact
 from app.db.models.group import Group, GroupMember
+from app.db.models.organization import OrganizationMember
 from app.db.models.resource_grant import GRANT_ORDER, GrantLevel, ResourceGrant
 
 
@@ -89,6 +100,64 @@ async def get_level(
     return max(levels, key=GRANT_ORDER.__getitem__) if levels else None
 
 
+def readable_record_ids(*, organization_id: UUID, subject_user_id: UUID) -> Select[UUID]:
+    """Current Read/Write row grants, as a subquery for filtered record listings.
+
+    The namespace deliberately accepts only READ and EDIT. Other resource
+    levels cannot accidentally become record access through their numeric rank.
+    """
+    return select(ResourceGrant.resource_id).where(
+        ResourceGrant.organization_id == organization_id,
+        ResourceGrant.resource_type == "table_record",
+        ResourceGrant.level.in_((GrantLevel.READ.value, GrantLevel.EDIT.value)),
+        _current_record_member(organization_id, subject_user_id),
+        _unexpired(),
+        _reaches_member(organization_id, subject_user_id),
+    )
+
+
+async def record_levels(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    subject_user_id: UUID,
+    record_ids: list[UUID],
+) -> dict[UUID, GrantLevel]:
+    """Current row grants for a page, including live group membership and expiry."""
+    if not record_ids:
+        return {}
+    result = await db.execute(
+        select(ResourceGrant.resource_id, ResourceGrant.level).where(
+            ResourceGrant.organization_id == organization_id,
+            ResourceGrant.resource_type == "table_record",
+            ResourceGrant.resource_id.in_(record_ids),
+            ResourceGrant.level.in_((GrantLevel.READ.value, GrantLevel.EDIT.value)),
+            _current_record_member(organization_id, subject_user_id),
+            _unexpired(),
+            _reaches_member(organization_id, subject_user_id),
+        )
+    )
+    levels: dict[UUID, GrantLevel] = {}
+    for record_id, raw_level in result:
+        level = GrantLevel(raw_level)
+        previous = levels.get(record_id)
+        if previous is None or GRANT_ORDER[level] > GRANT_ORDER[previous]:
+            levels[record_id] = level
+    return levels
+
+
+def _current_record_member(organization_id: UUID, subject_user_id: UUID) -> ColumnElement[bool]:
+    """A stale request or group row cannot keep grants after organization membership ends."""
+    return (
+        select(OrganizationMember.id)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == subject_user_id,
+        )
+        .exists()
+    )
+
+
 async def list_shared_ids(
     db: AsyncSession,
     *,
@@ -150,6 +219,7 @@ async def upsert(
     level: GrantLevel,
     created_by_user_id: UUID | None = None,
     expires_at: datetime | None = None,
+    clear_expiry: bool = False,
 ) -> ResourceGrant:
     """Share a resource with a member, replacing any existing level.
 
@@ -157,7 +227,8 @@ async def upsert(
     an existing grant. Omitted, an existing grant keeps the expiry it has - a
     re-share that only changes the level must not silently make a time-bound
     share permanent - and a new grant is permanent. Clearing an expiry takes
-    revoke and a fresh share.
+    revoke and a fresh share, or an explicit `clear_expiry` from a surface that
+    distinguishes an omitted expiry from an intentional null (record access).
     """
     result = await db.execute(
         select(ResourceGrant).where(
@@ -181,7 +252,7 @@ async def upsert(
         db.add(grant)
     else:
         grant.level = level.value
-        if expires_at is not None:
+        if expires_at is not None or clear_expiry:
             grant.expires_at = expires_at
     await db.flush()
     await db.refresh(grant)
