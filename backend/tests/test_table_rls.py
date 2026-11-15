@@ -8,7 +8,7 @@ import pytest
 from app.db import table_rls
 from app.services.account_maintenance import account_maintenance
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 @pytest.mark.parametrize("enabled,forced", [(False, False), (True, False), (False, True)])

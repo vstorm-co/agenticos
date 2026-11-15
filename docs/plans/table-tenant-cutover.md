@@ -119,9 +119,12 @@ preflight intentionally permits ownership of unrelated runtime vector objects.
 Record the release commit, migration head, PostgreSQL major, credential role
 names, backup reference and linked CI run before scheduling the cutover.
 Require the exact release's migration cycle, model parity, permission regressions
-and coverage gates to pass. The expected dependency chain is the reconciled
-`0325` base, `0326_virtual_table_relations`, then the immutable `0327`
-tenant-policy migration, with one Alembic head.
+and coverage gates to pass. The expected dependency chain is
+`0325_merge_t3_rooms_v173`, `0326_room_threads` (#90),
+`0327_virtual_table_relations` (#101), then `0328_tables_tenant_rls` (#102),
+with one Alembic head. The unreleased policy revision was renumbered during
+recovery; its original source remains in history. Track the combined release
+and current verification in #111.
 
 On a disposable restored copy, run the full migration chain and inspect the
 relationship evidence and storage projection described in the companion
@@ -249,4 +252,3 @@ procedure. Keep the previous release and backup until verification finishes.
 - [Runtime vector objects and model exclusions](../../backend/app/db/vector_tables.py)
 - [PostgreSQL row security and its scope](https://www.postgresql.org/docs/current/ddl-rowsecurity.html)
 - [PostgreSQL role membership and privilege inspection](https://www.postgresql.org/docs/current/functions-info.html)
-
