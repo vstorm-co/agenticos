@@ -7545,12 +7545,18 @@
       "workspaces": "Organizations",
       "you": "(you)",
       "yourRoleHere": "Your role here is <badge>{role}</badge>",
-      "tabProfile": "Workspace",
       "tabGovernance": "Budget and approvals",
       "tabProactivity": "Proactivity",
       "tabAssistant": "AI & services",
-      "workspaceSettingsHint": "Organization identity and the default voice experience inherited by agents and channel bots.",
-      "aiServicesHint": "Configure the organization’s Architect and the background services that maintain memory and build briefings. Suggestion and monitoring policies are under Proactivity."
+      "editWorkspace": "Edit workspace",
+      "workspaceAppearanceHint": "Name, avatar and colour for this workspace.",
+      "searchMembers": "Search members…",
+      "filterRole": "Filter by role",
+      "allRoles": "All roles",
+      "noMatchingMembers": "No members match your search.",
+      "lastAction": "Last recorded action",
+      "lastActionHint": "Audited actions in this workspace. Visits and actions performed through impersonation are not included.",
+      "noRecordedAction": "No recorded action"
     },
     "rag": {
       "active": "Active",
@@ -9632,7 +9638,8 @@
       "save": "Save changes",
       "saved": "Voice settings saved",
       "providerNoKey": "{name} (no usable key)",
-      "notReadyNoKey": "No key is chosen for {provider}. Agents and bots that inherit it can't transcribe with a provider until you choose one below."
+      "notReadyNoKey": "No key is chosen for {provider}. Agents and bots that inherit it can't transcribe with a provider until you choose one below.",
+      "summary": "Default transcription provider and recording limits."
     },
     "publicAttribution": "AgenticOS on shared pages",
     "publicAttributionDescription": "Show a small floating AgenticOS badge with a GitHub link on public apps, dashboards and reports, and below shared conversations.",
@@ -9686,7 +9693,8 @@
       "watchMinutesHint": "How often one watch may look at most. More often costs more.",
       "switchOrganizationHint": "Switch to this organization before configuring proactivity so its model profiles and keys are used.",
       "switchOrganization": "Switch to {name}",
-      "runAttribution": "Suggestions use a dedicated model; monitoring uses its selected agent. Both share a monthly background-work budget per member."
+      "runAttribution": "Suggestions use a dedicated model; monitoring uses its selected agent. Both share a monthly background-work budget per member.",
+      "summary": "Suggestions, monitoring and delivery schedules."
     },
     "systemAgents": {
       "configure": "Configure model and budget",
@@ -9694,8 +9702,8 @@
       "description": "Model-powered platform services. Expand a service to configure its model and budget. Usage and recent runs stay visible below.",
       "on": "On",
       "off": "Off",
-      "managedIn": "Runs on {model}. Configured in the Proactivity tab, with one shared model and limit.",
-      "managedInNoModel": "No model chosen yet. Configure it in the Proactivity tab.",
+      "managedIn": "Runs on {model}. Configure suggestions, monitoring and shared limits below.",
+      "managedInNoModel": "Choose a model in Assistant suggestions and monitoring below.",
       "enabled": "Run this role",
       "model": "Model",
       "modelHint": "Chosen, never defaulted: the role spends money nobody asked for in the moment.",
@@ -9720,7 +9728,8 @@
           "what": "Reads a finished chat once and records the durable facts, preferences and decisions in it, in the conversation's own scope. Nothing runs while it is off or has no model."
         }
       },
-      "starterAgentMissing": "This role does nothing right now: the AgenticOS starter agent it is recorded under is missing, unpublished or renamed. Publish it again under the agenticos handle."
+      "starterAgentMissing": "This role does nothing right now: the AgenticOS starter agent it is recorded under is missing, unpublished or renamed. Publish it again under the agenticos handle.",
+      "summary": "Models, budgets and recent runs for platform services."
     }
   },
   "theme": {
@@ -13038,7 +13047,8 @@
     "needsModel": "It has no model yet, so it cannot answer. Choose one under Model in the Agent Builder.",
     "greeting": "Greeting",
     "greetingHint": "What it says when somebody opens it. Leave empty for the default.",
-    "save": "Save"
+    "save": "Save",
+    "summary": "Configure the workspace assistant and its greeting."
   },
   "capabilityGuide": {
     "artifacts": {
@@ -17148,9 +17158,9 @@
   },
   "setupHints": {
     "title": "Setup available",
-    "voiceModel": "Voice has no default provider or model. Choose them in Workspace → Voice to use provider-based transcription.",
-    "voiceKey": "Voice has a provider and model, but no key. Select an organization key in Workspace → Voice.",
-    "proactivityOff": "Nightly suggestions are off. Enable them in Proactivity if you want the assistant to prepare suggestions for your team.",
+    "voiceModel": "Voice has no default provider or model. Choose them in AI & services → Voice to use provider-based transcription.",
+    "voiceKey": "Voice has a provider and model, but no key. Select an organization key in AI & services → Voice.",
+    "proactivityOff": "Nightly suggestions are off. Enable them in AI & services → Assistant suggestions and monitoring if you want the assistant to prepare suggestions for your team.",
     "proactivityModel": "Nightly suggestions are on, but no model is selected. Choose a model in Proactivity.",
     "memoryModel": "Memory maintenance has no model selected. Choose one in AI & services → Background services to use automatic memory maintenance.",
     "architectModel": "The Architect needs a model. Open it in Agent Builder from AI & services and select one.",

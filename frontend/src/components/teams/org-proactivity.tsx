@@ -77,7 +77,15 @@ function stored(org: Organization): Proactivity {
  * uses its selected agent. The welcome message spends nothing and is the
  * organization's settings.
  */
-export function OrgProactivity({ org }: { org: Organization }) {
+export function OrgProactivity({
+  org,
+  collapsible = false,
+  defaultOpen = false,
+}: {
+  org: Organization;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
+}) {
   const t = useTranslations("teams.proactive");
   const { can } = usePermissions();
   const tenantId = useTenantId();
@@ -86,7 +94,7 @@ export function OrgProactivity({ org }: { org: Organization }) {
   const welcome = can(Perm.orgSettings);
   if (tenantId !== org.id) {
     return (
-      <SettingsSection title={t("title")} description={t("description")}>
+      <SettingsSection title={t("title")} description={t(collapsible ? "summary" : "description")}>
         <p className="text-muted-foreground text-sm">{t("switchOrganizationHint")}</p>
         <Button onClick={() => switchOrg(org.id)}>
           {t("switchOrganization", { name: org.name })}
@@ -96,16 +104,17 @@ export function OrgProactivity({ org }: { org: Organization }) {
   }
   if (!nightly && !welcome) return null;
   return (
-    <div className="space-y-5">
-      <header className="space-y-1.5">
-        <h2 className="text-lg font-semibold tracking-tight">{t("title")}</h2>
-        <p className="text-muted-foreground max-w-3xl text-sm leading-relaxed">
-          {t("description")}
-        </p>
-      </header>
-      {nightly && <NightlyForm key={org.id} org={org} />}
-      {welcome && <WelcomeForm org={org} />}
-    </div>
+    <SettingsSection
+      title={t("title")}
+      description={t(collapsible ? "summary" : "description")}
+      collapsible={collapsible}
+      defaultOpen={defaultOpen}
+    >
+      <div className="space-y-5">
+        {nightly && <NightlyForm key={org.id} org={org} />}
+        {welcome && <WelcomeForm org={org} />}
+      </div>
+    </SettingsSection>
   );
 }
 
@@ -208,7 +217,7 @@ function NightlyForm({ org }: { org: Organization }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid items-stretch gap-4 lg:grid-cols-2">
+      <div className="grid items-stretch gap-3">
         <FeaturePanel
           title={t("nightly")}
           status={<SetupIndicator hints={proactivitySetupHints(org)} />}

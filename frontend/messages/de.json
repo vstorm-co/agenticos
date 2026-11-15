@@ -6818,12 +6818,18 @@
       "workspaces": "Organisationen",
       "you": "(Sie)",
       "yourRoleHere": "Ihre Rolle hier ist <badge>{role}</badge>",
-      "tabProfile": "Arbeitsbereich",
       "tabGovernance": "Budget und Freigaben",
       "tabProactivity": "Proaktivität",
       "tabAssistant": "KI und Dienste",
-      "workspaceSettingsHint": "Identität der Organisation und die von Agents und Kanal-Bots übernommenen Spracheinstellungen.",
-      "aiServicesHint": "Den Architect und Hintergrunddienste für Gedächtnispflege und Briefings konfigurieren. Regeln für Vorschläge und Überwachung stehen unter Proaktivität."
+      "editWorkspace": "Arbeitsbereich bearbeiten",
+      "workspaceAppearanceHint": "Name, Avatar und Farbe dieses Arbeitsbereichs.",
+      "searchMembers": "Mitglieder suchen…",
+      "filterRole": "Nach Rolle filtern",
+      "allRoles": "Alle Rollen",
+      "noMatchingMembers": "Keine Mitglieder entsprechen Ihrer Suche.",
+      "lastAction": "Letzte erfasste Aktion",
+      "lastActionHint": "Protokollierte Aktionen in diesem Arbeitsbereich. Besuche und Aktionen durch Identitätsübernahme sind nicht enthalten.",
+      "noRecordedAction": "Keine erfasste Aktion"
     },
     "rag": {
       "active": "Aktiv",
@@ -9503,7 +9509,8 @@
       "save": "Änderungen speichern",
       "saved": "Spracheinstellungen gespeichert",
       "providerNoKey": "{name} (kein geeigneter Schlüssel)",
-      "notReadyNoKey": "Für {provider} ist kein Schlüssel gewählt. Agents und Bots, die ihn erben, können erst über einen Provider transkribieren, wenn Sie unten einen wählen."
+      "notReadyNoKey": "Für {provider} ist kein Schlüssel gewählt. Agents und Bots, die ihn erben, können erst über einen Provider transkribieren, wenn Sie unten einen wählen.",
+      "summary": "Standardanbieter für Transkription und Aufnahmelimits."
     },
     "sending2": "Wird gesendet …",
     "sendInvite": "Einladung senden",
@@ -9566,7 +9573,8 @@
       "watchMinutesHint": "Wie oft eine einzelne Beobachtung höchstens nachsehen darf. Häufiger kostet mehr.",
       "switchOrganizationHint": "Wechsle vor dem Konfigurieren der Proaktivität zu dieser Organisation, damit ihre Modellprofile und Schlüssel verwendet werden.",
       "switchOrganization": "Zu {name} wechseln",
-      "runAttribution": "Vorschläge verwenden ein eigenes Modell, die Überwachung das Modell des gewählten Agenten. Beide teilen sich ein monatliches Budget für Hintergrundarbeit pro Mitglied."
+      "runAttribution": "Vorschläge verwenden ein eigenes Modell, die Überwachung das Modell des gewählten Agenten. Beide teilen sich ein monatliches Budget für Hintergrundarbeit pro Mitglied.",
+      "summary": "Vorschläge, Monitoring und Zustellungszeiten."
     },
     "systemAgents": {
       "configure": "Modell und Budget konfigurieren",
@@ -9574,8 +9582,8 @@
       "description": "Modellgestützte Plattformdienste. Klappen Sie einen Dienst auf, um Modell und Budget festzulegen. Verbrauch und letzte Ausführungen bleiben darunter sichtbar.",
       "on": "An",
       "off": "Aus",
-      "managedIn": "Läuft auf {model}. Im Tab Proaktivität mit gemeinsamem Modell und Limit konfiguriert.",
-      "managedInNoModel": "Noch kein Modell gewählt. Im Tab Proaktivität konfigurieren.",
+      "managedIn": "Läuft auf {model}. Vorschläge, Monitoring und gemeinsame Limits unten konfigurieren.",
+      "managedInNoModel": "Unten bei Vorschlägen und Monitoring ein Modell wählen.",
       "enabled": "Diese Rolle ausführen",
       "model": "Modell",
       "modelHint": "Gewählt, nie voreingestellt: Die Rolle gibt Geld aus, das niemand im Moment angefordert hat.",
@@ -9600,7 +9608,8 @@
           "what": "Liest einen beendeten Chat einmal und hält die dauerhaften Fakten, Vorlieben und Entscheidungen darin fest, im eigenen Scope der Unterhaltung. Solange sie aus ist oder kein Modell hat, läuft nichts."
         }
       },
-      "starterAgentMissing": "Diese Rolle tut gerade nichts: Der AgenticOS-Starter-Agent, unter dem sie aufgezeichnet wird, fehlt, ist nicht veröffentlicht oder umbenannt. Veröffentlichen Sie ihn erneut unter dem Handle agenticos."
+      "starterAgentMissing": "Diese Rolle tut gerade nichts: Der AgenticOS-Starter-Agent, unter dem sie aufgezeichnet wird, fehlt, ist nicht veröffentlicht oder umbenannt. Veröffentlichen Sie ihn erneut unter dem Handle agenticos.",
+      "summary": "Modelle, Budgets und letzte Ausführungen der Plattformdienste."
     }
   },
   "theme": {
@@ -12724,7 +12733,8 @@
     "needsModel": "Er hat noch kein Modell und kann daher nicht antworten. Wählen Sie eins unter Modell im Agent Builder.",
     "greeting": "Begrüßung",
     "greetingHint": "Was er sagt, wenn ihn jemand öffnet. Leer lassen für die Standardbegrüßung.",
-    "save": "Speichern"
+    "save": "Speichern",
+    "summary": "Assistent und Begrüßung dieses Arbeitsbereichs konfigurieren."
   },
   "capabilityGuide": {
     "artifacts": {
@@ -16834,9 +16844,9 @@
   },
   "setupHints": {
     "title": "Konfiguration verfügbar",
-    "voiceModel": "Für Sprache fehlt ein Standardanbieter oder Modell. Unter Arbeitsbereich → Sprache für die Transkription über einen Anbieter auswählen.",
-    "voiceKey": "Sprache hat Anbieter und Modell, aber keinen Schlüssel. Unter Arbeitsbereich → Sprache einen Organisationsschlüssel wählen.",
-    "proactivityOff": "Nächtliche Vorschläge sind aus. Unter Proaktivität aktivieren, wenn der Assistent Vorschläge für Ihr Team vorbereiten soll.",
+    "voiceModel": "Für Sprache fehlt ein Standardanbieter oder Modell. Unter KI & Dienste → Sprache für die Transkription über einen Anbieter auswählen.",
+    "voiceKey": "Sprache hat Anbieter und Modell, aber keinen Schlüssel. Unter KI & Dienste → Sprache einen Organisationsschlüssel wählen.",
+    "proactivityOff": "Nächtliche Vorschläge sind aus. Unter KI & Dienste → Vorschläge und Monitoring aktivieren, wenn der Assistent Vorschläge für Ihr Team vorbereiten soll.",
     "proactivityModel": "Nächtliche Vorschläge sind an, aber ohne Modell. Unter Proaktivität ein Modell wählen.",
     "memoryModel": "Für Gedächtnispflege fehlt ein Modell. Unter KI und Dienste → Hintergrunddienste auswählen, um automatische Gedächtnispflege zu nutzen.",
     "architectModel": "Der Architect benötigt ein Modell. Unter KI und Dienste im Agent Builder öffnen und ein Modell auswählen.",

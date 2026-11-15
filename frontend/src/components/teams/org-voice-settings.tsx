@@ -97,11 +97,17 @@ function secondsOf(draft: Draft): number | null {
  * rather than disabled, like the spending limit beside it: a section that could
  * only report a refusal is worse than no section.
  */
-export function OrgVoiceSettings({ org }: { org: Organization }) {
+export function OrgVoiceSettings({
+  org,
+  collapsible = false,
+}: {
+  org: Organization;
+  collapsible?: boolean;
+}) {
   const { can } = usePermissions();
   // A separate component so that its catalog and vault reads are never issued
   // for somebody who may not change them.
-  return can(Perm.orgSettings) ? <VoiceForm org={org} /> : null;
+  return can(Perm.orgSettings) ? <VoiceForm org={org} collapsible={collapsible} /> : null;
 }
 
 /**
@@ -199,7 +205,7 @@ function useVoiceDraft(org: Organization) {
   };
 }
 
-function VoiceForm({ org }: { org: Organization }) {
+function VoiceForm({ org, collapsible }: { org: Organization; collapsible: boolean }) {
   const t = useTranslations("teams");
   const { providers, languages } = useSpeechToTextProviders();
   // Only organization-wide keys: the platform spends this one for everybody.
@@ -210,9 +216,10 @@ function VoiceForm({ org }: { org: Organization }) {
   return (
     <div id="org-voice" data-tour="org-voice">
       <SettingsSection
+        collapsible={collapsible}
         status={<SetupIndicator hints={voiceSetupHints(org)} />}
         title={t("voice.title")}
-        description={t("voice.description")}
+        description={t(collapsible ? "voice.summary" : "voice.description")}
       >
         <h3 className="text-sm font-semibold">{t("voice.sttTitle")}</h3>
         <p className="text-muted-foreground mt-0.5 mb-4 text-sm">{t("voice.sttDescription")}</p>

@@ -1,5 +1,5 @@
 ---
-source_sha: "d347b6668f6b"
+source_sha: "c84ba7589f3d"
 ---
 
 # Konsola { #the-console }
@@ -220,7 +220,7 @@ prywatnego Inbox. Każda zakładka ma własne przyciski tworzenia.
 30 zapytań do modelu, a długie wyniki są przycinane, więc obserwacja dużego
 workspace pozostaje tania.
 
-Organizacja → Proaktywność oddziela sugestie, monitoring, wspólne limity, harmonogram dostarczania i powitania. Niezapisane zmiany można odrzucić. Usługi działające w tle pokazują stan i zużycie, a ustawienia modelu i budżetu rozwija się przy konkretnej usłudze.
+Organizacja → AI i usługi → Sugestie i monitoring oddziela sugestie, monitoring, wspólne limity, harmonogram dostarczania i powitania. Niezapisane zmiany można odrzucić. Usługi działające w tle pokazują stan i zużycie, a ustawienia modelu i budżetu rozwija się przy konkretnej usłudze.
 
 Rutyny harmonogramowe, zdarzeniowe i obserwacje korzystają z tej samej ramy modalu: stałego nagłówka i nawigacji oraz przewijanego formularza. Tworzenie obserwacji prowadzi przez konfigurację, wiadomość i częstotliwość; przycisk Wstecz zachowuje wpisane dane. Wybór agenta pokazuje te same avatary co czat. Ustawienia wykonania i dostarczania obserwacji są zebrane w jednym panelu opcji zaawansowanych.
 
@@ -962,7 +962,7 @@ każdą sesję Popraw, co zmierzyła, co postanowiono i ile kosztowała. Zakońc
 sesja otwiera kreator tylko do odczytu, z decyzją w ostatnim kroku; zobacz
 [Historię usprawnień](authoring.md#improvement-history).
 
-Szczegóły organizacji mają pięć zakładek: **Członkowie** obejmują osoby i zaproszenia; **Organizacja** — profil i domyślne ustawienia głosu; **Budżet i zgody** — wydatki i zasady dostępu; **Proaktywność** — sugestie, monitoring i dostarczanie wyników; **AI i usługi** — Architecta i usługi systemowe. Każdy formularz zachowuje własne wymagania uprawnień. AI i usługi jest dostępne dla zarządzających budżetem także bez prawa konfiguracji Architecta. Wybrana zakładka jest zapisywana w URL, przełączanie zachowuje wersje robocze, a dawne linki `?tab=voice` otwierają Organizację.
+Szczegóły organizacji mają trzy zakładki: **Members**, **Budget and approvals** oraz **AI & services**. Members pozwala szukać po nazwie i e-mailu, filtrować role i sprawdzić ostatnie zapisane działanie w tym workspace. To działanie z audytu, nie wizyta ani logowanie; działania przez impersonację są pomijane, a brak historii pokazuje kreskę. **Edit workspace** otwiera okno nazwy, avatara i koloru z ochroną niezapisanych zmian. AI & services zaczyna się od Background services, potem zawiera AI Architect, sugestie i monitoring oraz Voice. Rozwijanie konfiguracji zachowuje szkice. Każda kontrolka zachowuje własne uprawnienia. Stare linki `?tab=profile` otwierają modal workspace, a `?tab=voice` i `?tab=proactivity` odpowiednie ustawienia w AI & services.
 
 Po zalogowaniu zaproszenia wysłane na e-mail konta pojawiają się także w konsoli i onboardingu, bez otwierania linku z wiadomości. Odbiorca wybiera organizację i jawnie przyjmuje zaproszenie; Później zostawia dostępny skrót Zaproszenia. Lista zawiera tylko aktualne zaproszenia na bieżący adres konta, bez linków współdzielonych i organizacji, do których użytkownik już należy. Przyjęcie przełącza organizację i otwiera jej powitanie. Serwer nie zwraca tokenu zaproszenia w tej skrzynce.
 

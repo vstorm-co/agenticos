@@ -1,3 +1,8 @@
+"use client";
+
+import { useId, useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { useChanged } from "@/hooks/use-changed";
 import { ContextHelp } from "@/components/ui/context-help";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
@@ -77,6 +82,9 @@ export function SectionCard({
 }
 
 interface SettingsSectionProps {
+  tour?: string;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
   title: string;
   status?: ReactNode;
   description?: string;
@@ -89,6 +97,9 @@ interface SettingsSectionProps {
 }
 
 export function SettingsSection({
+  tour,
+  collapsible = false,
+  defaultOpen = false,
   title,
   status,
   description,
@@ -97,8 +108,12 @@ export function SettingsSection({
   children,
   className,
 }: SettingsSectionProps) {
+  const panelId = useId();
+  const [open, setOpen] = useState(defaultOpen);
+  if (useChanged(defaultOpen) && defaultOpen) setOpen(true);
   return (
     <section
+      data-tour={tour}
       className={cn(
         "min-w-0",
         danger
@@ -108,7 +123,10 @@ export function SettingsSection({
       )}
     >
       <header
-        className={cn("flex flex-wrap items-start justify-between gap-3", children ? "mb-4" : "")}
+        className={cn(
+          "flex flex-wrap items-center justify-between gap-3",
+          children && (!collapsible || open) ? "mb-4" : "",
+        )}
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
@@ -118,18 +136,41 @@ export function SettingsSection({
                 danger ? "text-destructive" : "text-foreground",
               )}
             >
-              {title}
+              {collapsible ? (
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  aria-controls={panelId}
+                  onClick={() => setOpen(!open)}
+                  className="focus-visible:ring-ring hover:text-foreground/70 touch:min-h-11 flex min-h-9 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2"
+                >
+                  <ChevronDown
+                    aria-hidden
+                    className={cn(
+                      "size-4 shrink-0 transition-transform motion-reduce:transition-none",
+                      !open && "-rotate-90",
+                    )}
+                  />
+                  {title}
+                </button>
+              ) : (
+                title
+              )}
             </h2>
-            {description && !danger && <ContextHelp>{description}</ContextHelp>}
+            {description && !danger && !collapsible && <ContextHelp>{description}</ContextHelp>}
             {status}
           </div>
-          {description && danger && (
-            <p className="text-muted-foreground mt-1 text-sm leading-relaxed">{description}</p>
+          {description && (danger || collapsible) && (
+            <p className="text-muted-foreground mt-1 max-w-3xl text-sm leading-relaxed">
+              {description}
+            </p>
           )}
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </header>
-      {children}
+      <div id={panelId} hidden={collapsible && !open}>
+        {children}
+      </div>
     </section>
   );
 }

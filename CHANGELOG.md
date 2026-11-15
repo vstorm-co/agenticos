@@ -46,6 +46,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Consolidate organization settings into three tabs with expandable AI services, a guarded workspace appearance dialog and aligned provider/model fields. Search members by name or email, filter roles and show workspace-scoped audited activity without treating it as a visit.
+
 - Show explicit loading, retry and empty-search states in the MCP catalog. Keep management table names and sandbox addresses readable, restore a generated profile portrait when an uploaded image cannot load, and let long service diagnostics expand on demand.
 
 - Render recent dashboard visuals in an isolated client preview when no server thumbnail is available, and place period controls beside the dashboard view tabs.

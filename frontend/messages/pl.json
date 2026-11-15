@@ -2850,12 +2850,18 @@
       "workspaces": "Organizacje",
       "you": "(Ty)",
       "yourRoleHere": "Twoja rola tutaj to <badge>{role}</badge>",
-      "tabProfile": "Organizacja",
       "tabGovernance": "Budżet i zgody",
       "tabProactivity": "Proaktywność",
       "tabAssistant": "AI i usługi",
-      "workspaceSettingsHint": "Nazwa i wygląd organizacji oraz domyślne ustawienia głosu dla agentów i botów kanałowych.",
-      "aiServicesHint": "Skonfiguruj Architecta organizacji i usługi utrzymujące pamięć oraz przygotowujące podsumowania. Zasady sugestii i monitorowania znajdziesz w Proaktywności."
+      "editWorkspace": "Edytuj workspace",
+      "workspaceAppearanceHint": "Nazwa, avatar i kolor tego workspace.",
+      "searchMembers": "Szukaj członków…",
+      "filterRole": "Filtruj według roli",
+      "allRoles": "Wszystkie role",
+      "noMatchingMembers": "Brak osób pasujących do wyszukiwania.",
+      "lastAction": "Ostatnie zapisane działanie",
+      "lastActionHint": "Działania z dziennika audytu tego workspace. Nie obejmuje wizyt ani działań przez impersonację.",
+      "noRecordedAction": "Brak zapisanych działań"
     },
     "rag": {
       "active": "Aktywne",
@@ -5958,7 +5964,8 @@
       "save": "Zapisz zmiany",
       "saved": "Zapisano ustawienia głosu",
       "providerNoKey": "{name} (brak pasującego klucza)",
-      "notReadyNoKey": "Nie wybrano klucza dla {provider}. Agenci i boty, które go dziedziczą, nie mogą transkrybować przez providera, dopóki nie wybierzesz klucza poniżej."
+      "notReadyNoKey": "Nie wybrano klucza dla {provider}. Agenci i boty, które go dziedziczą, nie mogą transkrybować przez providera, dopóki nie wybierzesz klucza poniżej.",
+      "summary": "Domyślny dostawca transkrypcji i limity nagrań."
     },
     "publicAttribution": "AgenticOS na udostępnionych stronach",
     "publicAttributionDescription": "Pokazuj pływające oznaczenie AgenticOS z linkiem do GitHuba na publicznych aplikacjach, dashboardach i raportach oraz pod udostępnionymi rozmowami.",
@@ -6012,7 +6019,8 @@
       "watchMinutesHint": "Jak często pojedyncza obserwacja może najwyżej sprawdzać. Częściej znaczy drożej.",
       "switchOrganizationHint": "Przełącz się na tę organizację przed konfiguracją proaktywności, aby korzystać z jej profili modeli i kluczy.",
       "switchOrganization": "Przełącz na {name}",
-      "runAttribution": "Sugestie używają osobnego modelu, a monitoring — modelu wybranego agenta. Obie funkcje współdzielą miesięczny budżet pracy w tle na członka."
+      "runAttribution": "Sugestie używają osobnego modelu, a monitoring — modelu wybranego agenta. Obie funkcje współdzielą miesięczny budżet pracy w tle na członka.",
+      "summary": "Sugestie, monitoring i harmonogram dostarczania."
     },
     "systemAgents": {
       "configure": "Model i budżet",
@@ -6020,8 +6028,8 @@
       "description": "Usługi platformy korzystające z modeli. Rozwiń usługę, aby ustawić jej model i budżet. Zużycie i ostatnie uruchomienia są widoczne poniżej.",
       "on": "Włączona",
       "off": "Wyłączona",
-      "managedIn": "Działa na {model}. Konfiguracja w zakładce Proaktywność, ze wspólnym modelem i limitem.",
-      "managedInNoModel": "Nie wybrano jeszcze modelu. Skonfiguruj go w zakładce Proaktywność.",
+      "managedIn": "Działa na {model}. Sugestie, monitoring i wspólne limity ustawisz poniżej.",
+      "managedInNoModel": "Wybierz model poniżej, w sekcji sugestii i monitoringu.",
       "enabled": "Uruchamiaj tę rolę",
       "model": "Model",
       "modelHint": "Wybierany, nigdy domyślny: rola wydaje pieniądze, o które nikt nie prosił w danej chwili.",
@@ -6046,7 +6054,8 @@
           "what": "Czyta zakończony czat raz i zapisuje trwałe fakty, preferencje i decyzje z niego, w zakresie samej rozmowy. Nic nie działa, gdy jest wyłączona albo nie ma modelu."
         }
       },
-      "starterAgentMissing": "Ta rola teraz nic nie robi: agent startowy AgenticOS, pod którym jest zapisywana, nie istnieje, nie jest opublikowany albo zmieniono jego nazwę. Opublikuj go ponownie pod uchwytem agenticos."
+      "starterAgentMissing": "Ta rola teraz nic nie robi: agent startowy AgenticOS, pod którym jest zapisywana, nie istnieje, nie jest opublikowany albo zmieniono jego nazwę. Opublikuj go ponownie pod uchwytem agenticos.",
+      "summary": "Modele, budżety i ostatnie uruchomienia usług platformy."
     }
   },
   "theme": {
@@ -13233,7 +13242,8 @@
     "needsModel": "Nie ma jeszcze modelu, więc nie może odpowiadać. Wybierz go w sekcji Model w Agent Builderze.",
     "greeting": "Powitanie",
     "greetingHint": "Co mówi, gdy ktoś go otworzy. Zostaw puste, by użyć domyślnego.",
-    "save": "Zapisz"
+    "save": "Zapisz",
+    "summary": "Asystent workspace i jego powitanie."
   },
   "capabilityGuide": {
     "artifacts": {
@@ -16921,9 +16931,9 @@
   },
   "setupHints": {
     "title": "Konfiguracja do uzupełnienia",
-    "voiceModel": "Głos nie ma domyślnego dostawcy lub modelu. Wybierz je w Organizacja → Głos, aby korzystać z transkrypcji przez dostawcę.",
-    "voiceKey": "Głos ma dostawcę i model, ale nie ma klucza. Wybierz klucz organizacji w Organizacja → Głos.",
-    "proactivityOff": "Nocne sugestie są wyłączone. Włącz je w Proaktywności, jeśli asystent ma przygotowywać propozycje dla zespołu.",
+    "voiceModel": "Głos nie ma domyślnego dostawcy lub modelu. Wybierz je w AI i usługi → Głos, aby korzystać z transkrypcji przez dostawcę.",
+    "voiceKey": "Głos ma dostawcę i model, ale nie ma klucza. Wybierz klucz organizacji w AI i usługi → Głos.",
+    "proactivityOff": "Nocne sugestie są wyłączone. Włącz je w AI i usługi → Sugestie i monitoring, jeśli asystent ma przygotowywać propozycje dla zespołu.",
     "proactivityModel": "Nocne sugestie są włączone, ale nie wybrano modelu. Wybierz model w Proaktywności.",
     "memoryModel": "Utrzymanie pamięci nie ma wybranego modelu. Wybierz go w AI i usługi → Usługi w tle, aby korzystać z automatycznego utrzymania pamięci.",
     "architectModel": "Architect potrzebuje modelu. Otwórz go w Agent Builder z zakładki AI i usługi i wybierz model.",

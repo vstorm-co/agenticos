@@ -32,10 +32,16 @@ const BUDGET_FIELD = "monthly_budget_usd";
  * Roles are not agents. Nothing here has instructions a person wrote, so nothing
  * is attributed to the starter agent or anyone else whose instructions did not
  * run; each execution is listed under the role that did it. The daily briefing is
- * the setting in the Proactivity tab, shown with its history; memory maintenance is
+ * configured under suggestions and monitoring, with its history here; memory maintenance is
  * configured here, on a model somebody chose and inside a budget of its own.
  */
-export function OrgSystemAgents({ org }: { org: Organization }) {
+export function OrgSystemAgents({
+  org,
+  collapsible = false,
+}: {
+  org: Organization;
+  collapsible?: boolean;
+}) {
   const t = useTranslations("teams.systemAgents");
   const { can } = usePermissions();
   const tenantId = useTenantId();
@@ -50,8 +56,14 @@ export function OrgSystemAgents({ org }: { org: Organization }) {
   // system-agent settings.
   if (error || !roles) return <ErrorState />;
   return (
-    <SettingsSection title={t("title")} description={t("description")}>
-      <div data-tour="org-system-agents" className="grid items-stretch gap-4 lg:grid-cols-2">
+    <SettingsSection
+      title={t("title")}
+      description={t(collapsible ? "summary" : "description")}
+      collapsible={collapsible}
+      tour="org-system-agents"
+      status={<SetupIndicator hints={roles.flatMap(systemAgentSetupHints)} />}
+    >
+      <div className="grid items-stretch gap-3">
         {roles.map((role) => (
           <Role key={role.role} agent={role} orgId={org.id} />
         ))}
@@ -104,7 +116,7 @@ function Role({ agent, orgId }: { agent: SystemAgent; orgId: string }) {
       className="bg-background flex min-w-0 flex-col overflow-hidden rounded-xl border"
       data-testid={`system-agent-${agent.role}`}
     >
-      <div className="flex min-h-32 items-start gap-3 border-b p-4 sm:p-5">
+      <div className="flex items-start gap-3 border-b p-4 sm:p-5">
         <span className="bg-muted text-muted-foreground grid size-9 shrink-0 place-items-center rounded-lg">
           {agent.role === "daily_briefing" ? (
             <Newspaper className="size-4" aria-hidden />
