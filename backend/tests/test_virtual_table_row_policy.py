@@ -399,8 +399,14 @@ async def test_a_bounded_project_lookup_refreshes_the_timeout_and_stops_on_expir
     ]
 
 
-async def test_the_project_lookup_honours_the_projects_table_own_policy(monkeypatch):
-    own_policy = RowPolicy(rule="assignee", view_column_id=ASSIGNEE, edit_column_id=ASSIGNEE)
+@pytest.mark.security
+@pytest.mark.parametrize("rule", ["assignee", "grants"])
+async def test_the_project_lookup_honours_the_projects_table_own_policy(monkeypatch, rule):
+    own_policy = (
+        RowPolicy(rule="assignee", view_column_id=ASSIGNEE, edit_column_id=ASSIGNEE)
+        if rule == "assignee"
+        else RowPolicy(rule="grants")
+    )
     projects = SimpleNamespace(
         id=PROJECTS_TABLE,
         archived_at=None,
@@ -428,8 +434,13 @@ async def test_the_project_lookup_honours_the_projects_table_own_policy(monkeypa
     filters = listed.await_args.kwargs["filters"]
     assert [clause.column_id for clause in filters] == [MEMBERS]
     extra = listed.await_args.kwargs["extra"]
-    assert "resource_grants" in _sql(extra) and "->>" in _sql(extra)
-    assert str(ASSIGNEE) in extra.compile().params.values()
+    assert "resource_grants" in _sql(extra)
+    if rule == "assignee":
+        assert "->>" in _sql(extra)
+        assert str(ASSIGNEE) in extra.compile().params.values()
+    else:
+        assert "->>" not in _sql(extra)
+        assert str(ASSIGNEE) not in extra.compile().params.values()
 
 
 # -- one row, through the service helpers -------------------------------------
@@ -898,6 +909,9 @@ async def test_a_create_assigned_to_someone_else_is_refused(ops, monkeypatch):
 
 async def test_a_batch_reports_the_refused_row_and_writes_the_rest(ops, monkeypatch):
     service, ctx, table = ops
+    monkeypatch.setattr(
+        virtual_table_repo, "database_time", AsyncMock(return_value=datetime.now(UTC))
+    )
     monkeypatch.setattr(
         virtual_table_repo, "get_record_by_external_id", AsyncMock(return_value=None)
     )

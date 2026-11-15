@@ -113,17 +113,16 @@ def policy_columns_valid(policy: RowPolicy | None, columns: list[ColumnDef]) -> 
 
 def _assignee_clause(
     policy: RowPolicy, columns: list[ColumnDef], subject: UUID, *, kind: Literal["view", "edit"]
-) -> FilterClause | None:
-    """The caller's membership in the policy's driving column, as one clause.
+) -> FilterClause:
+    """The caller's membership in a validated policy's driving column, as one clause.
 
     A `user` column holds one member id as text; a `multi_user` column holds
-    several as a JSON array. Any other type, or a column that is gone, is not
-    a clause the predicate can use - the caller then matches nothing.
+    several as a JSON array. Callers check `policy_columns_valid` before reaching
+    this conversion, including before any owner or administrator bypass.
     """
     column_id = policy.view_column_id if kind == "view" else policy.edit_column_id
     column = _driving(column_id, columns)
-    if column is None or column.type not in _PRINCIPAL_COLUMNS:
-        return None
+    assert column is not None and column.type in _PRINCIPAL_COLUMNS
     if column.type == "user":
         return FilterClause(column_id=column.id, kind=SqlKind.TEXT, op="eq", value=str(subject))
     return FilterClause(column_id=column.id, kind=SqlKind.ARRAY, op="contains", value=str(subject))
@@ -201,8 +200,6 @@ async def visible_project_ids(
         if own.rule == "assignee":
             own_clause = _assignee_clause(own, project_columns, subject, kind="view")
             own_writer = _assignee_clause(own, project_columns, subject, kind="edit")
-            if own_clause is None or own_writer is None:
-                return []
             inherited = policy_expression(own_clause, writer=own_writer)
             assert inherited is not None
             extra = or_(inherited, extra)
@@ -240,8 +237,7 @@ def row_matches(
         return True
     column_id = policy.view_column_id if kind == "view" else policy.edit_column_id
     column = _driving(column_id, columns)
-    if column is None or column.type not in _PRINCIPAL_COLUMNS:
-        return False
+    assert column is not None and column.type in _PRINCIPAL_COLUMNS
     cell = values.get(str(column.id))
     if column.type == "user":
         matched = isinstance(cell, str) and cell == str(subject)
@@ -357,8 +353,6 @@ async def view_expression(
         return granted
     clause = _assignee_clause(policy, columns, subject, kind="view")
     writer = _assignee_clause(policy, columns, subject, kind="edit")
-    if clause is None or writer is None:
-        return false()
     project_ids = (
         await visible_project_ids(db, ctx, policy, deadline=deadline)
         if _project_link(policy, columns) is not None

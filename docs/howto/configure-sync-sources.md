@@ -685,9 +685,18 @@ curl -X PATCH http://localhost:8000/api/v1/rag/sync/sources/{source_id} \
 Updatable fields: `name`, `config`, `sync_mode`, `schedule_minutes`,
 `is_active`, `collection_name`.
 
-Set `is_active` to `false` to pause a source without deleting it.
+Set `is_active` to `false` to pause a source without deleting it. A paused
+source cannot run on a schedule or be triggered through the API or CLI. The
+console disables its sync button. A queued job checks again before downloading
+files and ends with an error if the source was paused while it waited. Pausing
+does not interrupt a sync that has already started; set `is_active` to `true`
+to allow new syncs.
 
-Manual API triggers return `400` while a source is paused. The worker checks again before syncing, so a queued run or a CLI trigger stops before downloading or indexing data if the source is paused. Activate it before retrying.
+When resolving a collection name, the oldest base in the source's organization
+wins, falling back to an app-scoped base. Equal creation times are ordered by
+base id. The API refuses to assign a source by collection name when several
+eligible bases share the oldest creation time. Use a knowledge base with a
+unique collection name to remove that ambiguity.
 
 ## Monitoring sync operations
 

@@ -145,6 +145,11 @@ def accepts_delivery(source: str) -> bool:
     return source in _SIGNATURE_HEADER
 
 
+def signature(source: str, headers: Mapping[str, str]) -> str:
+    """The signature a GitHub or generic webhook delivery carries, as `verify_signature` reads it."""
+    return headers.get(_SIGNATURE_HEADER[source], "")
+
+
 def verify_signature(
     source: str,
     *,

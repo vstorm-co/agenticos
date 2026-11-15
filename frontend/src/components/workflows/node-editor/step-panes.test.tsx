@@ -66,7 +66,7 @@ function seed(graph: WorkflowGraph) {
   store.getState().seedGraph(graph);
 }
 
-function renderOutput(definition: NodeDefinition = STEP, catalog = [STEP]) {
+function renderOutput(definition: NodeDefinition = STEP, catalog = [STEP], readOnly = false) {
   const graph = store.getState().graph as WorkflowGraph;
   const shown = graph.nodes.find((candidate) => candidate.id === "b") as NodeInstance;
   return render(
@@ -76,6 +76,7 @@ function renderOutput(definition: NodeDefinition = STEP, catalog = [STEP]) {
       graph={graph}
       node={shown}
       definition={definition}
+      readOnly={readOnly}
     />,
   );
 }
@@ -91,6 +92,18 @@ beforeEach(() => {
 afterEach(() => store.getState().teardown());
 
 describe("InputPane", () => {
+  it("reads its source from the selected run iteration", () => {
+    const selected = node("b", "test.step");
+    const graph = line(selected);
+    seed(graph);
+    store.getState().mergeStepData({ a: { ...KNOWN, output: { echoed: "second" } } });
+    store.getState().setIterationData({ "a/0": { ...KNOWN, output: { echoed: "first" } } });
+    store.getState().editNode("b", [0]);
+    render(<InputPane graph={graph} catalog={[STEP]} node={selected} names={new Map()} readOnly />);
+    expect(screen.getByRole("cell", { name: "first" })).toBeTruthy();
+    expect(screen.queryByRole("cell", { name: "second" })).toBeNull();
+  });
+
   it("says a step with nothing before it reads nothing", () => {
     const graph = line();
     render(
@@ -264,6 +277,47 @@ describe("the fields a step declares, before any run", () => {
 });
 
 describe("OutputPane", () => {
+  it("shows a run's step as it was in the iteration it was opened at", () => {
+    seed(line());
+    store.getState().mergeStepData({ b: { ...KNOWN, output: { echoed: "second" } } });
+    store.getState().setIterationData({ "b/0": { ...KNOWN, output: { echoed: "first" } } });
+    store.getState().editNode("b", [0]);
+    renderOutput();
+
+    expect(screen.getByRole("cell", { name: "first" })).toBeTruthy();
+    expect(screen.queryByRole("cell", { name: "second" })).toBeNull();
+  });
+
+  it("says who decided an approval step above its output, on a run's view only", () => {
+    seed(line());
+    const approval = {
+      status: "approved" as const,
+      decided_at: "2026-11-13T10:28:00Z",
+      decided_by_name: "Ola Nowak",
+    };
+    store.getState().mergeStepData({ b: { ...KNOWN, approval } });
+    const run = renderOutput(STEP, [STEP], true);
+    expect(screen.getByTestId("approval-verdict")).toHaveTextContent(/^Approved by Ola Nowak · /);
+    run.unmount();
+
+    renderOutput();
+    expect(screen.queryByTestId("approval-verdict")).toBeNull();
+  });
+
+  it("says a request was cancelled with its run, though the step handed nothing on", () => {
+    seed(line());
+    store.getState().mergeStepData({
+      b: {
+        output: null,
+        error: null,
+        runId: "r",
+        approval: { status: "cancelled", decided_at: null, decided_by_name: null },
+      },
+    });
+    renderOutput(STEP, [STEP], true);
+    expect(screen.getByTestId("approval-verdict")).toHaveTextContent("Cancelled with its run");
+  });
+
   it("shows a table step's records in its table's column order", () => {
     useWorkflowTable.mockReturnValueOnce({
       table: {
@@ -515,7 +569,6 @@ describe("OutputPane", () => {
         {
           scope_node_id: "a",
           body_node_ids: ["b"],
-          entry_port: "body",
           exit_node_id: "a",
           exit_port: "done",
         },
@@ -761,4 +814,15 @@ describe("OutputPane refuses a test once its entry no longer reaches the step", 
 
     expect(mutate).not.toHaveBeenCalled();
   });
+});
+
+it("blocks testing an isolated switched-off step with an actionable reason", () => {
+  const graph = { ...line({ disabled: true }), edges: [] };
+  seed(graph);
+  renderOutput();
+  expect(screen.getByRole("button", { name: "Test step" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Test step" })).toHaveAttribute(
+    "title",
+    "Connect this step to a trigger before testing it.",
+  );
 });

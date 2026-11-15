@@ -98,12 +98,14 @@ class ManifestCodeCall(BaseSchema):
     Attributes:
         tool: The tool it called.
         args: Its arguments, as JSON, cut to a preview.
-        status: `returned`, or `failed` when the call raised or never finished.
+        status: Whether the call returned, failed or is waiting for approval.
+        tool_call_id: Stable nested-call identity, absent in older manifests.
     """
 
     tool: str
     args: str
-    status: Literal["returned", "failed"]
+    status: Literal["returned", "failed", "awaiting_approval"]
+    tool_call_id: str | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class ManifestCodeRun(BaseSchema):

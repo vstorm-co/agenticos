@@ -231,3 +231,52 @@ async def test_terminal_identity_tracks_credentials_without_exposing_them(monkey
     current = await service.authority(ctx, config, person_id=ctx.user_id)
     assert (current == original) is (change == "label")
     assert current == await service.authority(ctx, config, person_id=ctx.user_id)
+
+
+@pytest.mark.parametrize("pins_kind", ["canonical", "legacy", "canonical_mismatch"])
+async def test_terminal_authority_digest_is_canonical_and_preserves_legacy_pins(
+    monkeypatch, pins_kind
+):
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
+    config = {
+        "mounts": [
+            {
+                "path": "/repo/",
+                "backend": "github",
+                "options": {"owner": "vstorm-co", "repo": "agenticos"},
+                "secrets": {"token": str(uuid4())},
+            }
+        ]
+    }
+    spec = AgentSpec(name="Terminal", capabilities=[{"id": "mirage", "config": config}])
+    authority = AsyncMock(return_value="a" * 64)
+    resolve = AsyncMock(return_value=object())
+    monkeypatch.setattr(MirageMountService, "authority", authority)
+    monkeypatch.setattr(MirageMountService, "resolve", resolve)
+    service = AgentRunnerService(AsyncMock())
+    pins: dict[str, str] = {}
+    await service._add_mirage_terminal({}, ctx, spec, person_id=ctx.user_id, authorities=pins)
+    assert len(pins) == 2
+    canonical = next(key for key in pins if key.startswith("v2:"))
+    legacy = next(key for key in pins if not key.startswith("v2:"))
+    if pins_kind == "legacy":
+        pins = {legacy: pins[legacy]}
+    else:
+        # The same free map as JSONB may return it, in a different order.
+        config["mounts"][0]["options"] = {"repo": "agenticos", "owner": "vstorm-co"}
+        spec = AgentSpec(name="Terminal", capabilities=[{"id": "mirage", "config": config}])
+        if pins_kind == "canonical_mismatch":
+            pins[canonical] = "b" * 64
+    resolve.reset_mock()
+    if pins_kind == "canonical_mismatch":
+        with pytest.raises(AuthorizationError, match="changed while this run waited"):
+            await service._add_mirage_terminal(
+                {}, ctx, spec, person_id=ctx.user_id, authorities=pins, restoring=True
+            )
+        resolve.assert_not_awaited()
+    else:
+        await service._add_mirage_terminal(
+            {}, ctx, spec, person_id=ctx.user_id, authorities=pins, restoring=True
+        )
+        resolve.assert_awaited_once()
+        assert pins[canonical] == "a" * 64

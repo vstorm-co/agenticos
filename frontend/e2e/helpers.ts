@@ -61,6 +61,13 @@ export const SEEDED_KB_NAME = "E2E Handbook";
 export const SEEDED_PROJECT_NAME = "E2E Workspace";
 export const SEEDED_CONTEXT_NAME = "e2e-company-guide.md";
 
+/**
+ * The judge every organization is created with: a system agent, seeded by the
+ * backend rather than by this suite, and found by its key, which no rename moves.
+ */
+export const SEEDED_JUDGE_KEY = "eval_judge";
+export const SEEDED_JUDGE_NAME = "Eval judge";
+
 /** A draft agent: the only thing that can prove an unpublished agent will not run. */
 export const DRAFT_AGENT_NAME = "E2E Draft";
 export const DRAFT_AGENT_SLUG = "e2e-draft";
@@ -214,6 +221,7 @@ export async function signInAs(
   browser: Browser,
   email: string,
   password: string,
+  organizationId?: string,
 ): Promise<BrowserContext> {
   const context = await browser.newContext();
   try {
@@ -223,6 +231,22 @@ export async function signInAs(
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Login" }).click();
     await expect(page).toHaveURL(/\/chat(\?.*)?$/);
+    if (organizationId) {
+      const organizations = await rowsAt(context.request, "/api/orgs");
+      expect(
+        organizations.some((organization) => organization.id === organizationId),
+        "the signed-in account does not belong to the fixture's organization",
+      ).toBe(true);
+      // Select a UI preference, not authority: membership comes from the API.
+      await page.evaluate((id) => {
+        localStorage.setItem(
+          "org-storage",
+          JSON.stringify({ state: { activeOrgId: id }, version: 0 }),
+        );
+      }, organizationId);
+      await page.reload();
+      await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
+    }
     await page.close();
     return context;
   } catch (error) {
@@ -447,10 +471,10 @@ export async function saveDraft(page: Page): Promise<void> {
 /**
  * The card for one skill in the gallery.
  *
- * A card is a button labelled by the skill's own name and description — there
- * is no heading or test id to aim at. Anchoring the name to the start is what
- * separates it from the icon-only delete button beside it, whose accessible
- * name is "Delete <the same skill>".
+ * A card is a link to the skill's page, labelled by the skill's own name and
+ * description — there is no heading or test id to aim at. Anchoring the name to
+ * the start is what separates it from the controls beside it, whose accessible
+ * names repeat the skill's.
  */
 export function skillCard(page: Page, name: string): Locator {
   return page.getByRole("main").getByRole("button", { name: new RegExp(`^${name}\\b`) });
@@ -487,7 +511,7 @@ export async function gotoRoleMatrix(page: Page): Promise<void> {
  * The scope the role catalog grants `role` for `permission`, read off the
  * matrix. Returns null when the permission or the role is not in the catalog.
  *
- * "—" is the catalog saying no; every other value ("yes", "own", "all", …) is
+ * "-" is the catalog saying no; every other value ("yes", "own", "all", …) is
  * a grant.
  */
 export async function scopeInMatrix(
@@ -495,20 +519,21 @@ export async function scopeInMatrix(
   role: string,
   permission: string,
 ): Promise<string | null> {
-  const headers = await page.getByRole("columnheader").allInnerTexts();
+  const headers = (await page.getByRole("columnheader").allInnerTexts()).slice(1);
   const column = headers.findIndex((header) => header.trim().toLowerCase() === role.toLowerCase());
   if (column === -1) return null;
 
   const rows = page.getByRole("row");
   const total = await rows.count();
   for (let index = 0; index < total; index++) {
-    const cells = rows.nth(index).getByRole("cell");
-    if ((await cells.count()) === 0) continue; // the header row has no cells
+    const row = rows.nth(index);
+    const label = row.getByRole("rowheader");
+    if ((await label.count()) === 0) continue;
 
-    // The permission cell reads "agents:edit" or "agents:edit (scoped)".
-    const name = (await cells.first().innerText()).trim();
+    // The row header reads "agents:edit" or "agents:edit (scoped)".
+    const name = (await label.innerText()).trim();
     if (name === permission || name.startsWith(`${permission} `)) {
-      return (await cells.nth(column).innerText()).trim();
+      return (await row.getByRole("cell").nth(column).innerText()).trim();
     }
   }
   return null;
@@ -680,4 +705,77 @@ export async function nowMatching(
     )
     .toHaveLength(0);
   return found!;
+}
+
+/**
+ * Open the page's "?" walk and press Next to its end, failing on a stop that
+ * greys its buttons or does not move on. `onStop` sees each stop's title, with
+ * the page as that stop left it, so a caller can check a tab opened under it.
+ */
+export async function walkPageTour(
+  page: Page,
+  onStop: (title: string) => Promise<void> = async () => {},
+): Promise<string[]> {
+  const popover = page.locator(".driver-popover");
+  const title = page.locator(".driver-popover-title");
+  const next = page.locator(".driver-popover-next-btn");
+  const back = page.locator(".driver-popover-prev-btn");
+  await page
+    .getByRole("heading", { level: 1 })
+    .locator("..")
+    .getByRole("button", { name: "More information", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Show tips for this page", exact: true }).click();
+  const seen: string[] = [];
+  for (let stop = 0; stop < 40; stop += 1) {
+    await expect(title).toBeVisible();
+    const current = (await title.textContent()) ?? "";
+    seen.push(current);
+    await expect(next, `Next on "${current}"`).toBeEnabled();
+    if (stop > 0) await expect(back, `Back on "${current}"`).toBeEnabled();
+    await onStop(current);
+    const finishing = (await next.textContent())?.trim() === "Finish";
+    await next.click();
+    if (finishing) break;
+    await expect
+      .poll(
+        () =>
+          popover.evaluateAll((elements) => {
+            const visible = elements.find(
+              (element) =>
+                element.getClientRects().length > 0 &&
+                getComputedStyle(element).visibility !== "hidden",
+            );
+            return visible?.querySelector(".driver-popover-title")?.textContent ?? null;
+          }),
+        {
+          message: `the walk did not move on from "${current}"`,
+          timeout: 15_000,
+        },
+      )
+      .not.toBe(current);
+    if (!(await popover.isVisible())) break;
+  }
+  await expect(popover).toBeHidden();
+  return seen;
+}
+
+/**
+ * One call to the API, renewing the session once when it answers 401.
+ *
+ * The page's own requests renew the 15-minute access cookie through `apiClient`;
+ * these share its cookies but not that renewal, so a journey that outlives the
+ * cookie it started with would read as signed out halfway through.
+ */
+export async function callApi(
+  api: APIRequestContext,
+  method: "get" | "post" | "put" | "patch",
+  path: string,
+  options: { headers: Record<string, string>; data?: object },
+) {
+  const response = await api[method](`/api${path}`, options);
+  if (response.status() !== 401) return response;
+  const renewed = await api.post("/api/auth/refresh");
+  expect(renewed.ok(), `the session could not be renewed: ${await renewed.text()}`).toBeTruthy();
+  return api[method](`/api${path}`, options);
 }

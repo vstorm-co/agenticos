@@ -9,6 +9,7 @@ from pydantic import Field, ValidationError
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.notification_delivery import NotificationDelivery
 from app.schemas.base import BaseSchema
+from app.schemas.improvement import NextStepBlocked
 
 
 class NotificationAgent(BaseSchema):
@@ -41,6 +42,68 @@ def _agent_of(context: dict[str, Any] | None) -> NotificationAgent | None:
         return None
 
 
+class NotificationOutcome(BaseSchema):
+    """How a finished session, test or question writing ended, as codes the console words."""
+
+    status: str
+    reason: str | None = None
+    next_step_blocked: NextStepBlocked | None = Field(
+        default=None, description="Why an improvement's next step cannot be taken, when it cannot"
+    )
+
+
+_OUTCOME_EVENTS = {
+    NotificationEventType.IMPROVEMENT_FINISHED.value,
+    NotificationEventType.EVAL_RUN_FINISHED.value,
+    NotificationEventType.CASE_GENERATION_FINISHED.value,
+}
+
+
+def _outcome_of(notification: Notification) -> NotificationOutcome | None:
+    context = notification.render_context or {}
+    if notification.event_type not in _OUTCOME_EVENTS or not isinstance(context.get("status"), str):
+        return None
+    reason = context.get("reason")
+    try:
+        blocked = NextStepBlocked.model_validate(context.get("next_step_blocked"))
+    except ValidationError:
+        blocked = None
+    return NotificationOutcome(
+        status=context["status"],
+        reason=reason if isinstance(reason, str) else None,
+        next_step_blocked=blocked,
+    )
+
+
+# What the console may word itself, per kind: named fields of `render_context` and
+# nothing else, since the rest of it holds links, ids and email-only copy.
+_PARAMS: dict[str, tuple[str, ...]] = {
+    NotificationEventType.APPROVAL_REQUESTED.value: ("agent_name",),
+    NotificationEventType.BUDGET_EXCEEDED.value: ("agent_name", "scope", "limit_usd", "spent_usd"),
+    NotificationEventType.BUDGET_WARNING.value: ("group_name", "share", "limit"),
+}
+
+
+# Named when the row has them, and the row is worded without them otherwise.
+_OPTIONAL_PARAMS: dict[str, tuple[str, ...]] = {
+    NotificationEventType.BUDGET_EXCEEDED.value: ("subject",),
+}
+
+
+def _params_of(notification: Notification) -> dict[str, str] | None:
+    keys = _PARAMS.get(notification.event_type)
+    context = notification.render_context or {}
+    if keys is None or any(not isinstance(context.get(key), str | int) for key in keys):
+        return None
+    # An approval asked through a chat by somebody unverified says so in English
+    # only; its wording is not one the console has.
+    if context.get("asked_by"):
+        return None
+    optional = _OPTIONAL_PARAMS.get(notification.event_type, ())
+    present = [key for key in optional if isinstance(context.get(key), str | int)]
+    return {key: str(context[key]) for key in (*keys, *present)}
+
+
 class NotificationRead(BaseSchema):
     """One inbox row - `render_context` itself never leaves the service layer."""
 
@@ -54,9 +117,21 @@ class NotificationRead(BaseSchema):
         default=None,
         description="The agent the row is about, for its face; null for a row about none.",
     )
+    outcome: NotificationOutcome | None = Field(
+        default=None,
+        description="For a finished improvement, test or question writing: how it ended, "
+        "so the console can word it in the reader's language.",
+    )
     outcome_id: UUID | None = Field(
         default=None,
         description="The shared outcome this row is a delivery of; settling it clears every one.",
+    )
+    params: dict[str, str] | None = Field(
+        default=None,
+        description="For an approval request or a budget limit: the named values its sentence "
+        "is built from, so the console can word it in the reader's language. Null for any "
+        "other kind, for a row written before it was kept, and for a reader served "
+        "another wording.",
     )
 
     @classmethod
@@ -79,7 +154,9 @@ class NotificationRead(BaseSchema):
             read_at=notification.read_at,
             created_at=notification.created_at,
             agent=_agent_of(notification.render_context),
+            outcome=_outcome_of(notification),
             outcome_id=notification.outcome_id,
+            params=None if summary_override else _params_of(notification),
         )
 
 

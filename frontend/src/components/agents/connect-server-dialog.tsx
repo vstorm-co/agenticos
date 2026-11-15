@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeIdentifier } from "@/lib/normalize-identifier";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plug, Settings2 } from "lucide-react";
@@ -182,7 +183,7 @@ function ConnectForm<T extends McpConnectionRecord>({
   };
 
   const handleSubmit = async (values: ConnectionFormValues) => {
-    const name = values.name.trim().toLowerCase();
+    const name = normalizeIdentifier(values.name);
     const url = values.url.trim();
     if (!NAME_PATTERN.test(name)) {
       toast.error(t("nameMustBeLowercase"));

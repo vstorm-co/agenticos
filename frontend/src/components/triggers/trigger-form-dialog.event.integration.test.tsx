@@ -381,3 +381,35 @@ it("keeps a new schedule on configuration until its budget is valid", async () =
   expect(dialog.getByRole("button", { name: "Continue" })).toBeDisabled();
   expect(apiClient.post).not.toHaveBeenCalled();
 });
+
+it("locks edited trigger fields and dismissal until a refused save restores the draft", async () => {
+  let reject!: (reason: Error) => void;
+  vi.mocked(apiClient.patch).mockImplementationOnce(
+    () =>
+      new Promise((_resolve, refuse) => {
+        reject = refuse;
+      }),
+  );
+  const onOpenChange = vi.fn();
+  render(
+    <TriggerFormDialog agentId={AGENT_ID} open trigger={trigger()} onOpenChange={onOpenChange} />,
+    { wrapper },
+  );
+  const dialog = within(await screen.findByRole("dialog"));
+  await userEvent.type(dialog.getByLabelText("Name"), "Customer review");
+  await userEvent.click(dialog.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+  expect(dialog.getByLabelText("Name")).toBeDisabled();
+  expect(dialog.getByRole("textbox", { name: "Message" })).toBeDisabled();
+  expect(dialog.getByRole("button", { name: "Preview" })).toBeDisabled();
+  expect(dialog.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  expect(dialog.getByRole("button", { name: "Close" })).toBeDisabled();
+  expect(dialog.getByRole("button", { name: "Run now" })).toBeDisabled();
+  await userEvent.keyboard("{Escape}");
+  expect(onOpenChange).not.toHaveBeenCalled();
+  reject(new Error("Controlled save refusal"));
+  await waitFor(() => expect(dialog.getByLabelText("Name")).toBeEnabled());
+  expect(dialog.getByLabelText("Name")).toHaveValue("Customer review");
+  expect(dialog.getByRole("textbox", { name: "Message" })).toHaveValue("Triage it");
+  expect(onOpenChange).not.toHaveBeenCalled();
+});

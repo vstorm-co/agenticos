@@ -13,7 +13,12 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from app.db.models.organization import Invitation, InvitationStatus, Organization
+from app.db.models.organization import (
+    Invitation,
+    InvitationStatus,
+    Organization,
+    OrganizationMember,
+)
 from app.db.models.user import User
 from app.repositories import invitation_repo
 
@@ -65,3 +70,31 @@ async def test_the_sweep_expires_exactly_the_stale_pending_rows(db):
     assert stale.status == InvitationStatus.EXPIRED.value
     assert fresh.status == InvitationStatus.PENDING.value
     assert revoked.status == InvitationStatus.REVOKED.value
+
+
+async def test_received_inbox_excludes_other_people_links_stale_invites_and_memberships(db):
+    person = User(id=uuid.uuid4(), email=f"{uuid.uuid4().hex}@example.com", is_active=True)
+    db.add(person)
+    await db.flush()
+    expected = None
+    now = datetime.now(UTC)
+    for case in ["live", "expired", "revoked", "accepted", "other", "link", "member"]:
+        invite = await _invitation(
+            db,
+            status=case if case in ("revoked", "accepted") else "pending",
+            expires_at=now + timedelta(days=-1 if case == "expired" else 1),
+        )
+        invite.email = (
+            None if case == "link" else "other@example.com" if case == "other" else person.email
+        )
+        if case == "member":
+            db.add(
+                OrganizationMember(
+                    user_id=person.id, organization_id=invite.organization_id, role="member"
+                )
+            )
+        if case == "live":
+            expected = invite.id
+    await db.flush()
+    rows = await invitation_repo.received(db, email=person.email.upper(), user_id=person.id)
+    assert [invite.id for invite, _ in rows] == [expected]

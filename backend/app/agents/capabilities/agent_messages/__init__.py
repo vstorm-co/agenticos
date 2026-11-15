@@ -59,10 +59,16 @@ class AgentMessagesConfig(BaseModel):
             id="agent_send_message", description=SEND_DESCRIPTION, side_effecting=True
         ),
         CapabilityToolInfo(
-            id="agent_read_messages", description=READ_DESCRIPTION, side_effecting=False
+            id="agent_read_messages",
+            description=READ_DESCRIPTION,
+            side_effecting=False,
+            read_only=True,
         ),
         CapabilityToolInfo(
-            id="agent_list_threads", description=LIST_DESCRIPTION, side_effecting=False
+            id="agent_list_threads",
+            description=LIST_DESCRIPTION,
+            side_effecting=False,
+            read_only=True,
         ),
         CapabilityToolInfo(id="agent_react", description=REACT_DESCRIPTION, side_effecting=True),
     ),

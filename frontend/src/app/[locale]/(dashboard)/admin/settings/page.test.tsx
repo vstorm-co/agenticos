@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { DeploymentSettings } from "@/hooks/use-deployment-settings";
+import { DeploymentSettingsForm } from "@/components/admin/deployment-settings-form";
+import type { DeploymentSettings, DeploymentSettingsPatch } from "@/hooks/use-deployment-settings";
 import DeploymentSettingsPage from "./page";
 
 // APNs has its own query-backed form and tests; this suite covers deployment settings.
@@ -41,7 +42,12 @@ function queryWrapper() {
   };
 }
 
-const save = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
+const save =
+  vi.fn<(changes: DeploymentSettingsPatch, callbacks: { onSuccess: () => void }) => void>();
 let settings: DeploymentSettings | null = null;
 let error: Error | null = null;
 let loading = true;
@@ -175,4 +181,23 @@ describe("deployment settings loading", () => {
     expect(container.querySelector("#app-name")).toBeNull();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
+});
+
+it("guides setup from access settings and advances only when edited settings have saved", () => {
+  settings = SAVED;
+  loading = false;
+  const next = vi.fn();
+  render(<DeploymentSettingsForm onContinue={next} />, { wrapper: queryWrapper() });
+  expect(screen.getByRole("button", { name: "Access & accounts" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  fireEvent.click(screen.getByRole("switch", { name: "Personal organizations" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+  expect(next).not.toHaveBeenCalled();
+  expect(save).toHaveBeenCalledWith({ personal_organizations: false }, expect.any(Object));
+  const firstSave = save.mock.calls[0];
+  if (!firstSave) throw new Error("Expected deployment settings to be saved");
+  act(() => firstSave[1].onSuccess());
+  expect(next).toHaveBeenCalledOnce();
 });

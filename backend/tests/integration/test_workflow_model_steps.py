@@ -7,17 +7,19 @@ skipped.
 """
 
 import uuid
+from decimal import Decimal
 from typing import Any
 
 import pytest
 from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.usage import RequestUsage
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
-from app.db.models.workflow_run import WorkflowRunStatus
+from app.db.models.workflow_run import NodeAttempt, NodeRun, WorkflowRun, WorkflowRunStatus
 from app.workflows.contracts.io import Binding, NodeOutputRef
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
 from tests.integration.test_workflow_agent_node import _profile, _tenant
@@ -120,3 +122,83 @@ async def test_a_classify_step_runs_as_the_workflows_agent_and_takes_its_branch(
             select(func.count()).select_from(AgentRun).where(AgentRun.agent_id == agent.id)
         )
         assert runs == 1
+
+
+async def test_an_extract_whose_answer_never_fits_still_books_what_it_spent(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+):
+    """The runner commits a failed run's cost and raises; the step books it all the same.
+
+    Every answer misses a required field, so the run uses up its retries and fails
+    after spending. Unbooked, the workflow's own limits never see that spend.
+    """
+
+    async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        return ModelResponse(
+            parts=[ToolCallPart(tool_name=info.output_tools[0].name, args={"wrong": 1})],
+            usage=RequestUsage(input_tokens=1000, output_tokens=100),
+        )
+
+    monkeypatch.setattr(
+        "app.agents.model_resolver.build_model",
+        lambda *_args: FunctionModel(respond, model_name="gpt-4.1"),
+    )
+    member = await _tenant(engine)
+    profile_id = await _profile(engine, member[1])
+    entry = _node("core.input")
+    extract = _node(
+        "ai.extract",
+        {
+            "model_profile_id": str(profile_id),
+            "output_schema": {
+                "type": "object",
+                "properties": {"total": {"type": "number"}},
+                "required": ["total"],
+            },
+        },
+    )
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, extract),
+        edges=(_edge(entry, "out", extract),),
+        bindings=(
+            Binding(
+                target_node_id=extract.id,
+                target_field="text",
+                source=NodeOutputRef(
+                    node_id=entry.id, port="out", field_path=("payload", "message")
+                ),
+            ),
+        ),
+    )
+
+    seeded = await seed_run(engine, graph, run_input={"message": "Invoice total 12"}, member=member)
+    finished = await drive(seeded)
+
+    assert finished.status == WorkflowRunStatus.FAILED.value
+    async with async_sessionmaker(engine)() as db:
+        (agent,) = (
+            await db.execute(select(Agent).where(Agent.workflow_node_id == extract.id))
+        ).scalars()
+        runs = list(
+            (await db.execute(select(AgentRun).where(AgentRun.agent_id == agent.id))).scalars()
+        )
+        attempts = list(
+            (
+                await db.execute(
+                    select(NodeAttempt)
+                    .join(NodeRun, NodeRun.id == NodeAttempt.node_run_id)
+                    .where(NodeRun.workflow_run_id == seeded.run.id)
+                    .where(NodeRun.node_instance_id == extract.id)
+                )
+            ).scalars()
+        )
+        spent = await db.scalar(
+            select(WorkflowRun.spent_cost).where(WorkflowRun.id == seeded.run.id)
+        )
+
+    assert runs and all(run.status == "failed" for run in runs)
+    total = sum((run.cost_usd for run in runs), Decimal(0))
+    assert total > 0
+    assert spent == total
+    assert {attempt.agent_run_id for attempt in attempts} == {run.id for run in runs}

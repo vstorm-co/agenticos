@@ -18,6 +18,7 @@ from app.api.deps import (
     VisualSvc,
     WorkspaceSvc,
     key_needs,
+    limit_coding_revert,
     limit_fork,
     require,
 )
@@ -125,7 +126,20 @@ async def get_coding_task_change(change_id: UUID, service: CodingTaskChangeSvc, 
     whoever may read the conversation the task ran in - the transcript's own
     check - and missing (404) for anybody else, in this organization or another.
     """
-    return await service.get(ctx, change_id)
+    return await service.read(ctx, change_id)
+
+
+@router.post(
+    "/coding-changes/{change_id}/revert",
+    dependencies=[Depends(limit_coding_revert)],
+    response_model=CodingTaskChangeRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def revert_coding_task_change(
+    change_id: UUID, service: CodingTaskChangeSvc, ctx: Auth
+) -> Any:
+    """Queue a recoverable task revert; read its change set to follow the outcome."""
+    return await service.revert(ctx, change_id)
 
 
 @router.get("/shared-with-me", response_model=ConversationList)

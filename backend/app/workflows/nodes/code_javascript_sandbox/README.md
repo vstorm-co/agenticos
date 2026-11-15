@@ -28,4 +28,5 @@ A thrown error is `JAVASCRIPT_ERROR`. A result that is no JSON value - a
 function, a `BigInt` - is `JAVASCRIPT_OUTPUT_NOT_JSON`; `undefined` answers
 `null`. Past `timeout_seconds` it is `JAVASCRIPT_SANDBOX_TIMEOUT`, and over the
 output bounds `JAVASCRIPT_OUTPUT_TOO_LARGE`. The host's own failures are
-`SANDBOX_UNAVAILABLE` and `SANDBOX_UNREACHABLE`, as for Python.
+`SANDBOX_UNAVAILABLE`, `SANDBOX_START_FAILED` and `SANDBOX_UNREACHABLE`, as for
+Python.

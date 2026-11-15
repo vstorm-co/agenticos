@@ -88,6 +88,22 @@ beforeEach(() => {
 });
 
 describe("TableGridView", () => {
+  it("rechecks Write access before a previously rendered boolean toggle writes", () => {
+    const flag: ColumnDef = { ...columns[0]!, type: "boolean", nullable: false, label: "Paid" };
+    const pendingRecord: RecordRead = {
+      ...records[0]!,
+      access: "write",
+      values: { [flag.id]: false },
+    };
+    renderEditable({ columns: [flag], records: [pendingRecord], canEdit: false });
+    const toggle = screen.getByRole("button", { name: "Edit Paid" });
+
+    pendingRecord.access = "read";
+    fireEvent.click(toggle);
+
+    expect(apiClient.patch).not.toHaveBeenCalled();
+  });
+
   it("allows a row writer to edit ordinary cells while hiding delete selection", () => {
     renderEditable({
       canEdit: false,

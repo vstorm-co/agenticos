@@ -47,7 +47,6 @@ const FOREACH = def({
   kind: "control",
   ports: [
     { id: "in", label: "In", kind: "input", schema: null },
-    { id: "body", label: "Body", kind: "output", schema: null },
     { id: "out", label: "Out", kind: "output", schema: null },
   ],
 });
@@ -69,23 +68,14 @@ function node(id: string, definitionId: string) {
 function seedForeach(): void {
   const graph: WorkflowGraph = {
     entry_node_id: FID,
-    nodes: [node(FID, "control.foreach"), node("b1", "act")],
-    // The canvas derives a body from the wires out of the loop's body port.
-    edges: [
-      {
-        id: "e-body",
-        source_node_id: FID,
-        source_port: "body",
-        target_node_id: "b1",
-        target_port: "in",
-      },
-    ],
+    // The canvas derives a body from the loop each step names.
+    nodes: [node(FID, "control.foreach"), { ...node("b1", "act"), scope_id: FID }],
+    edges: [],
     bindings: [],
     scopes: [
       {
         scope_node_id: FID,
         body_node_ids: ["b1"],
-        entry_port: "body",
         exit_node_id: FID,
         exit_port: "out",
       },

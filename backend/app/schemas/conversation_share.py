@@ -153,5 +153,6 @@ class SharedConversationShare(BaseSchema):
 class SharedConversationRead(BaseSchema):
     """A conversation opened by its share link, with no account."""
 
+    show_agenticos_attribution: bool = True
     conversation: SharedConversationBody
     share: SharedConversationShare

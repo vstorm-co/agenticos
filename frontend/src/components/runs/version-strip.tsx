@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { formatMs, formatUsd } from "@/components/dashboard/format";
 import { ErrorState } from "@/components/states";
@@ -82,9 +82,10 @@ export function VersionStrip({ agentId, period }: { agentId: string; period: Per
 
 function VersionCard({ row, isCurrent }: { row: VersionUsageRow; isCurrent: boolean }) {
   const t = useTranslations("pages.runs");
+  const locale = useLocale();
   const label = row.version !== null ? `v${row.version}` : t("deletedVersion");
   const share = formatCompletedShare(completedShare(versionTally(row)));
-  const costPerRun = row.avg_cost_usd !== null ? formatUsd(row.avg_cost_usd) : "—";
+  const costPerRun = row.avg_cost_usd !== null ? formatUsd(row.avg_cost_usd, locale) : "—";
 
   return (
     <div className="border-border space-y-2 rounded-lg border p-3">
@@ -96,7 +97,7 @@ function VersionCard({ row, isCurrent }: { row: VersionUsageRow; isCurrent: bool
       <dl className="flex flex-wrap gap-x-3 gap-y-2 text-xs">
         <Stat value={share} label={t("perVersionCompleted")} />
         <Stat value={costPerRun} label={t("perVersionCostPerRun")} />
-        <Stat value={formatMs(row.p95_ms)} label={t("perVersionLatency")} />
+        <Stat value={formatMs(row.p95_ms, locale)} label={t("perVersionLatency")} />
       </dl>
     </div>
   );

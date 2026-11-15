@@ -29,7 +29,7 @@ import type { MyPermissions, Permission, PermissionScope, RoleCatalog } from "@/
 export function usePermissions() {
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
 
-  const { data, isLoading, isSuccess, error } = useQuery({
+  const { data, isLoading, isSuccess, error, refetch } = useQuery({
     queryKey: qk.organizations.permissions(activeOrgId ?? "current"),
     // Kept on the device in the apps, so the console offline offers what it
     // offers online (#2097).
@@ -74,6 +74,7 @@ export function usePermissions() {
      * control does not, because hiding one that is theirs costs a render.
      */
     isLoaded: isSuccess,
+    refetch,
     isLoading,
     error,
   };

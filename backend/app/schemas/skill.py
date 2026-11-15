@@ -101,13 +101,20 @@ class SkillRead(BaseSchema):
     description: str
     content: str
     category: str | None = None
-    version: int
+    version: int = Field(description="The number of the newest main version, which this text is")
+    latest_version_id: UUID | None = Field(
+        default=None, description="The newest main version, whose text and files these are"
+    )
     visibility: str
     owner_user_id: UUID | None = None
     resources: list[SkillResourceSummary] = Field(
         default_factory=list,
         description="The files this skill carries beyond its body, without their contents",
     )
+    can_edit: bool = Field(
+        default=False, description="Whether this caller may edit, restore, fork or delete it"
+    )
+    forks: int = Field(default=0, description="How many forks it has that are not archived")
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -126,8 +133,17 @@ class SkillSummary(BaseSchema):
         description="`org` reaches everyone; `private` its owner and whoever it is shared with"
     )
     file_count: int = Field(description="How many files the skill carries beyond its body")
+    version: int = Field(default=1, description="The number of the newest main version")
+    forks: int = Field(default=0, description="How many forks it has that are not archived")
     built_in: bool = Field(
         description="Whether this skill shipped with the deployment, by library name"
+    )
+    architect: bool = Field(
+        default=False,
+        description=(
+            "Whether the AI Architect's template binds this skill, by name - installed for "
+            "the Architect, and read by it"
+        ),
     )
     excerpt: str = Field(
         default="",
@@ -139,8 +155,16 @@ class SkillSummary(BaseSchema):
     used_by: list[AgentUsage] = Field(
         default_factory=list,
         description=(
-            "The agents whose draft binds this, among those the caller may see - so a "
-            "card says where it is used, or that it is used nowhere yet"
+            "The agents a served version of which binds this - the agent's own or an "
+            "inline specialist's - among those the caller may see, so a card says where "
+            "it runs, or that it runs nowhere yet"
+        ),
+    )
+    drafted_by: list[AgentUsage] = Field(
+        default_factory=list,
+        description=(
+            "Agents whose draft binds this and no served version does yet, among those "
+            "the caller may see - added, waiting to be published"
         ),
     )
     shared_groups: list[str] = Field(
@@ -216,6 +240,20 @@ class GallerySkillRead(BaseSchema):
     installed: bool = Field(
         description="Whether this organization already has a skill by this name",
     )
+    installed_id: UUID | None = Field(
+        default=None, description="That skill, so the picker can open it instead"
+    )
+
+
+class GallerySkillPreview(BaseSchema):
+    """One gallery skill as it would arrive: its body and the names of its files."""
+
+    key: str
+    name: str
+    description: str
+    category: str | None = None
+    content: str
+    files: list[str] = Field(description="The files beside the body, by name")
 
 
 class GalleryIndustryRead(BaseSchema):

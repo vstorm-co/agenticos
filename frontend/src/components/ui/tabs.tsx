@@ -14,6 +14,31 @@ const TabsList = React.forwardRef<
 >(({ className, ...props }, ref) => {
   const strip = React.useRef<HTMLDivElement | null>(null);
   useScrollFade(strip);
+  React.useEffect(() => {
+    const list = strip.current;
+    if (!list) return;
+    const reveal = () => {
+      const active = list.querySelector<HTMLElement>('[role="tab"][data-state="active"]');
+      if (!active) return;
+      const bounds = list.getBoundingClientRect();
+      const tab = active.getBoundingClientRect();
+      const style = getComputedStyle(list);
+      const left = bounds.left + (parseFloat(style.scrollPaddingLeft) || 0);
+      const right = bounds.right - (parseFloat(style.scrollPaddingRight) || 0);
+      // Keep selected labels outside the edge fades, moving only the strip.
+      if (tab.left < left) list.scrollLeft += tab.left - left;
+      else if (tab.right > right) list.scrollLeft += tab.right - right;
+    };
+    reveal();
+    const selection = new MutationObserver(reveal);
+    selection.observe(list, { subtree: true, attributes: true, attributeFilter: ["data-state"] });
+    const size = new ResizeObserver(reveal);
+    size.observe(list);
+    return () => {
+      selection.disconnect();
+      size.disconnect();
+    };
+  }, []);
   return (
     <TabsPrimitive.List
       ref={(node) => {

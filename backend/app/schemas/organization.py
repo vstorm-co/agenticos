@@ -159,6 +159,10 @@ class OrganizationUpdate(BaseSchema):
             "name."
         ),
     )
+    public_agenticos_attribution: bool | None = Field(
+        default=None,
+        description="Show the AgenticOS GitHub footer on public pages and shared chats. Needs org:settings.",
+    )
     public_live_data: bool | None = Field(
         default=None,
         description=(
@@ -231,6 +235,10 @@ class OrganizationRead(BaseSchema, TimestampSchema):
             "calls. The chat reads it to decide whether to offer the control at "
             "all; who may then use it is `approvals:decide`."
         ),
+    )
+    public_agenticos_attribution: bool = Field(
+        default=True,
+        description="Show the AgenticOS GitHub footer on public pages and shared chats",
     )
     public_live_data: bool = Field(
         default=False,
@@ -428,3 +436,15 @@ class InvitationStaged(BaseSchema):
 
 class TransferOwnershipRequest(BaseSchema):
     new_owner_user_id: _ID
+
+
+class ReceivedInvitation(BaseSchema):
+    """A signed-in recipient's invitation, without its bearer token."""
+
+    id: UUID
+    organization_id: UUID
+    organization_name: str
+    organization_has_avatar: bool = False
+    organization_avatar_color: int | None = None
+    role: str
+    expires_at: datetime

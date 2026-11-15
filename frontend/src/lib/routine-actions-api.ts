@@ -14,6 +14,7 @@ export type RoutineActionKey = CapabilityActionKey | McpActionKey;
 interface ActionReview {
   name: string;
   consented: boolean;
+  previously_consented?: boolean;
   waivable: boolean;
 }
 export type RoutineActionOption =
@@ -38,6 +39,8 @@ export function routineActionIdentity(action: RoutineActionOption): string {
   return JSON.stringify(routineActionKey(action));
 }
 export interface RoutineActionOptions {
+  max_actions?: number;
+  review_changes?: ("version" | "intent" | "instructions" | "actions")[];
   can_waive: boolean;
   review_token: string;
   items: RoutineActionOption[];

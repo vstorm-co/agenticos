@@ -8,16 +8,18 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import NotFoundError
 from app.db.models.organization import OrganizationMember
+from app.db.models.resource_grant import GrantLevel
 from app.db.models.virtual_table import VirtualTableRecord, VirtualTableRecordHistory
 from app.db.models.virtual_table_relation import (
     VirtualTableLinkEvidence,
     VirtualTableRecordLink,
     VirtualTableRelation,
 )
+from app.repositories import resource_grant_repo, virtual_table_repo
 from app.repositories import virtual_table_relation as relation_repo
-from app.repositories import virtual_table_repo
 from app.schemas.virtual_table import (
     ColumnInput,
+    RecordBatchCreate,
     RecordCreate,
     RecordFilter,
     RecordLinkChange,
@@ -28,6 +30,7 @@ from app.schemas.virtual_table import (
     TableCreate,
 )
 from app.schemas.virtual_table_relation import BacklinkQuery
+from app.services.access import TABLE
 from app.services.virtual_tables import ReadDeadline, VirtualTableService
 from app.services.virtual_tables.exceptions import (
     IdempotencyKeyReuseError,
@@ -430,6 +433,88 @@ async def test_unresolved_values_keep_evidence_without_duplicating_it_on_later_w
     assert {row.source_revision for row in held} == {7}
 
 
+@pytest.mark.security
+@pytest.mark.parametrize("operation_key", [None, "canonical-import"])
+async def test_batch_update_preserves_hidden_edges_and_legacy_evidence(db, operation_key):
+    service, ctx, org, owner, source, target, targets = await _setup(db)
+    member = await make_user(db)
+    db.add(OrganizationMember(organization_id=org.id, user_id=member.id, role="member"))
+    await db.flush()
+    writer = ctx_for(member, org, "member")
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=org.id,
+        subject_user_id=member.id,
+        resource_type=TABLE.key,
+        resource_id=source.id,
+        level=GrantLevel.EDIT,
+    )
+    for target_id, assignee in ((targets[0], member), (targets[1], owner)):
+        await service.update_record(
+            ctx,
+            target.id,
+            target_id,
+            RecordUpdate(
+                expected_revision=1,
+                values={cid(target, "Assignee"): str(assignee.id)},
+            ),
+        )
+    target_model = await virtual_table_repo.get_table(db, target.id, organization_id=org.id)
+    target_model.row_policy = {
+        "rule": "assignee",
+        "view_column_id": cid(target, "Assignee"),
+        "edit_column_id": cid(target, "Assignee"),
+    }
+    name, link = cid(source, "Name"), cid(source, "Customers")
+    original = {name: "Before", link: [str(targets[0]), str(targets[1]), "invalid-legacy-id"]}
+    stored = VirtualTableRecord(
+        organization_id=org.id,
+        table_id=source.id,
+        external_id="legacy-import",
+        schema_version=source.schema_version,
+        values=original,
+        revision=7,
+    )
+    db.add(stored)
+    await db.flush()
+    await relation_repo.sync_record(db, record=stored)
+    body = RecordBatchCreate(
+        records=[RecordCreate(external_id="legacy-import", values={name: "After"})],
+        update_existing=True,
+    )
+    if operation_key is None:
+        result = await service.create_records(writer, source.id, body)
+    else:
+        result, replayed = await service.write_batch(
+            writer, source.id, body, operation_key=operation_key
+        )
+        assert not replayed
+        retry, replayed = await service.write_batch(
+            writer, source.id, body, operation_key=operation_key
+        )
+        assert replayed and retry == result
+    assert (result.created, result.updated, result.failed) == (0, 1, [])
+    await db.refresh(stored)
+    assert stored.revision == 8
+    assert stored.values == {name: "After", link: [str(targets[0]), str(targets[1])]}
+    assert [edge.target_record_id for edge in await _edges(db, stored.id)] == targets[:2]
+    readable = await service.get_record(writer, source.id, stored.id)
+    assert readable.values[link] == [str(targets[0])]
+    assert str(targets[1]) not in readable.model_dump_json()
+    history = list(
+        await db.scalars(
+            select(VirtualTableRecordHistory).where(
+                VirtualTableRecordHistory.record_id == stored.id
+            )
+        )
+    )
+    assert len(history) == 1 and history[0].before[link] == original[link]
+    evidence = list(await db.scalars(select(VirtualTableLinkEvidence)))
+    assert [(row.source_revision, row.reason, row.value) for row in evidence] == [
+        (7, "invalid_id", "invalid-legacy-id")
+    ]
+
+
 async def test_source_write_rollback_restores_edges_record_and_history_together(db, monkeypatch):
     service, ctx, org, _owner, source, _target, targets = await _setup(db)
     key = cid(source, "Customers")
@@ -674,7 +759,11 @@ async def test_quarantined_project_cell_grants_no_single_list_or_backlink_read(d
         assert [item.id for item in filtered.items] == expected
 
 
-async def test_absent_link_limit_replays_a_table_receipt_written_before_the_field_existed(db):
+@pytest.mark.security
+@pytest.mark.parametrize("icon_field", [False, True], ids=["before-icons", "nullable-icon"])
+async def test_default_metadata_replays_legacy_table_receipts_without_changing_the_body(
+    db, icon_field
+):
     service, ctx, org, _owner, _source, target, _targets = await _setup(db)
     body = TableCreate(
         name="Legacy request",
@@ -694,6 +783,10 @@ async def test_absent_link_limit_replays_a_table_receipt_written_before_the_fiel
     legacy = body.model_dump(mode="json")
     for field in legacy["columns"]:
         field.pop("link_limit")
+    if icon_field:
+        legacy["icon"] = None
+    else:
+        legacy.pop("icon", None)
     receipt.payload_hash = payload_hash(legacy)
     receipt.outcome = {
         **receipt.outcome,
@@ -702,10 +795,12 @@ async def test_absent_link_limit_replays_a_table_receipt_written_before_the_fiel
             for field in receipt.outcome["columns"]
         ],
     }
+    if not icon_field:
+        receipt.outcome = {key: value for key, value in receipt.outcome.items() if key != "icon"}
     await db.flush()
     retry = await service.create_table(ctx, body, operation_key="before-link-limit")
     assert retry.id == first.id
-    changed = body.model_copy(
+    limit_changed = body.model_copy(
         update={
             "columns": [
                 body.columns[0],
@@ -713,5 +808,10 @@ async def test_absent_link_limit_replays_a_table_receipt_written_before_the_fiel
             ]
         }
     )
-    with pytest.raises(IdempotencyKeyReuseError):
-        await service.create_table(ctx, changed, operation_key="before-link-limit")
+    for changed in (
+        limit_changed,
+        body.model_copy(update={"name": "Changed request"}),
+        body.model_copy(update={"icon": "table"}),
+    ):
+        with pytest.raises(IdempotencyKeyReuseError):
+            await service.create_table(ctx, changed, operation_key="before-link-limit")

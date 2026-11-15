@@ -23,6 +23,7 @@ import { ROUTES } from "@/lib/constants";
 import { useSidebarStore } from "@/stores/sidebar-store";
 import { qk } from "@/lib/query-keys";
 import { cn, isAppAdmin } from "@/lib/utils";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { Perm } from "@/types/permissions";
 import type { AgentList } from "@/types/agents";
 import type { KnowledgeBaseList } from "@/types";
@@ -113,7 +114,7 @@ export function CommandPalette() {
   const go = (href: string) => {
     useSidebarStore.getState().close();
     setOpen(false);
-    router.push(href);
+    useUnsavedChangesStore.getState().leave(() => router.push(href));
   };
 
   // Every destination the navigation already offers. The section groups below
@@ -245,7 +246,7 @@ export function CommandPalette() {
             label={t("logout")}
             onSelect={() => {
               setOpen(false);
-              logout();
+              useUnsavedChangesStore.getState().leave(() => void logout());
             }}
           />
         </Group>

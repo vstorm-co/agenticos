@@ -32,6 +32,7 @@ from app.schemas.virtual_table import (
 )
 from app.services.virtual_tables import VirtualTableService, quotas
 from app.services.virtual_tables.exceptions import QuotaExceededError
+from app.services.virtual_tables.receipts import payload_hash
 from tests.integration.virtual_table_support import column, ctx_for, make_org, make_user
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
@@ -243,7 +244,9 @@ async def test_table_create_and_schema_change_share_one_storage_reservation(
         )
 
 
-@pytest.mark.parametrize("operation", ["create", "update", "upsert", "batch", "schema"])
+@pytest.mark.parametrize(
+    "operation", ["create", "update", "upsert", "batch", "keyed_batch", "schema"]
+)
 async def test_a_storage_waiter_does_not_hold_the_table_lock(
     engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, operation: str
 ) -> None:
@@ -283,10 +286,12 @@ async def test_a_storage_waiter_does_not_hold_the_table_lock(
                 await service.upsert_record(
                     ctx, source.id, "seed", RecordUpsert(expected_revision=1, values=values)
                 )
-            elif operation == "batch":
-                await service.create_records(
-                    ctx, source.id, RecordBatchCreate(records=[RecordCreate(values=values)])
-                )
+            elif operation in {"batch", "keyed_batch"}:
+                batch = RecordBatchCreate(records=[RecordCreate(values=values)])
+                if operation == "keyed_batch":
+                    await service.write_batch(ctx, source.id, batch, operation_key="lock-probe")
+                else:
+                    await service.create_records(ctx, source.id, batch)
             else:
                 await service.update_schema(
                     ctx,
@@ -309,7 +314,26 @@ async def test_a_storage_waiter_does_not_hold_the_table_lock(
                 .where(VirtualTable.id == source.id)
                 .with_for_update(nowait=True)
             )
-            await holding.commit()
+            if operation == "keyed_batch":
+                # A batch receipt must not be claimed before its storage reservation:
+                # the storage holder must still be able to claim this same key.
+                batch = RecordBatchCreate(records=[RecordCreate(values={key: "after"})])
+                claimed = await asyncio.wait_for(
+                    virtual_table_repo.claim_receipt(
+                        holding,
+                        organization_id=ctx.organization_id,
+                        principal_id=ctx.subject_id,
+                        operation="record.batch",
+                        operation_key="lock-probe",
+                        payload_hash=payload_hash(
+                            {"table_id": source.id, **batch.model_dump(mode="json")}
+                        ),
+                    ),
+                    timeout=5,
+                )
+                assert claimed is not None
+            # The probe's claim is deliberately discarded so the writer runs normally.
+            await holding.rollback()
             await asyncio.wait_for(pending, timeout=5)
         finally:
             if not pending.done():

@@ -17,6 +17,9 @@ VisibilityLiteral = Literal["private", "team", "org"]
 class KnowledgeBaseCreate(AudienceChoice):
     """Schema for creating a Knowledge Base."""
 
+    gap_drafter_agent_id: UUID | None = None
+    gap_classifier_agent_id: UUID | None = None
+
     name: str = Field(..., min_length=1, max_length=128, description="KB display name")
     description: str | None = Field(default=None, max_length=500)
     scope: KBScopeLiteral = Field(default="personal", description="Visibility scope")
@@ -91,6 +94,9 @@ class KnowledgeBaseUpdate(BaseSchema):
     everything.
     """
 
+    gap_drafter_agent_id: UUID | None = None
+    gap_classifier_agent_id: UUID | None = None
+
     name: str | None = Field(default=None, min_length=1, max_length=128)
     description: str | None = Field(default=None, max_length=500)
     ingestion_config: IngestionConfig | None = Field(
@@ -135,6 +141,9 @@ class KnowledgeBaseUpdate(BaseSchema):
 
 class KnowledgeBaseRead(BaseSchema, TimestampSchema):
     """Schema for reading a Knowledge Base (API response)."""
+
+    gap_drafter_agent_id: UUID | None = None
+    gap_classifier_agent_id: UUID | None = None
 
     id: UUID
     owner_user_id: UUID | None = None

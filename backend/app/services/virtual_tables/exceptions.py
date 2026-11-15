@@ -11,7 +11,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from app.core.exceptions import AppException, ValidationError
-from app.core.field_errors import field_details
+from app.core.field_errors import field_details, named_field_problems
 
 
 class InvalidRecordError(ValidationError):
@@ -21,10 +21,9 @@ class InvalidRecordError(ValidationError):
     code = "INVALID_RECORD"
 
     def __init__(self, problems: list[tuple[str, str]]) -> None:
-        fields = [{"field": field, "message": message} for field, message in problems]
         super().__init__(
             message="; ".join(f"{field}: {message}" for field, message in problems),
-            details={"fields": fields},
+            details={"fields": named_field_problems(problems, root="")},
         )
 
 

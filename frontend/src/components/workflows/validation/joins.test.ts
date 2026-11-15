@@ -50,12 +50,12 @@ const CATALOG = makeCatalog([
     exclusive_branches: true,
     ports: [IN, port("default", "output", null)],
   }),
-  makeDefinition({ id: "loop.item", kind: "control", ports: [IN, OUT] }),
+  makeDefinition({ id: "loop.item", kind: "control", ports: [OUT] }),
   makeDefinition({ id: "loop.yield", kind: "control", ports: [IN, OUT] }),
   makeDefinition({
     id: "control.foreach",
     kind: "control",
-    ports: [IN, port("body", "output", null), port("done", "output", null)],
+    ports: [IN, port("done", "output", null)],
   }),
 ]);
 
@@ -325,7 +325,6 @@ function loopGraph(parallel = true): WorkflowGraph {
   ];
   const wiring: Wiring[] = [
     ["start", "out", "F"],
-    ["F", "body", "item"],
     ["F", "done", "after"],
     ["J", "out", "done"],
   ];
@@ -341,7 +340,11 @@ function loopGraph(parallel = true): WorkflowGraph {
   } else {
     wiring.push(["item", "out", "X"], ["X", "out", "Y"], ["Y", "out", "J"]);
   }
-  return build(nodes, wiring);
+  const body = new Set(["item", "S", "X", "Y", "J", "done"]);
+  return build(
+    nodes.map((one) => (body.has(one.id) ? { ...one, scope_id: "F" } : one)),
+    wiring,
+  );
 }
 
 function switchChain(layers: number): WorkflowGraph {
@@ -493,11 +496,35 @@ describe("run conditions", () => {
     expect(together(analyseGraph(loopGraph(false)), "X", "after")).toBe(true);
   });
 
-  it("reads a wire from the loop itself as always live inside its body", () => {
+  it("starts a body at its loop item, with no wire into it", () => {
     const a = analyseGraph(loopGraph());
-    const wire = (a.incoming.get("item") as JoinWire[])[0] as JoinWire;
-    expect(wireCondition(a, "item", wire)?.terms).toEqual([new Set()]);
-    expect(wireRunsWhenever(a, "item", wire)).toBe(true);
+    expect(a.incoming.has("item")).toBe(false);
+    expect(a.conditions.get("item")?.terms).toEqual([new Set()]);
+    expect(runsWhenever(a, "F", "item")).toBe(true);
+  });
+
+  it("reads a wire from the loop itself as always live inside its body", () => {
+    // Publishing refuses one, but a draft may hold it: it reads as the iteration's start.
+    const g = loopGraph(false);
+    const withWire = {
+      ...g,
+      edges: [
+        ...g.edges,
+        {
+          id: "F-Y",
+          source_node_id: "F",
+          source_port: "done",
+          target_node_id: "Y",
+          target_port: "in",
+        },
+      ],
+    };
+    const a = analyseGraph(withWire);
+    const wire = (a.incoming.get("Y") as JoinWire[]).find(
+      (one) => one.sourceNodeId === "F",
+    ) as JoinWire;
+    expect(wireCondition(a, "Y", wire)?.terms).toEqual([new Set()]);
+    expect(wireRunsWhenever(a, "Y", wire)).toBe(true);
   });
 
   it("says a step runs whenever a later one does only if it comes before it", () => {
