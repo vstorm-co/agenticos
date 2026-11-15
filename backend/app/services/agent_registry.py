@@ -1417,7 +1417,9 @@ class AgentRegistryService:
         Lifecycle and workflow ownership decide which configuration controls a
         particular view offers. They must not erase these permission hints: the
         full editor and gallery also use edit authority to offer Restore for an
-        archived agent. Every write still checks its own resource and state rules.
+        archived agent. The settings pane must combine them with lifecycle state
+        and hide draft controls for archived or workflow-owned agents. Every write
+        still checks its own resource and state rules.
         """
         return await self.may_edit(ctx, agent), await self.may_publish(ctx, agent)
 
