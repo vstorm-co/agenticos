@@ -5,12 +5,10 @@ here belongs to the organization, is gated on `mcp:manage`, and is the
 only kind an agent spec can bind: a published agent whose reach depended on
 whose session ran it would be neither reviewable nor reproducible.
 
-Every route carries a `require(...)` gate, per-resource ones included. That is
-not a break with the rule those gates follow elsewhere - it is the same rule.
-A gate is wrong on a route whose answer a resource grant could widen, because a
-role check cannot see the grant; an MCP connection has no grants and no owner to
-share it with, so `mcp:manage` is the whole of the decision. The
-provider-credential routes next door are gated the same way for the same reason.
+The existing management routes retain their `mcp:manage` role gate. The service
+also checks the connection's scope and grants: a private server shared for use
+is not shared for administration. Workflow selection and agent binding validate
+`mcp:use` separately, without opening this management projection.
 
 The credential is write-only, like a provider key: it goes in, it is sealed for
 this organization, and nothing here ever returns it.
