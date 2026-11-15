@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { Toaster } from "sonner";
 
 /** Keep dismissal in Sonner so actions, promises and onDismiss retain their contract. */
-export function ConsoleToaster() {
+export function ConsoleToaster({ closeLabel }: { closeLabel: string }) {
   useEffect(() => {
     const dismissClicked = (event: MouseEvent) => {
       if (event.defaultPrevented || !(event.target instanceof Element)) return;
@@ -37,6 +37,7 @@ export function ConsoleToaster() {
         bottom: "5rem",
       }}
       toastOptions={{
+        closeButtonAriaLabel: closeLabel,
         style: {
           borderRadius: "0.875rem",
         },

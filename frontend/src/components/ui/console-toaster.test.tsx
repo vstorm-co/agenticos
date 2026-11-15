@@ -10,11 +10,12 @@ afterEach(() => {
 });
 
 it("dismisses a clicked notification through its native close control", async () => {
-  render(<ConsoleToaster />);
+  render(<ConsoleToaster closeLabel="Zamknij" />);
   const dismissed = vi.fn();
   act(() => {
     toast.success("Saved fixture", { onDismiss: dismissed });
   });
+  expect(await screen.findByRole("button", { name: /^Zamknij$/ })).toBeVisible();
   fireEvent.click(await screen.findByText("Saved fixture"));
   await waitFor(() =>
     expect(screen.getByText("Saved fixture").closest("li")).toHaveAttribute("data-removed", "true"),
@@ -23,7 +24,7 @@ it("dismisses a clicked notification through its native close control", async ()
 });
 
 it("runs the action before closing and respects an action that prevents dismissal", async () => {
-  render(<ConsoleToaster />);
+  render(<ConsoleToaster closeLabel="Zamknij" />);
   const action = vi.fn((event: React.MouseEvent<HTMLButtonElement>) => event.preventDefault());
   act(() => {
     toast("Review fixture", { action: { label: "Keep reviewing", onClick: action } });
@@ -34,7 +35,7 @@ it("runs the action before closing and respects an action that prevents dismissa
 });
 
 it("leaves loading and explicitly non-dismissible notifications visible", async () => {
-  render(<ConsoleToaster />);
+  render(<ConsoleToaster closeLabel="Zamknij" />);
   act(() => {
     toast.loading("Uploading fixture");
     toast("Persistent fixture", { dismissible: false });

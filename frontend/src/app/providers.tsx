@@ -8,9 +8,10 @@ import { TooltipProvider } from "@/components/ui";
 
 interface ProvidersProps {
   children: ReactNode;
+  toastCloseLabel: string;
 }
 
-export function Providers({ children }: ProvidersProps) {
+export function Providers({ children, toastCloseLabel }: ProvidersProps) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -37,7 +38,7 @@ export function Providers({ children }: ProvidersProps) {
       <ThemeProvider>
         <MotionProvider>
           <TooltipProvider>{children}</TooltipProvider>
-          <ConsoleToaster />
+          <ConsoleToaster closeLabel={toastCloseLabel} />
         </MotionProvider>
       </ThemeProvider>
     </QueryClientProvider>
