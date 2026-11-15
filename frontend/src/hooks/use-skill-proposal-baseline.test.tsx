@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
@@ -59,4 +59,21 @@ it("fetches only the selected immutable reference file with encoded path segment
   expect(apiClient.get).toHaveBeenCalledWith(
     "/skills/s1/versions/v2/resources/references/a%20%231.md",
   );
+});
+
+it("rejects a manual baseline refresh before a skill exists", async () => {
+  const { result } = renderHook(() => useSkillProposalBaseline(null, null), { wrapper });
+  await act(async () => {
+    const refreshed = await result.current.refetch();
+    expect(refreshed.isError).toBe(true);
+    expect(refreshed.error).toBeInstanceOf(Error);
+  });
+  expect(apiClient.get).not.toHaveBeenCalled();
+});
+
+it("refuses to fetch a version when main has not been published", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ latest_version_id: null, version: 0 });
+  const { result } = renderHook(() => useSkillProposalBaseline("s1", null), { wrapper });
+  await waitFor(() => expect(result.current.isError).toBe(true));
+  expect(apiClient.get).toHaveBeenCalledTimes(1);
 });

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SkillCheckDialog } from "./skill-check-dialog";
+import { toast } from "sonner";
 import { ApiError } from "@/lib/api-error";
 import { checkAgent, finishedCheck } from "@/test-utils/skill-checks";
 import type { SkillCheck } from "@/types/skill-checks";
@@ -504,4 +505,40 @@ it("can apply a checked proposal with no evaluation questions after acknowledgin
     expect.any(Object),
   );
   expect(close).toHaveBeenCalledWith(false);
+});
+
+it("does not toast a stale proposal error when it disappears while starting a check", async () => {
+  vi.mocked(toast.error).mockClear();
+  held.start.mutate.mockImplementation((_body, options) =>
+    options.onError(
+      new ApiError(404, "No change to this skill is waiting", {
+        error: {
+          code: "NOT_FOUND",
+          message: "No change to this skill is waiting",
+          details: { skill_id: "s-1" },
+        },
+      }),
+    ),
+  );
+  open();
+  await userEvent.click(screen.getByRole("button", { name: "Start the check" }));
+  expect(held.checkId).toBeNull();
+  expect(toast.error).not.toHaveBeenCalled();
+});
+
+it("returns a finished check to the editor without applying the change", async () => {
+  held.check = finishedCheck({ session_id: null, status: "done" });
+  const onChecked = vi.fn();
+  render(
+    <SkillCheckDialog
+      skillId="s-1"
+      change={{ proposalId: "p-1" }}
+      forkId={null}
+      onOpenChange={vi.fn()}
+      onChecked={onChecked}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Back to Change version" }));
+  expect(onChecked).toHaveBeenCalledWith(held.check);
+  expect(held.apply.mutate).not.toHaveBeenCalled();
 });

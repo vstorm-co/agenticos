@@ -8,6 +8,7 @@ import type { SkillChangeRecord } from "@/lib/skill-changes-api";
 const state = vi.hoisted(() => ({
   runsView: true,
   changes: [] as SkillChangeRecord[],
+  baselineResources: [] as { name: string }[],
   error: null as string | null,
   apply: vi.fn(),
   discard: vi.fn(),
@@ -23,7 +24,7 @@ vi.mock("@/hooks/use-skill-proposal-baseline", () => ({
       id: "v1",
       description: "Old description.",
       content: "Original instructions.",
-      resources: [],
+      resources: state.baselineResources,
     },
     isLoading: false,
     error: null,
@@ -79,6 +80,7 @@ beforeEach(() => {
   state.runsView = true;
   state.changes = [change()];
   state.error = null;
+  state.baselineResources = [];
 });
 
 describe("ProposedChanges", () => {
@@ -309,5 +311,21 @@ it("offers the current instruction comparison without mixing it with the propose
   render(<ProposedChanges canEdit />);
   await userEvent.click(screen.getByRole("button", { name: /Show what changed/ }));
   await userEvent.click(screen.getByRole("tab", { name: "Compare with current skill" }));
+  expect(screen.getByRole("tabpanel")).toHaveTextContent("Original instructions.");
+});
+
+it("keeps baseline files navigable and returns to instructions from desktop and mobile controls", async () => {
+  state.baselineResources = [{ name: "reference.md" }];
+  render(<ProposedChanges canEdit />);
+  await userEvent.click(screen.getByRole("button", { name: /Show what changed/ }));
+  await userEvent.click(screen.getByText("reference.md", { exact: true }));
+  expect(screen.getByRole("tabpanel")).not.toHaveTextContent("Original instructions.");
+  await userEvent.click(screen.getByRole("button", { name: "Proposed instructions" }));
+  expect(screen.getByRole("tabpanel")).toHaveTextContent("Original instructions.");
+  await userEvent.click(screen.getByRole("combobox"));
+  await userEvent.click(screen.getByRole("option", { name: "reference.md" }));
+  expect(screen.getByRole("tabpanel")).not.toHaveTextContent("Original instructions.");
+  await userEvent.click(screen.getByRole("combobox"));
+  await userEvent.click(screen.getByRole("option", { name: "Proposed instructions" }));
   expect(screen.getByRole("tabpanel")).toHaveTextContent("Original instructions.");
 });
