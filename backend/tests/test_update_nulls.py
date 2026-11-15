@@ -60,6 +60,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.project import Project
+from app.db.models.resource_grant import ResourceGrant
 from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.session import Session
 from app.db.models.skill import Skill, SkillResource
@@ -124,6 +125,7 @@ from app.schemas.skill import SkillResourceUpdate, SkillUpdate
 from app.schemas.skill_version import SkillForkUpdate
 from app.schemas.sync_source import SyncSourceUpdate
 from app.schemas.system_agent import SystemAgentUpdate
+from app.schemas.table_record_access import RecordGrantUpdate
 from app.schemas.table_view import TableViewUpdate
 from app.schemas.task import TaskUpdate
 from app.schemas.user import UserUpdate
@@ -196,6 +198,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     OrganizationUpdate: Organization,
     PortalPollIntervalUpdate: McpConnection,
     ProjectUpdate: Project,
+    RecordGrantUpdate: ResourceGrant,
     RecordUpdate: None,
     # Replaces the validated row_policy JSONB document, not columns named after its fields.
     RowPolicyUpdate: None,

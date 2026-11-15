@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 from pydantic import TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
+from sqlalchemy import ColumnElement
 
 from app.core.audit import record_audit
 from app.core.exceptions import (
@@ -22,6 +23,7 @@ from app.db.table_rls import bind_table_access
 from app.db.updates import writable
 from app.repositories import table_view_repo, virtual_table_repo
 from app.repositories import task as task_repo
+from app.repositories import virtual_table_relation as relation_repo
 from app.schemas.virtual_table import (
     MAX_LABEL,
     MAX_OPTIONS,
@@ -48,6 +50,7 @@ from app.services.virtual_tables.conversions import convert, option_labels
 from app.services.virtual_tables.deadline import ReadDeadline
 from app.services.virtual_tables.dependencies import find_dependents
 from app.services.virtual_tables.exceptions import (
+    InvalidRowPolicyError,
     InvalidSchemaError,
     SchemaDependencyError,
     SchemaVersionConflictError,
@@ -56,7 +59,7 @@ from app.services.virtual_tables.principals import principal_problems
 from app.services.virtual_tables.quotas import enforce_storage, enforce_table_count, lock_storage
 from app.services.virtual_tables.receipts import run_once
 from app.services.virtual_tables.record_sources import source_for
-from app.services.virtual_tables.row_policy import parse_policy
+from app.services.virtual_tables.row_policy import parse_policy, view_expression
 from app.services.virtual_tables.schema import SchemaDiff, build_columns, diff
 from app.services.virtual_tables.types import COMPUTED_TYPES, READ_THROUGH_LINK, CellProblem
 
@@ -107,7 +110,7 @@ class TableOperations(Operations):
         Raises:
             AuthorizationError: The caller lacks `tables:create`.
             AlreadyExistsError: A live table already has this name.
-            QuotaExceededError: The organization already has as many tables as it may.
+            QuotaExceededError: The organization has reached its table count or storage limit.
             InvalidSchemaError: The columns are inconsistent.
             IdempotencyKeyReuseError: The key was used before for a different table.
         """
@@ -137,26 +140,45 @@ class TableOperations(Operations):
                 columns=_dump(columns),
                 created_by=ctx.subject_id,
             )
-            await record_audit(
-                self.db,
-                actor_user_id=ctx.subject_id,
-                organization_id=ctx.organization_id,
-                action="table.created",
-                target_type="table",
-                target_id=str(table.id),
-                details={"name": table.name, "columns": len(columns)},
-            )
             return self._read(table, columns, can_edit=await self._can_edit(ctx, table))
 
-        created, _replayed = await run_once(
-            self.db,
-            ctx,
-            operation="table.create",
-            operation_key=_checked_key(operation_key),
-            payload=data.model_dump(mode="json"),
-            outcome_type=TableRead,
-            action=action,
-        )
+        payload = data.model_dump(mode="json")
+        # This optional field did not exist in older receipt fingerprints. Its
+        # absent/null form preserves the old request; an explicit limit is new.
+        for column in payload["columns"]:
+            if column.get("link_limit") is None:
+                column.pop("link_limit", None)
+        # Existing deployments wrote both pre-icon requests and requests with
+        # icon:null. Only that absent default is equivalent; explicit icons differ.
+        legacy_payload = None
+        if data.icon is None:
+            legacy_payload = {key: value for key, value in payload.items() if key != "icon"}
+        operation_key = _checked_key(operation_key)
+        await lock_storage(self.db, ctx)
+        async with self.db.begin_nested():
+            created, replayed = await run_once(
+                self.db,
+                ctx,
+                operation="table.create",
+                operation_key=operation_key,
+                payload=payload,
+                legacy_payload=legacy_payload,
+                outcome_type=TableRead,
+                action=action,
+            )
+            if not replayed:
+                # Count definitions and the completed receipt before taking the audit
+                # chain lock: a quota refusal audits in an independent transaction.
+                await enforce_storage(self.db, ctx, created.id)
+                await record_audit(
+                    self.db,
+                    actor_user_id=ctx.subject_id,
+                    organization_id=ctx.organization_id,
+                    action="table.created",
+                    target_type="table",
+                    target_id=str(created.id),
+                    details={"name": created.name, "columns": len(created.columns)},
+                )
         return created
 
     async def list_tables(
@@ -194,11 +216,31 @@ class TableOperations(Operations):
         # queries for a caller whose role alone does not already reach
         # `TABLES_EDIT` on every one of them.
         editable = await accessible_ids(self.db, ctx, items, Perm.TABLES_EDIT, resource_type=TABLE)
-        # What each holds, the same way: a query for the page, not one per card.
-        records = await virtual_table_repo.record_counts(
-            self.db, organization_id=ctx.organization_id, table_ids=[item.id for item in items]
-        )
         columns = await virtual_table_repo.current_columns(self.db, tables=items)
+        visibility: dict[UUID, ColumnElement[bool] | bool] = {}
+        for item in items:
+            if item.row_policy is None:
+                continue
+            try:
+                extra = await view_expression(
+                    self.db,
+                    ctx,
+                    item,
+                    [ColumnDef.model_validate(column) for column in columns.get(item.id, [])],
+                )
+            except InvalidRowPolicyError:
+                # Keep table metadata repairable without disclosing its restricted total.
+                visibility[item.id] = False
+            else:
+                if extra is not None:
+                    visibility[item.id] = extra
+        # Count the page in one query, applying each restricted table's read predicate.
+        records = await virtual_table_repo.record_counts(
+            self.db,
+            organization_id=ctx.organization_id,
+            table_ids=[item.id for item in items],
+            extra_by_table=visibility,
+        )
         summaries = [
             TableListItem.model_validate(
                 {
@@ -226,6 +268,8 @@ class TableOperations(Operations):
             await self._columns(table),
             can_edit=can_edit,
             can_restore=await self._can_restore(ctx, table),
+            can_manage_row_access=can_edit
+            and await task_repo.for_table(self.db, table.id, ctx.organization_id) is None,
             can_manage=can_edit and await self._manages_board(ctx, table),
         )
 
@@ -379,10 +423,11 @@ class TableOperations(Operations):
             InvalidSchemaError: The columns are inconsistent, or a column that already
                 has empty cells was made required.
             SchemaDependencyError: Something depends on a column this archives.
-            QuotaExceededError: The values a type change rewrites, with their history,
-                would take the organization past its table storage.
+            QuotaExceededError: The schema's definitions or rewritten values would
+                take the organization past its table storage limit.
             AuthorizationError: A task board this caller may work on but not reshape.
         """
+        await lock_storage(self.db, ctx)
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         self._ensure_live(table)
         await self._ensure_manages_board(ctx, table)
@@ -404,35 +449,58 @@ class TableOperations(Operations):
         change = diff(previous, columns)
         self._refuse_policy_column_change(table, columns, change)
         await self._refuse_dependents(ctx, table, column_ids=change.archived | change.retyped)
-        if change.retyped:
-            # Rewritten values and their history count toward the organization's storage,
-            # taken in the order a record write takes it; over the limit, nothing is written.
-            await lock_storage(self.db, ctx)
-            async with self.db.begin_nested():
+        async with self.db.begin_nested():
+            if change.retyped:
                 columns = await self._retype(ctx, table, previous, columns, change.retyped)
-                await enforce_storage(self.db, ctx, table)
-        await self._refuse_empty_required(table, columns, change.required)
-        version = table.schema_version + 1
-        await virtual_table_repo.add_schema_version(
-            self.db,
-            table_id=table.id,
-            version=version,
-            columns=_dump(columns),
-            created_by=ctx.subject_id,
-        )
-        table = await virtual_table_repo.update_table(
-            self.db, table=table, update_data={"schema_version": version}
-        )
-        await record_audit(
-            self.db,
-            actor_user_id=ctx.subject_id,
-            organization_id=ctx.organization_id,
-            action="table.schema_changed",
-            target_type="table",
-            target_id=str(table.id),
-            details={"version": version, "archived_columns": len(change.archived)},
-        )
+            await self._refuse_empty_required(table, columns, change.required)
+            await self._refuse_link_limits(ctx, table, previous, columns)
+            version = table.schema_version + 1
+            await virtual_table_repo.add_schema_version(
+                self.db,
+                table_id=table.id,
+                version=version,
+                columns=_dump(columns),
+                created_by=ctx.subject_id,
+            )
+            table = await virtual_table_repo.update_table(
+                self.db, table=table, update_data={"schema_version": version}
+            )
+            await enforce_storage(self.db, ctx, table.id)
+            await record_audit(
+                self.db,
+                actor_user_id=ctx.subject_id,
+                organization_id=ctx.organization_id,
+                action="table.schema_changed",
+                target_type="table",
+                target_id=str(table.id),
+                details={"version": version, "archived_columns": len(change.archived)},
+            )
         return self._read(table, columns, can_edit=True)
+
+    async def _refuse_link_limits(
+        self,
+        ctx: AuthContext,
+        table: VirtualTable,
+        previous: list[ColumnDef],
+        columns: list[ColumnDef],
+    ) -> None:
+        old = {column.id: column for column in previous}
+        for index, column in enumerate(columns):
+            before = old.get(column.id)
+            if (
+                column.type != "link"
+                or before is None
+                or (column.link_limit or 100) >= (before.link_limit or 100)
+            ):
+                continue
+            largest = await relation_repo.largest_link_count(
+                self.db, organization_id=ctx.organization_id, table_id=table.id, column_id=column.id
+            )
+            if largest > (column.link_limit or 100):
+                raise InvalidSchemaError(
+                    f"columns.{index}.link_limit",
+                    "Existing records exceed this link limit; remove their extra links first",
+                )
 
     async def set_row_policy(
         self, ctx: AuthContext, table_id: UUID, data: RowPolicyUpdate
@@ -490,6 +558,8 @@ class TableOperations(Operations):
         honoured. An archived projects table is accepted: its records stay
         readable, so its membership still resolves.
         """
+        if data.rule == "grants":
+            return
         by_id = {column.id: column for column in columns}
         for field in ("view_column_id", "edit_column_id"):
             column_id = getattr(data, field)
@@ -560,8 +630,9 @@ class TableOperations(Operations):
         the policy first, not to silently break it.
         """
         policy = parse_policy(table.row_policy)
-        if policy is None:
+        if policy is None or policy.rule != "assignee":
             return
+        assert policy.view_column_id is not None and policy.edit_column_id is not None
         driving: dict[UUID, tuple[str, ...]] = {
             policy.view_column_id: ("user", "multi_user"),
             policy.edit_column_id: ("user", "multi_user"),

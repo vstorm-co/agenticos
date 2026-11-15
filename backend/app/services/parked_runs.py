@@ -38,6 +38,7 @@ from app.db.models.agent_run import (
     ToolApproval,
 )
 from app.repositories import agent_run_repo, channel_prompt_repo
+from app.repositories import conversation_task as turn_repo
 from app.repositories import room_submission as room_repo
 from app.repositories.channel_prompt import SettledBy
 from app.schemas.agent import (
@@ -282,10 +283,16 @@ class ParkedRunService:
     ) -> Continued:
         run = await self.runner.get_run(ctx, run_id)
         async with AsyncExitStack() as admission:
-            if (
-                run.conversation_id is not None
-                and await room_repo.for_run(self.db, run_id, organization_id=ctx.organization_id)
+            if run.conversation_id is not None and (
+                await room_repo.for_run(self.db, run_id, organization_id=ctx.organization_id)
                 is not None
+                or (
+                    run.surface == RunSurface.WEB.value
+                    and await turn_repo.legacy_room_pause(
+                        self.db, run.conversation_id, run_id=run_id
+                    )
+                    is not None
+                )
             ):
                 # Before runner.resume takes the run-row lock: keep the same
                 # room admission order as new turns and WebSocket answers.

@@ -1341,8 +1341,11 @@ include = [
     # operation key, another tenant's table, an archived column - and a write path
     # that skipped one would overwrite or leak a tenant's rows silently (#1782).
     "app/db/models/virtual_table.py",
+    "app/db/models/virtual_table_relation.py",
     "app/repositories/virtual_table.py",
+    "app/repositories/virtual_table_relation.py",
     "app/schemas/virtual_table.py",
+    "app/schemas/virtual_table_relation.py",
     "app/services/virtual_tables/**",
     "app/api/routes/v1/virtual_tables.py",
     "app/api/routes/v1/_table_responses.py",
@@ -2285,8 +2288,11 @@ include = [
     # operation key, another tenant's table, an archived column - and a write path
     # that skipped one would overwrite or leak a tenant's rows silently (#1782).
     "app/db/models/virtual_table.py",
+    "app/db/models/virtual_table_relation.py",
     "app/repositories/virtual_table.py",
+    "app/repositories/virtual_table_relation.py",
     "app/schemas/virtual_table.py",
+    "app/schemas/virtual_table_relation.py",
     "app/services/virtual_tables/**",
     "app/api/routes/v1/virtual_tables.py",
     "app/api/routes/v1/_table_responses.py",

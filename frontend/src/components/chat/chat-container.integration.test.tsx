@@ -8,6 +8,7 @@ import {
   renderHook,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -392,6 +393,148 @@ describe("the chat container - project room workspace", () => {
     useConversationStore.getState().setCurrentConversationId(conversation.id);
   }
 
+  it("keeps tagged replies out of the main view while room metadata and thread authorization are pending", async () => {
+    savedProjectRoom(true);
+    const root = {
+      id: "root-a",
+      conversation_id: "c-room",
+      role: "user" as const,
+      content: "Original room topic",
+      created_at: "2026-11-14T00:00:00Z",
+      thread_reply_count: 1,
+    };
+    const reply = {
+      id: "reply-a",
+      conversation_id: "c-room",
+      role: "user" as const,
+      content: "Scoped reply A",
+      created_at: "2026-11-14T00:00:01Z",
+      thread_root_message_id: "root-a",
+    };
+    loadTranscript([root, reply]);
+    const base = get.getMockImplementation()!;
+    let authorize!: (value: unknown) => void;
+    let metadata!: (value: unknown) => void;
+    let listing!: (value: unknown) => void;
+    get.mockImplementation((url: string) => {
+      if (url.startsWith("/conversations?"))
+        return new Promise((resolve) => {
+          listing = resolve;
+        });
+      if (url === "/conversations/c-room/metadata")
+        return new Promise((resolve) => {
+          metadata = resolve;
+        });
+      if (url.includes("/room-threads/root-a?"))
+        return new Promise((resolve) => {
+          authorize = resolve;
+        });
+      return base(url);
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const openThread = vi.fn();
+    render(
+      <QueryClientProvider client={client}>
+        <ChatContainer
+          requestedConversationId="c-room"
+          requestedThreadRootId="root-a"
+          onCloseThread={vi.fn()}
+          onOpenThread={openThread}
+        />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(authorize).toBeDefined(), SETTLE);
+    expect(screen.queryByText("Scoped reply A")).toBeNull();
+    expect(screen.getByText("Original room topic")).toBeInTheDocument();
+    await act(async () => authorize({ root, items: [reply], total: 1, can_post: true }));
+    const panel = screen.getByRole("complementary", { name: "Thread" });
+    expect(await within(panel).findByText("Scoped reply A")).toBeInTheDocument();
+    expect(screen.getAllByText("Scoped reply A")).toHaveLength(1);
+    expect(within(panel).queryByRole("textbox", { name: "Reply to thread" })).toBeNull();
+    await act(async () => {
+      const conversation = {
+        id: "c-room",
+        user_id: SIGNED_IN.id,
+        project_id: "p-room",
+        title: "Launch room",
+      };
+      listing({ items: [conversation], total: 1 });
+      metadata?.(conversation);
+    });
+    await within(panel).findByRole("textbox", { name: "Reply to thread" });
+    receive("turn_attached", { conversation_id: "c-room", thread_root_message_id: "root-b" });
+    receive("model_request_start", { conversation_id: "c-room", thread_root_message_id: "root-b" });
+    receive("text_delta", {
+      conversation_id: "c-room",
+      thread_root_message_id: "root-b",
+      index: 0,
+      content: "Live in another thread",
+    });
+    expect(screen.queryByText("Live in another thread")).toBeNull();
+    receive("ask_user", {
+      conversation_id: "c-room",
+      thread_root_message_id: "root-b",
+      questions: [{ question: "Question in another thread", options: [{ label: "Continue" }] }],
+    });
+    expect(within(panel).queryByText("Question in another thread")).toBeNull();
+    const jump = within(panel).getByRole("button", { name: "Open thread" });
+    expect(screen.getAllByRole("button", { name: "Open thread" })).toHaveLength(1);
+    await userEvent.click(jump);
+    expect(openThread).toHaveBeenCalledWith("root-b");
+  });
+
+  it("opens retained thread history read-only after its project is detached", async () => {
+    savedProjectRoom(true);
+    const root = {
+      id: "root-history",
+      conversation_id: "c-room",
+      role: "user" as const,
+      content: "Retained original",
+      created_at: "2026-11-14T00:00:00Z",
+      thread_reply_count: 1,
+    };
+    const reply = {
+      id: "history-reply",
+      conversation_id: "c-room",
+      role: "user" as const,
+      content: "Retained thread reply",
+      created_at: "2026-11-14T00:00:01Z",
+      thread_root_message_id: "root-history",
+    };
+    loadTranscript([root]);
+    const base = get.getMockImplementation()!;
+    const conversation = {
+      id: "c-room",
+      user_id: SIGNED_IN.id,
+      project_id: null,
+      title: "Retained conversation",
+    };
+    get.mockImplementation((url: string) => {
+      if (url.startsWith("/conversations?"))
+        return Promise.resolve({ items: [conversation], total: 1 });
+      if (url === "/conversations/c-room/metadata") return Promise.resolve(conversation);
+      if (url.includes("/room-threads/root-history?"))
+        return Promise.resolve({ root, items: [reply], total: 1, can_post: false });
+      return base(url);
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const open = vi.fn();
+    render(
+      <QueryClientProvider client={client}>
+        <ChatContainer
+          requestedConversationId="c-room"
+          requestedThreadRootId="root-history"
+          onCloseThread={vi.fn()}
+          onOpenThread={open}
+        />
+      </QueryClientProvider>,
+    );
+    const panel = await screen.findByRole("complementary", { name: "Thread" });
+    expect(await within(panel).findByText("Retained thread reply")).toBeInTheDocument();
+    expect(within(panel).queryByRole("textbox", { name: "Reply to thread" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "1 reply" }));
+    expect(open).toHaveBeenCalledWith("root-history");
+  });
   it("keeps project-room files reachable without losing the room draft", async () => {
     savedProjectRoom(true);
     mount();
@@ -1124,7 +1267,9 @@ describe("the chat container - a voice call (#54)", () => {
     const stop = useConversationStore.subscribe((state) => loading(state.isLoading));
     act(() => voiceCall.options.onTurnSaved?.());
     await waitFor(() =>
-      expect(get).toHaveBeenCalledWith("/conversations/c-a/messages?latest=true&limit=101"),
+      expect(get).toHaveBeenCalledWith(
+        "/conversations/c-a/messages?latest=true&limit=101&top_level_only=true",
+      ),
     );
     stop();
     // Not the select path: nothing is cleared and no skeleton is drawn.
@@ -1140,7 +1285,9 @@ describe("the chat container - a voice call (#54)", () => {
     get.mockClear();
     act(() => voiceCall.options.onTurnSaved?.());
     await waitFor(() =>
-      expect(get).toHaveBeenCalledWith("/conversations/c-new/messages?latest=true&limit=101"),
+      expect(get).toHaveBeenCalledWith(
+        "/conversations/c-new/messages?latest=true&limit=101&top_level_only=true",
+      ),
     );
     expect(voiceCall.end).not.toHaveBeenCalled();
   });
@@ -1156,7 +1303,9 @@ describe("the chat container - a voice call (#54)", () => {
     // A saved turn from the old call no longer reloads the conversation on screen.
     get.mockClear();
     act(() => voiceCall.options.onTurnSaved?.());
-    expect(get).not.toHaveBeenCalledWith("/conversations/c-b/messages?latest=true&limit=101");
+    expect(get).not.toHaveBeenCalledWith(
+      "/conversations/c-b/messages?latest=true&limit=101&top_level_only=true",
+    );
   });
 
   it("hangs up a call started in a new chat when another conversation is opened before it is named", async () => {
@@ -1408,7 +1557,7 @@ describe("the chat container - an answer still being written after its person le
           ],
           total: 1,
         });
-      if (url === `/conversations/${LEFT}/messages?latest=true&limit=101`) {
+      if (url === `/conversations/${LEFT}/messages?latest=true&limit=101&top_level_only=true`) {
         answered();
         const question = {
           id: "m-1",
@@ -1474,7 +1623,8 @@ describe("the chat container - an answer still being written after its person le
     expect(await screen.findByText(/still answering when you left/)).toBeInTheDocument();
     const reads = () =>
       get.mock.calls.filter(
-        ([url]) => url === `/conversations/${LEFT}/messages?latest=true&limit=101`,
+        ([url]) =>
+          url === `/conversations/${LEFT}/messages?latest=true&limit=101&top_level_only=true`,
       );
     const before = reads().length;
     const question = screen.getByText("Write me a rollout plan");

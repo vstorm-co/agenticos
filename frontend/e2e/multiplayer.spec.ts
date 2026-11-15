@@ -2,8 +2,10 @@ import type {
   APIRequestContext,
   APIResponse,
   BrowserContext,
+  Locator,
   Page,
   Response,
+  WebSocketRoute,
 } from "@playwright/test";
 import type { RoomAgentRequest, RoomMessageCreate, RoomMessageResult } from "../src/types/room";
 
@@ -173,6 +175,135 @@ async function assertOneSavedAnswer(page: Page, roomId: string, runId: string): 
   await expect(page.locator(`[data-message-id="${id}"]`)).toHaveCount(1);
   await expect(page.locator(`[data-message-id="${id}"]`)).toContainText(fixture.echo);
   return id;
+}
+
+interface ThreadSnapshot {
+  root: { id: string; thread_reply_count: number };
+  items: Record<string, unknown>[];
+  total: number;
+  can_post: boolean;
+}
+
+function threadPanel(page: Page): Locator {
+  return page.getByRole("complementary", { name: "Thread", exact: true });
+}
+
+async function openThread(
+  page: Page,
+  rootId: string,
+  { replies = 0, pendingRetry = false }: { replies?: number; pendingRetry?: boolean } = {},
+): Promise<Locator> {
+  const root = page.locator('[data-message-id="' + rootId + '"]');
+  await root.hover();
+  const label =
+    replies === 0 ? "Reply in thread" : `${replies} ${replies === 1 ? "reply" : "replies"}`;
+  await root.getByRole("button", { name: label, exact: true }).click();
+  const panel = threadPanel(page);
+  await expect(panel).toBeVisible();
+  await expect(page).toHaveURL(new RegExp("[?&]thread=" + rootId + "(&|$)"));
+  await expect(panel.locator("[data-thread-root]")).toHaveAttribute("data-thread-root", rootId);
+  const composer = panel.getByRole("textbox", { name: "Reply to thread" });
+  if (pendingRetry) await expect(composer).toBeDisabled();
+  else await expect(composer).toBeEnabled();
+  return panel;
+}
+
+async function closeThread(page: Page): Promise<void> {
+  const panel = threadPanel(page);
+  await panel.getByRole("button", { name: "Close thread", exact: true }).click();
+  await expect(panel).toBeHidden();
+  await expect(page).not.toHaveURL(/[?&]thread=/);
+}
+
+async function postThread(page: Page, roomId: string, content: string) {
+  const panel = threadPanel(page);
+  await panel.getByRole("textbox", { name: "Reply to thread" }).fill(content);
+  const received = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/conversations/" + roomId + "/room-messages" &&
+      response.request().method() === "POST",
+  );
+  await panel.getByRole("button", { name: "Post reply", exact: true }).click();
+  return accepted<RoomMessageResult>(await received, "posting inside a thread");
+}
+
+async function readThread(
+  request: APIRequestContext,
+  roomId: string,
+  rootId: string,
+): Promise<ThreadSnapshot> {
+  return accepted<ThreadSnapshot>(
+    await request.get("/api/conversations/" + roomId + "/room-threads/" + rootId, {
+      headers: { "X-Organization-Id": fixture.orgId },
+    }),
+    "reading the authorized thread",
+  );
+}
+
+async function grantThreadProject(page: Page): Promise<void> {
+  const granted = await page.request.put("/api/projects/" + fixture.projectId + "/sharing/grants", {
+    data: { subject_user_id: fixture.colleagueId, level: "use" },
+  });
+  expect(granted.status(), "the seeded colleague could not use the thread project").toBe(200);
+}
+
+async function observeRoomReconnect(context: BrowserContext, roomId: string) {
+  let paused = false;
+  let attachments = 0;
+  // Browser-only close diagnostics cannot be sent back as protocol close codes.
+  const wireCloseCode = (code: number | undefined) =>
+    code === undefined ? 1000 : [1005, 1006, 1015].includes(code) ? 1011 : code;
+  const held: { client: WebSocketRoute; server: WebSocketRoute; active: boolean }[] = [];
+  await context.routeWebSocket("**/api/v1/ws/agent*", (client) => {
+    if (paused) {
+      client.close({ code: 1011, reason: "Controlled thread reconnect check" });
+      return;
+    }
+    const server = client.connectToServer();
+    const connection = { client, server, active: true };
+    held.push(connection);
+    client.onMessage((message) => {
+      try {
+        const frame: unknown = JSON.parse(message.toString());
+        if (
+          frame !== null &&
+          typeof frame === "object" &&
+          "type" in frame &&
+          "conversation_id" in frame &&
+          frame.type === "attach" &&
+          frame.conversation_id === roomId
+        )
+          attachments += 1;
+      } catch {
+        // Non-JSON frames still pass unchanged to the real server.
+      }
+      server.send(message);
+    });
+    server.onMessage((message) => client.send(message));
+    client.onClose((code, reason) => {
+      connection.active = false;
+      server.close({ code: wireCloseCode(code), reason });
+    });
+    server.onClose((code, reason) => {
+      connection.active = false;
+      client.close({ code: wireCloseCode(code), reason });
+    });
+  });
+  return {
+    attachments: () => attachments,
+    async disconnect() {
+      paused = true;
+      await context.setOffline(true);
+      for (const connection of held.filter((item) => item.active)) {
+        connection.server.close({ code: 1011, reason: "Controlled thread reconnect check" });
+        connection.client.close({ code: 1011, reason: "Controlled thread reconnect check" });
+      }
+    },
+    async reconnect() {
+      paused = false;
+      await context.setOffline(false);
+    },
+  };
 }
 
 test.describe("multiplayer project rooms", () => {
@@ -507,6 +638,266 @@ test.describe("multiplayer project rooms", () => {
       expect(
         await requestStatus(page.request, roomId, cancelled.request!.id, "cancelled"),
       ).toMatchObject({ run_id: null });
+    } finally {
+      await peer.context().close();
+    }
+  });
+
+  test("thread replies retain their scope through member updates, draft switches, retry and reconnect", async ({
+    page,
+    browser,
+    apiFailures,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const roomId = await newRoom(page);
+    await grantThreadProject(page);
+    const first = await postMessage(page, roomId, "First thread root " + roomId);
+    const second = await postMessage(page, roomId, "Second thread root " + roomId);
+    const rootId = first.message.id;
+    const peer = await colleaguePage(browser, apiFailures);
+    const network = await observeRoomReconnect(peer.context(), roomId);
+    try {
+      await peer.goto("/chat?id=" + roomId);
+      const panel = await openThread(page, rootId);
+      await openThread(peer, rootId);
+      expect(await readThread(page.request, roomId, rootId)).toMatchObject({
+        root: { id: rootId, thread_reply_count: 0 },
+        items: [],
+        total: 0,
+        can_post: true,
+      });
+      expect(
+        (
+          await json<{ items: unknown[] }>(
+            page.request,
+            "/api/conversations/" + roomId + "/room-requests",
+          )
+        ).items,
+      ).toHaveLength(0);
+
+      const note = await postThread(page, roomId, "Owner thread note " + roomId);
+      expect(note.request).toBeNull();
+      expect(note.message.thread_root_message_id).toBe(rootId);
+      const peerNote = threadPanel(peer).locator('[data-message-id="' + note.message.id + '"]');
+      await expect(peerNote).toContainText(note.message.content);
+      await peerNote.hover();
+      await peerNote.getByRole("button", { name: "Reply", exact: true }).click();
+      const quoted = await postThread(peer, roomId, "Quoted thread reply " + roomId);
+      expect(quoted.request).toBeNull();
+      expect(quoted.message).toMatchObject({
+        thread_root_message_id: rootId,
+        reply_to: { message_id: note.message.id },
+        sender: { user_id: fixture.colleagueId },
+      });
+      await expect(panel.locator('[data-message-id="' + quoted.message.id + '"]')).toBeVisible();
+
+      const path = "/api/conversations/" + roomId + "/room-messages";
+      let committed: RoomMessageResult | undefined;
+      let submitted: RoomMessageCreate | undefined;
+      await page.route(
+        "**" + path,
+        async (route) => {
+          submitted = route.request().postDataJSON() as RoomMessageCreate;
+          committed = await accepted<RoomMessageResult>(
+            await route.fetch(),
+            "committing the thread post before its lost acknowledgement",
+          );
+          await route.abort("failed");
+        },
+        { times: 1 },
+      );
+      await panel.getByRole("textbox", { name: "Reply to thread" }).fill("Thread retry " + roomId);
+      await panel.getByRole("button", { name: "Post reply", exact: true }).click();
+      await expect(panel.getByRole("button", { name: "Retry same message" })).toBeVisible();
+      expect(submitted?.thread_root_message_id).toBe(rootId);
+      expect(committed?.request).toBeNull();
+
+      await closeThread(page);
+      const other = await openThread(page, second.message.id);
+      await expect(other.getByRole("textbox", { name: "Reply to thread" })).toHaveValue("");
+      await expect(other.getByRole("button", { name: "Retry same message" })).toHaveCount(0);
+      await other
+        .getByRole("textbox", { name: "Reply to thread" })
+        .fill("Keep this separate draft");
+      await closeThread(page);
+      await openThread(page, rootId, { replies: 3, pendingRetry: true });
+      const retried = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === path && response.request().method() === "POST",
+      );
+      await threadPanel(page).getByRole("button", { name: "Retry same message" }).click();
+      const response = await retried;
+      expect(response.request().postDataJSON()).toEqual(submitted);
+      const saved = await accepted<RoomMessageResult>(response, "retrying in the original thread");
+      expect(saved.request).toBeNull();
+      expect(saved.message.id).toBe(committed!.message.id);
+      expect(
+        (await readThread(page.request, roomId, rootId)).items.filter(
+          (row) => row.client_message_id === submitted!.client_message_id,
+        ),
+      ).toHaveLength(1);
+      expect((await readThread(page.request, roomId, second.message.id)).total).toBe(0);
+      await closeThread(page);
+      await openThread(page, second.message.id);
+      await expect(threadPanel(page).getByRole("textbox", { name: "Reply to thread" })).toHaveValue(
+        "Keep this separate draft",
+      );
+      await closeThread(page);
+      await openThread(page, rootId, { replies: 3 });
+
+      await expect.poll(network.attachments).toBeGreaterThan(0);
+      const before = network.attachments();
+      await network.disconnect();
+      const missed = await postThread(page, roomId, "Thread post while peer is offline " + roomId);
+      expect(missed.request).toBeNull();
+      await network.reconnect();
+      await expect.poll(network.attachments).toBeGreaterThan(before);
+      await expect(
+        threadPanel(peer).locator('[data-message-id="' + missed.message.id + '"]'),
+      ).toContainText(missed.message.content);
+      await peer.reload();
+      await expect(peer).toHaveURL(new RegExp("[?&]thread=" + rootId + "(&|$)"));
+      await expect(
+        threadPanel(peer).locator('[data-message-id="' + saved.message.id + '"]'),
+      ).toHaveCount(1);
+
+      const history = await readThread(page.request, roomId, rootId);
+      const main = await rowsAt(
+        page.request,
+        "/api/conversations/" + roomId + "/messages?top_level_only=true",
+      );
+      expect(main.map((row) => row.id)).toEqual([first.message.id, second.message.id]);
+      expect(history.items).toHaveLength(4);
+      expect(history.root.thread_reply_count).toBe(4);
+      expect(
+        (
+          await json<{ items: unknown[] }>(
+            page.request,
+            "/api/conversations/" + roomId + "/room-requests",
+          )
+        ).items,
+      ).toHaveLength(0);
+      await closeThread(page);
+      await expect(page.locator('[data-message-id="' + note.message.id + '"]')).toHaveCount(0);
+      await page
+        .locator('[data-message-id="' + rootId + '"]')
+        .getByRole("button", { name: "4 replies", exact: true })
+        .click();
+      await expect(threadPanel(page)).toBeVisible();
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expect(
+        threadPanel(page).getByRole("textbox", { name: "Reply to thread" }),
+      ).toBeInViewport();
+      await closeThread(page);
+      await expect(page.getByRole("textbox", { name: "Message to the team" })).toBeInViewport();
+    } finally {
+      await network.reconnect();
+      await peer.context().close();
+    }
+  });
+
+  test("a thread agent question resumes in its original thread and keeps the main room separate", async ({
+    page,
+    browser,
+    apiFailures,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const roomId = await newRoom(page);
+    await grantThreadProject(page);
+    const root = await postMessage(page, roomId, "Agent thread root " + roomId);
+    const sibling = await postMessage(page, roomId, "Unrelated discussion root " + roomId);
+    const panel = await openThread(page, root.message.id);
+    await panel.getByRole("combobox", { name: "Who should answer" }).click();
+    await page.getByRole("option", { name: "Ask @" + fixture.agentName, exact: true }).click();
+    const question = "Continue this thread request?";
+    const argumentsEncoded = Buffer.from(
+      JSON.stringify({
+        questions: [
+          {
+            question,
+            header: "Thread request",
+            options: [
+              { label: "Continue thread request", description: "Resume this saved thread run." },
+              { label: "Decline", description: "Do not continue." },
+            ],
+            multi_select: false,
+          },
+        ],
+      }),
+    ).toString("base64url");
+    const asked = await postThread(page, roomId, "CALL-TOOL:ask_user_question:" + argumentsEncoded);
+    expect(asked.message.thread_root_message_id).toBe(root.message.id);
+    expect(asked.request).toMatchObject({ thread_root_message_id: root.message.id });
+    const parked = await requestStatus(page.request, roomId, asked.request!.id, "awaiting_answer");
+    await expect(panel.getByText(question, { exact: true })).toBeVisible();
+    const questions = await json<{ tool_call_id: string }[]>(
+      page.request,
+      "/api/runs/" + parked.run_id + "/questions",
+    );
+    expect(questions).toHaveLength(1);
+    const peer = await colleaguePage(browser, apiFailures);
+    try {
+      const refused = await peer.request.post("/api/runs/" + parked.run_id + "/answers", {
+        headers: { "X-Organization-Id": fixture.orgId },
+        data: {
+          responses: {
+            [questions[0]!.tool_call_id]: [
+              { answer: "", selected: ["Continue thread request"], skipped: false },
+            ],
+          },
+        },
+      });
+      expect(refused.status()).toBe(403);
+      await closeThread(page);
+      const other = await openThread(page, sibling.message.id);
+      await expect(other.getByText(question, { exact: true })).toHaveCount(0);
+      await page.goto("/chat?id=" + roomId + "&thread=" + root.message.id);
+      await expect(threadPanel(page).getByText(question, { exact: true })).toBeVisible();
+      await threadPanel(page)
+        .getByRole("button", { name: /Continue thread request/ })
+        .click();
+      const completed = await requestStatus(page.request, roomId, asked.request!.id, "completed");
+      expect(completed).toMatchObject({
+        run_id: parked.run_id,
+        thread_root_message_id: root.message.id,
+        requester_id: asked.message.sender!.user_id,
+      });
+      let history: ThreadSnapshot | undefined;
+      await expect
+        .poll(async () => {
+          history = await readThread(page.request, roomId, root.message.id);
+          return history.items.filter(
+            (row) =>
+              row.role === "assistant" &&
+              row.run_id === completed.run_id &&
+              row.content === fixture.echo,
+          ).length;
+        })
+        .toBe(1);
+      const answer = history!.items.find(
+        (row) =>
+          row.role === "assistant" &&
+          row.run_id === completed.run_id &&
+          row.content === fixture.echo,
+      )!;
+      expect(answer.thread_root_message_id).toBe(root.message.id);
+      await expect(
+        threadPanel(page).locator('[data-message-id="' + answer.id + '"]'),
+      ).toContainText(fixture.echo);
+      const main = await rowsAt(
+        page.request,
+        "/api/conversations/" + roomId + "/messages?top_level_only=true",
+      );
+      expect(main.map((row) => row.id)).toEqual([root.message.id, sibling.message.id]);
+      expect((await readThread(page.request, roomId, sibling.message.id)).total).toBe(0);
+      await peer.goto("/chat?id=" + roomId + "&thread=" + root.message.id);
+      await expect(threadPanel(peer).locator('[data-message-id="' + answer.id + '"]')).toHaveCount(
+        1,
+      );
+      await peer.reload();
+      await expect(
+        threadPanel(peer).locator('[data-message-id="' + answer.id + '"]'),
+      ).toContainText(fixture.echo);
     } finally {
       await peer.context().close();
     }

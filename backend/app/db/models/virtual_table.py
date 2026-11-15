@@ -202,6 +202,9 @@ class VirtualTableRecord(Base, TimestampMixin):
             ondelete="CASCADE",
             name="virtual_table_records_org_table_fkey",
         ),
+        UniqueConstraint(
+            "organization_id", "table_id", "id", name="uq_virtual_table_record_org_table_id"
+        ),
         Index(
             "uq_virtual_table_record_external_id",
             "table_id",

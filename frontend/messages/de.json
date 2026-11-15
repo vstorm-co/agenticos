@@ -4997,6 +4997,28 @@
             "cancelled" : "Abgebrochen",
             "interrupted" : "Unterbrochen"
          }
+      },
+      "roomThread": {
+         "historyAudience": "Gespeicherter Gesprächsverlauf",
+         "readOnly": "Dieser Thread ist schreibgeschützt.",
+         "title": "Thread",
+         "start": "Im Thread antworten",
+         "replies": "{count, plural, one {# Antwort} other {# Antworten}}",
+         "message": "Im Thread antworten",
+         "placeholder": "Hier antworten. Alle im Raum können diesen Thread lesen.",
+         "post": "Antwort senden",
+         "close": "Thread schließen",
+         "earlier": "Frühere Antworten laden",
+         "audience": "Für alle in diesem Raum sichtbar",
+         "root": "Ursprüngliche Nachricht",
+         "loading": "Thread wird geladen…",
+         "unavailable": "Dieser Thread ist nicht verfügbar. Er wurde möglicherweise entfernt oder dein Zugriff auf den Raum hat sich geändert.",
+         "retry": "Erneut versuchen",
+         "empty": "Beginne die Unterhaltung in diesem Thread.",
+         "open": "Thread öffnen",
+         "pending": "Ein Agent wartet in einem Thread auf dich.",
+         "mainPending": "Ein Agent wartet im Hauptraum auf dich.",
+         "main": "Zurück zum Raum"
       }
    },
    "claudeSubscription" : {
@@ -11202,6 +11224,22 @@
          "chat-team-composer" : {
             "title" : "Mit dem Team sprechen und bei Bedarf einen Agent fragen",
             "body" : "Schreibe deinem Team, ohne einen Agent zu starten. Wähle einen Agent ausdrücklich für eine KI-Antwort; die Anfrage kommt in die gemeinsame Warteschlange."
+         },
+         "table-row-access": {
+            "title": "Regeln für den Zeilenzugriff",
+            "body": "Wählen Sie, wer Zeilen lesen darf. Öffnen Sie dann eine Zeile, um einer Person oder Gruppe Lesen oder Schreiben zu geben."
+         },
+         "record-access": {
+            "title": "Diese Zeile teilen",
+            "body": "Schreiben umfasst Lesen und Änderungen an gewöhnlichen Zellen. Es erlaubt weder Löschen noch Zugriffsverwaltung oder Änderungen am Tabellenschema."
+         },
+         "chat-room-thread": {
+            "title": "Eine Nachricht besprechen",
+            "body": "Öffne einen Thread, um Antworten zusammenzuhalten, ohne den Hauptraum zu füllen. Die Anzahl der Antworten führt zurück zur Diskussion; Antworten zitiert weiterhin eine Nachricht."
+         },
+         "chat-room-thread-panel": {
+            "title": "Antworten mit eigenem Kontext",
+            "body": "Die ursprüngliche Nachricht bleibt über den Antworten. Alle im Raum können den Thread lesen. Wähle einen Agenten für Hilfe oder schließe den Thread, um zum Raum zurückzukehren."
          }
       }
    },
@@ -16285,6 +16323,42 @@
          "timeFormat" : "Zeitformat",
          "title" : "Ansichtseinstellungen",
          "wrapText" : "Text umbrechen"
+      },
+      "access": {
+         "read": "Lesen",
+         "write": "Schreiben",
+         "manage": "Zeilenzugriff",
+         "title": "Diese Zeile teilen",
+         "writeHelp": "Schreiben umfasst Lesen und Änderungen an gewöhnlichen Zellen. Es erlaubt weder Löschen noch Zugriffsverwaltung oder Änderungen am Tabellenschema.",
+         "tableRequired": "Personen und Gruppen benötigen auch Zugriff auf diese Tabelle. Eine Zeilenfreigabe teilt keine verknüpften Datensätze und entfernt keinen Zugriff aus Tabellenregeln.",
+         "loading": "Zeilenzugriff wird geladen…",
+         "personOrGroup": "Person oder Gruppe",
+         "chooseSubject": "Person oder Gruppe auswählen",
+         "permission": "Berechtigung",
+         "expiry": "Ablauf (optional)",
+         "expiryHelp": "Leer lassen für eine dauerhafte Personenfreigabe. Gruppenfreigaben laufen standardmäßig nach 90 Tagen ab.",
+         "add": "Freigabe speichern",
+         "grants": "Explizite Zeilenfreigaben",
+         "empty": "Keine expliziten Freigaben. Tabellen- und Zeilenregeln gelten weiterhin.",
+         "expired": "Abgelaufen — Freigabe erneut hinzufügen, um sie zu verlängern.",
+         "expires": "Läuft am {date} ab",
+         "permissionFor": "Berechtigung für {name}",
+         "removeFor": "Zugriff für {name} entfernen",
+         "saved": "Zeilenzugriff aktualisiert",
+         "rowRules": "Regeln für den Zeilenzugriff",
+         "rowRulesHelp": "Wählen Sie, wer Zeilen lesen darf. Öffnen Sie dann eine Zeile, um einer Person oder Gruppe Lesen oder Schreiben zu geben.",
+         "invalidPolicy": "Die Regeln für den Zeilenzugriff sind ungültig. Datensätze bleiben gesperrt, bis ein Tabellenadministrator hier gültige Regeln speichert.",
+         "mode": "Standardzugriff auf Zeilen",
+         "modeAll": "Alle mit Tabellenzugriff",
+         "modeGrants": "Nur Personen mit Zeilenfreigaben",
+         "modeFields": "Personen in Zeilenfeldern",
+         "allHelp": "Wer die Tabelle lesen darf, kann jede Zeile lesen. Tabellenbearbeiter behalten ihre bisherigen Schreibrechte.",
+         "grantsHelp": "Jede Zeile benötigt eine Lese- oder Schreibfreigabe. Der Tabelleneigentümer und Organisationsadministratoren behalten Zugriff. Richten Sie Freigaben vor dem Wechsel ein.",
+         "fieldsHelp": "Das Lesefeld erlaubt die Anzeige; das Schreibfeld erlaubt sie ebenfalls. Eine Zeilenfreigabe zum Schreiben kann Bearbeitung ohne Tabellenverwaltung erlauben. Bestehende Regeln zur Projektmitgliedschaft bleiben erhalten.",
+         "readField": "Lesefeld",
+         "writeField": "Schreibfeld",
+         "chooseField": "Personenfeld auswählen",
+         "saveRules": "Zeilenregeln speichern"
       }
    },
    "teams" : {

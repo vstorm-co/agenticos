@@ -36,7 +36,8 @@ import { ChatEmptyState } from "./chat-empty-state";
 import { ChatRoomBar } from "./chat-room-bar";
 import { TeamRoomHeader, TeamRoomEmpty } from "./team-room-header";
 import { TeamRoomComposer } from "./team-room-composer";
-import { useRoomSync } from "@/hooks/use-room";
+import { RoomThreadPanel } from "./room-thread-panel";
+import { useRoomRequests, useRoomSync } from "@/hooks/use-room";
 import { TypingIndicator } from "./typing-indicator";
 import { useProjectMentions } from "@/hooks/use-project-mentions";
 import type { PageComment } from "./browser-comment";
@@ -174,6 +175,9 @@ interface ChatContainerProps {
   sendDisabled?: boolean;
   /** Keep the welcome screen out of a saved conversation's initial load. */
   requestedConversationId?: string | null;
+  requestedThreadRootId?: string | null;
+  onOpenThread?: (rootId: string) => void;
+  onCloseThread?: () => void;
   /** Sent as soon as the socket is up, once per `id` (#2063). */
   prompt?: ChatPrompt | null;
   /** What an empty conversation shows instead of the generic suggestions. */
@@ -205,6 +209,9 @@ export interface PinnedPrompts {
 
 export function ChatContainer({
   requestedConversationId = null,
+  requestedThreadRootId = null,
+  onOpenThread,
+  onCloseThread,
   prompt = null,
   emptyState,
   agentFixed = false,
@@ -298,6 +305,15 @@ export function ChatContainer({
           sharedConversation?.project_id ??
           null);
   useRoomSync(roomProjectId === null ? null : currentConversationId, rereadConversation);
+  const roomRequests = useRoomRequests(roomProjectId === null ? null : currentConversationId);
+  const canStartThread =
+    roomProjectId !== null &&
+    !isArchived &&
+    access.known &&
+    !roomRequests.isError &&
+    roomRequests.data?.can_post === true;
+  const threadRootId =
+    requestedConversationId === currentConversationId ? requestedThreadRootId : null;
 
   // The one agent a conversation used, when it used exactly one. Recovered from the
   // conversation rather than the message, which is the only source history has left.
@@ -488,7 +504,15 @@ export function ChatContainer({
   }, [currentConversationId, rereadConversation]);
 
   const {
-    messages,
+    messages: rawMessages,
+    activeThreadRootId = null,
+    actionThreadRoots = {
+      approval: null,
+      questions: null,
+      secrets: null,
+      connection: null,
+      computer: null,
+    },
     present,
     typing,
     notifyTyping,
@@ -542,6 +566,11 @@ export function ChatContainer({
     testing,
     pageContext,
   });
+  // Scope before any rendered-list upsert: a thread delta never flashes in the room.
+  const messages = useMemo(
+    () => rawMessages.filter((message) => message.threadRootMessageId === undefined),
+    [rawMessages],
+  );
   // An agent that works on this computer is sent to with the folder this chat or
   // the agent was given; with none, it asks when it needs the files.
   const sendMessage = useLocalAccessGate(sendChatMessage, selectedAgent, {
@@ -550,7 +579,12 @@ export function ChatContainer({
     projectId: openConversation?.project_id,
   });
   useComputerAccessOnUse({
-    pending: readOnly ? null : pendingComputerAccess,
+    pending:
+      readOnly ||
+      actionThreadRoots.computer !== threadRootId ||
+      (actionThreadRoots.computer !== null && roomProjectId === null)
+        ? null
+        : pendingComputerAccess,
     respond: sendComputerAccessResponse,
     agent:
       pendingComputerAccess?.agent_id === undefined
@@ -957,6 +991,13 @@ export function ChatContainer({
       <ChatUI
         roomProjectId={roomProjectId}
         roomReadOnly={isArchived || !access.known}
+        threadRootId={threadRootId}
+        onOpenThread={onOpenThread}
+        onCloseThread={onCloseThread}
+        canStartThread={canStartThread}
+        activeThreadRootId={activeThreadRootId}
+        actionThreadRoots={actionThreadRoots}
+        hasPendingComputerAccess={pendingComputerAccess !== null}
         hasEarlierMessages={hasEarlierMessages}
         isLoadingEarlier={isLoadingEarlier}
         loadEarlierMessages={loadEarlierMessages}
@@ -1071,6 +1112,13 @@ export function ChatContainer({
 interface ChatUIProps {
   roomProjectId: string | null;
   roomReadOnly: boolean;
+  threadRootId: string | null;
+  onOpenThread?: (rootId: string) => void;
+  onCloseThread?: () => void;
+  canStartThread: boolean;
+  activeThreadRootId: string | null;
+  actionThreadRoots: ReturnType<typeof useChat>["actionThreadRoots"];
+  hasPendingComputerAccess: boolean;
   sendDisabled?: boolean;
   hasEarlierMessages: boolean;
   isLoadingEarlier: boolean;
@@ -1209,6 +1257,13 @@ interface ChatUIProps {
 function ChatUI({
   roomProjectId,
   roomReadOnly,
+  threadRootId,
+  onOpenThread,
+  onCloseThread,
+  canStartThread,
+  activeThreadRootId,
+  actionThreadRoots,
+  hasPendingComputerAccess,
   hasEarlierMessages,
   isLoadingEarlier,
   loadEarlierMessages,
@@ -1292,6 +1347,7 @@ function ChatUI({
 }: ChatUIProps) {
   const composerFocusRequest = useConversationStore((state) => state.composerFocusRequest);
   const t = useTranslations("chat");
+  const tThread = useTranslations("chat.roomThread");
   const tDictation = useTranslations("chat.dictation");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
@@ -1561,6 +1617,94 @@ function ChatUI({
       />
     </span>
   );
+
+  const matchesAction = (scope: string | null, root: string | null) => scope === root;
+  const actionsDisabled =
+    (roomProjectId === null ? readOnly : !canStartThread) || !isConnected || isStopping;
+  const otherActions = [
+    ...new Set([
+      ...(pendingApproval ? [actionThreadRoots.approval] : []),
+      ...(pendingQuestions?.length ? [actionThreadRoots.questions] : []),
+      ...(pendingSecretRequests?.length ? [actionThreadRoots.secrets] : []),
+      ...(pendingConnection ? [actionThreadRoots.connection] : []),
+      ...(hasPendingComputerAccess ? [actionThreadRoots.computer] : []),
+    ]),
+  ].filter((root) => root !== threadRootId);
+  const renderActions = (root: string | null, scopeReadOnly = false) => (
+    <>
+      {pendingApproval && onResumeDecisions && matchesAction(actionThreadRoots.approval, root) && (
+        <div className="pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
+          <ToolApprovalDialog
+            actionRequests={pendingApproval.actionRequests}
+            reviewConfigs={pendingApproval.reviewConfigs}
+            onDecisions={onResumeDecisions}
+            mayRemember={mayRememberApproval}
+            disabled={scopeReadOnly || actionsDisabled || (root !== null && roomProjectId === null)}
+          />
+        </div>
+      )}
+      {pendingConnection &&
+        onConnectionResponse &&
+        matchesAction(actionThreadRoots.connection, root) && (
+          <div className="pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
+            <ConnectAccountPrompt
+              request={pendingConnection}
+              disabled={
+                scopeReadOnly || actionsDisabled || (root !== null && roomProjectId === null)
+              }
+              onRespond={onConnectionResponse}
+            />
+          </div>
+        )}
+      {pendingQuestions &&
+        pendingQuestions.length > 0 &&
+        onAnswerQuestions &&
+        matchesAction(actionThreadRoots.questions, root) && (
+          <div className="pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
+            <QuestionPrompt
+              questions={pendingQuestions}
+              disabled={
+                scopeReadOnly || actionsDisabled || (root !== null && roomProjectId === null)
+              }
+              onComplete={onAnswerQuestions}
+            />
+          </div>
+        )}
+      {pendingSecretRequests &&
+        matchesAction(actionThreadRoots.secrets, root) &&
+        pendingSecretRequests.length > 0 &&
+        onSubmitSecretRequest &&
+        onDeclineSecretRequest && (
+          <div className="pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
+            <SecretRequestCard
+              requests={pendingSecretRequests}
+              disabled={
+                scopeReadOnly || actionsDisabled || (root !== null && roomProjectId === null)
+              }
+              onSubmit={onSubmitSecretRequest}
+              onDecline={onDeclineSecretRequest}
+            />
+          </div>
+        )}
+    </>
+  );
+  const threadNotices =
+    roomProjectId !== null && otherActions.length > 0 ? (
+      <div className="pointer-events-auto mx-auto max-w-4xl space-y-2 px-4 pb-2 text-xs sm:px-6">
+        {otherActions.map((root) => (
+          <button
+            key={root ?? "main"}
+            type="button"
+            aria-label={root === null ? tThread("main") : tThread("open")}
+            className="text-primary block underline underline-offset-2"
+            onClick={() => (root === null ? onCloseThread?.() : onOpenThread?.(root))}
+          >
+            {root === null ? tThread("mainPending") : tThread("pending")}{" "}
+            {root === null ? tThread("main") : tThread("open")}
+          </button>
+        ))}
+      </div>
+    ) : null;
   const showWorkspaceHome =
     !compact &&
     roomProjectId === null &&
@@ -1582,6 +1726,7 @@ function ChatUI({
           className={cn(
             "@container/chat relative flex h-full min-h-0 min-w-0 flex-1 flex-col",
             showWorkspaceHome && "chat-home-column justify-center-safe overflow-y-auto",
+            threadRootId !== null && "max-lg:invisible",
           )}
         >
           {!compact && <TurnRail entries={railEntries} />}
@@ -1675,6 +1820,9 @@ function ChatUI({
                       onFork={onFork}
                       forkingMessageId={forkingMessageId}
                       pins={pins}
+                      onOpenThread={onOpenThread}
+                      canStartThread={canStartThread}
+                      allowReply={roomProjectId === null || canStartThread}
                     />
                   </ConversationVisualsProvider>
                 </LiveBrowsesProvider>
@@ -1683,7 +1831,9 @@ function ChatUI({
                 conversation happening inside one turn of this one, and it can still be
                 streaming when the turn it belongs to has already answered. */}
               <DelegationPanels
-                delegations={delegations}
+                delegations={
+                  roomProjectId !== null && activeThreadRootId !== null ? [] : delegations
+                }
                 agents={knownAgents}
                 parent={knownAgents.find((agent) => agent.id === delegatingAgentId)}
                 settled={!isProcessing}
@@ -1778,53 +1928,13 @@ function ChatUI({
                 className="pointer-events-auto mx-auto max-h-40 w-full max-w-4xl min-w-0 overflow-y-auto overscroll-contain px-4 pb-2 sm:px-6"
               />
             )}
-            {personalGaps.length > 0 && (
+            {personalGaps.length > 0 && (roomProjectId === null || activeThreadRootId === null) && (
               <div className="chat-composer-suggestions pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
                 <ConnectServicesCard gaps={personalGaps} />
               </div>
             )}
-            {pendingApproval && onResumeDecisions && (
-              <div className="pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
-                <ToolApprovalDialog
-                  actionRequests={pendingApproval.actionRequests}
-                  reviewConfigs={pendingApproval.reviewConfigs}
-                  onDecisions={onResumeDecisions}
-                  mayRemember={mayRememberApproval}
-                  disabled={readOnly || !isConnected || isStopping}
-                />
-              </div>
-            )}
-            {pendingConnection && onConnectionResponse && (
-              <div className="pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
-                <ConnectAccountPrompt
-                  request={pendingConnection}
-                  disabled={readOnly || !isConnected || isStopping}
-                  onRespond={onConnectionResponse}
-                />
-              </div>
-            )}
-            {pendingQuestions && pendingQuestions.length > 0 && onAnswerQuestions && (
-              <div className="pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
-                <QuestionPrompt
-                  questions={pendingQuestions}
-                  disabled={readOnly || !isConnected || isStopping}
-                  onComplete={onAnswerQuestions}
-                />
-              </div>
-            )}
-            {pendingSecretRequests &&
-              pendingSecretRequests.length > 0 &&
-              onSubmitSecretRequest &&
-              onDeclineSecretRequest && (
-                <div className="pointer-events-auto mx-auto w-full max-w-4xl min-w-0 px-4 pb-2 sm:px-6">
-                  <SecretRequestCard
-                    requests={pendingSecretRequests}
-                    disabled={readOnly || !isConnected || isStopping}
-                    onSubmit={onSubmitSecretRequest}
-                    onDecline={onDeclineSecretRequest}
-                  />
-                </div>
-              )}
+            {renderActions(null)}
+            {threadRootId === null && threadNotices}
             <div
               className={cn(
                 "pointer-events-auto mx-auto w-full min-w-0",
@@ -1862,7 +1972,10 @@ function ChatUI({
                 over the next several: as a step it scrolls away under the work it
                 describes, and what somebody wants is where the agent is now. */}
               <BackgroundTasks conversationId={conversationId} />
-              <PlanStrip plan={plan} live={isProcessing} />
+              <PlanStrip
+                plan={plan}
+                live={isProcessing && (roomProjectId === null || activeThreadRootId === null)}
+              />
               {/* Right over the box the reply is written in, where a messenger says it. */}
               <TypingIndicator people={typing} />
               {/* What is attached, above the composer rather than inside it. The
@@ -2150,6 +2263,24 @@ function ChatUI({
           permanent third column took space from every conversation including the
           ones where the agent keeps nothing. Hidden on a narrow screen, where there
           is no room for it. */}
+      {conversationId !== null && threadRootId !== null && onCloseThread && (
+        <RoomThreadPanel
+          key={`${activeOrgId}:${authUser?.id}:${conversationId}:${threadRootId}`}
+          conversationId={conversationId}
+          projectId={roomProjectId}
+          rootId={threadRootId}
+          readOnly={roomProjectId === null || roomReadOnly}
+          onClose={onCloseThread}
+          onTyping={onTyping}
+          actions={(scopeReadOnly) => (
+            <>
+              {renderActions(threadRootId, scopeReadOnly)}
+              {threadNotices}
+            </>
+          )}
+          isProcessing={isProcessing && activeThreadRootId === threadRootId}
+        />
+      )}
       <SourcesPanel contained={compact} conversationId={conversationId} />
       <div className="hidden h-full min-h-0 shrink-0 lg:block">
         <WorkspaceFiles

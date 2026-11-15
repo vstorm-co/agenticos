@@ -84,4 +84,61 @@ describe("useTableViewStore", () => {
 
     expect(useTableViewStore.getState().conflicts).toEqual({});
   });
+
+  it("a successful queued delta clears only its own targets and preserves earlier unapplied intent", () => {
+    const store = useTableViewStore.getState();
+    store.setConflict({
+      recordId: "r1",
+      fieldId: "links",
+      pendingValues: { links: ["a", "b"] },
+      pendingLinkChanges: { links: { add: ["a", "b"], remove: ["old"] } },
+    });
+    store.clearConflict("r1", "links", {
+      change: { add: ["b", "c"], remove: [] },
+      value: ["old", "b", "c", "concurrent"],
+    });
+    expect(useTableViewStore.getState().conflicts.r1?.links).toMatchObject({
+      pendingLinkChanges: { links: { add: ["a"], remove: ["old"] } },
+      pendingValues: { links: ["b", "c", "concurrent", "a"] },
+    });
+    store.clearConflict("r1", "links", {
+      change: { add: ["a"], remove: [] },
+      value: null,
+    });
+    expect(useTableViewStore.getState().conflicts.r1?.links).toMatchObject({
+      pendingLinkChanges: { links: { add: [], remove: ["old"] } },
+      pendingValues: { links: [] },
+    });
+    store.clearConflict("r1", "links", { change: { add: [], remove: ["old"] }, value: [] });
+    expect(useTableViewStore.getState().conflicts.r1).toBeUndefined();
+  });
+
+  it("preserves successive link choices and their visible preview on the same conflicted field", () => {
+    const store = useTableViewStore.getState();
+    store.setConflict({
+      recordId: "r1",
+      fieldId: "links",
+      pendingValues: { links: ["kept", "a"] },
+      pendingLinkChanges: { links: { add: ["a"], remove: ["b"] } },
+    });
+    store.setConflict({
+      recordId: "r1",
+      fieldId: "links",
+      pendingValues: { links: ["kept", "c"] },
+      pendingLinkChanges: { links: { add: ["c"], remove: ["a"] } },
+    });
+    store.setConflict({
+      recordId: "r1",
+      fieldId: "links",
+      pendingValues: { links: ["kept", "a"] },
+      pendingLinkChanges: { links: { add: ["a"], remove: [] } },
+    });
+
+    expect(useTableViewStore.getState().conflicts.r1?.links).toMatchObject({
+      pendingValues: { links: ["kept", "c", "a"] },
+      pendingLinkChanges: { links: { add: ["c", "a"], remove: ["b"] } },
+    });
+    store.clearConflict("r1", "links");
+    expect(useTableViewStore.getState().conflicts.r1).toBeUndefined();
+  });
 });

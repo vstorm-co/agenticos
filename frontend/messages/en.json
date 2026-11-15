@@ -5015,6 +5015,28 @@
             "cancelled" : "Cancelled",
             "interrupted" : "Interrupted"
          }
+      },
+      "roomThread": {
+         "historyAudience": "Saved conversation history",
+         "readOnly": "This thread is read-only.",
+         "title": "Thread",
+         "start": "Reply in thread",
+         "replies": "{count, plural, one {# reply} other {# replies}}",
+         "message": "Reply to thread",
+         "placeholder": "Reply here. Everyone in the room can read this thread.",
+         "post": "Post reply",
+         "close": "Close thread",
+         "earlier": "Load earlier replies",
+         "audience": "Visible to everyone in this room",
+         "root": "Original message",
+         "loading": "Loading thread…",
+         "unavailable": "This thread is unavailable. It may have been removed, or your room access may have changed.",
+         "retry": "Try again",
+         "empty": "Start the conversation in this thread.",
+         "open": "Open thread",
+         "pending": "An agent is waiting for you in a thread.",
+         "mainPending": "An agent is waiting for you in the main room.",
+         "main": "Back to room"
       }
    },
    "claudeSubscription" : {
@@ -11670,6 +11692,22 @@
          "chat-team-composer" : {
             "title" : "Talk first, ask an agent when needed",
             "body" : "Post to your teammates without starting an agent. Choose an agent explicitly for an AI answer; its request joins the shared queue."
+         },
+         "table-row-access": {
+            "title": "Row access rules",
+            "body": "Choose who can read rows, then open a row to give a person or group Read or Write."
+         },
+         "record-access": {
+            "title": "Share this row",
+            "body": "Write includes Read and changes to ordinary cells. It does not allow deletion, access management, or table schema changes."
+         },
+         "chat-room-thread": {
+            "title": "Discuss one message",
+            "body": "Open a thread to keep replies together without filling the main room. The reply count takes you back to the discussion; Reply still quotes a message."
+         },
+         "chat-room-thread-panel": {
+            "title": "Replies with their own context",
+            "body": "The original message stays above the replies. Everyone in the room can read the thread. Choose an agent when you want help here, or close the thread to return to the room."
          }
       }
    },
@@ -16812,6 +16850,42 @@
          "timeFormat" : "Time format",
          "title" : "View settings",
          "wrapText" : "Wrap text"
+      },
+      "access": {
+         "read": "Read",
+         "write": "Write",
+         "manage": "Row access",
+         "title": "Share this row",
+         "writeHelp": "Write includes Read and changes to ordinary cells. It does not allow deletion, access management, or table schema changes.",
+         "tableRequired": "People and groups also need access to this table. A row grant does not share linked records or remove access already provided by table rules.",
+         "loading": "Loading row access…",
+         "personOrGroup": "Person or group",
+         "chooseSubject": "Choose a person or group",
+         "permission": "Permission",
+         "expiry": "Expires (optional)",
+         "expiryHelp": "Leave blank for a permanent person grant. Group grants expire after 90 days by default.",
+         "add": "Save grant",
+         "grants": "Explicit row grants",
+         "empty": "No explicit grants. Table and row rules still apply.",
+         "expired": "Expired — add the grant again to renew it.",
+         "expires": "Expires {date}",
+         "permissionFor": "Permission for {name}",
+         "removeFor": "Remove access for {name}",
+         "saved": "Row access updated",
+         "rowRules": "Row access rules",
+         "rowRulesHelp": "Choose who can read rows, then open a row to give a person or group Read or Write.",
+         "invalidPolicy": "The row access rules are invalid. Records are blocked until a table administrator saves valid rules here.",
+         "mode": "Default row access",
+         "modeAll": "Everyone with table access",
+         "modeGrants": "Only people with row grants",
+         "modeFields": "People named in row fields",
+         "allHelp": "Anyone who can read the table can read every row. Table editors retain their existing write permissions.",
+         "grantsHelp": "Each row needs a Read or Write grant. The table owner and organization administrators retain access. Set up grants before switching to this mode.",
+         "fieldsHelp": "The Read field allows viewing; the Write field also allows viewing. A row Write grant can allow editing without table administration. Existing project membership rules are preserved.",
+         "readField": "Read field",
+         "writeField": "Write field",
+         "chooseField": "Choose a people field",
+         "saveRules": "Save row rules"
       }
    },
    "teams" : {
