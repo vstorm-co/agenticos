@@ -1,5 +1,5 @@
 ---
-source_sha: "cd236f0fa9fc"
+source_sha: "3c45bb832299"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -829,9 +829,15 @@ predeterminado:
 El propietario de la tabla, los roles Owner/Admin de la organización y el administrador
 del despliegue conservan su excepción a la política. Siguen sujetos al acceso a la tabla
 y a los límites de la clave API. En modo `grants`, configure los grants antes de cambiar
-a los usuarios existentes. Crear una fila sigue requiriendo administración de la tabla.
-Si el editor de la tabla no pudiera ver la nueva fila, el servicio rechazará la solicitud
-con 403: `You do not have permission to write this row`. Los tableros de tareas administrados
+a los usuarios existentes.
+
+Crear una fila sigue requiriendo administración de la tabla. En modo `grants`, una creación
+directa que ocultaría la fila a su editor devuelve 403:
+`You do not have permission to write this row`. La creación por lotes informa
+`AUTHORIZATION_ERROR` para esa fila. Upsert devuelve el mismo 404 para un ID externo
+existente pero oculto y para una creación no permitida, sin revelar si ese ID existe.
+
+Los tableros de tareas administrados
 conservan sus propias reglas y no ofrecen estos controles.
 
 Abra una fila y elija **Row access** para añadir una persona o grupo, seleccionar Read

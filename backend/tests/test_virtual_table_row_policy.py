@@ -861,6 +861,7 @@ async def test_a_create_assigned_to_someone_else_is_refused(ops, monkeypatch):
     assert written.created is True
 
 
+@pytest.mark.security
 async def test_a_table_editor_without_a_row_grant_cannot_create_in_grants_mode(ops):
     service, ctx, table = ops
     table.row_policy = {"rule": "grants"}
@@ -873,6 +874,7 @@ async def test_a_table_editor_without_a_row_grant_cannot_create_in_grants_mode(o
     assert refused.value.details == {"table_id": table.id}
 
 
+@pytest.mark.security
 async def test_a_grants_mode_batch_reports_the_table_editor_refusal(ops, monkeypatch):
     service, ctx, table = ops
     table.row_policy = {"rule": "grants"}
@@ -967,6 +969,7 @@ async def test_an_update_that_changes_nothing_on_a_visible_row_returns_it(ops, m
     assert written.created is False
 
 
+@pytest.mark.security
 async def test_an_upsert_refuses_both_branches_outside_visibility(ops, monkeypatch):
     service, ctx, table = ops
     table.row_policy = {"rule": "grants"}
