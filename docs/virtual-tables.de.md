@@ -843,8 +843,9 @@ den Standard fest:
 Tabelleneigentümer, die Organisationsrollen Owner/Admin und der Deployment-Administrator
 behalten ihre Policy-Ausnahme. Tabellenzugriff und API-Key-Grenzen gelten weiterhin.
 Richten Sie im Modus `grants` Freigaben ein, bevor Sie bestehende Benutzer umstellen.
-Neue Zeilen benötigen weiterhin Tabellenverwaltung und müssen ihrem Ersteller sichtbar
-sein. Verwaltete Aufgabenboards behalten ihre eigenen Zugriffsregeln und bieten diese
+Neue Zeilen benötigen weiterhin Tabellenverwaltung. Wenn ein Tabellenbearbeiter die neue
+Zeile nicht sehen könnte, wird die Anfrage mit 403 abgelehnt: `You do not have permission to write this row`.
+Verwaltete Aufgabenboards behalten ihre eigenen Zugriffsregeln und bieten diese
 Zeilenfreigaben nicht an.
 
 Öffnen Sie eine Zeile und wählen Sie **Zeilenzugriff (Row access)**, um Personen oder
