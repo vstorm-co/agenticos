@@ -1,6 +1,7 @@
 "use client";
 
 import { Check } from "lucide-react";
+import { useId } from "react";
 import { useTranslations } from "next-intl";
 import { hasKey, runsAgents, usableForAgents } from "@/lib/model-profiles";
 import type { ModelProfile } from "@/types/providers";
@@ -17,6 +18,10 @@ export function ChatModelOptions({
   onChange: (profileId: string) => void;
 }) {
   const t = useTranslations("chat.modelSelector");
+  const descriptionId = useId();
+  const tabStop =
+    profiles.find((profile) => profile.id === value && usableForAgents(profile))?.id ??
+    profiles.find(usableForAgents)?.id;
   return (
     <div
       role="radiogroup"
@@ -47,6 +52,10 @@ export function ChatModelOptions({
           role="radio"
           aria-checked={profile.id === value}
           aria-label={profile.label}
+          aria-describedby={
+            !usableForAgents(profile) ? `${descriptionId}-${profile.id}` : undefined
+          }
+          tabIndex={profile.id === tabStop ? 0 : -1}
           disabled={!usableForAgents(profile)}
           onClick={() => onChange(profile.id)}
           className="hover:bg-accent disabled:text-muted-foreground flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left disabled:cursor-not-allowed disabled:opacity-60"
@@ -64,12 +73,14 @@ export function ChatModelOptions({
                 {profile.base_url}
               </span>
             )}
-            {!hasKey(profile) && (
-              <span className="text-destructive block text-[11px]">{t("missingKey")}</span>
-            )}
-            {!runsAgents(profile) && (
-              <span className="text-destructive block text-[11px]">{t("notChatModel")}</span>
-            )}
+            <span id={`${descriptionId}-${profile.id}`}>
+              {!hasKey(profile) && (
+                <span className="text-destructive block text-[11px]">{t("missingKey")}</span>
+              )}
+              {!runsAgents(profile) && (
+                <span className="text-destructive block text-[11px]">{t("notChatModel")}</span>
+              )}
+            </span>
           </span>
           {profile.id === value && <Check aria-hidden className="size-4 shrink-0" />}
         </button>

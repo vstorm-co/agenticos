@@ -75,7 +75,7 @@ export function ChatModelSelector({ agentModel, readOnly, isProcessing, onChange
         <button
           type="button"
           data-tour="chat-model-selector"
-          aria-label={t("choose", { model: label })}
+          aria-label={t(unavailable ? "chooseUnavailable" : "choose", { model: label })}
           title={current?.label ?? label}
           onKeyDown={(event) => {
             if (event.key === "ArrowDown") {

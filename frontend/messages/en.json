@@ -4147,6 +4147,7 @@
       },
       "modelSelector" : {
          "choose" : "Choose chat model: {model}",
+         "chooseUnavailable" : "Choose chat model: {model} (unavailable)",
          "title" : "Chat model",
          "default" : "Default",
          "override" : "Override",
