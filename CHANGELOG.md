@@ -25,6 +25,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Focus the Me dashboard on personal conversations, projects, agents and work; leave evaluation and authoring queues in the organization catalog. Count personal Inbox proposals and tool approvals as waiting.
+
 - Restore horizontal settings tabs and start the personal dashboard with its period summary, followed by a compact Briefing.
 
 - Move optional field guidance into contextual help, simplify notification and account panels, and use consistent navigation icons. Prioritize conversation titles and keep compact chat filters within phone viewports.

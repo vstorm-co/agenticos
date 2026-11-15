@@ -130,26 +130,12 @@ may open. Everybody opens on **Me**:
 
 | View             | Answers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Me**           | A greeting, your period and everything waiting on you, in two sentences - calls, answers to review, failing suites, the assistant's suggestions; your runs, how many finished, what is waiting on you (counted the same way) and what it cost; then the calls waiting on you, your conversations, the agents that need attention, the improvements waiting for you, your agents, what was shared with you, your [datasets](datasets.md) with what their cases test against, the latest eval runs and suites, the assistant's suggestions by agent, skill and file, and knowledge gaps |
+| **Me** | Your period, decisions and Inbox proposals; recent conversations, background work, projects, your agents, agents you use most, shared resources and recent visuals. Quality-management and evaluation cards stay in the organization catalog. |
 | **Organization** | The arrangeable page below                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | **Group**        | One [group](departments.md)'s members - their runs, spend, models, when they work and who uses it most. Choose the group beside the switch. A group whose members ran nothing in the period says so once, with a way to the group, rather than showing a page of empty cards                                                                                                                                                                                                                                                                                   |
 | **Deployment**   | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
-On **Me**, **Agents that need attention** lists the agents you may see with
-answers rated down, failed runs or a failing eval suite in the period - counts
-only, never what was said - with **Improve** on those you may edit. The Agents
-gallery marks the same agents over the last thirty days with a **Needs
-attention** badge that says why on hover. Answers and runs count only on the
-version each agent serves now in its default environment: publishing a fix
-clears the signal until the new version earns its own. Both need `runs:view`.
-
-Below it, **Improvements waiting for you** lists the [Improve](authoring.md#the-improve-wizard)
-sessions stopped for your next step or decision, each opening at its stop, and the
-[checks of a skill change](skills.md#when-an-agent-got-worse) you can decide that
-still run or wait for a decision. After them come the skill changes agents
-proposed, then the pinned agents and the forks that main has
-[moved past](skills.md#which-version-an-agent-reads). A fork is caught up from
-there, and a pinned agent is moved on its skill's page.
+Quality-management cards, including **Agents that need attention** and **Improvements waiting for you**, remain available in the organization view through **Customize**. Their decisions, permissions and links to the agent improvement flows are unchanged. Personal waiting counts include only the reader’s tool approvals and open Inbox proposals.
 
 The organization's view shows the cards that answer with data, grouped into
 bands. The rest - integrations, channels, routines, knowledge sync, departments,

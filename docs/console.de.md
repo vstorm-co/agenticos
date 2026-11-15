@@ -1,5 +1,5 @@
 ---
-source_sha: "00bf011263fe"
+source_sha: "342a26cf455f"
 ---
 
 # Die Konsole { #the-console }
@@ -139,31 +139,12 @@ an, die Sie öffnen dürfen. Alle starten in der Ansicht **Ich**:
 
 | Ansicht | Beantwortet |
 | --- | --- |
-| **Ich** | Eine Begrüßung, Ihr Zeitraum und alles, was auf Sie wartet, in zwei Sätzen - Aufrufe, Antworten zur Prüfung, durchgefallene Suites, Vorschläge des Assistenten; Ihre Runs, wie viele fertig wurden, was auf Sie wartet (gleich gezählt) und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, die Agents, die Aufmerksamkeit brauchen, die Verbesserungen, die auf Sie warten, Ihre Agents, was mit Ihnen geteilt wurde, Ihre [Datasets](datasets.md) mit dem, woran ihre Fälle die Antwort messen, die neuesten Eval-Runs und Suites, die Vorschläge des Assistenten nach Agent, Skill und Datei und die Wissenslücken |
-| **Ich** | Eine Begrüßung und Ihr Zeitraum in einem Satz; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, Ihre Agents und was mit Ihnen geteilt wurde |
+| **Ich** | Ihr Zeitraum, Entscheidungen und persönliche Inbox-Vorschläge; letzte Unterhaltungen, Hintergrundarbeit, Projekte, eigene und häufig verwendete Agents, geteilte Ressourcen und letzte Visualisierungen. Qualitäts- und Evaluationskarten bleiben im Organisationskatalog. |
 | **Organisation** | Die anordenbare Seite unten |
 | **Gruppe** | Die Mitglieder einer [Gruppe](departments.md) - ihre Runs, Ausgaben, Modelle, wann sie arbeiten und wer es am meisten nutzt. Die Gruppe wählen Sie neben dem Schalter. Eine Gruppe, deren Mitglieder im Zeitraum nichts ausgeführt haben, sagt das einmal, mit einem Weg zur Gruppe, statt eine Seite leerer Karten zu zeigen |
 | **Deployment** | Nur für einen [Deployment-Admin](permissions.md) — Plattformsummen, Health, aktivste Tenants, Bewertungen |
 
-In **Ich** listet **Agents, die Aufmerksamkeit brauchen** die Agents, die Sie
-sehen dürfen, mit negativ bewerteten Antworten, fehlgeschlagenen Runs oder einer
-durchgefallenen Eval-Suite im Zeitraum - nur Zahlen, nie das Gesagte - mit
-**Verbessern** bei denen, die Sie bearbeiten dürfen. Die Agent-Galerie markiert
-dieselben Agents der letzten dreißig Tage mit dem Abzeichen **Braucht
-Aufmerksamkeit**, das beim Überfahren sagt, warum. Antworten und Runs zählen
-nur für die Version, die der Agent jetzt in seiner Standardumgebung ausliefert:
-Das Veröffentlichen einer Korrektur löscht das Signal, bis die neue Version
-eigene sammelt. Beides erfordert `runs:view`.
-
-Darunter listet **Verbesserungen, die auf Sie warten** die
-[Verbessern](authoring.md#the-improve-wizard)-Sitzungen, die für Ihren nächsten
-Schritt oder Ihre Entscheidung angehalten haben, jede an ihrem Halt geöffnet, und
-die [Prüfungen einer Skill-Änderung](skills.md#when-an-agent-got-worse), über die
-Sie entscheiden können und die noch laufen oder auf eine Entscheidung warten.
-Danach folgen die von Agents vorgeschlagenen Skill-Änderungen, dann die
-festgesetzten Agents und die Forks, an denen main
-[vorbeigezogen ist](skills.md#which-version-an-agent-reads). Ein Fork wird von
-dort nachgezogen, ein festgesetzter Agent auf der Seite seines Skills verschoben.
+Qualitätskarten wie **Agents, die Aufmerksamkeit brauchen** und **Verbesserungen, die auf Sie warten**, bleiben in der Organisationsansicht unter **Customize** verfügbar. Entscheidungen, Berechtigungen und Links zur Agent-Verbesserung bleiben erhalten. Persönliche Wartezahlen umfassen nur eigene Werkzeugfreigaben und offene Inbox-Vorschläge.
 
 Die Ansicht der Organisation zeigt die Karten, die mit Daten antworten, in
 Gruppen. Der Rest - Integrationen, Kanäle, Routinen, Wissens-Sync, Abteilungen,

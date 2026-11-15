@@ -1,5 +1,5 @@
 ---
-source_sha: "00bf011263fe"
+source_sha: "342a26cf455f"
 ---
 
 # Konsola { #the-console }
@@ -137,28 +137,12 @@ możesz otworzyć. Każdy zaczyna od widoku **Ja**:
 
 | Widok | Odpowiada na |
 | --- | --- |
-| **Ja** | Powitanie, Twój okres i wszystko, co na Ciebie czeka, w dwóch zdaniach - wywołania, odpowiedzi do przeglądu, oblane suity, sugestie asystenta; Twoje runy, ile się skończyło, co na Ciebie czeka (liczone tak samo) i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, agenci wymagający uwagi, poprawki czekające na Ciebie, Twoi agenci, co Ci udostępniono, Twoje [datasety](datasets.md) z tym, z czym porównują odpowiedź ich przypadki, ostatnie runy i suity ewaluacji, sugestie asystenta według agenta, skilla i pliku oraz luki w wiedzy |
-| **Ja** | Powitanie i Twój okres w jednym zdaniu; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, Twoi agenci i co Ci udostępniono |
+| **Ja** | Twój okres, decyzje i propozycje z Inbox; ostatnie rozmowy, praca w tle, projekty, Twoi agenci, najczęściej używani agenci, udostępnione zasoby i ostatnie wizualizacje. Karty jakości i ewaluacji pozostają w katalogu organizacji. |
 | **Organizacja** | Układalna strona opisana niżej |
 | **Grupa** | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika. Grupa, której członkowie nic nie uruchomili w okresie, mówi to raz, z przejściem do grupy, zamiast strony pustych kart |
 | **Wdrożenie** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |
 
-Na widoku **Ja** karta **Agenci wymagający uwagi** wymienia agentów, których
-widzisz, z odpowiedziami ocenionymi w dół, nieudanymi runami albo oblaną suitą
-ewaluacji w tym okresie - same liczby, nigdy treść - z przyciskiem **Ulepsz**
-przy tych, które możesz edytować. Galeria agentów oznacza tych samych agentów z
-ostatnich trzydziestu dni znaczkiem **Wymaga uwagi**, który po najechaniu mówi
-dlaczego. Odpowiedzi i runy liczą się tylko dla wersji, którą agent serwuje
-teraz w domyślnym środowisku: opublikowanie poprawki czyści sygnał, dopóki nowa
-wersja nie zbierze własnych. Oba wymagają `runs:view`.
-
-Pod nią karta **Poprawki czekające na Ciebie** wymienia sesje [Ulepsz](authoring.md#the-improve-wizard)
-zatrzymane na Twój następny krok albo decyzję, każdą otwierając na jej postoju, oraz
-[sprawdzenia zmian skilli](skills.md#when-an-agent-got-worse), o których możesz
-zdecydować, a które trwają albo czekają na decyzję. Po nich są zmiany skilli
-zaproponowane przez agentów, a potem przypięci agenci i forki, które main
-[wyprzedził](skills.md#which-version-an-agent-reads). Fork dogania się stamtąd,
-a przypiętego agenta przenosi się na stronie jego skilla.
+Karty jakości, w tym **Agenci wymagający uwagi** i **Poprawki czekające na Ciebie**, pozostają w katalogu widoku organizacji pod **Customize**. Decyzje, uprawnienia i linki do ulepszania agentów działają tak samo. Osobisty licznik oczekujących spraw obejmuje tylko zgody na narzędzia użytkownika i jego otwarte propozycje Inbox.
 
 Widok organizacji pokazuje karty, które odpowiadają danymi, pogrupowane w pasy.
 Reszta - integracje, kanały, rutyny, synchronizacja wiedzy, działy, członkowie,
