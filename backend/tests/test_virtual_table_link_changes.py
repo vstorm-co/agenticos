@@ -185,10 +185,15 @@ async def test_row_write_allows_ordinary_edits_but_not_access_link_deltas(
 @pytest.mark.security
 @pytest.mark.parametrize("operation", ["add", "remove"])
 @pytest.mark.parametrize("target", [HIDDEN, UUID("00000000-0000-4000-8000-000000000099")])
+@pytest.mark.parametrize("at_limit", [False, True])
 async def test_hidden_and_missing_explicit_targets_are_refused_identically(
-    linked, operation, target
+    linked, operation, target, at_limit
 ):
     state = linked
+    if at_limit:
+        state.row.values[str(LINK)] = [str(HIDDEN), str(VISIBLE)] + [
+            str(uuid4()) for _ in range(98)
+        ]
     with pytest.raises(InvalidRecordError) as refused:
         await state.service._apply(
             state.ctx,

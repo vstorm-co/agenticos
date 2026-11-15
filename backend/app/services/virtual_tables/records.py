@@ -1964,8 +1964,9 @@ class RecordOperations(Operations):
         before = dict(record.values)
         merged = _merge(columns, values, before)
         if link_changes:
-            merged = _merge(columns, _link_delta_values(columns, before, link_changes), merged)
             # Validate only the explicitly named targets, including removals and no-ops.
+            # Do this before applying deltas: a full cell must not distinguish an
+            # already-linked hidden ID from an unknown ID through its limit error.
             # Internally retained links may be invisible to this writer.
             await self._check_links(
                 ctx,
@@ -1977,6 +1978,7 @@ class RecordOperations(Operations):
                 },
                 field_prefix="link_changes",
             )
+            merged = _merge(columns, _link_delta_values(columns, before, link_changes), merged)
         merged = await normalize_task_cells(self.db, ctx.organization_id, table.id, merged)
         await self._preserve_unreadable_links(ctx, columns, values, before, merged)
         await require_access_fields(self.db, ctx, table, columns, before, merged)
