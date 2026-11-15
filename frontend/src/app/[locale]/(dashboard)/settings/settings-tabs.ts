@@ -1,7 +1,6 @@
 import {
   AppWindow,
   Bell,
-  Bot,
   Brain,
   Globe,
   Keyboard,
@@ -45,7 +44,7 @@ export const SETTINGS_TABS: readonly PageTab[] = [
     labelKey: "account",
     href: ROUTES.SETTINGS_ACCOUNT,
     icon: Shield,
-    matchHrefs: [ROUTES.SETTINGS_MOBILE],
+    matchHrefs: [ROUTES.SETTINGS_MOBILE, ROUTES.SETTINGS_ASSISTANT],
   },
   { labelKey: "slashCommands", href: ROUTES.SETTINGS_SLASH_COMMANDS, icon: Slash },
   { labelKey: "memory", href: ROUTES.SETTINGS_MEMORY, icon: Brain },
@@ -57,7 +56,6 @@ export const SETTINGS_TABS: readonly PageTab[] = [
     icon: KeyRound,
     matchHrefs: [ROUTES.SETTINGS_MCP],
   },
-  { labelKey: "assistant", href: ROUTES.SETTINGS_ASSISTANT, icon: Bot },
   // The desktop app's own settings, last and only inside the app: a browser has
   // no blobby, no window and no global shortcut to configure.
   { labelKey: "blobby", href: ROUTES.SETTINGS_BLOBBY, icon: Smile, shellOnly: true },

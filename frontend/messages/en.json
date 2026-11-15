@@ -13010,18 +13010,15 @@
     "defaultName": "Architect"
   },
   "assistantSettings": {
-    "notForYou": "Your role doesn't include running agents, so the assistant isn't available to you. An administrator can change that.",
     "yours": "Your tips",
     "yoursDescription": "The speech bubbles the assistant shows you around the console. This browser remembers them.",
     "showTips": "Show tips in speech bubbles",
     "unsilence": "{count, plural, =1 {Show tips again on the 1 page I silenced} other {Show tips again on the # pages I silenced}}",
     "organization": "For the organization",
-    "organizationDescription": "The AI Architect is an agent like any other: change its name, model and knowledge in the Agent Builder. Switching it off and its greeting are on the organization's page.",
     "openBuilder": "Open in Agent Builder",
-    "openOrganization": "Organization settings",
     "suggestions": {
       "title": "Automatic suggestions",
-      "description": "Control whether AgenticOS sends you proactive suggestions in Inbox and briefing. This page shows their history and lets you restore dismissed suggestions. It does not configure replies in your conversations.",
+      "description": "Choose whether AgenticOS prepares automatic suggestions for you. Review suggestions and restore dismissed items in Inbox.",
       "forMe": "Nightly suggestions for me",
       "orgOff": "Your organization has nightly suggestions off, so none are made yet.",
       "turnedOn": "Nightly suggestions are on for you",
@@ -13033,8 +13030,7 @@
         "open": "Waiting",
         "accepted": "Taken",
         "dismissed": "Declined"
-      },
-      "openInbox": "Open Inbox"
+      }
     }
   },
   "orgAssistant": {
@@ -14545,7 +14541,6 @@
     "accountNamed": "{server} ({account})",
     "createdWhere": "It is under Routines, and what it finds lands in your inbox.",
     "seeIt": "See it",
-    "manageInRoutines": "Manage your watches in Routines",
     "attemptedAt": "Last attempt {when}",
     "attempt": {
       "source_unavailable": "Source unavailable — no successful check.",
@@ -14600,7 +14595,9 @@
       "role_pack": "Routine pack",
       "finding": "Routine"
     },
-    "openWorkingChat": "Open conversation"
+    "openWorkingChat": "Open conversation",
+    "preferences": "Inbox preferences",
+    "preferencesDescription": "Choose which automatic suggestions reach your Inbox."
   },
   "datasets": {
     "scoring": {

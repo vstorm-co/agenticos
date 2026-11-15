@@ -13205,18 +13205,15 @@
     "defaultName": "Architekt"
   },
   "assistantSettings": {
-    "notForYou": "Twoja rola nie obejmuje uruchamiania agentów, więc asystent nie jest dla Ciebie dostępny. Administrator może to zmienić.",
     "yours": "Twoje podpowiedzi",
     "yoursDescription": "Dymki, które asystent pokazuje Ci w konsoli. Ta przeglądarka je zapamiętuje.",
     "showTips": "Pokazuj podpowiedzi w dymkach",
     "unsilence": "{count, plural, one {Pokaż znów podpowiedzi na # wyciszonej stronie} other {Pokaż znów podpowiedzi na # wyciszonych stronach}}",
     "organization": "Dla organizacji",
-    "organizationDescription": "AI Architect to agent jak każdy inny: nazwę, model i wiedzę zmienisz w Agent Builderze. Wyłączenie go i powitanie są na stronie organizacji.",
     "openBuilder": "Otwórz w Agent Builderze",
-    "openOrganization": "Ustawienia organizacji",
     "suggestions": {
       "title": "Automatyczne sugestie",
-      "description": "Ustaw, czy AgenticOS ma wysyłać Ci proaktywne sugestie do Inbox i briefingu. Tutaj zobaczysz ich historię i przywrócisz odrzucone propozycje. To ustawienie nie steruje odpowiedziami w rozmowach.",
+      "description": "Wybierz, czy AgenticOS przygotowuje dla Ciebie automatyczne sugestie. Przeglądaj sugestie i przywracaj odłożone elementy w Inbox.",
       "forMe": "Nocne propozycje dla mnie",
       "orgOff": "Twoja organizacja ma nocne propozycje wyłączone, więc na razie żadne nie powstają.",
       "turnedOn": "Nocne propozycje są dla Ciebie włączone",
@@ -13228,8 +13225,7 @@
         "open": "Czeka",
         "accepted": "Przyjęta",
         "dismissed": "Odrzucona"
-      },
-      "openInbox": "Otwórz Inbox"
+      }
     }
   },
   "orgAssistant": {
@@ -13774,7 +13770,6 @@
     "accountNamed": "{server} ({account})",
     "createdWhere": "Znajdziesz ją w Rutynach, a to, co znajdzie, trafi do twojego inboksu.",
     "seeIt": "Pokaż",
-    "manageInRoutines": "Zarządzaj obserwacjami w Rutynach",
     "attemptedAt": "Ostatnia próba: {when}",
     "attempt": {
       "source_unavailable": "Źródło niedostępne — sprawdzenie nie powiodło się.",
@@ -13829,7 +13824,9 @@
       "role_pack": "Pakiet rutyn",
       "finding": "Rutyna"
     },
-    "openWorkingChat": "Otwórz rozmowę"
+    "openWorkingChat": "Otwórz rozmowę",
+    "preferences": "Ustawienia Inbox",
+    "preferencesDescription": "Wybierz, jakie automatyczne sugestie trafiają do Twojego Inbox."
   },
   "agentLimit": {
     "title": "Ta organizacja osiągnęła limit agentów",

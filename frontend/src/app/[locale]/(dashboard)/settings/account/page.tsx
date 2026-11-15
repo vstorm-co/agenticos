@@ -1,5 +1,7 @@
 "use client";
 
+import { AssistantSettings } from "@/components/assistant/assistant-settings";
+
 import Link from "next/link";
 import { ArrowUpRight, Smartphone } from "lucide-react";
 import { ROUTES } from "@/lib/constants";
@@ -243,6 +245,7 @@ export default function AccountSettingsPage() {
           </AlertDialog>
         </div>
       </SectionCard>
+      <AssistantSettings />
     </div>
   );
 }

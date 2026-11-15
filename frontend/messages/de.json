@@ -12696,18 +12696,15 @@
     "defaultName": "Architekt"
   },
   "assistantSettings": {
-    "notForYou": "Ihre Rolle umfasst nicht das Ausführen von Agents, daher steht Ihnen der Assistent nicht zur Verfügung. Ein Administrator kann das ändern.",
     "yours": "Ihre Tipps",
     "yoursDescription": "Die Sprechblasen, die der Assistent Ihnen in der Konsole zeigt. Dieser Browser merkt sie sich.",
     "showTips": "Tipps in Sprechblasen anzeigen",
     "unsilence": "{count, plural, =1 {Tipps auf der 1 stummgeschalteten Seite wieder zeigen} other {Tipps auf den # stummgeschalteten Seiten wieder zeigen}}",
     "organization": "Für die Organisation",
-    "organizationDescription": "Der AI Architect ist ein Agent wie jeder andere: Name, Modell und Wissen ändern Sie im Agent Builder. Ausschalten und Begrüßung finden Sie auf der Seite der Organisation.",
     "openBuilder": "Im Agent Builder öffnen",
-    "openOrganization": "Einstellungen der Organisation",
     "suggestions": {
       "title": "Automatische Vorschläge",
-      "description": "Lege fest, ob AgenticOS dir proaktive Vorschläge in Inbox und Briefing sendet. Hier findest du den Verlauf und kannst verworfene Vorschläge wiederherstellen. Diese Einstellung steuert keine Antworten in Gesprächen.",
+      "description": "Wähle, ob AgenticOS automatische Vorschläge für dich erstellt. Prüfe Vorschläge und stelle verworfene Einträge im Inbox wieder her.",
       "forMe": "Nächtliche Vorschläge für mich",
       "orgOff": "Ihre Organisation hat nächtliche Vorschläge ausgeschaltet, daher entstehen noch keine.",
       "turnedOn": "Nächtliche Vorschläge sind für Sie an",
@@ -12719,8 +12716,7 @@
         "open": "Offen",
         "accepted": "Angenommen",
         "dismissed": "Abgelehnt"
-      },
-      "openInbox": "Inbox öffnen"
+      }
     }
   },
   "orgAssistant": {
@@ -14231,7 +14227,6 @@
     "accountNamed": "{server} ({account})",
     "createdWhere": "Sie steht unter Routinen, und was sie findet, landet in Ihrem Posteingang.",
     "seeIt": "Anzeigen",
-    "manageInRoutines": "Beobachtungen unter Routinen verwalten",
     "attemptedAt": "Letzter Versuch {when}",
     "attempt": {
       "source_unavailable": "Quelle nicht verfügbar — keine erfolgreiche Prüfung.",
@@ -14286,7 +14281,9 @@
       "role_pack": "Routinenpaket",
       "finding": "Routine"
     },
-    "openWorkingChat": "Gespräch öffnen"
+    "openWorkingChat": "Gespräch öffnen",
+    "preferences": "Inbox-Einstellungen",
+    "preferencesDescription": "Wähle, welche automatischen Vorschläge deinen Inbox erreichen."
   },
   "datasets": {
     "scoring": {

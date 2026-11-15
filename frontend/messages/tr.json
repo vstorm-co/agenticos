@@ -12548,18 +12548,15 @@
     "defaultName": "Architect"
   },
   "assistantSettings": {
-    "notForYou": "Rolünüz agent çalıştırma izni içermediğinden asistanı kullanamazsınız. Yönetici bunu değiştirebilir.",
     "yours": "İpuçlarınız",
     "yoursDescription": "Asistanın konsol çevresinde size gösterdiği konuşma balonları. Bu tarayıcı tercihlerinizi hatırlar.",
     "showTips": "Konuşma balonlarında ipuçlarını göster",
     "unsilence": "{count, plural, =1 {İpuçlarını susturduğum 1 sayfada yeniden göster} other {İpuçlarını susturduğum # sayfada yeniden göster}}",
     "organization": "Kuruluş için",
-    "organizationDescription": "AI Architect diğer agentlar gibi bir agenttır: adını, modelini ve bilgisini Agent Builder’da düzenleyin. Açma-kapama ayarı ve karşılama mesajı kuruluş sayfasındadır.",
     "openBuilder": "Agent Builder’da aç",
-    "openOrganization": "Kuruluş ayarları",
     "suggestions": {
       "title": "Otomatik öneriler",
-      "description": "AgenticOS’un Inbox ve brifing üzerinden proaktif öneriler gönderip göndermeyeceğini belirleyin. Burada geçmişi görebilir ve reddedilen önerileri geri getirebilirsiniz. Bu ayar konuşmalardaki yanıtları yönetmez.",
+      "description": "AgenticOS’un senin için otomatik öneriler hazırlayıp hazırlamayacağını seç. Önerileri Gelen Kutusunda incele ve kapattıklarını geri getir.",
       "forMe": "Bana yönelik gece önerileri",
       "orgOff": "Kuruluşunuzda gece önerileri kapalı olduğundan henüz öneri oluşturulmadı.",
       "turnedOn": "Gece önerileri sizin için açıldı",
@@ -12571,8 +12568,7 @@
         "open": "Bekliyor",
         "accepted": "Kabul edildi",
         "dismissed": "Reddedildi"
-      },
-      "openInbox": "Inbox’u aç"
+      }
     }
   },
   "orgAssistant": {
@@ -12828,7 +12824,6 @@
     "accountNamed": "{server} ({account})",
     "createdWhere": "Routines altında bulunur; buldukları gelen kutunuza düşer.",
     "seeIt": "Görüntüle",
-    "manageInRoutines": "Watch’larınızı Routines’ten yönetin",
     "watchAndInform": "İzle ve bildir"
   },
   "inbox": {
@@ -12857,7 +12852,9 @@
       "role_pack": "Routine paketi",
       "finding": "Rutin"
     },
-    "openWorkingChat": "Sohbeti aç"
+    "openWorkingChat": "Sohbeti aç",
+    "preferences": "Gelen kutusu tercihleri",
+    "preferencesDescription": "Gelen kutuna hangi otomatik önerilerin ulaşacağını seç."
   },
   "agentLimit": {
     "title": "Bu kuruluş agent sınırına ulaştı",
