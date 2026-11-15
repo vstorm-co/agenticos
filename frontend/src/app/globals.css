@@ -178,7 +178,7 @@
 
   /* Neutral page chrome. Page, card and floating surfaces have separate roles;
      fields use the page surface as a well inside a card or dialog. */
-  --color-sidebar: #f0f0ed;
+  --color-sidebar: #f5f5f2;
   --color-background: #fafaf8;
   --color-foreground: #242428;
   --color-card: oklch(100% 0 0);
@@ -350,7 +350,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
-    --color-sidebar: #161618;
+    --color-sidebar: #27272a;
     --color-background: #222224;
     --color-foreground: #eeeef1;
     --color-card: #29292c;
@@ -405,7 +405,7 @@
 }
 
 :root.dark {
-  --color-sidebar: #161618;
+  --color-sidebar: #27272a;
   --color-background: #222224;
   --color-foreground: #eeeef1;
   --color-card: #29292c;
@@ -503,7 +503,7 @@
   --series-3: oklch(80% 0.15 78);
   --series-4: oklch(64% 0.19 22);
   --series-5: oklch(58% 0.18 312);
-  --color-sidebar: #f0f0ed;
+  --color-sidebar: #f5f5f2;
   --color-secondary: #eeeef1;
   --color-secondary-foreground: #242428;
   --color-accent: #e5e5ea;
@@ -518,7 +518,7 @@
   --color-success-ink: #99d5b1;
   --color-popover: #323236;
   --color-popover-foreground: #eeeef1;
-  --color-sidebar: #161618;
+  --color-sidebar: #27272a;
   --color-background: #222224;
   --color-foreground: #eeeef1;
   --color-card: #29292c;
