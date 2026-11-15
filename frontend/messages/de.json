@@ -1483,8 +1483,6 @@
     "edit": "Bearbeiten",
     "editMeans": "Bearbeiten erlaubt, diese Unterhaltung umzubenennen, zu archivieren, zu löschen und ihr Züge hinzuzufügen.",
     "empty": {
-      "pauseArtwork": "Illustrationen pausieren",
-      "playArtwork": "Illustrationen fortsetzen",
       "commandPalette": "Befehlspalette",
       "capabilitiesPrompt": "Was kannst du hier für mich tun? Zeig es mir an einem Beispiel aus meiner Arbeit.",
       "capabilitiesTitle": "Was kannst du?",

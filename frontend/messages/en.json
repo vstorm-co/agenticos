@@ -1483,8 +1483,6 @@
     "edit": "Edit",
     "editMeans": "Edit lets them rename, archive and delete this conversation, and add turns to it.",
     "empty": {
-      "pauseArtwork": "Pause illustrations",
-      "playArtwork": "Resume illustrations",
       "commandPalette": "command palette",
       "capabilitiesPrompt": "What can you do for me here? Show me with an example from my kind of work.",
       "capabilitiesTitle": "What can you do?",

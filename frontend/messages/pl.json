@@ -500,8 +500,6 @@
     "edit": "Edytuj",
     "editMeans": "Edit pozwala zmienić nazwę, zarchiwizować i usunąć tę konwersację oraz dopisywać do niej tury.",
     "empty": {
-      "pauseArtwork": "Zatrzymaj ilustracje",
-      "playArtwork": "Wznów ilustracje",
       "commandPalette": "paleta komend",
       "capabilitiesPrompt": "Co możesz tu dla mnie zrobić? Pokaż na przykładzie z mojej pracy.",
       "capabilitiesTitle": "Co potrafisz?",

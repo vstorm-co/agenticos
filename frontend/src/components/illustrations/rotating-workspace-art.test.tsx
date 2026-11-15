@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { RotatingWorkspaceArt } from "./rotating-workspace-art";
 
@@ -34,14 +34,10 @@ it("cycles through distinct illustrations and releases its timer on unmount", ()
   view.unmount();
   expect(vi.getTimerCount()).toBe(0);
 });
-it("lets the reader stop and resume the rotation", () => {
+it("keeps decorative artwork outside the keyboard controls", () => {
   const view = render(<RotatingWorkspaceArt />);
-  fireEvent.click(screen.getByRole("button", { name: "Pause illustrations" }));
-  act(() => vi.advanceTimersByTime(54000));
-  expect(activeScene(view.container)).toBe("landscape");
-  fireEvent.click(screen.getByRole("button", { name: "Resume illustrations" }));
-  act(() => vi.advanceTimersByTime(18000));
-  expect(activeScene(view.container)).toBe("orbit");
+  expect(screen.queryByRole("button")).toBeNull();
+  expect(view.container.firstElementChild).toHaveAttribute("aria-hidden", "true");
 });
 it("keeps the artwork static under reduced motion", () => {
   preference.reduced = true;
