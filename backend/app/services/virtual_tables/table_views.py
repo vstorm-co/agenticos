@@ -30,6 +30,7 @@ from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.table_view import TableView
 from app.db.models.virtual_table import VirtualTable
+from app.db.table_rls import bind_table_access
 from app.db.updates import writable
 from app.repositories import table_view_repo
 from app.schemas.table_view import (
@@ -374,6 +375,7 @@ class TableViewOperations(Operations):
             TableArchivedError: The view is visible to `ctx`, and its table is archived.
             DeadlineReached: Too little of `deadline` is left for the next statement.
         """
+        await bind_table_access(self.db, ctx)
         await arm_if_set(self.db, deadline)
         view = await table_view_repo.get(
             self.db, organization_id=ctx.organization_id, view_id=view_id

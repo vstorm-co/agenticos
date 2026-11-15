@@ -5,7 +5,17 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    Computed,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    String,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -99,6 +109,17 @@ class ResourceGrant(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    # Directory membership removal can span organizations in one transaction.
+    # Referential integrity revokes only Tables user shares even when their
+    # tenant RLS rows are invisible to that authentication transaction.
+    table_subject_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        Computed(
+            "CASE WHEN resource_type IN ('table', 'table_record') THEN subject_user_id END",
+            persisted=True,
+        ),
+        nullable=True,
+    )
     resource_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     resource_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     level: Mapped[GrantLevelLiteral] = mapped_column(
@@ -112,6 +133,19 @@ class ResourceGrant(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        Index(
+            "ix_resource_grants_table_member",
+            "organization_id",
+            "table_subject_user_id",
+            postgresql_where=text("table_subject_user_id IS NOT NULL"),
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "table_subject_user_id"],
+            ["organization_members.organization_id", "organization_members.user_id"],
+            name="fk_resource_grants_table_member",
+            ondelete="CASCADE",
+            match="SIMPLE",
+        ),
         UniqueConstraint(
             "resource_type",
             "resource_id",

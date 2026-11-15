@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.permissions import AuthContext
+from app.db.table_rls import bind_table_access
 from app.repositories import virtual_table_repo
 from app.schemas.virtual_table import RecordRead
 from app.services.virtual_tables.exceptions import IdempotencyKeyReuseError
@@ -87,6 +88,8 @@ async def run_once[Outcome: BaseModel](
     Raises:
         IdempotencyKeyReuseError: The key was used before with a different request.
     """
+    # Bind the outer transaction: a rolled-back receipt must not erase its tenant.
+    await bind_table_access(db, ctx)
     async with db.begin_nested():
         if operation_key is None:
             return await action(), False

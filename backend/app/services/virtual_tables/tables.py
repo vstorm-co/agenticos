@@ -18,6 +18,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
 from app.db.models.virtual_table import VirtualTable
+from app.db.table_rls import bind_table_access
 from app.db.updates import writable
 from app.repositories import table_view_repo, virtual_table_repo
 from app.repositories import task as task_repo
@@ -167,6 +168,7 @@ class TableOperations(Operations):
         limit: int = 50,
     ) -> TableList:
         """The tables this caller may see: their own, the org-visible ones and those shared."""
+        await bind_table_access(self.db, ctx)
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=TABLE, perm=Perm.TABLES_VIEW
         )

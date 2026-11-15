@@ -14,6 +14,7 @@ from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.outcome import Outcome
 from app.db.models.task_board import TaskBoard, TaskLink
 from app.db.models.virtual_table import VirtualTableRecord
+from app.db.table_rls import bind_table_access
 from app.repositories import agent_trigger_repo
 from app.repositories import task as task_repo
 from app.schemas.agent_trigger import TriggerCreate
@@ -32,6 +33,16 @@ class TaskExecution:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
+    async def _bind_lifecycle(self, organization_id: UUID) -> None:
+        """A persisted task/trigger/outcome or claimed job selects its organization.
+
+        This grants no person's permissions. Existing creator/reviewer checks still
+        decide the transition, including a blocked projection after authority is lost.
+        """
+        await bind_table_access(
+            self.db, AuthContext(user_id=None, organization_id=organization_id, role="")
+        )
+
     async def restored_table(self, table_id: UUID, organization_id: UUID) -> None:
         """Rearm planned human reminders consumed while their board was archived."""
         from app.repositories import background_job as job_repo
@@ -39,6 +50,7 @@ class TaskExecution:
         board = await task_repo.for_table(self.db, table_id, organization_id)
         if board is None:
             return
+        await self._bind_lifecycle(board.organization_id)
         for link in await task_repo.board_links(self.db, board):
             record = await task_repo.record(self.db, link.record_id, organization_id, lock=True)
             if record is None:
@@ -296,6 +308,8 @@ class TaskExecution:
     async def wake(self, payload: WakeTask) -> None:
         from app.services.task_access import board_allows
 
+        # WakeTask is the claimed durable job payload, not a public request identity.
+        await self._bind_lifecycle(payload.organization_id)
         record = await task_repo.record(
             self.db, payload.task_id, payload.organization_id, lock=True
         )
@@ -408,6 +422,7 @@ class TaskExecution:
         link = await task_repo.for_trigger(self.db, trigger.id)
         if link is None:
             return
+        await self._bind_lifecycle(trigger.organization_id)
         record = await task_repo.record(self.db, link.record_id, trigger.organization_id, lock=True)
         if record is None:
             return
@@ -431,6 +446,7 @@ class TaskExecution:
         trigger.is_active = False
         if link is None or link.creator_user_id is None:
             return
+        await self._bind_lifecycle(trigger.organization_id)
         record = await task_repo.record(self.db, link.record_id, trigger.organization_id, lock=True)
         if record is None:
             return
@@ -500,6 +516,7 @@ class TaskExecution:
         link = await task_repo.for_outcome(self.db, outcome.id)
         if link is None:
             return
+        await self._bind_lifecycle(outcome.organization_id)
         record = await task_repo.record(self.db, link.record_id, outcome.organization_id, lock=True)
         if record is None:
             return
@@ -559,6 +576,7 @@ class TaskExecution:
                     message="This task was deleted or handed off. Open its current task table instead."
                 )
             return
+        await bind_table_access(self.db, ctx)
         record = await task_repo.record(self.db, link.record_id, outcome.organization_id, lock=True)
         board = (
             await task_repo.for_table(self.db, record.table_id, outcome.organization_id)

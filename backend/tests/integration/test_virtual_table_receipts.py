@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, NotFoundError
+from app.db.models.organization import OrganizationMember
 from app.db.models.resource_grant import GrantLevel
 from app.db.models.virtual_table import (
     VirtualTableOutbox,
@@ -177,6 +178,8 @@ async def test_a_receipt_is_not_replayed_to_a_principal_who_lost_access(db):
     service, ctx, table, org = await _setup(db)
     colleague = await make_user(db)
     editor = ctx_for(colleague, org, "viewer")
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="viewer"))
+    await db.flush()
     await resource_grant_repo.upsert(
         db,
         organization_id=org.id,

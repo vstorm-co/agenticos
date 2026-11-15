@@ -27,6 +27,7 @@ from app.core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db_session
+from app.db.table_rls import bind_table_access
 
 DBSession = Annotated[AsyncSession, Depends(get_db_session, scope="function")]
 """The request's session, committed before the response leaves the process.
@@ -1320,6 +1321,7 @@ async def get_auth_context(
     """
     caller = _key_caller(request)
     if caller is not None:
+        await bind_table_access(db, caller.context)
         return _attributed(request, user, caller.context, caller.surface)
     membership = _membership_read(request, org, user) or await _member_repo.get(
         db, organization_id=org.id, user_id=user.id
@@ -1336,6 +1338,7 @@ async def get_auth_context(
         is_app_admin=user.is_app_admin,
         is_impersonated=current_impersonator() is not None,
     )
+    await bind_table_access(db, ctx)
     return _attributed(request, user, ctx, "console")
 
 
@@ -1375,6 +1378,7 @@ async def get_path_org_context(
             raise NotFoundError(
                 message="Organization not found or access denied", details={"org_id": org_id}
             )
+        await bind_table_access(db, caller.context)
         return _attributed(request, user, caller.context, caller.surface)
     membership = await _member_repo.get(db, organization_id=org_id, user_id=user.id)
     if membership is None and not user.is_app_admin:
@@ -1388,6 +1392,7 @@ async def get_path_org_context(
         is_app_admin=user.is_app_admin,
         is_impersonated=current_impersonator() is not None,
     )
+    await bind_table_access(db, ctx)
     return _attributed(request, user, ctx, "console")
 
 

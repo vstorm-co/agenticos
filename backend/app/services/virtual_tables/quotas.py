@@ -139,6 +139,9 @@ async def enforce_record_size(
 
 async def lock_storage(db: AsyncSession, ctx: AuthContext) -> None:
     """Serialize record mutations before their row/count locks, through commit."""
+    from app.db.table_rls import bind_table_access
+
+    await bind_table_access(db, ctx)
     await hold_subject(db, LockScope.VIRTUAL_TABLE_STORAGE_PER_ORG, ctx.organization_id)
 
 

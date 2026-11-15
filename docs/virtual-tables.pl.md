@@ -52,6 +52,25 @@ metadane. Kolumny obliczane są wyliczane przed projekcją, więc ich zależnoś
 muszą być wybrane. Te same rekordy od razu widać w konsoli; asynchroniczne uruchomienie
 wyzwalacza tabeli nie opóźnia odpowiedzi CRUD.
 
+## Izolacja organizacji w bazie danych { #database-tenant-isolation }
+
+Tabele logiczne pozostają w bazie PostgreSQL danego wdrożenia. Migracja RLS
+instaluje polityki bez ich włączania; operator aktywuje je po aktualizacji i
+zatrzymaniu obsługi żądań oraz zadań we wszystkich procesach API i workerach.
+Po aktywacji zwykłe operacje na tabelach wiążą identyfikator uwierzytelnionej
+organizacji z bieżącą transakcją. Brak kontekstu nie udostępnia żadnych wierszy
+Tables, a transakcja nie może zmienić organizacji. Ochrona obejmuje schematy,
+rekordy, historię, media, widoki, potwierdzenia operacji, wyzwalacze,
+znormalizowane powiązania i udostępnienia Tables.
+
+Uprawnienia Read/Write do tabel i wierszy nadal sprawdza serwis. Globalny eksport
+i usunięcie konta używają osobno skonfigurowanego połączenia administracyjnego
+po uwierzytelnieniu i ponownym sprawdzeniu uprawnień. Usunięcie członkostwa w
+organizacji kaskadowo usuwa udostępnienia Tables tej osoby w tej samej transakcji,
+także przy aktualizacji katalogowej obejmującej wiele organizacji. Inne rodzaje
+zasobów zachowują dotychczasowe zasady autoryzacji. [Procedura wdrożenia dla operatora](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md)
+opisuje rozdzielenie poświadczeń, kontrolę wstępną, aktywację i wycofanie zmiany.
+
 ## Jak zbudowana jest tabela { #how-a-table-is-built }
 
 | Element | Czym jest | Tożsamość |

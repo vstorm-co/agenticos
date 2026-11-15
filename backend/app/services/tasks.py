@@ -11,6 +11,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
 from app.db.models.task_board import TaskBoard, TaskLink
 from app.db.models.virtual_table import VirtualTableRecord
+from app.db.table_rls import bind_table_access
 from app.repositories import (
     conversation_repo,
     group_repo,
@@ -67,6 +68,12 @@ class TaskService:
         from app.services.task_execution import TaskExecution
 
         if organization_id is not None:
+            # The owning group/project service resolved this organization before
+            # deleting its scope. Global account teardown uses the maintenance
+            # connection and leaves organization_id unset.
+            await bind_table_access(
+                self.db, AuthContext(user_id=None, organization_id=organization_id, role="")
+            )
             await hold_subject(
                 self.db, LockScope.TASK_BOARD, uuid5(organization_id, f"{kind}:{scope_id}")
             )
@@ -92,6 +99,7 @@ class TaskService:
             await task_repo.purge_table(self.db, board)
 
     async def ensure_board(self, ctx: AuthContext, data: BoardEnsure) -> TaskBoard:
+        await bind_table_access(self.db, ctx)
         scope_id = data.scope_id
         if data.scope == "private":
             scope_id = scope_id or ctx.user_id
@@ -241,6 +249,7 @@ class TaskService:
         return board
 
     async def boards(self, ctx: AuthContext) -> list[TaskBoardRead]:
+        await bind_table_access(self.db, ctx)
         result: list[TaskBoardRead] = []
         for board in await task_repo.boards(self.db, ctx.organization_id):
             if not await board_allows(self.db, ctx, board, Perm.TABLES_VIEW):
@@ -323,6 +332,7 @@ class TaskService:
         return await self.get(ctx, written.record.id)
 
     async def get(self, ctx: AuthContext, task_id: UUID) -> TaskRead:
+        await bind_table_access(self.db, ctx)
         record = await task_repo.record(self.db, task_id, ctx.organization_id)
         if record is None:
             raise NotFoundError(message="Task not found")

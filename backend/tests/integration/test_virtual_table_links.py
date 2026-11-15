@@ -5,6 +5,7 @@ import uuid
 import pytest
 from sqlalchemy import delete, event
 
+from app.db.models.organization import OrganizationMember
 from app.db.models.resource_grant import GrantLevel
 from app.db.models.virtual_table import VirtualTableRecord
 from app.repositories import resource_grant_repo, virtual_table_repo
@@ -324,6 +325,8 @@ async def test_a_reader_who_cannot_see_the_linked_table_gets_no_names_and_no_val
     )
     colleague = await make_user(db)
     member = ctx_for(colleague, org, "member")
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="member"))
+    await db.flush()
     # May write the orders, and read the products, but not the private stock.
     await resource_grant_repo.upsert(
         db,
@@ -681,6 +684,8 @@ async def test_linked_rows_the_viewer_cannot_see_never_count_against_the_budget(
     bound = await bound_view(db, ctx, orders.id, visibility="shared")
     colleague = await make_user(db)
     member = ctx_for(colleague, org, "member")
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="member"))
+    await db.flush()
     await resource_grant_repo.upsert(
         db,
         organization_id=org.id,

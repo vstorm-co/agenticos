@@ -88,7 +88,7 @@ if not _a_password_is_already_configured():
 
 
 from collections.abc import AsyncGenerator, Generator
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -301,10 +301,36 @@ async def mock_db_session() -> AsyncGenerator[AsyncMock]:
     # a coroutine and any service deferring work raises inside the mock rather than
     # in the code being tested.
     mock.info = {}
+    # AsyncSession's transaction inspection and no-autoflush context are synchronous.
+    # A stable transaction object also makes repeated tenant binding idempotent.
+    mock.get_transaction = MagicMock(return_value=MagicMock())
+    mock.in_nested_transaction = MagicMock(return_value=False)
+    mock.no_autoflush = MagicMock()
     yield mock
     from app.core.background import discard_deferred
 
     discard_deferred(mock)
+
+
+@pytest.fixture(autouse=True)
+def mock_table_rls_catalog(monkeypatch):
+    """Mock sessions model a deployment before activation, not PostgreSQL catalogs.
+
+    Existing service tests queue SQL business results on their mock sessions.
+    Keep metadata inspection out of that queue. Real AsyncSession objects always
+    inspect actual catalogs; active-policy unit cases override this state explicitly.
+    No binder, role check or policy enforcement is replaced.
+    """
+    from app.db import table_rls
+
+    read_catalog = table_rls.table_rls_state
+
+    async def catalog(db):
+        if isinstance(db, Mock):
+            return table_rls.TableRlsState(frozenset(), frozenset(), frozenset())
+        return await read_catalog(db)
+
+    monkeypatch.setattr(table_rls, "table_rls_state", catalog)
 
 
 @pytest.fixture
