@@ -109,12 +109,14 @@ release attribution; do not present a custom T3 build as an upstream release.
 
 ## Workflows and releases
 
-GitHub Actions is on for checks only. The only active workflow is
-`.github/workflows/ci.yml`, and it uses GitHub-hosted runners. Its top-level
-`GITHUB_TOKEN` permission is `contents: read`; any additional token permissions
-are read-only. Codecov upload failures do not fail CI and no Codecov token is
-configured. Pull requests from forks require maintainer approval before their
-workflows run.
+Fast CI runs on every pull request. Full CI runs only when a pull request has the
+`full-ci` label, its head starts with `sync/upstream-`, or the event is a release
+point (`v*` tag push). Pushes run on `t3`; docs-only pushes are ignored. The only
+active workflow is `.github/workflows/ci.yml`, and it uses GitHub-hosted runners.
+Its top-level `GITHUB_TOKEN` permission is `contents: read`; any additional token
+permissions are read-only. Codecov upload failures do not fail CI and no Codecov
+token is configured. Pull requests from forks require maintainer approval before
+their workflows run.
 
 All other inherited workflows are parked under `.github/workflows-disabled/`.
 Review each one separately before restoring it. Do not put deployment credentials
