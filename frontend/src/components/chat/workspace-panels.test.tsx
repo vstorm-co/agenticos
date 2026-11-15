@@ -120,6 +120,10 @@ describe("manual workspace launchers", () => {
     await userEvent.click(screen.getByRole("button", { name: "Open Browser" }));
     expect(screen.getByRole("heading", { name: "Browser" })).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Website address" })).toHaveValue("");
+    const browserId = screen
+      .getByRole("button", { name: "Open Browser" })
+      .getAttribute("aria-controls");
+    expect(screen.getByRole("complementary", { name: "Browser" })).toHaveAttribute("id", browserId);
     expect(props.onSend).not.toHaveBeenCalled();
     expect(apiClient.post).not.toHaveBeenCalled();
     expect(live.calls).toEqual([]);
@@ -128,6 +132,14 @@ describe("manual workspace launchers", () => {
     await userEvent.click(screen.getByRole("button", { name: "Open Computer" }));
     expect(screen.getByRole("heading", { name: "Computer" })).toBeVisible();
     expect(screen.queryByRole("textbox")).toBeNull();
+    const computerId = screen
+      .getByRole("button", { name: "Open Computer" })
+      .getAttribute("aria-controls");
+    expect(computerId).not.toBe(browserId);
+    expect(screen.getByRole("complementary", { name: "Computer" })).toHaveAttribute(
+      "id",
+      computerId,
+    );
     await userEvent.click(screen.getByRole("button", { name: "Open Computer" }));
     expect(useBrowserPanelStore.getState().surface).toBeNull();
   });
@@ -445,6 +457,15 @@ describe("workspace selection ownership", () => {
     await userEvent.click(second.getByRole("button", { name: "Open Computer" }));
     expect(first.getByRole("heading", { name: "Browser" })).toBeVisible();
     expect(second.getByRole("heading", { name: "Computer" })).toBeVisible();
+    const firstId = first
+      .getByRole("button", { name: "Open Browser" })
+      .getAttribute("aria-controls");
+    const secondId = second
+      .getByRole("button", { name: "Open Computer" })
+      .getAttribute("aria-controls");
+    expect(first.getByRole("complementary")).toHaveAttribute("id", firstId);
+    expect(second.getByRole("complementary")).toHaveAttribute("id", secondId);
+    expect(firstId).not.toBe(secondId);
     expect(useBrowserPanelStore.getState().surface).toBeNull();
   });
 });

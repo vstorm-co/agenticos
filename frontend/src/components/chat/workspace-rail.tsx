@@ -9,7 +9,13 @@ import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 
 /** Opening a workspace pane changes only this chat's UI state. */
-export function WorkspaceRail({ filesSlot }: { filesSlot: Ref<HTMLSpanElement> }) {
+export function WorkspaceRail({
+  filesSlot,
+  panelIds,
+}: {
+  filesSlot: Ref<HTMLSpanElement>;
+  panelIds: Record<"browser" | "computer", string>;
+}) {
   const t = useTranslations("chat.workspace");
   const surface = useBrowserPanelStore((state) => state.surface);
   const open = useBrowserPanelStore((state) => state.openSurface);
@@ -19,7 +25,7 @@ export function WorkspaceRail({ filesSlot }: { filesSlot: Ref<HTMLSpanElement> }
     <nav
       aria-label={t("rail")}
       data-tour="chat-workspace"
-      className="border-border bg-background z-20 flex w-12 shrink-0 flex-col items-center gap-2 border-l px-1 py-3"
+      className="border-border bg-background z-20 order-last flex h-12 w-full shrink-0 basis-full flex-row items-center justify-end gap-1 border-t px-2 py-0.5 @min-[900px]/browser-layout:order-none @min-[900px]/browser-layout:h-full @min-[900px]/browser-layout:w-12 @min-[900px]/browser-layout:basis-auto @min-[900px]/browser-layout:flex-col @min-[900px]/browser-layout:justify-start @min-[900px]/browser-layout:gap-2 @min-[900px]/browser-layout:border-t-0 @min-[900px]/browser-layout:border-l @min-[900px]/browser-layout:px-1 @min-[900px]/browser-layout:py-3"
     >
       {(["browser", "computer"] as const).map((kind) => {
         const Icon = kind === "browser" ? Globe : Monitor;
@@ -31,13 +37,14 @@ export function WorkspaceRail({ filesSlot }: { filesSlot: Ref<HTMLSpanElement> }
             aria-label={label}
             title={label}
             aria-expanded={surface === kind}
+            aria-controls={panelIds[kind]}
             onClick={() => {
               closeSources();
               if (surface === kind) close();
               else open(kind);
             }}
             className={cn(
-              "text-muted-foreground hover:text-foreground hover:bg-accent/60 flex size-9 items-center justify-center rounded-lg transition-colors",
+              "text-muted-foreground hover:text-foreground hover:bg-accent/60 flex size-11 items-center justify-center rounded-lg transition-colors @min-[900px]/browser-layout:size-9",
               surface === kind && "bg-foreground/[0.06] text-foreground",
             )}
           >
@@ -45,7 +52,10 @@ export function WorkspaceRail({ filesSlot }: { filesSlot: Ref<HTMLSpanElement> }
           </button>
         );
       })}
-      <span ref={filesSlot} className="flex size-9 items-center justify-center" />
+      <span
+        ref={filesSlot}
+        className="flex size-11 items-center justify-center @min-[900px]/browser-layout:size-9"
+      />
     </nav>
   );
 }

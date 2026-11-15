@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import type { Browse } from "@/lib/browse";
@@ -41,12 +41,17 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
   const chat = useTranslations("chat");
   const account = useAuthStore((state) => state.user?.id);
   const organization = useOrgStore((state) => state.activeOrgId);
-  // Work on reads these defaults when the conversation has no explicit choice.
+  // Subscribe to saved defaults: Work on's fallback getters do not subscribe themselves.
   useChatControlsStore((state) => state.byScope[chatControlScope(account, organization)]);
   const surface = useBrowserPanelStore((state) => state.surface);
   const open = useBrowserPanelStore((state) => state.openSurface);
   const close = useBrowserPanelStore((state) => state.close);
   const [filesSlot, setFilesSlot] = useState<HTMLSpanElement | null>(null);
+  const panelPrefix = useId();
+  const panelIds = {
+    browser: `${panelPrefix}-browser`,
+    computer: `${panelPrefix}-computer`,
+  };
   const localSelected = useWorkOnStore((state) =>
     Boolean(
       state.targetFor(props.conversationId) ||
@@ -107,6 +112,7 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
   return (
     <>
       <BrowserPanel
+        panelId={surface === "computer" ? panelIds.computer : panelIds.browser}
         browses={props.loading ? [] : props.browses}
         surfaces={props.surfaces}
         access={access}
@@ -128,7 +134,7 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
         onOpenChange={(shown) => (shown ? open("files") : close())}
         responsive
       />
-      <WorkspaceRail filesSlot={setFilesSlot} />
+      <WorkspaceRail filesSlot={setFilesSlot} panelIds={panelIds} />
     </>
   );
 }
