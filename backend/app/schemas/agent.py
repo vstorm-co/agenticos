@@ -367,7 +367,10 @@ class AgentRead(BaseSchema):
 
 
 class AgentDetail(AgentRead):
-    """An agent plus the spec currently being edited."""
+    """An agent plus its draft, with the listing's same resource access hints.
+
+    Views additionally gate configuration by lifecycle and workflow ownership.
+    """
 
     draft_spec: AgentSpec
 
