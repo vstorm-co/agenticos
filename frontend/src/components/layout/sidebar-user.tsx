@@ -35,8 +35,7 @@ import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
  * every request is allowed to do.
  *
  * `compact` is the collapsed rail, where it does not: the avatar alone opens
- * the same menu, and the name and address are the first thing inside it rather
- * than gone.
+ * the same menu. Its identity header keeps the account visible on either layout.
  */
 export function SidebarUser({ compact = false }: { compact?: boolean }) {
   const { user, logout } = useAuth();
@@ -56,8 +55,10 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
           aria-label={compact ? user.full_name || user.email : undefined}
           title={compact ? user.email : undefined}
           className={cn(
-            "hover:bg-accent/60 focus-visible:ring-ring flex items-center rounded-md text-left transition-colors outline-none focus-visible:ring-1",
-            compact ? "h-9 w-9 justify-center" : "w-full gap-2.5 px-2 py-1.5",
+            "hover:bg-accent/60 data-[state=open]:bg-accent focus-visible:ring-ring flex items-center rounded-lg text-left transition-colors outline-none focus-visible:ring-2",
+            compact
+              ? "touch:min-h-11 touch:min-w-11 h-9 w-9 justify-center"
+              : "w-full gap-2.5 px-2 py-1.5",
           )}
         >
           {/* Decoration: the initials repeat the address underneath, and read
@@ -85,20 +86,34 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
           )}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="start" className="w-56">
-        {/* On the rail the trigger is an avatar, so the menu is the only place
-            the account is named at all. */}
-        {compact ? (
-          <>
-            <div className="px-2 py-1.5">
-              <p className="truncate text-sm font-medium">
-                {user.full_name || user.email.split("@")[0]}
-              </p>
-              <p className="text-muted-foreground truncate text-xs">{user.email}</p>
-            </div>
-            <DropdownMenuSeparator />
-          </>
-        ) : null}
+      <DropdownMenuContent
+        side="top"
+        align="start"
+        sideOffset={8}
+        collisionPadding={12}
+        className="w-64 p-1.5"
+      >
+        <div className="flex min-w-0 items-center gap-2.5 px-2 py-2.5">
+          <EntityAvatar
+            seed={user.id}
+            name={user.full_name || user.email}
+            imageSrc={`/api/users/avatar/${user.id}?v=${avatarVersion}`}
+            hasImage={!!user.avatar_url}
+            colorSlot={user.avatar_color}
+            size="sm"
+            className="shrink-0"
+            ariaHidden
+          />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium" title={user.full_name || user.email}>
+              {user.full_name || user.email.split("@")[0]}
+            </p>
+            <p className="text-muted-foreground truncate text-xs" title={user.email}>
+              {user.email}
+            </p>
+          </div>
+        </div>
+        <DropdownMenuSeparator />
         {/* How this looks and what language it is in. Both were unlabelled
             glyphs in a strip at the foot of the column; here they are named,
             each showing its current value, in the menu that already answers
