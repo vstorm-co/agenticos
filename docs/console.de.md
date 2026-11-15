@@ -1,5 +1,5 @@
 ---
-source_sha: "32dd7a1e9b03"
+source_sha: "99bd879638a8"
 ---
 
 # Die Konsole { #the-console }
@@ -84,7 +84,9 @@ Seitenüberschriften verwenden die Abstände des umgebenden Layouts ohne Verdopp
 
 Sekundäre Schaltflächen und Filter teilen eine deutlichere Füllfläche, kontrastreiche Beschriftungen und klare Zustände bei Hover, Betätigung und geöffnetem Menü. Die Modellauswahl im Chat verwendet denselben Stil.
 
-Persönliche Einstellungen behalten horizontale Tabs am oberen Rand, einschließlich der Desktop-Seiten innerhalb der App. Beschreibungen stehen direkt im Panel; Formulare passen sich ihrem Inhalt an. Konto enthält Passwortänderung und aktive Sitzungen; die Passwortaktion steht unter den Feldern.
+Persönliche Einstellungen verwenden auf dem Desktop einen Abschnittsindex und auf dem Telefon ein Abschnittsmenü. Erläuterungen öffnen sich über Informationsschaltflächen; Feldanforderungen, Validierungsfehler und Warnungen vor Löschaktionen bleiben sichtbar. Konto enthält Passwortänderungen und aktive Sitzungen.
+
+Gesprächstitel stehen in der Chatliste zuerst, Agentennamen und Aktivität darunter. Suche, Filter und Neuer Chat teilen sich die Kopfzeile. Kopfzeilenfilter öffnen sich unter ihrer Schaltfläche, Filter der eingeklappten Leiste daneben. Dekorative Illustrationen wechseln ohne Wiedergabesteuerung und beachten die Einstellung für reduzierte Bewegung.
 
 Profilfelder stehen bei genügend Platz nebeneinander; **Änderungen speichern** ist erst nach einer Bearbeitung verfügbar. Eine Fähigkeitskarte hat einen Bereich zum Öffnen der Einstellungen und einen separaten Schalter zum Aktivieren. Beispiele stehen im Einstellungsbereich hinter dem Informationssymbol; die Illustration der Galerie wird dort nicht wiederholt.
 

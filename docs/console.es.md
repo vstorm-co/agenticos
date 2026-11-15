@@ -1,5 +1,5 @@
 ---
-source_sha: "32dd7a1e9b03"
+source_sha: "99bd879638a8"
 ---
 
 # La consola { #the-console }
@@ -82,7 +82,9 @@ Los encabezados utilizan el espaciado del diseño que los rodea sin duplicarlo. 
 
 Los botones secundarios y los filtros comparten un relleno más visible, etiquetas con contraste y estados claros al pasar el cursor, pulsar o abrir un menú. El selector de modelo del chat utiliza el mismo estilo.
 
-Los ajustes personales mantienen pestañas horizontales en la parte superior, incluidas las páginas exclusivas de escritorio dentro de la aplicación. Los paneles muestran sus descripciones directamente y los formularios se ajustan al contenido. Cuenta reúne el cambio de contraseña y las sesiones activas; la acción de contraseña aparece debajo de los campos.
+Los ajustes personales usan un índice de secciones en escritorio y un menú de secciones en el teléfono. Las explicaciones se abren desde los botones de información; los requisitos de los campos, los errores de validación y las advertencias de eliminación siguen visibles. Cuenta contiene los cambios de contraseña y las sesiones activas.
+
+Los títulos encabezan la lista de chats, con los nombres de los agentes y la actividad debajo. Búsqueda, filtros y Nuevo chat comparten la cabecera. Los filtros de la cabecera se abren debajo del botón; los de la barra contraída, a su lado. Las ilustraciones decorativas cambian sin controles de reproducción y respetan la preferencia de movimiento reducido.
 
 Los campos del perfil comparten fila cuando hay espacio; **Guardar cambios** solo está disponible tras editar. Cada tarjeta de capacidad tiene una zona para abrir los ajustes y un interruptor independiente para activarla. Los ejemplos aparecen detrás del icono de información en los ajustes, sin repetir la ilustración de la galería.
 

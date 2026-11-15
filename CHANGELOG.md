@@ -25,7 +25,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
-- Add rotating, pausable chat illustrations with reduced-motion support, refine Chat controls and composer menus, and align workflow canvas controls with the console theme. Simplify remaining content and organization galleries, notification/search/account panels and modal surfaces.
+- Move optional field guidance into contextual help, simplify notification and account panels, and use consistent navigation icons. Prioritize conversation titles and keep compact chat filters within phone viewports.
+
+- Add rotating chat illustrations with reduced-motion support, refine Chat controls and composer menus, and align workflow canvas controls with the console theme. Simplify remaining content and organization galleries, notification/search/account panels and modal surfaces.
 
 - Lighten the sidebar in both themes and refine navigation disclosures, focus transitions and menu timings. Hidden navigation stays inert, and collapsing brings the active destination into view.
 

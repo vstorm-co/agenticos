@@ -74,7 +74,9 @@ Page headers use the surrounding layout’s spacing once. Cards, sidebar rows, t
 
 Secondary buttons and toolbar filters share a more visible filled surface, full-contrast labels and distinct hover, pressed and open states. The chat model picker follows the same secondary-action styling.
 
-Personal settings keep horizontal tabs at the top, including desktop-only pages inside the app. Settings panels show their descriptions directly and use content-sized forms. Account holds password changes and active sessions; the password action sits below the fields.
+Personal settings use a section index on desktop and a section menu on phones. Explanatory copy opens from information buttons; requirements, validation errors and destructive-action warnings stay visible. Account holds password changes and active sessions.
+
+Conversation titles lead the chat list, with agent names and activity below. Search, filters and New chat share its header. Header filters open below their button; collapsed-rail filters open beside it. Decorative illustrations rotate without playback controls and follow the reduced-motion preference.
 
 Profile fields share a row when there is room; **Save changes** is available only after an edit. Capability cards have one settings target and a separate enable switch; settings panels keep examples behind an information icon rather than repeating the gallery illustration.
 

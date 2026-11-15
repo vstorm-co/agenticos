@@ -1,5 +1,5 @@
 ---
-source_sha: "32dd7a1e9b03"
+source_sha: "99bd879638a8"
 ---
 
 # Konsola { #the-console }
@@ -82,7 +82,9 @@ Nagłówki korzystają z odstępów otaczającego układu bez ich podwajania. Ka
 
 Przyciski drugorzędne i filtry mają wspólne, wyraźniejsze wypełnienie, kontrastowe etykiety oraz czytelne stany najechania, naciśnięcia i otwarcia. Wybór modelu w chacie korzysta z tego samego stylu przycisku.
 
-Ustawienia osobiste zachowują poziome zakładki u góry, w tym opcje desktopowe dostępne w aplikacji. Panele pokazują opisy bezpośrednio, a formularze mają wysokość dopasowaną do zawartości. Konto zawiera zmianę hasła i aktywne sesje; przycisk zmiany hasła jest pod polami.
+Ustawienia osobiste mają indeks sekcji na desktopie i menu sekcji na telefonie. Objaśnienia otwierają się pod przyciskami informacji; wymagania pól, błędy walidacji i ostrzeżenia przy usuwaniu pozostają widoczne. Konto zawiera zmianę hasła i aktywne sesje.
+
+Tytuły rozmów są pierwszą linią listy czatów, z nazwami agentów i aktywnością poniżej. Wyszukiwanie, filtry i Nowy czat dzielą nagłówek. Filtry nagłówka otwierają się pod przyciskiem, a filtry zwiniętej szyny obok niego. Dekoracyjne ilustracje zmieniają się bez przycisków odtwarzania i respektują preferencję ograniczonego ruchu.
 
 Pola profilu mieszczą się w jednym wierszu, gdy jest miejsce; **Zapisz zmiany** jest dostępne dopiero po edycji. Karta możliwości ma jeden obszar otwierający ustawienia i osobny przełącznik włączenia. W panelu ustawień przykłady są pod ikoną informacji, zamiast powtarzanej ilustracji z galerii.
 
