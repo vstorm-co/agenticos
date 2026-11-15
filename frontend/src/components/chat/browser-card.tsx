@@ -2,25 +2,23 @@
 
 import { toolLookupName } from "@/lib/tool-identity";
 
-import { createContext, useContext, useEffect, useRef } from "react";
+import { createContext, useContext } from "react";
 
 import { Maximize2, Monitor } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { useShell } from "@/hooks/use-shell";
-import { isDesktopShell } from "@/lib/desktop/shell";
 import { useLiveBrowse } from "@/hooks/use-live-browse";
 import {
   DESKTOP_TOOLS,
   recordedBrowserPage,
   turnBrowseVisits,
   isRunning,
-  latestBrowserTabs,
   withLivePreview,
   type Browse,
 } from "@/lib/browse";
 import { cn } from "@/lib/utils";
-import { useBrowserPanelStore } from "@/stores/browser-panel-store";
+import { useBrowserPanelStore, type BrowseSurface } from "@/stores/browser-panel-store";
+import { selectedWorkspaceBrowse } from "@/lib/workspace-panels";
 import type { ToolCall } from "@/types";
 import type { PageComment } from "./browser-comment";
 import { BrowserWindow, hostOf } from "./browser-window";
@@ -30,6 +28,7 @@ import { BrowserVisit } from "./browser-visit";
 const LiveBrowses = createContext<{
   browses: Browse[];
   onComment?: (comment: PageComment) => void;
+  surfaces?: ReadonlyMap<string, BrowseSurface>;
 }>({ browses: [] });
 
 function isDesktop(call: ToolCall): boolean {
@@ -56,7 +55,12 @@ export function TurnBrowses({ calls }: { calls: ToolCall[] }) {
           browse.navigable || browse.nativeId ? (
             <BrowserLink key={id} browse={browse} />
           ) : (
-            <InlineBrowser key={id} browse={browse} onComment={onComment} />
+            <InlineBrowser
+              key={id}
+              browse={browse}
+              surface={isDesktop(call) ? "computer" : "browser"}
+              onComment={onComment}
+            />
           )
         ) : (
           <RecordedBrowse key={id} call={call} />
@@ -88,13 +92,21 @@ function RecordedBrowse({ call }: { call: ToolCall }) {
 function InlineBrowser({
   browse: streamed,
   onComment,
+  surface,
 }: {
   browse: Browse;
   onComment?: (comment: PageComment) => void;
+  surface: BrowseSurface;
 }) {
   const t = useTranslations("chat");
+  const workspace = useTranslations("chat.workspace");
+  const { browses, surfaces = new Map() } = useContext(LiveBrowses);
   const expand = useBrowserPanelStore((state) => state.open);
-  const expanded = useBrowserPanelStore((state) => state.openCallId === streamed.callId);
+  const choice = useBrowserPanelStore((state) => state.surface);
+  const callId = useBrowserPanelStore((state) => state.openCallId);
+  const selected = choice === "files" ? null : choice;
+  const expanded =
+    selectedWorkspaceBrowse(browses, surfaces, selected, callId)?.callId === streamed.callId;
   const running = isRunning(streamed);
   const live = useLiveBrowse(
     streamed.runId ?? "",
@@ -110,23 +122,26 @@ function InlineBrowser({
       {expanded ? (
         <button
           type="button"
-          onClick={() => expand(streamed.callId)}
+          onClick={() => expand(streamed.callId, surface)}
           className="text-muted-foreground hover:text-foreground flex h-full w-full flex-col items-center justify-center gap-2 text-sm"
         >
           <Maximize2 className="size-5" aria-hidden />
-          {t("browserShownInPanel", { host: hostOf(browse.url) ?? t("browserHeading") })}
+          {surface === "computer"
+            ? workspace("openComputer")
+            : t("browserShownInPanel", { host: hostOf(browse.url) ?? t("browserHeading") })}
         </button>
       ) : (
         <BrowserWindow
           waitForFit
           browse={browse}
+          surface={surface}
           control={
             mine && live.status === "live"
               ? { canControl: live.canControl, canRemember: live.canRemember, send: live.send }
               : null
           }
           maximizeLabel={t("browserOpenPanel")}
-          onMaximize={() => expand(streamed.callId)}
+          onMaximize={() => expand(streamed.callId, surface)}
           newTabHref={streamed.runId ? `/browse/${streamed.runId}/${streamed.callId}` : undefined}
           onComment={onComment}
         />
@@ -140,23 +155,4 @@ function BrowserLink({ browse }: { browse: Browse }) {
   const open = useBrowserPanelStore((state) => state.open);
   const page = recordedBrowserPage({ args: { url: browse.url }, result: undefined });
   return <BrowserVisit url={page.url} title={browse.title} onOpen={() => open(browse.callId)} />;
-}
-
-/** Open each running browser session once, without overriding a reader's selection or closure. */
-export function BrowserPanelAutoOpen({ browses }: { browses: Browse[] }) {
-  const newest = latestBrowserTabs(browses).at(-1);
-  const opened = useRef(new Set<string>());
-  const openCallId = useBrowserPanelStore((state) => state.openCallId);
-  const open = useBrowserPanelStore((state) => state.open);
-  const shell = useShell();
-  const callId = newest?.callId;
-  const session = newest?.runId ?? callId;
-  const running = newest ? isRunning(newest) : false;
-  const supported = !newest?.nativeId || (isDesktopShell(shell) && shell.window === "main");
-  useEffect(() => {
-    if (!callId || !session || !running || !supported || opened.current.has(session)) return;
-    opened.current.add(session);
-    if (openCallId === null) open(callId);
-  }, [callId, session, running, supported, openCallId, open]);
-  return null;
 }
