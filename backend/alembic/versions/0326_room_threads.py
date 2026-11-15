@@ -239,7 +239,7 @@ def downgrade() -> None:
             "or restore a matching pre-upgrade backup"
         )
     op.drop_index("messages_thread_ordinal_idx", table_name="messages")
-    op.drop_constraint("thread_root_not_self", "messages", type_="check")
+    op.execute("ALTER TABLE messages DROP CONSTRAINT messages_thread_root_not_self_check")
     op.drop_constraint("fk_messages_thread_root", "messages", type_="foreignkey")
     op.drop_constraint("uq_messages_conversation_id_id", "messages", type_="unique")
     op.drop_column("messages", "thread_root_message_id")

@@ -1927,6 +1927,41 @@ class TestRoomThreadMigration:
         finally:
             engine.dispose()
 
+    def test_check_constraint_name_survives_upgrade_downgrade_and_reupgrade(
+        self, thread_migration_engine: Engine
+    ) -> None:
+        engine = thread_migration_engine
+        upgraded = _alembic("upgrade", "head")
+        assert upgraded.returncode == 0, upgraded.stderr
+        with engine.connect() as connection:
+            assert (
+                connection.scalar(
+                    text(
+                        "SELECT count(*) FROM pg_constraint WHERE conrelid = 'messages'::regclass "
+                        "AND conname = 'messages_thread_root_not_self_check' AND contype = 'c'"
+                    )
+                )
+                == 1
+            )
+
+        downgraded = _alembic("downgrade", "0325_merge_t3_rooms_v173")
+        assert downgraded.returncode == 0, downgraded.stderr
+        with engine.connect() as connection:
+            assert (
+                connection.scalar(
+                    text(
+                        "SELECT count(*) FROM pg_constraint WHERE conrelid = 'messages'::regclass "
+                        "AND conname = 'messages_thread_root_not_self_check'"
+                    )
+                )
+                == 0
+            )
+
+        retried = _alembic("upgrade", "head")
+        assert retried.returncode == 0, retried.stderr
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
+
     @pytest.fixture
     def thread_migration_engine(self, monkeypatch: pytest.MonkeyPatch) -> Iterator[Engine]:
         """Give interruption cases their own database, including any partial DDL."""
