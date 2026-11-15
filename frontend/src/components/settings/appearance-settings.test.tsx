@@ -42,7 +42,7 @@ describe("AppearanceSettings", () => {
     expect(screen.getByRole("region", { name: "Live preview" })).toBeInTheDocument();
     expect(useThemeStore.getState().theme).toBe("system");
     expect(env.save).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole("button", { name: "Apply", exact: true }));
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(env.save).toHaveBeenCalledWith({ theme: "dark", accent: "blue" });
   });
 
@@ -52,16 +52,16 @@ describe("AppearanceSettings", () => {
     await userEvent.click(screen.getByRole("button", { name: "Discard preview" }));
     expect(within(group("Style")).getByRole("radio", { name: /Standard/ })).toBeChecked();
     expect(env.save).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Apply", exact: true })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
   });
 
   it("keeps an unsuccessful save available to retry", async () => {
     env.save.mockRejectedValue(new Error("offline"));
     render(<AppearanceSettings />);
     await userEvent.click(within(group("Text size")).getByRole("radio", { name: "Large" }));
-    await userEvent.click(screen.getByRole("button", { name: "Apply", exact: true }));
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(within(group("Text size")).getByRole("radio", { name: "Large" })).toBeChecked();
-    expect(screen.getByRole("button", { name: "Apply", exact: true })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeEnabled();
   });
 
   it("resets the account explicitly and clears a pending preview", async () => {
@@ -98,7 +98,7 @@ describe("AppearanceSettings", () => {
     await userEvent.click(within(group("Motion")).getByRole("radio", { name: "Reduce" }));
     await userEvent.click(within(group("Voice glow")).getByRole("radio", { name: "Vivid" }));
     await userEvent.click(within(group("Workflow steps")).getByRole("radio", { name: "Simple" }));
-    await userEvent.click(screen.getByRole("button", { name: "Apply", exact: true }));
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(env.save).toHaveBeenCalledWith({
       motion: "reduce",
       voice_glow: "vivid",

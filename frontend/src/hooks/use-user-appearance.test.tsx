@@ -61,7 +61,7 @@ it("does not send a queued edit or adopt an old response after the same person s
     finishFirst({ ...DEFAULT_APPEARANCE, theme: "dark" });
     outcomes = await settled;
   });
-  expect(outcomes[1].status).toBe("rejected");
+  expect(outcomes[1]?.status).toBe("rejected");
   expect(saveUserAppearance).toHaveBeenCalledTimes(1);
   expect(useThemeStore.getState().theme).toBe("system");
   client.clear();
