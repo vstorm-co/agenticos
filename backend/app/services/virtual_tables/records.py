@@ -1657,7 +1657,7 @@ class RecordOperations(Operations):
                 problems.append(
                     (
                         f"values.{column.id}",
-                        f"No record {sorted(missing)[0]} in the linked table",
+                        "No record is available in the linked table",
                     )
                 )
         if problems:
