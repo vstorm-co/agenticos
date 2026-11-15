@@ -303,7 +303,8 @@
     "viewRelease": "Sürümü görüntüle",
     "whatsNewTitle": "{version} sürümündeki yenilikler",
     "whatsNewDescription": "Kullandığınız sürümdeki son değişiklikler.",
-    "whatsNewDone": "Anladım"
+    "whatsNewDone": "Anladım",
+    "developerAccess": "API ve MCP"
   },
   "layout": {
     "breadcrumb": "Gezinme yolu",
@@ -3620,7 +3621,9 @@
       "notificationNoMatches": "Eşleşen bildirim yok",
       "notificationSearchHint": "Olay adını veya açıklamasından bir kelimeyi deneyin.",
       "notificationClearSearch": "Aramayı temizle",
-      "notificationEventCount": "{count, plural, =1 {1 olay} other {# olay}}"
+      "notificationEventCount": "{count, plural, =1 {1 olay} other {# olay}}",
+      "mobileAccountHint": "AgenticOS’u aynı hesapla telefonunuzda kullanın.",
+      "openMobileApp": "Mobil uygulamayı kur"
     },
     "rag": {
       "active": "Etkin",

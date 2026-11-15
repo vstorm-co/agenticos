@@ -31,7 +31,7 @@ describe("PageTabs", () => {
       "href",
       "/settings/memory",
     );
-    expect(screen.getByRole("link", { name: "API" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "API & MCP" })).toHaveAttribute("aria-current", "page");
     expect(screen.getAllByRole("link")).toHaveLength(
       SETTINGS_TABS.filter((tab) => !tab.shellOnly).length,
     );
@@ -45,7 +45,7 @@ describe("PageTabs", () => {
     );
     expect(screen.getByRole("navigation")).toHaveClass("flex-col", "hidden", "md:flex");
     expect(screen.getByRole("navigation").scrollLeft).toBe(0);
-    await userEvent.click(screen.getByRole("button", { name: "Section: API" }));
+    await userEvent.click(screen.getByRole("button", { name: "Section: API & MCP" }));
     expect(screen.getByRole("menuitem", { name: "Profile" })).toHaveAttribute(
       "href",
       "/settings/profile",
@@ -178,4 +178,22 @@ describe("PageTabs", () => {
     expect(screen.queryByRole("link", { name: "Blobby" })).toBeNull();
     delete window.__AGENTICOS_SHELL__;
   });
+});
+
+it("marks the combined access tab active on its legacy MCP route", () => {
+  render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <PageTabs
+        tabs={[
+          {
+            labelKey: "developerAccess",
+            href: "/settings/mcp",
+            matchHrefs: ["/settings/api-keys"],
+          },
+        ]}
+        overflow="scroll"
+      />
+    </NextIntlClientProvider>,
+  );
+  expect(screen.getByRole("link", { name: "API & MCP" })).toHaveAttribute("aria-current", "page");
 });

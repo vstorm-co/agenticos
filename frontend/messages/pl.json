@@ -150,7 +150,8 @@
     "whatsNewDescription": "Zmiany w wersji, z której korzystasz.",
     "whatsNewDone": "Rozumiem",
     "monitoring": "Monitorowanie",
-    "backgroundWork": "Praca w tle"
+    "backgroundWork": "Praca w tle",
+    "developerAccess": "API i MCP"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -3479,7 +3480,9 @@
       "notificationNoMatches": "Brak pasujących powiadomień",
       "notificationSearchHint": "Spróbuj nazwy zdarzenia lub słowa z jego opisu.",
       "notificationClearSearch": "Wyczyść wyszukiwanie",
-      "notificationEventCount": "{count, plural, one {# zdarzenie} few {# zdarzenia} many {# zdarzeń} other {# zdarzenia}}"
+      "notificationEventCount": "{count, plural, one {# zdarzenie} few {# zdarzenia} many {# zdarzeń} other {# zdarzenia}}",
+      "mobileAccountHint": "Korzystaj z AgenticOS na telefonie z tym samym kontem.",
+      "openMobileApp": "Skonfiguruj aplikację mobilną"
     },
     "tables": {
       "title": "Tabele",

@@ -29,6 +29,8 @@ export interface PageTab {
    * catalog already had every one of these words.
    */
   labelKey: string;
+  /** Related routes represented by this tab, while retaining their own URLs. */
+  matchHrefs?: readonly string[];
   href: string;
   icon?: LucideIcon;
   /** Match only the exact path (use for index/overview tabs). */
@@ -58,7 +60,14 @@ export function PageTabs({
   layout?: "horizontal" | "vertical";
 }) {
   const shell = useShell();
-  const isActive = useActiveRoute();
+  const routeActive = useActiveRoute();
+  const isActive = (href: string, exact?: boolean) => {
+    const tab = allTabs.find((item) => item.href === href);
+    return (
+      routeActive(href, exact) ||
+      (tab?.matchHrefs?.some((alias) => routeActive(alias, exact)) ?? false)
+    );
+  };
   const tabs = isDesktopShell(shell)
     ? allTabs
     : allTabs.filter((tab) => !tab.shellOnly || isActive(tab.href, tab.exact));

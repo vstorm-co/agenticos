@@ -4620,7 +4620,8 @@
     "whatsNewDone": "Verstanden",
     "monitoring": "Überwachung",
     "backgroundWork": "Arbeit im Hintergrund",
-    "desktopApp": "Desktop-App"
+    "desktopApp": "Desktop-App",
+    "developerAccess": "API & MCP"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -7448,7 +7449,9 @@
       "notificationNoMatches": "Keine passenden Benachrichtigungen",
       "notificationSearchHint": "Suche nach einem Ereignisnamen oder einem Wort aus der Beschreibung.",
       "notificationClearSearch": "Suche zurücksetzen",
-      "notificationEventCount": "{count, plural, =1 {1 Ereignis} other {# Ereignisse}}"
+      "notificationEventCount": "{count, plural, =1 {1 Ereignis} other {# Ereignisse}}",
+      "mobileAccountHint": "AgenticOS auf dem Handy mit demselben Konto nutzen.",
+      "openMobileApp": "Mobile App einrichten"
     },
     "skills": {
       "allCategories": "Alle Kategorien",

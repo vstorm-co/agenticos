@@ -160,7 +160,7 @@ export function ProfileIdentitySettings({
   return (
     <div
       className={cn(
-        "flex flex-1 flex-col space-y-4",
+        unifiedSave ? styles.overview : "flex flex-1 flex-col space-y-4",
         onContinue && section === "identity" && styles.guided,
       )}
     >

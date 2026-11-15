@@ -39,8 +39,8 @@ export function MySignIns() {
       }
     >
       <SectionCard
-        className="flex min-h-0 flex-1 flex-col"
-        contentClassName="flex-1"
+        className="bg-card flex min-h-0 flex-1 flex-col rounded-xl border px-5 sm:px-6 [&>header]:border-b"
+        contentClassName="flex flex-1 flex-col justify-center"
         title={t("title")}
         description={t("description")}
         tour="my-sign-ins"
