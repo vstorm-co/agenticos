@@ -274,7 +274,7 @@ def _link_delta_values(
         linked = [target for target in current if target not in removed]
         linked.extend(str(target) for target in change.add if str(target) not in linked)
         if len(linked) > MAX_LINKS:
-            raise InvalidRecordError([(field, f"A cell links at most {MAX_LINKS} records")])
+            raise InvalidRecordError([(field, "This cell exceeds the maximum number of links")])
         if linked != current:
             values[key] = linked
     return values
@@ -1749,13 +1749,14 @@ class RecordOperations(Operations):
         submitted: dict[str, CellValue],
         *,
         field_prefix: str = "values",
+        allow_missing: bool = False,
     ) -> None:
-        """Every record a submitted link names exists in the table it links to, which the
-        writer can see - a link is not a way to learn which ids another table holds.
+        """Require submitted targets to be visible unless cleanup allows unavailable ids.
 
         "Can see" is row-level here too: a linked row outside the writer's
         visibility fails with the same message as a missing one, so the error
-        cannot be used as an oracle for which ids the linked table holds.
+        cannot be used as an oracle for which ids the linked table holds. Link
+        removals may allow missing targets so stale references can be cleaned up.
         """
         problems: list[tuple[str, str]] = []
         for column in columns:
@@ -1770,9 +1771,10 @@ class RecordOperations(Operations):
             if target is None or not await resolve_access(
                 self.db, ctx, target, Perm.TABLES_VIEW, resource_type=TABLE
             ):
-                problems.append(
-                    (f"{field_prefix}.{column.id}", "The linked table cannot be reached")
-                )
+                if not allow_missing:
+                    problems.append(
+                        (f"{field_prefix}.{column.id}", "The linked table cannot be reached")
+                    )
                 continue
             found = await virtual_table_repo.get_records_by_ids(
                 self.db,
@@ -1799,7 +1801,7 @@ class RecordOperations(Operations):
                 )
             }
             missing = set(map(str, ids)) - seen
-            if missing:
+            if missing and not allow_missing:
                 problems.append(
                     (
                         f"{field_prefix}.{column.id}",
@@ -1961,20 +1963,28 @@ class RecordOperations(Operations):
         before = dict(record.values)
         merged = _merge(columns, values, before)
         if link_changes:
-            # Validate only the explicitly named targets, including removals and no-ops.
-            # Do this before applying deltas: a full cell must not distinguish an
-            # already-linked hidden ID from an unknown ID through its limit error.
-            # Internally retained links may be invisible to this writer.
-            await self._check_links(
-                ctx,
-                columns,
-                {
-                    str(column_id): [str(target) for target in [*change.add, *change.remove]]
-                    for column_id, change in link_changes.items()
-                    if change.add or change.remove
-                },
-                field_prefix="link_changes",
-            )
+            # A stale or hidden destination can still be removed from this stored cell.
+            # Additions must name a live destination the writer can see.
+            additions = {
+                str(column_id): [str(target) for target in change.add]
+                for column_id, change in link_changes.items()
+                if change.add
+            }
+            if additions:
+                await self._check_links(ctx, columns, additions, field_prefix="link_changes")
+            removals = {
+                str(column_id): [str(target) for target in change.remove]
+                for column_id, change in link_changes.items()
+                if change.remove
+            }
+            if removals:
+                await self._check_links(
+                    ctx,
+                    columns,
+                    removals,
+                    field_prefix="link_changes",
+                    allow_missing=True,
+                )
             merged = _merge(columns, _link_delta_values(columns, before, link_changes), merged)
         merged = await normalize_task_cells(self.db, ctx.organization_id, table.id, merged)
         # A submitted ID needs current Read even when it is already linked or
