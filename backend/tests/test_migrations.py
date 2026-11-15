@@ -77,11 +77,16 @@ def _url(database: str) -> str:
 def _env() -> dict[str, str]:
     """The environment each alembic subprocess runs in.
 
-    `POSTGRES_DB` is forced rather than defaulted: a default is something an
-    outer environment can override, and what it would override is the guard
-    that keeps `downgrade base` away from a real database.
+    Both the ordinary database name and the optional migration-owner URL are
+    forced to this fixture's database. The operator URL takes precedence in
+    Alembic, so overriding only `POSTGRES_DB` would let a configured owner DSN
+    send `downgrade base` to a real database.
     """
-    return {**os.environ, "POSTGRES_DB": MIGRATION_DATABASE}
+    return {
+        **os.environ,
+        "POSTGRES_DB": MIGRATION_DATABASE,
+        "POSTGRES_MIGRATION_URL": _url(MIGRATION_DATABASE),
+    }
 
 
 def _alembic(*args: str) -> subprocess.CompletedProcess[str]:

@@ -19,11 +19,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Upgrading
+
+- Tables tenant isolation adds migration `0328_tables_tenant_rls`, after `0327_virtual_table_relations`. It installs policies with enforcement disabled and adds a membership foreign key for user-specific Tables grants. Existing grants without membership, and cross-organization trigger or admission parents, must be reviewed before the migration can proceed; it refuses those rows without repairing data. Enabling enforcement is a separate operator cutover with distinct migration, runtime and maintenance credentials and drained API/worker services. Follow the [Tables cutover procedure](docs/plans/table-tenant-cutover.md) before activation.
+
 ### Changed
 
 - Sync upstream to v1.73.0 while preserving the T3 overlay; migration histories join at 0324_merge_t3_upstream_v173. CI and downstream compatibility remain unverified.
 
 ### Added
+
+- Tables can enforce an additional PostgreSQL tenant boundary across their complete data family. Request and background transactions bind one trusted organization; active enforcement refuses missing context, privileged runtime roles, partial activation and policy drift. Operator preflight checks ownership, privileges, database identity and legacy parent integrity before an explicit atomic cutover. Authorized global account export/deletion uses a separately verified maintenance connection, with audit and cleanup in the same transaction.
 
 - Project-room messaging APIs accept human posts without a model call and explicit requests for published cloud agents. A PostgreSQL submission ledger deduplicates retries, queues agent requests per conversation and retains their original requester; permissions are checked when accepted and when work starts or resumes. A waiting approval or answer keeps the room queue blocked. Queued follow-ups read earlier messages and the completed answers to preceding requests, while excluding later prompts. Migration `0311_room_submissions.py` follows `0303_virtual_table_row_policy.py`, which follows `0310_secret_requests.py`; the separate Team rooms interface uses these endpoints.
 - Open console tabs detect a newly deployed frontend and show a persistent top-center update notice with a Reload button, matching ServerOS. Checks run every minute while visible and when the tab returns; the app reloads only when the person chooses it. Build identities detect updates even when the release number is unchanged.

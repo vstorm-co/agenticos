@@ -21,6 +21,32 @@ RUNTIME_URL = "postgresql://runtime:fixture-password@localhost/example"
 MAINTENANCE_URL = "postgresql://maintenance:fixture-password@localhost/example"
 
 
+def test_migration_subprocess_uses_its_owned_database_instead_of_an_operator_dsn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tests import test_migrations
+
+    monkeypatch.setenv(
+        "POSTGRES_MIGRATION_URL",
+        "postgresql://operator:fixture-password@external.invalid/operator_database",
+    )
+    monkeypatch.setattr(
+        test_migrations,
+        "settings",
+        SimpleNamespace(
+            DATABASE_URL_SYNC="postgresql://runtime:fixture-password@127.0.0.1:55437/application"
+        ),
+    )
+    environment = test_migrations._env()
+    selected = sync_postgres_url(environment["POSTGRES_MIGRATION_URL"])
+
+    assert environment["POSTGRES_DB"] == test_migrations.MIGRATION_DATABASE
+    assert selected.database == test_migrations.MIGRATION_DATABASE
+    assert selected.host == "127.0.0.1"
+    assert selected.port == 55437
+    assert selected.username == "runtime"
+
+
 @pytest.fixture
 def connections(monkeypatch):
     configured = SimpleNamespace(
