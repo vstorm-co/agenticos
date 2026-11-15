@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { ArrowLeft } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
@@ -15,6 +23,14 @@ import { MessageList } from "./message-list";
 import { MessageItem } from "./message-item";
 import { PlanStrip } from "./plan-strip";
 import { RoomComposer } from "./team-room-composer";
+
+const OVERLAY_QUERY = "(max-width: 1023px)";
+
+function subscribeOverlay(onChange: () => void): () => void {
+  const media = window.matchMedia(OVERLAY_QUERY);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
 
 export function RoomThreadPanel({
   conversationId,
@@ -83,9 +99,13 @@ export function RoomThreadPanel({
   const scroll = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
   const close = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    close.current?.focus();
-  }, []);
+  const panel = useRef<HTMLElement>(null);
+  const returnFocus = useRef<Element | null>(null);
+  const overlay = useSyncExternalStore(
+    subscribeOverlay,
+    () => window.matchMedia(OVERLAY_QUERY).matches,
+    () => false,
+  );
   const last = messages.at(-1);
   useLayoutEffect(() => {
     if (follow.current && scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight;
@@ -104,94 +124,128 @@ export function RoomThreadPanel({
   const root = page?.root;
   const preview = useMemo(() => (root ? conversationMessageToChatMessage(root) : null), [root]);
   return (
-    <aside
-      aria-label={t("title")}
-      data-tour="chat-room-thread-panel"
-      className="bg-background absolute inset-0 z-30 flex min-h-0 min-w-0 flex-col border-l lg:relative lg:inset-auto lg:z-auto lg:w-[min(44%,34rem)] lg:min-w-80 lg:shrink-0"
-    >
-      <header className="flex shrink-0 items-center gap-2 border-b px-3 py-3">
-        <Button ref={close} size="icon" variant="ghost" aria-label={t("close")} onClick={onClose}>
-          <ArrowLeft className="size-4" aria-hidden />
-        </Button>
-        <div className="min-w-0">
-          <h2 className="text-sm font-semibold">{t("title")}</h2>
-          <p className="text-muted-foreground text-xs">
-            {t(projectId === null ? "historyAudience" : "audience")}
-          </p>
-        </div>
-      </header>
-      {query.isError ? (
-        <div role="alert" className="space-y-3 p-4 text-sm">
-          <p>{t("unavailable")}</p>
-          <Button variant="outline" size="sm" onClick={() => void query.refetch()}>
-            {t("retry")}
-          </Button>
-        </div>
-      ) : !root ? (
-        <p role="status" className="text-muted-foreground p-4 text-sm">
-          {t("loading")}
-        </p>
-      ) : (
-        <>
-          <div
-            ref={scroll}
-            className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4"
-            onScroll={() => {
-              const node = scroll.current;
-              if (node)
-                follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 120;
-            }}
-          >
-            <section className="bg-muted/40 mb-5 rounded-xl border p-3">
-              <p className="text-muted-foreground mb-2 text-xs font-medium">{t("root")}</p>
-              {preview && (
-                <MessageItem
-                  message={preview}
-                  threadRootPreview
-                  allowReply={canPost}
-                  onReply={draft.setReply}
-                  agent={agents.find((agent) => agent.id === preview.agentId)}
-                  agents={agents}
-                />
-              )}
-            </section>
-            <p className="text-muted-foreground mb-3 text-xs">
-              {t("replies", { count: page.total })}
-            </p>
-            {query.hasNextPage && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mb-3 w-full"
-                disabled={query.isFetchingNextPage}
-                onClick={() => void earlier(scroll.current!)}
-              >
-                {t("earlier")}
+    <DialogPrimitive.Root open modal={overlay} onOpenChange={onClose}>
+      <DialogPrimitive.Content
+        asChild
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          returnFocus.current = document.activeElement;
+          close.current?.focus();
+        }}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          if (returnFocus.current instanceof HTMLElement && returnFocus.current.isConnected)
+            returnFocus.current.focus();
+        }}
+        onInteractOutside={(event) => {
+          event.preventDefault();
+        }}
+        onEscapeKeyDown={(event) => {
+          if (!overlay && !panel.current?.contains(document.activeElement)) event.preventDefault();
+        }}
+      >
+        <aside
+          ref={panel}
+          role={overlay ? "dialog" : "complementary"}
+          aria-modal={overlay ? true : undefined}
+          aria-label={t("title")}
+          data-tour="chat-room-thread-panel"
+          className="bg-background absolute inset-0 z-30 flex min-h-0 min-w-0 flex-col border-l lg:relative lg:inset-auto lg:z-auto lg:w-[min(44%,34rem)] lg:min-w-80 lg:shrink-0"
+        >
+          <header className="flex shrink-0 items-center gap-2 border-b px-3 py-3">
+            <Button
+              ref={close}
+              size="icon"
+              variant="ghost"
+              aria-label={t("close")}
+              onClick={onClose}
+            >
+              <ArrowLeft className="size-4" aria-hidden />
+            </Button>
+            <div className="min-w-0">
+              <DialogPrimitive.Title asChild>
+                <h2 className="text-sm font-semibold">{t("title")}</h2>
+              </DialogPrimitive.Title>
+              <DialogPrimitive.Description asChild>
+                <p className="text-muted-foreground text-xs">
+                  {t(projectId === null ? "historyAudience" : "audience")}
+                </p>
+              </DialogPrimitive.Description>
+            </div>
+          </header>
+          {query.isError ? (
+            <div role="alert" className="space-y-3 p-4 text-sm">
+              <p>{t("unavailable")}</p>
+              <Button variant="outline" size="sm" onClick={() => void query.refetch()}>
+                {t("retry")}
               </Button>
-            )}
-            <MessageList messages={messages} onReply={draft.setReply} allowReply={canPost} />
-            {messages.length === 0 && (
-              <p className="text-muted-foreground py-6 text-center text-sm">{t("empty")}</p>
-            )}
-          </div>
-          <div className="max-h-[60%] shrink-0 overflow-y-auto border-t px-3 pt-3 pb-4">
-            {actions?.(!canPost)}
-            <PlanStrip plan={plan} live={isProcessing} />
-            {projectId !== null && canPost ? (
-              <RoomComposer
-                conversationId={conversationId}
-                projectId={projectId}
-                readOnly={false}
-                onTyping={onTyping}
-                draft={draft}
-                threadRootMessageId={rootId}
-              />
-            ) : (
-              <p className="text-muted-foreground p-3 text-center text-xs">{t("readOnly")}</p>
-            )}
-          </div>
-        </>
-      )}
-    </aside>
+            </div>
+          ) : !root ? (
+            <p role="status" className="text-muted-foreground p-4 text-sm">
+              {t("loading")}
+            </p>
+          ) : (
+            <>
+              <div
+                ref={scroll}
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4"
+                onScroll={(event) => {
+                  const node = event.currentTarget;
+                  follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 120;
+                }}
+              >
+                <section className="bg-muted/40 mb-5 rounded-xl border p-3">
+                  <p className="text-muted-foreground mb-2 text-xs font-medium">{t("root")}</p>
+                  {preview && (
+                    <MessageItem
+                      message={preview}
+                      threadRootPreview
+                      allowReply={canPost}
+                      onReply={draft.setReply}
+                      agent={agents.find((agent) => agent.id === preview.agentId)}
+                      agents={agents}
+                    />
+                  )}
+                </section>
+                <p className="text-muted-foreground mb-3 text-xs">
+                  {t("replies", { count: page.total })}
+                </p>
+                {query.hasNextPage && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mb-3 w-full"
+                    disabled={query.isFetchingNextPage}
+                    onClick={() => void earlier(scroll.current!)}
+                  >
+                    {t("earlier")}
+                  </Button>
+                )}
+                <MessageList messages={messages} onReply={draft.setReply} allowReply={canPost} />
+                {messages.length === 0 && (
+                  <p className="text-muted-foreground py-6 text-center text-sm">{t("empty")}</p>
+                )}
+              </div>
+              <div className="max-h-[60%] shrink-0 overflow-y-auto border-t px-3 pt-3 pb-4">
+                {actions?.(!canPost)}
+                <PlanStrip plan={plan} live={isProcessing} />
+                {projectId !== null && canPost ? (
+                  <RoomComposer
+                    conversationId={conversationId}
+                    projectId={projectId}
+                    readOnly={false}
+                    onTyping={onTyping}
+                    draft={draft}
+                    threadRootMessageId={rootId}
+                  />
+                ) : (
+                  <p className="text-muted-foreground p-3 text-center text-xs">{t("readOnly")}</p>
+                )}
+              </div>
+            </>
+          )}
+        </aside>
+      </DialogPrimitive.Content>
+    </DialogPrimitive.Root>
   );
 }

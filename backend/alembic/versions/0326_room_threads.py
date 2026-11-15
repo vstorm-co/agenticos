@@ -6,6 +6,13 @@ Revises: 0325_merge_t3_rooms_v173
 Existing quote links stay in the main transcript. The new nullable root names a
 top-level message in the same conversation; deleting that root removes its thread
 rather than moving replies into the main room. No new audience or room is created.
+
+The transactional upgrade holds an ACCESS EXCLUSIVE lock on messages while it
+builds the composite unique index and validates constraints. Schedule a room
+read/write maintenance window, drain active turn workers, and measure the upgrade
+on a production-sized copy before deployment. Once thread replies exist, rollback
+requires a thread-aware application or a matching pre-upgrade backup; downgrade
+refuses to flatten their scopes.
 """
 
 from collections.abc import Sequence

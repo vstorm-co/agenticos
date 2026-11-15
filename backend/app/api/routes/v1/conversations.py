@@ -598,6 +598,10 @@ async def list_messages(
     `before` selects messages older than this conversation's named message;
     combine both to page backwards without concurrent appends shifting offsets.
 
+    The default includes thread replies for compatibility with existing API
+    clients. A room's main timeline opts into `top_level_only=true`; thread
+    panels use the scoped `room-threads/{root_message_id}` read instead.
+
     Same reasoning as `get_conversation` above: cross-user reads belong to
     `/admin/conversations`, not to a column on the user row.
 
