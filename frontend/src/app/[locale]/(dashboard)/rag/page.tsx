@@ -174,6 +174,7 @@ export default function RAGPage() {
 
         <TabsContent value="bases" className="flex-1 flex-col data-[state=active]:flex">
           <ListCard
+            layout="grid"
             fill
             namedByPage
             title={t("bases")}
@@ -186,7 +187,6 @@ export default function RAGPage() {
                 <GroupFilter value={groupId} onChange={setGroupId} />
               ) : undefined
             }
-            contentClassName="p-4"
           >
             {loading ? (
               // The same tiles the populated grid draws, as skeletons - a skeleton
