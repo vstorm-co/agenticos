@@ -358,6 +358,31 @@ async def test_explicit_hidden_ids_are_refused_even_when_the_update_would_be_a_n
     assert original.revision == 1
 
 
+async def test_hidden_and_unknown_submitted_link_ids_have_the_same_error(linked_data, monkeypatch):
+    operations = RecordOperations(MagicMock())
+    rows = virtual_table_repo.get_records_by_ids.return_value
+    hidden_row = next(row for row in rows if row.id == HIDDEN)
+    errors = []
+    for record_id, matching_rows in ((HIDDEN, [hidden_row]), (uuid4(), [])):
+        monkeypatch.setattr(
+            virtual_table_repo, "get_records_by_ids", AsyncMock(return_value=matching_rows)
+        )
+        with pytest.raises(InvalidRecordError) as refused:
+            await operations._check_links(context(), [LINK], {KEY: [str(record_id)]})
+        errors.append(refused.value.details)
+    assert errors[0] == errors[1]
+    assert str(HIDDEN) not in str(errors[0])
+
+
+async def test_a_visible_already_linked_id_is_still_validated(linked_data, monkeypatch):
+    rows = virtual_table_repo.get_records_by_ids.return_value
+    visible_row = next(row for row in rows if row.id == VISIBLE)
+    check = AsyncMock(return_value=[visible_row])
+    monkeypatch.setattr(virtual_table_repo, "get_records_by_ids", check)
+    await RecordOperations(MagicMock())._check_links(context(), [LINK], {KEY: [str(VISIBLE)]})
+    check.assert_awaited_once()
+
+
 async def test_unchanged_links_need_no_destination_read_for_preservation(linked_data, monkeypatch):
     check = AsyncMock()
     monkeypatch.setattr(records, "visible_link_ids", check)

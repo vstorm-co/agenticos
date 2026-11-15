@@ -1749,14 +1749,13 @@ class RecordOperations(Operations):
         submitted: dict[str, CellValue],
         *,
         field_prefix: str = "values",
-        allow_missing: bool = False,
     ) -> None:
-        """Require submitted targets to be visible unless cleanup allows unavailable ids.
+        """Require every explicitly submitted link target to be currently visible.
 
         "Can see" is row-level here too: a linked row outside the writer's
         visibility fails with the same message as a missing one, so the error
-        cannot be used as an oracle for which ids the linked table holds. Link
-        removals may allow missing targets so stale references can be cleaned up.
+        cannot be used as an oracle for which ids the linked table holds. This
+        includes removals and no-ops; only omitted hidden targets are retained.
         """
         problems: list[tuple[str, str]] = []
         for column in columns:
@@ -1771,10 +1770,9 @@ class RecordOperations(Operations):
             if target is None or not await resolve_access(
                 self.db, ctx, target, Perm.TABLES_VIEW, resource_type=TABLE
             ):
-                if not allow_missing:
-                    problems.append(
-                        (f"{field_prefix}.{column.id}", "The linked table cannot be reached")
-                    )
+                problems.append(
+                    (f"{field_prefix}.{column.id}", "The linked table cannot be reached")
+                )
                 continue
             found = await virtual_table_repo.get_records_by_ids(
                 self.db,
@@ -1801,11 +1799,11 @@ class RecordOperations(Operations):
                 )
             }
             missing = set(map(str, ids)) - seen
-            if missing and not allow_missing:
+            if missing:
                 problems.append(
                     (
                         f"{field_prefix}.{column.id}",
-                        f"No record {sorted(missing)[0]} in the linked table",
+                        "No record is available in the linked table",
                     )
                 )
         if problems:
@@ -1963,28 +1961,15 @@ class RecordOperations(Operations):
         before = dict(record.values)
         merged = _merge(columns, values, before)
         if link_changes:
-            # A stale or hidden destination can still be removed from this stored cell.
-            # Additions must name a live destination the writer can see.
-            additions = {
-                str(column_id): [str(target) for target in change.add]
+            # Check explicit intent before applying it or checking cardinality:
+            # hidden membership must not change the error, revision or no-op result.
+            submitted: dict[str, CellValue] = {
+                str(column_id): [str(target) for target in [*change.add, *change.remove]]
                 for column_id, change in link_changes.items()
-                if change.add
+                if change.add or change.remove
             }
-            if additions:
-                await self._check_links(ctx, columns, additions, field_prefix="link_changes")
-            removals = {
-                str(column_id): [str(target) for target in change.remove]
-                for column_id, change in link_changes.items()
-                if change.remove
-            }
-            if removals:
-                await self._check_links(
-                    ctx,
-                    columns,
-                    removals,
-                    field_prefix="link_changes",
-                    allow_missing=True,
-                )
+            if submitted:
+                await self._check_links(ctx, columns, submitted, field_prefix="link_changes")
             merged = _merge(columns, _link_delta_values(columns, before, link_changes), merged)
         merged = await normalize_task_cells(self.db, ctx.organization_id, table.id, merged)
         # A submitted ID needs current Read even when it is already linked or
