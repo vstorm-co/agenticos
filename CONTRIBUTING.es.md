@@ -2,7 +2,7 @@
 source_sha: "7cb876b5ef26"
 ---
 
-<!-- source_sha: 6ba9e8a85274 -->
+<!-- source_sha: 38cf8cd6bd00 -->
 
 # Contribuir a AgenticOS
 
@@ -112,6 +112,9 @@ supervisión.
 - Los bugs se entregan con un test de regresión que falla sin el arreglo.
 - Cuenta en la descripción qué decidiste y por qué. El qué ya lo enseña el
   código.
+- La CI rápida se ejecuta en cada pull request. La CI completa requiere la
+  etiqueta `full-ci`, una rama de origen del pull request que coincida con
+  `sync/upstream-*` o una publicación (push de una etiqueta `v*`).
 
 ## Seguridad
 
