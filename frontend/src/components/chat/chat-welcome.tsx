@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { ArrowUpRight, X, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { WorkspaceAtmosphere } from "@/components/illustrations/workspace-atmosphere";
+import { RotatingWorkspaceArt } from "@/components/illustrations/rotating-workspace-art";
 import { cn } from "@/lib/utils";
 
 export interface WelcomeSuggestion {
@@ -164,11 +164,11 @@ export function ChatWelcome({
             "flex",
             compact
               ? "mb-3 justify-center"
-              : "relative mb-4 min-h-28 w-full items-center justify-start",
-            quiet && !compact && "min-h-28",
+              : "relative mb-4 min-h-36 w-full items-center justify-start",
+            quiet && !compact && "min-h-36",
           )}
         >
-          {!compact && <WorkspaceAtmosphere animated className="absolute inset-0 h-full w-full" />}
+          {!compact && <RotatingWorkspaceArt />}
           <span className="relative">{mark}</span>
         </div>
         <h2

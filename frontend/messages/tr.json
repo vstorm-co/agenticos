@@ -8912,6 +8912,8 @@
     "edit": "Düzenle",
     "editMeans": "Düzenleme izni olanlar konuşmanın adını değiştirebilir, konuşmayı arşivleyip silebilir ve konuşmaya yeni turlar ekleyebilir.",
     "empty": {
+      "pauseArtwork": "Çizimleri duraklat",
+      "playArtwork": "Çizimleri sürdür",
       "commandPalette": "komut paleti",
       "capabilitiesPrompt": "Burada benim için neler yapabilirsin? Benim yaptığım işe uygun bir örnekle göster.",
       "capabilitiesTitle": "Neler yapabilirsin?",
