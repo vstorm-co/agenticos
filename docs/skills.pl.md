@@ -1,5 +1,5 @@
 ---
-source_sha: "3bce1ab7805a"
+source_sha: "c7784f62508b"
 ---
 
 # Skille { #skills }
@@ -234,21 +234,27 @@ ostrzeżeniem; oryginalne pliki pozostają bez zmian. Zapis propozycji używa
 savepointu, więc odrzucona propozycja nie wycofa tury ani nie zablokuje zapisania
 jej statusu i kosztu.
 
-### Skille wyuczone — zatwierdzona propozycja staje się własnym skillem { #learned-skills-an-approved-proposal-becomes-a-skill-on-its-own }
+### Skille wyuczone — zatwierdzona propozycja aktualizuje wskazany skill { #learned-skills-an-approved-proposal-becomes-a-skill-on-its-own }
 
-Zastosowanie propozycji edytuje skill, który ona wskazuje. Gdy zatwierdzona
-propozycja *jest* nowym skillem — powtarzający się błąd bez skilla, do którego
-można by go przypisać — automatyczne uczenie skilli tworzy go zamiast tego:
-`POST /v1/agents/{agent_id}/learned-skills` z tekstem propozycji i jej
-pochodzeniem. Nowy skill trafia do kategorii `learned`, więc lista pokazuje,
-czego pętla nauczyła organizację, a zapis jest audytowany jako `skill.learned`
-wraz z propozycją, wpisem w ledgerze i kluczem wzorca, które go zmotywowały.
+Zastosowanie propozycji edytuje skill, który ona wskazuje. Automatyczne uczenie
+skilli zapisuje potem zatwierdzony tekst propozycji w tym skillu, przez
+`POST /v1/agents/{agent_id}/learned-skills`. Zapisana propozycja dostarcza
+skill docelowy, tekst i pochodzenie. Żądanie nadal wysyła `content`, który musi
+być identyczny z tekstem propozycji. `name` i `description` przekazane przez
+wywołującego są przestarzałe i ignorowane.
 
-Dwukrotne wyuczenie tej samej propozycji za drugim razem niczego nie zapisuje,
-a skill, który ktoś przepisał po napisaniu propozycji, jest odrzucany zamiast
-nadpisywany. Wyuczony skill jest od tej pory zwykłym skillem: edytowalnym,
-wersjonowanym tym samym przyrostem wersji co każda edycja i cofanym nową
-edycją, a nie przywróceniem.
+Uczenie aktualizuje tylko istniejący skill, więc odpowiedź zawsze zwraca
+`created` jako `false`. Propozycja bez skilla docelowego albo taka, która nie
+jest zastosowana lub została cofnięta, zwraca 404. Pole żądania, które nie
+zgadza się z zapisaną propozycją, zwraca 409. Ten sam kod 409 zwraca skill
+zmieniony od czasu napisania propozycji. Taki skill jest odrzucany zamiast
+nadpisywany.
+
+Każdy zapis jest audytowany jako `skill.learned` wraz z propozycją, wpisem w
+ledgerze i kluczem wzorca, które go zmotywowały. Dwukrotne wyuczenie tej samej
+propozycji za drugim razem niczego nie zapisuje. Wyuczona zmiana jest od tej
+pory zwykłą edycją: wersjonowana tym samym przyrostem wersji co każda edycja i
+cofana nową edycją, a nie przywróceniem.
 
 Zmiana zapisuje wersję skilla, dla której powstała: przy runie jest to wersja,
 którą ten run dostał, a późniejsza tura, która ją nadpisuje, zapisuje swoją. Apply

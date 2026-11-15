@@ -55,7 +55,7 @@ beforeEach(() => {
   live.value = { browse: null, task: "", canControl: false, status: "connecting", send: vi.fn() };
   live.calls = [];
   useAuthStore.setState({ user: { id: "u1", full_name: "Ada", email: "ada@acme.test" } as never });
-  useBrowserPanelStore.setState({ openCallId: null });
+  useBrowserPanelStore.getState().close();
 });
 
 describe("BrowserPanel - a browse beside the chat", () => {
@@ -63,21 +63,21 @@ describe("BrowserPanel - a browse beside the chat", () => {
     const { container, rerender } = render(<BrowserPanel browses={[]} />);
     expect(container).toBeEmptyDOMElement();
 
-    // Opening is owned by BrowserPanelAutoOpen; this component only renders the selection.
+    // Tool activity does not open a pane the reader has not chosen.
     rerender(<BrowserPanel browses={[browse()]} />);
     expect(container).toBeEmptyDOMElement();
     expect(useBrowserPanelStore.getState().openCallId).toBeNull();
   });
 
   it("shows the browse somebody opened, by id", () => {
-    useBrowserPanelStore.setState({ openCallId: "c2" });
+    useBrowserPanelStore.getState().open("c2");
     render(<BrowserPanel browses={[browse(), browse({ callId: "c2", title: "Docs" })]} />);
     expect(screen.getByRole("heading", { name: "Docs" })).toBeInTheDocument();
   });
 
   it("closes on Escape, except while a person holds the page", () => {
     live.value = { ...live.value, browse: browse({ heldBy: "Ada" }), status: "live" };
-    useBrowserPanelStore.setState({ openCallId: "c1" });
+    useBrowserPanelStore.getState().open("c1");
     const { rerender } = render(<BrowserPanel browses={[browse()]} />);
 
     fireEvent.keyDown(window, { key: "Escape" });
@@ -98,7 +98,7 @@ describe("BrowserPanel - a browse beside the chat", () => {
       canControl: true,
       status: "live",
     };
-    useBrowserPanelStore.setState({ openCallId: "c1" });
+    useBrowserPanelStore.getState().open("c1");
     render(<BrowserPanel browses={[browse()]} />);
 
     expect(live.calls.at(-1)).toEqual(["run-1", "c1", true]);
@@ -113,7 +113,7 @@ describe("BrowserPanel - a browse beside the chat", () => {
       browse: browse({ callId: "other", title: "Other" }),
       status: "live",
     };
-    useBrowserPanelStore.setState({ openCallId: "c1" });
+    useBrowserPanelStore.getState().open("c1");
     const { rerender } = render(<BrowserPanel browses={[browse()]} />);
     expect(screen.getByRole("heading", { name: "Pricing" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Take over/ })).toBeNull();
@@ -126,7 +126,7 @@ describe("BrowserPanel - a browse beside the chat", () => {
   });
 
   it("links the browse's own page, and goes back under the message", async () => {
-    useBrowserPanelStore.setState({ openCallId: "c1" });
+    useBrowserPanelStore.getState().open("c1");
     render(<BrowserPanel browses={[browse()]} />);
     await userEvent.click(screen.getByRole("button", { name: "Browser options" }));
     expect(screen.getByRole("menuitem", { name: "Open in a new tab" })).toHaveAttribute(
@@ -143,7 +143,7 @@ describe("BrowserPanel - a browse beside the chat", () => {
 });
 
 it("shows a native tab only in the owning desktop console", () => {
-  useBrowserPanelStore.setState({ openCallId: "c1" });
+  useBrowserPanelStore.getState().open("c1");
   const view = render(<BrowserPanel browses={[browse({ nativeId: "native-browser-test" })]} />);
   expect(screen.getByText(/This tab is open in the paired desktop app/)).toBeInTheDocument();
   view.unmount();
@@ -157,7 +157,7 @@ it("mounts the native renderer in the desktop console", () => {
     vibrancy: true,
   };
   try {
-    useBrowserPanelStore.setState({ openCallId: "c1" });
+    useBrowserPanelStore.getState().open("c1");
     const view = render(<BrowserPanel browses={[browse({ nativeId: "native-browser-test" })]} />);
     expect(screen.getByRole("button", { name: "Close tab" })).toBeInTheDocument();
     view.unmount();
@@ -167,7 +167,7 @@ it("mounts the native renderer in the desktop console", () => {
 });
 
 it("expands and docks the same remote browse without closing it", async () => {
-  useBrowserPanelStore.setState({ openCallId: "c1" });
+  useBrowserPanelStore.getState().open("c1");
   const view = render(<BrowserPanel browses={[browse()]} />);
   const panel = view.container.querySelector("[data-browser-panel]");
   expect(panel).toHaveAttribute("data-browser-panel", "docked");

@@ -1,4 +1,4 @@
-"""Automatic skill learning: materialise an approved proposal as a skill.
+"""Automatic skill learning: apply an approved proposal to its named skill.
 
 One route, under the agent the proposal was written for:
 `POST /v1/agents/{agent_id}/learned-skills`.
@@ -6,9 +6,9 @@ One route, under the agent the proposal was written for:
 This route carries no `require(...)` gate: like the skill routes, it
 delegates to `AutoSkillLearningService`, which resolves `AGENTS_VIEW` on the
 agent and `SKILLS_EDIT` on the skill, so a grant on a single skill is not
-refused by a role-level gate. The response says whether the call created a
-skill, updated one, or found the text already learned — learning the same
-approved proposal twice writes nothing the second time.
+refused by a role-level gate. The response says whether the approved text was
+updated or was already present — learning the same proposal twice writes
+nothing the second time.
 """
 
 from typing import Any
@@ -28,9 +28,8 @@ async def learn_skill(
 ) -> Any:
     """Learn one human-approved skill-target proposal into the catalog.
 
-    The proposal must already be approved — this endpoint does not approve
-    anything, it only materialises the approval. Until #32 lands, the caller
-    supplies the proposal's fields; the service records the proposal id, the
-    ledger entry and the pattern key in the audit trail as provenance.
+    The proposal must already be applied. The service loads it within this
+    organization and agent, checks the submitted fields against it, and uses
+    its stored provenance for the audit trail.
     """
     return await service.learn(ctx, agent_id, data)

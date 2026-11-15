@@ -1,5 +1,5 @@
 ---
-source_sha: "1a6492d7577c"
+source_sha: "d6cc2cb1f94c"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -927,8 +927,13 @@ den Standard fest:
 Tabelleneigentümer, die Organisationsrollen Owner/Admin und der Deployment-Administrator
 behalten ihre Policy-Ausnahme. Tabellenzugriff und API-Key-Grenzen gelten weiterhin.
 Richten Sie im Modus `grants` Freigaben ein, bevor Sie bestehende Benutzer umstellen.
-Neue Zeilen benötigen weiterhin Tabellenverwaltung. Wenn ein Tabellenbearbeiter die neue
-Zeile nicht sehen könnte, wird die Anfrage mit 403 abgelehnt: `You do not have permission to write this row`.
+
+Neue Zeilen benötigen weiterhin Tabellenverwaltung. Im Modus `grants` wird eine direkte
+Erstellung mit 403 abgelehnt, wenn die Zeile für den Tabellenbearbeiter unsichtbar wäre:
+`You do not have permission to write this row`. Die Stapelerstellung meldet für diese Zeile
+`AUTHORIZATION_ERROR`. Upsert liefert denselben 404 für eine verborgene bestehende externe
+ID und eine nicht erlaubte Erstellung. Die Ablehnung verrät somit nicht, ob diese ID existiert.
+
 Verwaltete Aufgabenboards behalten ihre eigenen Zugriffsregeln und bieten diese
 Zeilenfreigaben nicht an.
 

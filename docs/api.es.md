@@ -1,5 +1,5 @@
 ---
-source_sha: "158c11621790"
+source_sha: "a6011726f555"
 ---
 
 # La API HTTP { #the-http-api }
@@ -327,6 +327,8 @@ siempre false, y también para una clave de API. Cuando es true, no llames a
 `GET /api/v1/conversations/{id}/transcript` lee una de las conversaciones de
 quien emitió la clave turno a turno, con las herramientas que llamó cada turno y
 lo que costó, para una clave con `runs:view`.
+La ruta paginada `GET /api/v1/conversations/{id}/messages` excluye por defecto las
+respuestas de hilos de salas de proyecto. Usa `top_level_only=false` para incluirlas.
 
 !!! info "Un llamante de la API no puede esquivar el governance"
 

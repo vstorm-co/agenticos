@@ -21,13 +21,19 @@ name: CI
 # `concurrency` group is keyed on `github.ref`, so a stacked branch cancels its own
 # superseded runs like any other.
 #
-# The `push` trigger covers the upstream branches and the fork's `t3` branch. Other
-# branch pushes are already covered by their pull requests, and widening it would
-# run those checks twice.
+# Fast CI runs for every pull request. Heavy jobs run only for `full-ci` pull
+# requests, `sync/upstream-*` pull requests and `v*` release tags. Pushes run on
+# `t3`; docs-only pushes are ignored.
 on:
   push:
-    branches: [main, master, t3]
+    branches: [t3]
+    tags: ['v*']
+    paths-ignore:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '*.md'
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
 
 # One run per branch. `AGENTS.md` asks for a commit and a push per finished piece,
 # which is right - but with nothing cancelling, each push started a fresh 24-minute
@@ -111,6 +117,7 @@ jobs:
       pull-requests: read
       actions: read
     outputs:
+      full: ${{ github.event_name == 'pull_request' && (contains(github.event.pull_request.labels.*.name, 'full-ci') || startsWith(github.head_ref, 'sync/upstream-')) || github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
       backend: ${{ steps.reused.outputs.backend || steps.scope.outputs.backend }}
       frontend: ${{ steps.reused.outputs.frontend || steps.scope.outputs.frontend }}
       e2e: ${{ steps.reused.outputs.e2e || steps.scope.outputs.e2e }}
@@ -246,7 +253,7 @@ jobs:
     # *run*; `!cancelled()` because a `changes` job that *failed* would otherwise
     # skip this one without the `if:` being read at all - and a skipped required
     # check is a pass, so that is a green merge button over a suite that never ran.
-    if: ${{ !cancelled() && needs.changes.outputs.backend != 'false' }}
+    if: ${{ !cancelled() && needs.changes.outputs.full == 'true' && needs.changes.outputs.backend != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     services:
@@ -404,7 +411,7 @@ jobs:
 
   lint-frontend:
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.frontend != 'false' }}
+    if: ${{ !cancelled() && needs.changes.outputs.full == 'true' && needs.changes.outputs.frontend != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -445,7 +452,7 @@ jobs:
 
   frontend-shards:
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.frontend != 'false' }}
+    if: ${{ !cancelled() && needs.changes.outputs.full == 'true' && needs.changes.outputs.frontend != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -503,7 +510,7 @@ jobs:
 
   build-frontend:
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.outputs.frontend != 'false' || needs.changes.outputs.e2e != 'false') }}
+    if: ${{ !cancelled() && needs.changes.outputs.full == 'true' && (needs.changes.outputs.frontend != 'false' || needs.changes.outputs.e2e != 'false') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -558,7 +565,7 @@ jobs:
 
   test-frontend:
     needs: [changes, lint-frontend, build-frontend, frontend-shards]
-    if: ${{ !cancelled() && needs.changes.outputs.frontend != 'false' }}
+    if: ${{ !cancelled() && needs.changes.outputs.full == 'true' && needs.changes.outputs.frontend != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -617,7 +624,7 @@ jobs:
     needs: [changes, build-frontend]
     # Exempted from neither half: this job drives the frontend against the
     # backend, so it is only skippable for a change that touches neither.
-    if: ${{ !cancelled() && needs.changes.outputs.e2e != 'false' && needs.build-frontend.result == 'success' }}
+    if: ${{ !cancelled() && needs.changes.outputs.full == 'true' && needs.changes.outputs.e2e != 'false' && needs.build-frontend.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -908,7 +915,7 @@ jobs:
 
   e2e:
     needs: [changes, build-frontend, e2e-shards]
-    if: ${{ !cancelled() && needs.changes.outputs.e2e != 'false' }}
+    if: ${{ !cancelled() && needs.changes.outputs.full == 'true' && needs.changes.outputs.e2e != 'false' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -985,6 +992,8 @@ jobs:
         run: make audit-frontend
 
   docs:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.full == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -1023,8 +1032,8 @@ jobs:
 
   checked-source:
     name: Record the checked source
-    needs: [test, test-frontend, e2e]
-    if: ${{ !cancelled() && needs.test.result == 'success' && needs.test-frontend.result == 'success' && needs.e2e.result == 'success' }}
+    needs: [changes, test, test-frontend, e2e]
+    if: ${{ !cancelled() && needs.changes.outputs.full == 'true' && needs.test.result == 'success' && needs.test-frontend.result == 'success' && needs.e2e.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

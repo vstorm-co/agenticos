@@ -46,7 +46,7 @@ export function resetTenantState(): void {
   // and would otherwise open the new tenant's conversation on the previous
   // one's page. Its width is a property of the window rather than the tenant, so
   // that is left where somebody dragged it.
-  useBrowserPanelStore.setState({ openCallId: null });
+  useBrowserPanelStore.getState().close();
   useAgentSelectionStore.getState().select(null);
   useAgentSelectionStore.getState().setDefault(null);
   // The guided flow is tenant-coupled too: it holds the id of an agent built in

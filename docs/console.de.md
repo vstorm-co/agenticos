@@ -1,5 +1,5 @@
 ---
-source_sha: "1488eff9ea76"
+source_sha: "a0384ef79df4"
 ---
 
 # Die Konsole { #the-console }
@@ -40,7 +40,7 @@ neben dem Mikrofon.
 
 Ressourcenlisten, darunter Inbox und Routines, füllen auch im leeren Zustand die verbleibende Seitenhöhe. Routines bietet Vorlagen im Erstellungsformular statt in einem eigenen Ideenbereich an.
 
-Im Chat sind Agentenporträts größer und ohne Ringe. Der Files-Schalter bleibt beim Öffnen und Schließen des Bereichs im Eingabefeld; reduzierte Bewegung wird berücksichtigt. Die Chat-Einstellungen zeigen zuerst das aktuelle Modell. Unter **Modell ändern** lassen sich vorausgefüllter Anbieter und Modell bearbeiten; erst die Bestätigung übernimmt die Änderung. Anhangskarten stehen ohne zusätzliches Schattenpanel über dem Eingabefeld.
+Im Chat sind Agentenporträts größer und ohne Ringe. Der Files-Schalter bleibt beim Öffnen und Schließen des Bereichs in den Bedienelementen rechts; reduzierte Bewegung wird berücksichtigt. Die Chat-Einstellungen zeigen zuerst das aktuelle Modell. Unter **Modell ändern** lassen sich vorausgefüllter Anbieter und Modell bearbeiten; erst die Bestätigung übernimmt die Änderung. Anhangskarten stehen ohne zusätzliches Schattenpanel über dem Eingabefeld.
 
 Seiteneinführungen und Erläuterungen zu Einstellungen sind über das Informationssymbol neben der Überschrift erreichbar. Aktuelle Zusammenfassungen und Warnungen vor destruktiven Aktionen bleiben sichtbar.
 
@@ -707,11 +707,28 @@ als Karte in seiner Antwort. Jeder Teil hat ein eigenes Kopiersymbol, das reinen
 kopiert; mehrere Varianten eines Entwurfs sind Tabs in derselben Karte. Das eigene
 **Kopieren** einer Nachricht enthält auch ihre Entwürfe.
 
+**Browser, Computer und Dateien (Files).** Die Schaltflächen rechts in jedem Chat
+öffnen das Panel Browser, Computer oder Dateien. Browser und Computer lassen sich
+bereits öffnen, bevor der Agent sie verwendet hat. Das Öffnen eines leeren Panels
+startet weder einen Run noch eine gehostete Sitzung. Geben Sie im Browser-Panel
+zuerst die Website-Adresse ein. Hat der ausgewählte Agent die
+entsprechende gehostete Capability und dürfen Sie ihn ausführen, bittet eine
+ausdrückliche Startaktion ihn, den Browser zu öffnen oder ein Desktop-Bild
+aufzunehmen. Andernfalls erklärt das Panel, was nicht verfügbar ist. Die
+veröffentlichten Einstellungen und Zugriffskontrollen des Agents gelten weiterhin.
+Wählen Sie in Teamräumen im Nachrichtenfeld einen Agenten aus und bitten Sie ihn,
+den Browser oder Computer zu öffnen. Die Panels bleiben zum Ansehen verfügbar.
+
+Browser- und Computer-Ansichten bleiben getrennt. Panels sind zunächst geschlossen;
+ein geschlossenes Panel bleibt auch bei neuen Werkzeugergebnissen geschlossen. Auf
+schmalen Bildschirmen füllt das ausgewählte Panel den Bildschirm. Nach einem Run
+kennzeichnet **Letzte Ansicht (Last view)** das abgeschlossene Bild; es ist kein
+Live-Desktop. Fordern Sie ein neues Bildschirmfoto an, um eine Computer-Ansicht zu
+aktualisieren.
+
 **Einem Durchlauf zusehen.** Der [Webbrowser](reference/capabilities.md#browser-automation)
-öffnet sich automatisch in einem Panel in voller Höhe neben dem Gespräch.
-Auf schmalen Bildschirmen nutzt er das Vollbild. Nach dem Schließen bleibt
-ein kompakter Link im Gespräch, um das Panel erneut zu öffnen. Karten besuchter
-Seiten zeigen das Website-Symbol, die Domain und den Seitentitel, auch nach dem
+erscheint in seinem eigenen Panel neben dem Gespräch. Karten besuchter Seiten
+öffnen das Browser-Panel erneut und zeigen das Website-Symbol, die Domain und den Seitentitel, auch nach dem
 erneuten Öffnen des Gesprächs. Jede Antwort behält eine Karte pro Browser-Tab;
 Klicks, erneutes Lesen und Zurückgehen aktualisieren diese Karte.
 Die Tableiste im Panel wechselt zwischen den Seiten. Nach dem Lauf bleibt das letzte Bild. **Sitzung fortsetzen** bittet den

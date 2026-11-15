@@ -39,6 +39,8 @@ export function LiveViewport({
   onCommand,
   flush = false,
   overlay,
+  label,
+  imageAlt,
 }: {
   browse: Browse;
   holding: boolean;
@@ -47,6 +49,8 @@ export function LiveViewport({
   flush?: boolean;
   /** Drawn over the page, in its coordinates - the agent's cursor. */
   overlay?: ReactNode;
+  label?: string;
+  imageAlt?: string;
 }) {
   const t = useTranslations("browse");
   // On the picture rather than the surface, because the point is measured
@@ -90,7 +94,7 @@ export function LiveViewport({
     // keys as text, which is what a remote screen is.
     <div
       role="application"
-      aria-label={holding ? t("holdingLabel") : t("watchingLabel")}
+      aria-label={label ?? (holding ? t("holdingLabel") : t("watchingLabel"))}
       // A remote screen takes the keyboard while it is held, and keys reach only
       // what has focus.
       // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
@@ -116,7 +120,7 @@ export function LiveViewport({
           the live view's socket, not a file the image pipeline can resolve. */}
       <img
         src={browse.image}
-        alt={t("pageAlt")}
+        alt={imageAlt ?? t("pageAlt")}
         className="block w-full select-none"
         draggable={false}
         onClick={onClick}
