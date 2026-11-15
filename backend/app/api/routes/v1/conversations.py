@@ -590,7 +590,10 @@ async def list_messages(
     limit: int = Query(100, ge=1, le=500),
     latest: bool = False,
     before: UUID | None = None,
-    top_level_only: bool = False,
+    top_level_only: bool = Query(
+        default=True,
+        description="Exclude project-room thread replies unless set to false",
+    ),
 ) -> Any:
     """List messages in a conversation, always scoped to the caller.
 
@@ -598,9 +601,9 @@ async def list_messages(
     `before` selects messages older than this conversation's named message;
     combine both to page backwards without concurrent appends shifting offsets.
 
-    The default includes thread replies for compatibility with existing API
-    clients. A room's main timeline opts into `top_level_only=true`; thread
-    panels use the scoped `room-threads/{root_message_id}` read instead.
+    `top_level_only` defaults to true so thread replies stay out of a project's
+    main transcript. Set it to false to include them; thread panels use the
+    scoped `room-threads/{root_message_id}` read instead.
 
     Same reasoning as `get_conversation` above: cross-user reads belong to
     `/admin/conversations`, not to a column on the user row.

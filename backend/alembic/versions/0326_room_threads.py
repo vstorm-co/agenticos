@@ -7,9 +7,8 @@ Existing quote links stay in the main transcript. The new nullable root names a
 top-level message in the same conversation; deleting that root removes its thread
 rather than moving replies into the main room. No new audience or room is created.
 
-The transactional upgrade holds an ACCESS EXCLUSIVE lock on messages while it
-builds the composite unique index and validates constraints. Schedule a room
-read/write maintenance window, drain active turn workers, and measure the upgrade
+The composite unique index builds concurrently, then attaches as a constraint.
+Constraint attachment and the remaining DDL still take locks; measure the upgrade
 on a production-sized copy before deployment. Once thread replies exist, rollback
 requires a thread-aware application or a matching pre-upgrade backup; downgrade
 refuses to flatten their scopes.
@@ -29,8 +28,17 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.add_column("messages", sa.Column("thread_root_message_id", sa.UUID(), nullable=True))
-    op.create_unique_constraint(
-        "uq_messages_conversation_id_id", "messages", ["conversation_id", "id"]
+    with op.get_context().autocommit_block():
+        op.create_index(
+            "uq_messages_conversation_id_id",
+            "messages",
+            ["conversation_id", "id"],
+            unique=True,
+            postgresql_concurrently=True,
+        )
+    op.execute(
+        "ALTER TABLE messages ADD CONSTRAINT uq_messages_conversation_id_id "
+        "UNIQUE USING INDEX uq_messages_conversation_id_id"
     )
     op.create_foreign_key(
         "fk_messages_thread_root",
