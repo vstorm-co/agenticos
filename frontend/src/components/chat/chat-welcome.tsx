@@ -168,7 +168,7 @@ export function ChatWelcome({
             quiet && !compact && "min-h-28",
           )}
         >
-          {!compact && <WorkspaceAtmosphere className="absolute inset-0 h-full w-full" />}
+          {!compact && <WorkspaceAtmosphere animated className="absolute inset-0 h-full w-full" />}
           <span className="relative">{mark}</span>
         </div>
         <h2

@@ -2,15 +2,22 @@
 
 import { useId } from "react";
 import { cn } from "@/lib/utils";
+import styles from "./workspace-atmosphere.module.css";
 
 /** Decorative halftone landscape: a quiet visual language for open workspaces. */
-export function WorkspaceAtmosphere({ className }: { className?: string }) {
+export function WorkspaceAtmosphere({
+  className,
+  animated = false,
+}: {
+  className?: string;
+  animated?: boolean;
+}) {
   const id = useId();
   return (
     <svg
       aria-hidden
       focusable="false"
-      className={cn("text-foreground/30 pointer-events-none", className)}
+      className={cn(styles.artwork, animated && styles.animated, "pointer-events-none", className)}
       viewBox="0 0 720 160"
       fill="none"
       preserveAspectRatio="xMidYMid meet"
@@ -28,7 +35,7 @@ export function WorkspaceAtmosphere({ className }: { className?: string }) {
           gradientUnits="userSpaceOnUse"
         >
           <stop stopColor="white" stopOpacity="0" />
-          <stop offset="0.25" stopColor="white" stopOpacity="0.6" />
+          <stop offset="0.25" stopColor="white" stopOpacity="0.85" />
           <stop offset="0.56" stopColor="white" />
           <stop offset="1" stopColor="white" stopOpacity="0" />
         </linearGradient>
@@ -38,6 +45,7 @@ export function WorkspaceAtmosphere({ className }: { className?: string }) {
       </defs>
       <g mask={`url(#${id}-mask)`}>
         <path
+          className={styles.landscape}
           d="M0 105C80 134 141 15 233 33C318 49 306 134 399 104C478 78 480 12 571 28C633 39 658 76 720 53V160H0Z"
           fill={`url(#${id}-dots)`}
         />
@@ -65,27 +73,31 @@ export function WorkspaceAtmosphere({ className }: { className?: string }) {
           strokeWidth="0.75"
           opacity="0.4"
         />
-        <g transform="translate(270 24) rotate(-12)">
-          <rect x="-7" y="-7" width="72" height="52" rx="9" fill="var(--color-background)" />
-          <rect width="58" height="38" rx="6" stroke="currentColor" strokeWidth="1.2" />
-          <path
-            d="M10 12H37M10 19H47M10 26H29"
-            stroke="currentColor"
-            strokeLinecap="round"
-            opacity="0.65"
-          />
+        <g className={styles.document}>
+          <g transform="translate(270 24) rotate(-12)">
+            <rect x="-7" y="-7" width="72" height="52" rx="9" fill="var(--color-background)" />
+            <rect width="58" height="38" rx="6" stroke="currentColor" strokeWidth="1.2" />
+            <path
+              d="M10 12H37M10 19H47M10 26H29"
+              stroke="currentColor"
+              strokeLinecap="round"
+              opacity="0.65"
+            />
+          </g>
         </g>
-        <g transform="translate(520 52) rotate(9)">
-          <rect x="-7" y="-7" width="78" height="62" rx="10" fill="var(--color-background)" />
-          <rect width="64" height="48" rx="7" stroke="currentColor" strokeWidth="1.2" />
-          <path
-            d="M11 34L24 23L34 28L52 13"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <circle cx="52" cy="13" r="2.5" fill="currentColor" />
+        <g className={styles.chart}>
+          <g transform="translate(520 52) rotate(9)">
+            <rect x="-7" y="-7" width="78" height="62" rx="10" fill="var(--color-background)" />
+            <rect width="64" height="48" rx="7" stroke="currentColor" strokeWidth="1.2" />
+            <path
+              d="M11 34L24 23L34 28L52 13"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx="52" cy="13" r="2.5" fill="currentColor" />
+          </g>
         </g>
         <circle cx="417" cy="24" r="3" fill="currentColor" opacity="0.7" />
         <path d="M180 17V27M175 22H185" stroke="currentColor" strokeLinecap="round" />
