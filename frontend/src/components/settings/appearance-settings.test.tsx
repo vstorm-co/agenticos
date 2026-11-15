@@ -48,9 +48,12 @@ describe("AppearanceSettings", () => {
 
   it("keeps the voice glow style the person picks, and says what it is", async () => {
     render(<AppearanceSettings />);
-    expect(
-      screen.getByText("How the chat box reacts to your voice while dictating"),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("How the chat box reacts to your voice while dictating")).toBeNull();
+    await userEvent.click(
+      within(group("Voice glow").parentElement!).getByRole("button", { name: "More information" }),
+    );
+    expect(screen.getByText("How the chat box reacts to your voice while dictating")).toBeVisible();
+    await userEvent.keyboard("{Escape}");
 
     await userEvent.click(within(group("Voice glow")).getByRole("radio", { name: "Vivid" }));
 
@@ -69,7 +72,14 @@ describe("AppearanceSettings", () => {
   it("chooses how workflow steps are drawn, and says what each does", async () => {
     render(<AppearanceSettings />);
     expect(within(group("Workflow steps")).getByRole("radio", { name: "In colour" })).toBeChecked();
-    expect(screen.getByText(/Simple keeps the tiles neutral/)).toBeInTheDocument();
+    expect(screen.queryByText(/Simple keeps the tiles neutral/)).toBeNull();
+    await userEvent.click(
+      within(group("Workflow steps").parentElement!).getByRole("button", {
+        name: "More information",
+      }),
+    );
+    expect(screen.getByText(/Simple keeps the tiles neutral/)).toBeVisible();
+    await userEvent.keyboard("{Escape}");
 
     await userEvent.click(within(group("Workflow steps")).getByRole("radio", { name: "Simple" }));
 

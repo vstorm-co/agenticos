@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 interface SectionCardProps {
   title: string;
-  description?: string;
+  description?: ReactNode;
   action?: ReactNode;
   children?: ReactNode;
   icon?: LucideIcon;
@@ -57,9 +57,12 @@ export function SectionCard({
               <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
             </span>
           )}
-          <div className="min-w-0 space-y-1">
-            <h2 className="text-foreground text-sm font-semibold">{title}</h2>
-            {description && (
+          <div className="min-w-0">
+            <div className="flex items-center gap-1">
+              <h2 className="text-foreground text-sm font-semibold">{title}</h2>
+              {description && !danger && <ContextHelp>{description}</ContextHelp>}
+            </div>
+            {description && danger && (
               <p className="text-muted-foreground max-w-2xl text-xs leading-5">{description}</p>
             )}
           </div>
