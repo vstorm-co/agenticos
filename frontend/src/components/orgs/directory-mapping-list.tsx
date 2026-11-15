@@ -63,7 +63,7 @@ export function DirectoryMappingList({
         ),
     },
   ];
-  if (canEdit) {
+  if (canEdit || isLoading) {
     columns.push({
       key: "actions",
       header: "",
@@ -92,7 +92,7 @@ export function DirectoryMappingList({
       counted={isLoading || error ? null : t("mappingCount", { count: mappings.length })}
       contentClassName="p-0"
       controls={
-        canEdit ? (
+        canEdit && !isLoading && mappings.length > 0 ? (
           <Button
             size="sm"
             onClick={onAdd}
