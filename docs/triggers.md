@@ -162,6 +162,10 @@ The generic `webhook` defaults to the signature above. When creating or updating
 
 These modes do not authenticate a timestamp, so captured requests can be replayed. The generic delivery ID header is not signed and does not prevent an attacker changing it. Configure provider-side filtering and use a dedicated integration when its contract requires timestamp checks, a different success response, or another signature scheme. In particular, these options alone do not implement Linear's webhook contract. The console currently creates the default scheme; configure alternatives through the API.
 
+Shopify and Hookdeck do not normally send `X-Delivery-ID`, so retries can fire again. Their provider delivery IDs are not checked by this trigger. Body signatures do not bind the destination URL or provider headers: use a separate secret for each trust boundary, and do not rely on unsigned shop or topic headers to authorize a delivery. Shopify's app secret may be shared across shops, so do not use this mode when a signature must prove which shop or subscription sent the event.
+
+Rotate generates a new AgenticOS secret; it cannot install a replacement issued by a provider. For a provider-controlled secret, create a new trigger and update the provider's URL after changing the secret. Hookdeck's second signature during delayed rotation is not checked.
+
 !!! danger "The signature is not decoration"
 
     Without it, the URL is the only thing between a stranger and your

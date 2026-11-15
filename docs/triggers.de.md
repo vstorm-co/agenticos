@@ -1,5 +1,5 @@
 ---
-source_sha: "d1613f7df550"
+source_sha: "6740bcc477b4"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -178,6 +178,10 @@ flowchart TD
 Der generische `webhook` verwendet standardmäßig die obige Signatur. Beim Erstellen oder Ändern per API setzt `event_config` mit `{"signature_scheme":"hmac-sha256-base64","signature_header":"X-Shopify-Hmac-Sha256"}` das Shopify-Verfahren; für Hookdecks Standardsignatur dient `X-Hookdeck-Signature`. `hmac-sha256-hex` erwartet einen Hex-Digest ohne Präfix. Beide signieren den unveränderten Body und benötigen das Secret des Providers als `event_secret`; Headernamen unterscheiden keine Groß- und Kleinschreibung.
 
 Diese Verfahren authentifizieren keinen Zeitstempel; abgefangene Anfragen sind erneut abspielbar. Der generische Delivery-ID-Header ist nicht signiert und lässt sich ändern. Filtern Sie beim Provider und verwenden Sie eine eigene Integration, wenn dessen Vertrag Zeitstempelprüfungen, einen anderen Erfolgsstatus oder ein anderes Signaturverfahren verlangt. Insbesondere implementieren diese Optionen nicht den Linear-Webhook-Vertrag. Die Konsole erstellt derzeit das Standardverfahren; Alternativen werden per API konfiguriert.
+
+Shopify und Hookdeck senden normalerweise kein `X-Delivery-ID`; Wiederholungen können daher erneut auslösen. Ihre eigenen Delivery-IDs prüft dieser Trigger nicht. Body-Signaturen binden weder Ziel-URL noch Provider-Header: Verwenden Sie für jede Vertrauensgrenze ein eigenes Secret und verlassen Sie sich zur Autorisierung nicht auf unsignierte Shop- oder Topic-Header. Shopifys App-Secret kann für mehrere Shops gelten; verwenden Sie diesen Modus nicht, wenn die Signatur den Shop oder das Abonnement nachweisen muss.
+
+Rotate erzeugt ein neues AgenticOS-Secret; ein vom Provider ausgestellter Ersatz lässt sich nicht einsetzen. Erstellen Sie bei einem Provider-Secret einen neuen Trigger und ändern Sie nach dem Secret-Wechsel die URL beim Provider. Hookdecks zweite Signatur bei verzögerter Rotation wird nicht geprüft.
 
 !!! danger "Die Signatur ist keine Zierde"
 
