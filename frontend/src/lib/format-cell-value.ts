@@ -84,15 +84,42 @@ function numberFormat(locale: string): Intl.NumberFormat {
   return format;
 }
 
+const scientificFormats = new Map<string, Intl.NumberFormat>();
+
+/** The same, in scientific notation: `1,5E-7` under `pl`. */
+function scientificFormat(locale: string): Intl.NumberFormat {
+  let format = scientificFormats.get(locale);
+  if (format === undefined) {
+    format = new Intl.NumberFormat(locale, {
+      notation: "scientific",
+      maximumSignificantDigits: 17,
+    });
+    scientificFormats.set(locale, format);
+  }
+  return format;
+}
+
+/** The most fraction digits fixed notation shows in every supported browser. */
+const FIXED_FRACTION_DIGITS = 20;
+
+/** How many fraction digits `value`'s shortest form needs: `1.5e-7` needs 8. */
+function fractionDigits(value: number): number {
+  const [mantissa = "", exponent] = String(Math.abs(value)).split("e");
+  const decimals = mantissa.split(".")[1]?.length ?? 0;
+  return Math.max(0, decimals - Number(exponent ?? 0));
+}
+
 /**
  * A value as text, a number written the way `locale` writes one. Every digit the
- * stored number has is shown - only the separators change - down to 1e-20, the most
- * fraction digits every supported browser formats; a four-digit number (a year, a
- * code) is not grouped.
+ * stored number has is shown - only the separators change - and a four-digit number
+ * (a year, a code) is not grouped. One whose digits run past what fixed notation
+ * shows reads in scientific notation instead, so `1e-21` is not 0.
  */
 function scalarText(value: unknown, locale: string | undefined): string {
   if (typeof value !== "number" || locale === undefined) return String(value);
-  return numberFormat(locale).format(value);
+  return fractionDigits(value) > FIXED_FRACTION_DIGITS
+    ? scientificFormat(locale).format(value)
+    : numberFormat(locale).format(value);
 }
 
 /** What joins a lookup's values: "; " where a comma is the decimal separator, so 12,5; 3,7. */

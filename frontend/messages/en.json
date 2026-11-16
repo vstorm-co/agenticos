@@ -12456,7 +12456,8 @@
         "empty": "A formula column needs a formula.",
         "too_long": "A formula is at most {limit} characters.",
         "not_a_column": "'{'{label}'}' is not a live column of this table.",
-        "not_a_value": "'{'{label}'}' is {type, select, link {a link column} other {a formula column}}: a formula reads columns holding values."
+        "not_a_value": "'{'{label}'}' is {type, select, link {a link column} other {a formula column}}: a formula reads columns holding values.",
+        "arity": "{name} takes {kind, select, exact {{fewest, plural, one {# value} other {# values}}} range {{fewest} to {most} values} other {at least {fewest, plural, one {# value} other {# values}}}}. A comma separates them, so write decimals with a dot, such as 1.23."
       }
     },
     "markdown": {

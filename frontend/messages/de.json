@@ -12142,7 +12142,8 @@
         "empty": "Eine Formelspalte braucht eine Formel.",
         "too_long": "Eine Formel hat höchstens {limit} Zeichen.",
         "not_a_column": "'{'{label}'}' ist keine aktive Spalte dieser Tabelle.",
-        "not_a_value": "'{'{label}'}' ist {type, select, link {eine Verknüpfungsspalte} other {eine Formelspalte}}: Eine Formel liest Spalten mit Werten."
+        "not_a_value": "'{'{label}'}' ist {type, select, link {eine Verknüpfungsspalte} other {eine Formelspalte}}: Eine Formel liest Spalten mit Werten.",
+        "arity": "{name} nimmt {kind, select, exact {{fewest, plural, one {# Wert} other {# Werte}}} range {{fewest} bis {most} Werte} other {mindestens {fewest, plural, one {# Wert} other {# Werte}}}}. Ein Komma trennt sie, schreiben Sie Dezimalzahlen also mit Punkt, etwa 1.23."
       }
     },
     "markdown": {

@@ -1,5 +1,5 @@
 ---
-source_sha: "84a2cdf1902d"
+source_sha: "774a82d93b5e"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -164,7 +164,12 @@ zapisywana, filtrowana ani sortowana.
 
 Ułamki dziesiętne zapisuje się z kropką, `{Price} * 1.23`, w każdym języku:
 przecinek oddziela argumenty funkcji, więc `{Price} * 1,23` zostaje odrzucone z tą
-wskazówką, a nie odczytane jako liczba. Odmowa podaje stały powód w
+wskazówką, a nie odczytane jako liczba; tak samo wywołanie, któremu przecinek dodaje o jedną
+wartość za dużo, jak `IF({Price} > 0,5, "yes", "no")`.
+
+Liczba wartości wywołania jest sprawdzana przy zapisie formuły:
+formuła zapisana wcześniej działa dalej, a pozostałe kolumny tabeli można zmieniać, dopóki
+ktoś jej nie zmieni. Odmowa podaje stały powód w
 `details.formula.reason`, na przykład `decimal_comma` albo `not_a_column`, dzięki
 któremu konsola mówi o nim w języku czytelnika. Konsola pokazuje liczby, także
 wynik formuły, z separatorem dziesiętnym czytelnika - `12,177` po polsku - i nie

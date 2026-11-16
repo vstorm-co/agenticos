@@ -413,6 +413,66 @@ def test_an_archived_formula_is_kept_without_being_checked_again():
     assert built[1].archived and built[1].formula == "{Price} * 2"
 
 
+def test_a_stored_formula_with_a_comma_too_many_keeps_working_until_it_is_edited():
+    """`ROUND({Price}, 1,5)` was saved before calls were counted: a change to another
+    column still saves, and only a change to that formula has to fix it."""
+    price = ColumnDef(id=uuid.uuid4(), label="Price", type="number")
+    note = _existing("Note")
+    rounded = ColumnDef(
+        id=uuid.uuid4(), label="Rounded", type="formula", formula="ROUND({Price}, 1,5)"
+    )
+    previous = [price, note, rounded]
+    keep = [
+        ColumnInput(id=price.id, label="Price", type="number"),
+        ColumnInput(id=rounded.id, label="Rounded", type="formula", formula="ROUND({Price}, 1,5)"),
+    ]
+
+    built = build_columns([*keep, ColumnInput(id=note.id, label="Remark", type="text")], previous)
+    assert [column.label for column in built] == ["Price", "Rounded", "Remark"]
+
+    # Renaming the column it reads rewrites it, and it is still the formula that was saved.
+    renamed = build_columns(
+        [
+            ColumnInput(id=price.id, label="Cost", type="number"),
+            ColumnInput(
+                id=rounded.id, label="Rounded", type="formula", formula="ROUND({Price}, 1,5)"
+            ),
+            ColumnInput(id=note.id, label="Note", type="text"),
+        ],
+        previous,
+    )
+    assert renamed[1].formula == "ROUND({Cost}, 1,5)"
+
+    with pytest.raises(InvalidSchemaError) as refused:
+        build_columns(
+            [
+                keep[0],
+                ColumnInput(
+                    id=rounded.id, label="Rounded", type="formula", formula="ROUND({Price}, 2,5)"
+                ),
+                ColumnInput(id=note.id, label="Note", type="text"),
+            ],
+            previous,
+        )
+    assert refused.value.details["formula"]["reason"] == "arity"
+    assert refused.value.details["fields"][0]["field"] == "columns.1.formula"
+
+
+def test_a_new_formula_is_held_to_every_rule():
+    price = ColumnDef(id=uuid.uuid4(), label="Price", type="number")
+
+    with pytest.raises(InvalidSchemaError) as refused:
+        build_columns(
+            [
+                ColumnInput(id=price.id, label="Price", type="number"),
+                ColumnInput(label="Rounded", type="formula", formula="ROUND({Price}, 1,5)"),
+            ],
+            [price],
+        )
+    assert refused.value.details["formula"]["reason"] == "arity"
+    assert refused.value.details["fields"][0]["field"] == "columns.1.formula"
+
+
 class TestRevision:
     """A column's `revision` moves when what its values mean changes, and only then."""
 

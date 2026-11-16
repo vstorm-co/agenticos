@@ -29,6 +29,18 @@ describe("useFormulaProblem", () => {
     );
   });
 
+  it("says how many values a function takes when a comma gave it one too many", () => {
+    const { result } = renderHook(() => useFormulaProblem());
+    expect(
+      result.current(refusal("arity", { name: "IF", kind: "exact", fewest: 3, most: 3 }))?.text,
+    ).toBe(
+      "IF takes 3 values. A comma separates them, so write decimals with a dot, such as 1.23.",
+    );
+    expect(
+      result.current(refusal("arity", { name: "ROUND", kind: "range", fewest: 1, most: 2 }))?.text,
+    ).toMatch(/^ROUND takes 1 to 2 values\./);
+  });
+
   it("leaves a reason it does not know, or another failure, to the service's own words", () => {
     const { result } = renderHook(() => useFormulaProblem());
     expect(result.current(refusal("something_new"))).toBeNull();

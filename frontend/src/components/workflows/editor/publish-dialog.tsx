@@ -33,7 +33,8 @@ import type {
 import { useWorkflowVersions } from "@/hooks";
 import { WebhookSecretDialog } from "@/components/workflows/triggers";
 import { triggerNodeOf } from "@/lib/workflows/triggers";
-import { resolveDefinitions } from "@/components/workflows/validation/topology";
+import { deriveScopes, resolveDefinitions } from "@/components/workflows/validation/topology";
+import { scopePathTo } from "@/components/workflows/canvas/scope-view";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { useLiveChanges } from "./workflow-status";
@@ -86,6 +87,8 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
   const expectedRevision = useWorkflowEditorStore((state) => state.expectedRevision);
   const isDirty = useWorkflowEditorStore((state) => state.isDirty);
   const focusNode = useWorkflowEditorStore((state) => state.focusNode);
+  const editNode = useWorkflowEditorStore((state) => state.editNode);
+  const setScopePath = useWorkflowEditorStore((state) => state.setScopePath);
   const setConflict = useWorkflowEditorStore((state) => state.setConflict);
   const revealProblems = useWorkflowEditorStore((state) => state.revealProblems);
 
@@ -122,6 +125,22 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
   const names = useMemo(() => nodeNames(graph, nodeCatalog), [graph, nodeCatalog]);
   const blocked = clientProblems.length > 0;
   const problems = clientProblems.length > 0 ? clientProblems : serverProblems;
+
+  // A warning is read where the step is set up: in its loop, with its settings open.
+  const openStep = (nodeId: Uuid) => {
+    // The loops as the draft holds them now: the graph's stored scopes are the ones
+    // last loaded, and a step moved into a loop since would open outside it.
+    if (graph !== null) {
+      const live = {
+        ...graph,
+        scopes: deriveScopes(graph, resolveDefinitions(graph, nodeCatalog)),
+      };
+      setScopePath(scopePathTo(live, nodeId));
+    }
+    focusNode(nodeId);
+    editNode(nodeId);
+    setOpen(false);
+  };
 
   const selectNode = (nodeId: Uuid) => {
     focusNode(nodeId);
@@ -231,7 +250,7 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
                     <button
                       type="button"
                       className="text-left underline-offset-2 hover:underline"
-                      onClick={() => selectNode(warning.nodeId!)}
+                      onClick={() => openStep(warning.nodeId!)}
                     >
                       {t("publishWarningAt", {
                         step: names.get(warning.nodeId!) ?? "",

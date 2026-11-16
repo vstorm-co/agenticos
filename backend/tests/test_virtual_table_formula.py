@@ -7,6 +7,8 @@ import pytest
 
 from app.schemas.virtual_table import ColumnDef, ColumnTypeName, OptionDef
 from app.services.virtual_tables.formula import (
+    ARITY,
+    FUNCTIONS,
     MAX_DEPTH,
     MAX_FORMULA,
     MAX_TEXT,
@@ -144,6 +146,10 @@ def test_an_unchecked_expression_works_out_nothing():
     ("formula", "says", "reason"),
     [
         ("{Price} * 1,23", "decimals with a dot", "decimal_comma"),
+        ('IF({Price} > 0,5, "yes", "no")', "IF takes 3 values", "arity"),
+        ("ROUND({Price}, 1,23)", "ROUND takes 1 to 2 values", "arity"),
+        ("TODAY(1)", "TODAY takes 0 values", "arity"),
+        ("MAX()", "MAX takes at least 1 value", "arity"),
         ("({Price}, 1)", "decimals with a dot", "decimal_comma"),
         ("", "needs a formula", "empty"),
         ("x" * (MAX_FORMULA + 1), "at most", "too_long"),
@@ -182,6 +188,22 @@ def test_a_refusal_carries_what_its_message_names():
     with pytest.raises(FormulaProblem) as linked:
         _check("{Items}")
     assert linked.value.params == {"label": "Items", "type": "link"}
+
+
+def test_every_function_says_how_many_values_it_takes():
+    assert set(ARITY) == set(FUNCTIONS)
+
+
+def test_an_arity_refusal_names_the_function_and_what_it_takes():
+    with pytest.raises(FormulaProblem) as refused:
+        _check('IF({Price} > 0,5, "yes", "no")')
+    assert refused.value.params == {"name": "IF", "kind": "exact", "fewest": 3, "most": 3}
+    with pytest.raises(FormulaProblem) as ranged:
+        _check("ROUND({Price}, 1,23)")
+    assert ranged.value.params == {"name": "ROUND", "kind": "range", "fewest": 1, "most": 2}
+    with pytest.raises(FormulaProblem) as open_ended:
+        _check("CONCAT()")
+    assert open_ended.value.params == {"name": "CONCAT", "kind": "at_least", "fewest": 1, "most": 1}
 
 
 def test_a_comma_inside_a_call_still_separates_its_arguments():

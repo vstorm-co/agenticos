@@ -139,6 +139,8 @@ describe("PublishDialog", () => {
       }),
       1,
     );
+    // Looking inside a loop when the warning is about a step at the top level.
+    act(() => useWorkflowEditorStore.setState({ scopePath: ["elsewhere"] }));
     render(
       <PublishDialog workflow={WORKFLOW} catalog={[DEBUG_ECHO, approval]} publish={vi.fn()} />,
     );
@@ -152,7 +154,56 @@ describe("PublishDialog", () => {
         name: "Ask for approval: The Rejected outcome leads nowhere, so the run ends here when it is chosen. If that is intended, ignore this.",
       }),
     );
+    // The warning opens the step it is about, where it is set up.
     expect(useWorkflowEditorStore.getState().selection.nodeIds).toEqual(["ok"]);
+    expect(useWorkflowEditorStore.getState().editingNodeId).toBe("ok");
+    expect(useWorkflowEditorStore.getState().scopePath).toEqual([]);
+  });
+
+  it("opens a warned step inside the loop it was moved into since the draft loaded", async () => {
+    const approval = makeDefinition({
+      id: "human.approval",
+      name: "Ask for approval",
+      kind: "control",
+      exclusive_branches: true,
+      ports: [
+        port("in", "input", null),
+        { ...port("approved", "output", null), label: "Approved" },
+        { ...port("rejected", "output", null), label: "Rejected" },
+      ],
+    });
+    const loop = makeDefinition({
+      id: "control.foreach",
+      name: "Loop",
+      kind: "control",
+      ports: [port("in", "input", null), port("done", "output", null)],
+    });
+    // The stored scopes are the loaded ones: they do not know the step is in the loop.
+    seed(
+      graph({
+        entry: "a",
+        nodes: [
+          echo("a"),
+          node("L", "control.foreach"),
+          { ...node("ok", "human.approval"), scope_id: "L" },
+        ],
+        edges: [edge("e1", "a", "out", "L", "in")],
+      }),
+      1,
+    );
+    render(
+      <PublishDialog
+        workflow={WORKFLOW}
+        catalog={[DEBUG_ECHO, approval, loop]}
+        publish={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Publish/ }));
+    await userEvent.click(screen.getAllByRole("button", { name: /^Ask for approval: / })[0]!);
+
+    expect(useWorkflowEditorStore.getState().scopePath).toEqual(["L"]);
+    expect(useWorkflowEditorStore.getState().editingNodeId).toBe("ok");
   });
 
   it("names the trigger it switches on, and shows a new webhook's secret once", async () => {
