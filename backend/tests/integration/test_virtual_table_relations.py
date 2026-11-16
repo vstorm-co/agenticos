@@ -1,5 +1,6 @@
 """Ordered links, constrained endpoints, retained evidence and read-only backlinks."""
 
+from copy import deepcopy
 from uuid import UUID, uuid4
 
 import pytest
@@ -137,6 +138,28 @@ async def test_ordered_edges_and_replayed_snapshot_keep_the_source_revision(db):
     assert retry.record.values[key] == first.record.values[key]
     assert [item.id for item in retry.record.links[key]] == [targets[2], targets[0]]
     assert [edge.target_record_id for edge in await _edges(db, first.record.id)] == [targets[1]]
+
+
+@pytest.mark.security
+async def test_replaying_a_create_after_deletion_does_not_restore_the_record(db):
+    service, ctx, org, _owner, source, _target, targets = await _setup(db)
+    key = cid(source, "Customers")
+    body = RecordCreate(values={key: [str(targets[0])]})
+    first = await service.create_record(ctx, source.id, body, operation_key="deleted-original")
+    await service.delete_record(ctx, source.id, first.record.id, expected_revision=1)
+
+    with pytest.raises(NotFoundError) as refused:
+        await service.create_record(ctx, source.id, body, operation_key="deleted-original")
+
+    assert refused.value.message == "Record not found"
+    assert refused.value.details == {"table_id": source.id}
+    assert (
+        await virtual_table_repo.get_record(
+            db, first.record.id, table_id=source.id, organization_id=org.id
+        )
+        is None
+    )
+    assert await _edges(db, first.record.id) == []
 
 
 @pytest.mark.security
@@ -394,9 +417,14 @@ async def test_unresolved_values_keep_evidence_without_duplicating_it_on_later_w
         (3, "duplicate_target", str(targets[1])),
         (4, "invalid_id", {"bad": "value"}),
     ]
+    original_values = deepcopy(stored.values)
+    await relation_repo.sync_record(db, record=stored)
+    retained_ids = set(await db.scalars(select(VirtualTableLinkEvidence.id)))
+    assert retained_ids == {row.id for row in held}
+    assert stored.values == original_values
+    assert stored.revision == 7
     before = await virtual_table_repo.storage_bytes(db, organization_id=org.id)
     assert before > 0
-    original_values = dict(stored.values)
     unchanged = await service.update_record(
         ctx,
         source.id,

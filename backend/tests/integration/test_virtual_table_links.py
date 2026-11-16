@@ -951,7 +951,7 @@ async def test_linked_rows_the_viewer_cannot_see_never_count_against_the_budget(
     assert read.records == emptied.records
 
 
-async def test_a_linked_table_is_checked_once_per_binding(db, monkeypatch):
+async def test_linked_table_access_is_checked_once_per_binding(db, monkeypatch):
     service, ctx, _org = await _setup(db)
     products, ids = await _products(service, ctx)
     orders = await _orders(service, ctx, products, *_reading(products)[:2])
@@ -969,11 +969,11 @@ async def test_a_linked_table_is_checked_once_per_binding(db, monkeypatch):
     assert len(read.records) == 250
     assert read.records[0]["Names"] == ["Atlas", "Quill"]
     assert read.records[-1]["Kinds"] == ["Book", "Pen"]
-    # The bound table's current row policy is read once, then the linked table
-    # is resolved once for both computed columns and all 250 records.
+    # Resolve linked access once for both columns and all 250 records, then read
+    # the destination's current row policy once to size the shared canonical links.
     assert [
         args[1] if len(args) > 1 else kwargs["table_id"] for args, kwargs, _found in tables
-    ] == [orders.id, products.id]
+    ] == [orders.id, products.id, products.id]
     assert [args[2].id for args, _kwargs, _allowed in access] == [products.id]
 
 
