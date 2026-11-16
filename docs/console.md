@@ -201,6 +201,10 @@ snapshot you meant to keep.
 
 ## Routines and watches
 
+New schedules and API triggers are saved paused, then show **Review routine access**. Review sources and select the actions that may run without asking; **Enable routine** saves both choices and activates it. **Finish later** leaves it paused. Explicit agent approvals still apply. Resuming unfinished setup reopens this review; activation revalidates the sources.
+
+If **Skip this run** prevents an overlapping occurrence, history records the reason without starting or charging another run. You can stop a waiting run directly in this history when the server permits it. Stopping preserves its spend and lets the next scheduled occurrence proceed. Repeated skips behind the same unfinished run share one history entry.
+
 Routine names wrap on phones. A search with no matches offers **Clear search**; **Retry** reloads both tasks and watches after a read failure. Schedule and event editing scrolls between a fixed header and action footer. Routine writes freeze fields and dismissal until they settle; a refusal preserves the draft.
 
 Routines has two tabs. **Agent routines** runs a chosen agent on a schedule or

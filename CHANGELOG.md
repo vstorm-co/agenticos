@@ -67,6 +67,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Keep pending skill updates fresh after decisions in other sessions, recover from stale proposals, and present compact update rows with readable instruction comparisons and reference-file previews.
 
+## [1.77.0] - 2026-11-16
+
+### Fixed
+
+- Routine consent applies to sandbox tools, including renamed tools. Approval continuations preserve the original creator-authority mode instead of refusing non-personal schedules (#3045).
+- Skipped overlapping schedules record their reason in routine history. Authorized users can stop a waiting run there without executing its pending tools or losing recorded spend (#3045).
+
+### Changed
+
+- New schedules and API triggers stay paused while one review saves their sources and selected action consents before activation. The existing form opens this review directly after creation; finish later keeps the routine paused.
+
+### Upgrading
+
+- Migration `0331_routine_overlap_attempt` allows overlap history entries. Existing agent specs and routine consents remain valid; approved runs can be resumed after upgrading. Runs with withdrawn or changed access still require a new reviewed execution.
+
 ## [1.76.2] - 2026-11-16
 
 ### Fixed
@@ -21817,7 +21832,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.76.2...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.77.0...HEAD
+[1.77.0]: https://github.com/vstorm-co/agenticos/compare/v1.76.2...v1.77.0
 [1.76.2]: https://github.com/vstorm-co/agenticos/compare/v1.76.1...v1.76.2
 [1.76.1]: https://github.com/vstorm-co/agenticos/compare/v1.76.0...v1.76.1
 [1.76.0]: https://github.com/vstorm-co/agenticos/compare/v1.75.0...v1.76.0

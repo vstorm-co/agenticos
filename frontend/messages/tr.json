@@ -10564,6 +10564,11 @@
     "useIntegration": "Bu entegrasyonu kullan"
   },
   "triggers": {
+    "setupReviewTitle": "Rutinin erişimini inceleyin",
+    "setupReviewDescription": "Rutin kaydedildi ve duraklatıldı. Kaynakları inceleyin ve sormadan çalışabilecek eylemleri seçin. Etkinleştirmek için kaydedin veya duraklatılmış bırakıp daha sonra tamamlayın.",
+    "enableRoutine": "Rutini etkinleştir",
+    "finishLater": "Daha sonra tamamla",
+    "stopWaitingRun": "Bekleyen çalıştırmayı durdur",
     "attemptsTitle": "Aracı başlamadan önce",
     "attemptsHint": "Bu denemeler bir aracı çalıştırması başlatmadı ve model ücreti oluşturmadı.",
     "attemptsError": "Aracı başlamadan önceki denemeler okunamadı.",
@@ -10581,7 +10586,8 @@
       "platform_identity_required": "Oluşturan olarak davran seçeneğini açın veya yerleşik platform MCP bağlantısını aracıdan ve delegelerinden kaldırın.",
       "source_review_required": "Yeniden denemeden önce rutinin kaynaklarını ve kullanılamayan bağlantıları inceleyin.",
       "agent_unavailable": "Rutini yeniden etkinleştirmeden önce aracının yayımlanmış sürümünü, yapılandırmasını ve erişimini kontrol edin.",
-      "preparation_failed": "Bir aracı çalıştırması oluşturulmadan önce hazırlık başarısız oldu. Operatörden bu zamana ait çalışan günlüklerini incelemesini isteyin."
+      "preparation_failed": "Bir aracı çalıştırması oluşturulmadan önce hazırlık başarısız oldu. Operatörden bu zamana ait çalışan günlüklerini incelemesini isteyin.",
+      "previous_run_active": "Önceki çalıştırma devam ettiği veya yanıt beklediği için atlandı. Devam etmek için açın veya bekleyen çalıştırmayı burada durdurun."
     },
     "runAsMe": "Run’ı benim adıma çalıştır",
     "runAsCreator": "Run’ı oluşturan kişi adına çalıştır",

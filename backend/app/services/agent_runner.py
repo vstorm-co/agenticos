@@ -4527,6 +4527,7 @@ class AgentRunnerService:
                     else None
                     if routine is None
                     else {
+                        "acts_as_creator": routine.acts_as_creator,
                         "result_mode": routine.result_mode,
                         "approved_sources": None
                         if routine.source_policy is None

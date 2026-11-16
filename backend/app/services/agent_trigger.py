@@ -39,7 +39,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal, cast
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError as PydanticValidationError
@@ -1026,7 +1026,11 @@ class AgentTriggerService:
                 "reason": refusal.code,
             }
         else:
-            trigger.approved_sources = policy.model_dump(mode="json")
+            if data.review_before_activation:
+                trigger.is_active = False
+                trigger.approved_sources = {"pending_review": True, "unavailable_sources": []}
+            else:
+                trigger.approved_sources = policy.model_dump(mode="json")
         await self.db.flush()
         # Open the run-log conversation now, not on the first fire, so a new
         # trigger is a clickable item in the sidebar the moment it exists - empty
@@ -1359,6 +1363,10 @@ class AgentTriggerService:
                 },
             )
         updated = await agent_trigger_repo.update(self.db, trigger=trigger, update_data=changes)
+        if changes.get("is_active") is True:
+            await self.sources.require_current(
+                ctx, updated, expected_id=read_policy(updated.approved_sources).id
+            )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -2480,6 +2488,16 @@ class AgentTriggerService:
             trigger.next_fire_at = _next_fire_from(trigger, now=now)
             if busy:
                 if trigger.overlap == TriggerOverlap.SKIP.value:
+                    # One history entry per blocker, even if it waits indefinitely.
+                    await self._record_attempt(
+                        trigger,
+                        uuid5(
+                            trigger.id,
+                            f"overlap:{trigger.last_run_id}:{trigger.fire_in_flight_since}",
+                        ),
+                        stage="preparation",
+                        reason="previous_run_active",
+                    )
                     logger.info("trigger_occurrence_skipped", extra={"trigger_id": str(trigger.id)})
                     continue
                 fired.append((trigger, None))

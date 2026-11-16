@@ -1,5 +1,5 @@
 ---
-source_sha: "288fe26b1ae3"
+source_sha: "68bc1f6dcd69"
 ---
 
 # Konsola { #the-console }
@@ -209,6 +209,10 @@ migawkę, którą chciałeś zachować.
     od tego, czy układ pochodzi z domyślnego, czy z twojego zapisanego.
 
 ## Rutyny i obserwacje { #routines-and-watches }
+
+Nowe harmonogramy i wyzwalacze API są zapisywane jako wstrzymane. Następnie pojawia się **Sprawdź dostęp rutyny**. Sprawdź źródła i wybierz działania, które mogą wykonywać się bez pytania; **Włącz rutynę** zapisuje obie zgody i ją aktywuje. **Dokończ później** pozostawia ją wstrzymaną. Jawne wymagania zatwierdzenia ustawione w agencie nadal obowiązują. Wznowienie niedokończonej konfiguracji ponownie otwiera ten przegląd; aktywacja sprawdza aktualność źródeł.
+
+Gdy **Skip this run** pomija termin z powodu trwającego uruchomienia, historia zapisuje przyczynę bez nowego uruchomienia ani opłat. Jeśli serwer przyznaje Ci prawo do zatrzymania oczekującego uruchomienia, możesz zrobić to bezpośrednio w historii. Zatrzymanie zachowuje naliczone koszty i odblokowuje kolejny termin harmonogramu. Kolejne pominięcia przez ten sam niedokończony przebieg mają jeden wspólny wpis w historii.
 
 Nazwy rutyn zawijają się na telefonach. Brak wyników daje przycisk **Wyczyść wyszukiwanie**, a **Ponów** odświeża zadania i obserwacje po błędzie odczytu. Edycja harmonogramu i wyzwalacza zdarzeniowego przewija się między stałym nagłówkiem i stopką z przyciskami. Zapis blokuje pola oraz zamykanie do zakończenia żądania; odmowa zachowuje wpisane dane.
 

@@ -9966,6 +9966,11 @@
     "option": "Colour {n}"
   },
   "triggers": {
+    "setupReviewTitle": "Review routine access",
+    "setupReviewDescription": "The routine is saved and paused. Review its sources and choose which actions may run without asking. Save once to enable it, or finish later to leave it paused.",
+    "enableRoutine": "Enable routine",
+    "finishLater": "Finish later",
+    "stopWaitingRun": "Stop waiting run",
     "deliveryUnavailable": "Last answer unavailable in chat",
     "attemptsTitle": "Before the agent started",
     "attemptsHint": "These attempts did not start an agent run or incur model charges.",
@@ -9984,7 +9989,8 @@
       "platform_identity_required": "Enable Act as creator or remove the built-in platform MCP binding from the agent and its delegates.",
       "source_review_required": "Review the routine’s sources and check unavailable connections before trying again.",
       "agent_unavailable": "Review the agent’s published version, configuration and access before enabling this routine again.",
-      "preparation_failed": "Preparation failed before an agent run was created. Ask an operator to inspect the worker logs for this time."
+      "preparation_failed": "Preparation failed before an agent run was created. Ask an operator to inspect the worker logs for this time.",
+      "previous_run_active": "Skipped because a previous run is still running or waiting for a response. Open that run to continue it, or stop the waiting run here."
     },
     "runAsMe": "Run as me",
     "runAsCreator": "Runs as the person who made it",

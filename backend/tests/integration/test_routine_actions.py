@@ -1,7 +1,7 @@
 """Standing consent cannot escape its owner, routine intent or published version."""
 
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -1226,3 +1226,80 @@ async def test_a_changed_action_is_explained_without_regranting_it(
     offered = await service.options(world.ctx, world.trigger)
     assert offered.review_changes == ["actions"]
     assert not any(action.previously_consented or action.consented for action in offered.items)
+
+
+@pytest.mark.parametrize("consented,explicit", [(True, False), (False, False), (True, True)])
+@pytest.mark.parametrize("renamed", [False, True])
+async def test_the_real_console_tool_obeys_routine_consent_and_explicit_agent_gates(
+    db: AsyncSession, world: World, consented: bool, explicit: bool, renamed: bool
+) -> None:
+    from functools import partial
+
+    from pydantic_ai import Agent as RuntimeAgent
+    from pydantic_ai import ApprovalRequired, RunContext
+    from pydantic_ai.capabilities import AbstractCapability
+    from pydantic_ai.messages import ToolCallPart
+    from pydantic_ai.models.test import TestModel
+
+    from app.agents.capabilities import build
+    from app.agents.capabilities.approval import approval_required_tools
+    from app.agents.capabilities.approval._capability import ApprovalGate
+    from app.agents.deps import AgentDeps
+    from app.agents.spec import CapabilityBindingSpec
+    from app.services.agent_runner import ApprovalChannel
+
+    # Grant against the actual published version, then assemble its real toolset.
+    if consented:
+        await RoutineActionService(db).replace(world.ctx, world.trigger, _request(world, [WRITE]))
+    authority = await capture(db, world)
+    name = "run_command" if renamed else "execute"
+    binding = CapabilityBindingSpec(
+        id="sandbox",
+        tool_approval={"execute": "required" if explicit else "never"},
+        tool_overrides={"execute": {"name": name}} if renamed else {},
+    )
+    spec = world.spec.model_copy(update={"capabilities": [binding]})
+    channel = ApprovalChannel(organization_id=world.org.id, agent_id=world.agent.id, run_id=uuid4())
+    gate = ApprovalGate(
+        routine_policy=partial(authority.action_policy, world.agent.id, spec),
+        required_tool_names=approval_required_tools(spec),
+    )
+    executed: list[str] = []
+
+    class Inspected(Exception):
+        pass
+
+    class InspectTools(AbstractCapability[AgentDeps]):
+        async def prepare_tools(
+            self, ctx: RunContext[AgentDeps], tool_defs: list[ToolDefinition]
+        ) -> list[ToolDefinition]:
+            actual = next(tool for tool in tool_defs if tool.name == name)
+            assert actual.capability_id == "sandbox"
+
+            async def handler(args: dict[str, object]) -> str:
+                executed.append(str(args["command"]))
+                return "finished"
+
+            with suppress(ApprovalRequired):
+                await gate.wrap_tool_execute(
+                    ctx,
+                    call=ToolCallPart(
+                        tool_name=name, args={"command": "read skill"}, tool_call_id="one"
+                    ),
+                    tool_def=actual,
+                    args={"command": "read skill"},
+                    handler=handler,
+                )
+            raise Inspected()
+
+    runtime = RuntimeAgent(
+        TestModel(),
+        deps_type=AgentDeps,
+        capabilities=[*build(spec.bindings()), InspectTools()],
+    )
+    # Stop during tool preparation: no model, shell, or provider is called.
+    with pytest.raises(Inspected):
+        await runtime.run("inspect", deps=AgentDeps(request_approval=channel))
+    allowed = consented and not explicit
+    assert executed == (["read skill"] if allowed else [])
+    assert bool(channel.parked) is not allowed

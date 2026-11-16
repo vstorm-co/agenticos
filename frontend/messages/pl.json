@@ -8663,6 +8663,11 @@
     "option": "Kolor {n}"
   },
   "triggers": {
+    "setupReviewTitle": "Sprawdź dostęp rutyny",
+    "setupReviewDescription": "Rutyna jest zapisana i wstrzymana. Sprawdź źródła i wybierz działania, które mogą wykonywać się bez pytania. Zapisz, aby ją włączyć, lub dokończ później.",
+    "enableRoutine": "Włącz rutynę",
+    "finishLater": "Dokończ później",
+    "stopWaitingRun": "Zatrzymaj oczekujące uruchomienie",
     "deliveryUnavailable": "Ostatni wynik niedostępny w czacie",
     "attemptsTitle": "Przed uruchomieniem agenta",
     "attemptsHint": "Te próby nie rozpoczęły runu agenta ani nie naliczyły kosztów modelu.",
@@ -8681,7 +8686,8 @@
       "platform_identity_required": "Włącz Działaj jako twórca albo usuń powiązanie wbudowanego platformowego MCP z agenta i jego delegatów.",
       "source_review_required": "Przejrzyj źródła procedury i sprawdź niedostępne połączenia przed kolejną próbą.",
       "agent_unavailable": "Sprawdź opublikowaną wersję, konfigurację i uprawnienia agenta, zanim ponownie włączysz procedurę.",
-      "preparation_failed": "Przygotowanie nie powiodło się przed utworzeniem runu agenta. Poproś operatora o sprawdzenie logów workera z tego czasu."
+      "preparation_failed": "Przygotowanie nie powiodło się przed utworzeniem runu agenta. Poproś operatora o sprawdzenie logów workera z tego czasu.",
+      "previous_run_active": "Pominięto, bo poprzednie uruchomienie nadal trwa lub czeka na odpowiedź. Otwórz je, aby kontynuować, albo zatrzymaj oczekujące uruchomienie tutaj."
     },
     "runAsMe": "Uruchamiaj jako ja",
     "runAsCreator": "Działa jako osoba, która go utworzyła",
