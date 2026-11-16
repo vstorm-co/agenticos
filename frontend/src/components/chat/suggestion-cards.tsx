@@ -35,7 +35,7 @@ export function SuggestionCards({
   const { take, notNow, dialog } = useSuggestionActions(agentId);
   const [first, ...rest] = urgentFirst(open);
 
-  if (!first) return null;
+  if (!first) return dialog;
   const suggestions = [first];
 
   return (

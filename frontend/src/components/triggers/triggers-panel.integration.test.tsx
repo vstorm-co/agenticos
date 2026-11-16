@@ -81,6 +81,17 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
 
 function serve(triggers: Trigger[]) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path.endsWith("/sources"))
+      return {
+        current: true,
+        review_token: "sources",
+        version_id: "v1",
+        resources: [],
+        accounts: [],
+        unavailable_sources: [],
+      };
+    if (path.endsWith("/action-consents"))
+      return { can_waive: true, review_token: "actions", items: [] };
     if (path === `/agents/${AGENT_ID}/triggers`) {
       return { items: triggers, total: triggers.length };
     }
@@ -253,6 +264,8 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
+      review_before_activation: true,
+      is_active: false,
       prompt: "Do the thing",
       name: null,
       trigger_type: "schedule",
@@ -657,6 +670,8 @@ describe("TriggersPanel", () => {
     // `*/2` on day-of-month resets at each month boundary; an interval repeats
     // continuously, which is what "every 2 days" promises. Two days, in seconds.
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
+      review_before_activation: true,
+      is_active: false,
       prompt: "Every couple of days",
       name: null,
       trigger_type: "schedule",
@@ -807,6 +822,8 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
+      review_before_activation: true,
+      is_active: false,
       prompt: "Daily digest",
       name: null,
       trigger_type: "schedule",
@@ -838,6 +855,8 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
+      review_before_activation: true,
+      is_active: false,
       prompt: "Morning digest",
       name: null,
       trigger_type: "schedule",
@@ -911,6 +930,8 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
+      review_before_activation: true,
+      is_active: false,
       prompt: "Sweep the queue",
       name: null,
       trigger_type: "schedule",
