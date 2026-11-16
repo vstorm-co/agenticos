@@ -1,99 +1,58 @@
-import { renderHook } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderHook, waitFor } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 
 import { usePendingApprovals } from "./use-pending-approvals";
 
 const state = vi.hoisted(() => ({
   allowed: true,
-  me: "me" as string | undefined,
-  steps: [] as { id: string; approver_user_ids: string[]; can_decide?: boolean }[],
-  toolsEnabled: [] as (boolean | undefined)[],
-  stepsEnabled: [] as (boolean | undefined)[],
-  toolsRead: { isLoading: false, error: null as Error | null },
-  stepsRead: { isLoading: false, error: null as Error | null },
-  refetchTools: vi.fn(),
-  refetchSteps: vi.fn(),
+  permissions: { isLoaded: true, isLoading: false, error: null as Error | null },
+  refetchPermissions: vi.fn(),
+  get: vi.fn(),
+  decidable: vi.fn(),
 }));
 vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: () => state.allowed }),
+  usePermissions: () => ({
+    can: () => state.allowed,
+    ...state.permissions,
+    refetch: state.refetchPermissions,
+  }),
 }));
-vi.mock("@/stores/auth-store", () => ({
-  useAuthStore: (select: (s: { user: { id: string } | null }) => unknown) =>
-    select({ user: state.me ? { id: state.me } : null }),
+vi.mock("@/lib/api-client", () => ({ apiClient: { get: state.get } }));
+vi.mock("@/lib/workflows/approvals-api", () => ({
+  listDecidableWorkflowApprovals: state.decidable,
 }));
-vi.mock("@/hooks/use-runs", () => ({
-  useApprovals: (options?: { enabled?: boolean }) => {
-    state.toolsEnabled.push(options?.enabled);
-    return { approvals: [{ id: "t1" }], total: 3, ...state.toolsRead, refetch: state.refetchTools };
-  },
-}));
-vi.mock("@/hooks/use-workflow-approvals", () => ({
-  useWorkflowApprovals: (options?: { enabled?: boolean }) => {
-    state.stepsEnabled.push(options?.enabled);
-    return {
-      approvals: state.steps,
-      total: state.steps.length,
-      ...state.stepsRead,
-      refetch: state.refetchSteps,
-    };
-  },
-}));
+
+function wrapper({ children }: { children: ReactNode }) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return createElement(QueryClientProvider, { client }, children);
+}
 
 beforeEach(() => {
   state.allowed = true;
-  state.me = "me";
-  state.steps = [{ id: "s1", approver_user_ids: [] }];
-  state.toolsEnabled = [];
-  state.stepsEnabled = [];
-  state.toolsRead = { isLoading: false, error: null };
-  state.stepsRead = { isLoading: false, error: null };
-  state.refetchTools.mockReset();
-  state.refetchSteps.mockReset();
+  state.permissions = { isLoaded: true, isLoading: false, error: null };
+  state.refetchPermissions.mockReset();
+  state.get.mockReset().mockResolvedValue({ items: [{ id: "t1" }], total: 3 });
+  state.decidable.mockReset().mockResolvedValue({ items: [{ id: "s1" }], total: 60 });
 });
 
-it("counts both queues for somebody who may decide", () => {
-  const { result } = renderHook(() => usePendingApprovals());
-  expect(result.current.count).toBe(4);
-  expect(result.current.tools).toHaveLength(1);
-  expect(result.current.steps).toHaveLength(1);
-  expect(state.toolsEnabled).toContain(true);
+it("counts what the server says waits on the reader, past the rows it lists", async () => {
+  const { result } = renderHook(() => usePendingApprovals(), { wrapper });
+  await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+  expect(result.current.count).toBe(3 + 60);
+  expect(result.current.tools.map((call) => call.id)).toEqual(["t1"]);
+  expect(result.current.steps.map((step) => step.id)).toEqual(["s1"]);
+  expect(state.get).toHaveBeenCalledWith("/approvals", {
+    params: { outside_live_calls: "true", limit: "5" },
+  });
+  expect(state.decidable).toHaveBeenCalledWith(5);
 });
 
-it("leaves out a step that names other approvers, and keeps one naming the reader", () => {
-  state.steps = [
-    { id: "anyone", approver_user_ids: [] },
-    { id: "mine", approver_user_ids: ["me", "ann"] },
-    { id: "ann's", approver_user_ids: ["ann"] },
-  ];
-  const { result } = renderHook(() => usePendingApprovals());
-  expect(result.current.steps.map((step) => step.id)).toEqual(["anyone", "mine"]);
-  expect(result.current.count).toBe(3 + 2);
-});
-
-it("leaves out a step for a group the reader is not in, as the server answers", () => {
-  state.steps = [{ id: "finance", approver_user_ids: [], can_decide: false }];
-  const { result } = renderHook(() => usePendingApprovals());
-  expect(result.current.steps).toEqual([]);
-  expect(result.current.count).toBe(3);
-});
-
-it("keeps a step naming somebody else when the reader decides through its group", () => {
-  state.steps = [{ id: "ann or finance", approver_user_ids: ["ann"], can_decide: true }];
-  const { result } = renderHook(() => usePendingApprovals());
-  expect(result.current.steps.map((step) => step.id)).toEqual(["ann or finance"]);
-  expect(result.current.count).toBe(3 + 1);
-});
-
-it("keeps no named step while the reader is not known yet", () => {
-  state.me = undefined;
-  state.steps = [{ id: "mine", approver_user_ids: ["me"] }];
-  const { result } = renderHook(() => usePendingApprovals());
-  expect(result.current.steps).toEqual([]);
-});
-
-it("asks neither queue for somebody who may not decide, and waits on nothing", () => {
+it("asks neither queue for somebody who may not decide, and waits on nothing", async () => {
   state.allowed = false;
-  const { result } = renderHook(() => usePendingApprovals());
+  const { result } = renderHook(() => usePendingApprovals(), { wrapper });
   expect(result.current).toMatchObject({
     tools: [],
     steps: [],
@@ -101,33 +60,37 @@ it("asks neither queue for somebody who may not decide, and waits on nothing", (
     isLoading: false,
     error: null,
   });
-  expect(state.toolsEnabled.every((enabled) => enabled === false)).toBe(true);
-  expect(state.stepsEnabled.every((enabled) => enabled === false)).toBe(true);
-});
-
-it("says it is loading while either queue is, and which read failed", () => {
-  state.stepsRead = { isLoading: true, error: null };
-  const loading = renderHook(() => usePendingApprovals());
-  expect(loading.result.current.isLoading).toBe(true);
-
-  const offline = new Error("offline");
-  state.stepsRead = { isLoading: false, error: null };
-  state.toolsRead = { isLoading: false, error: offline };
-  const failed = renderHook(() => usePendingApprovals());
-  expect(failed.result.current).toMatchObject({ isLoading: false, error: offline });
-});
-
-it("reads both queues again on a retry", async () => {
-  const { result } = renderHook(() => usePendingApprovals());
   await result.current.refetch();
-  expect(state.refetchTools).toHaveBeenCalledOnce();
-  expect(state.refetchSteps).toHaveBeenCalledOnce();
+  expect(state.get).not.toHaveBeenCalled();
+  expect(state.decidable).not.toHaveBeenCalled();
+  expect(state.refetchPermissions).not.toHaveBeenCalled();
 });
 
-it("reads neither queue on a retry for somebody who may not decide", async () => {
+it("knows nothing while the reader's permissions load, and says so", () => {
   state.allowed = false;
-  const { result } = renderHook(() => usePendingApprovals());
+  state.permissions = { isLoaded: false, isLoading: true, error: null };
+  const { result } = renderHook(() => usePendingApprovals(), { wrapper });
+  expect(result.current).toMatchObject({ count: 0, isLoading: true });
+});
+
+it("reports permissions that failed to load, and reads them again on a retry", async () => {
+  const refused = new Error("offline");
+  state.allowed = false;
+  state.permissions = { isLoaded: false, isLoading: false, error: refused };
+  const { result } = renderHook(() => usePendingApprovals(), { wrapper });
+  expect(result.current.error).toBe(refused);
   await result.current.refetch();
-  expect(state.refetchTools).not.toHaveBeenCalled();
-  expect(state.refetchSteps).not.toHaveBeenCalled();
+  expect(state.refetchPermissions).toHaveBeenCalledOnce();
+  expect(state.get).not.toHaveBeenCalled();
+});
+
+it("reports a queue that failed to load, and reads both again on a retry", async () => {
+  const failed = new Error("offline");
+  state.decidable.mockRejectedValue(failed);
+  const { result } = renderHook(() => usePendingApprovals(), { wrapper });
+  await waitFor(() => expect(result.current.error).toBe(failed));
+
+  await result.current.refetch();
+  expect(state.get).toHaveBeenCalledTimes(2);
+  expect(state.decidable).toHaveBeenCalledTimes(2);
 });

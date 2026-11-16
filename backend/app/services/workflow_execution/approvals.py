@@ -111,12 +111,33 @@ class WorkflowApprovalService:
         created_from: datetime | None = None,
         created_to: datetime | None = None,
         oldest_first: bool = True,
+        decidable: bool = False,
     ) -> WorkflowApprovalList:
         """The organization's requests in `statuses` - pending when none.
 
         Oldest first, as the queue drains; newest first reads the record of
         decisions. `created_from` and `created_to` narrow it to a window.
+        `decidable` keeps only the requests the caller may decide, and `total`
+        then counts those across every page.
         """
+        if decidable:
+            every, _ = await approval_repo.list_with_workflow(
+                self.db,
+                organization_id=ctx.organization_id,
+                statuses=[status.value for status in statuses or [WorkflowApprovalStatus.PENDING]],
+                skip=0,
+                limit=None,
+                created_from=created_from,
+                created_to=created_to,
+                oldest_first=oldest_first,
+            )
+            mine = [(row, name) for row, name in every if await self._eligible(ctx, row)]
+            return WorkflowApprovalList(
+                items=[
+                    _read(row, name, can_decide=True) for row, name in mine[skip : skip + limit]
+                ],
+                total=len(mine),
+            )
         rows, total = await approval_repo.list_with_workflow(
             self.db,
             organization_id=ctx.organization_id,

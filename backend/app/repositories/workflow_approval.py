@@ -123,7 +123,7 @@ async def list_with_workflow(
     organization_id: UUID,
     statuses: list[str],
     skip: int,
-    limit: int,
+    limit: int | None,
     created_from: datetime | None = None,
     created_to: datetime | None = None,
     oldest_first: bool = True,
@@ -131,7 +131,8 @@ async def list_with_workflow(
     """One organization's requests in `statuses`, each with its workflow's name.
 
     Oldest first unless `oldest_first` is false, and narrowed to those asked
-    within `created_from` .. `created_to` when given.
+    within `created_from` .. `created_to` when given. A `limit` of None reads
+    every one after `skip`.
     """
     where = [
         WorkflowApproval.organization_id == organization_id,

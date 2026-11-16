@@ -786,6 +786,30 @@ class TestWhoDecides:
         assert {row.organization_id for row in rows} == {seeded.org.id}
         assert {row.context_url for row in rows} == {f"/runs?tab=approvals&org={seeded.org.id}"}
 
+    async def test_an_app_admin_among_the_members_is_told_whatever_their_role(
+        self, engine: AsyncEngine
+    ):
+        seeded = await seed_run(engine, Graph().graph)
+        admin = await _another_member(seeded, role="member")
+        async with seeded.factory() as db:
+            await db.execute(update(User).where(User.id == admin.user_id).values(is_app_admin=True))
+            await db.commit()
+        await drive(seeded)
+
+        async with seeded.factory() as db:
+            told = (
+                (
+                    await db.execute(
+                        select(Notification.summary).where(
+                            Notification.recipient_user_id == admin.user_id
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert told == ["Approval needed: Send the refund?"]
+
     async def test_named_approvers_are_told_and_must_be_members(self, engine: AsyncEngine):
         seeded = await seed_run(engine, Graph().graph)
         approver = await _another_member(seeded)
@@ -862,6 +886,30 @@ class TestTheQueue:
             )
         assert [row.id for row in inside.items] == [item.id]
         assert before.total == 0 and after.total == 0
+
+
+class TestTheCallersOwnQueue:
+    async def test_it_counts_what_the_caller_may_decide_across_every_page(
+        self, engine: AsyncEngine
+    ):
+        seeded = await seed_run(engine, Graph().graph)
+        other = await _another_member(seeded)
+        member = (seeded.principal, seeded.org)
+        named = await seed_run(engine, Graph(approvers=[str(other.user_id)]).graph, member=member)
+        second = await seed_run(engine, Graph().graph, member=member)
+        for run in (seeded, named, second):
+            await drive(run)
+
+        async with seeded.factory() as db:
+            service = WorkflowApprovalService(db)
+            everyone = await service.queue(seeded.ctx, statuses=[])
+            first = await service.queue(seeded.ctx, statuses=[], decidable=True, limit=1)
+            rest = await service.queue(seeded.ctx, statuses=[], decidable=True, skip=1)
+        assert everyone.total == 3
+        assert (first.total, len(first.items), rest.total, len(rest.items)) == (2, 1, 2, 1)
+        mine = [*first.items, *rest.items]
+        assert {item.workflow_run_id for item in mine} == {seeded.run.id, second.run.id}
+        assert all(item.can_decide for item in mine)
 
 
 _CHOICES = [{"id": "draft", "label": "Keep a draft"}, {"id": "send_now", "label": "Send now"}]

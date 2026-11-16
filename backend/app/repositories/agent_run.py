@@ -2716,12 +2716,15 @@ class ApprovalFilters:
             publisher's user id, but the publisher did not trigger it.
         created_from: Inclusive lower bound on when the call was parked.
         created_to: Inclusive upper bound.
+        outside_live_calls: Leave out the calls parked by a run a voice call is
+            still on: the call decides those, and the console may not.
     """
 
     statuses: Sequence[str] | None = None
     triggered_by_user_id: UUID | None = None
     created_from: datetime | None = None
     created_to: datetime | None = None
+    outside_live_calls: bool = False
 
 
 async def list_approvals(
@@ -2775,6 +2778,12 @@ async def list_approvals(
         clauses.append(ToolApproval.created_at >= narrowing.created_from)
     if narrowing.created_to is not None:
         clauses.append(ToolApproval.created_at <= narrowing.created_to)
+    if narrowing.outside_live_calls:
+        clauses.append(
+            ~select(VoiceCall.id)
+            .where(VoiceCall.run_id == ToolApproval.run_id, VoiceCall.ended_at.is_(None))
+            .exists()
+        )
 
     ordering = ToolApproval.created_at.asc() if oldest_first else ToolApproval.created_at.desc()
     rows = await db.execute(
