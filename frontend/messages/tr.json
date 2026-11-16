@@ -10708,6 +10708,7 @@
       "pending": "başlatılıyor",
       "cancelled": "iptal edildi",
       "awaiting_approval": "onay bekliyor",
+      "awaiting_answer": "yanıt bekliyor",
       "guardrail_blocked": "güvenlik kuralı engelledi",
       "loop_stopped": "durduruldu: döngü"
     },

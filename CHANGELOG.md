@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Routine history clears the starting placeholder when the requested run appears, including runs already waiting for approval or finished before the first refresh. Older runs do not hide a new dispatch (#3063). Waiting-for-answer runs have a translated status in every console language (#3064).
+
 ## [1.77.0] - 2026-11-16
 
 ### Fixed

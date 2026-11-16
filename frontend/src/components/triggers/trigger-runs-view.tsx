@@ -176,7 +176,9 @@ function RunHistory({ trigger, pendingSince }: { trigger: Trigger; pendingSince:
   // A row for the fire that has been dispatched and has not recorded itself yet:
   // without it, pressing Run now on a trigger with no history answers with "not
   // run yet" for a few seconds, which is the opposite of what just happened.
-  const starting = pendingSince !== null && !runs.some((run) => run.status === "running");
+  const starting =
+    pendingSince !== null &&
+    !runs.some((run) => run.started_at !== null && Date.parse(run.started_at) >= pendingSince);
 
   if (runs.length === 0 && !starting) {
     return <p className="text-muted-foreground p-5 text-sm">{t("noMessagesDescription")}</p>;

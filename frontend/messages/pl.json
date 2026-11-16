@@ -8817,6 +8817,7 @@
       "pending": "uruchamia się",
       "cancelled": "anulowany",
       "awaiting_approval": "czeka na zatwierdzenie",
+      "awaiting_answer": "czeka na odpowiedź",
       "guardrail_blocked": "zablokowany przez zabezpieczenie",
       "loop_stopped": "zatrzymany: pętla"
     },
