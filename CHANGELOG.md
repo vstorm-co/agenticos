@@ -24,6 +24,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Let the "+" on a workflow output that already leads to a step insert the new step before it or add a parallel branch, keeping the connection when the step cannot carry it on, and mark an approval outcome or a deciding step that leads nowhere with a non-blocking warning.
 - Explain a decimal comma in a Virtual Table formula with a translated error that shows the dot, translate every formula refusal by a stable `details.formula.reason`, and show numbers in tables with the reader's decimal separator.
 - Translate workflow step settings - labels, help text and placeholders, including fields inside lists - into the console's language, checked against the registry by a guard.
+- Restore dependency freshness checks with ty 0.0.104 by updating renamed diagnostic rules and the minimum checker version, and allow the full backend CI runtime for the upgrade canary.
 
 ## [1.76.1] - 2026-11-15
 

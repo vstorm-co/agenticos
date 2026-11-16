@@ -35,7 +35,8 @@ jobs:
   newest:
     name: the newest release of everything
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # This runs the full backend suite, just like ci.yml.
+    timeout-minutes: 90
     permissions:
       contents: read
       issues: write
