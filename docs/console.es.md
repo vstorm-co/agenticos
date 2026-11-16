@@ -68,7 +68,7 @@ Los agentes de una conversación se ordenan por su último mensaje o ejecución 
 
 Cuando **Approve everything** no está disponible, los ajustes del chat distinguen entre la falta de permiso para decidir aprobaciones y una política de la organización que desactiva el consentimiento permanente. Quien puede decidir aprobaciones recibe un enlace a **Presupuesto y aprobaciones** para cambiar esa política expresamente. El chat nunca modifica la política de la organización automáticamente.
 
-El área de mensaje muestra el modo de aprobación activo junto al selector del agente. Abre la etiqueta para cambiar el modo guardado antes de enviar. Se aplican los mismos permisos y la política de la organización que en Chat controls. Las llamadas aprobadas automáticamente conservan sus registros de auditoría aprobados; solo las llamadas realmente pendientes muestran controles para decidir.
+El campo de mensaje muestra el modo de aprobación activo junto al selector del agente. Abre la etiqueta para cambiar el modo guardado antes de enviar. Se aplican las mismas comprobaciones de permisos y de exención de la organización que en Chat controls. Las llamadas aprobadas automáticamente conservan sus registros de auditoría; solo las llamadas realmente pendientes muestran controles para decidir.
 
 Los diálogos mantienen un margen de 12 px en todos los bordes del teléfono. Los encabezados compactos muestran título y acciones en una línea cuando caben. La descripción de Context se abre desde la barra del editor.
 
@@ -82,7 +82,7 @@ Los encabezados utilizan el espaciado del diseño que los rodea sin duplicarlo. 
 
 Los botones secundarios y los filtros comparten un relleno más visible, etiquetas con contraste y estados claros al pasar el cursor, pulsar o abrir un menú. El selector de modelo del chat utiliza el mismo estilo.
 
-El encabezado del chat de un agente muestra el modelo actual con el icono del provider. Abre el selector para buscar modelos guardados, cambiar de provider o cuenta, o elegir **Use agent's model**. La selección se aplica al próximo mensaje y se recuerda para tu cuenta en la organización actual; no edita el agente. El turno activo conserva su modelo. Las conexiones desconectadas y los modelos sin chat siguen visibles, pero no se pueden seleccionar. Si no se puede leer la lista, aparece **Retry**. **Controls**, junto al mensaje, mantiene la configuración completa de modelos y conexiones.
+El encabezado del chat de un agente muestra el modelo actual con el icono del provider. Abre el selector para buscar modelos guardados, cambiar de provider o cuenta, o elegir **Use agent's model**. La selección se aplica al próximo mensaje y se recuerda para tu cuenta en la organización actual; no edita el agente. El turno activo conserva su modelo. Las conexiones desconectadas y los modelos sin chat siguen visibles, pero no se pueden seleccionar. Si no se puede leer la lista, aparece **Retry**. **Chat controls** junto al cuadro de mensaje, mantiene la configuración completa de modelos y conexiones.
 
 Cambiar la selección del encabezado requiere `connections:manage`, igual que los controles de modelo existentes. Las conversaciones de solo lectura y quienes no tienen ese permiso siguen mostrando el modelo actual.
 

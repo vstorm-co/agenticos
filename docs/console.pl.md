@@ -64,9 +64,9 @@ Ustawienia chatu mają stały nagłówek i przycisk zamknięcia nad przewijaną 
 
 Agenci rozmowy są uporządkowani według ostatniej wiadomości lub uruchomienia głównego agenta, od najnowszego. Zwinięty pasek chatu zachowuje pełny rozmiar avatarów, nakłada maksymalnie trzy i ukrywa starszych uczestników; pełna lista pozostaje dostępna w podpowiedzi.
 
-Gdy **Approve everything** jest niedostępne, ustawienia chatu rozróżniają brak uprawnienia do zatwierdzania i politykę organizacji wyłączającą stałą zgodę. Osoba z uprawnieniem do zatwierdzania otrzymuje odnośnik do **Budżetu i zatwierdzeń**, gdzie może jawnie zmienić tę politykę. Chat nie zmienia polityki organizacji automatycznie.
+Gdy **Zatwierdzaj wszystko** (Approve everything) jest niedostępne, ustawienia chatu rozróżniają brak uprawnienia do zatwierdzania i politykę organizacji wyłączającą stałą zgodę. Osoba z uprawnieniem do zatwierdzania otrzymuje odnośnik do **Budżetu i zatwierdzeń**, gdzie może jawnie zmienić tę politykę. Chat nie zmienia polityki organizacji automatycznie.
 
-Pole wiadomości pokazuje aktywny tryb zatwierdzania obok wyboru agenta. Kliknij etykietę, aby zmienić zapisany tryb przed wysłaniem. Obowiązują te same uprawnienia i polityka organizacji co w Chat controls. Automatycznie zatwierdzone wywołania zachowują zatwierdzone wpisy audytowe; tylko rzeczywiście oczekujące wywołania pokazują prośby o decyzję.
+Pole wiadomości pokazuje aktywny tryb zatwierdzania obok wyboru agenta. Kliknij etykietę, aby zmienić zapisany tryb przed wysłaniem. Obowiązują te same kontrole uprawnień i wyjątków organizacji co w **Ustawieniach czatu** (Chat controls). Automatycznie zatwierdzone wywołania zachowują zatwierdzone wpisy audytowe; tylko rzeczywiście oczekujące wywołania pokazują prośby o decyzję.
 
 Na telefonie modale zachowują 12 px marginesu z każdej strony. Zwarte nagłówki mieszczą tytuł i akcje w jednym wierszu, gdy jest na to miejsce. Opis pliku Context rozwija się z paska edytora.
 
@@ -82,7 +82,7 @@ Nagłówki korzystają z odstępów otaczającego układu bez ich podwajania. Ka
 
 Przyciski drugorzędne i filtry mają wspólne, wyraźniejsze wypełnienie, kontrastowe etykiety oraz czytelne stany najechania, naciśnięcia i otwarcia. Wybór modelu w chacie korzysta z tego samego stylu przycisku.
 
-Nagłówek chatu z agentem pokazuje bieżący model z ikoną providera. Otwórz przycisk modelu, aby przeszukać zapisane modele, zmienić providera lub konto albo wybrać **Use agent's model**. Wybór dotyczy następnej wiadomości i jest zapamiętywany dla twojego konta w bieżącej organizacji; nie edytuje agenta. Trwająca tura zachowuje swój model. Rozłączone połączenia i modele nieobsługujące chatu pozostają widoczne, ale nie można ich wybrać. Jeśli nie można odczytać listy modeli, dostępne jest **Retry**. **Controls** obok pola wiadomości zachowuje pełną konfigurację modeli i połączeń.
+Nagłówek chatu z agentem pokazuje bieżący model z ikoną providera. Otwórz przycisk modelu, aby przeszukać zapisane modele, zmienić providera lub konto albo wybrać **Użyj modelu agenta** (Use agent's model). Wybór dotyczy następnej wiadomości i jest zapamiętywany dla twojego konta w bieżącej organizacji; nie edytuje agenta. Trwająca tura zachowuje swój model. Rozłączone połączenia i modele nieobsługujące chatu pozostają widoczne, ale nie można ich wybrać. Jeśli nie można odczytać listy modeli, dostępne jest **Ponów** (Retry). **Ustawienia czatu** (Chat controls) obok pola wiadomości zachowuje pełną konfigurację modeli i połączeń.
 
 Zmiana modelu w nagłówku wymaga `connections:manage`, tak jak dotychczasowe kontrolki modelu. W rozmowach tylko do odczytu oraz bez tego uprawnienia bieżący model pozostaje widoczny.
 

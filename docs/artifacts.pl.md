@@ -886,7 +886,7 @@ Sprawdzane są:
 ### Udostępnianie kontekstu asystentowi { #sharing-context-with-the-assistant }
 
 `agenticos.setAssistantContext` pozwala aplikacji statycznej lub aplikacji z
-bindingami danych opisać bieżący widok pływającemu asystentowi. Funkcja jest
+powiązaniami danych opisać bieżący widok pływającemu asystentowi. Funkcja jest
 dostępna w głównym widoku `/apps/{artifactId}` konsoli dla zalogowanego
 użytkownika. Wywołuj ją ponownie po zmianie widoku, filtrów lub wybranych
 rekordów:
@@ -916,7 +916,7 @@ limitów, a nadmiarowe wpisy są pomijane:
 Konsola dostarcza ID, tytuł i wersję aplikacji oraz bieżącą ścieżkę. Ramka iframe
 nie może zastąpić tej tożsamości ani nadać dodatkowych uprawnień. API korzysta z
 istniejącego mostu sandboxa; nie odczytuje DOM ani nie zbiera automatycznie pól
-formularzy lub parametrów zapytania w adresie URL. Oglądający kontroluje
+formularzy lub parametrów zapytania w adresie URL. Osoba korzystająca z aplikacji kontroluje
 udostępnianie w [oknie asystenta](console.md#the-assistant).
 
 ### Jak wygląda strona: podgląd { #seeing-the-page-preview }

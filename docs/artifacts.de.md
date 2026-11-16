@@ -981,7 +981,7 @@ veröffentlicht. Die Prüfungen:
 ### Kontext mit dem Assistenten teilen { #sharing-context-with-the-assistant }
 
 Mit `agenticos.setAssistantContext` beschreibt eine statische App oder eine App
-mit Daten-Bindings ihre aktuelle Ansicht für den schwebenden Assistenten. Die
+mit Datenbindungen ihre aktuelle Ansicht für den schwebenden Assistenten. Die
 Funktion ist im Hauptviewer `/apps/{artifactId}` der Konsole für angemeldete
 Benutzer verfügbar. Rufen Sie sie erneut auf, sobald sich Ansicht, Filter oder
 ausgewählte Datensätze ändern:
@@ -1011,7 +1011,7 @@ die von der App gelieferten Details. Texte werden auf diese Länge gekürzt;
 Die Konsole liefert App-ID, Titel, Version und aktuellen Pfad. Der iframe kann
 diese Identität nicht ersetzen oder zusätzliche Berechtigungen erteilen. Die API
 nutzt die bestehende Sandbox-Brücke; sie liest das DOM nicht aus und erfasst
-weder Formularfelder noch URL-Abfrageparameter automatisch. Der Betrachter
+weder Formularfelder noch URL-Abfrageparameter automatisch. Die Person, die die App betrachtet,
 steuert die Freigabe im [Assistentenfenster](console.md#the-assistant).
 
 ### Die Seite sehen: Vorschau { #seeing-the-page-preview }

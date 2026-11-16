@@ -154,7 +154,7 @@ se describe en [Capabilities](capabilities.md).
 | Mensajes de agentes | `agent_messages` |
 | Watch a command | `monitor` |
 | Babysit PR | `babysit_pr` |
-| Escenario de prueba | `proof_scenario` |
+| Escenario con evidencia | `proof_scenario` |
 | Sandbox | `sandbox` |
 | Skills | `skills` |
 | Sol-loop | `sol_loop` |

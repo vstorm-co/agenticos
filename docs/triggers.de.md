@@ -70,8 +70,8 @@ Auslösen.
 entscheidet es: `continue`, der Standard, hängt jeden Lauf an das eine
 Ausführungsprotokoll des Triggers an, sodass der Runs-Tab sie alle aufführt;
 `fresh` öffnet pro Auslösung eine neue Unterhaltung, sodass ein Lauf nie die Turns
-der vorherigen Läufe liest — und der Runs-Tab keine eine Unterhaltung zum
-Aufführen hat. Ein `fresh`-Trigger öffnet beim Anlegen kein Ausführungsprotokoll,
+der vorherigen Läufe liest — und es im Runs-Tab keine einzelne Unterhaltung zum
+Auflisten gibt. Ein `fresh`-Trigger öffnet beim Anlegen kein Ausführungsprotokoll,
 sodass es bis zum ersten Auslösen keinen Eintrag in der Seitenleiste gibt.
 
 Alles Weitere unten gilt dem Event-Fall.
@@ -240,8 +240,8 @@ ganze Zustellung als JSON, in derselben Form, in der der Workflow-GitHub-Trigger
 sie einem Run übergibt, in einem `<event_payload>`-Block neben dem gerenderten
 Text. Es ist derselbe nicht vertrauenswürdige Inhalt — der Run liest ihn als
 Information, mit der er arbeitet, nie als Anweisung — und er wird aus der
-Wartezeile geschwärzt, sobald der Lauf sich legt, sodass eine beendete Wartezeile
-weder die Payload noch den gerenderten Kontext behält.
+Wartezeile entfernt, sobald die Auslösung abgeschlossen ist, sodass eine beendete
+Wartezeile weder die Payload noch den gerenderten Kontext behält.
 
 ## Das Secret rotieren und den Filter bearbeiten { #rotating-the-secret-and-editing-the-filter }
 
