@@ -436,9 +436,9 @@ for (const platform of ["ios", "android"] as const) {
     test("contains CSV exports inside every Activity tab header", async ({ page }) => {
       // This layout probe must not depend on a journey in another CI shard creating spend.
       const spend: CostSummary = {
-        period_days: 30,
+        period_days: null,
         from_date: "2026-11-01T00:00:00Z",
-        to_date: null,
+        to_date: "2026-11-02T00:00:00Z",
         month_to_date_usd: "1.25",
         partial_run_count: 0,
         by_agent: [
@@ -448,7 +448,7 @@ for (const platform of ["ios", "android"] as const) {
             agent_name: "E2E layout spend",
             model_label: null,
             cost_usd: "1.25",
-            run_count: 1,
+            run_count: 2,
             partial_run_count: 0,
             month_to_date_usd: "1.25",
             monthly_cap_usd: null,
@@ -456,7 +456,10 @@ for (const platform of ["ios", "android"] as const) {
         ],
         by_provider: [],
         by_key: [],
-        by_day: [],
+        by_day: [
+          { day: "2026-11-01", cost_usd: "0.50", run_count: 1 },
+          { day: "2026-11-02", cost_usd: "0.75", run_count: 1 },
+        ],
         cache_by_agent_model: [],
       };
       await page.route(/\/api\/spend(?:\?|$)/, (route) => route.fulfill({ json: spend }));
@@ -485,6 +488,17 @@ for (const platform of ["ios", "android"] as const) {
             expect(cost.x + cost.width).toBeLessThanOrEqual(width);
           }
         }
+        const chart = page
+          .getByText("Spend over time", { exact: true })
+          .locator("..")
+          .locator("..");
+        await expect(chart.locator("svg.recharts-surface")).toBeVisible();
+        const bars = chart.locator(".recharts-bar-rectangle");
+        await expect(bars).toHaveCount(2);
+        await expect(bars.first()).toBeVisible();
+        await expect(bars.last()).toBeVisible();
+        // Wait for the lazy chart and its animated mark to settle before capturing.
+        await bars.first().scrollIntoViewIfNeeded();
         await page.screenshot({ path: test.info().outputPath(`activity-${width}.png`) });
       }
     });

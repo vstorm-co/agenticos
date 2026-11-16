@@ -33,8 +33,13 @@ test.describe("Review screenshots", () => {
     test(`captures coding accounts at ${size.name} width`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width: size.width, height: size.height });
       await page.goto("/settings/profile");
-      const section = page.locator('[data-tour="personal-coding-accounts"]');
-      await expect(section).toBeVisible();
+      const section = page.locator('section:has(> header[data-tour="personal-coding-accounts"])');
+      await expect(section.getByText("Claude Code", { exact: true })).toBeVisible();
+      await expect(section.getByText("Codex", { exact: true })).toBeVisible();
+      const connect = section.getByRole("button", { name: "Connect", exact: true });
+      await expect(connect).toHaveCount(2);
+      await expect(connect.first()).toBeEnabled();
+      await expect(connect.last()).toBeEnabled();
       await section.scrollIntoViewIfNeeded();
       await section.screenshot({
         path: testInfo.outputPath(`coding-accounts-${size.name}.png`),
