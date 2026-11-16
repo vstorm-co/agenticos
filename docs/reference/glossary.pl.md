@@ -116,7 +116,7 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 
 ## Capabilities { #capabilities }
 
-Nazwa, którą pokazuje Builder, i id, które wiąże spec agenta. Każda jest opisana
+Nazwa widoczna w Builderze i identyfikator, do którego odwołuje się spec agenta. Każda jest opisana
 w [Capabilities](capabilities.md).
 
 | W konsoli | W spec |
@@ -127,7 +127,7 @@ w [Capabilities](capabilities.md).
 | Wersje robocze | `drafts` |
 | Przeglądarka | `browser_use` |
 | Informacje o kanale czatu | `channel_tools` |
-| Podłączone komunikatory (Connected chat apps) | `channel_actions` |
+| Podłączone komunikatory | `channel_actions` |
 | Połączenia telefoniczne | `phone_calls` |
 | Wykresy | `charts` |
 | Data i godzina | `clock` |

@@ -273,15 +273,19 @@ const chatState: StateCreator<ChatState> = (set) => ({
         if (persisted) {
           nextPersisted = id;
           const previous = state.messages[index - 1];
-          // An acknowledged question still has a live answer until message_saved
-          // renames it. A recovered, unacknowledged question instead uses history.
+          // Keep details missing from an early history read until message_saved
+          // arrives. A fully saved answer can adopt its real id without that frame.
           const awaitingSave =
             message.role === "assistant" &&
             message.isTemporaryId &&
             aliases.has(message.id) &&
             previous?.role === "user" &&
             !previous.isTemporaryId &&
-            incoming.has(previous.id);
+            incoming.has(previous.id) &&
+            (message.content !== persisted.content ||
+              (message.toolCalls ?? []).some(
+                (call) => !persisted.toolCalls?.some((saved) => saved.id === call.id),
+              ));
           incoming.set(
             id,
             message.isStreaming || awaitingSave

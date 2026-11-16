@@ -117,7 +117,7 @@ nicht bricht.
 
 ## Capabilities { #capabilities }
 
-Der Name, den der Builder zeigt, und die ID, die der Spec eines Agents bindet.
+Der im Builder angezeigte Name und die ID, auf die sich der Spec eines Agents bezieht.
 Jede ist unter [Capabilities](capabilities.md) beschrieben.
 
 | In der Konsole | Im Spec |
@@ -128,7 +128,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Entwürfe | `drafts` |
 | Webbrowser | `browser_use` |
 | Infos zum Chat-Kanal | `channel_tools` |
-| Verbundene Chat-Apps (Connected chat apps) | `channel_actions` |
+| Verbundene Chat-Apps | `channel_actions` |
 | Telefonanrufe | `phone_calls` |
 | Diagramme | `charts` |
 | Datum und Uhrzeit | `clock` |

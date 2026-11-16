@@ -140,6 +140,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Completed room answers adopt their saved message identity when the transcript is complete, restoring reply, fork and rating actions even when a save event is missed. Partial history still preserves local answer text and tool details.
 - Keep sandbox connection details and session controls readable on narrow screens, search sessions by agent name, and confirm channel-bot removal before disconnecting bound agents.
 
 - Align organization role, directory and retention views with shared list layouts: searchable permission matrices with sticky labels, responsive retention fields and matching loading states, disabled unchanged saves, and retryable directory deletion refusals.

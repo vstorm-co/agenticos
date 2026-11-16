@@ -170,6 +170,7 @@ class TestTheCredentialIsReferencedNotCarried:
         elif operation == "update":
             existing = SimpleNamespace(
                 connector_type="gdrive",
+                collection_name="legal",
                 secret_id=None,
                 connected_account_id=account_id,
             )

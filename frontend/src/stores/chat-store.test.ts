@@ -648,7 +648,10 @@ describe("HTTP continuation reconciliation", () => {
   });
 });
 
-it("does not duplicate an acknowledged prompt's final answer when history beats message_saved", () => {
+it.each([
+  { content: "The deck is ready.", toolCalls: [] },
+  { content: "", toolCalls: [toolCall({ id: "publish-deck" })] },
+])("retains an acknowledged answer's details missing from history: %j", (missing) => {
   store().addMessage(message({ id: "question", role: "user", content: "Make a deck" }));
   store().addMessage(
     message({
@@ -661,10 +664,44 @@ it("does not duplicate an acknowledged prompt's final answer when history beats 
   );
   store().rereadMessages([
     message({ id: "question", role: "user", content: "Make a deck" }),
-    message({ id: "saved", content: "The deck is ready." }),
+    message({ id: "saved", ...missing }),
   ]);
   expect(store().messages.filter((item) => item.role === "assistant")).toHaveLength(1);
+  expect(store().messages[1]?.id).toBe("live");
+  expect(store().messages[1]?.content).toBe("The deck is ready.");
   expect(store().messages[1]?.toolCalls?.[0]?.id).toBe("publish-deck");
   store().updateMessage("live", (item) => ({ ...item, id: "saved", isTemporaryId: false }));
   expect(store().messages.map((item) => item.id)).toEqual(["question", "saved"]);
 });
+
+it.each([{ toolCalls: [] }, { toolCalls: [toolCall({ id: "publish-deck" })] }])(
+  "adopts a fully persisted final answer without waiting for message_saved: %j",
+  ({ toolCalls }) => {
+    store().addMessage(message({ id: "question", role: "user", content: "Make a deck" }));
+    store().addMessage(
+      message({
+        id: "live",
+        isTemporaryId: true,
+        isStreaming: false,
+        content: "The deck is ready.",
+        toolCalls,
+      }),
+    );
+    const question = message({ id: "question", role: "user", content: "Make a deck" });
+    const saved = message({ id: "saved", content: "The deck is ready.", toolCalls });
+    store().rereadMessages([question, message({ ...saved, content: "" })]);
+    expect(store().messages[1]?.id).toBe("live");
+    store().rereadMessages([question, saved]);
+    expect(store().messages[1]).toMatchObject({
+      id: "saved",
+      content: "The deck is ready.",
+      renderKey: "live",
+      toolCalls,
+    });
+    expect(store().messages[1]?.isTemporaryId).toBeFalsy();
+    store().rereadMessages([question, saved]);
+    store().updateMessage("live", (item) => ({ ...item, id: "saved", isTemporaryId: false }));
+    expect(store().messages.map((item) => item.id)).toEqual(["question", "saved"]);
+    expect(store().messages[1]?.renderKey).toBe("live");
+  },
+);
