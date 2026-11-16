@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Add ElevenLabs Scribe v3/v2 transcription and Eleven Realtime Mini/Max voice conversations with explicit vault keys. Realtime audio costs remain a floor because token charges are unreported; calls with spending budgets are refused before connecting.
+
 - Select an accessible project's workspace for the current agent run from chat or channels, without moving conversation history. Access is rechecked for each operation; approval continuations retain the selection and routines keep their reviewed source ceiling.
 
 ### Changed

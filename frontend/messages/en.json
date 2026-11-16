@@ -79,6 +79,7 @@
     "sessionsCouldNotBeRead": "The sessions could not be read."
   },
   "agents": {
+    "voiceUnreportedTokenUsage": "This provider does not report token charges. Calls cannot start with a spending budget; recorded audio cost is a lower bound.",
     "accentColour": "Accent colour",
     "actsOutsideWorld": "acts on the outside world",
     "actsWorld": "acts on the world",

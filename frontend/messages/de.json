@@ -79,6 +79,7 @@
     "sessionsCouldNotBeRead": "Die Sitzungen konnten nicht gelesen werden."
   },
   "agents": {
+    "voiceUnreportedTokenUsage": "Dieser Anbieter meldet keine Tokenkosten. Anrufe mit Ausgabenlimit können nicht starten; die erfassten Audiokosten sind eine Untergrenze.",
     "accentColour": "Akzentfarbe",
     "actsOutsideWorld": "wirkt auf die Außenwelt",
     "actsWorld": "wirkt auf die Welt",

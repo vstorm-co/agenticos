@@ -48,8 +48,16 @@ const CATALOG = {
       name: "Mistral",
       models: [{ id: "voxtral-mini-latest", name: "Voxtral Mini", description: "Mistral's." }],
     },
+    {
+      provider: "elevenlabs",
+      name: "ElevenLabs",
+      models: [
+        { id: "scribe_v3", name: "Scribe v3", description: "Recorded audio transcription." },
+        { id: "scribe_v2", name: "Scribe v2", description: "Previous transcription model." },
+      ],
+    },
   ],
-  total: 3,
+  total: 4,
   languages: ["en", "pl", "de"],
 };
 
@@ -705,4 +713,24 @@ describe("OrgVoiceSettings", () => {
       expect(screen.queryByRole("region", { name: "Transcription usage" })).toBeNull();
     });
   });
+});
+
+it("saves ElevenLabs Scribe with its explicit organization-wide vault key", async () => {
+  vi.clearAllMocks();
+  vi.mocked(apiClient.patch).mockResolvedValue(org());
+  useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
+  useOrgStore.setState({ activeOrgId: ORG_ID });
+  await mount({}, { vault: [...VAULT, key("team-elevenlabs", "elevenlabs")] });
+  await choose("Provider", "ElevenLabs");
+  expect(screen.getByRole("combobox", { name: "Model" })).toHaveTextContent("Scribe v3");
+  await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  await waitFor(() =>
+    expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
+      speech_to_text_language: null,
+      dictation_max_seconds: 300,
+      speech_to_text_provider: "elevenlabs",
+      speech_to_text_model: "scribe_v3",
+      speech_to_text_secret_id: "team-elevenlabs",
+    }),
+  );
 });

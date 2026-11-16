@@ -8,20 +8,26 @@ A+ pattern every voice feature shares (`.dev-agent/54/model-config-decision.md`)
 Model profiles are not read: they are what a text run uses.
 
 **Transport is per model.** OpenAI answers the browser's SDP offer itself and
-our server runs the sideband (`webrtc`); Gemini, xAI and Azure stream PCM
+our server runs the sideband (`webrtc`); Gemini, xAI, ElevenLabs and Azure stream PCM
 through our socket (`relay`). Azure is relay-only because its WebRTC hang-up
 cannot be verified (Q3).
 
 **Pricing is per model and always numeric.** `worst_case_usd_per_minute` is what
 the setup check multiplies by the call cap; `per_minute` models (xAI) are billed
-by duration because the price snapshot prices them at $0. A model with no usable
+by duration because the price snapshot prices them at $0. A token-priced model with no usable
 price is not offered, because a call whose cost cannot be computed is a call
 whose `cost_limit` would not be enforced.
 
 Azure entries are *base models*: the deployment name is free text on the
 agent's Voice section, and the entry it names decides voices and price.
 
-Gemini, xAI and Azure are wired from the providers' documentation and the
+ElevenLabs token charges are not reported by its SDK session. Its catalog rate
+records connected audio as a cost floor; calls with spending budgets are refused
+before connecting. The burst audio rate bounds audio only, not the unreported
+LLM charge. Its 16k context value is a conservative platform history seed budget,
+not a vendor-advertised context window.
+
+Gemini, xAI, ElevenLabs and Azure are wired from the providers' documentation and the
 library's code and are **not verified live**.
 """
 
@@ -31,8 +37,7 @@ from typing import Literal
 
 from pydantic import TypeAdapter
 
-from app.agents.model_resolver import PROVIDERS
-from app.core import catalog
+from app.core import catalog, secret_purposes
 from app.core.secret_kinds import SecretKind
 
 Transport = Literal["webrtc", "relay"]
@@ -63,6 +68,10 @@ class RealtimeModelEntry:
     supports_thinking: bool
     context_window: int
     pricing: RealtimePricing
+    unreported_token_usage: bool = False
+    """The provider bills tokens it does not report. Calls with spend caps are refused."""
+    default_language: str | None = None
+    """A provider's fixed default, where omitting the language is not automatic detection."""
 
 
 @dataclass(frozen=True)
@@ -100,15 +109,15 @@ def providers_in(entries: tuple[_CatalogEntry, ...]) -> tuple[RealtimeProvider, 
     """
     found: list[RealtimeProvider] = []
     for entry in entries:
-        spec = PROVIDERS.get(entry.provider)
+        spec = secret_purposes.get(entry.provider)
         models = tuple(m for m in entry.models if not m.id.startswith(_EXCLUDED_PREFIXES))
         if spec is None or not models:
             continue
         found.append(
             RealtimeProvider(
                 provider=spec.id,
-                name=spec.name,
-                secret_kind=spec.secret_kind,
+                name=spec.label,
+                secret_kind=spec.kind,
                 deployment=entry.deployment,
                 models=models,
             )

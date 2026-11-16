@@ -3122,6 +3122,7 @@
       "discordGuildsInvalid": "Virgül veya boşlukla ayrılmış ondalık sunucu ID’leri girin (en fazla 2.500 sunucu)."
     },
     "agents": {
+      "voiceUnreportedTokenUsage": "Bu sağlayıcı token ücretlerini bildirmez. Harcama bütçesi olan aramalar başlatılamaz; kaydedilen ses maliyeti bir alt sınırdır.",
       "agentAposSBehaviour": "Agentın davranış talimatları kodda değil, burada bulunur. Ne yapması, neyi reddetmesi ve nasıl kaynak göstermesi gerektiğini açıkça belirtin. Markdown kullanın; model yapıyı okur. Uzun bir promptun izlenebilmesi için başlıklar ve listeler önemlidir; önizleme de bu yapıyı görüntüleyebilmenizi sağlar.",
       "agentAposSOwn": "Bu agentın kendi aylık harcama sınırı. Kuruluşun sınırı ayrıca geçerlidir; agent bu sınırı düşürebilir ama yükseltemez. Adım sınırı başka türden kontrolsüz çalışmayı yakalar: çağrı başına ucuz olan ama hiç bitmeyen araç döngüsü.",
       "agentCannotBePublished": "Bu agent henüz yayımlanamaz",
