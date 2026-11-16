@@ -9,7 +9,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.group import Group, GroupMember
-from app.db.models.organization import MembershipSource
+from app.db.models.organization import MembershipSource, OrganizationMember
 from app.db.models.user import User
 
 
@@ -309,3 +309,25 @@ async def delete_memberships_in_org(
         delete(GroupMember).where(GroupMember.user_id == user_id, GroupMember.group_id.in_(in_org))
     )
     await db.flush()
+
+
+async def audience_members(
+    db: AsyncSession, *, organization_id: UUID, group_ids: Sequence[UUID]
+) -> list[tuple[UUID, str]]:
+    """Active organization members in these same-tenant groups, with current roles."""
+    if not group_ids:
+        return []
+    result = await db.execute(
+        select(OrganizationMember.user_id, OrganizationMember.role)
+        .join(User, User.id == OrganizationMember.user_id)
+        .join(GroupMember, GroupMember.user_id == OrganizationMember.user_id)
+        .join(Group, Group.id == GroupMember.group_id)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            Group.organization_id == organization_id,
+            Group.id.in_(group_ids),
+            User.is_active.is_(True),
+        )
+        .distinct()
+    )
+    return [(row[0], row[1]) for row in result.all()]

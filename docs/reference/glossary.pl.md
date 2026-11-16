@@ -127,6 +127,7 @@ w [Capabilities](capabilities.md).
 | Wersje robocze | `drafts` |
 | Przeglądarka | `browser_use` |
 | Informacje o kanale czatu | `channel_tools` |
+| Podłączone komunikatory | `channel_actions` |
 | Połączenia telefoniczne | `phone_calls` |
 | Wykresy | `charts` |
 | Data i godzina | `clock` |

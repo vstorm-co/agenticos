@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -353,13 +353,14 @@ describe("ExposuresPanel", () => {
     await mount();
 
     await userEvent.type(
-      await screen.findByLabelText("Extra instructions on Acme Support"),
+      await screen.findByLabelText("Channel instructions on Acme Support"),
       "Be terse.",
     );
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
       prompt: "Be terse.",
+      prompt_replaces_defaults: true,
     });
   });
 
@@ -394,8 +395,8 @@ describe("ExposuresPanel", () => {
     await mount();
 
     expect(await screen.findByText("What this agent may do on Slack")).toBeInTheDocument();
-    expect(screen.getByLabelText("Describe it.")).toBeChecked();
-    expect(screen.getByLabelText("Read it.")).not.toBeChecked();
+    expect(screen.getByLabelText("Describe this channel")).toBeChecked();
+    expect(screen.getByLabelText("Read this conversation")).not.toBeChecked();
   });
 
   it("sends the whole grant, not the box that moved", async () => {
@@ -415,7 +416,7 @@ describe("ExposuresPanel", () => {
     );
     await mount();
 
-    await userEvent.click(await screen.findByLabelText("Read it."));
+    await userEvent.click(await screen.findByLabelText("Read this conversation"));
 
     expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
       tools: ["get_channel_info", "read_channel_history"],
@@ -437,7 +438,7 @@ describe("ExposuresPanel", () => {
     );
     await mount();
 
-    await userEvent.click(await screen.findByLabelText("Read it."));
+    await userEvent.click(await screen.findByLabelText("Read this conversation"));
 
     expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
       tools: ["get_channel_info"],
@@ -477,4 +478,18 @@ describe("ExposuresPanel", () => {
 
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
+});
+
+it("persists participation changes for the selected bot only", async () => {
+  serve([exposure()], []);
+  vi.mocked(apiClient.patch).mockResolvedValue(exposure());
+  await mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Configure" }));
+  fireEvent.change(screen.getByRole("slider"), { target: { value: "65" } });
+  await userEvent.click(screen.getByRole("button", { name: "Save participation settings" }));
+  await waitFor(() =>
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures/e1`, {
+      observation: expect.objectContaining({ threshold_percent: 65, enabled: false }),
+    }),
+  );
 });

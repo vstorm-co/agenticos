@@ -1,32 +1,22 @@
-"""What the three decision steps share: one typed question to TypeSafe's Jev.
+"""Typed decision steps using a native decision model profile.
 
-Jev does not write text. It answers a typed question about a text - yes or no,
-pick one of these, score against these levels - with a confidence, in one
-request. So a decision that an agent would spend a prompt, a generation and a
-parse on is one call here, and the answer can only be one of the answers the
-step allows: a choice outside the options is not something Jev can return.
-
-Each step asks through Pydantic AI's `TypeSafeModel`, with the question as the
-description of one field of a `StructuredDict` output, which is how that model
-turns a schema into a question. The key is a TypeSafe **API key** from the
-vault, read afresh on every run against the run's principal, so a key deleted
-or unshared since publishing stops being used.
-
-**Unsure is an answer, not a failure.** Below the step's `min_confidence` it
-continues down its `unsure` port instead of acting on a coin flip, and a
-workflow decides there what a person, an agent or a default does with it.
+Profiles select the provider, model, vault credential and endpoint. Existing
+TypeSafe key configurations retain their model and credential behavior.
+Below min_confidence the step follows its unsure port rather than treating
+uncertainty as a provider failure.
 """
 
 import asyncio
 import logging
 from collections.abc import Callable
 from decimal import Decimal
-from typing import Any
+from typing import Any, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic_ai import Agent, StructuredDict
 from pydantic_ai.models import Model
+from pydantic_ai.settings import ModelSettings
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import (
@@ -35,6 +25,8 @@ from app.agents.capabilities.budget import (
     SpendLedger,
 )
 from app.agents.capabilities.guardrails import GuardrailBlocked
+from app.agents.model_resolver import ModelRequestSpec, is_decision_api
+from app.core.exceptions import AppException
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import ApiKeySecret, SecretKind, unseal_kind
 from app.core.vault import VaultScope
@@ -42,10 +34,13 @@ from app.db.models.organization_secret import OrganizationSecret
 from app.db.session import get_worker_db_context
 from app.repositories import organization_secret_repo
 from app.services.access import SECRET, resolve_access
+from app.services.agent_registry import AgentRegistryService
 from app.services.decision_models import DEFAULT_DECISION_MODEL, decision_model_schema
+from app.services.model_profile import ModelProfileService
 from app.services.spend import assert_organization_within_budget
 from app.services.workflow_execution import budget, context
 from app.services.workflow_execution.agent_conversations import ChatSourceGuard
+from app.services.workflow_execution.errors import workflow_error
 from app.workflows.contracts.results import Failed, WorkflowError
 
 logger = logging.getLogger(__name__)
@@ -69,8 +64,15 @@ class DecisionConfig(BaseModel):
         max_length=2000,
         description="What is decided about the text, asked the way a person would ask it",
     )
-    secret_id: UUID = Field(
-        title="TypeSafe key",
+    model_profile_id: UUID | None = Field(
+        default=None,
+        title="Decision model",
+        description="A native decision model profile. Existing TypeSafe-key configurations remain supported.",
+        json_schema_extra={"x-resource": "model_profile", "x-model-purpose": "decision"},
+    )
+    secret_id: UUID | None = Field(
+        default=None,
+        title="Legacy TypeSafe key",
         description="A TypeSafe API key from the vault",
         json_schema_extra={"x-resource": "secret", "x-secret-kind": "api_key"},
     )
@@ -83,10 +85,18 @@ class DecisionConfig(BaseModel):
     )
     min_confidence: float = Field(
         default=0.6,
+        title="Minimum confidence (%)",
+        json_schema_extra={"x-percent": True},
         ge=0,
         le=1,
         description="Below this the step goes down its unsure port instead of acting on the answer",
     )
+
+    @model_validator(mode="after")
+    def one_model_source(self) -> Self:
+        if (self.secret_id is None) == (self.model_profile_id is None):
+            raise ValueError("Choose a decision model profile or a legacy TypeSafe key, not both")
+        return self
 
 
 class DecisionInput(BaseModel):
@@ -115,8 +125,7 @@ type ModelFactory = Callable[[str, str], Model]
 def typesafe_model(model_name: str, api_key: str) -> Model:  # pragma: no cover - optional extra
     """The real Jev, reached only when a decision step runs.
 
-    Imported here because `typesafe-sdk` ships with the `browser` extra; a
-    deployment without it is told so by :func:`decide`, in a sentence.
+    Imported here so provider construction happens only when a decision runs.
     """
     from pydantic_ai.models.typesafe import TypeSafeModel
     from pydantic_ai.providers.typesafe import TypeSafeProvider
@@ -147,7 +156,24 @@ async def _usable_key(
 
 async def check_key(db: AsyncSession, ctx: AuthContext, config: BaseModel) -> list[tuple[str, str]]:
     """Refuse a key the graph's author may not use, or one that is not TypeSafe's."""
-    if not isinstance(config, DecisionConfig) or await _usable_key(db, ctx, config.secret_id):
+    if not isinstance(config, DecisionConfig):
+        return []
+    if config.model_profile_id is not None:
+        problems = await AgentRegistryService(db).model_profile_problems(
+            ctx, config.model_profile_id, decision=True
+        )
+        if problems:
+            return [("model_profile_id", problem) for problem in problems]
+        profile = await ModelProfileService(db).profile_for_organization(
+            ctx.organization_id, profile_id=config.model_profile_id
+        )
+        return (
+            []
+            if is_decision_api(profile.provider, profile.api)
+            else [("model_profile_id", "Select a native decision API profile")]
+        )
+    assert config.secret_id is not None
+    if await _usable_key(db, ctx, config.secret_id):
         return []
     return [("secret_id", "This is not a TypeSafe API key you can use - add one in the vault")]
 
@@ -163,12 +189,28 @@ def answer_schema(question: str, answer: dict[str, Any]) -> dict[str, Any]:
 
 
 async def decide(config: DecisionConfig, text: str, answer: dict[str, Any]) -> Answered | Failed:
-    """Ask Jev `config.question` about `text`, answered in the shape `answer` describes."""
+    """Ask the chosen decision model; legacy TypeSafe bindings retain their exact model."""
     current = context.current()
+    resolved: ModelRequestSpec | None = None
+    row: OrganizationSecret | None = None
     try:
         async with get_worker_db_context() as db:
             await ChatSourceGuard(db, current.chat_source).check()
-            row = await _usable_key(db, current.auth, config.secret_id)
+            if config.model_profile_id is not None:
+                service = ModelProfileService(db)
+                profile = await service.profile_for_organization(
+                    current.organization_id, profile_id=config.model_profile_id
+                )
+                if not is_decision_api(profile.provider, profile.api):
+                    return failed(
+                        "DECISION_MODEL_REQUIRED", "This step needs a native decision API profile"
+                    )
+                resolved = await service.resolve(
+                    current.auth, profile_id=config.model_profile_id, decision=True
+                )
+            else:
+                assert config.secret_id is not None
+                row = await _usable_key(db, current.auth, config.secret_id)
             await assert_organization_within_budget(db, current.organization_id)
             limits = await budget.provider_limits(
                 db, organization_id=current.organization_id, remaining=current.budget_remaining
@@ -185,33 +227,42 @@ async def decide(config: DecisionConfig, text: str, answer: dict[str, Any]) -> A
                 bypassable=False,
             )
         )
-    if row is None:
+    except AppException as exc:
+        return Failed(error=workflow_error(exc))
+    if row is None and resolved is None:
         return failed(
             "SECRET_NOT_USABLE", "The TypeSafe key this step uses is gone or no longer usable"
         )
-    key = unseal_kind(
-        row.sealed_secret,
-        model=ApiKeySecret,
-        scope=VaultScope.organization(current.organization_id),
-        key_version=row.key_version,
-    )
+    provider = resolved.provider if resolved is not None else "typesafe"
+    model_name = resolved.model if resolved is not None else config.model
     try:
-        model = model_factory(config.model, key.api_key.get_secret_value())
+        if resolved is not None:
+            model = resolved.build()
+        else:
+            assert row is not None
+            key = unseal_kind(
+                row.sealed_secret,
+                model=ApiKeySecret,
+                scope=VaultScope.organization(current.organization_id),
+                key_version=row.key_version,
+            )
+            model = model_factory(config.model, key.api_key.get_secret_value())
     except ImportError:
         return failed(
             "DECISION_MODEL_UNAVAILABLE",
-            "This deployment was built without TypeSafe - install the 'browser' extra",
+            "The TypeSafe decision client is unavailable - reinstall the deployment dependencies",
         )
     ledger = SpendLedger()
     guard = BudgetGuard(
         ledger=ledger,
-        provider="typesafe",
+        provider=provider,
         limits=limits,
     )
     agent = Agent(
         model,
         output_type=StructuredDict(answer_schema(config.question, answer)),
         capabilities=[guard],
+        model_settings=ModelSettings(**resolved.params) if resolved is not None else None,
     )
     try:
         async with get_worker_db_context() as db:
@@ -238,13 +289,13 @@ async def decide(config: DecisionConfig, text: str, answer: dict[str, Any]) -> A
         # A vendor's error text can carry the request, and the request is the text.
         logger.warning(
             "workflow_decision_failed",
-            extra={"model": config.model, "error_type": type(exc).__name__},
+            extra={"model": model_name, "error_type": type(exc).__name__},
         )
         return Failed(
             error=WorkflowError(
                 code="DECISION_FAILED",
                 message="The decision model did not answer",
-                details={"model": config.model},
+                details={"model": model_name},
                 retryable=True,
             )
         )

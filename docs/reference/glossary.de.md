@@ -128,6 +128,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Entwürfe | `drafts` |
 | Webbrowser | `browser_use` |
 | Infos zum Chat-Kanal | `channel_tools` |
+| Verbundene Chat-Apps | `channel_actions` |
 | Telefonanrufe | `phone_calls` |
 | Diagramme | `charts` |
 | Datum und Uhrzeit | `clock` |

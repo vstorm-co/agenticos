@@ -142,16 +142,17 @@ async def test_what_may_be_staged_is_staged_and_the_rest_is_only_counted(db):
     assert added.new_value["tool_approval"] == {
         "publish_artifact": "required",
         "share_artifact": "required",
+        "export_artifact": "required",
     }
     assert added.effect == {
         "adds": [
             {
                 "kind": "capability",
                 "id": "artifacts",
-                "tools": ["publish_artifact", "share_artifact"],
+                "tools": ["publish_artifact", "export_artifact", "share_artifact"],
             }
         ],
-        "writes": ["publish_artifact", "share_artifact"],
+        "writes": ["publish_artifact", "export_artifact", "share_artifact"],
     }
     assert added.names == {"artifacts": "Apps"}
     assert by_path[("collection_ids", str(shared.id))].names == {str(shared.id): shared.name}

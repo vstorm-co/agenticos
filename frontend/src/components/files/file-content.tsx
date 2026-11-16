@@ -43,7 +43,7 @@ function TextBody({ access, kind, name, asSource, bare }: Required<FileContentPr
   const { file, isLoading, error } = useFileText(access, kind === "html" && !asSource);
   const { download, error: actionError } = useFileActions(access);
 
-  if (isLoading) return <Skeleton className="h-24 w-full" />;
+  if (isLoading) return <FileContentLoading text />;
   if (error !== null)
     return <FileUnavailable reason={error} onDownload={download} error={actionError} />;
   return file === null ? null : (
@@ -66,10 +66,33 @@ function BytesBody({ access, name }: { access: FileAccess; name: string }) {
   const { url, mediaType, isLoading, error } = useFileBytes(access);
   const { download, error: actionError } = useFileActions(access);
 
-  if (isLoading) return <Skeleton className="h-64 w-full" />;
+  if (isLoading) return <FileContentLoading />;
   if (error !== null)
     return <FileUnavailable reason={error} onDownload={download} error={actionError} />;
   return url === null || mediaType === null ? null : (
     <FileBytesView name={name} url={url} mediaType={mediaType} onDownload={download} />
+  );
+}
+
+/** The reader owns the height, including when the response becomes a download offer. */
+function FileContentLoading({ text = false }: { text?: boolean }) {
+  const t = useTranslations("states");
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={t("loading")}
+      className="h-full min-h-64 w-full"
+    >
+      {text ? (
+        <div aria-hidden="true" className="h-full min-h-64 space-y-3 p-4">
+          <Skeleton className="h-4 w-3/5" />
+          <Skeleton className="h-4 w-4/5" />
+          <Skeleton className="h-4 w-2/3" />
+        </div>
+      ) : (
+        <Skeleton aria-hidden="true" className="h-full min-h-64 w-full" />
+      )}
+    </div>
   );
 }

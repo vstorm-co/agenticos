@@ -68,6 +68,8 @@ Die Agenten einer Unterhaltung sind nach ihrer letzten Nachricht oder ihrem letz
 
 Ist **Approve everything** nicht verfügbar, unterscheiden die Chat-Einstellungen zwischen fehlender Entscheidungsberechtigung und einer Organisationsrichtlinie, die pauschale Zustimmung deaktiviert. Wer Genehmigungen entscheiden darf, erhält einen Link zu **Budget und Genehmigungen**, um die Richtlinie ausdrücklich zu ändern. Der Chat ändert die Organisationsrichtlinie niemals automatisch.
 
+Der Eingabebereich zeigt den aktiven Genehmigungsmodus neben der Agent-Auswahl. Über die Beschriftung lässt sich der gespeicherte Modus vor dem Senden ändern. Es gelten dieselben Berechtigungen und Organisationsrichtlinien wie in Chat controls. Automatisch genehmigte Aufrufe behalten ihre genehmigten Audit-Einträge; nur tatsächlich ausstehende Aufrufe zeigen eine Aufforderung zur Entscheidung.
+
 Dialoge behalten auf dem Smartphone an allen Rändern 12 px Abstand. Kompakte Seitenköpfe zeigen Titel und Aktionen in einer Zeile, wenn genug Platz ist. Die Context-Beschreibung öffnet sich über die Editorleiste.
 
 Auf dem Smartphone bleiben die Hauptaktionen sichtbar; weitere Befehle öffnet **Weitere Seitenaktionen**. Inbox-Filter und Tabellenformat werden über Auswahllisten gewählt. Einstellungen mit vielen Bereichen haben ein Bereichsmenü; der MCP-Client wird aus einer Liste gewählt. Projekt- und Workspace-Dateien öffnen sich im Vollbildleser; der Zurück-Pfeil führt zu den Ordnern. Im Workflow-Schritteditor wählst du Einstellungen, Eingabe oder Ausgabe. Beim Wechsel bleiben Änderungen erhalten; auf dem Desktop stehen die Bereiche weiterhin nebeneinander.

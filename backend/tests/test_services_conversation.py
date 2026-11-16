@@ -98,6 +98,7 @@ class MockMessage:
         # Whether a guardrail stopped its turn: a history withholds it (#2578).
         self.guardrail_refused = guardrail_refused
         self.attachment_context = None
+        self.model_content = None
         self.parts: list[dict[str, object]] | None = None
         # Who typed it and what it answers: nobody named, nothing answered.
         self.author_user_id = None

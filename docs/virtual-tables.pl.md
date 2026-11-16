@@ -1,5 +1,5 @@
 ---
-source_sha: "9bf7eb650d8e"
+source_sha: "33c4b5347c7d"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -816,9 +816,11 @@ Przy tworzeniu pustej tabeli wymagane kolumny nie potrzebują wartości domyśln
 
 ## Trwałe zadania {#durable-tasks}
 
+**Agent** również może mieć współdzieloną tablicę zadań. Dostęp wynika z aktualnych uprawnień do agenta; edycja zadań wymaga dodatkowo edycji tabel oraz możliwości uruchamiania tego agenta. Właściciel lub edytor agenta może zarządzać tablicą. Przypisanie agenta do prywatnego zadania nie udostępnia tego zadania. W AgenticOS MCP `create_task` i `ensure_task_board` używają istniejącej tabeli zakresu lub tworzą ją przy pierwszym użyciu. Wybieraj zakres prywatny dla spraw osobistych, projekt dla wyników projektu, a agenta dla jawnie wskazanej kolejki agenta. Przy niejasnym zakresie dopytaj; nie udostępniaj prywatnych treści domyślnie.
+
 Zadanie projektowe można utworzyć z prywatnej rozmowy spoza projektu. Pozostaw rozmowę roboczą niewskazaną: zadanie otworzy własną rozmowę w projekcie, bez podpinania prywatnego transkryptu. Jawne wskazanie rozmowy z innego projektu zostanie odrzucone.
 
-**Praca w tle** (`/work`) pokazuje trwałe zobowiązania obok uruchomionych rozmów w tle. Zadanie jest rekordem Virtual Table z odnośnikiem do rozmowy roboczej i jedną sprawą w Inbox, gdy potrzebna jest reakcja. Tabela, Kanban i API używają tej samej rewizji; nie ma osobnej synchronizowanej listy TODO.
+Zadaniami zarządzasz w **Tables** (`/tables`). **Praca w tle** (`/work`) pokazuje uruchomione rozmowy w tle i ich historię. Zadanie jest rekordem Virtual Table z odnośnikiem do rozmowy roboczej i jedną sprawą w Inbox, gdy potrzebna jest reakcja. Tabela, Kanban i API używają tej samej rewizji; nie ma osobnej synchronizowanej listy TODO.
 
 Tabela zadań powstaje przy pierwszym użyciu dla **osoby**, **projektu**, **grupy** lub **organizacji** i jest używana ponownie. Projects i Groups mają akcję **Zadania**, a Tables otwiera prywatną tabelę. Instalacja ani nowe członkostwo nie tworzą pustych tabel. Pierwsze utworzenie wymaga `tables:create`. Dostęp projektowy i członkostwo grupowe są sprawdzane na bieżąco; prywatne zadania są ukryte również przed innym właścicielem organizacji. Dotyczy to także zwykłego API tabel, odnośników i zapisanych widoków. Istniejące własne tabele zadań i presety śledzenia projektu nie są automatycznie konwertowane.
 
@@ -831,7 +833,7 @@ AgenticOS MCP udostępnia `list_task_boards`, `ensure_task_board`, `list_tasks`,
 
 Członkostwo w grupie pozwala czytać jej tablicę zadań; zapis wymaga dodatkowo uprawnienia do edycji tabel lub jawnego grantu edycji. Gdy osoba przypisana do przypomnienia traci dostęp, zadanie zostaje zablokowane, a twórca otrzymuje sprawę w Inbox do przekazania pracy. Nowe rozmowy robocze zadań projektowych należą do tego projektu. Limit tabel może zablokować opcjonalne zadanie z wyniku routine, ale rozmowa robocza, sprawa Inbox i powiadomienie nadal są dostarczane.
 
-Zapis na projektowej tablicy zadań wymaga dostępu do projektu oraz uprawnienia edycji tabel lub jawnego grantu Edit do tabeli. Usunięcie projektu, grupy albo prywatnego właściciela anuluje zadania w kolejce, zamyka ich sprawy i usuwa zarządzaną tabelę tego zakresu wraz z rekordami, historią i mediami w tej samej transakcji. Pozostałe zakresy pozostają nienaruszone. Panel zadań wraca do dostępnej prywatnej tablicy, gdy wybrana tablica znika.
+Zapis na projektowej tablicy zadań wymaga dostępu do projektu oraz uprawnienia edycji tabel lub jawnego grantu Edit do tabeli. Usunięcie projektu, grupy albo prywatnego właściciela anuluje zadania w kolejce, zamyka ich sprawy i usuwa zarządzaną tabelę tego zakresu wraz z rekordami, historią i mediami w tej samej transakcji. Pozostałe zakresy pozostają nienaruszone.
 
 Zmiana samej tablicy zadań jest węższa niż praca na niej. Zmiana nazwy tablicy, jej
 kolumn albo domyślnego widoku oraz jej archiwizacja albo przywrócenie wymagają
@@ -853,3 +855,8 @@ Notatki zadania są dokumentami rich text w Markdown, z edytorem i podglądem ja
 Nie można usunąć agenta, dopóki zarządzane zadanie zależy od jego zaplanowanego wykonania. Najpierw przepisz, ukończ lub anuluj te zadania; usunięcie agenta nie może po cichu porzucać ich wykonania.
 
 Przywrócenie zarchiwizowanej zarządzanej tablicy zadań ponownie kolejkuje zaplanowane przypomnienia dla osób, także te, których termin minął podczas archiwizacji. Dostarczenie nadal sprawdza aktualny dostęp pierwotnego autora i odbiorcy; przywrócenie tablicy nie upoważnia do nowej pracy agenta. Zarchiwizowana tablica nie przyjmuje też zapisów od swoich zadań: sprawa rozstrzygnięta w tym czasie w Inbox zostawia zadanie bez zmian, a przywrócenie tablicy przenosi je wtedy do stanu zrobione lub anulowane. Ponowne otwarcie sprawy, której zadanie leży na zarchiwizowanej tablicy, jest odrzucane kodem `TABLE_ARCHIVED`.
+
+
+Użytkownik z uprawnieniem tworzenia tabel dostaje brakującą prywatną tabelę zadań przy pierwszym wejściu do **Tables**. Istniejąca tabela jest używana ponownie. Nie powstają wtedy zaległości organizacji ani agenta. W projekcie przycisk **Task table** tworzy lub otwiera tabelę. Bez uprawnienia tworzenia dostępne tabele pozostają widoczne, bez próby niedozwolonego zapisu.
+
+Inbox pokazuje zadanie, gdy człowiek ma coś zrobić albo sprawdzić wynik; nie jest drugim magazynem zadań. Monitory, triggery pocztowe i rutyny mogą tworzyć sprawy Inbox bez rekordów zadań. Task zapisujemy dla konkretnego zobowiązania wymagającego dalszej pracy, a nie każdego zdarzenia. Uzgodnioną konwencję tabeli i sprawdzony identyfikator można zapamiętać; aktualny stan zadania pozostaje w tabeli.

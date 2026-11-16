@@ -68,6 +68,8 @@ Los agentes de una conversación se ordenan por su último mensaje o ejecución 
 
 Cuando **Approve everything** no está disponible, los ajustes del chat distinguen entre la falta de permiso para decidir aprobaciones y una política de la organización que desactiva el consentimiento permanente. Quien puede decidir aprobaciones recibe un enlace a **Presupuesto y aprobaciones** para cambiar esa política expresamente. El chat nunca modifica la política de la organización automáticamente.
 
+El área de mensaje muestra el modo de aprobación activo junto al selector del agente. Abre la etiqueta para cambiar el modo guardado antes de enviar. Se aplican los mismos permisos y la política de la organización que en Chat controls. Las llamadas aprobadas automáticamente conservan sus registros de auditoría aprobados; solo las llamadas realmente pendientes muestran controles para decidir.
+
 Los diálogos mantienen un margen de 12 px en todos los bordes del teléfono. Los encabezados compactos muestran título y acciones en una línea cuando caben. La descripción de Context se abre desde la barra del editor.
 
 En el teléfono, las acciones principales siguen visibles y los comandos secundarios se despliegan con **Más acciones de la página**. Inbox y el formato de tabla usan selectores. Los ajustes con muchas secciones usan un menú; el cliente MCP se elige en una lista. Los archivos de proyecto o workspace se abren en un visor a pantalla completa; la flecha vuelve a las carpetas. El editor de pasos del workflow muestra un panel elegido: ajustes, entrada o salida. Cambiar de panel conserva las ediciones; en escritorio siguen uno al lado del otro.

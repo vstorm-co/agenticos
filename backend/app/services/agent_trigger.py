@@ -1073,8 +1073,24 @@ class AgentTriggerService:
             notification_channels=data.notification_channels,
             monthly_budget_usd=data.monthly_budget_usd,
         )
-        policy = await self.sources.initial(ctx, trigger)
-        trigger.approved_sources = policy.model_dump(mode="json")
+        try:
+            policy = await self.sources.initial(ctx, trigger)
+        except RoutineSourcesRequired as refusal:
+            # Preserve the requested responsibility without granting incomplete
+            # sources or queueing a fire. Source review is still required before
+            # activation, even if the caller tries Run now.
+            trigger.is_active = False
+            details = refusal.details or {}
+            unavailable = details.get("unavailable_sources", [])
+            trigger.approved_sources = {
+                "pending_review": True,
+                "unavailable_sources": [name for name in unavailable if isinstance(name, str)]
+                if isinstance(unavailable, list)
+                else [],
+                "reason": refusal.code,
+            }
+        else:
+            trigger.approved_sources = policy.model_dump(mode="json")
         await self.db.flush()
         # Open the run-log conversation now, not on the first fire, so a new
         # trigger is a clickable item in the sidebar the moment it exists - empty
@@ -1400,6 +1416,15 @@ class AgentTriggerService:
             await device_wait_repo.cancel_for_trigger(
                 self.db, trigger_id=trigger.id, reason="routine_changed"
             )
+        if changes.get("is_active") is True and trigger.setup_required:
+            raise RoutineSourcesRequired(
+                message="Review and repair this routine's sources before enabling it. Its schedule and prompt are saved.",
+                details={
+                    "unavailable_sources": trigger.setup_issues,
+                    "routine_id": trigger.id,
+                    "setup_url": "/routines",
+                },
+            )
         updated = await agent_trigger_repo.update(self.db, trigger=trigger, update_data=changes)
         await record_audit(
             self.db,
@@ -1617,7 +1642,9 @@ class AgentTriggerService:
             )
         model = _EVENT_CONFIG_MODELS[cast(str, trigger.event_source)]
         try:
-            validated = model.model_validate(config).model_dump()
+            validated = model.model_validate(config).model_dump(
+                exclude_defaults=trigger.event_source == EventSource.WEBHOOK.value
+            )
         except PydanticValidationError as exc:
             raise ValidationError(
                 message="event_config is not valid for this trigger's source",
@@ -1678,6 +1705,11 @@ class AgentTriggerService:
         if trigger.delivery_mode == "polling":
             raise BadRequestError(
                 message="a polled trigger is read from a connected account and has no secret",
+                details={"trigger_id": str(trigger.id)},
+            )
+        if trigger.event_source == EventSource.LINEAR.value:
+            raise BadRequestError(
+                message="recreate the Linear trigger with its new provider-issued secret",
                 details={"trigger_id": str(trigger.id)},
             )
         plaintext = secrets.token_urlsafe(32)
@@ -1844,7 +1876,12 @@ class AgentTriggerService:
             return None
         secret = self._unseal_event_secret(trigger)
         if not trigger_events.verify_signature(
-            source, secret=secret, body=body, headers=headers, url=webhook_url(source, trigger.id)
+            source,
+            secret=secret,
+            body=body,
+            headers=headers,
+            url=webhook_url(source, trigger.id),
+            config=trigger.event_config,
         ):
             raise AuthorizationError(
                 message="Webhook signature did not verify",

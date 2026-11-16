@@ -76,6 +76,21 @@ class AgentExposure(Base, TimestampMixin):
     surface: Mapped[str] = mapped_column(String(16), nullable=False)
 
     prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    observation: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    observation_generation: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        nullable=False,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    observation_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    prompt_replaces_defaults: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     """What to add to the agent's instructions *here*, and nowhere else.
 
     The same published agent answers in a dashboard, on a website widget and in

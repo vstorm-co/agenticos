@@ -799,7 +799,9 @@ export function TriggerFormDialog({
         <DialogContent className={DIALOG_CONFIRM}>
           <DialogHeader>
             <DialogTitle>{t("createdTitle")}</DialogTitle>
-            <DialogDescription>{t("createdDescription")}</DialogDescription>
+            <DialogDescription>
+              {eventSource === "linear" ? t("createdDescriptionLinear") : t("createdDescription")}
+            </DialogDescription>
           </DialogHeader>
           {created.webhook_url && <WebhookField url={created.webhook_url} />}
           {/* The secret, shown beside the URL it belongs with: the provider form
@@ -808,7 +810,7 @@ export function TriggerFormDialog({
               recoverable only by rotating. The raw form's secret is the caller's
               own (the server does not echo it back), so the local state is the
               copy shown; `reveal_secret` covers a server-minted one. */}
-          {(created.reveal_secret ?? secret) && (
+          {eventSource !== "linear" && (created.reveal_secret ?? secret) && (
             <SecretRevealField
               secret={created.reveal_secret ?? secret}
               label={t("secret")}
@@ -930,10 +932,14 @@ export function TriggerFormDialog({
               )}
               {trigger.trigger_type === "event" &&
                 trigger.can_manage &&
+                trigger.event_source !== "linear" &&
                 trigger.delivery_mode !== "polling" &&
                 trigger.delivery_mode !== "app_webhook" && (
                   <RotateSecretSection triggerId={trigger.id} rotate={rotateSecret} />
                 )}
+              {trigger.trigger_type === "event" && trigger.event_source === "linear" && (
+                <p className="text-muted-foreground text-xs">{t("linearSecretRotation")}</p>
+              )}
 
               <ResultModeField value={resultMode} onChange={setResultMode} />
               <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
@@ -1641,11 +1647,12 @@ const EVENT_SOURCES: readonly { value: EventSource; labelKey: string }[] = [
   { value: "github", labelKey: "sourceGithub" },
   { value: "webhook", labelKey: "sourceWebhook" },
   { value: "hubspot", labelKey: "sourceHubspot" },
+  { value: "linear", labelKey: "sourceLinear" },
   { value: "zendesk", labelKey: "sourceZendesk" },
 ];
 
 /** Sources whose signing secret the provider issues: nothing here can mint it. */
-const PROVIDER_SECRETS: ReadonlySet<EventSource> = new Set(["hubspot", "zendesk"]);
+const PROVIDER_SECRETS: ReadonlySet<EventSource> = new Set(["hubspot", "linear", "zendesk"]);
 
 /** Where each source's delivery comes from - a static key per source so the
  *  catalog check can see them, rather than one interpolated key it cannot. */
@@ -1661,6 +1668,8 @@ function sourceHelp(t: ReturnType<typeof useTranslations>, source: EventSource):
       return t("sourceHelpWebhook");
     case "hubspot":
       return t("sourceHelpHubspot");
+    case "linear":
+      return t("sourceHelpLinear");
     case "zendesk":
       return t("sourceHelpZendesk");
     // Read from a connected account, so created from a portal card and never

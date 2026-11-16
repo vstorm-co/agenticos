@@ -4,13 +4,16 @@ import { CatalogLoading } from "@/components/states/catalog-loading";
 
 import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
 import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ListFilters } from "@/components/ui/list-filters";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Plus } from "lucide-react";
 import { TableIcon as Table2 } from "@/components/icons/product-icons";
 
+import { useAuthStore } from "@/stores/auth-store";
+import { useTenantId } from "@/hooks/use-organizations";
+import { useDurableTasks } from "@/hooks/use-durable-tasks";
 import { TaskBoardButton } from "@/components/tasks/task-board-button";
 import { ErrorState } from "@/components/states";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -72,11 +75,26 @@ export default function TablesPage() {
     limit: PAGE_SIZE,
   });
   const { can } = usePermissions();
+  const { boards, ensure } = useDurableTasks();
+  const userId = useAuthStore((state) => state.user?.id);
+  const tenant = useTenantId();
+  const attempted = useRef(new Set<string>());
+  const ensureBoard = ensure.mutate;
   const canCreate = can(Perm.tablesCreate);
   const [createOpen, setCreateOpen] = useState(false);
   const [importing, setImporting] = useState<{ table: TableRead; preset: CsvPreset } | null>(null);
   const router = useRouter();
   const tc = useTranslations("common");
+
+  useEffect(() => {
+    if (!tenant || !userId || !canCreate || !boards.isSuccess || !boards.data || error) return;
+    if (boards.data.some((board) => board.scope_kind === "private" && board.scope_id === userId))
+      return;
+    const scope = `${tenant}:${userId}`;
+    if (attempted.current.has(scope)) return;
+    attempted.current.add(scope);
+    ensureBoard({ kind: "private" });
+  }, [tenant, userId, canCreate, boards.isSuccess, boards.data, ensureBoard, error]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -157,6 +175,14 @@ export default function TablesPage() {
           <ErrorState cta={{ label: tc("retry"), onClick: () => void refetch() }} />
         ) : tables.length === 0 ? (
           <ListCardEmpty
+            onClearFilters={
+              Boolean(search)
+                ? () => {
+                    setQuery("");
+                    setPage(0);
+                  }
+                : undefined
+            }
             icon={Table2}
             title={search ? t("empty.filteredTitle") : t("empty.title")}
             description={search ? undefined : t("empty.description")}
@@ -169,7 +195,11 @@ export default function TablesPage() {
         ) : (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {tables.map((table) => (
-              <TableCard key={table.id} table={table} />
+              <TableCard
+                key={table.id}
+                table={table}
+                taskBoard={boards.data?.find((board) => board.table_id === table.id)}
+              />
             ))}
           </div>
         )}

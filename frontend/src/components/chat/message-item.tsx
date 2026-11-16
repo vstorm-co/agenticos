@@ -435,7 +435,11 @@ export const MessageItem = memo(function MessageItem({
           // work above the reply.
           <div className="mt-1 max-w-xl space-y-2">
             {apps.map((app) => (
-              <PublishedArtifactResult key={app.artifactId} data={app} />
+              <PublishedArtifactResult
+                key={app.artifactId}
+                data={app}
+                returnTo={message.conversationId ? `/chat?id=${message.conversationId}` : undefined}
+              />
             ))}
           </div>
         )}

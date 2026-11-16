@@ -898,3 +898,25 @@ async def test_pending_legacy_files_can_still_be_read_after_upgrade(redis: _Redi
     await redis.set("channel:email:file:bot:legacy", "aGk=")
     assert await email_state.take_attachment("bot:legacy") == "aGk="
     assert await email_state.take_attachment("bot:legacy") is None
+
+
+async def test_a_chart_only_reply_is_sent_as_a_native_email_attachment() -> None:
+    provider = MagicMock(
+        delivers=True,
+        send=AsyncMock(return_value=SendResult(accepted=True, provider_message_id="message-1")),
+    )
+    with (
+        patch("app.services.channels.email.get_email_provider", return_value=provider),
+        patch("app.services.channels.email.email_state.thread_of", AsyncMock(return_value=None)),
+    ):
+        await EmailAdapter().send_message(
+            BOT_ADDRESS,
+            OutgoingMessage(
+                platform_chat_id="recipient@example.com", text="", image_png=b"chart-png"
+            ),
+        )
+    sent = provider.send.await_args.args[0]
+    assert sent.to == ["recipient@example.com"]
+    assert len(sent.attachments) == 1
+    assert sent.attachments[0].content == b"chart-png"
+    assert sent.attachments[0].mime_type == "image/png"
