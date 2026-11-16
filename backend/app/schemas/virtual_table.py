@@ -378,7 +378,13 @@ class TableRead(TableSummary):
     row_policy: RowPolicy | None = Field(
         default=None,
         description="The table's row-level access policy, or null when every row is "
-        "visible to anyone who may read the table.",
+        "visible to anyone who may read the table. Check row_policy_valid before "
+        "interpreting null: an invalid stored policy denies record access.",
+    )
+    row_policy_valid: bool = Field(
+        default=True,
+        description="False when the stored row policy needs repair. Metadata remains "
+        "available, but records cannot be accessed until an authorized editor repairs it.",
     )
     can_manage: bool = Field(
         default=False,

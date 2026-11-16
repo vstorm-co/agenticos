@@ -12,7 +12,7 @@ from app.schemas.resource_grant import as_visibility
 from app.schemas.virtual_table import ColumnDef, TableRead
 from app.services.access import TABLE, resolve_access
 from app.services.virtual_tables.deadline import ReadDeadline, arm_if_set
-from app.services.virtual_tables.exceptions import TableArchivedError
+from app.services.virtual_tables.exceptions import InvalidRowPolicyError, TableArchivedError
 from app.services.virtual_tables.row_policy import parse_policy
 
 
@@ -134,6 +134,14 @@ class Operations:
         can_restore: bool = False,
         can_manage: bool | None = None,
     ) -> TableRead:
+        try:
+            policy = parse_policy(table.row_policy)
+            policy_valid = True
+        except InvalidRowPolicyError:
+            # Metadata remains reachable so an authorized editor can repair the
+            # policy; record operations still refuse the malformed document.
+            policy = None
+            policy_valid = False
         return TableRead(
             id=table.id,
             name=table.name,
@@ -148,7 +156,8 @@ class Operations:
             updated_at=table.updated_at,
             can_edit=can_edit,
             can_restore=can_restore,
-            row_policy=parse_policy(table.row_policy),
+            row_policy=policy,
+            row_policy_valid=policy_valid,
             can_manage=can_edit if can_manage is None else can_manage,
             columns=columns,
         )

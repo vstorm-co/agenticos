@@ -102,6 +102,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Table link replacements validate every explicitly submitted destination before accepting an unchanged write. Hidden and missing destination IDs receive the same refusal; omitted hidden links remain preserved for older clients.
+- Table links expose only readable destination IDs and labels, including exports and projected reads. Link filters and counts use the same visible destinations, and legacy array replacements retain hidden existing links. Invalid stored row policies block record access with a repairable `ROW_POLICY_INVALID` error instead of disabling restrictions.
 - Chat followers recover saved-answer acknowledgements and final outcomes when a turn finishes during replay or a quiet interval. Sequence checks keep recovered frames in order without duplicating earlier output.
 
 ## [1.76.1] - 2026-11-15
