@@ -4906,6 +4906,36 @@ describe("useChat - a question its person came back to", () => {
     expect(useChatStore.getState().messages[0]?.wasStopped).not.toBe(true);
   });
 
+  it("ignores answer admission from an account that just changed", async () => {
+    get.mockResolvedValue(ASKED);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+    await act(async () => {
+      void result.current.sendAskUserResponses([
+        { answer: "", selected: ["Casual"], skipped: false },
+      ]);
+    });
+    act(() => {
+      useOrgStore.setState({ activeOrgId: "another-org" });
+      receive("background_task_turn", {
+        conversation_id: "c-1",
+        agent_id: "a-1",
+        resumed_run_id: "r-1",
+      });
+    });
+    expect(result.current.pendingQuestions).toBeNull();
+    expect(
+      useChatStore
+        .getState()
+        .messages.some((message) =>
+          message.toolCalls?.some((call) => call.id === "ask-1" && call.status === "completed"),
+        ),
+    ).toBe(false);
+    await act(async () => acknowledgeAnswer());
+  });
+
   it("answers on the socket, closes the step and draws the continuation", async () => {
     get.mockResolvedValue(ASKED);
     const resumed: Partial<ResumedRun> = {

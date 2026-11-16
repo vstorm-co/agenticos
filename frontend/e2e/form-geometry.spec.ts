@@ -55,9 +55,12 @@ async function expectGeometry(first: Locator, second: Locator, touch: boolean): 
       );
     })
     .toBeLessThan(1);
-  const bounds = await first.boundingBox();
-  expect(bounds).not.toBeNull();
-  expect(Math.round(bounds!.height * 100) / 100).toBeGreaterThanOrEqual(touch ? 44 : 40);
+  await expect
+    .poll(async () => {
+      const bounds = await first.boundingBox();
+      return bounds ? Math.round(bounds.height * 100) / 100 : 0;
+    })
+    .toBeGreaterThanOrEqual(touch ? 44 : 40);
 }
 
 for (const touch of [false, true]) {
