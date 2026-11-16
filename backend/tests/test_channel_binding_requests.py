@@ -88,17 +88,22 @@ class TestTheHourlyAllowance:
 
 
 @pytest.mark.security
-async def test_a_request_removed_while_waiting_for_its_lock_is_a_concurrent_change() -> None:
-    found = MagicMock(agent_id=uuid4(), channel_bot_id=uuid4(), exposure_id=None)
+@pytest.mark.parametrize("removed", ["agent", "bot", "exposure", "request"])
+async def test_a_request_whose_source_disappears_before_decision_is_a_concurrent_change(
+    removed,
+) -> None:
+    found = MagicMock(agent_id=uuid4(), channel_bot_id=uuid4(), exposure_id=uuid4())
     with (
         patch.object(requests_module, "channel_binding_request_repo") as repo,
         patch.object(requests_module, "agent_repo") as agents,
         patch.object(requests_module, "channel_bot_repo") as bots,
+        patch.object(requests_module, "agent_exposure_repo") as exposures,
     ):
         repo.get = AsyncMock(return_value=found)
-        repo.lock = AsyncMock(return_value=None)
-        agents.get = AsyncMock(return_value=MagicMock())
-        bots.get_for_org = AsyncMock(return_value=MagicMock())
+        repo.lock = AsyncMock(return_value=None if removed == "request" else found)
+        agents.get = AsyncMock(return_value=None if removed == "agent" else MagicMock())
+        bots.get_for_org = AsyncMock(return_value=None if removed == "bot" else MagicMock())
+        exposures.get = AsyncMock(return_value=None if removed == "exposure" else MagicMock())
 
         with pytest.raises(ConcurrentChangeError):
             await ChannelBindingRequestService(MagicMock()).approve(

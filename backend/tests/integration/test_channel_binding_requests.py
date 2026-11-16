@@ -1312,7 +1312,7 @@ class TestVoidingAtTheSource:
             await ChannelBotService(db, organization_id=world.tenant.organization.id).update(
                 world.bot.id,
                 ChannelBotUpdate(access_policy={**OPEN, **closing}),
-                actor_user_id=world.owner.user_id,
+                ctx=world.owner,
             )
 
             await db.refresh(request)
@@ -1328,11 +1328,9 @@ class TestVoidingAtTheSource:
         await service.update(
             world.bot.id,
             ChannelBotUpdate(access_policy={**OPEN, "whitelist": ["x"]}),
-            actor_user_id=world.owner.user_id,
+            ctx=world.owner,
         )
-        await service.update(
-            world.bot.id, ChannelBotUpdate(name="Renamed"), actor_user_id=world.owner.user_id
-        )
+        await service.update(world.bot.id, ChannelBotUpdate(name="Renamed"), ctx=world.owner)
 
         await db.refresh(request)
         assert request.status == "pending"
@@ -1346,7 +1344,7 @@ class TestVoidingAtTheSource:
         await ChannelBotService(db, organization_id=world.tenant.organization.id).update(
             world.bot.id,
             ChannelBotUpdate(access_policy={"mode": "open"}),
-            actor_user_id=world.owner.user_id,
+            ctx=world.owner,
         )
 
         await db.refresh(request)

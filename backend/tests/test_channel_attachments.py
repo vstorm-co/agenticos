@@ -1249,7 +1249,7 @@ class TestATypedAnswerIsNotATurn:
                 AsyncMock(return_value=True),
             ) as reply,
         ):
-            await router._route_inner(incoming, MagicMock())
+            await router._route_inner(incoming, MagicMock(commit=AsyncMock()))
 
         assert reply.await_args.kwargs["sent_at"] == sent
 
@@ -1667,7 +1667,7 @@ class TestTheRouteTreatsADepartedMemberAsAStranger:
                 "app.services.channels.router.member_repo.get_active", AsyncMock(return_value=None)
             ),
         ):
-            await router._route_inner(incoming, MagicMock())
+            await router._route_inner(incoming, MagicMock(commit=AsyncMock()))
 
         assert router._receive_files.await_args.kwargs["as_agent"] is True
         assert router._transcribe.await_args.kwargs["as_agent"] is True

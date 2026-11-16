@@ -52,4 +52,5 @@ async def test_an_updated_bot_is_attributed_to_the_caller() -> None:
 
     assert status == 200
     assert service.update.await_args.args[0] == bot_id
-    assert service.update.await_args.kwargs == {"actor_user_id": ctx.subject_id}
+    assert service.update.await_args.args[2] == ctx
+    assert service.update.await_args.kwargs == {}

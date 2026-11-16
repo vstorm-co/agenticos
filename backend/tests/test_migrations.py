@@ -2367,18 +2367,19 @@ def test_routine_activation_index_round_trip_preserves_legacy_policy() -> None:
             )
             db.add(agent)
             db.flush()
-            db.add(
-                AgentRun(
-                    id=run_id,
-                    organization_id=org.id,
-                    agent_id=agent.id,
-                    surface="schedule",
-                    status="completed",
-                    input_tokens=0,
-                    output_tokens=0,
-                    cost_usd=0,
-                    routine_policy={"acts_as_creator": True},
-                )
+            db.execute(
+                text(
+                    "INSERT INTO agent_runs (id, organization_id, agent_id, surface, status, "
+                    "input_tokens, output_tokens, cost_usd, cost_is_partial, routine_policy) "
+                    "VALUES (:id, :org, :agent, 'schedule', 'completed', "
+                    "0, 0, 0, false, CAST(:policy AS jsonb))"
+                ),
+                {
+                    "id": run_id,
+                    "org": org.id,
+                    "agent": agent.id,
+                    "policy": json.dumps({"acts_as_creator": True}),
+                },
             )
             db.commit()
         result = _alembic("upgrade", "head")
@@ -2394,8 +2395,8 @@ def test_routine_activation_index_round_trip_preserves_legacy_policy() -> None:
             index["name"] for index in inspect(engine).get_indexes("agent_runs")
         }
         with DatabaseSession(engine) as db:
-            run = db.get(AgentRun, run_id)
-            assert run is not None and run.routine_policy == {"acts_as_creator": True}
+            policy = db.scalar(select(AgentRun.routine_policy).where(AgentRun.id == run_id))
+            assert policy == {"acts_as_creator": True}
         result = _alembic("upgrade", "head")
         assert result.returncode == 0, result.stderr
     finally:

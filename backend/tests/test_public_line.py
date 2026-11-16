@@ -576,14 +576,22 @@ class TestWhatALineReaches:
         assert "tables" not in {entry.kind for entry in read.reaches}
         assert "platform_mcp" in read.refused
 
-    async def test_native_organization_accounts_are_named_but_personal_accounts_are_not(self):
+    @pytest.mark.parametrize("field", ["connection_id", "connection_ids"])
+    async def test_native_organization_accounts_are_named_but_personal_accounts_are_not(
+        self, field
+    ):
         account_id = uuid.uuid4()
         read = await self._reach(
             self._spec(
                 capabilities=[
                     {
                         "id": "gmail",
-                        "config": {"account": "organization", "connection_ids": [str(account_id)]},
+                        "config": {
+                            "account": "organization",
+                            field: str(account_id)
+                            if field == "connection_id"
+                            else [str(account_id)],
+                        },
                     },
                     {"id": "google_calendar", "config": {"account": "personal"}},
                     {

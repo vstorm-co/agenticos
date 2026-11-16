@@ -12,7 +12,7 @@ from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.organization import Organization
 from app.db.models.user import User
-from app.services.agent_runner import AgentRunnerService
+from app.services.agent_runner import AdmittedAs, AgentRunnerService
 from app.services.skill_workspace import SkillChange
 
 pytestmark = pytest.mark.anyio
@@ -38,7 +38,12 @@ async def test_failed_proposal_flush_leaves_terminal_run_and_session_usable(db):
     run_id = run.id
     ctx = AuthContext(user_id=user.id, organization_id=org.id, role="owner")
     prepared = SimpleNamespace(
-        workspace=MagicMock(), materialised_skills=MagicMock(), ctx=ctx, agent=agent, run=run
+        workspace=MagicMock(),
+        materialised_skills=MagicMock(),
+        ctx=ctx,
+        agent=agent,
+        run=run,
+        admitted_as=AdmittedAs(),
     )
     # Bypass collection deliberately: a future caller can still violate the DB
     # contract, and the savepoint must protect the run independently of validation.
