@@ -458,33 +458,6 @@ def test_a_stored_formula_with_a_comma_too_many_keeps_working_until_it_is_edited
     assert refused.value.details["fields"][0]["field"] == "columns.1.formula"
 
 
-def test_a_stored_formula_with_a_decimal_comma_keeps_working_until_it_is_edited():
-    price = ColumnDef(id=uuid.uuid4(), label="Price", type="number")
-    gross = ColumnDef(id=uuid.uuid4(), label="Gross", type="formula", formula="{Price} * 1,23")
-    previous = [price, gross]
-    kept = ColumnInput(id=gross.id, label="Gross", type="formula", formula="{Price} * 1,23")
-
-    built = build_columns(
-        [
-            ColumnInput(id=price.id, label="Price", type="number"),
-            kept,
-            ColumnInput(label="Note", type="text"),
-        ],
-        previous,
-    )
-    assert [column.label for column in built] == ["Price", "Gross", "Note"]
-
-    with pytest.raises(InvalidSchemaError) as refused:
-        build_columns(
-            [
-                ColumnInput(id=price.id, label="Price", type="number"),
-                ColumnInput(id=gross.id, label="Gross", type="formula", formula="{Price} * 1,5"),
-            ],
-            previous,
-        )
-    assert refused.value.details["formula"]["reason"] == "decimal_comma"
-
-
 def test_a_new_formula_is_held_to_every_rule():
     price = ColumnDef(id=uuid.uuid4(), label="Price", type="number")
 

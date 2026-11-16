@@ -1,5 +1,5 @@
 ---
-source_sha: "b05cdd9a6fe1"
+source_sha: "774a82d93b5e"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -167,7 +167,7 @@ przecinek oddziela argumenty funkcji, więc `{Price} * 1,23` zostaje odrzucone z
 wskazówką, a nie odczytane jako liczba; tak samo wywołanie, któremu przecinek dodaje o jedną
 wartość za dużo, jak `IF({Price} > 0,5, "yes", "no")`.
 
-Obie zasady obowiązują przy zapisie formuły:
+Liczba wartości wywołania jest sprawdzana przy zapisie formuły:
 formuła zapisana wcześniej działa dalej, a pozostałe kolumny tabeli można zmieniać, dopóki
 ktoś jej nie zmieni. Odmowa podaje stały powód w
 `details.formula.reason`, na przykład `decimal_comma` albo `not_a_column`, dzięki

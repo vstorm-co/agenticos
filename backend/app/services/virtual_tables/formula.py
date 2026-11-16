@@ -238,8 +238,8 @@ def _takes(fewest: int, most: int | None) -> str:
 
 
 def _check(node: ast.AST, depth: int = 0, *, strict: bool = True) -> None:
-    """Refuse anything a formula may not contain; with `strict`, a decimal comma and a
-    call given the wrong number of values too."""
+    """Refuse anything a formula may not contain; with `strict`, a call given the wrong
+    number of values too."""
     if depth > MAX_DEPTH:
         raise FormulaProblem("The formula nests too deeply", "too_deep")
     if isinstance(node, ast.Expression):
@@ -294,9 +294,6 @@ def _check(node: ast.AST, depth: int = 0, *, strict: bool = True) -> None:
             )
         for arg in node.args:
             _check(arg, depth + 1, strict=strict)
-    elif isinstance(node, ast.Tuple) and not strict:
-        for element in node.elts:
-            _check(element, depth + 1, strict=strict)
     elif isinstance(node, ast.Tuple):
         # `{Price} * 1,23` reads as two values: the comma separates a function's
         # arguments, so it cannot also be a decimal separator.
@@ -314,9 +311,9 @@ def check_formula(
     """Whether `formula` is one `column` may hold: it parses, contains nothing it
     may not, and names live columns of the table other than formulas.
 
-    `strict` also refuses a decimal comma and a call given the wrong number of values.
-    A formula saved before those rules may hold either, so a schema change applies them
-    only to a formula it writes - one it carries over unchanged keeps working.
+    `strict` also refuses a call given the wrong number of values. A formula saved
+    before that rule may hold one, so a schema change applies it only to a formula it
+    writes - one it carries over unchanged keeps working.
 
     Raises:
         FormulaProblem: Saying what is wrong, for the person writing it.
