@@ -25,14 +25,30 @@ import type { AssistantState } from "@/types/assistant";
  * that organization's page - and only for somebody who may change it, like the
  * spending limit beside it.
  */
-export function OrgAssistant({ orgId }: { orgId: string }) {
+export function OrgAssistant({
+  orgId,
+  collapsible = false,
+}: {
+  orgId: string;
+  collapsible?: boolean;
+}) {
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { assistant } = useAssistant();
   if (orgId !== activeOrgId || !assistant?.can_configure || !assistant.agent_id) return null;
-  return <AssistantCard assistant={assistant} agentId={assistant.agent_id} />;
+  return (
+    <AssistantCard assistant={assistant} agentId={assistant.agent_id} collapsible={collapsible} />
+  );
 }
 
-function AssistantCard({ assistant, agentId }: { assistant: AssistantState; agentId: string }) {
+function AssistantCard({
+  assistant,
+  agentId,
+  collapsible,
+}: {
+  assistant: AssistantState;
+  agentId: string;
+  collapsible: boolean;
+}) {
   const t = useTranslations("orgAssistant");
   const update = useUpdateAssistant();
   const [greeting, setGreeting] = useState(assistant.greeting ?? "");
@@ -41,29 +57,42 @@ function AssistantCard({ assistant, agentId }: { assistant: AssistantState; agen
   return (
     <div data-tour="org-assistant">
       <SettingsSection
-        status={<SetupIndicator hints={architectSetupHints(assistant)} />}
-        title={t("title")}
-        description={t("description")}
-      >
-        <div className="space-y-5">
-          <label className="flex items-start gap-3">
+        collapsible={collapsible}
+        action={
+          collapsible ? (
             <Switch
               checked={assistant.status !== "disabled"}
               disabled={update.isPending}
               onCheckedChange={(on) => update.mutate({ enabled: on })}
               aria-label={t("enabled")}
             />
-            <span className="text-muted-foreground text-xs leading-relaxed">
-              {t("enabledHint")}
-            </span>
-          </label>
+          ) : undefined
+        }
+        status={<SetupIndicator hints={architectSetupHints(assistant)} />}
+        title={t("title")}
+        description={t(collapsible ? "summary" : "description")}
+      >
+        <div className="space-y-5">
+          {!collapsible && (
+            <label className="flex items-start gap-3">
+              <Switch
+                checked={assistant.status !== "disabled"}
+                disabled={update.isPending}
+                onCheckedChange={(on) => update.mutate({ enabled: on })}
+                aria-label={t("enabled")}
+              />
+              <span className="text-muted-foreground text-xs leading-relaxed">
+                {t("enabledHint")}
+              </span>
+            </label>
+          )}
           {assistant.status === "needs_model" && (
             <p className="text-muted-foreground text-sm">{t("needsModel")}</p>
           )}
           <FormField
             label={t("greeting")}
             htmlFor="org-assistant-greeting"
-            description={t("greetingHint")}
+            help={t("greetingHint")}
           >
             <Textarea
               id="org-assistant-greeting"

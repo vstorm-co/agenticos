@@ -1103,3 +1103,13 @@ it("uses the usual favourite band for a starred shared thread while retaining it
   expect(within(row).getByRole("button", { name: "Remove from my chats" })).toBeVisible();
   expect(within(row).queryByRole("button", { name: "Rename" })).not.toBeInTheDocument();
 });
+
+it("opens a conversation from its keyboard target and marks the current row", async () => {
+  mount();
+  const row = await within(list()).findByRole("button", { name: "Quarterly numbers" });
+  row.focus();
+  await userEvent.keyboard("{Enter}");
+  await waitFor(() => expect(useConversationStore.getState().currentConversationId).toBe("c-1"));
+  expect(row).toHaveAttribute("aria-current", "page");
+  expect(within(list()).getByRole("button", { name: "Filter and sort" })).toBeVisible();
+});

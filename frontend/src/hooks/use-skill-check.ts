@@ -66,6 +66,7 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
   };
   const refused = async () => {
     await Promise.all([
+      queryClient.invalidateQueries({ queryKey: qk.skillChanges.all() }),
       queryClient.invalidateQueries({ queryKey: qk.skillChecks.skill(skillId) }),
       queryClient.invalidateQueries({ queryKey: qk.skillChecks.awaiting() }),
       queryClient.invalidateQueries({ queryKey: qk.skills.detail(skillId) }),
@@ -80,12 +81,14 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
         "update_agent_id" in body
           ? estimateUpdateCheck(skillId, body.update_agent_id)
           : estimateSkillCheck(skillId, body),
+      onError: refused,
     }),
     start: useMutation({
       mutationFn: (body: SkillCheckBody) =>
         "update_agent_id" in body
           ? startUpdateCheck(skillId, body.update_agent_id)
           : startSkillCheck(skillId, body),
+      onError: refused,
       onSuccess: () =>
         Promise.all([
           queryClient.invalidateQueries({ queryKey: qk.skillChecks.skill(skillId) }),

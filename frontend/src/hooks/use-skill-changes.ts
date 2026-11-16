@@ -45,6 +45,9 @@ export function useSkillChanges(status: ProposalStatus = "pending"): UseSkillCha
   } = useQuery({
     queryKey: qk.skillChanges.list(status),
     queryFn: () => listSkillChanges(status),
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 
   const invalidate = useCallback(async () => {
@@ -100,6 +103,9 @@ export function useSkillProposalsAwaiting({ enabled = true }: { enabled?: boolea
   const query = useQuery({
     queryKey: qk.skillChanges.list("pending"),
     queryFn: () => listSkillChanges("pending"),
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
     enabled,
   });
   return {

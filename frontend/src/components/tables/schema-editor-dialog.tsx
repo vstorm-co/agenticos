@@ -32,6 +32,7 @@ import { fieldProblems, getErrorMessage, schemaDependents } from "@/lib/api-erro
 import { SchemaDependents } from "./schema-dependents";
 import { COLUMN_CONVERSIONS, COLUMN_TYPES, COMPUTED_TYPES, REFERENCE_TYPES } from "@/types/tables";
 import type { ColumnInput, ColumnTypeName, TableRead } from "@/types/tables";
+import { Label } from "@/components/ui/label";
 
 /** An option row, `archived` narrowed to required - see `Row` below. */
 interface OptionRow {
@@ -299,7 +300,7 @@ export function SchemaEditorDialog({
                         checked={!row.nullable}
                         onCheckedChange={(on) => updateRow(row.key, { nullable: !on })}
                       />
-                      <label htmlFor={`${row.key}-required`}>{t("required")}</label>
+                      <Label htmlFor={`${row.key}-required`}>{t("required")}</Label>
                     </div>
                   )}
                   {row.id ? (

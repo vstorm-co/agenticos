@@ -13,6 +13,7 @@
  * could not switch organization or sign out at all.
  */
 
+import { SidebarSearch } from "@/components/layout/sidebar-search";
 import { SidebarNav } from "@/components/layout/app-sidebar";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { BrandMark } from "@/components/branding/brand-mark";
@@ -27,13 +28,14 @@ export function Sidebar() {
   return (
     <Sheet open={isOpen} onOpenChange={close}>
       <SheetContent side="left" className="w-72 p-0" focusContent>
-        <SheetHeader className="h-14 shrink-0 px-4">
+        <SheetHeader className="h-14 shrink-0 flex-row items-center gap-1 px-4">
           {/* The mark beside the name, as the bar it slides over and the
               desktop column both draw it. */}
-          <SheetTitle className="flex items-center gap-2 text-sm font-bold tracking-tight">
+          <SheetTitle className="me-auto flex items-center gap-2 text-sm font-bold tracking-tight">
             <BrandMark />
             {appName}
           </SheetTitle>
+          <SidebarSearch />
           <SheetClose onClick={close} />
         </SheetHeader>
         <SidebarShell onNavigate={close}>

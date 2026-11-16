@@ -178,3 +178,14 @@ describe("conversations opened over the API (#2122)", () => {
     expect(onHideApiChange).toHaveBeenCalledWith(false);
   });
 });
+
+it("opens a compact header filter below the trigger rather than outside a phone sheet", async () => {
+  mount({ compact: true });
+  const trigger = screen.getByRole("button", { name: "Filter and sort" });
+  expect(trigger).not.toHaveTextContent("Filter and sort");
+  await userEvent.click(trigger);
+  expect(screen.getByRole("dialog", { name: "Filter and sort" })).toHaveAttribute(
+    "data-side",
+    "bottom",
+  );
+});

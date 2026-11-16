@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SkillCheckDialog } from "./skill-check-dialog";
+import { toast } from "sonner";
 import { ApiError } from "@/lib/api-error";
 import { checkAgent, finishedCheck } from "@/test-utils/skill-checks";
 import type { SkillCheck } from "@/types/skill-checks";
@@ -458,4 +459,86 @@ describe("SkillCheckDialog", () => {
 
     expect(held.estimate.mutate).toHaveBeenCalledTimes(2);
   });
+});
+
+it("reconciles a proposal already decided elsewhere without offering a stale Start action", async () => {
+  held.estimate = mutation({
+    isError: true,
+    data: finishedCheck(),
+    error: new ApiError(404, "No change to this skill is waiting", {
+      error: {
+        code: "NOT_FOUND",
+        message: "No change to this skill is waiting",
+        details: { skill_id: "s-1" },
+      },
+    }),
+  });
+  const close = open();
+  expect(screen.getByRole("status")).toHaveTextContent("This update is no longer pending");
+  expect(screen.queryByRole("button", { name: "Start the check" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Back to updates" }));
+  expect(close).toHaveBeenCalledWith(false);
+});
+
+it("keeps a network failure explicit instead of treating it as an already decided proposal", () => {
+  held.estimate = mutation({ isError: true, error: new Error("Network unavailable") });
+  open();
+  expect(screen.queryByText("This update is no longer pending")).toBeNull();
+  expect(screen.getByText("Network unavailable")).toBeVisible();
+});
+
+it("can apply a checked proposal with no evaluation questions after acknowledging the limitation", async () => {
+  held.check = finishedCheck({
+    verdict: "needs_ack",
+    agents: [checkAgent({ state: "unknown", unknown_reason: "no_questions" })],
+    outcomes: ["apply", "discard"],
+  });
+  held.apply.mutate.mockImplementation((_body, options) => options.onSuccess());
+  const close = open();
+  const apply = screen.getByRole("button", { name: "Apply" });
+  expect(apply).toBeDisabled();
+  await userEvent.click(screen.getByRole("checkbox"));
+  expect(apply).toBeEnabled();
+  await userEvent.click(apply);
+  expect(held.apply.mutate).toHaveBeenCalledWith(
+    { acknowledge_unknown: true, pin_worse: false },
+    expect.any(Object),
+  );
+  expect(close).toHaveBeenCalledWith(false);
+});
+
+it("does not toast a stale proposal error when it disappears while starting a check", async () => {
+  vi.mocked(toast.error).mockClear();
+  held.start.mutate.mockImplementation((_body, options) =>
+    options.onError(
+      new ApiError(404, "No change to this skill is waiting", {
+        error: {
+          code: "NOT_FOUND",
+          message: "No change to this skill is waiting",
+          details: { skill_id: "s-1" },
+        },
+      }),
+    ),
+  );
+  open();
+  await userEvent.click(screen.getByRole("button", { name: "Start the check" }));
+  expect(held.checkId).toBeNull();
+  expect(toast.error).not.toHaveBeenCalled();
+});
+
+it("returns a finished check to the editor without applying the change", async () => {
+  held.check = finishedCheck({ session_id: null, status: "done" });
+  const onChecked = vi.fn();
+  render(
+    <SkillCheckDialog
+      skillId="s-1"
+      change={{ proposalId: "p-1" }}
+      forkId={null}
+      onOpenChange={vi.fn()}
+      onChecked={onChecked}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Back to Change version" }));
+  expect(onChecked).toHaveBeenCalledWith(held.check);
+  expect(held.apply.mutate).not.toHaveBeenCalled();
 });

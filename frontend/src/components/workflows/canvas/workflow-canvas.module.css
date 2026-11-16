@@ -1,0 +1,39 @@
+.canvas {
+  --xy-background-color: var(--color-background);
+  --xy-background-pattern-color: color-mix(in oklab, var(--color-foreground) 16%, transparent);
+  --xy-controls-button-background-color: var(--color-card);
+  --xy-controls-button-background-color-hover: var(--color-control-hover);
+  --xy-controls-button-color: var(--color-foreground);
+  --xy-controls-button-color-hover: var(--color-foreground);
+  --xy-controls-button-border-color: var(--color-border);
+  --xy-controls-box-shadow: 0 3px 12px rgb(0 0 0 / 8%);
+}
+.canvas :global(.react-flow__controls) {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+.canvas :global(.react-flow__controls-button) {
+  width: 34px;
+  height: 34px;
+  transition:
+    background-color var(--duration-fast),
+    color var(--duration-fast);
+}
+.canvas :global(.react-flow__controls-button:focus-visible) {
+  outline: 2px solid var(--color-foreground);
+  outline-offset: -4px;
+}
+.canvas :global(.react-flow__handle)::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: inherit;
+}
+.canvas :global(.react-flow__minimap) {
+  border-color: var(--color-border);
+  box-shadow: 0 3px 12px rgb(0 0 0 / 8%);
+}
+.canvas :global(.react-flow__node.selected) > [data-node-id] {
+  border-color: var(--color-foreground);
+}

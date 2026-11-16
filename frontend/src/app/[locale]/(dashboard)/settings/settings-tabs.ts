@@ -1,15 +1,12 @@
 import {
   AppWindow,
   Bell,
-  Bot,
   Brain,
   Globe,
   Keyboard,
   KeyRound,
-  Plug,
   Shield,
   Slash,
-  Smartphone,
   Smile,
   UserCircle,
 } from "lucide-react";
@@ -43,15 +40,22 @@ import { ROUTES } from "@/lib/constants";
  */
 export const SETTINGS_TABS: readonly PageTab[] = [
   { labelKey: "profile", href: ROUTES.SETTINGS_PROFILE, icon: UserCircle },
-  { labelKey: "account", href: ROUTES.SETTINGS_ACCOUNT, icon: Shield },
+  {
+    labelKey: "account",
+    href: ROUTES.SETTINGS_ACCOUNT,
+    icon: Shield,
+    matchHrefs: [ROUTES.SETTINGS_MOBILE, ROUTES.SETTINGS_ASSISTANT],
+  },
   { labelKey: "slashCommands", href: ROUTES.SETTINGS_SLASH_COMMANDS, icon: Slash },
   { labelKey: "memory", href: ROUTES.SETTINGS_MEMORY, icon: Brain },
   { labelKey: "signIns", href: ROUTES.SETTINGS_SIGN_INS, icon: Globe },
   { labelKey: "notifications", href: ROUTES.SETTINGS_NOTIFICATIONS, icon: Bell },
-  { labelKey: "api", href: ROUTES.SETTINGS_API_KEYS, icon: KeyRound },
-  { labelKey: "mcpClients", href: ROUTES.SETTINGS_MCP, icon: Plug },
-  { labelKey: "assistant", href: ROUTES.SETTINGS_ASSISTANT, icon: Bot },
-  { labelKey: "mobileApp", href: ROUTES.SETTINGS_MOBILE, icon: Smartphone },
+  {
+    labelKey: "developerAccess",
+    href: ROUTES.SETTINGS_API_KEYS,
+    icon: KeyRound,
+    matchHrefs: [ROUTES.SETTINGS_MCP],
+  },
   // The desktop app's own settings, last and only inside the app: a browser has
   // no blobby, no window and no global shortcut to configure.
   { labelKey: "blobby", href: ROUTES.SETTINGS_BLOBBY, icon: Smile, shellOnly: true },

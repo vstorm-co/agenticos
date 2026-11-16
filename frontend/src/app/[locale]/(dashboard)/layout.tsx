@@ -73,7 +73,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* The column and the content scroll independently, which is the point
             of a persistent sidebar: navigation stays put while a long run list
             moves under it. */}
-          <div className="flex min-h-0 flex-1">
+          <div className="bg-sidebar flex min-h-0 flex-1">
             <AppSidebar />
             {/* `relative` is load-bearing, and not for anything it positions.
                 An absolutely positioned descendant with no positioned ancestor

@@ -1,5 +1,6 @@
 "use client";
 
+import { ContextHelp } from "@/components/ui/context-help";
 import { useState } from "react";
 import { Copy, Plug, Plus, Server, Trash2 } from "lucide-react";
 
@@ -182,13 +183,14 @@ export function KnowledgeIntegrations({ targets }: KnowledgeIntegrationsProps) {
         isLoading || local.isLoading
           ? null
           : error || local.error
-            ? t("integrationsDescription")
+            ? undefined
             : t("integrationsCount", { count: rows.length })
       }
       fill
       contentClassName="flex min-h-0 flex-1 flex-col p-0"
       controls={
         <div className="flex flex-wrap items-center gap-2">
+          <ContextHelp>{t("integrationsDescription")}</ContextHelp>
           <span data-tour="knowledge-local-services">
             <Button
               data-tour="knowledge-add-local-service"
@@ -213,9 +215,6 @@ export function KnowledgeIntegrations({ targets }: KnowledgeIntegrationsProps) {
         </div>
       }
     >
-      <p className="text-muted-foreground border-b px-4 py-3 text-xs leading-relaxed sm:px-5">
-        {t("integrationsDescription")}
-      </p>
       {error && <ErrorState description={error} className="m-4 border-0 py-4" />}
       {local.error && <ErrorState description={local.error} className="m-4 border-0 py-4" />}
       <DataTable

@@ -29,14 +29,16 @@ export function voiceSetupHints(
 export function proactivitySetupHints(
   org: Pick<Organization, "proactive_enabled" | "proactive_model_profile_id">,
 ): SetupHint[] {
-  if (org.proactive_enabled === false) return ["proactivityOff"];
+  if (org.proactive_enabled === false) return [];
   return org.proactive_enabled && !org.proactive_model_profile_id ? ["proactivityModel"] : [];
 }
 
 export function systemAgentSetupHints(
-  agent: Pick<SystemAgent, "role" | "model_profile_id">,
+  agent: Pick<SystemAgent, "role" | "model_profile_id"> & Partial<Pick<SystemAgent, "enabled">>,
 ): SetupHint[] {
-  return agent.role === "memory_maintenance" && !agent.model_profile_id ? ["memoryModel"] : [];
+  return agent.enabled && agent.role === "memory_maintenance" && !agent.model_profile_id
+    ? ["memoryModel"]
+    : [];
 }
 
 export function architectSetupHints(assistant: Pick<AssistantState, "status">): SetupHint[] {

@@ -180,7 +180,7 @@ function ConversationItem({
       className={cn(
         // The open row is a fill, as the main sidebar's is - a hairline border
         // and a bar at its edge read as two thin lines around one choice.
-        "group relative flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1 transition-colors",
+        "group relative flex cursor-pointer items-center gap-2.5 rounded-xl px-2.5 py-2 transition-colors",
         isActive ? "bg-accent" : "hover:bg-foreground/5",
         // Over the rows below while its menu is open: their agent faces are
         // stacked up to `z-30`, and drew over the menu's first line.
@@ -188,8 +188,15 @@ function ConversationItem({
       )}
       onClick={onSelect}
     >
-      {/* Which agent the thread is with leads the row - the face people pick a
-          thread by. */}
+      {!isEditing && (
+        <button
+          type="button"
+          aria-label={displayTitle}
+          aria-current={isActive ? "page" : undefined}
+          className="focus-visible:outline-ring absolute inset-0 rounded-xl outline-none focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+        />
+      )}
+      {/* Agent faces identify who took part; the title leads the text. */}
       <span className="relative shrink-0">
         {agents.length > 0 || conversation.coding_agents?.length ? (
           <ConversationAgents
@@ -225,16 +232,33 @@ function ConversationItem({
             if (e.key === "Enter") handleRename();
             if (e.key === "Escape") setIsEditing(false);
           }}
-          className="text-foreground min-w-0 flex-1 bg-transparent text-base font-medium outline-none md:text-[13px]"
+          className="text-foreground relative min-w-0 flex-1 bg-transparent text-base font-medium outline-none md:text-[13px]"
           autoFocus
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
-        // Two lines, as a session list in a chat app reads: who the thread is
-        // with and when it last moved, small, over the title it is picked by.
-        // One line hid the time behind a hover and left the face to say who.
-        <div className="min-w-0 flex-1">
-          <p className="text-muted-foreground truncate text-[11px] leading-4">
+        // Titles lead scanning; identity and activity share the quieter second line.
+        <div className="pointer-events-none relative min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-1.5">
+            {/* Medium, and semibold only while it holds something unread - the
+                weight is the second half of the mark, as in a mail client. */}
+            <span
+              className={cn(
+                "line-clamp-2 text-[13px] leading-5",
+                unread ? "text-foreground font-semibold" : "font-medium",
+                !unread && (isActive ? "text-foreground" : "text-foreground/80"),
+              )}
+            >
+              {displayTitle}
+            </span>
+            {/* Opened by a script through an API key, not typed here (#2122). */}
+            {conversation.origin === "api" && (
+              <span className="border-border text-muted-foreground shrink-0 rounded border px-1 font-mono text-[10px] leading-4">
+                {t("sidebar.apiBadge")}
+              </span>
+            )}
+          </div>
+          <p className="text-muted-foreground mt-0.5 truncate text-xs leading-4">
             {/* At work, the line says so and for how long, in place of who and
                 when: beside the agent's name it was cut to nothing. The face
                 still says who. */}
@@ -249,25 +273,6 @@ function ConversationItem({
               </>
             )}
           </p>
-          <div className="flex min-w-0 items-center gap-1.5">
-            {/* Medium, and semibold only while it holds something unread - the
-                weight is the second half of the mark, as in a mail client. */}
-            <span
-              className={cn(
-                "truncate text-[13px] leading-[18px]",
-                unread ? "text-foreground font-semibold" : "font-medium",
-                !unread && (isActive ? "text-foreground" : "text-foreground/80"),
-              )}
-            >
-              {displayTitle}
-            </span>
-            {/* Opened by a script through an API key, not typed here (#2122). */}
-            {conversation.origin === "api" && (
-              <span className="border-border text-muted-foreground shrink-0 rounded border px-1 font-mono text-[10px] leading-4">
-                {t("sidebar.apiBadge")}
-              </span>
-            )}
-          </div>
         </div>
       )}
 
@@ -277,26 +282,10 @@ function ConversationItem({
           size="sm"
           aria-label={t("conversationActions")}
           className={cn(
-            // Zero *width* until it is wanted, not just transparent: an
-            // invisible control that still reserves 32px is 32px taken off
-            // every title in the list to show something nobody is looking at.
-            // The row reflows on hover and the title truncates a little
-            // earlier, which is the trade the right way round.
-            //
-            // Width rather than `hidden`, because `hidden` takes it out of the
-            // tab order: a keyboard user reaches this by tabbing, and
-            // `focus-visible` is what opens it for them. `touch:` keeps it
-            // permanently sized where there is no hover at all - a phone cannot
-            // reveal a zero-width target, and this menu is the only way to
-            // reach Rename, Share, Archive and Delete. That variant is declared
-            // in `globals.css`; it was in use here and undeclared, which
-            // compiled to nothing.
-            "h-7 shrink-0 overflow-hidden p-0 transition-[width,opacity]",
-            "w-0 opacity-0",
-            "group-hover:w-7 group-hover:opacity-100",
-            "focus-visible:w-7 focus-visible:opacity-100",
-            "touch:w-7 touch:opacity-100",
-            showMenu && "w-7 opacity-100",
+            // Reserve the action slot so revealing it never reflows the title.
+            "h-7 w-7 shrink-0 p-0 opacity-0 transition-opacity duration-[var(--duration-fast)]",
+            "touch:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100",
+            showMenu && "opacity-100",
           )}
           onClick={(e) => {
             e.stopPropagation();
@@ -1012,6 +1001,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
       onHideApiChange={changeHideApi}
       view={view}
       onViewChange={changeView}
+      compact
       beside={beside}
     />
   );
@@ -1039,7 +1029,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
       >
         <Search />
       </IconButton>
-      {column && filters(true)}
+      {filters(column)}
       {column && sharedState.failed && (
         <IconButton
           size="icon"
@@ -1095,7 +1085,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     <>
       <aside
         className={cn(
-          "bg-sidebar-secondary hidden min-h-0 w-64 shrink-0 flex-col md:flex",
+          "bg-sidebar-secondary hidden min-h-0 w-64 shrink-0 flex-col md:flex xl:w-72",
           className,
         )}
       >
@@ -1117,7 +1107,6 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
             <ChevronLeft />
           </IconButton>
         </div>
-        <div className="shrink-0 px-3 py-2">{filters()}</div>
         {sharedNotice}
         <ConversationList {...listProps} />
       </aside>
@@ -1132,7 +1121,6 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
             <SheetClose onClick={close} />
           </SheetHeader>
           <div className="flex h-[calc(100%-48px)] flex-col">
-            <div className="shrink-0 px-3 py-2">{filters()}</div>
             {sharedNotice}
             <ConversationList {...listProps} onNavigate={close} />
           </div>

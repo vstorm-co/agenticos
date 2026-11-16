@@ -1,5 +1,7 @@
 "use client";
 
+import { ContextHelp } from "@/components/ui/context-help";
+
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { ArrowRight, FlaskConical, ListChecks, Play, Scale } from "lucide-react";
@@ -108,11 +110,14 @@ export function CreateDatasetDialog({ open, onOpenChange }: CreateDatasetDialogP
     <Dialog open={open} onOpenChange={close}>
       <DialogContent dismissible={!create.isPending} className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
-            <DatasetIcon tone="blue" icon={FlaskConical} className="size-9" />
-            {t("newDataset")}
-          </DialogTitle>
-          <DialogDescription>{t("newDatasetBody")}</DialogDescription>
+          <div className="flex items-center gap-1.5">
+            <DialogTitle className="flex items-center gap-3">
+              <DatasetIcon tone="blue" icon={FlaskConical} className="size-9" />
+              {t("newDataset")}
+            </DialogTitle>
+            <ContextHelp>{t("newDatasetBody")}</ContextHelp>
+          </div>
+          <DialogDescription className="sr-only">{t("newDatasetBody")}</DialogDescription>
         </DialogHeader>
         <div className={DIALOG_BODY}>
           <fieldset disabled={create.isPending} className="min-w-0 space-y-4">

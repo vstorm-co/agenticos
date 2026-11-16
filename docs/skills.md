@@ -195,10 +195,13 @@ So a write becomes a **proposal**, and it appears above the list on the Skills p
 for anyone who may edit that skill. A proposal for a new skill appears for anyone
 holding `skills:edit`. Nobody else can list or open it:
 
-- **Check on agents** runs the change on every agent of the line it was written
-  for, and applying it - the next version of that line, which those agents read
-  on their next run - happens from the check's result. See
-  [Checking a change on every agent](#checking-a-change-on-every-agent).
+- **Review** opens the proposed instructions, their comparison with the current skill,
+  and the reference files. **Apply update** saves the next version immediately.
+  Agents following that line use it on their next run. Evaluation is optional;
+  missing test questions do not block applying a proposal.
+- **Test before applying (optional)** runs the change on the agents of its line.
+  The result shows regressions and any agents that could not be checked before
+  the final decision. See [Checking a change on every agent](#checking-a-change-on-every-agent).
 - **Discard** keeps the record. An agent proposing the same edit repeatedly is
   telling somebody something about the skill, and a deleted row makes that
   invisible.
@@ -252,10 +255,12 @@ Agents pinned to an older version and the agents of other forks are not run - th
 change does not reach them. Each agent's published version answers its questions
 twice, with the skill as it is and with the change, and nothing else differs.
 
-A change an agent's workspace wrote, one the assistant proposed and a
-[library update](#getting-skills-into-an-organization) of a skill agents follow go live only through
-this check. A person editing the skill by hand saves a new version at once, and
-that edit is not checked.
+Workspace proposals, assistant proposals and
+[library updates](#getting-skills-into-an-organization) can be reviewed and applied
+without this optional check. Applying still verifies edit access, the proposal's
+revision and the skill version it was based on. When you choose to evaluate a
+change, the check's result and its acknowledgement or pinning requirements govern
+applying through that check.
 
 ### What it asks { #what-a-check-asks }
 

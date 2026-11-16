@@ -10,6 +10,7 @@ vi.mock("./api-client", () => ({ apiClient: { post, raw, get, upload } }));
 
 import {
   getVisualImage,
+  getVisualPreview,
   listRecentVisuals,
   publishVisual,
   putVisualThumbnail,
@@ -35,6 +36,11 @@ describe("visuals API", () => {
     await listRecentVisuals(6);
     expect(get).toHaveBeenCalledWith("/visuals?limit=6");
     expect(visualThumbnailUrl("v1")).toBe("/api/visuals/v1/thumbnail");
+  });
+
+  it("reads a rebuilt preview through the authenticated API", async () => {
+    await getVisualPreview("v/1");
+    expect(get).toHaveBeenCalledWith("/visuals/v%2F1/preview");
   });
 
   it("uploads a thumbnail as a PNG file", async () => {

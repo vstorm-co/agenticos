@@ -27,6 +27,7 @@ describe("PinnedSettings", () => {
   it("says where pinning is done while nothing is pinned", async () => {
     render(<PinnedSettings />);
     expect(screen.getByText(/No agents pinned yet/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "More information" }));
     expect(screen.getByText(/Dock icon's menu/)).toBeInTheDocument();
   });
 
@@ -43,6 +44,7 @@ describe("PinnedSettings", () => {
   it("names the tray on Windows and Linux", async () => {
     env.shell = { ...MAC_MAIN, platform: "windows" };
     render(<PinnedSettings />);
+    await userEvent.click(screen.getByRole("button", { name: "More information" }));
     expect(screen.getByText(/tray icon's menu/)).toBeInTheDocument();
   });
 });
