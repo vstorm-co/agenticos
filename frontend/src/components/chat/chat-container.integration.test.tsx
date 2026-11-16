@@ -28,6 +28,7 @@ import { initialCall } from "@/lib/voice/call-reducer";
 import {
   useAgentSelectionStore,
   useAuthStore,
+  useBrowserPanelStore,
   useChatStore,
   useWorkingStore,
   useComposerIntentStore,
@@ -329,6 +330,9 @@ beforeEach(() => {
   useComposerIntentStore.setState({ intent: null, shared: null });
   useConversationStore.getState().reset();
   useChatStore.getState().clearMessages();
+  // Drafts and the selected workspace pane intentionally survive component unmounts.
+  useChatStore.getState().clearRoomDrafts();
+  useBrowserPanelStore.getState().close();
   voiceCall.call = initialCall;
 });
 
