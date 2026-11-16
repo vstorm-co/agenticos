@@ -6,7 +6,7 @@ import { usePendingApprovals } from "./use-pending-approvals";
 const state = vi.hoisted(() => ({
   allowed: true,
   me: "me" as string | undefined,
-  steps: [] as { id: string; approver_user_ids: string[] }[],
+  steps: [] as { id: string; approver_user_ids: string[]; can_decide?: boolean }[],
   toolsEnabled: [] as (boolean | undefined)[],
   stepsEnabled: [] as (boolean | undefined)[],
 }));
@@ -55,6 +55,20 @@ it("leaves out a step that names other approvers, and keeps one naming the reade
   const { result } = renderHook(() => usePendingApprovals());
   expect(result.current.steps.map((step) => step.id)).toEqual(["anyone", "mine"]);
   expect(result.current.count).toBe(3 + 2);
+});
+
+it("leaves out a step for a group the reader is not in, as the server answers", () => {
+  state.steps = [{ id: "finance", approver_user_ids: [], can_decide: false }];
+  const { result } = renderHook(() => usePendingApprovals());
+  expect(result.current.steps).toEqual([]);
+  expect(result.current.count).toBe(3);
+});
+
+it("keeps a step naming somebody else when the reader decides through its group", () => {
+  state.steps = [{ id: "ann or finance", approver_user_ids: ["ann"], can_decide: true }];
+  const { result } = renderHook(() => usePendingApprovals());
+  expect(result.current.steps.map((step) => step.id)).toEqual(["ann or finance"]);
+  expect(result.current.count).toBe(3 + 1);
 });
 
 it("keeps no named step while the reader is not known yet", () => {

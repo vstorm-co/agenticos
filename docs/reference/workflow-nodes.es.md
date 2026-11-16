@@ -1,5 +1,5 @@
 ---
-source_sha: "4b8cc93e9ef0"
+source_sha: "be356456bbcc"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -1014,9 +1014,12 @@ vuelve a enviar.
 **Ask for approval** detiene el run hasta que una persona apruebe o rechace lo
 que está a punto de hacer, y sigue por `approved` o `rejected`. Quien aprueba lee
 el `title` del paso y los `details` vinculados en la pestaña **Approvals** de
-Activity o por `GET /api/v1/workflow-approvals`. `approvers` nombra quién puede
-decidir, y esas personas reciben un aviso en la aplicación; vacío, puede
-cualquiera con `approvals:decide`, y todas esas personas reciben el aviso. La
+Activity o por `GET /api/v1/workflow-approvals`. `approvers` y
+`approver_groups` nombran quién puede decidir: esas personas y los miembros de
+los grupos que tienen `approvals:decide`
+([grupos de aprobación](../governance.md#approval-groups)). Reciben un aviso en
+la aplicación. Si ambos están vacíos, puede decidir cualquiera con
+`approvals:decide`, y todas esas personas reciben el aviso. La
 solicitud también encabeza el Inbox de quien puede decidirla. Pasado `timeout_hours` la solicitud caduca y el
 paso sale por `rejected` con `decision: "expired"`. Cancelar el run cancela lo que
 pidió, y también cancelar un workflow que llamó a ese run. Cada ejecución del paso pregunta una vez, así que un reintento o una

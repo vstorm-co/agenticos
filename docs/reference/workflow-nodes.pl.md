@@ -1,5 +1,5 @@
 ---
-source_sha: "4b8cc93e9ef0"
+source_sha: "be356456bbcc"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -1001,9 +1001,10 @@ Poczta nie ma klucza idempotencji, więc ponowiony krok wysyła ponownie.
 tego, co run ma zrobić, a potem idzie dalej przez `approved` albo `rejected`.
 Zatwierdzający czyta `title` kroku i powiązane z nim `details` w zakładce
 **Approvals** w Activity albo przez `GET /api/v1/workflow-approvals`.
-`approvers` wskazuje, kto może zdecydować, i ci ludzie dostają powiadomienie w
-aplikacji; gdy lista jest pusta, może każdy z `approvals:decide` i wszyscy oni
-dostają powiadomienie. Prośba trafia też na początek Inboxu każdego, kto może ją
+`approvers` i `approver_groups` wskazują, kto może zdecydować: te osoby i członkowie
+grup z `approvals:decide` ([grupy akceptujące](../governance.md#approval-groups)).
+Dostają powiadomienie w aplikacji. Gdy obie listy są puste, może każdy z
+`approvals:decide` i wszyscy oni dostają powiadomienie. Prośba trafia też na początek Inboxu każdego, kto może ją
 rozstrzygnąć. Po
 `timeout_hours` prośba wygasa, a krok wychodzi przez `rejected` z
 `decision: "expired"`. Anulowanie runa anuluje jego prośby, tak samo jak anulowanie workflowu, który ten run wywołał. Każdy przebieg kroku

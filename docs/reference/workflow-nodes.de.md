@@ -1,5 +1,5 @@
 ---
-source_sha: "4b8cc93e9ef0"
+source_sha: "be356456bbcc"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -1042,9 +1042,11 @@ Idempotenzschlüssel, daher sendet ein wiederholter Schritt erneut.
 er gleich tun wird, und geht dann über `approved` oder `rejected` weiter. Wer
 freigibt, liest den `title` des Schritts und die daran gebundenen `details` im
 Tab **Approvals** unter Activity oder über `GET /api/v1/workflow-approvals`.
-`approvers` nennt, wer entscheiden darf, und diese Personen werden in der App
-benachrichtigt; leer darf jeder mit `approvals:decide`, und alle diese Personen
-werden benachrichtigt. Die Anfrage steht außerdem oben im Inbox aller, die sie
+`approvers` und `approver_groups` nennen, wer entscheiden darf: diese Personen und
+die Gruppenmitglieder mit `approvals:decide`
+([Genehmigungsgruppen](../governance.md#approval-groups)). Sie werden in der App
+benachrichtigt. Sind beide leer, darf jeder mit `approvals:decide` entscheiden,
+und alle diese Personen werden benachrichtigt. Die Anfrage steht außerdem oben im Inbox aller, die sie
 entscheiden dürfen. Nach `timeout_hours`
 läuft die Anfrage ab, und der Schritt geht über `rejected` mit
 `decision: "expired"` weiter. Einen Run abzubrechen bricht seine Anfragen ab, ebenso der Abbruch eines Workflows, der diesen Run aufgerufen hat.
