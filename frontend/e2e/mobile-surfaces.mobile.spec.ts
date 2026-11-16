@@ -358,6 +358,16 @@ for (const platform of ["ios", "android"] as const) {
         const floating = await controls.boundingBox();
         if (!floating) throw new Error("Expected the floating app controls");
         expect(floating.y).toBeGreaterThanOrEqual((platform === "ios" ? 54 : 28) + 12);
+        const preview = page.locator('iframe[title="Layout report"]');
+        await expect(
+          page.frameLocator('iframe[title="Layout report"]').getByRole("heading", {
+            name: "Layout report",
+            exact: true,
+          }),
+        ).toBeVisible();
+        const collapsedPreview = await preview.boundingBox();
+        if (!collapsedPreview) throw new Error("Expected the loaded app preview");
+        expect(collapsedPreview.y).toBeGreaterThanOrEqual(floating.y + floating.height);
         const share = page.getByRole("button", { name: "Share", exact: true });
         await expect(share).toBeHidden();
         await controls.tap();
@@ -372,7 +382,18 @@ for (const platform of ["ios", "android"] as const) {
         expect(action.y - bounds.y).toBeGreaterThanOrEqual(8);
         expect(bounds.y + bounds.height - action.y - action.height).toBeGreaterThanOrEqual(8);
         expect((await follow.boundingBox())?.height).toBe(action.height);
+        // The host reserves the actual expanded height. The unpadded app must
+        // remain readable; adding spacing to this fixture would hide the defect.
+        const expandedPreview = await preview.boundingBox();
+        if (!expandedPreview) throw new Error("Expected the expanded app preview");
+        expect(expandedPreview.y).toBeGreaterThanOrEqual(bounds.y + bounds.height);
+        expect(expandedPreview.y).toBeGreaterThan(collapsedPreview.y);
         await page.screenshot({ path: test.info().outputPath(`app-toolbar-${width}.png`) });
+        await controls.tap();
+        await expect(controls).toHaveAttribute("aria-expanded", "false");
+        expect((await preview.boundingBox())?.y).toBeCloseTo(collapsedPreview.y, 0);
+        await controls.tap();
+        await expect(controls).toHaveAttribute("aria-expanded", "true");
         await share.tap();
         await expect(page.getByRole("dialog")).toBeVisible();
         await page.keyboard.press("Escape");
