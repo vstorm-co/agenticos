@@ -77,28 +77,19 @@ class TestEveryPullRequestIsChecked:
             "worse: the required checks never report and the merge button stays grey."
         )
 
-    def test_only_documentation_pushes_may_be_filtered_by_path(
-        self, triggers: dict[str, Any]
-    ) -> None:
-        """The fast/full CI policy skips docs-only pushes, while every PR still reports checks.
+    def test_no_trigger_is_filtered_by_path(self, triggers: dict[str, Any]) -> None:
+        """No trigger may carry a path filter.
 
-        Keep the exception limited to the documented push paths. A path filter on
-        pull requests would hide their required contexts, including stacked PRs.
+        A path filter on pull requests hides their required contexts, including stacked
+        PRs. On pushes it skips a new `ci/batch` branch equal to `t3`, whose diff is
+        empty, so the batch run would never start.
         """
         filtered = {
             event: config
             for event, config in triggers.items()
             if {"paths", "paths-ignore"} & set(config or {})
         }
-        assert set(filtered) == {"push"}, (
-            f"path filters appear on {sorted(filtered)}; only documentation-only pushes may "
-            "be skipped. Pull requests must report their checks for every base and path."
-        )
-        push = filtered["push"]
-        assert "paths" not in push, "Push CI must not be restricted to an allow-list of paths."
-        assert set(push["paths-ignore"]) == {"docs/**", "mkdocs.yml", "*.md"}, (
-            "The push exception must ignore only the documented documentation paths."
-        )
+        assert not filtered, f"path filters appear on {sorted(filtered)}."
 
     def test_pull_requests_run_fast_checks_on_every_update(self, triggers: dict[str, Any]) -> None:
         """Opening, updating and reopening a PR must all run the fast checks."""

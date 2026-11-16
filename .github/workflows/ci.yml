@@ -25,15 +25,12 @@ name: CI
 # in batches (user decision, 2026-11-16): only when a `t3` commit is pushed to the
 # `ci/batch` branch, about once every 10 merges, and for `v*` release tags. A
 # skipped heavy job satisfies its required check, so pull requests still merge.
-# Docs-only pushes are ignored.
+# Pushes carry no path filter: a new `ci/batch` branch equal to `t3` shows no
+# changed files, so a filter would skip the batch run entirely.
 on:
   push:
     branches: [t3, ci/batch]
     tags: ['v*']
-    paths-ignore:
-      - 'docs/**'
-      - 'mkdocs.yml'
-      - '*.md'
   pull_request:
     types: [opened, synchronize, reopened]
 
