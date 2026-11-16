@@ -548,8 +548,10 @@ test-backend-reports-check:
 	@for shard in $$(seq 1 $(BACKEND_SHARDS)); do test -s "backend/.coverage.shard$$shard" || exit 1; done
 	@test "$$(find backend -maxdepth 1 -name ".coverage.shard*" -type f | wc -l | tr -d " ")" = $(BACKEND_SHARDS)
 
+# `unset COVERAGE_FILE`: combined into a file named by an inherited COVERAGE_FILE,
+# such as a shard's own data file, `combine` erased that shard's data first.
 test-backend-merge:
-	@status=0; \
+	@status=0; unset COVERAGE_FILE; \
 	(cd backend && uv run coverage combine -q .coverage.shard*) || exit 1; \
 	$(TEST_GATE) \
 	exit $$status

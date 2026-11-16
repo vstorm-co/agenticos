@@ -94,7 +94,16 @@ def test_one_backend_run_preserves_the_platform_gate(tmp_path: Path, failure: st
     }
     # The shard job runs this file with `BACKEND_SHARD` set; the run below must
     # see only what it passes on its own command line.
-    for inherited in ("PYTEST_ADDOPTS", "BACKEND_SHARD", "MAKEFLAGS", "MAKELEVEL", "MFLAGS"):
+    # `COVERAGE_FILE` too: a shard runs this file with it set to its own data file,
+    # and a merge that inherited it combined into one of its own inputs.
+    for inherited in (
+        "PYTEST_ADDOPTS",
+        "BACKEND_SHARD",
+        "MAKEFLAGS",
+        "MAKELEVEL",
+        "MFLAGS",
+        "COVERAGE_FILE",
+    ):
         env.pop(inherited, None)
     result = subprocess.run(
         [MAKE, "test", "TEST_DB=external", "COV_REPORT=xml"],
@@ -190,7 +199,16 @@ def test_sharded_backend_runs_gate_only_their_union(tmp_path: Path, covered: str
     }
     # The shard job runs this file with `BACKEND_SHARD` set; the run below must
     # see only what it passes on its own command line.
-    for inherited in ("PYTEST_ADDOPTS", "BACKEND_SHARD", "MAKEFLAGS", "MAKELEVEL", "MFLAGS"):
+    # `COVERAGE_FILE` too: a shard runs this file with it set to its own data file,
+    # and a merge that inherited it combined into one of its own inputs.
+    for inherited in (
+        "PYTEST_ADDOPTS",
+        "BACKEND_SHARD",
+        "MAKEFLAGS",
+        "MAKELEVEL",
+        "MFLAGS",
+        "COVERAGE_FILE",
+    ):
         env.pop(inherited, None)
     for shard in ("1/2", "2/2"):
         run = subprocess.run(
