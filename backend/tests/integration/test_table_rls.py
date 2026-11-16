@@ -320,35 +320,92 @@ async def test_policy_fingerprints_do_not_depend_on_role_search_path(rls_world):
 
 
 @pytest.mark.parametrize(
-    "privilege", ["truncate", "maintenance", "owner", "missing_dml", "group_login"]
+    ("privilege", "cause"),
+    [
+        ("truncate", "TRUNCATE"),
+        ("trigger", "TRIGGER"),
+        ("references", "REFERENCES"),
+        ("maintenance_trigger", "TRIGGER"),
+        ("replication", "REPLICATION"),
+        ("assumed_replication", "REPLICATION"),
+        ("maintenance_replication", "REPLICATION"),
+        ("schema_create", "CREATE on schema public"),
+        ("maintenance_schema_create", "CREATE on schema public"),
+        ("database_owner", "pg_database_owner"),
+        ("maintenance", "maintenance group"),
+        ("owner", "owner"),
+        ("missing_dml", "grant SELECT"),
+        ("group_login", "NOLOGIN"),
+    ],
 )
-async def test_effective_role_privileges_are_checked(rls_world, privilege):
+async def test_effective_role_privileges_are_checked(rls_world, privilege, cause):
     world = rls_world
+    runtime, maintenance, group = world.runtime_role, world.maintenance_role, world.group
+    assumed = f"tables_replication_{uuid4().hex}"
     statements = {
-        "truncate": f'GRANT TRUNCATE ON virtual_tables TO "{world.runtime_role}"',
-        "maintenance": f'GRANT "{world.group}" TO "{world.runtime_role}"',
-        "owner": f'ALTER TABLE virtual_tables OWNER TO "{world.runtime_role}"',
-        "missing_dml": f'REVOKE DELETE ON virtual_tables FROM "{world.runtime_role}"',
-        "group_login": f'ALTER ROLE "{world.group}" LOGIN',
+        "truncate": [f'GRANT TRUNCATE ON virtual_tables TO "{runtime}"'],
+        "trigger": [f'GRANT TRIGGER ON virtual_tables TO "{runtime}"'],
+        "references": [f'GRANT REFERENCES ON virtual_table_records TO "{runtime}"'],
+        "maintenance_trigger": [f'GRANT TRIGGER ON virtual_tables TO "{group}"'],
+        "replication": [f'ALTER ROLE "{runtime}" REPLICATION'],
+        "assumed_replication": [
+            f'CREATE ROLE "{assumed}" NOLOGIN REPLICATION',
+            f'ALTER ROLE "{runtime}" NOINHERIT',
+            f'GRANT "{assumed}" TO "{runtime}"',
+        ],
+        "maintenance_replication": [f'ALTER ROLE "{maintenance}" REPLICATION'],
+        "schema_create": [f'GRANT CREATE ON SCHEMA public TO "{runtime}"'],
+        "maintenance_schema_create": [f'GRANT CREATE ON SCHEMA public TO "{group}"'],
+        "database_owner": [f'ALTER DATABASE "{{database}}" OWNER TO "{runtime}"'],
+        "maintenance": [f'GRANT "{group}" TO "{runtime}"'],
+        "owner": [
+            f'GRANT CREATE ON SCHEMA public TO "{runtime}"',
+            f'ALTER TABLE virtual_tables OWNER TO "{runtime}"',
+        ],
+        "missing_dml": [f'REVOKE DELETE ON virtual_tables FROM "{runtime}"'],
+        "group_login": [f'ALTER ROLE "{group}" LOGIN'],
     }
     async with world.migration() as db:
-        if privilege == "owner":
-            await db.execute(text(f'GRANT CREATE ON SCHEMA public TO "{world.runtime_role}"'))
-        await db.execute(text(statements[privilege]))
+        owner = await db.scalar(text("SELECT current_user"))
+        database = await db.scalar(text("SELECT current_database()"))
+        for statement in statements[privilege]:
+            await db.execute(text(statement.replace("{database}", database)))
         await db.commit()
     try:
-        factory = world.maintenance if privilege == "group_login" else world.runtime
+        as_maintenance = privilege == "group_login" or privilege.startswith("maintenance_")
+        factory = world.maintenance if as_maintenance else world.runtime
         async with factory() as db:
-            with pytest.raises(UnsafeTableDatabaseRoleError, match="Unsafe Tables"):
-                await table_rls.require_table_connection_role(
-                    db, maintenance=privilege == "group_login"
-                )
+            with pytest.raises(UnsafeTableDatabaseRoleError, match=f"Unsafe Tables .*{cause}"):
+                await table_rls.require_table_connection_role(db, maintenance=as_maintenance)
     finally:
-        if privilege == "owner":
-            async with world.migration() as db:
-                owner = await db.scalar(text("SELECT current_user"))
+        async with world.migration() as db:
+            if privilege == "owner":
                 await db.execute(text(f'ALTER TABLE virtual_tables OWNER TO "{owner}"'))
-                await db.commit()
+            if privilege == "database_owner":
+                await db.execute(text(f'ALTER DATABASE "{database}" OWNER TO "{owner}"'))
+            if privilege.endswith("schema_create") or privilege == "owner":
+                grantee = group if privilege.startswith("maintenance_") else runtime
+                await db.execute(text(f'REVOKE CREATE ON SCHEMA public FROM "{grantee}"'))
+            if privilege == "assumed_replication":
+                await db.execute(text(f'DROP ROLE "{assumed}"'))
+            await db.commit()
+
+
+async def test_a_new_organization_never_reads_the_previous_tenants_cached_rows(rls_world):
+    world = rls_world
+    first, second = world.tenants
+    async with world.runtime() as db:
+        await table_rls.bind_table_access(db, first.ctx)
+        cached = await db.get(VirtualTable, first.source.id)
+        assert cached is not None
+        await db.commit()
+        # Re-binding the same organization keeps the identity map.
+        await table_rls.bind_table_access(db, first.ctx)
+        assert cached in db
+        await db.commit()
+        await table_rls.bind_table_access(db, second.ctx)
+        assert cached not in db
+        assert await db.get(VirtualTable, first.source.id) is None
 
 
 async def test_set_role_does_not_hide_a_privileged_login_identity(rls_world):
