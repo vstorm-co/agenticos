@@ -292,15 +292,22 @@ describe("the directory mappings page", () => {
     );
   });
 
-  it("closes the confirmation when the delete is refused", async () => {
+  it("keeps a refused deletion open for an explicit retry", async () => {
     serve("owner");
-    vi.mocked(apiClient.delete).mockRejectedValue(new ApiError(403, "Outranked"));
+    vi.mocked(apiClient.delete)
+      .mockRejectedValueOnce(new ApiError(403, "Outranked"))
+      .mockResolvedValue(undefined);
     await mount();
 
     await userEvent.click(await screen.findByRole("button", { name: "Remove auditors" }));
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
 
-    await waitFor(() => expect(screen.queryByText(/The people auditors placed here/)).toBeNull());
+    await waitFor(() => expect(apiClient.delete).toHaveBeenCalledOnce());
+    expect(screen.getByRole("dialog")).toBeVisible();
+    expect(screen.getByText(/The people auditors placed here/)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(apiClient.delete).toHaveBeenCalledTimes(2);
   });
 
   it("offers the first mapping from the empty state, to a caller who may add one", async () => {

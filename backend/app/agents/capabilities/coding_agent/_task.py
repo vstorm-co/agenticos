@@ -33,6 +33,7 @@ from pydantic_ai.tools import RunContext
 from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.capabilities.coding_agent._harness import Invocation, TaskFiles
+from app.agents.model_context import check_model_context
 
 WORK_DIR = ".agenticos/coding-agent"
 """Where a task's files are written while it runs, and the session it continues."""
@@ -184,6 +185,7 @@ async def run_detached(
     await ctx.workspace.make_dir(WORK_DIR)
     # The credential reaches the harness through this command's environment,
     # which the detached process inherits; it is never on a command line.
+    await check_model_context()
     started = await ctx.workspace.run(  # noqa: S604
         command.detached_line(files), shell=True, env=command.env, timeout=60
     )

@@ -1,25 +1,12 @@
 import type { ReactNode } from "react";
 
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
-/**
- * The shape a wait stands in for.
- *
- * Every variant is a skeleton, and that is deliberate: this component used to
- * default to three pulsing dots, so twelve pages showed a shapeless wait
- * because nobody passed a prop. A component whose default is its worst option
- * is a trap, so the shapeless option is gone rather than demoted. A mid-action
- * pause with no layout to promise - a submitting button, an OAuth round-trip -
- * is `Spinner`'s job, not this one's.
- */
+/** Use a skeleton only for a known layout; pending reserves space without inventing fields. */
 type Variant =
-  | "skeleton-list"
-  | "skeleton-cards"
-  | "skeleton-tiles"
-  | "skeleton-table"
-  | "skeleton-panel"
-  | "stats";
+  "skeleton-list" | "skeleton-cards" | "skeleton-tiles" | "skeleton-table" | "pending" | "stats";
 
 /**
  * How many placeholders a variant shows when the caller does not say.
@@ -36,7 +23,7 @@ const DEFAULT_ROWS: Record<Variant, number> = {
   "skeleton-cards": 6,
   "skeleton-tiles": 6,
   "skeleton-table": 8,
-  "skeleton-panel": 3,
+  pending: 1,
   stats: 4,
 };
 
@@ -82,8 +69,12 @@ export function LoadingState({
       return <TileGrid count={count} className={className} />;
     case "skeleton-table":
       return <Table rows={count} columns={columns} className={className} />;
-    case "skeleton-panel":
-      return <Panel rows={count} className={className} />;
+    case "pending":
+      return (
+        <Shell className={cn("flex min-h-48 items-center justify-center", className)}>
+          <Spinner className="text-muted-foreground size-5" aria-hidden />
+        </Shell>
+      );
     case "stats":
       return <Stats count={count} className={className} />;
   }
@@ -104,7 +95,7 @@ function Bar({ className }: { className?: string }) {
 function Shell({ className, children }: { className?: string; children: ReactNode }) {
   const t = useTranslations("states");
   return (
-    <div role="status" aria-label={t("loading")} className={className}>
+    <div role="status" aria-busy="true" aria-label={t("loading")} className={className}>
       {children}
     </div>
   );
@@ -218,26 +209,6 @@ function Table({
           ))}
         </tbody>
       </table>
-    </Shell>
-  );
-}
-
-/** A card with a title, a description and inner rows. Sharing, availability, the skill editor. */
-function Panel({ rows, className }: { rows: number; className?: string }) {
-  return (
-    <Shell className={cn("bg-card space-y-4 rounded-xl border p-6 shadow", className)}>
-      <div className="space-y-2">
-        <Bar className="h-4 w-1/4" />
-        <Bar className="bg-foreground/8 h-3 w-3/4" />
-      </div>
-      <div className="space-y-2">
-        {keys(rows).map((i) => (
-          <div key={i} className="space-y-2 rounded-md border p-3">
-            <Bar className="h-3 w-1/3" />
-            <Bar className="bg-foreground/8 h-3 w-1/2" />
-          </div>
-        ))}
-      </div>
     </Shell>
   );
 }

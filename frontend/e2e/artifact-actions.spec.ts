@@ -168,6 +168,7 @@ interface Fixture {
   agentId: string;
   profileId: string;
   colleagueId: string;
+  orgId: string;
 }
 
 let fixture: Fixture;
@@ -182,7 +183,7 @@ async function ownerRequest(
 }
 
 async function asColleague(browser: import("@playwright/test").Browser): Promise<BrowserContext> {
-  colleagueContext ??= await signInAs(browser, COLLEAGUE_EMAIL, COLLEAGUE_PASSWORD);
+  colleagueContext ??= await signInAs(browser, COLLEAGUE_EMAIL, COLLEAGUE_PASSWORD, fixture.orgId);
   return colleagueContext;
 }
 
@@ -209,6 +210,7 @@ test.describe("artifact actions", () => {
       agentId: "",
       profileId: "",
       colleagueId: "",
+      orgId: "",
     };
 
     const orgs = await json<{ items: { id: string }[] }>(request, "/api/orgs");
@@ -217,6 +219,7 @@ test.describe("artifact actions", () => {
     );
     expect(colleague, "the colleague is not a member; did the seed run?").toBeDefined();
     fixture.colleagueId = String(colleague!.user_id);
+    fixture.orgId = orgs.items[0]!.id;
 
     // The workflow: private, so a Member holds no right to run it until it is shared.
     const created = await request.post("/api/workflows", {

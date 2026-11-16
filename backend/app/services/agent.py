@@ -532,7 +532,9 @@ async def persist_assistant_turn(
                         awaiting_answer=tc["tool_call_id"] in question_tool_call_ids
                         and not stopped,
                         mcp_connection_id=(mcp_origins or {}).get(tc["tool_name"]),
-                        presentation_kind="draft" if tc["tool_name"] in draft_tools else None,
+                        tool_id=tc.get("tool_id"),
+                        presentation_kind=tc.get("presentation_kind")
+                        or ("draft" if tc["tool_name"] in draft_tools else None),
                     )
                     result = tc.get("result")
                     if stopped and (

@@ -75,6 +75,7 @@ from app.services.channels.formatting import (
     LINK_ACCOUNT_INSTRUCTION,
     authored_prompt,
 )
+from app.services.channels.live_reply import with_preview_links
 from app.services.channels.next_steps import next_steps_of
 from app.services.channels.steering import current_steering, is_asked_aside
 from app.services.file_storage import get_file_storage
@@ -130,7 +131,7 @@ def drawn_chart(called: list[RecordedToolCall]) -> bytes | None:
     it through `asyncio.to_thread`, never inline.
     """
     for call in reversed(called):
-        if call.tool_name != _CHART_TOOL or call.result is None:
+        if call.renderer_name != _CHART_TOOL or call.result is None:
             continue
         spec = parse_chart_spec(call.result)
         if spec is None:
@@ -192,7 +193,7 @@ async def drawn_picture(
     for call in reversed(called):
         if call.result is None:
             continue
-        if call.tool_name == "generate_image":
+        if call.renderer_name == "generate_image":
             image = parse_generated_image(call.result)
             if image is None:
                 continue
@@ -224,13 +225,13 @@ async def drawn_picture(
                     "AgenticOS to check the image or ask the operator to check media storage."
                 )
             return None
-        if call.tool_name == _CHART_TOOL:
+        if call.renderer_name == _CHART_TOOL:
             return await asyncio.to_thread(drawn_chart, [call])
         # A visual the tool refused - a retry, the last attempt's refusal - is no
         # drawing; and one that cannot be drawn here leaves an earlier chart to go.
-        if call.tool_name in VISUAL_TOOLS and call.result.startswith(DREW):
+        if call.renderer_name in VISUAL_TOOLS and call.result.startswith(DREW):
             picture = await visual_render.picture_of_turn(
-                [(c.tool_call_id, c.tool_name, c.args, c.result) for c in called],
+                [(c.tool_call_id, c.renderer_name or "", c.args, c.result) for c in called],
                 organization_id=organization_id,
                 conversation_id=conversation_id,
             )
@@ -538,10 +539,11 @@ class ChannelAgentRouter:
             # enforcing nothing.
             exposure=exposure,
         )
+        rendered_answer = await self._with_usage(
+            ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
+        )
         return AnsweredTurn(
-            text=await self._with_usage(
-                ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
-            ),
+            text=rendered_answer,
             attachments=produced,
             refused=refused,
             delivery_notices=notices,
@@ -663,10 +665,11 @@ class ChannelAgentRouter:
             channel_author_context="" if incoming is None else authored_prompt("", incoming),
             exposure=exposure,
         )
+        rendered_answer = await self._with_usage(
+            ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
+        )
         return AnsweredTurn(
-            text=await self._with_usage(
-                ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
-            ),
+            text=rendered_answer,
             attachments=produced,
             refused=refused,
             delivery_notices=notices,
@@ -708,6 +711,7 @@ class ChannelAgentRouter:
         Never raises. This hangs off an answer somebody is waiting for; a
         workspace that cannot be measured must not turn a good turn into an error.
         """
+        answer = await with_preview_links(answer, run.id)
         try:
             report = await self.usage.for_run(
                 ctx,

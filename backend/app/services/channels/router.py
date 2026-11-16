@@ -56,7 +56,7 @@ from app.services.channels.base import (
     memory_room_key,
     split_thread,
 )
-from app.services.channels.dedupe import claim_delivery, release_delivery
+from app.services.channels.dedupe import claim_delivery, release_delivery, remember_unaddressed
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.discord_roles import PLATFORM as DISCORD_PLATFORM
 from app.services.channels.discord_roles import DiscordRoleSync
@@ -79,6 +79,7 @@ from app.services.channels.next_steps import ChannelNextSteps
 from app.services.channels.prompts import ChannelPrompts
 from app.services.channels.steering import InFlight, answering_aside, aside_question, steerable
 from app.services.conversation import ConversationService
+from app.services.message_history import ModelHistory
 from app.services.ml import measure_audio_seconds
 from app.services.rate_limit import Limit
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
@@ -568,6 +569,17 @@ class ChannelMessageRouter:
             )
         self._apply_broadcast_policy(incoming, bot)
 
+        # Passive collection is silent when the bot's admission policy refuses it.
+        # It must not create identities or post refusals for overheard bystanders.
+        try:
+            self._check_access(incoming, bot)
+        except AuthorizationError:
+            pass
+        else:
+            from app.services.channels.observation import observe
+
+            await observe(db, bot, incoming, addressed=not self._is_overheard(incoming))
+
         if self._is_overheard(incoming):
             # Decided before anything is created or refused, not after. A bot in a
             # channel hears every post, so a refusal - a whitelist that does not
@@ -577,6 +589,7 @@ class ChannelMessageRouter:
             # minted for every bystander the bot would never answer. A message
             # naming a handle is not overheard even here - whether that handle is
             # ours is `_answer_mention`'s to judge, and its refusal stays its own.
+            await remember_unaddressed(incoming)
             logger.debug(
                 "channel_message_not_addressed",
                 extra={"platform": incoming.platform, "bot_id": incoming.bot_id},
@@ -645,6 +658,11 @@ class ChannelMessageRouter:
             await self._send_reply(bot, incoming, exc.message)
             return
 
+        # The platform MCP credential is committed on an independent session during
+        # preparation. Its provenance references this conversation, so admission
+        # must be visible before preparation (not only before the model call).
+        await db.commit()
+
         # A run parked on a question to this person that takes a typed answer:
         # the message is that answer, not a new turn beside a run still waiting.
         if await ChannelPrompts(db).reply(
@@ -708,7 +726,8 @@ class ChannelMessageRouter:
         # everything before it is the history. The turn itself is written by the
         # runner, which is also what records the tool calls, the model and the
         # version this bot's own write dropped.
-        history = thread_history + await self._load_history(db, session.conversation_id)
+        history = await self._load_history(db, session.conversation_id)
+        history[:0] = thread_history
 
         # The mention path opens its own placeholder lazily, because it may find
         # the handle names a colleague rather than an agent of ours and stay
@@ -1200,6 +1219,7 @@ class ChannelMessageRouter:
             # whatever else the room had been saying (#1353).
             thread_id=thread_id or None,
             private_chat=incoming.chat_type == "private",
+            message_id=incoming.message_id,
         )
 
     @staticmethod
@@ -2483,7 +2503,7 @@ class ChannelMessageRouter:
         return lambda post: all(admits(post) for admits in filters)
 
     @staticmethod
-    async def _load_history(db: AsyncSession, conversation_id: Any) -> list[ModelMessage]:
+    async def _load_history(db: AsyncSession, conversation_id: UUID | None) -> ModelHistory:
         """The most recent turns of the channel thread, oldest first.
 
         **The most recent, which took a `count` to get right** - and the count
@@ -2496,4 +2516,6 @@ class ChannelMessageRouter:
         Where a summary has run it starts from that instead, which is what stops
         a long-lived channel thread buying one on every message (#49).
         """
+        if conversation_id is None:
+            return ModelHistory([], revision=None)
         return await ConversationService(db).model_history(conversation_id, limit=HISTORY_MESSAGES)

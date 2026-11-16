@@ -550,10 +550,13 @@ async def shared_visuals(conversation: Conversation) -> dict[UUID, list[dict[str
     text and shows no drawing.
     """
     calls = {
-        call.tool_call_id: ToolCallArgs(call.tool_call_id, call.tool_name, call.args)
+        call.tool_call_id: ToolCallArgs(
+            call.tool_call_id, call.tool_id or call.tool_name, call.args
+        )
         for message in conversation.messages or []
         for call in message.tool_calls or []
-        if call.tool_name in VISUAL_TOOLS
+        if call.presentation_kind != "generic"
+        and (call.tool_id or call.tool_name) in VISUAL_TOOLS
         and call.status == "completed"
         and (call.result or "").startswith(DREW)
     }

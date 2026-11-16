@@ -41,6 +41,7 @@ from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.capabilities.drafts._spec import draft_tool_names
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import offloaded_history
+from app.agents.computer_on_use import ComputerAccessCallback
 from app.agents.connect_on_use import ConnectionCallback
 from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink, QuestionsCallback
 from app.agents.ephemeral_media import dump_messages
@@ -49,10 +50,11 @@ from app.agents.failures import run_failure_summary
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
+from app.agents.system_agents import refuse_system_agent
 from app.agents.visual_reports import VisualReports
 from app.core.exceptions import AuthorizationError, BadRequestError, RunFailedError
 from app.core.field_errors import field_problems
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
@@ -71,10 +73,13 @@ from app.services.agent_runner import (
     input_screen_for,
 )
 from app.services.attachments import AttachmentRouter
+from app.services.conversation import check_history_snapshot, model_context_check
 from app.services.device_hub import LocalTarget
 from app.services.mentions import MentionService, ResolvedMentions
+from app.services.message_history import ModelHistory
 from app.services.run_heartbeat import run_heartbeat
 from app.services.sandbox_workspace import SandboxWaitSink
+from app.services.screened_replay import screen_history, screened_copy
 from app.services.usage_report import UsageReport, UsageReportService, context_fill
 
 logger = logging.getLogger(__name__)
@@ -367,6 +372,9 @@ class ChatTurn:
     and answering them continues the run, including after a reload (#2064).
     """
 
+    history_revision: int | None = None
+    """The input snapshot's refusal revision; absent for unversioned caller histories."""
+
     summarized_history: list[dict[str, Any]] | None = None
     """The history a summary reduced this turn to, or `None` if none ran.
 
@@ -418,6 +426,20 @@ class ChatAgentRunner:
         self.runner = AgentRunnerService(db)
         self.usage = UsageReportService(db)
 
+    async def refuse_system_agent(
+        self, *, user: User, organization_id: UUID, agent_id: UUID
+    ) -> None:
+        """Refuse a chat with an agent only the platform runs, before anything is written.
+
+        Raises:
+            AuthorizationError: If the user is not a member of this organization.
+            NotFoundError: If no agent here has that id, or they may not run it.
+            SystemAgentRestrictedError: If the agent is a system agent, such as a judge.
+        """
+        ctx = await self._context(user, organization_id)
+        agent = await self.runner.registry.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        refuse_system_agent(agent, action=f"a {RunSurface.WEB.value} run")
+
     async def run(
         self,
         *,
@@ -439,6 +461,7 @@ class ChatAgentRunner:
         on_sandbox_wait: SandboxWaitSink | None = None,
         on_personal_gaps: PersonalGapSink | None = None,
         request_connection: ConnectionCallback | None = None,
+        request_computer_access: ComputerAccessCallback | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
@@ -498,6 +521,9 @@ class ChatAgentRunner:
                 own services while the run waits. Given, a personal service they
                 have not connected is asked for when the agent reaches for it,
                 and `on_personal_gaps` hears only the gaps nobody here can fix.
+            request_computer_access: How to ask the person where the agent may
+                work on their computer, for an agent whose workspace is that
+                computer and that has none chosen yet.
             steering: Where what the person sends mid-run lands, read by the
                 model at its next request (#2087).
             visual_reports: Where the console reports how each drawing rendered,
@@ -543,6 +569,7 @@ class ChatAgentRunner:
             # the person's desktop app, in the folder they picked there.
             local=local,
             request_connection=request_connection,
+            request_computer_access=request_computer_access,
             # A sandbox whose image is still being built is minutes in which no
             # token and no tool step arrives. Passed in rather than set on the
             # prepared run: preparing already opens the session.
@@ -573,6 +600,8 @@ class ChatAgentRunner:
         # This runner is the console's, which draws a draft as a card.
         prepared.deps.shows_drafts = True
         input_edge = input_screen_for(prepared.spec)
+        replay_prompt = _as_text(user_input)
+        replay_attachments: str | None = None
         if steering is not None:
             steering.screen = input_edge
         # Before the model answers, not after: the model is about to say it cannot
@@ -614,6 +643,7 @@ class ChatAgentRunner:
                 screen=input_edge,
             )
             user_input = await router.build_prompt(_as_text(user_input), attachments)
+            replay_attachments = router.context or None
             # Kept on the prompt's row so the next turn's history still carries
             # the file - it is otherwise in this one request and nowhere else.
             if router.context and prompt_message_id is not None and conversation_id is not None:
@@ -629,6 +659,7 @@ class ChatAgentRunner:
         error: str | None = None
         paused: PausedRunState | None = None
         budget_scope: BudgetScope | None = None
+        budget: BudgetExceeded | None = None
         output = ""
         summarized: list[dict[str, Any]] | None = None
         # Set as the last statement of the `try`, so it is True only when this run
@@ -641,9 +672,25 @@ class ChatAgentRunner:
         finished_cleanly = False
         # The transaction ends before the model is asked anything - the same
         # boundary `AgentRunnerService._run` sets, and for its reasons (#12).
-        await self.db.commit()
-        await change_feed.publish_run(prepared.run, "created")
+        model_content = screened_copy(replay_prompt, replay_attachments, input_edge)
+        if (
+            model_content is not None
+            and prompt_message_id is not None
+            and conversation_id is not None
+        ):
+            await conversation_repo.set_model_content(
+                self.db,
+                message_id=prompt_message_id,
+                conversation_id=conversation_id,
+                content=model_content,
+            )
+        message_history = screen_history(message_history, input_edge)
+        prepared.model_context_check = model_context_check(conversation_id, message_history)
         try:
+            if isinstance(message_history, ModelHistory):
+                await check_history_snapshot(self.db, conversation_id, message_history)
+            await self.db.commit()
+            await change_feed.publish_run(prepared.run, "created")
             # Stamped alive while the model works, as `AgentRunnerService._run`
             # does: a restart under this turn ends it in minutes, not hours.
             async with (
@@ -662,8 +709,14 @@ class ChatAgentRunner:
                     dump_messages(result.all_messages()),
                 )
             status, output, _structured, paused = _classify_output(
-                result, parked=prepared.approvals.parked
+                result,
+                parked=prepared.checkpointed_approvals(),
+                history_revision=message_history.revision
+                if isinstance(message_history, ModelHistory)
+                else None,
             )
+            if paused is not None:
+                paused.tool_identities = dict(prepared.built.deps.tool_identities)
             finished_cleanly = True
         except asyncio.CancelledError:
             # The user pressed stop, or the socket went away mid-run. Cancelled
@@ -678,6 +731,7 @@ class ChatAgentRunner:
             status = RunStatus.BUDGET_EXCEEDED
             error = str(exc)
             budget_scope = exc.scope
+            budget = exc
             logger.info("Chat run %s stopped by budget: %s", prepared.run.id, exc)
             raise
         except GuardrailBlocked as exc:
@@ -718,6 +772,7 @@ class ChatAgentRunner:
                     error=error,
                     paused_state=paused,
                     budget_scope=budget_scope,
+                    budget=budget,
                 )
                 if prepared.run.status == RunStatus.FAILED.value:
                     status = RunStatus.FAILED
@@ -746,12 +801,19 @@ class ChatAgentRunner:
             agent_id=prepared.agent.id,
             agent_version_id=prepared.run.agent_version_id,
             run_id=prepared.run.id,
-            parked=tuple(prepared.approvals.requested),
+            parked=tuple(
+                entry
+                for entry in prepared.approvals.requested
+                if str(entry.approval_id) in prepared.approvals.parked
+            ),
             questions=tuple(paused.questions) if paused is not None else (),
             mcp_origins=prepared.mcp_origins,
             draft_tools=draft_tool_names(prepared.spec),
             usage=await self._usage(ctx, prepared),
             summarized_history=summarized,
+            history_revision=message_history.revision
+            if isinstance(message_history, ModelHistory)
+            else None,
             overhead_tokens=prepared.built.context.overhead,
         )
 

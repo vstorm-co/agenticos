@@ -29,7 +29,7 @@ from app.core.exceptions import (
     NotFoundError,
     RunFailedError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.watch import Watch, WatchAttemptStatus
 from app.main import app
@@ -299,7 +299,12 @@ class TestPersonalConsent:
     @pytest.mark.parametrize(
         "ctx",
         [
-            replace(_ctx(), api_key_id=uuid.uuid4()),
+            replace(_ctx(), api_key_id=uuid.uuid4(), key_internal=True),
+            replace(
+                _ctx(),
+                api_key_id=uuid.uuid4(),
+                key_scopes=frozenset({Perm.AGENTS_RUN, Perm.RUNS_VIEW}),
+            ),
             replace(_ctx(), key_scopes=frozenset()),
             replace(_ctx(), subject_is_publisher_fallback=True),
             replace(_ctx(), fired_as_creator="schedule"),
@@ -312,7 +317,8 @@ class TestPersonalConsent:
             replace(_ctx(), source_conversation_id=uuid.uuid4(), routine_id=uuid.uuid4()),
         ],
         ids=[
-            "api-key",
+            "run-credential",
+            "ordinary-key",
             "key-scopes",
             "publisher",
             "schedule",
@@ -337,20 +343,23 @@ class TestPersonalConsent:
                     await service.delete(ctx, uuid.uuid4())
         lookup.assert_not_awaited()
 
-    @pytest.mark.parametrize("internal_key", [False, True])
-    def test_the_person_can_consent_in_a_session_or_through_their_private_chat(
-        self, internal_key: bool
+    @pytest.mark.parametrize("through", ["session", "private-chat", "own-key"])
+    def test_the_person_can_consent_in_a_session_their_private_chat_or_their_key(
+        self, through: str
     ) -> None:
-        ctx = (
-            replace(
+        ctx = {
+            "session": _ctx(),
+            "private-chat": replace(
                 _ctx(),
                 api_key_id=uuid.uuid4(),
                 key_scopes=frozenset(),
+                key_internal=True,
                 source_conversation_id=uuid.uuid4(),
-            )
-            if internal_key
-            else _ctx()
-        )
+            ),
+            "own-key": replace(
+                _ctx(), api_key_id=uuid.uuid4(), key_scopes=frozenset({Perm.PERSONAL_CONSENT})
+            ),
+        }[through]
         WatchService._require_personal_consent(ctx)
 
     async def test_impersonation_cannot_set_up_or_rearm_a_watch(self) -> None:

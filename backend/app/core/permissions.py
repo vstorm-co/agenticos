@@ -77,6 +77,11 @@ class Perm(StrEnum):
     # wrote it. `edit` covers managing it: sharing, the public link, deletion.
     ARTIFACTS_VIEW = "artifacts:view"
     ARTIFACTS_EDIT = "artifacts:edit"
+    # Cases are often copied from real conversations, so reading them, changing them
+    # and spending model budget running evals over them are three separate answers.
+    DATASETS_VIEW = "datasets:view"
+    DATASETS_EDIT = "datasets:edit"
+    DATASETS_RUN = "datasets:run"
     # A project: shared files in one container, standing instructions, and the
     # chats people have in it. Three levels because they are three acts - seeing
     # a project and reading its files, working in it (chatting, adding files), and
@@ -86,6 +91,9 @@ class Perm(StrEnum):
     PROJECTS_EDIT = "projects:edit"
 
     APPROVALS_DECIDE = "approvals:decide"
+    # Promoting past an environment's eval suites, with a reason the audit log keeps.
+    # Apart from `agents:publish`, so whoever promotes is not who waves the evals aside.
+    PROMOTIONS_OVERRIDE = "promotions:override"
     # Watching a host and managing one are separate authorities. Reading a
     # connection's session list, its activity log and the ceilings its service
     # enforces answers "why did that agent get a 429", which is the question an
@@ -121,6 +129,8 @@ class Perm(StrEnum):
     # administration of that, and a separate authority.
     API_KEYS_CREATE = "api_keys:create"
     API_KEYS_MANAGE = "api_keys:manage"
+    PERSONAL_CONSENT = "personal:consent"
+    """Let an explicitly authorized key or client consent to the issuer's personal sources."""
 
 
 RESOURCE_PERMS: frozenset[Perm] = frozenset(
@@ -144,6 +154,9 @@ RESOURCE_PERMS: frozenset[Perm] = frozenset(
         Perm.SECRETS_EDIT,
         Perm.ARTIFACTS_VIEW,
         Perm.ARTIFACTS_EDIT,
+        Perm.DATASETS_VIEW,
+        Perm.DATASETS_EDIT,
+        Perm.DATASETS_RUN,
         Perm.PROJECTS_VIEW,
         Perm.PROJECTS_USE,
         Perm.PROJECTS_EDIT,
@@ -257,6 +270,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_RUN: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.ARTIFACTS_EDIT: Scope.ALL,
+        Perm.DATASETS_VIEW: Scope.ALL,
+        Perm.DATASETS_EDIT: Scope.ALL,
+        Perm.DATASETS_RUN: Scope.ALL,
         Perm.PROJECTS_VIEW: Scope.ALL,
         Perm.PROJECTS_USE: Scope.ALL,
         Perm.PROJECTS_EDIT: Scope.ALL,
@@ -284,6 +300,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_RUN: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.ARTIFACTS_EDIT: Scope.ALL,
+        Perm.DATASETS_VIEW: Scope.ALL,
+        Perm.DATASETS_EDIT: Scope.ALL,
+        Perm.DATASETS_RUN: Scope.ALL,
         Perm.PROJECTS_VIEW: Scope.ALL,
         Perm.PROJECTS_USE: Scope.ALL,
         Perm.PROJECTS_EDIT: Scope.ALL,
@@ -311,6 +330,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_RUN: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.ARTIFACTS_EDIT: Scope.SHARED,
+        Perm.DATASETS_VIEW: Scope.ALL,
+        Perm.DATASETS_EDIT: Scope.SHARED,
+        Perm.DATASETS_RUN: Scope.ALL,
         # A project holds people's own files, so unlike agents a builder does not
         # see every one of them - only what is theirs or shared with them.
         Perm.PROJECTS_VIEW: Scope.SHARED,
@@ -330,6 +352,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.RUNS_VIEW: Scope.ALL,
         Perm.ML_INVOKE: Scope.ALL,
         Perm.API_KEYS_CREATE: Scope.ALL,
+        Perm.PERSONAL_CONSENT: Scope.ALL,
         Perm.MEMBERS_VIEW: Scope.ALL,
     },
     # Operator keeps the running system healthy: approves, watches, reruns -
@@ -347,6 +370,8 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_VIEW: Scope.ALL,
         Perm.WORKFLOWS_RUN: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
+        Perm.DATASETS_VIEW: Scope.ALL,
+        Perm.DATASETS_RUN: Scope.ALL,
         Perm.PROJECTS_VIEW: Scope.SHARED,
         Perm.PROJECTS_USE: Scope.SHARED,
         Perm.PROJECTS_EDIT: Scope.OWN,
@@ -356,6 +381,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.RUNS_VIEW: Scope.ALL,
         Perm.ML_INVOKE: Scope.ALL,
         Perm.API_KEYS_CREATE: Scope.ALL,
+        Perm.PERSONAL_CONSENT: Scope.ALL,
         Perm.MEMBERS_VIEW: Scope.ALL,
     },
     # Member is the everyday user: builds their own agents, sees nobody else's
@@ -379,6 +405,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_RUN: Scope.SHARED,
         Perm.ARTIFACTS_VIEW: Scope.SHARED,
         Perm.ARTIFACTS_EDIT: Scope.OWN,
+        Perm.DATASETS_VIEW: Scope.SHARED,
+        Perm.DATASETS_EDIT: Scope.OWN,
+        Perm.DATASETS_RUN: Scope.SHARED,
         Perm.PROJECTS_VIEW: Scope.SHARED,
         Perm.PROJECTS_USE: Scope.SHARED,
         Perm.PROJECTS_EDIT: Scope.OWN,
@@ -386,6 +415,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SECRETS_EDIT: Scope.OWN,
         Perm.ML_INVOKE: Scope.ALL,
         Perm.API_KEYS_CREATE: Scope.ALL,
+        Perm.PERSONAL_CONSENT: Scope.ALL,
         Perm.MEMBERS_VIEW: Scope.ALL,
     },
     OrgRoleName.VIEWER: {
@@ -396,6 +426,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.WORKFLOWS_VIEW: Scope.SHARED,
         Perm.TABLES_VIEW: Scope.SHARED,
         Perm.ARTIFACTS_VIEW: Scope.SHARED,
+        Perm.DATASETS_VIEW: Scope.SHARED,
         Perm.PROJECTS_VIEW: Scope.SHARED,
         Perm.MEMBERS_VIEW: Scope.ALL,
     },
@@ -534,6 +565,14 @@ class AuthContext:
     A grant on a single row widens a role, never a key - see :meth:`key_allows`.
     """
 
+    key_internal: bool = False
+    """The key is a run credential the platform minted for an agent, not one the person issued.
+
+    A person-issued key or MCP token needs explicit `personal:consent` to make
+    standing decisions about personal sources. A run credential is an agent
+    acting for them, which may be following text nobody vetted.
+    """
+
     source_conversation_id: UUID | None = None
     """A private chat carried by a platform-issued run credential.
 
@@ -563,6 +602,34 @@ class AuthContext:
         a role.
         """
         return cls(user_id=None, organization_id=organization_id, role=_NO_ROLE)
+
+    @property
+    def acts_in_person(self) -> bool:
+        """Whether this caller is the person themselves, deciding for themselves.
+
+        A signed-in session, a key or MCP token explicitly issued for
+        `personal:consent`, or the run credential of their own private chat (the
+        agent there acts on what the person just asked). Not a background turn - a fired routine, a publisher
+        fallback, a resumed run carrying only a key's scopes - and not an agent's
+        run credential outside a private chat. Impersonation lives in the request
+        context, so callers check `current_impersonator()` beside this.
+        """
+        if (
+            self.user_id is None
+            or self.subject_is_publisher_fallback
+            or self.fired_as_creator is not None
+            or self.routine_id is not None
+        ):
+            return False
+        if self.source_conversation_id is not None:
+            return True
+        if self.api_key_id is None:
+            return self.key_scopes is None
+        return (
+            not self.key_internal
+            and self.key_scopes is not None
+            and self.has(Perm.PERSONAL_CONSENT)
+        )
 
     @property
     def is_anonymous(self) -> bool:

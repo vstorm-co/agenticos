@@ -44,7 +44,7 @@ starts, is refused at publish.
 
 Its **Input fields** make the input a contract. A field has a name, a type - text, list of text,
 number, whole number, yes or no, date or choice - and whether it is required. With
-none, a run takes any JSON object. With some, **Start a run** asks for each by name,
+neither fields nor a schema, a run takes any JSON object. With fields, **Start a run** asks for each by name,
 a run whose input misses one, sends one of the wrong type or sends one not declared
 is refused before it starts with `WORKFLOW_RUN_INPUT_INVALID`, and a binding to
 `payload.<field>` is type-checked at publish.
@@ -63,11 +63,121 @@ is available on Manual, Form and Called by a workflow triggers.
 
 ::: app.workflows.contracts.fields.InputField
 
+#### JSON Schema input contracts { #json-schema-input-contracts }
+
+For nested input, set the trigger's `config.input_schema` to a JSON Schema
+Draft 2020-12 document. **API request**, **Manual** and **Called by a workflow**
+accept this alternative to simple `fields`. Use one contract at a time: a schema
+and a nonempty `fields` list cannot be combined. Public **Form** triggers keep
+their simple-field contract.
+
+The contract supports nested objects, arrays of objects, `enum`, `required`,
+string lengths (`minLength` and `maxLength`), array lengths (`minItems` and
+`maxItems`) and `additionalProperties`. Reuse definitions with `$defs` and local
+`$ref` references. References must resolve inside the same document; external
+references are refused and never fetched. An absolute or relative URI is allowed
+when it resolves to a resource already supplied in the document. No user-defined Python model or caller
+framework is needed.
+
+Workflow input is always a JSON object. Publication rejects a contract when its
+explicit root `type`, `const`, `enum`, static local `$ref`, or
+`allOf`/`anyOf`/`oneOf` constraints prove that no object can satisfy it. This
+conservative compatibility check is not a general proof that a schema is
+satisfiable: restrictions involving `not`, conditionals or `$dynamicRef` can
+remain undecided and are checked against actual input at admission. Primitive
+and array subschemas remain supported inside object properties.
+
+Put this configuration on a trigger to accept a customer and one or more order
+lines:
+
+```json
+{
+  "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "customer": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 120},
+          "tier": {"enum": ["standard", "priority"]}
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      },
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 100,
+        "items": {"$ref": "#/$defs/line"}
+      }
+    },
+    "required": ["customer", "items"],
+    "additionalProperties": false,
+    "$defs": {
+      "line": {
+        "type": "object",
+        "properties": {
+          "sku": {"type": "string", "minLength": 1},
+          "quantity": {"type": "integer", "minimum": 1}
+        },
+        "required": ["sku", "quantity"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
+```
+
+Publishing freezes the schema inside the workflow version. Input is checked
+against that version's contract before a run is admitted, including API,
+WebSocket, MCP and child-workflow calls; tests use the draft's contract. Invalid
+input returns `WORKFLOW_RUN_INPUT_INVALID` with field paths and messages. The
+schema does not coerce values or insert defaults. With neither simple fields nor
+a schema, including an empty schema object, the existing untyped JSON-object
+input is preserved.
+
+Raw schemas are limited to 256 KiB at publication. Before admission, the
+serialized JSON validation request containing the schema and input must fit
+1 MiB. Validation runs in an isolated process with a two-second deadline,
+including startup. Each API or worker event loop permits at most two concurrent
+validations; when both slots are busy, admission is refused immediately with
+`429`. Existing simple-field contracts continue to validate inline.
+
+Linux additionally enforces a 256 MiB address-space limit and a CPU limit.
+Native macOS development retains the CPU and wall-clock limits, but has no
+address-space limit because Darwin does not support `RLIMIT_AS`.
+
+A timeout, validator memory exhaustion or validation protocol-size limit refuses admission with
+`422 WORKFLOW_RUN_INPUT_INVALID`, naming `input` in `error.details.fields` and
+`validation_limit` as the legacy problem's `type`. Validator startup failure,
+abnormal exit (including termination by an OS resource limit), or invalid output
+returns `503 WORKFLOW_INPUT_VALIDATION_UNAVAILABLE`. Neither refusal creates a
+run. Diagnostics are limited to 50 entries and 4 KiB of UTF-8 JSON. When either
+limit is reached, the final entry summarizes truncation. Diagnostics never quote submitted values.
+
+Schemas or regular expressions exceeding validator nesting or repetition
+limits are refused at publication instead of producing a server error.
+
+Callers can inspect the effective contract before execution through the
+[workflow input-schema API](../api.md#running-a-workflow) or
+[MCP discovery](../mcp.md#workflow-and-table-tools). Existing simple-field
+contracts are also exposed as JSON Schema.
+
+HTTP discovery exposes only the first **Called by a workflow** entry, with the default entry first, because child-workflow calls cannot select another entry. Platform MCP discovery exposes only Manual/API entries supported by its run tool.
+
+Standalone `then`/`else` branches and branches excluded by a literal boolean
+`if` are checked for reference safety but do not create runtime recursion edges.
+
+Contracts using `$dynamicRef` are limited to 2048 resolver contexts and
+64 distinct resources in a dynamic scope during publication checks. Exceeding
+either limit produces an explicit configuration refusal.
+
 ### trigger.manual { #trigger-manual }
 
 **Manual.** Started by a person - **Test draft** in the editor, or **Start a run** on its
 runs page. It hands the graph what **API request** does and takes the same input
-fields, which the editor asks for before the run starts.
+fields or JSON Schema contract. The editor asks for input before the run starts.
 
 ### trigger.chat { #trigger-chat }
 
@@ -111,8 +221,9 @@ access to the table.
 ### trigger.workflow_call { #trigger-workflow-call }
 
 **Called by a workflow.** Started by another workflow's `workflow.run` step, with
-the fields it declares - the same fields as **Manual** - and never by hand or over
-the API. The caller's input is checked against them before the run starts.
+the input contract it declares - simple fields or JSON Schema, as on **Manual** -
+and never by hand or over the API. The caller's input is checked against that
+contract before the run starts.
 
 ### trigger.form { #trigger-form }
 
@@ -184,8 +295,9 @@ at a time, so **Folder** and **Shared mailbox** are where the poll looks as well
 filter, and the first read of a folder starts at the moment the workflow was
 published or last switched on. Naming a shared mailbox the organization's Microsoft
 grant can open takes the permission to manage connections, as it does for Outlook
-agent triggers; a workflow already listening to one keeps it through later publishes,
-and changing it needs the permission again. **Sender contains** matches the sender's
+agent triggers; every publish that names one needs it, because whoever publishes becomes the member
+the mailbox is read as, and a message reaching a workflow whose publisher no longer
+holds it starts no run. **Sender contains** matches the sender's
 address, as for Gmail, and needs mail the sender's domain authenticated or that came
 from inside the tenant. A folder or shared mailbox Outlook says cannot be read
 switches the workflow off, with `mailbox_folder_unreadable` in the audit log. A
@@ -199,7 +311,8 @@ categories. Its output is the one of [trigger.gmail](#trigger-gmail).
 
 **Channel message.** Started by a message to one of the organization's Slack,
 Mattermost or Telegram bots that the bot would have answered with its own agent and
-that fits the node's filter. Publishing it needs `channels:manage`, and a bot's
+that fits the node's filter. Publishing it needs `channels:manage`, checked again at every
+message, and a bot's
 messages start one workflow at most. `triggered_by` is `channel_message`.
 A Teams bot is refused at publish and on a test run; a Teams listener published before
 that hands its messages back to the bot's agent.
@@ -308,6 +421,8 @@ step with a diff icon, under the data steps.
 ::: app.workflows.nodes.text_compare._handler.TextCompareOutput
 
 ## html.parse { #html-parse }
+
+Since 1.72.0, document selectors and link extraction exclude inert `<template>` contents. Selecting `template` itself still returns its HTML and text. Soup Sieve 4 also aligns form-state selectors with browser behavior; review workflows that depend on the previous matching rules when upgrading. Selector matching is cached; reader time and memory limits remain in place.
 
 **Parse HTML** reads HTML into its text, its links and the elements a CSS selector
 picks. It is for the HTML a flow meets: a mail body, an `http.request` body, a page
@@ -578,16 +693,9 @@ send `unsure` and a category down one path, or two categories to one log step.
 
 ## Decisions { #decisions }
 
-Three steps ask TypeSafe's Jev a typed question about a bound `text`, with a
-TypeSafe API key from the vault. Jev does not write text: it answers the
-question with a confidence from 0 to 1, in one request, and it can only answer
-with one of the answers the step allows. Below the step's `min_confidence` the
-step leaves by its `unsure` port instead, so a workflow decides there what a
-person or an agent does with a doubtful case.
+Three steps ask a native decision model a typed question about a bound `text`. Choose a model profile with its provider, vault key and endpoint. Existing configurations using a TypeSafe key and Jev model still load unchanged. Provider capabilities determine which question shapes are accepted.
 
-`decide.*` calls TypeSafe's hosted Jev only. To route doubtful cases on a
-self-hosted model, use `ai.classify` with `min_confidence`, which leaves by
-`unsure` the same way.
+The model returns an answer and confidence. Below `min_confidence`, the step follows `unsure`; the workflow can escalate or choose another path. Native profiles use OpenAI, Google, OpenRouter, TypeSafe or a custom System One endpoint through Pydantic AI. See [decision models](../models.md#decision-models) for provider availability and the distinction from LLM assessments.
 
 | Step | Asks | Leaves by |
 |---|---|---|
@@ -595,11 +703,7 @@ self-hosted model, use `ai.classify` with `min_confidence`, which leaves by
 | `decide.choose` | which of up to 255 options fits | `out` with the `choice`, or `unsure` |
 | `decide.score` | where the text sits on a rubric of 2 to 10 levels | `out` with the `score`, or `unsure` |
 
-The key is checked at publish and read again on every run. A key that is gone
-or unshared fails the step with `SECRET_NOT_USABLE`, a model that does not
-answer with `DECISION_FAILED`, which is retried as the step's policy says, and a
-deployment built without the `browser` extra with `DECISION_MODEL_UNAVAILABLE`.
-A merge may rejoin a decision's branches, as it rejoins an If's.
+Credentials and access are checked at publish and again for each execution. A removed legacy key gives `SECRET_NOT_USABLE`; a non-native profile gives `DECISION_MODEL_REQUIRED`. Provider failures give `DECISION_FAILED` under the step's retry policy. Spend counts toward workflow and organization budgets. Merge can rejoin decision branches.
 
 ::: app.workflows.nodes._decide.DecisionConfig
 
@@ -658,6 +762,10 @@ run history. The run is recorded with the surface `workflow`. Bound `sources`
 are appended to the prompt as numbered context. An approval-gated tool call
 parks the step, and the decision resumes the same agent run.
 
+The existing `ask_user_question` tool also parks this step. The workflow shows `waiting_for_user`; its question card is available in the originating chat and run view. Only the person asked can answer. Answers are saved before the workflow continuation is queued, and resume the pending tool call under the current workflow budget. Reloading the page does not discard the question. Cancelling the workflow closes its waiting agent runs; unanswered questions expire after `QUESTION_EXPIRY_HOURS` (24 by default).
+
+This applies to the step’s own agent when a signed-in person is behind the run. Public-origin runs have no person to ask. Delegates still need a live question surface. If a model batches a question with an approval-gated call, approval takes priority and that question is treated as declined when the approval resumes.
+
 `inline` configures the agent in the step instead of `agent`, and exactly one of
 the two is set. The spec is the step's, versioned with the graph: the first run
 creates an agent owned by the workflow, kept out of the catalog and reached
@@ -679,6 +787,7 @@ and an answer with no object where one was asked for fails it with
 |---|---|
 | Completed | Completed |
 | Awaiting approval | Waits, then resumes the same run |
+| Awaiting answer | Waits for the person, then resumes the same conversation |
 | Budget exceeded | `AGENT_BUDGET_EXCEEDED` |
 | Guardrail blocked | `AGENT_GUARDRAIL_BLOCKED` |
 | Otherwise | `AGENT_RUN_FAILED` |
@@ -864,7 +973,7 @@ Activity or over `GET /api/v1/workflow-approvals`. `approvers` names who may
 decide, and they are notified in the app; left empty, anyone holding
 `approvals:decide` may. Past `timeout_hours` the request expires and the step
 leaves by `rejected` with `decision: "expired"`. Cancelling the run cancels what
-it asked. Each run of the step asks once, so a retry or a loop iteration never
+it asked, and so does cancelling a workflow that called the run. Each run of the step asks once, so a retry or a loop iteration never
 asks twice for the same thing.
 
 Named approvers must be active members holding `approvals:decide`. Publishing checks this, and the step checks again before asking; a person who lost that permission fails the step with `APPROVER_UNAVAILABLE` rather than leaving an undecidable request.
@@ -1052,10 +1161,13 @@ because the same input fails the same way again.
 
 `control.foreach` runs its body once for every element of a bound `items` list,
 one element at a time and in order. It then continues through its `done` port
-with `results` in input order, `errors` and `count`. The body starts at
-`loop.item`, wired from the loop's `body` port, which provides `item`, `index`
-and `count`. It ends at `loop.yield`, whose bound `value` is the iteration's
-result. No edge leads back to the loop. A step in the body may bind to anything
+with `results` in input order, `errors` and `count`. The body is the steps that
+name the loop in `scope_id`; no wire leads into it. It starts at `loop.item`,
+which provides `item`, `index` and `count`, and every step in it must be reached
+from `loop.item` by the body's own wires. It ends at `loop.yield`, whose bound `value` is the iteration's
+result.
+
+No edge leads back to the loop. A step in the body may bind to anything
 that ran before the loop, and nothing outside the body may bind into it.
 
 The list is frozen when the loop starts, so an iteration never sees a source
@@ -1237,6 +1349,7 @@ configuration - choose a runtime without network for untrusted work.
 | The job ran past `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, the session purged |
 | No usable `sandboxd` connection | `SANDBOX_UNAVAILABLE` |
 | It wrote more than 20 files or 100 MB, or printed more than 10 MB | `PYTHON_OUTPUT_TOO_LARGE`, measured in the sandbox before anything is fetched, and the session purged |
+| The host answered but could not start the sandbox - a workspace directory it cannot write, an image that would not build | `SANDBOX_START_FAILED` with a safe diagnosis; raw host output stays in the host's logs, retried |
 | The host could not be reached | `SANDBOX_UNREACHABLE`, retried |
 
 ::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig

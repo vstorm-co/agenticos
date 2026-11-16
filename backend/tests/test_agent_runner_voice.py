@@ -17,6 +17,15 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.services.agent_runner import AgentRunnerService, PreparedRun, VoiceRun
 
 
+@pytest.fixture(autouse=True)
+def _no_connected_chat_bindings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These agents have no bot grants; channel_actions tests cover connected audiences."""
+    monkeypatch.setattr(
+        "app.services.channel_actions.agent_exposure_repo.list_for_agent",
+        AsyncMock(return_value=[]),
+    )
+
+
 def _prepared() -> PreparedRun:
     built = MagicMock()
     run = MagicMock(id=uuid.uuid4(), conversation_id=uuid.uuid4())
@@ -117,6 +126,14 @@ def _db() -> MagicMock:
 
 
 @pytest.fixture(autouse=True)
+def _no_current_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No current published version sets a cap; `test_agent_runner` covers one."""
+    monkeypatch.setattr(
+        "app.services.agent_runner.agent_repo.published_budget_caps", AsyncMock(return_value={})
+    )
+
+
+@pytest.fixture(autouse=True)
 def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
     """Nobody here is in a group; `test_prompt_variables` covers `{{groups}}`."""
     monkeypatch.setattr(
@@ -131,7 +148,7 @@ def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture
 def runner_with_mocks():
     service = AgentRunnerService(_db())
-    agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+    agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), kind="agent")
     spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
     with (
         patch.object(
@@ -189,7 +206,7 @@ async def test_a_text_run_stays_text(runner_with_mocks):
 
 
 def _runnable(runner_with_mocks: SimpleNamespace, *capability_ids: str) -> MagicMock:
-    agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+    agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), kind="agent")
     runner_with_mocks.runnable.return_value = (
         agent,
         AgentSpec(
@@ -367,7 +384,7 @@ async def test_a_calls_start_reads_its_baselines_off_the_pool_and_its_heartbeats
             new=AsyncMock(return_value=Decimal("1")),
         ),
         patch(
-            "app.services.agent_runner.organization_monthly_spend",
+            "app.services.agent_runner.organization_spend_since",
             new=AsyncMock(return_value=Decimal("2")),
         ),
     ):

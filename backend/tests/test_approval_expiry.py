@@ -622,6 +622,26 @@ class TestUnansweredQuestions:
         started["spawn"].assert_not_called()
         started["settle"].assert_not_awaited()
 
+    async def test_an_accepted_answer_is_not_expired_while_its_workflow_is_queued(self) -> None:
+        run = _parked_run(status=RunStatus.AWAITING_ANSWER.value)
+        run.surface = "workflow"
+        run.paused_state["question_results"] = {"ask-1": {"Answer": ["yes"]}}
+
+        ended, started, _ = await self._sweep([run])
+
+        assert ended == 0
+        started["finish"].assert_not_called()
+        started["spawn"].assert_not_called()
+
+    async def test_a_workflow_is_woken_after_its_question_expires(self) -> None:
+        run = _parked_run(status=RunStatus.AWAITING_ANSWER.value)
+        run.surface = "workflow"
+
+        ended, started, _ = await self._sweep([run])
+
+        assert ended == 1
+        assert _spawned_names(started["spawn"]) == ["workflow-question-expiry-wake"]
+
 
 class TestStrandedRuns:
     async def test_the_safety_net_audits_after_every_row_lock(self):

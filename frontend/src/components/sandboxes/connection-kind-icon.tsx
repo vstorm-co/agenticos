@@ -1,6 +1,6 @@
 "use client";
 
-import { Cloud } from "lucide-react";
+import { Cloud, Server } from "lucide-react";
 
 import { BrandIcon } from "@/components/icons/brand-icon";
 import type { SandboxConnectionKind } from "@/lib/sandbox-connections-api";
@@ -26,6 +26,11 @@ export function ConnectionKindIcon({
 }) {
   if (kind === "docker") {
     return <BrandIcon name="docker" className={cn("h-4 w-4 shrink-0", className)} aria-hidden />;
+  }
+  if (kind === "opensandbox") {
+    return (
+      <Server className={cn("text-muted-foreground h-4 w-4 shrink-0", className)} aria-hidden />
+    );
   }
   return <Cloud className={cn("text-muted-foreground h-4 w-4 shrink-0", className)} aria-hidden />;
 }

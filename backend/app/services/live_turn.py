@@ -64,6 +64,7 @@ NOT_KEPT = frozenset(
         "user_question_required",
         "run_answer_result",
         "connect_account",
+        "computer_access",
         "user_prompt",
         "conversation_created",
         "steer_unapplied",
@@ -72,10 +73,9 @@ NOT_KEPT = frozenset(
 )
 """Frames meant for the socket that sent the message, not for someone watching.
 
-A live question or a connection request waits on the session that asked it, which
-an answer from another socket cannot reach; a parked question belongs to the
-person who started the run and is recovered from its saved transcript;
-the prompt is already in the transcript;
+A live question, a connection request or a request for the computer waits on
+its original session. A parked question belongs to the person who started the
+run and is recovered from its saved transcript; the prompt is already there;
 `conversation_created` names a chat the follower already has open."""
 
 LIVE_ONLY = frozenset({"browser_frame", "browser_pointer"})

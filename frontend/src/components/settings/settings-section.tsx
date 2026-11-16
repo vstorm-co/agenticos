@@ -12,6 +12,8 @@ interface SectionCardProps {
   icon?: LucideIcon;
   danger?: boolean;
   tour?: string;
+  className?: string;
+  contentClassName?: string;
 }
 
 export function SectionCard({
@@ -22,12 +24,15 @@ export function SectionCard({
   icon: Icon,
   danger = false,
   tour,
+  className,
+  contentClassName,
 }: SectionCardProps) {
   return (
     <section
       className={cn(
         "bg-card shadow-card overflow-hidden rounded-2xl border",
         danger ? "border-destructive/20" : "border-foreground/[0.07]",
+        className,
       )}
     >
       <header
@@ -56,7 +61,7 @@ export function SectionCard({
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </header>
-      {children && <div className="p-5 sm:p-6">{children}</div>}
+      {children && <div className={cn("p-5 sm:p-6", contentClassName)}>{children}</div>}
     </section>
   );
 }

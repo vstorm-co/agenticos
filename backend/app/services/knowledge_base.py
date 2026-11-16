@@ -1,6 +1,7 @@
 import logging
 import re
 import secrets
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +25,7 @@ from app.repositories import (
 from app.repositories.rag_document import CollectionCounts, CollectionScope
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
+    KnowledgeBaseDetailRead,
     KnowledgeBaseList,
     KnowledgeBaseRead,
     KnowledgeBaseUpdate,
@@ -166,22 +168,27 @@ class KnowledgeBaseService:
         )
         if in_group is not None:
             items = [kb for kb in items if kb.id in set(in_group)]
-        counts = await self.counts_for(items)
-        used = await agents_using(
-            self.db, ctx, field="collection_ids", resource_ids=[kb.id for kb in items]
-        )
-        groups = await groups_sharing(
-            self.db, ctx, resource_type=COLLECTION, resource_ids=[kb.id for kb in items]
-        )
-        return KnowledgeBaseList(
-            items=[
-                _with_counts(kb, counts.get(kb.id)).model_copy(
-                    update={"used_by": used[kb.id], "shared_groups": groups[kb.id]}
-                )
-                for kb in items
-            ],
-            total=len(items),
-        )
+        described = await self._with_contents(items, ctx=ctx)
+        return KnowledgeBaseList(items=described, total=len(described))
+
+    async def _with_contents(
+        self, bases: list[KnowledgeBase], *, ctx: AuthContext
+    ) -> list[KnowledgeBaseRead]:
+        """Each base with what it holds, the agents using it and the groups it is shared with.
+
+        The listing and a single base's detail both read through here, so the two
+        cannot report different counts or users for the same base.
+        """
+        counts = await self.counts_for(bases)
+        ids = [kb.id for kb in bases]
+        used = await agents_using(self.db, ctx, field="collection_ids", resource_ids=ids)
+        groups = await groups_sharing(self.db, ctx, resource_type=COLLECTION, resource_ids=ids)
+        return [
+            _with_counts(kb, counts.get(kb.id)).model_copy(
+                update={"used_by": used[kb.id], "shared_groups": groups[kb.id]}
+            )
+            for kb in bases
+        ]
 
     async def list_accessible(
         self, ctx: AuthContext, *, shared_with_me: bool = False
@@ -301,7 +308,22 @@ class KnowledgeBaseService:
         """
         await self._tear_down(kb, force_drop=force_drop)
 
-    async def _tear_down(self, kb: KnowledgeBase, *, force_drop: bool = False) -> None:
+    async def purge(self, kb: KnowledgeBase, *, cleanup_vectors: bool = True) -> None:
+        """Remove a base during its owner account/organization purge, including defaults.
+
+        Callers hold every collection name before locking the parent account or
+        organization. The ordinary teardown then keeps the same ownership rules.
+        """
+        await self._tear_down(kb, remove_default=True, cleanup_vectors=cleanup_vectors)
+
+    async def _tear_down(
+        self,
+        kb: KnowledgeBase,
+        *,
+        force_drop: bool = False,
+        remove_default: bool = False,
+        cleanup_vectors: bool = True,
+    ) -> None:
         """Remove a base's documents, its vectors and - unless it is a default - its row.
 
         The one teardown `DELETE /kb/{id}` (`delete`), `DELETE
@@ -380,12 +402,20 @@ class KnowledgeBaseService:
         base_purges: list[BasePurge] = []
         # The documents go before the KB row: `ON DELETE SET NULL` would unfile
         # them first, and a delete by the base's id would then find nothing.
-        keeps_table = bool(others) or (
-            not force_drop
-            and await rag_document_repo.table_holds_unfiled_outside(self.db, CollectionScope.of(kb))
+        keeps_table = (
+            not cleanup_vectors
+            or bool(others)
+            or (
+                not force_drop
+                and await rag_document_repo.table_holds_unfiled_outside(
+                    self.db, CollectionScope.of(kb)
+                )
+            )
         )
         if keeps_table:
-            storage_paths, base_purges = await self._delete_documents_from_kept_table(kb, others)
+            storage_paths, base_purges = await self._delete_documents_from_kept_table(
+                kb, others, remove_default=remove_default
+            )
         else:
             _, unfiled = await self._delete_unfiled_taken(kb, [])
             storage_paths = (
@@ -399,7 +429,7 @@ class KnowledgeBaseService:
             # Reserve the name against reuse until the deferred drop runs, so a
             # concurrent claim cannot adopt the still-populated table (#1362).
             await collection_teardown_repo.reserve(self.db, collection)
-        if not kb.is_default:
+        if remove_default or not kb.is_default:
             await CollectionAccessService(self.db).detach_sources_targeting(kb)
             await knowledge_base_repo.delete(self.db, kb.id)
         # Always a job: a kept table has the base's chunks to purge, and an
@@ -407,7 +437,10 @@ class KnowledgeBaseService:
         from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
 
         await queue_external_state_cleanup(
-            self.db, storage_paths, collections_to_drop, base_purges=base_purges
+            self.db,
+            storage_paths,
+            collections_to_drop,
+            base_purges=base_purges if cleanup_vectors else [],
         )
 
     async def drop_collection_by_name(
@@ -466,7 +499,7 @@ class KnowledgeBaseService:
         return kb
 
     async def _delete_documents_from_kept_table(
-        self, kb: KnowledgeBase, others: list[KnowledgeBase]
+        self, kb: KnowledgeBase, others: list[KnowledgeBase], *, remove_default: bool = False
     ) -> tuple[list[str], list[BasePurge]]:
         """Delete a base's document rows from a table that stays.
 
@@ -490,7 +523,8 @@ class KnowledgeBaseService:
         collection = kb.collection_name
         scope = CollectionScope.of(kb)
         takes_unfiled, unfiled = await self._delete_unfiled_taken(kb, others)
-        if kb.is_default or not others:
+        keeps_default = kb.is_default and not remove_default
+        if keeps_default or not others or takes_unfiled:
             stored = await rag_document_repo.stored_vector_ids_at_clear(
                 self.db, kb, takes_unfiled=takes_unfiled
             )
@@ -506,7 +540,7 @@ class KnowledgeBaseService:
             )
             named = unfiled.vector_document_ids
         base_purges = (
-            [] if kb.is_default else [BasePurge(collection=collection, knowledge_base_id=kb.id)]
+            [] if keeps_default else [BasePurge(collection=collection, knowledge_base_id=kb.id)]
         )
         # With no other base on the name, every id here is this base's own document.
         unfiled_too = takes_unfiled or not others
@@ -551,6 +585,13 @@ class KnowledgeBaseService:
         if not kb or not await readable_kb(self.db, ctx, kb):
             raise _no_knowledge_base(kb_id)
         return kb
+
+    async def describe(self, kb: KnowledgeBase, *, ctx: AuthContext) -> KnowledgeBaseDetailRead:
+        """Serialize an authorized row as the listing does, with the write decision used by mutations."""
+        (read,) = await self._with_contents([kb], ctx=ctx)
+        return KnowledgeBaseDetailRead(
+            **read.model_dump(), can_edit=await writable_kb(self.db, ctx, kb)
+        )
 
     async def get_for_write(self, kb_id: UUID, *, ctx: AuthContext) -> KnowledgeBase:
         """The knowledge base, resolved for a caller about to change it.
@@ -629,6 +670,12 @@ class KnowledgeBaseService:
                 this caller's reach, or is busy and worth asking for again.
         """
         self._check_create_permission(scope=data.scope, ctx=ctx)
+        await self._check_system_agents(
+            ctx,
+            data.gap_drafter_agent_id,
+            data.gap_classifier_agent_id,
+            app_scoped=data.scope == "app",
+        )
         collection_name = data.collection_name or _derive_collection_name(data.name)
         await CollectionAccessService(self.db).claim(ctx, collection_name)
         shared = await self._shared_embedding(collection_name, data)
@@ -706,6 +753,8 @@ class KnowledgeBaseService:
             # collection asks; a personal one is its owner's and an app one everyone's.
             visibility=data.visibility.value if data.scope == KBScope.ORG.value else None,
             ingestion_config=config.model_dump(mode="json"),
+            gap_drafter_agent_id=data.gap_drafter_agent_id,
+            gap_classifier_agent_id=data.gap_classifier_agent_id,
             embedding_model=embedding_model,
             embedding_dim=embedding_dim,
             embedding_provider=provider.provider,
@@ -840,6 +889,12 @@ class KnowledgeBaseService:
         ctx: AuthContext,
     ) -> KnowledgeBase:
         kb = await self.get_for_write(kb_id, ctx=ctx)
+        await self._check_system_agents(
+            ctx,
+            data.gap_drafter_agent_id,
+            data.gap_classifier_agent_id,
+            app_scoped=kb.scope == "app",
+        )
         config = (
             None
             if data.ingestion_config is None
@@ -924,9 +979,15 @@ class KnowledgeBaseService:
                 )
             elif data.embedding_provider is not None:
                 await self._check_kept_secret(kb, provider=provider)
+        helpers: dict[Literal["gap_drafter_agent_id", "gap_classifier_agent_id"], UUID | None] = {}
+        if "gap_drafter_agent_id" in data.model_fields_set:
+            helpers["gap_drafter_agent_id"] = data.gap_drafter_agent_id
+        if "gap_classifier_agent_id" in data.model_fields_set:
+            helpers["gap_classifier_agent_id"] = data.gap_classifier_agent_id
         return await knowledge_base_repo.update(
             self.db,
             db_kb=kb,
+            system_agents=helpers,
             name=data.name,
             description=data.description,
             ingestion_config=None if config is None else config.model_dump(mode="json"),
@@ -936,6 +997,25 @@ class KnowledgeBaseService:
             embedding_base_url=wanted_url,
             set_embedding_base_url=url_named,
         )
+
+    async def _check_system_agents(
+        self, ctx: AuthContext, drafter: UUID | None, classifier: UUID | None, *, app_scoped: bool
+    ) -> None:
+        from app.agents.system_agents import KNOWLEDGE_GAP_CLASSIFIER, KNOWLEDGE_GAP_DRAFTER
+        from app.services.system_agent_runner import SystemAgentRunner
+
+        if app_scoped and (drafter is not None or classifier is not None):
+            raise refused_field(
+                "gap_drafter_agent_id" if drafter is not None else "gap_classifier_agent_id",
+                "A deployment-wide knowledge base uses each organization's default helpers; choose custom helpers on an organization knowledge base",
+            )
+        runner = SystemAgentRunner(self.db)
+        for key, selected in (
+            (KNOWLEDGE_GAP_DRAFTER.key, drafter),
+            (KNOWLEDGE_GAP_CLASSIFIER.key, classifier),
+        ):
+            if selected is not None:
+                await runner.require_runnable(ctx, key=key, agent_id=selected)
 
     async def _check_embedding_endpoint(
         self,

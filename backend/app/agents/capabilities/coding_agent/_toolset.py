@@ -29,7 +29,7 @@ from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RequestUsage
-from pydantic_ai.workspaces import WorkspaceError, WorkspaceUnavailableError
+from pydantic_ai.workspaces import Workspace, WorkspaceError, WorkspaceUnavailableError
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.agents.audience import RunAudience
@@ -74,6 +74,8 @@ from app.agents.capabilities.coding_agent._task import (
     run_detached,
     task_files,
 )
+from app.agents.capabilities.sandbox._recording import RecordingWorkspace
+from app.agents.model_context import check_model_context
 from app.core.exceptions import AppException, BadRequestError
 from app.db.session import get_db_context
 from app.services.coding_task_changes import CodingTaskChangeService
@@ -277,6 +279,7 @@ def build_coding_toolset(
                 )
             if not task.strip():
                 return steer(ctx, "Describe the coding task first.")
+            await check_model_context()
             await assert_ambient_budget()
             try:
                 async with personal_executor.session(
@@ -360,6 +363,7 @@ def build_coding_toolset(
                 f"{label} needs a sandbox with a shell, and this agent has none. "
                 "Say so rather than trying again."
             )
+        await check_model_context()
         await assert_ambient_budget()
         narration = Narration.for_call(ctx.deps, ctx.tool_call_id or uuid.uuid4().hex, configured)
         await narration.started(task)
@@ -409,9 +413,11 @@ def build_coding_toolset(
                 "on one. Say that Work on needs to be set to This computer."
             )
         try:
-            root = workspace.subfolder(folder) if folder else await workspace.working_dir()
+            chat_root = await workspace.working_dir()
+            root = workspace.subfolder(folder) if folder else chat_root
         except WorkspaceUnavailableError as outside:
             return steer(ctx, f"{outside}. Choose a folder inside it, or leave `folder` empty.")
+        await check_model_context()
         await assert_ambient_budget()
         narration = Narration.for_call(ctx.deps, ctx.tool_call_id or uuid.uuid4().hex, chosen)
         await narration.started(task)
@@ -439,6 +445,7 @@ def build_coding_toolset(
             root=root if folder else None,
         )
         try:
+            await check_model_context()
             await pipe.open()
             try:
                 with (
@@ -478,6 +485,7 @@ def build_coding_toolset(
             "completed" if report.outcome == "completed" else "failed",
             error=None if report.outcome == "completed" else report.answer[:500],
         )
+        report = _relative_files(report, chat_root)
         return json.dumps(
             {"kind": report.kind, **report.model_dump(mode="json", exclude_defaults=True)}
         )
@@ -558,6 +566,23 @@ def build_coding_toolset(
         *,
         home: str | None,
     ) -> CodingReport | str:
+        workspace = ctx.workspace
+        async with (
+            workspace.task_snapshot()
+            if isinstance(workspace, RecordingWorkspace)
+            else nullcontext()
+        ):
+            return await captured_task(ctx, task, session, fresh_session, narration, home=home)
+
+    async def captured_task(
+        ctx: RunContext[Any],
+        task: str,
+        session: str,
+        fresh_session: bool,
+        narration: Narration,
+        *,
+        home: str | None,
+    ) -> CodingReport | str:
         """The task in this conversation's session, or a new one when that is gone.
 
         Snapshotted before and diffed after when its changes are kept, so the
@@ -574,12 +599,17 @@ def build_coding_toolset(
                     await _changes.discard(ctx, baseline.store)
             raise
         if baseline is None:
-            return report
+            return (
+                await _relative_report(ctx.workspace, report)
+                if isinstance(report, CodingReport)
+                else report
+            )
         if isinstance(report, str):
             await _changes.discard(ctx, baseline.store)
             return report
         # A failed or timed-out task may have changed files too: its diff is kept as well.
-        return await _with_changes(ctx, report, baseline)
+        kept = await _with_changes(ctx, report, baseline)
+        return kept if kept.changes_id is not None else await _relative_report(ctx.workspace, kept)
 
     async def resumed(
         ctx: RunContext[Any],
@@ -731,6 +761,33 @@ def _keeps_changes(deps: object) -> bool:
     )
 
 
+async def _relative_report(workspace: Workspace, report: CodingReport) -> CodingReport:
+    """Keep harness-only paths inside the workspace, relative to its actual root."""
+    if not report.files_changed:
+        return report
+    try:
+        root = await workspace.working_dir()
+    except SANDBOX_FAILURES as failed:
+        # A lost workspace costs this optional list, not the completed task's answer.
+        logger.warning(
+            "A coding task's relative file list is unavailable: %s", type(failed).__name__
+        )
+        return report.model_copy(update={"files_changed": []})
+    return _relative_files(report, root)
+
+
+def _relative_files(report: CodingReport, root: str) -> CodingReport:
+    root = root.rstrip("/")
+    paths: list[str] = []
+    for path in report.files_changed:
+        if path.startswith(root + "/"):
+            path = path[len(root) + 1 :]
+        if path.startswith("/") or ".." in path.split("/"):
+            continue
+        paths.append(path.removeprefix("./"))
+    return report.model_copy(update={"files_changed": list(dict.fromkeys(paths))})
+
+
 async def _with_changes(
     ctx: RunContext[Any],
     report: CodingReport,
@@ -756,6 +813,9 @@ async def _with_changes(
                         conversation_id=ctx.deps.conversation_id,
                         tool_call_id=ctx.tool_call_id,
                         harness=report.harness,
+                        workspace_ref=ctx.workspace.ref,
+                        snapshot_isolated=isinstance(ctx.workspace, RecordingWorkspace)
+                        and ctx.workspace.snapshot_isolated,
                     )
             except SQLAlchemyError as failed:
                 return _unrecorded(ctx, report, failed)
@@ -763,7 +823,9 @@ async def _with_changes(
         # The commit, or a connection lost on the way: no parameters in that
         # error, and the same answer - the diff is lost, the report is not.
         return _unrecorded(ctx, report, failed)
-    return report.model_copy(update={"changes_id": str(kept.id)})
+    return report.model_copy(
+        update={"changes_id": str(kept.id), "files_changed": [file.path for file in changes.files]}
+    )
 
 
 def _unrecorded(ctx: RunContext[Any], report: CodingReport, failed: Exception) -> CodingReport:

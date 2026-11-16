@@ -1,5 +1,7 @@
 "use client";
 
+import { toolLookupName } from "@/lib/tool-identity";
+
 import { createElement, type ReactNode } from "react";
 import { ChevronRight, LoaderCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -23,9 +25,14 @@ export function ToolGroup({
   const runText = useTranslations("pages.runs");
   if (calls.length < 2) return children;
   const finished = calls.every((call) => call.status === "completed");
-  const steps = calls.map((call) => toolStep(call.name, call.args, finished, tTools, mcpServers));
+  const steps = calls.map((call) =>
+    toolStep(call.name, call.args, finished, tTools, mcpServers, call),
+  );
   const labels = [...new Set(steps.map((step) => step.label))];
-  const Icon = toolIcon(calls[0]!.name, steps[0]!.kind);
+  const Icon = toolIcon(
+    steps[0]!.kind === "mcp" ? calls[0]!.name : toolLookupName(calls[0]!),
+    steps[0]!.kind,
+  );
   const running = calls.some((call) => call.status === "running" || call.status === "pending");
   const status = calls.some((call) => call.status === "awaiting_answer")
     ? "awaiting_answer"

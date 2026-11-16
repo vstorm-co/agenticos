@@ -14,7 +14,7 @@ from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, SystemP
 
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
-from app.repositories import conversation_repo
+from app.repositories import conversation_repo, conversation_share_repo
 from app.repositories.conversation import RunOutcome
 from app.schemas.conversation import ToolCallCreate
 from app.services.conversation import ConversationService
@@ -56,6 +56,9 @@ class MockConversation:
         self.organization_id = organization_id or TEST_ORG_ID
         self.is_archived = is_archived
         self.origin = None
+        self.project_id = None
+        self.forked_from_conversation_id = None
+        self.forked_from_message_id = None
         # A row always has these; a stand-in without them passes tests that the
         # real object would fail the moment anything serializes it.
         self.created_at = datetime(2026, 7, 27, tzinfo=UTC)
@@ -63,6 +66,7 @@ class MockConversation:
         self.messages: list[Any] = []
         self.summary_messages: list[dict[str, Any]] | None = None
         self.summary_ordinal: int | None = None
+        self.guardrail_revision = 0
         self.overhead_tokens: int | None = None
         self.reminder_state: dict[str, Any] | None = None
         self.plan_items: list[dict[str, Any]] | None = None
@@ -94,6 +98,7 @@ class MockMessage:
         # Whether a guardrail stopped its turn: a history withholds it (#2578).
         self.guardrail_refused = guardrail_refused
         self.attachment_context = None
+        self.model_content = None
         self.parts: list[dict[str, object]] | None = None
         # Who typed it and what it answers: nobody named, nothing answered.
         self.author_user_id = None
@@ -1703,6 +1708,50 @@ class TestConversationServiceAddMessage:
         )
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize("kind", ["conversation", "local"])
+    async def test_a_runner_file_origin_survives_jsonb_serialization(
+        self, service: ConversationService, kind: str
+    ) -> None:
+        import json
+
+        from app.schemas.conversation import MessageCreate, MessagePart
+
+        conv_id, source_id = uuid4(), uuid4()
+        data = MessageCreate(
+            role="assistant",
+            content="Answer with a file link.",
+            parts=[
+                MessagePart.model_validate(
+                    {
+                        "type": "text",
+                        "text": "Answer with a file link. ",
+                        "file_source": {"kind": kind, "id": str(source_id)},
+                    }
+                )
+            ],
+        )
+        with (
+            patch("app.services.conversation.conversation_repo") as repo,
+            patch("app.services.follow_ups.queue_next_steps"),
+        ):
+            repo.get_conversation_by_id = AsyncMock(return_value=MockConversation(id=conv_id))
+            repo.create_message = AsyncMock(return_value=MockMessage())
+            await service.add_message(conv_id, data, organization_id=TEST_ORG_ID, run_id=uuid4())
+
+        # The same JSON encoder used by the JSONB column must accept the payload.
+        stored = json.loads(json.dumps(repo.create_message.await_args.kwargs["parts"]))
+        assert stored == [
+            {
+                "type": "text",
+                "text": "Answer with a file link. ",
+                "file_source": {"kind": kind, "id": str(source_id)},
+            }
+        ]
+        parsed = MessagePart.model_validate(stored[0])
+        assert parsed.file_source is not None
+        assert parsed.file_source.id == source_id
+
+    @pytest.mark.anyio
     async def test_add_message_to_archived_conversation_raises_bad_request(
         self, service: ConversationService
     ):
@@ -2080,7 +2129,13 @@ class TestSayingATurnWasStopped:
     async def _listed(service: ConversationService, conv_id):
         """Listed as the transcript route lists them - with a reader, so the
         schema-enriching branch runs rather than the raw-row one."""
-        with patch("app.services.conversation.message_rating_repo") as ratings:
+        with (
+            patch("app.services.conversation.message_rating_repo") as ratings,
+            patch(
+                "app.services.conversation.conversation_share_repo.get_share",
+                AsyncMock(return_value=SimpleNamespace(permission="view")),
+            ),
+        ):
             ratings.get_user_ratings_for_messages = AsyncMock(return_value={})
             ratings.get_rating_counts_for_messages = AsyncMock(return_value={})
             items, total, _cost = await service.transcript(
@@ -2129,6 +2184,36 @@ class TestSayingATurnWasStopped:
             items, _total = await self._listed(service, conv_id)
 
         assert items[0].run_status is None
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "stored",
+        [
+            "The run did not finish (ContentFilterError) - retry it",
+            "https://private.example/?api_key=secret",
+        ],
+    )
+    async def test_a_failed_turn_has_a_safe_explanation(self, service: ConversationService, stored):
+        from app.agents.failures import CONTENT_FILTER_SUMMARY
+
+        conv_id, run_id = uuid4(), uuid4()
+        with patch("app.services.conversation.conversation_repo") as repo:
+            repo.get_conversation_by_id = AsyncMock(
+                return_value=MockConversation(id=conv_id, organization_id=TEST_ORG_ID)
+            )
+            repo.favourite_ids = AsyncMock(return_value=set())
+            repo.get_messages_by_conversation = AsyncMock(return_value=[MockMessage(run_id=run_id)])
+            repo.count_messages = AsyncMock(return_value=1)
+            repo.run_outcomes = AsyncMock(
+                return_value={run_id: RunOutcome(status="failed", duration_ms=10_000, error=stored)}
+            )
+            repo.conversation_cost = AsyncMock(return_value=None)
+            items, _total = await self._listed(service, conv_id)
+        assert items[0].run_status == "failed"
+        assert items[0].run_error == (
+            CONTENT_FILTER_SUMMARY if "ContentFilterError" in stored else None
+        )
 
 
 class TestWhatTheThreadCost:
@@ -2219,8 +2304,9 @@ class TestTheThreadAModelIsGivenBack:
 
         assert [part.content for message in history for part in message.parts] == ["hi", "hello"]
 
+    @pytest.mark.parametrize("loader_label", ["Capability", "Skill"])
     async def test_loaded_skills_survive_without_replaying_large_or_failed_tool_results(
-        self, monkeypatch, capability_loads_repo
+        self, monkeypatch, capability_loads_repo, loader_label
     ):
         from pydantic_ai.messages import CapabilityLoadDeltaPart
 
@@ -2234,13 +2320,17 @@ class TestTheThreadAModelIsGivenBack:
             MockToolCall(
                 args={"id": "interview"},
                 result=json.dumps(
-                    {"message": "Capability 'interview' loaded. Its instructions, if any, follow."}
+                    {
+                        "message": f"{loader_label} 'interview' loaded. Its instructions, if any, follow."
+                    }
                 ),
             ),
             MockToolCall(
                 args={"id": "interview"},
                 result=json.dumps(
-                    {"message": "Capability 'interview' loaded. Its instructions, if any, follow."}
+                    {
+                        "message": f"{loader_label} 'interview' loaded. Its instructions, if any, follow."
+                    }
                 ),
             ),
             MockToolCall(args={"id": "missing"}, result="No capability found"),
@@ -2531,7 +2621,9 @@ class TestTheThreadAModelIsGivenBack:
         stored = AsyncMock()
         monkeypatch.setattr(conversation_repo, "set_summary", stored)
 
-        await ConversationService(AsyncMock()).keep_summary(conversation.id, [{"kind": "request"}])
+        await ConversationService(AsyncMock()).keep_summary(
+            conversation.id, [{"kind": "request"}], expected_revision=0
+        )
 
         assert stored.await_args.kwargs["ordinal"] == 9
         assert stored.await_args.kwargs["messages"] == [{"kind": "request"}]
@@ -2545,7 +2637,9 @@ class TestTheThreadAModelIsGivenBack:
         stored = AsyncMock()
         monkeypatch.setattr(conversation_repo, "set_summary", stored)
 
-        await ConversationService(AsyncMock()).keep_summary(uuid4(), [{"kind": "request"}])
+        await ConversationService(AsyncMock()).keep_summary(
+            uuid4(), [{"kind": "request"}], expected_revision=0
+        )
 
         stored.assert_not_awaited()
 
@@ -2901,6 +2995,7 @@ class TestAFavouriteBelongsToTheReader:
         monkeypatch.setattr(
             conversation_repo, "favourite_ids", AsyncMock(return_value={conversation.id})
         )
+        monkeypatch.setattr(conversation_share_repo, "get_share", AsyncMock(return_value=None))
         service = ConversationService(AsyncMock())
         monkeypatch.setattr(service, "_may_read", AsyncMock(return_value=True))
 
@@ -2909,6 +3004,52 @@ class TestAFavouriteBelongsToTheReader:
         )
 
         assert read.is_favourite is True
+
+    @pytest.mark.parametrize(
+        ("share", "permission"), [(None, None), ("view", "view"), ("edit", "edit")]
+    )
+    async def test_a_single_read_says_what_the_readers_share_allows(
+        self, monkeypatch, share, permission
+    ):
+        """A thread opened by link or from a notice is not in the reader's own
+        list, so the read itself has to say whether they may write in it."""
+        conversation = MockConversation(user_id=uuid4())
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(conversation_repo, "favourite_ids", AsyncMock(return_value=set()))
+        monkeypatch.setattr(
+            conversation_share_repo,
+            "get_share",
+            AsyncMock(return_value=None if share is None else MagicMock(permission=share)),
+        )
+        service = ConversationService(AsyncMock())
+        monkeypatch.setattr(service, "_may_read", AsyncMock(return_value=True))
+
+        read = await service.get_conversation(
+            conversation.id, organization_id=TEST_ORG_ID, user_id=uuid4()
+        )
+
+        assert read.share_permission == permission
+
+    @pytest.mark.security
+    async def test_the_owner_reads_no_share_permission(self, monkeypatch):
+        owner = uuid4()
+        conversation = MockConversation(user_id=owner)
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(conversation_repo, "favourite_ids", AsyncMock(return_value=set()))
+        asked = AsyncMock()
+        monkeypatch.setattr(conversation_share_repo, "get_share", asked)
+        service = ConversationService(AsyncMock())
+
+        read = await service.get_conversation(
+            conversation.id, organization_id=TEST_ORG_ID, user_id=owner
+        )
+
+        assert read.share_permission is None
+        asked.assert_not_awaited()
 
     async def test_a_read_that_only_authorizes_asks_for_no_stars(self, monkeypatch):
         """`GET /conversations/{id}/messages` resolves the conversation through
@@ -3054,7 +3195,7 @@ class TestConversationAgentFaces:
         with patch("app.services.conversation.conversation_repo") as repo:
             repo.agents_in_conversations = AsyncMock(return_value={conv.id: [agent]})
             repo.coding_agents_in_conversations = AsyncMock(return_value={})
-            await ConversationService(AsyncMock())._attach_agents([conv])
+            await ConversationService(AsyncMock()).attach_agents([conv])
 
         assert conv.agents[0].avatar_color == 3
 
@@ -3069,7 +3210,7 @@ class TestConversationAgentFaces:
             repo.coding_agents_in_conversations = AsyncMock(
                 return_value={conv.id: ["claude_code", "codex"]}
             )
-            await ConversationService(AsyncMock())._attach_agents([conv])
+            await ConversationService(AsyncMock()).attach_agents([conv])
         assert conv.agents[0].name == "AgenticOS"
         assert conv.coding_agents == ["claude_code", "codex"]
 
@@ -3141,3 +3282,12 @@ async def test_a_caller_cannot_supply_a_turn_file_origin() -> None:
         pytest.raises(BadRequestError),
     ):
         await service.add_message(conversation.id, data, organization_id=TEST_ORG_ID)
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_an_unversioned_summary_cannot_replace_the_guarded_cache(monkeypatch):
+    stored = AsyncMock()
+    monkeypatch.setattr(conversation_repo, "set_summary", stored)
+    await ConversationService(AsyncMock()).keep_summary(uuid4(), [], expected_revision=None)
+    stored.assert_not_awaited()

@@ -58,6 +58,21 @@ export interface Conversation {
   /** When the run still at work in it began; null when none is. Listings only. */
   running_since?: string | null;
   running_run_ids?: string[];
+  /**
+   * The conversation this one was forked from (#2762). Only ever set for a caller
+   * who owns both, so a fork shared with somebody else does not name its source.
+   */
+  forked_from?: ConversationForkOrigin | null;
+  /** On the shared-with-me listing: whether the caller may only read it, or write in it too. */
+  share_permission?: "view" | "edit" | null;
+}
+
+/** Where a fork came from: the source conversation and the answer it was forked at. */
+export interface ConversationForkOrigin {
+  conversation_id: string;
+  /** Null once that answer is gone. */
+  message_id: string | null;
+  title: string | null;
 }
 
 /** One of a project's chats, with the people around it - a project's chats are its members'. */
@@ -124,6 +139,8 @@ export interface ConversationMessage {
    * one, so without this the reader believes the agent said all it had to say.
    */
   run_status?: string | null;
+  /** Safe failure explanation, never the provider response body. */
+  run_error?: string | null;
   run_started_at?: string | null;
   run_duration_ms?: number | null;
   /** Which configured agent answered. Null for the general assistant. */
@@ -135,6 +152,8 @@ export interface ConversationMessage {
 }
 
 export interface ConversationToolCall {
+  tool_id?: string | null;
+  presentation_kind?: "draft" | "generic" | "platform" | null;
   id: string;
   message_id: string;
   tool_call_id: string;

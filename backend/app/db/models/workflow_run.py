@@ -91,7 +91,7 @@ class WorkflowRunStatus(enum.StrEnum):
     a fork, or inside a `foreach` body - so a live run's status is derived from
     its live nodes by `run_status.derive_status`, never written by one node's
     transition alone: the most severe of them, ranked `needs_attention` >
-    `waiting_approval` > `waiting_retry` > `running`. The ending statuses
+    `waiting_for_user` > `waiting_approval` > `waiting_retry` > `running`. The ending statuses
     (`budget_exceeded`, `failed`, `cancelled`, `succeeded`) are written by the
     paths that end a run.
     """
@@ -99,6 +99,7 @@ class WorkflowRunStatus(enum.StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
     WAITING_APPROVAL = "waiting_approval"
+    WAITING_FOR_USER = "waiting_for_user"
     WAITING_RETRY = "waiting_retry"
     NEEDS_ATTENTION = "needs_attention"
     BUDGET_EXCEEDED = "budget_exceeded"
@@ -129,6 +130,7 @@ class WaitingReason(enum.StrEnum):
     """
 
     APPROVAL = "approval"
+    QUESTION = "question"
     EXTERNAL_EVENT = "external_event"
     RETRY_BACKOFF = "retry_backoff"
     TIMER = "timer"
@@ -364,6 +366,23 @@ class WorkflowRun(Base, TimestampMixin):
         ForeignKey("conversations.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Refusal provenance survives retries and called workflows without giving
+    # either a delivery destination or access to the source chat's workspace.
+    has_chat_source: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    source_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    source_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("messages.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     # The page a member started this run from (`triggered_by = 'app'`) and the
     # version of it they were looking at: a number, not a key, as the version may
     # be pruned later. Null for every run a page did not start.
@@ -386,7 +405,7 @@ class WorkflowRun(Base, TimestampMixin):
         ),
         CheckConstraint("mode IN ('real', 'test')", name="ck_workflow_run_mode"),
         CheckConstraint(
-            "status IN ('queued', 'running', 'waiting_approval', 'waiting_retry', "
+            "status IN ('queued', 'running', 'waiting_approval', 'waiting_for_user', 'waiting_retry', "
             "'needs_attention', 'budget_exceeded', 'cancelled', 'failed', 'succeeded')",
             name="ck_workflow_run_status",
         ),
@@ -398,7 +417,7 @@ class WorkflowRun(Base, TimestampMixin):
         ),
         CheckConstraint(
             "paused_reason IS NULL OR paused_reason IN "
-            "('approval', 'external_event', 'retry_backoff', 'timer')",
+            "('approval', 'question', 'external_event', 'retry_backoff', 'timer')",
             name="ck_workflow_run_paused_reason",
         ),
         CheckConstraint("spent_cost >= 0", name="ck_workflow_run_spent_cost"),
@@ -479,7 +498,7 @@ class NodeRun(Base, TimestampMixin):
         ),
         CheckConstraint(
             "waiting_reason IS NULL OR waiting_reason IN "
-            "('approval', 'external_event', 'retry_backoff', 'timer')",
+            "('approval', 'question', 'external_event', 'retry_backoff', 'timer')",
             name="ck_node_run_waiting_reason",
         ),
     )
@@ -510,6 +529,14 @@ class NodeAttempt(Base, TimestampMixin):
         nullable=False,
     )
     attempt_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Ownership survives a cancelled step clearing its waiting link, so orphan
+    # reconciliation can still book the child run's known spend.
+    agent_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     # Stable across attempts of the same logical operation, distinct across
     # loop iterations - see `dispatcher.py` for the exact format.
     idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)

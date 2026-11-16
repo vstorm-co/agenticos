@@ -13,11 +13,14 @@ import {
   ORG_MEMBERS,
   ORG_ROLES,
   SETTINGS_DETAIL,
+  SKILL_DETAIL,
   TABLE_DETAIL,
   WORKFLOW_LOGS_DETAIL,
   WORKFLOW_RUNS_DETAIL,
+  WORKFLOW_RUN_DETAIL,
   WORKSPACE_DETAIL,
 } from "@/lib/onboarding/tour";
+import { PAGE_SIZE } from "@/components/ui";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 
@@ -66,12 +69,25 @@ describe("useDetailTargets", () => {
       // Reading these as `{ items }` (the bug) throws on `.items.find`.
       client.setQueryData(qk.kb.list(), [{ id: "kb-1", is_default: true }]);
       client.setQueryData(qk.organizations.list(), [{ id: "org-1", is_personal: true }]);
+      // `SkillList` object, under the key the Skills list's first page reads.
+      client.setQueryData(
+        qk.skills.list({
+          search: "",
+          category: "",
+          sort: "name",
+          skip: 0,
+          limit: PAGE_SIZE,
+          groupId: "",
+        }),
+        { items: [{ id: "skill-1" }], total: 1 },
+      );
     });
 
     const { result } = renderHook(() => useDetailTargets(true), { wrapper });
 
     expect(result.current[AGENT_BUILDER]?.href).toBe("/agents/agent-1");
     expect(result.current[KB_DETAIL]?.href).toBe("/rag/kb-1");
+    expect(result.current[SKILL_DETAIL]?.href).toBe("/skills/skill-1");
     expect(result.current[ORG_MEMBERS]?.href).toBe("/orgs/org-1/members");
     expect(result.current[ORG_ROLES]?.href).toBe("/orgs/org-1/roles");
     expect(result.current[ORG_GROUPS]?.href).toBe("/orgs/org-1/groups");
@@ -82,6 +98,7 @@ describe("useDetailTargets", () => {
     expect(result.current[SETTINGS_DETAIL]).toEqual({ pending: false, href: "/settings/profile" });
     expect(result.current[WORKSPACE_DETAIL]).toEqual({ pending: false, href: null });
     expect(result.current[TABLE_DETAIL]).toEqual({ pending: false, href: null });
+    expect(result.current[WORKFLOW_RUN_DETAIL]).toEqual({ pending: false, href: null });
     expect(result.current[WORKFLOW_RUNS_DETAIL]).toEqual({ pending: false, href: null });
     expect(result.current[WORKFLOW_LOGS_DETAIL]).toEqual({ pending: false, href: null });
     expect(result.current[ARTIFACT_DETAIL]).toEqual({ pending: false, href: null });

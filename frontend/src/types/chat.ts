@@ -25,6 +25,8 @@ export interface ChatMessageFile {
  */
 export interface QueuedMessage {
   id: string;
+  /** A continuation keeps its requesting agent; undefined follows the current picker. */
+  agentId?: string | null;
   content: string;
   fileIds?: string[];
   files?: ChatMessageFile[];
@@ -69,9 +71,14 @@ export interface ChatMessage {
   timestamp: Date;
   toolCalls?: ToolCall[];
   isStreaming?: boolean;
+  /** Local reveal for a newly received setup reply; absent from loaded history. */
+  animateSetupReply?: boolean;
   /** Run-level pause, including gated delegate tools absent from this message. */
   runWaitingFor?: "approval" | "answer";
   runStartedAt?: Date;
+  runFailed?: boolean;
+  /** Safe run failure explanation, shown separately from the assistant's words. */
+  runError?: string;
   /** Group ID for related messages in a multi-agent chain. */
   groupId?: string;
   /** IDs of attached files - kept for sending. Use `files` for rendering. */
@@ -162,7 +169,8 @@ export interface ChatMessage {
 }
 
 export interface ToolCall {
-  presentation_kind?: "draft" | null;
+  tool_id?: string | null;
+  presentation_kind?: "draft" | "generic" | "platform" | null;
   id: string;
   name: string;
   args: Record<string, unknown>;
@@ -192,7 +200,14 @@ export interface ToolCall {
 
 /** The kinds of segment a turn is built from, live and replayed alike. */
 export type MessagePartType =
-  "thinking" | "text" | "tool" | "ask_user" | "steer" | "workflow_run" | "phone_call";
+  | "thinking"
+  | "text"
+  | "tool"
+  | "ask_user"
+  | "steer"
+  | "workflow_run"
+  | "phone_call"
+  | "model_setup";
 
 /** A workflow answering a chat turn: which run it is and where it stands. */
 export interface WorkflowRunPart {
@@ -207,6 +222,7 @@ export interface WorkflowRunPart {
 
 /** One ordered segment of an assistant turn. */
 export interface MessagePart {
+  setupAgentId?: string;
   id: string;
   type: MessagePartType;
   /** Text for "thinking"/"text" parts, and what the person added for a "steer" (#2087). */
@@ -278,6 +294,7 @@ export type WSEventType =
   | "next_steps"
   | "user_prompt"
   | "session_ready"
+  | "model_setup_required"
   | "model_request_start"
   | "text_delta"
   | "thinking_delta"
@@ -296,6 +313,7 @@ export type WSEventType =
   | "steer_applied"
   | "steer_unapplied"
   | "connect_account"
+  | "computer_access"
   | "compaction_started"
   | "compaction_finished"
   | "compaction_impossible"
@@ -514,6 +532,10 @@ export interface ActionRequest {
   context?: Record<string, string> | null;
   /** Which of a service's accounts the call acts as, where its binding names one. */
   account?: string | null;
+  /** What the call quotes from its run was left out, because this person may not see the run. */
+  content_hidden?: boolean;
+  /** Only a person's answer could let the call run; with `content_hidden`, only Reject is offered. */
+  always_asks?: boolean;
 }
 
 export interface ReviewConfig {
@@ -857,6 +879,19 @@ export interface PersonalServiceGap {
  * up front; answered with `connect_account_response`. Never "nobody to speak
  * as" - a run with nobody signed in cannot wait for anybody.
  */
+/**
+ * A run paused on `computer_access`: an agent that works on this computer needs
+ * its files, and waits while the person chooses a folder or the whole computer.
+ * Answered with `computer_access_response`.
+ */
+export interface ComputerAccessRequest {
+  reason: string;
+  /** A local coding delegate also needs full computer access. */
+  coding?: boolean;
+  /** The requesting turn's agent, including when the picker changes while it runs. */
+  agent_id?: string | null;
+}
+
 export interface ConnectionRequest {
   catalog_key: string;
   name: string;

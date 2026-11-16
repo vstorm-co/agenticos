@@ -122,6 +122,7 @@ _NATIVE_DESTINATIONS = {
 
 OUTBOUND_CAPABILITIES: dict[str, str] = {
     **{product.id: _NATIVE_DESTINATIONS[product.provider] for product in PRODUCTS.values()},
+    "channel_actions": "the chat platforms of explicitly enabled bot bindings and their authorized channels",
     "phone_calls": "the configured telephony provider and explicitly consented recipients",
     # The pages it opens are the destination a reviewer has to know about. What
     # each step sends the model - the page's address, element labels and an

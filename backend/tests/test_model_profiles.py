@@ -36,6 +36,7 @@ from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     InUseError,
     NotFoundError,
 )
@@ -64,6 +65,8 @@ from app.services.model_profile import (
     validate_endpoint_url,
 )
 from app.services.openai_codex import VaultCodexCredentials
+
+_LIVE_EVALS = "app.services.model_profile.eval_run_repo.count_live_with_model"
 
 
 def _ctx(org_id=None) -> AuthContext:
@@ -355,10 +358,14 @@ class TestProviderCatalog:
         """
         assert PROVIDERS[provider_id].default_api(base_url) == expected
 
-    def test_only_the_openai_apis_offer_a_choice(self):
+    def test_generation_and_native_decision_apis_are_explicit_choices(self):
         offering = {spec.id: spec.apis for spec in PROVIDERS.values() if spec.apis}
         assert offering == {
-            "openai": ("responses", "chat"),
+            "openai": ("responses", "chat", "decisions"),
+            "google": ("chat", "decisions"),
+            "openrouter": ("chat", "decisions"),
+            "typesafe": ("decisions",),
+            "system-one": ("decisions",),
             "azure": ("responses", "chat"),
             "stav": ("responses", "chat"),
         }
@@ -563,6 +570,7 @@ class TestProfileCreation:
             ) as get,
             patch("app.services.model_profile.credential_repo.delete_profile") as delete,
             patch("app.services.model_profile.record_audit", new=AsyncMock()) as audit,
+            patch(_LIVE_EVALS, new=AsyncMock(return_value=0)),
             pytest.raises(NotFoundError) as refused,
         ):
             ctx = _ctx()
@@ -596,6 +604,7 @@ class TestProfileCreation:
                 new=AsyncMock(),
             ) as stop,
             patch("app.services.model_profile.record_audit", new=AsyncMock()) as audit,
+            patch(_LIVE_EVALS, new=AsyncMock(return_value=0)),
         ):
             await ModelProfileService(_db()).delete_profile(ctx, profile.id)
 
@@ -1086,6 +1095,30 @@ class TestAProfileWithoutAKey:
         if not secret:
             profile.secret_id = None
         assert usable_for_agents(profile) is usable
+
+    @pytest.mark.anyio
+    async def test_a_profile_a_live_eval_runs_on_is_kept(self):
+        """Its remaining cases would otherwise answer on another model than the first."""
+        ctx = _ctx()
+        profile = _profile(ctx)
+        with (
+            patch(
+                "app.services.model_profile.credential_repo.get_profile",
+                new=AsyncMock(return_value=profile),
+            ),
+            patch(
+                "app.services.model_profile.agent_repo.naming_model_profile",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.services.model_profile.credential_repo.delete_profile", new=AsyncMock()
+            ) as delete,
+            patch(_LIVE_EVALS, new=AsyncMock(return_value=2)),
+            pytest.raises(ConcurrentChangeError, match="2 eval run"),
+        ):
+            await ModelProfileService(_db()).delete_profile(ctx, profile.id)
+
+        delete.assert_not_awaited()
 
     @pytest.mark.parametrize(
         ("provider", "model", "secret", "sign_in", "choosable"),
@@ -2110,7 +2143,7 @@ class TestTheWindowAModelAccepts:
                 region=sent,
             )
         catalog.assert_awaited_once_with(
-            "stav", api_key="sk_stav_profile", base_url="https://staging-api.stav.ai/v1"
+            "stav", api_key="sk_stav_profile", base_url="https://staging-api.stav.ai/v1", api="chat"
         )
         assert profile_key.await_args.kwargs == {"secret_id": secret_id}
         assert create.call_args.kwargs["context_length"] == 128_000
@@ -2336,7 +2369,9 @@ async def test_otari_creation_metadata_uses_the_selected_key(endpoint: str | Non
             base_url=endpoint,
         )
     selected_key.assert_awaited_once_with(ctx, "otari", secret_id=secret_id)
-    catalog.assert_awaited_once_with("otari", api_key="otari-selected-test", base_url=endpoint)
+    catalog.assert_awaited_once_with(
+        "otari", api_key="otari-selected-test", base_url=endpoint, api=None
+    )
     assert create.call_args.kwargs["context_length"] == 200_000
 
 
@@ -2423,3 +2458,114 @@ async def test_otari_profile_destination_cannot_be_cleared() -> None:
         await ModelProfileService(_db()).update_profile(
             ctx, row.id, ModelProfileUpdate(base_url=None)
         )
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "provider,model,base_url",
+    [
+        ("openai", "gpt-6-luna", None),
+        ("google", "gemini-decision-1", None),
+        ("typesafe", "jev-1.14.0", None),
+        ("openrouter", "typesafe/jev-1.14", None),
+        ("system-one", "local-decision", "http://localhost:11434"),
+    ],
+)
+async def test_native_decision_profiles_construct_the_explicit_transport(provider, model, base_url):
+    from pydantic_ai.models.decision import DecisionModel
+
+    credential = ResolvedCredential(
+        provider=provider,
+        secret=ApiKeySecret(api_key="test-not-a-key"),
+        api="decisions",
+        base_url=base_url,
+    )
+    built = build_model(credential, model)
+    async with built:
+        assert isinstance(built, DecisionModel)
+        assert built.model_name == model
+        if provider == "openrouter":
+            assert "openrouter.ai/api/v1" in built.base_url
+        if base_url is not None:
+            assert built.base_url.startswith(base_url)
+
+
+@pytest.mark.anyio
+async def test_a_decision_profile_cannot_be_used_as_an_ordinary_chat_model_or_default():
+    from app.services.model_profile import usable_for_agents
+
+    ctx = _ctx()
+    profile = _profile(ctx, api="decisions", model="gpt-6-luna")
+    assert not usable_for_agents(profile)
+    service = ModelProfileService(_db())
+    with (
+        patch.object(service, "profile_for_organization", new=AsyncMock(return_value=profile)),
+        pytest.raises(BadRequestError, match="serves decisions"),
+    ):
+        await service.resolve(ctx, profile_id=profile.id)
+
+
+@pytest.mark.anyio
+async def test_a_native_decision_cannot_silently_change_to_a_fallback_model():
+    ctx = _ctx()
+    profile = _profile(ctx, api="decisions", model="gpt-6-luna", fallbacks=[uuid.uuid4()])
+    service = ModelProfileService(_db())
+    with (
+        patch.object(service, "profile_for_organization", new=AsyncMock(return_value=profile)),
+        patch.object(
+            service,
+            "resolve_credential",
+            new=AsyncMock(
+                return_value=ResolvedCredential(
+                    provider="openai",
+                    secret=ApiKeySecret(api_key="test-not-a-key"),
+                    api="decisions",
+                )
+            ),
+        ),
+        pytest.raises(BadRequestError, match="cannot switch models"),
+    ):
+        await service.resolve(ctx, profile_id=profile.id, decision=True)
+
+
+@pytest.mark.anyio
+async def test_decision_profile_creation_and_conversion_refuse_existing_fallbacks():
+    service = ModelProfileService(_db())
+    ctx = _ctx()
+    with pytest.raises(BadRequestError, match="automatic fallbacks"):
+        await service.create_profile(
+            ctx,
+            label="Classifier",
+            provider="openai",
+            model="gpt-6-luna",
+            secret_id=uuid.uuid4(),
+            api="decisions",
+            fallback_profile_ids=[uuid.uuid4()],
+        )
+    profile = _profile(ctx, fallbacks=[uuid.uuid4()])
+    with (
+        patch.object(service, "_get_profile", AsyncMock(return_value=profile)),
+        pytest.raises(BadRequestError, match="fallbacks"),
+    ):
+        await service.update_profile(ctx, profile.id, ModelProfileUpdate(api="decisions"))
+
+
+def test_decision_transports_refuse_credentials_for_another_authentication_protocol():
+    from app.agents.model_resolver import _build_decision_model
+
+    with pytest.raises(BadRequestError, match="requires an API key"):
+        _build_decision_model(
+            ResolvedCredential(provider="system-one", secret=codex_secret()), "classifier"
+        )
+    with pytest.raises(BadRequestError, match="supported decision API"):
+        _build_decision_model(
+            ResolvedCredential(provider="anthropic", secret=ApiKeySecret(api_key="test-not-a-key")),
+            "classifier",
+        )
+
+
+def test_decision_only_and_google_gateway_defaults_name_their_supported_api():
+    assert PROVIDERS["typesafe"].default_api(None) == "decisions"
+    assert PROVIDERS["system-one"].default_api("http://localhost:1234") == "decisions"
+    assert PROVIDERS["google"].default_api("http://localhost:1234") == "chat"
+    assert PROVIDERS["openrouter"].default_api(None) == "chat"

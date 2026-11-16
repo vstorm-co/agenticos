@@ -1,5 +1,7 @@
 "use client";
 
+import { CatalogLoading } from "@/components/states/catalog-loading";
+
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -27,10 +29,10 @@ import {
   SelectTrigger,
   SelectValue,
   SearchInput,
-  Skeleton,
 } from "@/components/ui";
-import { useAgentCeiling, useAgents, usePermissions } from "@/hooks";
+import { useAgentAttention, useAgentCeiling, useAgents, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import { resolvePreset } from "@/lib/dashboard/period";
 import { Perm } from "@/types/permissions";
 import type { Agent, AgentStatus } from "@/types/agents";
 import { useTranslations } from "next-intl";
@@ -119,6 +121,13 @@ export default function AgentsPage() {
   const { ceiling, known: ceilingKnown } = useAgentCeiling({ enabled: canEdit });
   const atLimit = isAtAgentLimit(ceiling);
   const tLimit = useTranslations("agentLimit");
+  // Which agents need a look over the last thirty days - read only by whoever may see runs.
+  const lately = resolvePreset("30d");
+  const { agents: needingAttention } = useAgentAttention(
+    { from: lately.from, to: lately.to },
+    { enabled: can(Perm.runsView) },
+  );
+  const attention = new Map(needingAttention.map((item) => [item.agent_id, item]));
 
   // Any narrowing at all - the client status/text filters and the server facet.
   // A zero-match facet returns an empty page, so this is what tells "no agent
@@ -161,42 +170,48 @@ export default function AgentsPage() {
         placeholder={t("searchAgents2")}
         className="min-w-0 flex-1 sm:flex-none"
       />
-      <ListFilters compact active={Number(filter !== "all") + categories.length + tags.length}>
-        <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center max-sm:[&>button]:w-full max-sm:[&>button]:justify-between">
-          <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
-            <SelectTrigger size="sm" className="w-32 sm:w-36" aria-label={t("filterByStatus")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {FILTERS.map((entry) => (
-                <SelectItem key={entry.value} value={entry.value}>
-                  {entry.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <LabelFilter
-            options={categoryOptions}
-            selected={categories}
-            onChange={setCategories}
-            ariaLabel={t("filterByCategory")}
-            allLabel={t("allCategories")}
-            countLabel={(count) => t("categoryCount", { count })}
-            clearLabel={t("clearFilter")}
-            max={MAX_AGENT_CATEGORIES}
-          />
-          <LabelFilter
-            options={tagOptions}
-            selected={tags}
-            onChange={setTags}
-            ariaLabel={t("filterByTag")}
-            allLabel={t("allTags")}
-            countLabel={(count) => t("tagCount", { count })}
-            clearLabel={t("clearFilter")}
-            max={MAX_AGENT_TAGS}
-          />
-        </div>
-      </ListFilters>
+
+      <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
+        <SelectTrigger size="sm" className="w-32 sm:w-36" aria-label={t("filterByStatus")}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {FILTERS.map((entry) => (
+            <SelectItem key={entry.value} value={entry.value}>
+              {entry.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {(categoryOptions.length > 0 ||
+        tagOptions.length > 0 ||
+        categories.length > 0 ||
+        tags.length > 0) && (
+        <ListFilters compact active={categories.length + tags.length}>
+          <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center max-sm:[&>button]:w-full max-sm:[&>button]:justify-between">
+            <LabelFilter
+              options={categoryOptions}
+              selected={categories}
+              onChange={setCategories}
+              ariaLabel={t("filterByCategory")}
+              allLabel={t("allCategories")}
+              countLabel={(count) => t("categoryCount", { count })}
+              clearLabel={t("clearFilter")}
+              max={MAX_AGENT_CATEGORIES}
+            />
+            <LabelFilter
+              options={tagOptions}
+              selected={tags}
+              onChange={setTags}
+              ariaLabel={t("filterByTag")}
+              allLabel={t("allTags")}
+              countLabel={(count) => t("tagCount", { count })}
+              clearLabel={t("clearFilter")}
+              max={MAX_AGENT_TAGS}
+            />
+          </div>
+        </ListFilters>
+      )}
     </div>
   );
 
@@ -243,25 +258,13 @@ export default function AgentsPage() {
           render inside the same frame. */}
       {isLoading ? (
         <AgentsCard visible={null} total={0} controls={galleryControls}>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {[0, 1, 2].map((row) => (
-              <div key={row} className="border-border rounded-xl border p-4">
-                <div className="flex items-start gap-3">
-                  <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <Skeleton className="h-4 w-32" />
-                    <Skeleton className="h-3 w-24" />
-                    <Skeleton className="h-3 w-full" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <CatalogLoading kind="agent" />
         </AgentsCard>
       ) : (
         <AgentsCard visible={visible.length} total={total} controls={galleryControls}>
           {visible.length === 0 ? (
             <ListCardEmpty
+              onClearFilters={filtersActive ? clearFilters : undefined}
               icon={Bot}
               title={filtersActive ? t("nothingMatches") : t("noAgentsYet")}
               description={
@@ -301,6 +304,7 @@ export default function AgentsPage() {
                   key={agent.id}
                   agent={agent}
                   canEdit={canEdit}
+                  attention={attention.get(agent.id)}
                   busy={busyId === agent.id}
                   actions={{
                     onDuplicate: () =>

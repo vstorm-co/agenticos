@@ -376,10 +376,10 @@ describe("WatchDialog", () => {
     expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
   });
 
-  it("closes on Cancel", async () => {
+  it.each(["Cancel", "Close"])("closes on %s", async (action) => {
     const onOpenChange = vi.fn();
     render(<WatchDialog agentId="a-monitor" open onOpenChange={onOpenChange} watch={watch()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(screen.getByRole("button", { name: action }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });
@@ -509,4 +509,29 @@ it("saves the chosen native business area for a new watch", async () => {
       integration_product_id: "odoo_inventory",
     }),
   );
+});
+
+it("keeps an edited watch open while saving and retains a refused draft", async () => {
+  let reject!: (reason: Error) => void;
+  state.update.mockImplementationOnce(
+    () =>
+      new Promise((_resolve, refuse) => {
+        reject = refuse;
+      }),
+  );
+  const onOpenChange = vi.fn();
+  render(<WatchDialog open watch={watch()} onOpenChange={onOpenChange} />);
+  await userEvent.clear(screen.getByLabelText("Name"));
+  await userEvent.type(screen.getByLabelText("Name"), "Customer reviews");
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(state.update).toHaveBeenCalled());
+  expect(screen.getByLabelText("Name")).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  await userEvent.keyboard("{Escape}");
+  expect(onOpenChange).not.toHaveBeenCalled();
+  reject(new Error("Controlled watch refusal"));
+  await waitFor(() => expect(screen.getByLabelText("Name")).toBeEnabled());
+  expect(screen.getByLabelText("Name")).toHaveValue("Customer reviews");
+  expect(onOpenChange).not.toHaveBeenCalled();
 });

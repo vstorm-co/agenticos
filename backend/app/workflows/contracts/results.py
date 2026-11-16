@@ -56,7 +56,7 @@ class Waiting(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     status: Literal["waiting"] = "waiting"
-    reason: Literal["approval", "external_event", "retry_backoff", "timer"]
+    reason: Literal["approval", "question", "external_event", "retry_backoff", "timer"]
     resume_token: str
     resume_at: datetime | None = None
     """When a `timer` wait comes due; the dispatcher wakes the step then."""

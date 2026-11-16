@@ -26,6 +26,7 @@ from pydantic_ai.messages import ModelMessage, ModelRequest, SystemPromptPart
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
 
+from app.agents.approval import ApprovalRequest
 from app.agents.capabilities.budget import (
     BudgetExceeded,
     BudgetScope,
@@ -49,7 +50,13 @@ from app.services.agent_chat import (
     requested_model_profile_id,
     requested_testing,
 )
-from app.services.agent_runner import AgentRunnerService, PersonalServiceGap, PreparedRun
+from app.services.agent_runner import (
+    AgentRunnerService,
+    ApprovalChannel,
+    PersonalServiceGap,
+    PreparedRun,
+)
+from app.services.message_history import ModelHistory
 
 pytestmark = pytest.mark.anyio
 
@@ -255,13 +262,14 @@ async def _run(
     request_connection: Any = None,
     steering: Any = None,
     on_sandbox_wait: Any = None,
+    history: list[ModelMessage] | None = None,
 ):
     return await ChatAgentRunner(db).run(
         user=user or _user(),
         organization_id=organization_id or uuid.uuid4(),
         agent_id=agent_id or uuid.uuid4(),
         user_input=user_input,
-        message_history=[],
+        message_history=[] if history is None else history,
         conversation_id=conversation_id,
         prompt_message_id=prompt_message_id,
         on_run_open=on_run_open,
@@ -294,11 +302,17 @@ class TestKeepingASummary:
             )
         )
 
+        db = _db()
+        db.scalar = AsyncMock(return_value=7)
         with _runner(prepared):
-            turn = await _run(_db())
+            turn = await _run(
+                db, conversation_id=uuid.uuid4(), history=ModelHistory([], revision=7)
+            )
 
         assert turn.summarized_history is not None
         assert turn.summarized_history[0]["parts"][0]["content"] == "Summary: …"
+
+        assert turn.history_revision == 7
 
     async def test_an_agent_bound_to_media_offload_stores_the_offloaded_history(self):
         """The one place media piles up is this blob, so the capability that
@@ -1352,3 +1366,48 @@ def test_a_chat_frame_preserves_every_native_grant() -> None:
     assert result is not None
     assert result.folder == "/work" and result.model_service == "model"
     assert result.mcp_services == ["files"] and result.browser
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("remembered", [False, True])
+@pytest.mark.parametrize("pending", [False, True])
+async def test_chat_exposes_only_pending_approvals_after_automatic_consent(
+    remembered: bool, pending: bool
+) -> None:
+    """Approved audit entries must never become actionable WebSocket prompts (#2994)."""
+    prepared = _prepared(DeferredToolRequests() if pending else "done")
+    user_id = uuid.uuid4()
+    approvals = ApprovalChannel(
+        organization_id=uuid.uuid4(), agent_id=uuid.uuid4(), run_id=prepared.run.id
+    )
+    if remembered:
+        approvals.tool_consent = AsyncMock(return_value=user_id)
+    else:
+        approvals.standing_consent_by = user_id
+    prepared.approvals = approvals
+    await approvals(
+        ApprovalRequest(
+            capability_id=None,
+            tool_name="agenticos_run_agent",
+            tool_call_id="granted",
+            tool_args={},
+        )
+    )
+    if pending:
+        await approvals(
+            ApprovalRequest(
+                capability_id=None,
+                tool_name="must_ask",
+                tool_call_id="pending",
+                tool_args={},
+                always_asks=True,
+            )
+        )
+    with _runner(prepared):
+        turn = await _run(_db())
+    assert [entry.tool_call_id for entry in turn.parked] == (["pending"] if pending else [])
+    assert [entry.tool_call_id for entry in approvals.requested] == (
+        ["granted", "pending"] if pending else ["granted"]
+    )
+    assert approvals.requested[0].standing
+    assert approvals.requested[0].tool_consented_by == user_id

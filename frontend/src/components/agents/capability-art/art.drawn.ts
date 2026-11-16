@@ -25,6 +25,7 @@ export const DRAWN_HUE: Readonly<Record<string, number>> = {
   teams: 220,
   slack: 220,
 
+  channel_actions: 220,
   visuals: 140,
   background_tools: 222,
   background_tasks: 222,
@@ -316,11 +317,24 @@ const PHONE_CALLS =
   '<path class="ln w2" d="M16 15L24 12L30 25L25 30Q29 40 39 45L44 40L56 47L53 55Q31 60 16 32Z"/>' +
   '<path class="ln w2 breathe" d="M12 63H20L24 58L29 69L35 59L40 65H52"/></g></svg>';
 
+/** Connected chat apps: two conversations linked above the shared work surface. */
+const CHANNEL_ACTIONS =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<polygon class="ict" points="120,33.1 195.7,76.8 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icl" points="44.3,82 120,125.7 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icr" points="195.7,82 120,125.7 120,120.5 195.7,76.8"/>' +
+  '<g transform="matrix(0.9 0.5 0 1 67 12)"><rect class="int" width="46" height="34" rx="6"/>' +
+  '<path class="ln w2" d="M10 12H35M10 20H26M9 34V42L20 34M48 24L69 36"/>' +
+  '<rect class="int" x="68" y="22" width="46" height="34" rx="6"/>' +
+  '<path class="ln w2" d="M78 34H103M78 42H94M103 56V64L92 56"/></g></svg>';
+
 /** Connected products share the console's account-and-operation scene. */
 const INTEGRATION =
   '<svg viewBox="0 0 240 135" aria-hidden="true"><polygon class="ishb" points="120,46 196,90 120,134 44,90"/><polygon class="ict" points="120,33 196,77 120,121 44,77"/><rect class="int" x="65" y="24" width="45" height="57" rx="5"/><path class="igrid2" d="M75 39H100M75 49H100M75 59H94"/><rect class="inr" x="139" y="46" width="38" height="42" rx="5"/><path class="ln w2 draw" d="M110 55H139M132 49L139 55L132 61"/></svg>';
 
 export const DRAWN_ART: Readonly<Record<string, string>> = {
+  channel_actions: CHANNEL_ACTIONS,
   word: INTEGRATION,
   imap_mail: INTEGRATION,
   odoo_contacts: INTEGRATION,

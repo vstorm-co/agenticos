@@ -17,7 +17,7 @@ through the workflow: viewing and running map to `workflows:view` and
 `workflows:run`, and any change is refused, because the step owns the spec.
 
 `max_cost_usd` is a ceiling on one execution, a `BudgetScope.RUN` limit metered on
-the run's own ledger and carried across an approval park.
+the run's own ledger and carried across approval and question waits.
 
 ## Ports
 
@@ -45,6 +45,26 @@ When the agent stops on an approval-gated tool, the step waits (the run shows
 continues **the same** agent run, so the decision applies to the call that was
 shown. The prompt is never sent to a fresh run.
 
+## Questions
+
+An agent with the `ask_user` capability can call the existing Ask Question tool.
+Its step parks with `waiting_reason="question"` and the workflow reports
+`waiting_for_user`. The person the workflow runs as sees the question in the
+run details or its chat card. Public-origin runs have no person to ask.
+
+Submitting an answer saves its tool result and queues the same step in one
+transaction. Dispatch rechecks the workflow's permissions, deadline and budget,
+then resumes the same agent conversation. The agent can ask again before
+returning its final output. Duplicate identical answers queue one continuation;
+answers naming a previous question cannot answer a later one.
+
+The owning step is linked before the first model call. If the process dies
+after the child parks but before the step settles, reconciliation restores
+that wait and records only cost not already booked. A lost wake is recovered
+from saved answers. Other interrupted effects retain `needs_attention` rather
+than being replayed. Cancelling the workflow closes parked questions, and an
+expired question wakes the step to collect the child's failure.
+
 ## Structured answers
 
 An agent with an **Answer format** of its own hands its object on as
@@ -63,6 +83,7 @@ sees an answer of the wrong shape.
 |---|---|
 | Completed | `Completed` |
 | Awaiting approval | Waits, then resumes the same run |
+| Awaiting answer | Waits for its person, then resumes the same run |
 | Budget exceeded | `AGENT_BUDGET_EXCEEDED` |
 | Guardrail blocked | `AGENT_GUARDRAIL_BLOCKED` |
 | Anything else | `AGENT_RUN_FAILED` |

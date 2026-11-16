@@ -448,7 +448,7 @@ async def test_surface_tools_stay_visible_when_both_sources_defer() -> None:
 
 
 @pytest.mark.parametrize("exclude_skills", [False, True])
-async def test_tool_search_preserves_a_skills_load_capability_disclosure_gate(
+async def test_tool_search_preserves_a_skills_read_skill_disclosure_gate(
     exclude_skills: bool,
 ) -> None:
     secret_instructions = "Refunds require the private procedure approval number."
@@ -474,7 +474,7 @@ async def test_tool_search_preserves_a_skills_load_capability_disclosure_gate(
     def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         nonlocal requests
         requests += 1
-        assert {tool.name for tool in info.function_tools} == {"load_capability", "search_tools"}
+        assert {tool.name for tool in info.function_tools} == {"read_skill", "search_tools"}
         if requests <= 2:
             assert secret_instructions not in repr(messages)
             assert secret_instructions not in (info.instructions or "")
@@ -483,7 +483,7 @@ async def test_tool_search_preserves_a_skills_load_capability_disclosure_gate(
                 parts=[ToolCallPart("search_tools", {"queries": ["refund-guide"]})]
             )
         if requests == 2:
-            return ModelResponse(parts=[ToolCallPart("load_capability", {"id": "refund-guide"})])
+            return ModelResponse(parts=[ToolCallPart("read_skill", {"id": "refund-guide"})])
         assert secret_instructions in repr(messages)
         return ModelResponse(parts=[TextPart("done")])
 

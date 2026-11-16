@@ -22,6 +22,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Protocol
+from uuid import UUID
 
 import anyio
 from pydantic import BaseModel
@@ -38,11 +39,14 @@ from pydantic_ai.messages import (
 
 from app.agents.browser_events import BrowserEvent
 from app.agents.deps import AgentDeps
+from app.core.tool_identity import ToolIdentity
 from app.services import live_browse
 from app.services.agent_runner import AgentIteration, RunStream
 from app.services.channels.base import AnswerStep, NativeAnswer, StepSource
 
 logger = logging.getLogger(__name__)
+
+PROGRESS_INTERVAL = 20.0
 
 EDIT_INTERVAL = 1.0
 """Seconds between edits of the message being written.
@@ -154,6 +158,10 @@ class LiveReply:
         self._now = now
         self._text = ""
         self._status = WORKING
+        self._began = now()
+        self._active_steps: dict[str, str] = {}
+        self._completed_steps: set[str] = set()
+        self._elapsed_note = ""
         self._sent: str | None = None
         self._pushed_at = 0.0
 
@@ -165,10 +173,23 @@ class LiveReply:
     def _shown(self) -> str:
         """What the message should read right now.
 
-        Text as soon as there is any: a status line under an answer that has
-        started arriving is noise, and the answer is what somebody is reading.
+        A real tool still running remains visible after a progress sentence.
+        Final delivery replaces this temporary status with the authoritative answer.
         """
-        return self._text or self._status
+        status = self._status + self._elapsed_note
+        if self._text:
+            return self._text + ("\n\n" + status if self._active_steps else "")
+        return status
+
+    async def pulse(self) -> None:
+        """A bounded liveness update; elapsed time never implies percentage complete."""
+        elapsed = int(self._now() - self._began)
+        if elapsed < PROGRESS_INTERVAL:
+            return
+        self._elapsed_note = (
+            f" · {elapsed // 60}m {elapsed % 60}s · {len(self._completed_steps)} steps finished"
+        )
+        await self._flush()
 
     async def add(self, delta: str) -> None:
         """Take a fragment of the answer, and push if it is time."""
@@ -194,7 +215,15 @@ class LiveReply:
         """
         if step.status == "in_progress":
             links = "".join(f"\n{source.title}: {source.url}" for source in step.sources)
-            await self.working_on(step.title + links)
+            self._active_steps[step.id] = step.title + links
+        else:
+            self._active_steps.pop(step.id, None)
+            self._completed_steps.add(step.id)
+        if self._active_steps:
+            self._status = next(reversed(self._active_steps.values()))
+        else:
+            self._status = "Preparing the answer…"
+        await self._flush()
 
     async def _maybe_push(self) -> None:
         if self._now() - self._pushed_at >= EDIT_INTERVAL:
@@ -329,6 +358,15 @@ async def _follow_browse(reply: AnswerSink, run_id: str, call_id: str, source: S
             )
 
 
+async def with_preview_links(answer: str, run_id: UUID) -> str:
+    """Retain authenticated views when the platform replaces streamed progress."""
+    if not answer:
+        return answer
+    links = await live_browse.view_links(str(run_id))
+    additions = [f"[Live view (sign-in required)]({url})" for url in links if url not in answer]
+    return "\n\n".join([answer, *additions])
+
+
 def channel_stream(reply: AnswerSink) -> RunStream:
     """Drive an agent run into `reply`.
 
@@ -359,11 +397,63 @@ def channel_stream(reply: AnswerSink) -> RunStream:
         # `ctx.deps` is the graph's own; the run's `AgentDeps` are inside it.
         deps = agent_run.ctx.deps.user_deps
         run_id = deps.run_id if isinstance(deps, AgentDeps) else None
-        async with anyio.create_task_group() as followed:
-            try:
-                await walk(agent_run, followed, None if run_id is None else str(run_id))
-            finally:
-                followed.cancel_scope.cancel()
+        original = deps.browser_events if isinstance(deps, AgentDeps) else None
+        previews: dict[str, StepSource] = {}
+
+        async def preview(event: BrowserEvent) -> bool:
+            # Direct browser tools, computer use and nested code-mode calls
+            # publish their own view IDs. Their outer tool-call ID need not
+            # match the view, so discover the link from the opening event.
+            if event.call_id not in followers:
+                if (
+                    event.kind == "browser_opened"
+                    and (view_run := event.run_id or (str(run_id) if run_id else None))
+                    and live_browse.available()
+                ):
+                    previews[event.call_id] = StepSource(
+                        url=live_browse.link(view_run, event.call_id), title=LIVE_VIEW
+                    )
+                if (source := previews.get(event.call_id)) is not None and event.kind in {
+                    "browser_opened",
+                    "browser_needs_person",
+                    "browser_held",
+                    "browser_released",
+                    "browser_finished",
+                }:
+                    finished = event.kind == "browser_finished"
+                    await reply.step(
+                        AnswerStep(
+                            f"preview:{event.call_id}",
+                            _browse_title(event) if not finished else LIVE_VIEW,
+                            ("error" if event.outcome == "failed" else "complete")
+                            if finished
+                            else "in_progress",
+                            sources=(source,),
+                        )
+                    )
+            # A text channel does not consume screenshot frames. Preserve any
+            # existing observer without turning on image streaming for itself.
+            return False if original is None else await original(event)
+
+        if isinstance(deps, AgentDeps):
+            deps.browser_events = preview
+        try:
+            async with anyio.create_task_group() as followed:
+                if isinstance(reply, LiveReply):
+                    followed.start_soon(pulse)
+                try:
+                    await walk(agent_run, followed, None if run_id is None else str(run_id))
+                finally:
+                    followed.cancel_scope.cancel()
+        finally:
+            if isinstance(deps, AgentDeps):
+                deps.browser_events = original
+
+    async def pulse() -> None:
+        if isinstance(reply, LiveReply):
+            while True:
+                await anyio.sleep(PROGRESS_INTERVAL)
+                await reply.pulse()
 
     async def follow(
         run_id: str,
@@ -380,6 +470,7 @@ def channel_stream(reply: AnswerSink) -> RunStream:
     async def walk(
         agent_run: AgentIteration[Any, Any], followed: anyio.abc.TaskGroup, run_id: str | None
     ) -> None:
+        deps = agent_run.ctx.deps.user_deps
         async for node in agent_run:
             if Agent.is_model_request_node(node):
                 async with node.stream(agent_run.ctx) as request_stream:
@@ -395,8 +486,21 @@ def channel_stream(reply: AnswerSink) -> RunStream:
                     async for event in tool_stream:
                         if isinstance(event, FunctionToolCallEvent):
                             call_id = event.part.tool_call_id
-                            titles[call_id] = doing(event.part.tool_name)
-                            live = _live_view(run_id, event.part.tool_name, call_id)
+                            identity = (
+                                deps.tool_identities.get(
+                                    call_id,
+                                    deps.tool_definitions.get(event.part.tool_name, ToolIdentity()),
+                                )
+                                if isinstance(deps, AgentDeps)
+                                else ToolIdentity()
+                            )
+                            name = (
+                                ""
+                                if identity.presentation_kind == "generic"
+                                else identity.tool_id or event.part.tool_name
+                            )
+                            titles[call_id] = doing(name)
+                            live = _live_view(run_id, name, call_id)
                             await reply.step(
                                 AnswerStep(
                                     call_id,

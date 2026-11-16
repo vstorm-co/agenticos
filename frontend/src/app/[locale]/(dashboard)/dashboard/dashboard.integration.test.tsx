@@ -345,6 +345,13 @@ function respond(path: string, options?: { params?: Record<string, string> }): u
       };
     case "/admin/ratings/summary":
       return RATINGS;
+    case "/authoring/waiting":
+      return { agents: [], skills: 0, contexts: 0 };
+    case "/improvements":
+      return [];
+    case "/skill-improvements/awaiting":
+    case "/skill-checks/awaiting":
+      return [];
     case "/workflows/summary":
       return { runs: 0, succeeded: 0, failed: 0, cost_usd: 0, needs_you: 0, workflows: [] };
     default:
@@ -1031,7 +1038,7 @@ describe("dashboard links while the page stays mounted", () => {
     params.delete("sections");
     params.delete("group");
     page.rerender(<DashboardPage />);
-    expect(screen.getByRole("heading", { name: /dashboard\.greeting/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /dashboard\.greeting/ })).toBeInTheDocument();
   });
 });
 
@@ -1052,4 +1059,37 @@ it("waits for a saved arrangement before mounting and fetching default widgets",
   await waitFor(() => expect(callsTo("/agents").length).toBeGreaterThan(0));
   expect(callsTo("/approvals")).toHaveLength(0);
   view.unmount();
+});
+
+it("keeps one loading state until onboarding and briefing can mount in their final shape", async () => {
+  const pending = Promise.withResolvers<unknown>();
+  const org = "00000000-0000-4000-8000-000000000001";
+  useOrgStore.setState({ activeOrgId: org });
+  const previous = vi.mocked(apiClient.get).getMockImplementation()!;
+  vi.mocked(apiClient.get).mockImplementation((path, options) =>
+    path === "/me/onboarding" ? pending.promise : previous(path, options),
+  );
+  render(<DashboardPage />, { wrapper });
+  await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/me/onboarding"));
+  expect(document.querySelectorAll('[role="status"][aria-busy="true"]')).toHaveLength(1);
+  expect(screen.queryByRole("heading", { name: "dashboard.widgets.suggestions.title" })).toBeNull();
+  pending.resolve({
+    organization_id: org,
+    organization_name: "Demo",
+    goal: null,
+    dismissed: true,
+    completed: true,
+    can_prepare: true,
+    can_configure_model: true,
+    support_email: null,
+    agents: [],
+    latest_conversation_id: null,
+    latest_completed_at: null,
+    has_result: true,
+    has_activity: true,
+  });
+  expect(
+    await screen.findByRole("heading", { name: "dashboard.widgets.suggestions.title" }),
+  ).toBeInTheDocument();
+  expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull();
 });

@@ -355,6 +355,13 @@ media/
 SSE-S3 by default, SSE-KMS with a key the deployment names. See
 [configuration](configuration.md#uploaded-files-at-rest) for the settings.
 
+Knowledge-base ingestion with local storage still needs the API and worker to
+share `MEDIA_DIR/_rag_tmp`. With S3, each worker execution downloads its own
+stored object and removes the temporary copy on completion, parser failure or
+cancellation. No API scratch volume is shared between pods; see
+[Kubernetes deployment](kubernetes.md). A killed child can leave a temporary copy
+until the pod is replaced.
+
 !!! info "Which backend to run, and what each one asks of you"
 
     Local is the honest answer for a single host: encrypt the volume, and the
@@ -444,6 +451,10 @@ flowchart TD
     The `RAGDocument` row is written **first** and the middle four steps run in a
     background task with a session of their own - which is why an upload answers
     `202 {"status": "processing"}` rather than waiting.
+
+Concurrent first writes to the same collection wait for its table and indexes
+to be created in one transaction. If creation fails, that transaction rolls
+back and a waiting write can create the table.
 
 There are two addresses an upload can arrive at —
 `POST /rag/collections/{name}/ingest` and `POST /kb/{kb_id}/documents` — and both
@@ -1031,9 +1042,36 @@ connection and enough of them refuse every other request. A delete waits for the
 write to finish.
 
 A personal base outside an organization takes no unfiled chunk, though a chunk its own
-rows name goes with it. A legacy chunk with no base, no organization and no row cannot
-be told from an operator's: it keeps the table too, stays until `rag-drop <name>`, and
-is the app scope's, so an app-scoped base on the name reads it.
+rows name goes with it. A legacy chunk with no base, no organization and no tracking
+row has unknown ownership. It keeps the table but is **not readable through an
+app-scoped base**, even after an app admin claims the name ([#2773](https://github.com/vstorm-co/agenticos/issues/2773)).
+
+An app-scoped base takes global unfiled chunks and tracking rows only when their
+`writer_kind` is `operator`. New `rag-ingest` and CLI sync writes record that origin;
+platform ingestions record `document`, which survives deletion of a user or base.
+Migration `0300_unfiled_writer_provenance.py` treats old origin tags as untrusted,
+retains certain document ownership and quarantines everything ambiguous as
+`legacy_unknown`. Organization-scoped unfiled reads retain their tenant restriction.
+
+**Upgrade action:** audit a retained collection from the server shell. The command
+uses the database only and prints aggregate counts, never document content:
+
+```bash
+uv run agenticos cmd rag-unfiled-provenance <name>
+```
+
+Only after inspecting the source and confirming that its unknown global unfiled data
+is an operator import intended for every organization, run:
+
+```bash
+uv run agenticos cmd rag-unfiled-provenance <name> --confirm-operator
+```
+
+This requires an interactive confirmation (`--yes` supplies it for automation).
+The update is atomic and repeatable, and skips chunks or rows with known document
+ownership. Keep uncertain data quarantined; re-ingest it into its authorized base,
+or use the existing operator `rag-drop <name>` procedure when it should be removed.
+Claiming the name in the console never confirms its data's origin.
 
 Otherwise, and always for `rag-drop`, the cleanup job drops the table. Another
 tenant's unfiled rows under the name stay, with their files, because the caller has no

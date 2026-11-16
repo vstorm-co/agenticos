@@ -3,18 +3,25 @@
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, NamedTuple
 from uuid import UUID
 
 from sqlalchemy import and_, false, func, or_, select, true
 from sqlalchemy import update as sql_update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun, RunStatus
-from app.db.models.agent_trigger import AgentTrigger, TriggerOverlap
+from app.db.models.agent_trigger import AgentTrigger, TriggerAttempt, TriggerOverlap
 from app.db.models.resource_grant import Visibility
+from app.schemas.agent_trigger import (
+    TriggerAttemptReason,
+    TriggerAttemptStage,
+    TriggerAttemptStatus,
+)
 
 # A run in one of these has not finished, so its trigger must not fire again on
 # top of it. Every other status is terminal - the run settled, one way or another.
@@ -162,6 +169,53 @@ async def prompts_created_by(
         )
     )
     return list(result.scalars().all())
+
+
+class RoutinePrompt(NamedTuple):
+    prompt: str
+    spec: dict[str, object]
+
+
+async def routine_prompts_for_screening(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> list[RoutinePrompt]:
+    """Prompts with the immutable spec they would fire; unresolved targets are omitted.
+
+    A named environment must resolve, rather than falling back to a different
+    agent version. A routine whose latest fire was refused stays out even if
+    the current input screen would now accept its prompt. Once retention removes
+    the last run, a fire timestamp still distinguishes an unknown verdict from
+    a routine that has never fired; an unknown verdict is left out too.
+    """
+    target = func.coalesce(
+        AgentTrigger.pinned_version_id,
+        AgentEnvironment.version_id,
+        Agent.current_version_id,
+    )
+    rows = await db.execute(
+        select(AgentTrigger.prompt, AgentVersion.spec)
+        .join(
+            Agent, and_(Agent.id == AgentTrigger.agent_id, Agent.organization_id == organization_id)
+        )
+        .outerjoin(
+            AgentEnvironment,
+            and_(
+                AgentEnvironment.id == AgentTrigger.environment_id,
+                AgentEnvironment.agent_id == Agent.id,
+                AgentEnvironment.organization_id == organization_id,
+            ),
+        )
+        .join(AgentVersion, and_(AgentVersion.id == target, AgentVersion.agent_id == Agent.id))
+        .outerjoin(AgentRun, AgentRun.id == AgentTrigger.last_run_id)
+        .where(
+            AgentTrigger.organization_id == organization_id,
+            AgentTrigger.created_by_user_id == user_id,
+            or_(AgentTrigger.environment_id.is_(None), AgentEnvironment.id.is_not(None)),
+            or_(AgentRun.id.is_not(None), AgentTrigger.last_fired_at.is_(None)),
+            or_(AgentRun.id.is_(None), AgentRun.status != RunStatus.GUARDRAIL_BLOCKED.value),
+        )
+    )
+    return [RoutinePrompt(row.prompt, row.spec) for row in rows.all()]
 
 
 async def list_for_organization(
@@ -518,3 +572,65 @@ async def revoke_member_authority(
         .values(is_active=False, approved_sources=None, action_consents=[])
     )
     await db.flush()
+
+
+async def record_attempt(
+    db: AsyncSession,
+    *,
+    trigger_id: UUID,
+    organization_id: UUID,
+    activation_id: UUID,
+    status: TriggerAttemptStatus,
+    stage: TriggerAttemptStage,
+    reason: TriggerAttemptReason,
+) -> TriggerAttempt:
+    """An activation's first refusal wins, including across duplicate job delivery."""
+    statement = (
+        insert(TriggerAttempt)
+        .values(
+            trigger_id=trigger_id,
+            organization_id=organization_id,
+            activation_id=activation_id,
+            status=status,
+            stage=stage,
+            reason=reason,
+        )
+        .on_conflict_do_nothing(index_elements=["trigger_id", "activation_id"])
+    )
+    await db.execute(statement)
+    await db.flush()
+    found = await attempt_for_activation(
+        db, trigger_id=trigger_id, organization_id=organization_id, activation_id=activation_id
+    )
+    assert found is not None, "an inserted or duplicate activation has an attempt"
+    return found
+
+
+async def attempt_for_activation(
+    db: AsyncSession, *, trigger_id: UUID, organization_id: UUID, activation_id: UUID
+) -> TriggerAttempt | None:
+    return await db.scalar(
+        select(TriggerAttempt).where(
+            TriggerAttempt.trigger_id == trigger_id,
+            TriggerAttempt.organization_id == organization_id,
+            TriggerAttempt.activation_id == activation_id,
+        )
+    )
+
+
+async def list_attempts(
+    db: AsyncSession, *, trigger_id: UUID, organization_id: UUID, skip: int, limit: int
+) -> tuple[list[TriggerAttempt], int]:
+    filters = (
+        TriggerAttempt.trigger_id == trigger_id,
+        TriggerAttempt.organization_id == organization_id,
+    )
+    rows = await db.scalars(
+        select(TriggerAttempt)
+        .where(*filters)
+        .order_by(TriggerAttempt.occurred_at.desc(), TriggerAttempt.id.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    total = await db.scalar(select(func.count()).select_from(TriggerAttempt).where(*filters))
+    return list(rows), int(total or 0)

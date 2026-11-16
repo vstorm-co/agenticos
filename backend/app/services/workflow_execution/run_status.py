@@ -5,7 +5,7 @@ loop - each waiting in its own way. The run's status is the most severe of them,
 is never written by one step's transition alone: every transition re-derives it from the
 run's live rows, under the run's lock.
 
-Severity, highest first: a step needing attention, an approval wait, a retry backoff,
+Severity, highest first: a step needing attention, a question, an approval wait, a retry backoff,
 running. A step parked on a timer, or on a run it called, is not a wait the run reports:
 the run reads as running. A run with no live rows reads as running too; it ends through
 its own paths (`succeeded`, `failed`, `cancelled`, `budget_exceeded`), never through here.
@@ -34,6 +34,7 @@ class DerivedStatus:
 _RUNNING = DerivedStatus(WorkflowRunStatus.RUNNING, None)
 _RETRY = DerivedStatus(WorkflowRunStatus.WAITING_RETRY, WaitingReason.RETRY_BACKOFF.value)
 _APPROVAL = DerivedStatus(WorkflowRunStatus.WAITING_APPROVAL, WaitingReason.APPROVAL.value)
+_QUESTION = DerivedStatus(WorkflowRunStatus.WAITING_FOR_USER, WaitingReason.QUESTION.value)
 _ATTENTION = DerivedStatus(WorkflowRunStatus.NEEDS_ATTENTION, None)
 
 
@@ -43,12 +44,14 @@ def _read(state: LiveNodeState) -> DerivedStatus:
         return _ATTENTION
     if status is NodeRunStatus.WAITING and reason is WaitingReason.APPROVAL:
         return _APPROVAL
+    if status is NodeRunStatus.WAITING and reason is WaitingReason.QUESTION:
+        return _QUESTION
     if status is NodeRunStatus.WAITING and reason is WaitingReason.RETRY_BACKOFF:
         return _RETRY
     return _RUNNING
 
 
-_SEVERITY = (_RUNNING, _RETRY, _APPROVAL, _ATTENTION)
+_SEVERITY = (_RUNNING, _RETRY, _APPROVAL, _QUESTION, _ATTENTION)
 
 
 def derive_status(live: Sequence[LiveNodeState]) -> DerivedStatus:

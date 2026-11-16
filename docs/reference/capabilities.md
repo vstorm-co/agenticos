@@ -37,7 +37,10 @@ platform tools and budget. Its author switches off what it should not do.
 
 Whichever capabilities an agent ends up with, every run is told which it has and
 which it has not, under **Your setup** in its instructions - so it describes only
-what it can do, and says what would have to be switched on for the rest.
+what it can do, and says what would have to be switched on for the rest. An agent
+with skills is told last, under **Your skills**, to open the one a question falls
+within with `read_skill`; asking for a skill with the card instead is
+answered with that.
 
 When a request needs one it lacks, the agent shows a card for it in the chat,
 with its reason. Someone who may edit the agent switches it on from the card,
@@ -52,6 +55,64 @@ the deployment's own sandbox service, which bootstrap and the first publish
 register as the organization's default; without one it keeps files only. The web
 browser is pointed at the deployment's browser service
 (`BROWSER_SIGN_IN_CDP_URL`), and left out where there is none.
+
+## Tool errors and recovery
+
+In text runs, validation, unavailable-tool and unexpected execution failures return
+an `error` object with an `id`, `code`, `tool`, `execution`, `message`, `issues` and
+`recovery`. Validation issues name the
+`field`, validation `code` and `expected_type`, with a correction message or example.
+For example, a workflow ID must be a UUID returned by workflow discovery; an array
+of field names must be sent as `["name", "primary_ip"]`, not a comma-separated string.
+Missing required fields are named individually. Value constraints give their allowed
+choices, numeric bounds, item counts or required length.
+
+MCP argument validation uses the advertised schema without fetching external
+references. Schema checks run in isolated processes with bounded concurrency and
+a deadline. Invalid, unresolved or recursive schemas, and checks that exceed the
+deadline, return `tool_unavailable` before dispatch.
+
+`execution` is `not_started` when validation or registration rejects the call before
+invocation, `started` when a start is established, and `unknown` when a failure
+leaves the outcome uncertain. A timeout after invocation does not establish that
+the action failed. Check its execution status before retrying.
+
+| Error code | Recovery |
+|---|---|
+| `invalid_arguments` | `correct_arguments`: fix the named field before trying again. |
+| `tool_unavailable` | `rediscover_tools`: find the tools and invocation routes available in this context. |
+| `permission_denied` | `stop`: explain the refusal. |
+| `transient_failure` | `retry` when the outcome is known and another attempt is safe; otherwise `inspect_execution_status`. |
+| `execution_unknown` | `inspect_execution_status`: establish the existing action's outcome first. |
+
+Discovery does not make every returned tool name directly callable. A registration
+failure says the tool is unavailable in the current invocation context; it does
+not establish missing user permission. The runtime supplies a supported route only
+when it can establish one. Recovery instructions tell the agent to follow that
+route, correct specific arguments, and stay with the task: a failed workflow lookup
+does not justify searching the filesystem.
+
+The same structured error reaches the model and saved transcript when an approved
+call resumes. Unexpected exceptions expose a concise explanation and exception type
+where safe; untrusted upstream messages and internal tracebacks stay in server logs.
+Use the error `id` to find the corresponding detailed log entry.
+
+When `run_code` reports a nested tool failure, `cause_tool` and `cause_execution`
+identify that call and whether it started. The error ID and field issues survive
+the sandbox boundary. An unknown outer outcome still requires checking earlier
+actions before replaying the script.
+
+Compiler errors retain a safe diagnostic and source location when available,
+including the offending identifier for unresolved names. The diagnostic omits raw
+source, internal tracebacks and arbitrary exception messages.
+
+Clearing tool results retains controlled error envelopes, even when the configured
+number of retained results is zero. Summaries and sliding windows can still reduce
+older exchanges.
+
+Budget exhaustion, guardrail blocks, loop stops and model usage limits still end
+the run and retain their existing accounting. Code mode preserves those stops
+across the sandbox boundary.
 
 ## What ships
 
@@ -88,7 +149,7 @@ browser is pointed at the deployment's browser service
 | `compaction` | Long conversations | utility | none, by design | — | — | no effect |
 | `media` | Media offload | utility | none, by design | — | — | no effect |
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — | as-is |
-| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | as-is |
+| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `export_artifact`, `share_artifact` | — | — | as-is |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | not available |
 | `phone_calls` | [Telephone calls](../voice.md#telephone-calls) | channels | `get_phone_contact_policy`, `call_me`, `list_phone_transfer_contacts`, `transfer_phone_call`, `end_phone_call` | `endpoint_id` | — | — |
 | `ask_user` | Ask the user | utility | `ask_user_question` | — | — | on screen |
@@ -136,6 +197,42 @@ The catalog API carries how each capability takes part as its `voice` field:
 **One of them is not in the Toolbox at all.** `channel_tools` is chosen per bound
 bot under *Where this agent is available*, and publishing refuses a spec that
 tries to carry it — see [Chat channel lookup](#chat-channel-lookup).
+
+## What an eval runs
+
+An eval runs the agent for real, so it executes a tool only when the tool
+changes nothing outside the run, or reaches a test connection of the
+[environment](../environments.md#in-an-eval). Each capability declares which of
+its tools only read — `read_only`, beside `side_effecting` — and a tool that
+declares nothing writes. These are the tools that write, and that an eval holds
+and records:
+
+| id | Tools that write |
+|---|---|
+| `artifacts` | `publish_artifact` |
+| `ask_user` | `ask_user_question` |
+| `browser_use` | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` |
+| `coding_agent` | `run_coding_agent` |
+| `image_generation` | `generate_image` |
+| `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
+| `memory_mem0` | `remember` |
+| `sandbox` | `write_file`, `edit_file`, `execute` |
+| `visuals` | `draw`, `revise_visual`, `read_visual` |
+
+Every other tool above only reads. Delegation counts as reading: a delegate's
+own tools are held to their own declarations. `side_effecting` and `read_only`
+answer different questions: the first is what approval asks about by default,
+the second what an eval may run, and an undeclared tool is ungated by the first
+and blocked by the second.
+
+An environment can swap a capability's vault key for a test one, but a swapped
+key does not make a write safe on its own: `browser_use`'s key is for the
+hosted browser or its proxy, while its `cdp_url` still names the browser that
+clicks. A
+capability declares `test_key_isolates` only when the key alone picks where its
+writes go, and never with a URL, host or endpoint in its config. No shipped
+capability declares it, so in an eval every write above is recorded, not run,
+whatever key it holds.
 
 ## Knowledge search
 
@@ -256,16 +353,13 @@ a time — the alternative being an instructions field that grows until every ru
 pays for every procedure. See [Skills](../skills.md) for what a skill is and how
 one gets into an organization.
 
-**Each bound skill is a capability of its own.** Its name and description sit in
-the catalog the model reads every turn, and the model pulls the body in with
-`load_capability` — the agent framework's own tool, which is why it is not in the
-list above and why a spec cannot grant, gate or rename it. `read_skill_resource`
-is the one tool this capability contributes, and it appears only when at least one
-bound skill ships a file beside its instructions.
-
-The tool comes from `pydantic-ai-skills`, so its name and wording are somebody
-else's to change. A drift test compares what the registry declares against the
-tools the model is actually offered, which is what reports the day that happens.
+**Each bound skill remains a native deferred capability.** The model sees an
+“available skills” catalog and opens a body with `read_skill`. The platform's
+adapter keeps native loading state, approvals and conversation replay, including
+older histories. Approval policies keep the stable `load_capability` key;
+ordinary tool overrides do not rename this framework-owned loader.
+`read_skill_resource` reads supporting files and appears only when a bound skill
+ships one. A drift test checks the library's file tool against the registry.
 
 `run_skill_script` is switched off rather than exposed: a skill's files reach a
 run under `/workspace/skills/`, where the [sandbox](../sandbox.md)'s own `execute`
@@ -306,8 +400,10 @@ same way `knowledge` bound to no collections is not. Files are managed under
 
 Notes an agent keeps of its own across conversations, indexed by one it maintains
 itself. Where `context` is a library a person authors and binds to many agents,
-memory is the agent's own: it writes through tools mid-run, and nobody else writes
-here at all. It is not bound by id — enabling the capability gives the agent its
+memory is the agent's own: it writes through tools mid-run. A person can correct
+their own notes in **Settings → Memory → Notes**; this does not grant access to
+other people’s notes. Corrections preserve the original agent-write timestamp and
+suppression state, use a revision check and record an audit entry without content. It is not bound by id — enabling the capability gives the agent its
 notes.
 
 **`MEMORY.md` is the index, and it is shown to the agent every request.** It is an
@@ -335,6 +431,13 @@ there is nothing for the agent to get wrong.
   there is no store, and the tools say so rather than saving somewhere. A run
   started with an [API key](../api.md#organization-api-keys) has none either:
   the key acts for its issuer, but whoever holds it is not that person.
+- In a chat other people read - a project's, or one shared with somebody to
+  edit - there is no personal store. The agent neither shows, recalls nor saves
+  what it knows about the person there; it still reads the project's and the
+  organization's claims. Sharing a chat to edit, or moving it into a project,
+  shows its history, answers written while it was private included; from that
+  moment, later answers use no personal memory. A chat shared only to view
+  shows every answer, later ones written with personal memory included.
 - On a schedule or an event trigger there is no store either, even though the
   run executes as the trigger's creator. The creator lends the run their
   authority, not their identity, so nobody is listening and the tools refuse.
@@ -375,9 +478,13 @@ group chat never writes a profile. Only `share_memory` widens a claim, and only 
 a person who may: `projects:edit` on the project, or `context:edit` for the whole
 organization. It always waits for a person to approve the exact claim and audience, whatever the agent's approval settings say, so text the agent read cannot talk it into sharing.
 
+**Approve everything** and a remembered **Always allow** do not answer it either, and its card offers neither. The card shows the fact and its audience; in the approvals queue the fact is shown only to somebody who may see the run it came from.
+
 The copy names the claim it came from and the original keeps its
 audience. An embed, an API-key run and a scheduled run read nothing; a group chat
 reads only its own claims. Correcting a claim that the whole project or organization reads needs the same permission as sharing into it: reading it is not authority to rewrite it.
+
+Such a correction through `correct_memory` also waits for a person every time, whatever the approval mode, and its card shows the fact before and after; correcting a person's own claim does not wait. A correction the tool records is the agent's claim, naming the run and conversation it came from, and the audit log gets a `memory.claim.corrected` entry. A correction made at **Settings → Memory** is the person's own.
 
 - **A correction keeps what it corrects.** "From Monday, Piotr takes over
   invoices" closes the earlier claim at that date and adds the new one; Anna
@@ -1556,8 +1663,8 @@ command prefixes keeps a shell read-only, since `git log --output=<file>` matche
 `git log` as well as any read does. Codex in a container has no `read_only`: its read-only mode is a
 sandbox of its own, which cannot start inside the agent's container, and publish
 refuses the combination. Whether a person says yes before each task is the
-capability's **Human approval**, set to **Always ask** — like every gate, it is off
-until somebody sets it. There is no Tools tab: the one tool is the capability.
+capability's **Human approval**, set to **Always ask**. The Builder starts newly added bindings in this mode;
+existing bindings retain their policy. There is no Tools tab: the one tool is the capability.
 
 **Named sessions.** Each task names a `session` - `main` when it names none. The same name continues that session's earlier work in the conversation; a new name opens another, and independent local sessions run side by side when the agent calls the tool several times at once; sandbox calls in the same toolset queue to keep their workspace snapshots separate. `fresh_session` starts one session over. On this computer a session may also choose its `harness` - Claude Code or Codex, on the sign-in that computer has - and a `folder` inside the chat's folder, so two projects, or both harnesses, work at once. In a sandbox or a private cloud task the binding's harness is the only one, since its key or account belongs to it.
 
@@ -1589,8 +1696,31 @@ The patch is kept up to 256 KiB and 500 files, and marked where it was cut.
 **Who reads the diff.** It is stored with the conversation and read with the
 transcript's own access, so whoever can read the chat sees it; deleting the chat
 deletes it. In a sandbox several chats share, a task running at the same time as
-another sees that one's edits in its diff too. Reverting a task is not offered
-yet, and a task on this computer records no diff.
+another sees that one's edits in its diff too. A task on this computer records no diff.
+
+**Revert this task.** New tasks can restore regular files only when their complete
+snapshot was captured in an isolated conversation workspace. Project-, agent-,
+channel- and user-scoped snapshots stay read-only because they can include another
+conversation's work. You need current edit access, and no run may be writing the
+workspace. Every affected file must match the task's final content and executable
+mode; a conflict refuses the whole revert and lists the files. Unrelated files
+and your Git index and history stay unchanged.
+
+The action queues a durable job and reserves the workspace. The panel shows
+progress and any definite refusal. An unknown result keeps the reservation;
+**Retry revert** checks whether the files were already restored before applying
+anything. A crash or a lost response therefore cannot silently apply undo twice.
+The worker rechecks access before acting and audits success.
+
+Revert restores files only, keeping the conversation and task report. It requires
+Git and Python 3 and refuses truncated, redacted, older display-only or linked-file
+snapshots, and current files over 2 MiB. A removed or moved workspace is not
+replaced.
+
+**Changed-file counts.** The panel and message footer use the stored change set,
+including shell edits and the count of files omitted by the limit. Only a task
+without a change set uses the harness's file list; new reports make those paths
+relative to the workspace.
 
 **A conversation's tasks continue one session.** The harness's session id is kept
 in the sandbox beside the work, under `.agenticos/coding-agent/`, one per
@@ -1738,6 +1868,8 @@ includes three.js, Mermaid and Leaflet, and the deployment's own map tile path.
 See [Visuals](../artifacts.md#visuals).
 
 ## Apps { #artifacts }
+
+`export_artifact` exports the current published version to a real PDF in the workspace. It uses the isolated renderer, supports A4 reports and 16:9 browser presentations, preserves preview access and audience checks, and refuses unavailable bound data. The renderer and `browser` extra must be configured. Exports have unique filenames and are limited to 50 pages and 20 MB. See [design resources](../skills.md#design-resources).
 
 `publish_artifact` — *Publish a finished page - a report, a small dashboard, a
 summary - under a stable link.*
@@ -2382,6 +2514,11 @@ Spec version 14 removes stored `virtual_tables` bindings when they load. Existin
 
 ## Workflows { #workflows }
 
+`list_workflows` discovery is limited to 32 KiB of encoded JSON, including
+input contracts. Larger responses return a refusal instead of a partial list.
+Choose fewer workflows or smaller contracts for the binding, or inspect the
+HTTP input-schema endpoint outside the agent context.
+
 Lets the agent start the published [workflows](../workflows.md) its binding names,
 and read how they went. The Builder's panel lists the organization's workflows, one
 row each, and a ticked row is one the agent may start. A workflow that is a draft,
@@ -2661,7 +2798,7 @@ Exclusions affect visibility; connection and binding allowlists still control
 access.
 
 Provider-native built-ins and capability hooks stay active. Skills retain their
-own discovery through `load_capability`. Realtime voice does not use Tool search
+own discovery through `read_skill`. Realtime voice does not use Tool search
 deferral. If every tool stays visible, search has no deferred catalog to discover.
 
 **The Builder says when it is worth it.** Once an agent's MCP bindings add up to
@@ -2739,8 +2876,28 @@ its own turn, so a later turn's history does not replay the message of a
 `guardrail_blocked` run, whichever check stopped it. In its place the model reads a
 short note that a guardrail stopped that turn, without the message's text or what
 the files sent with it added. The conversation still shows the person what they
-typed. Search over past conversations (`conversation_search`) does not filter these
-messages yet.
+typed. Workflow agent-step refusals also mark the exact source chat turn. Search
+over past conversations (`conversation_search`) omits refused messages from
+matching, snippets and transcript reads. Conversation titles are withheld from
+these tools when the conversation contains a refused turn, including existing
+stored titles.
+
+Workflow retries and called workflows preserve this refusal provenance. They do
+not inherit a reply destination or access to the source chat’s workspace. If a newly
+refused turn was already compacted, the stored summary covering it is discarded
+so later history rebuilds with the refusal note. Conversation mentions use the
+same filtered listing, so their labels cannot repeat a refused turn to a model.
+
+A compaction already in flight cannot restore a later refused turn to the cache.
+Upgrading rebuilds existing cached summaries once; the original messages remain.
+
+Every run revalidates its history snapshot before each model request, including after tool calls. Workflow agent, model and decision steps also check their shared chat source before starting; queued sibling steps cannot reuse a refused or deleted source. Voice summaries and new realtime sessions use the same revision check.
+
+Coding harnesses check the same context before launch and before each ACP prompt, including prompts after a task correction.
+
+If an earlier turn is refused while a run waits for approval or an answer, that
+run stops before replaying tools or calling a model. Start a new turn to continue
+with the current, filtered history.
 
 **An output check screens the answer before anyone sees it.** Every surface
 streams: the web chat and the embedded widget send the answer as it is written, and
@@ -2785,6 +2942,8 @@ API, so its model must support streaming.
 prompt reaches the model scrubbed, but the conversation stores the message as the
 person typed it, personal data included. Anyone who can read the conversation can
 read that message.
+
+The human transcript remains the original audit record. A separate screened copy, including any attachment briefing, is stored for model replay and quotations. Later turns keep that copy even if input redaction is disabled afterwards. Legacy replay is screened before the run’s context management; blocked turns still use the refusal marker.
 
 **The input edge screens an attachment before it is written.** An attached file
 reaches the prompt as its name, its path and its first 20 lines (at most 2,000
@@ -2866,8 +3025,8 @@ picks keyed by header, or is told the person declined and carries on.
 
 The tool and its schema come from `AskUser` in pydantic-ai-harness. It is on by
 default in every new agent and every template, and an author can switch it off.
-Where nobody can answer yet - a schedule, a webhook, the API - the agent is told
-the person declined.
+A standalone agent run without a question channel - from a schedule, a webhook
+or the API - is told the person declined.
 
 In console chat, the run saves its questions and pauses before showing the card
 - **Waiting for an answer** in run history. Switching chats, reloading or opening
@@ -2880,6 +3039,10 @@ Only the person asked can answer. API clients can use
 After a day
 (`QUESTION_EXPIRY_HOURS`, 24) the run ends as cancelled and the step records that
 the person did not answer in time.
+
+Inside a workflow agent step, the same tool saves the conversation and pauses the workflow with **Waiting for user**. Answer in the workflow run view or the originating chat. The answer is saved and the workflow worker resumes the same agent run, with its budget and earlier tool results intact. Workflow clients read `GET /workflow-runs/{run_id}/questions` and submit `POST /workflow-runs/{run_id}/nodes/{node_run_id}/answers` with the usual `responses` object. Each entry names the owning `workflow_run_id`; use that id when answering a question from a synchronously called workflow.
+
+Question cards appear only while you retain permission to run the owning workflow. A per-workflow **use** grant also allows you to answer; another viewer cannot answer on your behalf.
 
 ## Drafts
 
@@ -3031,7 +3194,7 @@ asks nobody; `side_effecting` only tells the Builder which tools act on the worl
     That is what keeps an approval gate attached to a renamed tool. Keying it on
     the visible name would mean a rename silently removes the gate, and a
     side-effecting call then goes unattended with nothing reporting it. An id no such capability exposes
-is refused at publish, and so is a name no model could call.
+is refused at publish, and so is a name no model could call, or one another of the agent's tools already has - another capability's, or one the platform adds itself, such as `request_capability`.
 
 ## Scopes
 
@@ -3168,3 +3331,16 @@ Built-in Google, Microsoft, Slack and IMAP connections also work here. See [buil
 ### Odoo business areas
 
 `odoo_contacts`, `odoo_crm`, `odoo_sales`, `odoo_accounting`, `odoo_inventory` and `odoo_projects` use the same account settings as the other built-in integrations. Search/read and field-inspection tools are read-only; create/update tools always require approval. Stock levels are read-only. The JSON-2 transport, installed-module requirements, change-feed limits and selected-field knowledge sync are described under [Odoo](../integrations.md#odoo). Binding an organization account requires access to that connection; execution rechecks the published version author's current authority.
+
+## Connected chat apps (`channel_actions`)
+
+Explicit bot grants for finding channels, searching messages and delivering requested reports from any run.
+
+| Tool | Action |
+| --- | --- |
+| `list_chat_connections` | Bot IDs, granted actions, current destination |
+| `find_chat_channels` | Joined channel metadata and pagination |
+| `read_chat_messages` | Bounded, filtered message history |
+| `send_chat_message` | Requested message or report, new post or existing thread |
+
+The service rechecks organization membership, agent access, the active binding and bot, then destination membership and thread ownership on each operation. It never joins channels or borrows another agent’s bot. Search and history are bounded pages; follow their cursors and treat empty matches as one scanned page. Provider failures are refusals, not empty results. Sending follows the approval policy; an unconfirmed submission must be checked at the destination before retrying. Other platforms retain their existing conversation tools; cross-channel actions are offered only where the adapter verifies membership.

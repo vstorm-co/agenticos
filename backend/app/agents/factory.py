@@ -43,6 +43,8 @@ from app.agents.capabilities import get as capability_def
 from app.agents.capabilities._overrides import ToolOverrides
 from app.agents.capabilities.approval import (
     ApprovalGate,
+    always_asking_checks,
+    always_asking_tools,
     approval_describers,
     approval_required_tools,
     approval_tool_ids,
@@ -78,18 +80,21 @@ from app.agents.capabilities.media import (
     ORGANIZATION_RESOURCE as MEDIA_ORGANIZATION_RESOURCE,
 )
 from app.agents.capabilities.memory_files import MEMORY_FILES_CAPABILITY_ID
+from app.agents.capabilities.skills._loader import SkillLoader
 from app.agents.capabilities.system_reminders import (
     REMINDER_STATE_RESOURCE,
     ReminderState,
     SystemReminders,
 )
-from app.agents.capabilities.tool_search import ConfiguredToolSearch
+from app.agents.capabilities.tool_search import ConfiguredToolSearch, ToolSearchConfig
 from app.agents.capabilities.visuals import WEB_REACH_RESOURCE, web_reach
 from app.agents.code_mode import CodeCalls, code_mode
+from app.agents.computer_on_use import REQUEST_COMPUTER_ACCESS, RequestComputerOnUse
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
+from app.agents.isolation import IsolationGuard, RunIsolation, capability_tools
 from app.agents.loop_guard import LoopGuard
-from app.agents.manifest import RecordingModel, RunRecorder
+from app.agents.manifest import RecordedToolSearch, RecordingModel, RunRecorder
 from app.agents.model_resolver import PROMPT_CACHE, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
 from app.agents.routine_actions import RoutineToolCheck
@@ -98,6 +103,9 @@ from app.agents.setup_briefing import SetupBriefing
 from app.agents.spec import AgentSpec
 from app.agents.steering import Steering
 from app.agents.tool_call_ids import UniqueToolCallIds
+from app.agents.tool_errors import ToolErrors
+from app.agents.tool_identity import CaptureToolIdentity
+from app.agents.tool_recovery import ToolRecovery
 from app.agents.tool_repair import CountedRepair, RepairTally
 from app.agents.voice import (
     AnswerUnknownTools,
@@ -242,13 +250,18 @@ def build_agent(
     shared_budget: BudgetGuard | None = None,
     recorded_overhead: int | None = None,
     recorded_reminder_state: dict[str, Any] | None = None,
+    isolation: RunIsolation | None = None,
+    test_bindings: frozenset[str] = frozenset(),
     voice: VoiceOptions | None = None,
     answering_call: VoiceOptions | None = None,
+    offer_setup_tools: bool = True,
 ) -> BuiltAgent:
     """Instantiate an agent from its spec.
 
     Args:
         spec: The published (or draft, when previewing) agent definition.
+        offer_setup_tools: Whether to offer implicit setup actions. Restricted
+            automatic turns and answer-only turns cannot expand their setup.
         model_spec: Already-resolved model and credentials.
         run_person: The member who answers for this run, or `None` when nobody
             does - derived by the runner, which alone knows the request. Handed
@@ -309,6 +322,13 @@ def build_agent(
             and the ceiling that matters is the one on the run somebody started.
             The delegate's own cap still governs runs of the delegate itself, and
             its run rows still accumulate against it - see `docs/governance.md`.
+        isolation: Run this agent isolated - an eval: only reads and calls to the
+            environment's test connections execute, and everything else is
+            recorded instead (see :mod:`app.agents.isolation`). An isolated agent
+            has no approval channel, so a gated call is refused, never parked.
+        test_bindings: The capability bindings whose vault key the run's
+            environment swapped for a test one. Their tools may write in an
+            isolated run only where the capability declares `test_key_isolates`.
         voice: Build for a realtime call: see `app/agents/voice.py`. The
             capabilities a call cannot carry are left out, approvals resolve
             inline through `voice.on_deferred`, and the instructions go in as
@@ -405,6 +425,10 @@ def build_agent(
             ),
         )
     )
+    if any(binding.enabled and binding.capability_id == "skills" for binding in bindings) and (
+        resources or {}
+    ).get("skills"):
+        configured.append(SkillLoader())
     if voice is not None:
         configured = voice_configured(configured)
 
@@ -440,7 +464,7 @@ def build_agent(
         # for one list is how they drift apart.
         kb_collection_names=list((resources or {}).get("kb_collection_names") or []),
         kb_vector_scopes=dict((resources or {}).get("kb_vector_scopes") or {}),
-        request_approval=request_approval,
+        request_approval=None if isolation is not None else request_approval,
     )
 
     # A child spends against the run's ledger and under the run's caps, but
@@ -478,15 +502,43 @@ def build_agent(
     # Made before the capabilities, because a run reviewer, code mode and
     # `CacheWatch` write onto it.
     recorder = RunRecorder()
-    asking = (
-        frozenset({CONNECT_ACCOUNT})
-        if any(isinstance(extra, ConnectOnUse) for extra in extra_capabilities)
-        else frozenset()
+    for binding in bindings:
+        if binding.capability_id == "tool_search":
+            search = ToolSearchConfig.model_validate(binding.config)
+            recorder.tool_search = RecordedToolSearch(
+                strategy=search.strategy,
+                max_results=search.max_results,
+                defer_capabilities=search.defer_capabilities,
+                defer_mcp_servers=search.defer_mcp_servers,
+                exclude_capabilities=tuple(search.exclude_capabilities),
+                exclude_mcp_servers=tuple(search.exclude_mcp_servers),
+                exclude_tools=tuple(search.exclude_tools),
+            )
+    asking = frozenset(
+        name
+        for name, kind in (
+            (CONNECT_ACCOUNT, ConnectOnUse),
+            (REQUEST_COMPUTER_ACCESS, RequestComputerOnUse),
+        )
+        if any(isinstance(extra, kind) for extra in extra_capabilities)
+    )
+    gate = ApprovalGate(
+        routine_policy=routine_policy,
+        required_tool_names=approval_required,
+        always_asking_tool_names=always_asking_tools(spec),
+        always_asking_checks=always_asking_checks(spec),
+        gate_every_tool=gate_every_tool,
+        describers=approval_describers(spec),
+        tool_ids=approval_tool_ids(spec),
+        asking_tool_names=asking,
     )
     capabilities: list[Any] = [
         # First, so every hook after it - the approval gate and the guardrails
         # among them - sees the arguments the tool will actually be called with.
         CountedRepair(tally=repairs),
+        ToolErrors(),
+        ToolRecovery(),
+        CaptureToolIdentity.for_spec(spec),
         # Long conversations drift away from their instructions; re-stating the
         # system prompt is cheap insurance for an agent whose behaviour *is* its
         # instructions.
@@ -496,21 +548,30 @@ def build_agent(
         # request from that history must find them there.
         Steering(),
         budget,
-        ApprovalGate(
-            routine_policy=routine_policy,
-            required_tool_names=approval_required,
-            gate_every_tool=gate_every_tool,
-            describers=approval_describers(spec),
-            tool_ids=approval_tool_ids(spec),
-            asking_tool_names=asking,
+        *(
+            ()
+            if isolation is None
+            else (
+                IsolationGuard(
+                    isolation=isolation,
+                    tools=capability_tools(spec, test_bindings=test_bindings),
+                    agent_id=agent_id,
+                    approval=gate,
+                ),
+            )
         ),
+        gate,
         *configured,
         # Every agent, in text: what it can and cannot do here, from the spec
         # rather than from a prompt that goes stale the moment a capability is
         # switched (#2301). A call is told by its text twin instead.
-        *((SetupBriefing.for_spec(spec, agent_id=agent_id),) if voice is None else ()),
+        *(
+            (SetupBriefing.for_spec(spec, agent_id=agent_id),)
+            if voice is None and offer_setup_tools
+            else ()
+        ),
         *extra_capabilities,
-        *(() if voice is None else (AnswerUnknownTools(),)),
+        AnswerUnknownTools(structured=voice is None),
         *(
             ()
             if call is None

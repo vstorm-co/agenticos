@@ -8,7 +8,9 @@ import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { rememberMcpOAuthReturn } from "@/lib/mcp-oauth";
 import { qk } from "@/lib/query-keys";
-import type { ConnectedAccountList } from "@/types/mirage";
+import type { ConnectedAccount, ConnectedAccountList } from "@/types/mirage";
+
+export const INTEGRATION_PROVIDERS = ["google", "microsoft", "slack", "imap", "odoo"] as const;
 
 export type IntegrationProvider = "google" | "microsoft" | "slack" | "imap" | "odoo";
 export interface AccountConnectOptions {
@@ -44,16 +46,24 @@ export function useConnectedAccounts(
   {
     enabled = true,
     provider = "google",
-  }: { enabled?: boolean; provider?: IntegrationProvider } = {},
+  }: { enabled?: boolean; provider?: IntegrationProvider | "all" } = {},
 ) {
   const t = useTranslations("errors");
   const queryClient = useQueryClient();
   const accounts = useQuery({
     queryKey: provider === "google" ? KEY[owner]() : [...KEY[owner](), provider],
-    queryFn: () =>
-      apiClient.get<ConnectedAccountList>(
-        provider === "google" ? PREFIX[owner] : `${PREFIX[owner]}?provider=${provider}`,
-      ),
+    queryFn: async () => {
+      const providers = provider === "all" ? INTEGRATION_PROVIDERS : [provider];
+      const lists = await Promise.all(
+        providers.map((id) =>
+          apiClient.get<ConnectedAccountList>(
+            id === "google" ? PREFIX[owner] : `${PREFIX[owner]}?provider=${id}`,
+          ),
+        ),
+      );
+      const items: ConnectedAccount[] = lists.flatMap((list) => list.items);
+      return { items, total: items.length };
+    },
     enabled,
   });
   const refreshAccounts = async () => {

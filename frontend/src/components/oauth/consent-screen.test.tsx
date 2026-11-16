@@ -111,3 +111,27 @@ describe("ConsentScreen", () => {
     expect(screen.queryByText("This request has expired")).not.toBeInTheDocument();
   });
 });
+
+it("freezes organization and chosen permissions during an answer and retains them on refusal", async () => {
+  const current = state();
+  useConsentRequestMock.mockReturnValue(current);
+  const { rerender } = render(<ConsentScreen requestId="r1" />);
+  await userEvent.click(screen.getByLabelText("Access"));
+  await userEvent.click(screen.getByRole("option", { name: "Custom" }));
+  await userEvent.click(screen.getByRole("checkbox", { name: "agents:view" }));
+  useConsentRequestMock.mockReturnValue({
+    ...current,
+    approve: { ...current.approve, isPending: true },
+  });
+  rerender(<ConsentScreen requestId="r1" />);
+  expect(screen.getByLabelText("Organization")).toBeDisabled();
+  expect(screen.getByLabelText("Access", { selector: "button" })).toBeDisabled();
+  expect(screen.getByLabelText("Find a permission")).toBeDisabled();
+  expect(screen.getByRole("checkbox", { name: "agents:view" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Allow" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Deny" })).toBeDisabled();
+  useConsentRequestMock.mockReturnValue(current);
+  rerender(<ConsentScreen requestId="r1" />);
+  expect(screen.getByLabelText("Organization")).toBeEnabled();
+  expect(screen.getByRole("checkbox", { name: "agents:view" })).toBeChecked();
+});

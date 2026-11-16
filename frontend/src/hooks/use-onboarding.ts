@@ -1,14 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { usePermissions } from "@/hooks/use-permissions";
 import { stripLocale } from "@/lib/active-route";
 import { apiClient, ApiError } from "@/lib/api-client";
-import { ROUTES } from "@/lib/constants";
 import { stepsForPage, visibleTourSteps, type TourStep } from "@/lib/onboarding/tour";
 import { useAuthStore, useOnboardingStore } from "@/stores";
 import type { User } from "@/types";
@@ -41,11 +40,8 @@ export interface OnboardingTourState {
  * In `"tour"` mode the step list is the whole product, permission-filtered, so a
  * Viewer's tour is exactly the pages their sidebar shows; in `"page"` mode it is
  * only the current page's highlights, which is what the header "?" replays. The
- * tour auto-opens once per page load, but only on `/dashboard` and only for a
- * signed-in user who has not finished onboarding, once the permission set is
- * known and not in error — a returning user, one part-way through another page,
- * or one whose organization the server is refusing (which would collapse the
- * tour to its ungated steps) is left alone.
+ * tour opens only when requested. First-use guidance is owned by the shared
+ * start hub rather than a blocking overlay over the person's first task.
  *
  * Dismissing the first-run tour writes `onboarding_completed_at` through
  * `PATCH /users/me`, so it does not return on the next load or the next device;
@@ -57,16 +53,15 @@ export interface OnboardingTourState {
 export function useOnboardingTour(): OnboardingTourState {
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
-  // Not persisted, so true on every page load until this load's session check
-  // has set the user - which is the user worth deciding on.
-  const sessionLoading = useAuthStore((state) => state.isLoading);
   const setUser = useAuthStore((state) => state.setUser);
-  const { can, isLoading: permissionsLoading, error: permissionsError } = usePermissions();
+  const { can, isLoading: permissionsLoading } = usePermissions();
   const t = useTranslations("onboarding");
   const tErrors = useTranslations("errors");
-  const { isOpen, index, mode, openTour, close, setIndex } = useOnboardingStore();
+  const { isOpen, index, mode, close, setIndex, systemAgentPage } = useOnboardingStore();
 
-  const path = stripLocale(pathname);
+  const improve = useSearchParams().get("improve");
+  const path =
+    stripLocale(pathname) + (improve === null ? "" : `?improve=${encodeURIComponent(improve)}`);
 
   // Freeze the page a "?" replay was opened on. Its walk steps into detail views
   // (the builder, a collection, an organization), and recomputing the step list
@@ -88,8 +83,13 @@ export function useOnboardingTour(): OnboardingTourState {
   }
 
   const steps = useMemo(
-    () => (mode === "page" ? stepsForPage(anchor ?? path, can) : visibleTourSteps(can)),
-    [mode, anchor, path, can],
+    () =>
+      permissionsLoading
+        ? []
+        : mode === "page"
+          ? stepsForPage(anchor ?? path, can, systemAgentPage)
+          : visibleTourSteps(can),
+    [mode, anchor, path, can, permissionsLoading, systemAgentPage],
   );
   const lastIndex = steps.length - 1;
   const clamped = Math.min(index, Math.max(lastIndex, 0));
@@ -134,26 +134,8 @@ export function useOnboardingTour(): OnboardingTourState {
   );
   const back = useCallback(() => setIndex(Math.max(clamped - 1, 0)), [clamped, setIndex]);
 
-  // Auto-start fires at most once per page load, so a failed persist cannot loop
-  // the tour back open and a manual restart is never fought by the effect. Only
-  // on the user this load read: the stored one is whatever was signed in with,
-  // and a person who finished onboarding since - in another tab, on another
-  // device - was greeted by the first-run tour until the check answered.
-  const hasAutoStarted = useRef(false);
-  const shouldAutoStart =
-    path === ROUTES.DASHBOARD &&
-    !sessionLoading &&
-    !permissionsLoading &&
-    !permissionsError &&
-    !!user &&
-    !user.onboarding_completed_at;
-
-  useEffect(() => {
-    if (shouldAutoStart && !hasAutoStarted.current) {
-      hasAutoStarted.current = true;
-      openTour();
-    }
-  }, [shouldAutoStart, openTour]);
+  // First-use guidance lives in the shared start hub. A tour starts only when
+  // requested, so it cannot cover an invitation, setup form or the first task.
 
   return {
     isOpen,

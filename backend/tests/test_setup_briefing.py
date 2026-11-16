@@ -94,6 +94,18 @@ class TestWhatItSays:
         assert "call `request_capability` with its id" in linked
         assert unlinked.endswith("switch it on in the Builder.")
 
+    def test_its_skills_come_last_under_their_own_heading_with_how_to_load_them(self) -> None:
+        """The framework lists the skills to load right after this text, so they follow
+        the heading that says to load them, not the one about asking for what is missing."""
+        text = setup_briefing(_spec(skill_ids=[uuid.uuid4()]), agent_id=uuid.uuid4())
+
+        missing, skills = text.index("## Not switched on"), text.index("## Your skills")
+        assert missing < skills
+        last = text[skills:]
+        assert "call `read_skill` with its id before you answer" in last
+        assert "Never ask for a skill with `request_capability`" in last
+        assert "## Your skills" not in setup_briefing(_spec(), agent_id=uuid.uuid4())
+
     def test_the_capability_hands_the_text_over_unchanged(self) -> None:
         assert SetupBriefing("# Your setup").get_instructions() == "# Your setup"
 
@@ -128,6 +140,20 @@ class TestTheCard:
 
         with pytest.raises(ModelRetry, match="not one you lack"):
             toolset.request_capability(ctx, "web_research", "search")
+
+    def test_one_it_loads_is_steered_to_load_capability(self) -> None:
+        toolset = self._tool(_spec(), uuid.uuid4())
+        assert toolset is not None
+        ctx = MagicMock(last_attempt=False)
+        ctx.capabilities = {
+            "returns-and-exchanges": MagicMock(defer_loading=True),
+            "clock": MagicMock(defer_loading=False),
+        }
+
+        with pytest.raises(ModelRetry, match='Call `read_skill` with id "returns-and-exch'):
+            toolset.request_capability(ctx, "returns-and-exchanges", "the customer asks")
+        with pytest.raises(ModelRetry, match="not one you lack"):
+            toolset.request_capability(ctx, "clock", "the time")
 
     @pytest.mark.parametrize("reason", ["   ", "x" * 301])
     def test_a_reason_the_cards_button_could_not_send_is_asked_for_again(self, reason) -> None:

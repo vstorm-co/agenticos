@@ -201,7 +201,7 @@ export function DataChangeReview({
         </Button>
       </div>
       {review.isLoading ? (
-        <LoadingState variant="skeleton-panel" rows={3} />
+        <LoadingState variant="pending" />
       ) : shown === undefined ? (
         <ErrorState title={t("failed")} />
       ) : (

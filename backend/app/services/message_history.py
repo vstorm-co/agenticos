@@ -6,11 +6,13 @@ and the service that builds a thread's history - and `agent.py` reaches for
 `app.api.deps`, which reaches back for `ConversationService`.
 """
 
+from collections.abc import Sequence
 from datetime import timedelta
 from typing import NotRequired, TypedDict
 from uuid import UUID
 
 from pydantic_ai.messages import (
+    ModelMessage,
     ModelRequest,
     ModelResponse,
     SystemPromptPart,
@@ -33,6 +35,14 @@ person's own transcript still shows what they typed.
 Whichever edge stopped the run: its status does not record the edge, and a prompt
 the input edge passed loses only its place in later history - the person can ask
 again - where a refused one kept would undo the refusal."""
+
+
+class ModelHistory(list[ModelMessage]):
+    """A transcript snapshot with the refusal revision its summary may replace."""
+
+    def __init__(self, messages: Sequence[ModelMessage], *, revision: int | None) -> None:
+        super().__init__(messages)
+        self.revision = revision
 
 
 class HistoryMessage(TypedDict):

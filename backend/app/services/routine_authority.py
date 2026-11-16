@@ -19,6 +19,8 @@ from pydantic_ai.tools import ToolDefinition
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import get as capability
+from app.agents.capabilities._registry import READ_SKILL
+from app.agents.capabilities.skills._loader import SKILL_LOAD_KIND
 from app.agents.mcp import McpSourceIdentity, McpToolOrigin, needs_approval, tool_origin
 from app.agents.routine_actions import RoutineToolDecision
 from app.agents.spec import AgentSpec
@@ -414,6 +416,16 @@ class RoutineAuthority:
         """Default to approval for effects; only current, snapshotted consent may waive it."""
         async with get_db_context() as db:
             await self.check_in(db, agent_id)
+            # The native loader has no registry capability_id. Its owned kind,
+            # not an MCP tool's claimed name/read-only hint, identifies a skill
+            # instruction read. Explicit agent gates still run in ApprovalGate.
+            if (
+                tool.name == READ_SKILL
+                and tool.tool_kind == SKILL_LOAD_KIND.id
+                and tool_origin(tool) is None
+                and any(binding.id == "skills" and binding.enabled for binding in spec.capabilities)
+            ):
+                return RoutineToolDecision()
             if tool.capability_id is None:
                 origin = tool_origin(tool)
                 if origin is not None:

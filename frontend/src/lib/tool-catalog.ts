@@ -761,6 +761,12 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "previewingArtifact",
     displayNameKey: "previewArtifact",
   },
+  export_artifact: {
+    kind: "write",
+    render: "generic",
+    captionKey: "exportingArtifact",
+    displayNameKey: "exportArtifact",
+  },
   // Files a request the owner answers in the Share dialog; nothing is shared by the call.
   share_artifact: {
     kind: "write",
@@ -901,6 +907,37 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     displayNameKey: "savedScreenshot",
     opensWhenDone: true,
     opensOnSight: true,
+  },
+
+  list_chat_connections: {
+    kind: "list",
+    render: "generic",
+    captionKey: "listingChatConnections",
+    displayNameKey: "chatConnections",
+  },
+  find_chat_channels: {
+    kind: "search",
+    render: "generic",
+    captionKey: "lookingForChannel",
+    displayNameKey: "channelSearch",
+  },
+  read_chat_messages: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingChannel",
+    displayNameKey: "channelHistory",
+  },
+  react_to_chat_message: {
+    kind: "write",
+    render: "generic",
+    captionKey: "reactingToMessage",
+    displayNameKey: "messageReactions",
+  },
+  send_chat_message: {
+    kind: "write",
+    render: "generic",
+    captionKey: "sendingChannelMessage",
+    displayNameKey: "sendChannelMessage",
   },
 
   // channel_tools - only ever called on a Slack, Telegram or Mattermost run, so these
@@ -1168,6 +1205,7 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "memoryCorrecting",
     displayNameKey: "correctMemory",
     staysClosed: true,
+    approvalSummary: { key: "approveCorrectMemory", needs: ["before", "after"] },
   },
   share_memory: {
     kind: "write",
@@ -1175,6 +1213,7 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "memorySharing",
     displayNameKey: "shareMemory",
     staysClosed: true,
+    approvalSummary: { key: "approveShareMemory", needs: ["claim", "audience"] },
   },
   remember: {
     kind: "write",
@@ -1361,10 +1400,8 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
  * exact match in both directions - a surplus row there is a renderer nothing reaches,
  * and that is the half that hid #144.
  *
- * `load_capability` is Pydantic AI's own, and it is how a model opens a skill: every
- * skill an agent is given is a deferred capability, so this is the call a person sees
- * where `load_skill` used to be. Without a row it would render as *Load Capability*
- * over a JSON blob, which says nothing about which skill was opened.
+ * The stable policy id is `load_capability`; the model-facing alias is `read_skill`.
+ * Both and older histories resolve to this renderer, showing which skill was read.
  */
 export const FRAMEWORK_TOOLS: Record<string, ToolEntry> = {
   load_capability: {
@@ -1478,7 +1515,7 @@ export const LEGACY_TOOLS: Record<string, ToolEntry> = {
 export function toolEntry(name: string): ToolEntry | null {
   return (
     TOOL_CATALOG[name] ??
-    FRAMEWORK_TOOLS[name] ??
+    FRAMEWORK_TOOLS[name === "read_skill" ? "load_capability" : name] ??
     PLATFORM_TOOLS[name] ??
     CALL_TOOLS[name] ??
     LEGACY_TOOLS[name] ??

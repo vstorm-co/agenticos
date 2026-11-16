@@ -1,5 +1,7 @@
 "use client";
 
+import { toolLookupName } from "@/lib/tool-identity";
+
 import { WatchesCard } from "@/components/watches/watches-card";
 import type { ToolCall } from "@/types";
 
@@ -10,7 +12,7 @@ export function writtenWatches(calls: readonly ToolCall[]): string[] {
   const watches = new Set<string>();
   for (const call of calls) {
     if (
-      !["agenticos_create_watch", "agenticos_update_watch"].includes(call.name) ||
+      !["agenticos_create_watch", "agenticos_update_watch"].includes(toolLookupName(call)) ||
       call.status !== "completed"
     )
       continue;

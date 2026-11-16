@@ -53,7 +53,7 @@ async def test_a_lost_ingestion_fails_its_document_with_why() -> None:
 
     fail.assert_awaited_once_with(
         str(job.rag_document_id),
-        error_message="Stopped before it finished: stopped by the memory watchdog",
+        error_message="The sync stopped before completion. Review the worker log and source configuration before retrying.",
         attempt=2,
         settling=True,
     )
@@ -83,7 +83,9 @@ async def test_a_lost_collection_sync_closes_its_log_only_while_it_runs(
 
     assert close.await_count == int(closed)
     if closed:
-        assert close.await_args.kwargs == {"error_message": "Stopped before it finished: killed"}
+        assert close.await_args.kwargs == {
+            "error_message": "The sync stopped before completion. Review the worker log and source configuration before retrying."
+        }
 
 
 async def test_a_lost_collection_sync_whose_log_is_gone_closes_nothing() -> None:
@@ -119,7 +121,9 @@ async def test_a_lost_source_sync_marks_the_source_and_closes_the_log_it_was_que
         await handlers.settle_ended(SYNC_SOURCE.kind, SYNC_SOURCE.dump(job), "killed")
 
     sources.update_after_sync.assert_awaited_once_with(
-        str(job.source_id), "error", "Stopped before it finished: killed"
+        str(job.source_id),
+        "error",
+        "The sync stopped before completion. Review the worker log and source configuration before retrying.",
     )
     close.assert_awaited_once_with(str(log_id), "killed")
 

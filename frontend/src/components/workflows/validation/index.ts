@@ -51,6 +51,7 @@ import {
   sharedErrorHandlerProblems,
   errorRoutingProblems,
   answeringStepProblems,
+  loopBodyProblems,
 } from "./rules";
 import { analyse } from "./joins";
 import { deriveScopes, nodeScopeMap, resolveDefinitions } from "./topology";
@@ -164,6 +165,7 @@ function validateSingleGraph(
     ...portNameClashes(graph, definitions),
     ...quickLogProblems(graph, definitions),
     ...rule6NestedScopeBoundaries(graph, scopes, nodeScope),
+    ...loopBodyProblems(graph, definitions, nodeScope),
     ...rule8OnePort(graph, definitions),
     ...errorRoutingProblems(graph, definitions),
     ...sharedErrorHandlerProblems(analysis),
@@ -219,7 +221,8 @@ function computeSinglePrecede(
 /**
  * The nodes whose output a binding on `targetNodeId` may read: every node that must
  * precede it, excluding the target itself (rule 4 forbids a node reading its own
- * output). The binding picker filters these further by rule 3 compatibility.
+ * output) and every step switched off, which does nothing and so offers nothing to
+ * read. The binding picker filters these further by rule 3 compatibility.
  */
 export function availableSourceNodes(
   graph: WorkflowGraph,
@@ -230,5 +233,6 @@ export function availableSourceNodes(
   if (precede === undefined) return new Set();
   const available = new Set(precede);
   available.delete(targetNodeId);
+  for (const node of graph.nodes) if (node.disabled === true) available.delete(node.id);
   return available;
 }

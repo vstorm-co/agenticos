@@ -1,5 +1,7 @@
 "use client";
 
+import { toolLookupName } from "@/lib/tool-identity";
+
 import { Check, ChevronRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
@@ -97,12 +99,16 @@ export function TurnDelegations({
       runId: item.runId,
     }));
   const fromCalls = toolCalls.flatMap((call): SheetDelegation[] => {
-    if (call.name === CODING_TOOL) {
+    if (toolLookupName(call) === CODING_TOOL) {
       if (call.status === "pending" || call.status === "running") return [];
       const report = parseCodingReport(String(call.result ?? ""));
       return report === null ? [] : [codingExchange(call, report)];
     }
-    if (exchanges.length > 0 || call.name !== "task" || typeof call.args.subagent_type !== "string")
+    if (
+      exchanges.length > 0 ||
+      toolLookupName(call) !== "task" ||
+      typeof call.args.subagent_type !== "string"
+    )
       return [];
     // A background start answers with its handle; what it came to is read from
     // the check of its task later in the turn, or it is still working.

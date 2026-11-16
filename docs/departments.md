@@ -15,6 +15,10 @@ Engineering, Marketing, Legal and Operations, each with an icon and a short
 description. Rename them, change their icons or delete them afterwards like any
 other group.
 
+Browse departments as cards with their icon, description and member count, or
+search by name or description. In **New group**, choose the icon beside the name;
+the optional monthly cap is under **Budget limit**.
+
 People are added to a group from its page, by hand, or by a
 [directory group mapping](directory.md#directory-group-mappings) when your
 company already keeps its teams in a directory.
@@ -73,13 +77,18 @@ Opening a group shows its people and everything shared with it, grouped by
 kind - agents, knowledge bases, skills, context, apps and MCP servers - with the
 level each was shared at.
 
+Shared resources appear before usage and answer-quality panels. On phones, open
+the extra page actions to edit the group. While a membership or sharing change
+saves, its controls and dismissal are locked; a refusal keeps your selections
+so you can retry.
+
 **Add to this group** shares several things at once: it lists everything the
 reader may edit that the group does not have yet, with a search, a tick each and
 the level to share at. Each is the same grant the Share panel writes, so it
 needs the same right to edit.
 
 Members are told when something is shared with their group - in the inbox and,
-if they want it, by email; *Shared with your group* in notification settings
+if they want it, by email; *Shared with you or your group* in notification settings
 turns it off. Cards across the console say who each thing is for: *Everyone*,
 its departments by name, both when it is for everyone and belongs to a
 department, or *Private*. A reader sees only the items they could open anyway, so a

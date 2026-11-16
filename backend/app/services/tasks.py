@@ -12,6 +12,7 @@ from app.db.locks import LockScope, hold_subject
 from app.db.models.task_board import TaskBoard, TaskLink
 from app.db.models.virtual_table import VirtualTableRecord
 from app.repositories import (
+    agent_repo,
     conversation_repo,
     group_repo,
     member_repo,
@@ -105,6 +106,14 @@ class TaskService:
             await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, scope_id)
             if await user_repo.get_by_id(self.db, scope_id) is None:
                 raise NotFoundError(message="Task scope not found")
+        # Match deletion's agent -> board lock order and hold the scope alive.
+        if data.scope == "agent" and (
+            await agent_repo.get(
+                self.db, scope_id, organization_id=ctx.organization_id, for_update=True
+            )
+            is None
+        ):
+            raise NotFoundError(message="Task scope not found")
         # The binding, not a person's idempotency receipt: two project members
         # opening Tasks together must get the same board.
         await hold_subject(
@@ -175,9 +184,15 @@ class TaskService:
                 config=TableViewConfig(group_by=table.columns[1].id),
             ),
         )
-        from app.schemas.virtual_table import TableUpdate
-
-        await self.tables.update_table(ctx, table.id, TableUpdate(default_view_id=default_view.id))
+        # The board row already exists here, and the person creating it need not be one
+        # who may change it later, so the default view is set as part of creating it.
+        created = await virtual_table_repo.get_table(
+            self.db, table.id, organization_id=ctx.organization_id, for_update=True
+        )
+        assert created is not None
+        await virtual_table_repo.update_table(
+            self.db, table=created, update_data={"default_view_id": default_view.id}
+        )
         views = TableViewService(self.db)
         await views.create_view(
             ctx, table.id, TableViewCreate(name="All tasks", kind="table", visibility="shared")
@@ -240,30 +255,37 @@ class TaskService:
             )
         return board
 
+    async def open_board(self, ctx: AuthContext, data: BoardEnsure) -> TaskBoardRead:
+        """`ensure_board`, answered the way `boards` lists it."""
+        return await self._board_read(ctx, await self.ensure_board(ctx, data))
+
     async def boards(self, ctx: AuthContext) -> list[TaskBoardRead]:
-        result: list[TaskBoardRead] = []
-        for board in await task_repo.boards(self.db, ctx.organization_id):
-            if not await board_allows(self.db, ctx, board, Perm.TABLES_VIEW):
-                continue
-            table = await virtual_table_repo.get_table(
-                self.db, board.table_id, organization_id=ctx.organization_id
-            )
-            editable = (
-                table is not None
-                and table.archived_at is None
-                and await board_allows(self.db, ctx, board, Perm.TABLES_EDIT)
-            )
-            result.append(
-                TaskBoardRead.model_validate(board).model_copy(
-                    update={
-                        "scope_name": await self._scope_name(ctx, board.scope_kind, board.scope_id),
-                        "can_edit": editable,
-                    }
-                )
-            )
-        return result
+        return [
+            await self._board_read(ctx, board)
+            for board in await task_repo.boards(self.db, ctx.organization_id)
+            if await board_allows(self.db, ctx, board, Perm.TABLES_VIEW)
+        ]
+
+    async def _board_read(self, ctx: AuthContext, board: TaskBoard) -> TaskBoardRead:
+        table = await virtual_table_repo.get_table(
+            self.db, board.table_id, organization_id=ctx.organization_id
+        )
+        editable = (
+            table is not None
+            and table.archived_at is None
+            and await board_allows(self.db, ctx, board, Perm.TABLES_EDIT)
+        )
+        return TaskBoardRead.model_validate(board).model_copy(
+            update={
+                "scope_name": await self._scope_name(ctx, board.scope_kind, board.scope_id),
+                "can_edit": editable,
+            }
+        )
 
     async def _scope_name(self, ctx: AuthContext, kind: str, scope_id: UUID) -> str | None:
+        if kind == "agent":
+            agent = await agent_repo.get(self.db, scope_id, organization_id=ctx.organization_id)
+            return agent.name if agent else None
         if kind == "project":
             project = await project_repo.get(self.db, scope_id, organization_id=ctx.organization_id)
             return project.name if project else None

@@ -1,5 +1,5 @@
 ---
-source_sha: "6be4e8d3a870"
+source_sha: "f0b3009ed75d"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -10,6 +10,10 @@ source_sha: "6be4e8d3a870"
     toda clave de API de terceros de esta plataforma pasa por
     `app/core/vault.py`. Añadir una segunda forma de guardar una credencial en
     reposo es el defecto que dos migraciones eliminaron.
+
+## En la consola { #in-the-console }
+
+Vault muestra las claves, tus cuentas conectadas y las cuentas de la organización en una sola tabla. **Añadir clave** guarda una credencial; **Conectar cuenta** permite elegir tu propia cuenta o, con permiso, una cuenta de la organización. Cada fila conserva su acceso y sus acciones: compartir o rotar una clave, o volver a conectar o desconectar una cuenta. Los tokens OAuth permanecen ocultos y desconectar una cuenta requiere confirmación.
 
 ## Cifrado de sobre { #envelope-encryption }
 
@@ -380,7 +384,7 @@ existe. Solo se vuelve a sellar la clave de datos envuelta — las cargas útile
 quedan intactas, y eso es lo que hace barata la rotación.
 
 ```bash
-uv run agenticos cmd doctor    # reports whether a vault key is configured at all
+uv run agenticos cmd doctor    # says whether a dedicated key or the SECRET_KEY fallback seals the vault
 ```
 
 `make platform-bootstrap BOOTSTRAP_API_KEY=sk-...` guarda por ti la primera clave

@@ -26,7 +26,6 @@ import type { AssistantState } from "@/types/assistant";
 
 import { AssistantBubble } from "./assistant-bubble";
 import { architectName, AssistantLauncher, WidgetRoot } from "./assistant-launcher";
-import { AssistantSetup } from "./assistant-setup";
 import { AssistantWindow } from "./assistant-window";
 
 /** How long a page is looked at before the bubble speaks. */
@@ -47,18 +46,15 @@ let visits = 0;
  * A round button with the assistant's face, a speech bubble above it that speaks
  * to the page and to what is waiting, and a window holding the conversation.
  * Shown only to somebody who may run agents - the assistant is an agent like any
- * other. Before it has a model it walks through connecting one instead.
+ * other. Before it has a model the same chat explains how to connect one.
  */
 export function AssistantWidget() {
   // A failed read leaves the corner empty on every page rather than an error
   // following the reader around; Settings → Assistant is where it is said.
   const { assistant } = useAssistant();
   if (!assistant || !assistant.can_use || assistant.agent_id === null) return null;
-  if (assistant.status === "ready") {
-    return <ReadyWidget assistant={assistant} agentId={assistant.agent_id} />;
-  }
-  if (assistant.status === "needs_model") {
-    return <AssistantSetup assistant={assistant} agentId={assistant.agent_id} />;
+  if (assistant.status === "ready" || assistant.status === "needs_model") {
+    return <ConversationWidget assistant={assistant} agentId={assistant.agent_id} />;
   }
   return null;
 }
@@ -99,7 +95,13 @@ function usePhone(): boolean {
   return phone;
 }
 
-function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentId: string }) {
+function ConversationWidget({
+  assistant,
+  agentId,
+}: {
+  assistant: AssistantState;
+  agentId: string;
+}) {
   const t = useTranslations("assistantWidget");
   const pathname = usePathname();
   const signals = useAssistantSignals();
@@ -195,9 +197,11 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
     setEverOpened(true);
   };
 
-  const ask = (text: string) => {
+  const [draft, setDraft] = useState<{ id: number; text: string } | null>(null);
+  const ask = (text: string, asDraft = false) => {
     openWindow();
-    setPrompt((last) => ({ id: (last?.id ?? 0) + 1, text }));
+    if (asDraft) setDraft((last) => ({ id: (last?.id ?? 0) + 1, text }));
+    else setPrompt((last) => ({ id: (last?.id ?? 0) + 1, text }));
   };
 
   // Asked from elsewhere in the console - "Make an agent of this" in a chat. Each
@@ -209,7 +213,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
   useEffect(() => {
     if (asked === null || asked.id === answeredAsk.current) return;
     answeredAsk.current = asked.id;
-    ask(asked.text);
+    ask(asked.text, asked.draft);
     answered(asked.id);
   });
 
@@ -231,10 +235,8 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
             agentId={agentId}
             open={open}
             prompt={prompt}
-            page={{
-              path: pageOf(pathname),
-              title: typeof document === "undefined" ? "" : document.title,
-            }}
+            draft={draft}
+            page={{ path: pageOf(pathname) }}
             tipsOff={preferences.off}
             onTipsOff={(off) => {
               setBubblesOff(off);
@@ -249,7 +251,16 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
         </ChatScope>
       )}
 
-      {speaking && (
+      {speaking && assistant.status === "needs_model" && (
+        <button
+          type="button"
+          onClick={openWindow}
+          className="bg-background border-border fixed right-4 bottom-24 z-50 max-w-[17rem] rounded-2xl border px-4 py-3 text-left text-sm shadow-lg md:right-6"
+        >
+          {t("setup.bubble")}
+        </button>
+      )}
+      {speaking && assistant.status === "ready" && (
         <AssistantBubble
           bubble={bubble}
           values={{ run: failedRun ?? "", form: signals.stuckIn ?? "" }}

@@ -36,6 +36,7 @@ class ThinkingConfig(BaseModel):
     # so there is nothing here for a person to approve.
     tools=(),
     config_schema=ThinkingConfig,
+    tunable=True,
 )
 def _build(ctx: CapabilityBuildContext) -> Thinking:
     config = ctx.config if isinstance(ctx.config, ThinkingConfig) else ThinkingConfig()

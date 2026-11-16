@@ -11,16 +11,19 @@ import { useTranslations } from "next-intl";
 
 import { BrandIcon } from "@/components/icons/brand-icon";
 import { brandForUrl, consolePageIcon, isAppLink, offsiteUrl } from "@/lib/link-brands";
+import { rehypePromptVariables } from "@/lib/prompt-variables";
 import { rehypeStreamWords } from "@/lib/stream-words";
 import { cn } from "@/lib/utils";
 
 import { CollapsibleBlock } from "./collapsible-block";
+import { LinkFavicon } from "./link-favicon";
 import { MarkdownQuote } from "./markdown-quote";
 import { MarkdownTable } from "./markdown-table";
 import type { MarkdownContentProps } from "./markdown-content";
 
 const REMARK_PLUGINS = [remarkGfm];
 const REHYPE_PLUGINS = [rehypeHighlight];
+const PROMPT_PLUGINS = [rehypeHighlight, rehypePromptVariables];
 const STREAM_PLUGINS = [rehypeHighlight, rehypeStreamWords];
 
 /** Parse `language-xyz` from a `<code>` className that rehype-highlight emits. */
@@ -131,6 +134,7 @@ export const MarkdownContent = memo(function MarkdownContent({
   inertImages,
   documentMedia,
   streaming,
+  highlightVariables,
 }: MarkdownContentProps) {
   const t = useTranslations("chat");
   const processed = onCiteClick ? preprocessCitations(content) : content;
@@ -304,8 +308,14 @@ export const MarkdownContent = memo(function MarkdownContent({
                 className="inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
               />
             )}
+            {external && !brand && !inertImages && (
+              <LinkFavicon
+                url={external}
+                className="inline h-[0.95em] w-[0.95em] translate-y-[0.1em]"
+              />
+            )}
             {label}
-            {isExternal && !brand && (
+            {isExternal && !brand && inertImages && (
               <ExternalLink className="text-foreground/60 inline h-[0.8em] w-[0.8em] shrink-0 -translate-y-[1px]" />
             )}
           </a>
@@ -432,7 +442,9 @@ export const MarkdownContent = memo(function MarkdownContent({
   return (
     <ReactMarkdown
       remarkPlugins={REMARK_PLUGINS}
-      rehypePlugins={streaming ? STREAM_PLUGINS : REHYPE_PLUGINS}
+      rehypePlugins={
+        streaming ? STREAM_PLUGINS : highlightVariables ? PROMPT_PLUGINS : REHYPE_PLUGINS
+      }
       components={components}
     >
       {processed}

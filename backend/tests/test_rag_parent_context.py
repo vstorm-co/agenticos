@@ -232,8 +232,8 @@ class TestWhichScopeASiblingIsReadUnder:
 
         assert expansion_scope(TenantScope(organization_id=org)) == VectorScope(tenant=org)
 
-    def test_an_app_scope_reads_only_untagged_rows(self):
-        assert expansion_scope(AppScope()) == VectorScope(tenant=None)
+    def test_an_app_scope_requires_operator_origin_on_unfiled_rows(self):
+        assert expansion_scope(AppScope()) == VectorScope(tenant=None, operator_unfiled_only=True)
 
     @pytest.mark.security
     def test_siblings_are_read_within_the_searched_base(self):
@@ -245,7 +245,7 @@ class TestWhichScopeASiblingIsReadUnder:
             TenantScope(organization_id=org, knowledge_base_id=kb)
         ) == VectorScope(tenant=org, knowledge_base_id=kb)
         assert expansion_scope(AppScope(knowledge_base_id=kb, takes_unfiled=False)) == VectorScope(
-            tenant=None, knowledge_base_id=kb, takes_unfiled=False
+            tenant=None, knowledge_base_id=kb, takes_unfiled=False, operator_unfiled_only=True
         )
 
     def test_an_unscoped_search_is_not_expanded(self):
@@ -320,7 +320,10 @@ class TestThroughTheRetrievalService:
         )
 
         assert sorted((read[0], read[2]) for read in reader.reads) == sorted(
-            [("tenant_col", VectorScope(tenant=org)), ("app_col", VectorScope(tenant=None))]
+            [
+                ("tenant_col", VectorScope(tenant=org)),
+                ("app_col", VectorScope(tenant=None, operator_unfiled_only=True)),
+            ]
         )
 
     async def test_an_unscoped_collection_in_a_multi_search_is_not_expanded(self):

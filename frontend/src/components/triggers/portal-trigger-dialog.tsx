@@ -180,7 +180,7 @@ export function PortalTriggerDialog({
   }
 
   async function submit() {
-    if (preset === null || effectiveAgentId === "") return;
+    if (create.isPending || preset === null || effectiveAgentId === "") return;
     const eventConfig = { ...extraConfig, ...eventFilterConfig(eventSource, [filterA, filterB]) };
     const payload: TriggerCreate = {
       prompt,
@@ -227,7 +227,12 @@ export function PortalTriggerDialog({
         ? t("polledDescription")
         : t("registeredDescription");
     return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          if (!create.isPending) onOpenChange(next);
+        }}
+      >
         <DialogContent className={DIALOG_CONFIRM}>
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
@@ -251,7 +256,12 @@ export function PortalTriggerDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!create.isPending) onOpenChange(next);
+      }}
+    >
       <RoutineDialogFrame
         title={t("dialogTitle", { portal: portal.name })}
         description={tt("createDescription")}
@@ -264,10 +274,12 @@ export function PortalTriggerDialog({
           current: step,
         }}
         bodyKey={step}
+        pending={create.isPending}
         disabled={create.isPending}
         footer={
           <WizardNav
             backIsStep={step !== "preset"}
+            backDisabled={create.isPending}
             backLabel={step !== "preset" ? tt("back") : tt("cancel")}
             onBack={
               step === "message"

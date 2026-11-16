@@ -1,5 +1,5 @@
 ---
-source_sha: "3cc67268b6c7"
+source_sha: "2e61dcf2fc07"
 title: "Sprawdź umowę według własnej listy kontrolnej"
 description: "Przypisz agentowi skill do wstępnego przeglądu, załącz krótką syntetyczną umowę o świadczenie usług i sprawdź, czy znajduje oba podłożone problemy i brakującą klauzulę, nie udzielając porad prawnych."
 ---
@@ -99,11 +99,11 @@ Sam przeczytaj odstępstwa obok klauzul źródłowych. Odstępstwo z błędnym n
 
     Model: Claude Sonnet 4.6 przez OpenRouter. Wyciąg określił odpowiedzialność z kl. 5 jako „unlimited” z „no exclusion of indirect/consequential loss”, odnowienie z kl. 7 jako pozbawione „no opt-out/break notice mechanism” i wymienił „Governing law & jurisdiction” jako brakujące zarówno w odstępstwach, jak i w osobnej tabeli braków, obok odszkodowań i zmiany kontroli, czyli pozycji z listy kontrolnej, których ten krótki przykład nigdy nie zawierał. Zakończył stwierdzeniem, że wyciąg „requires verification by the fee earner responsible for this matter before being relied upon”. Koszt: 0,0249 USD.
 
-    Run został zapisany na 0.0.508, gdy galeria instalowała ten skill jako „Document review first pass”, a instrukcje nazywały go w ten sam sposób. Pierwsza próba skończyła się błędem, zanim cokolwiek powstało. Model wywołał `load_capability` z id `document-review-first-pass`, które wtedy nie istniało, bo id przypisanego skilla to jego dokładna zapisana nazwa. Model spróbował drugi raz z inną błędną nazwą, a run zakończył się komunikatem „the agent could not finish this turn”, przy koszcie 0,0083 USD za dwa zgadywania. Od 0.0.509 każdy skill z galerii ma nazwę w tej formie z myślnikami i nazwa nowego skilla też musi ją mieć, więc id, które pisze model, istnieje ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)).
+    Run został zapisany na 0.0.508, gdy galeria instalowała ten skill jako „Document review first pass”, a instrukcje nazywały go w ten sam sposób. Pierwsza próba skończyła się błędem, zanim cokolwiek powstało. Model wywołał `read_skill` z id `document-review-first-pass`, które wtedy nie istniało, bo id przypisanego skilla to jego dokładna zapisana nazwa. Model spróbował drugi raz z inną błędną nazwą, a run zakończył się komunikatem „the agent could not finish this turn”, przy koszcie 0,0083 USD za dwa zgadywania. Od 0.0.509 każdy skill z galerii ma nazwę w tej formie z myślnikami i nazwa nowego skilla też musi ją mieć, więc id, które pisze model, istnieje ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)).
 
 ## Gdy coś pójdzie nie tak { #when-it-goes-wrong }
 
-- **Run kończy się komunikatem „could not finish this turn”, zanim cokolwiek powstanie.** Wywołanie `load_capability` podało id skilla, które nie istnieje. Na 0.0.509 i nowszych wskazuje to na skill zainstalowany wcześniej, który nadal nosi jako nazwę tytuł z galerii: zainstaluj go ponownie z galerii, co doda go pod nazwą z myślnikami, i przypisz ten nowy.
+- **Run kończy się komunikatem „could not finish this turn”, zanim cokolwiek powstanie.** Wywołanie `read_skill` podało id skilla, które nie istnieje. Na 0.0.509 i nowszych wskazuje to na skill zainstalowany wcześniej, który nadal nosi jako nazwę tytuł z galerii: zainstaluj go ponownie z galerii, co doda go pod nazwą z myślnikami, i przypisz ten nowy.
 - **Agent mówi, czy podpisać.** Zaostrz „you do not advise” i sprawdź to wprost pytaniem uzupełniającym. Narzędzie do listy kontrolnej, które odpowiada „tak, jest w porządku”, gdy tylko ktoś zapyta, wychodzi poza swoje zadanie.
 - **Odstępstwo nie ma numeru klauzuli.** Instrukcje wymagają go przy każdej pozycji. Brak odniesienia przy skądinąd poprawnym wniosku i tak warto zgłosić, bo kolejny czytelnik nie sprawdzi go bez numeru.
 - **Lista brakujących klauzul wymyśla coś, co umowa ma.** Przeczytaj źródło bezpośrednio. Lista kontrolna oczekuje mniej więcej tuzina standardowych pozycji. Krótkiemu przykładowi zawsze będzie brakować kilku, a model musi poprawnie wskazać te, których naprawdę nie ma, a nie tylko wypisać długą listę.

@@ -52,6 +52,65 @@ beforeEach(() => {
 });
 
 describe("useWorkflowRuns", () => {
+  it.each([false, true])(
+    "routes named admission errors to the visible input form: %s",
+    async (inForm) => {
+      vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [], total: 0 });
+      vi.mocked(api.startWorkflowRun).mockRejectedValue(
+        new ApiError(422, "Input rejected", {
+          error: {
+            code: "WORKFLOW_RUN_INPUT_INVALID",
+            message: "Input rejected",
+            details: {
+              fields: [{ field: "input.items.0.sku", message: "Field required" }],
+            },
+          },
+        }),
+      );
+      const { result } = renderHook(() => useWorkflowRuns("wf", inForm), { wrapper });
+      await act(async () => {
+        await result.current.start.mutateAsync({ workflow_id: "wf" }).catch(() => undefined);
+      });
+      if (inForm) expect(toast.error).not.toHaveBeenCalled();
+      else expect(toast.error).toHaveBeenCalledWith("input.items.0.sku: Field required");
+      await waitFor(() => expect(result.current.start.error).toBeInstanceOf(ApiError));
+    },
+  );
+
+  it("still toasts non-field failures while the input form is open", async () => {
+    vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.startWorkflowRun).mockRejectedValue(new Error("boom"));
+    const { result } = renderHook(() => useWorkflowRuns("wf", true), { wrapper });
+    await act(async () => {
+      await result.current.start.mutateAsync({ workflow_id: "wf" }).catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalledWith("boom");
+  });
+
+  it("toasts orphaned graph fields while the input form owns only input refusals", async () => {
+    vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.startWorkflowRun).mockRejectedValue(
+      new ApiError(422, "Graph invalid", {
+        error: {
+          code: "GRAPH_INVALID",
+          message: "Graph invalid",
+          details: {
+            fields: [
+              { field: "nodes.start.config.input_schema", message: "Invalid trigger schema" },
+              { field: "input.items", message: "Field required" },
+            ],
+          },
+        },
+      }),
+    );
+    const { result } = renderHook(() => useWorkflowRuns("wf", true), { wrapper });
+    await act(async () => {
+      await result.current.start.mutateAsync({ workflow_id: "wf" }).catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalledWith(
+      "nodes.start.config.input_schema: Invalid trigger schema",
+    );
+  });
   it("lists a workflow's runs and starts one", async () => {
     vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [run("running")], total: 1 });
     vi.mocked(api.startWorkflowRun).mockResolvedValue(run("queued"));

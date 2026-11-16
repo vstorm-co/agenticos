@@ -35,6 +35,7 @@ from app.repositories import (
 )
 from app.repositories import sync_log as sync_log_repo
 from app.repositories import sync_source as sync_source_repo
+from app.services import rag_scratch
 from app.services.embedding_resolution import (
     ResolvedEmbeddings,
     embeddings_for_collection,
@@ -57,7 +58,7 @@ from app.services.rag.provenance import iso_doc_date
 from app.services.rag.vectorstore import EmbeddingResolver
 from app.services.rag.vectorstore import PgVectorStore as VectorStore
 from app.services.spend import assert_organization_within_budget
-from app.services.sync_source import SyncSourceService, SyncState, sync_fingerprint
+from app.services.sync_source import PAUSED_SOURCE, SyncSourceService, SyncState, sync_fingerprint
 from app.worker.attempt import is_final_attempt
 from app.worker.jobs import IngestDocument, SyncCollection, SyncConnectorSource, sync_source_key
 
@@ -441,6 +442,7 @@ async def _run_ingestion(
             logger.info("Document %s was deleted before it was parsed", rag_document_id)
             return {"status": "deleted", "filename": source_path}
         organization_id = record.organization_id
+        storage_path = record.storage_path if settings.FILE_STORAGE_BACKEND == "s3" else None
         # Checked again here, not only at upload: the budget can be reached by
         # runs that finished while this file waited in the queue. Raising lets
         # the flow's handler put the refusal on the document row, where the
@@ -466,13 +468,14 @@ async def _run_ingestion(
         scope = kb.vector_scope if kb is not None else VectorScope(tenant=None)
 
     ledger = SpendLedger(organization_id=organization_id)
-    file_path = Path(filepath)
-    # An uploaded document's date: the file's own mtime, else ingestion time.
-    # The trusted tenant comes off the tracked row, never from the uploader.
-    upload_mtime = file_path.stat().st_mtime if file_path.exists() else None
-    async with _ingestion_service(
-        processor=processor, organization_id=organization_id, scope=scope
-    ) as ingester:
+    async with (
+        rag_scratch.parse_source(Path(filepath), storage_path=storage_path) as file_path,
+        _ingestion_service(
+            processor=processor, organization_id=organization_id, scope=scope
+        ) as ingester,
+    ):
+        # S3 copies have a worker-local mtime; the trusted tenant comes off the row.
+        upload_mtime = file_path.stat().st_mtime if file_path.exists() else None
         try:
             with metered_by(ledger):
                 result = await ingester.ingest_file(
@@ -1360,6 +1363,27 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
         source_svc = SyncSourceService(db)
 
         source = await source_svc.get_source(source_id)
+        queued_log = (
+            None if sync_log_id is None else await sync_log_repo.get_by_id(db, UUID(sync_log_id))
+        )
+        if sync_log_id is not None and queued_log is None:
+            return {"status": "skipped", "message": "This sync request no longer exists."}
+        if queued_log is not None and (
+            queued_log.collection_name != source.collection_name
+            or (
+                queued_log.organization_id is not None
+                and queued_log.organization_id != source.organization_id
+            )
+        ):
+            message = "Source collection changed before this sync started. Run it again."
+            await _notify_sync_start_failure(
+                db,
+                source=source,
+                sync_log_id=sync_log_id,
+                started_at=datetime.now(UTC),
+                message=message,
+            )
+            return {"status": "error", "message": message}
         assigned_collection = source.collection_name
         if assigned_collection is not None:
             # Deletion detaches sources under this lock. Refresh after waiting
@@ -1384,7 +1408,6 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             await source_svc.update_after_sync(source_id, "error", message)
             return {"status": "error", "message": message}
 
-        config = source.config if isinstance(source.config, dict) else json.loads(source.config)
         if source.collection_name is None or source.collection_name != assigned_collection:
             # Both callers guarantee this before dispatching: `trigger_sync`
             # refuses a source with no collection, and the scheduler's own
@@ -1405,6 +1428,17 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             )
             await source_svc.update_after_sync(source_id, "error", message)
             return {"status": "error", "message": message}
+        if not source.is_active:
+            await _notify_sync_start_failure(
+                db,
+                source=source,
+                sync_log_id=sync_log_id,
+                started_at=attempt_started_at,
+                message=PAUSED_SOURCE,
+            )
+            await source_svc.update_after_sync(source_id, "error", PAUSED_SOURCE)
+            return {"status": "error", "message": PAUSED_SOURCE}
+        config = source.config if isinstance(source.config, dict) else json.loads(source.config)
         collection_name = source.collection_name
         sync_mode = source.sync_mode
         organization_id = source.organization_id
@@ -1490,6 +1524,20 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             else IngestionConfig.model_validate(knowledge_base.ingestion_config)
         )
         knowledge_base_id = None if knowledge_base is None else knowledge_base.id
+        if (
+            queued_log is not None
+            and queued_log.knowledge_base_id is not None
+            and queued_log.knowledge_base_id != knowledge_base_id
+        ):
+            message = "The sync target changed before this request started. Review the source and run it again."
+            await _notify_sync_start_failure(
+                db,
+                source=source,
+                sync_log_id=sync_log_id,
+                started_at=attempt_started_at,
+                message=message,
+            )
+            return {"status": "error", "message": message}
         # The collection's scope, read off the base while its row is loaded (the
         # property only touches already-loaded columns): the base and its tenant -
         # its organization for an org base, None for an app-scoped one or a
@@ -1917,7 +1965,8 @@ async def apply_retention() -> None:
 
 
 def _stopped(reason: str) -> str:
-    return f"Stopped before it finished: {reason}"
+    logger.warning("Sync worker stopped before completion: %s", reason)
+    return "The sync stopped before completion. Review the worker log and source configuration before retrying."
 
 
 async def settle_lost_ingest(job: IngestDocument, reason: str) -> None:

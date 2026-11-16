@@ -118,7 +118,12 @@ def _turns(answer: str = "hi", history: list[MagicMock] | None = None):
         patch(
             "app.services.embed_session.conversation_repo.get_conversation_by_id",
             new=AsyncMock(
-                return_value=MagicMock(summary_messages=None, summary_ordinal=None, project_id=None)
+                return_value=MagicMock(
+                    summary_messages=None,
+                    summary_ordinal=None,
+                    guardrail_revision=0,
+                    project_id=None,
+                )
             ),
         ),
         patch(
@@ -490,6 +495,7 @@ class TestTheWidgetRemembersWhatWasSaid:
             role=role,
             content=content,
             attachment_context=None,
+            model_content=None,
             author_user_id=None,
             reply_to_message_id=None,
             guardrail_refused=False,
@@ -1522,6 +1528,7 @@ def _published_agent(**overrides) -> MagicMock:
     agent.name = "Support"
     agent.current_version_id = uuid.uuid4()
     agent.status = "published"
+    agent.kind = "agent"
     for key, value in overrides.items():
         setattr(agent, key, value)
     return agent

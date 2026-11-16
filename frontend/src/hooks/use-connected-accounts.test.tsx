@@ -174,3 +174,36 @@ it.each(["connectToken", "connectApplication", "connectImap", "connectOdoo"] as 
     expect(toastError).toHaveBeenCalledWith("Credential refused");
   },
 );
+
+it("combines every native provider in the inventory and refreshes after disconnect", async () => {
+  vi.mocked(apiClient.get).mockImplementation(async (path) => ({
+    items: [{ ...ACCOUNT, id: path }],
+    total: 1,
+  }));
+  vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+  const { result } = renderHook(() => useConnectedAccounts("personal", { provider: "all" }), {
+    wrapper,
+  });
+  await waitFor(() => expect(result.current.accounts).toHaveLength(5));
+  expect(result.current.accounts.map((account) => account.id)).toEqual([
+    "/me/connected-accounts",
+    "/me/connected-accounts?provider=microsoft",
+    "/me/connected-accounts?provider=slack",
+    "/me/connected-accounts?provider=imap",
+    "/me/connected-accounts?provider=odoo",
+  ]);
+  act(() => result.current.disconnect("a1"));
+  await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(10));
+});
+
+it("reports a provider listing failure instead of showing a complete inventory", async () => {
+  vi.mocked(apiClient.get).mockImplementation(async (path) => {
+    if (path.endsWith("provider=slack")) throw new Error("Slack accounts unavailable");
+    return { items: [ACCOUNT], total: 1 };
+  });
+  const { result } = renderHook(() => useConnectedAccounts("personal", { provider: "all" }), {
+    wrapper,
+  });
+  await waitFor(() => expect(result.current.error?.message).toBe("Slack accounts unavailable"));
+  expect(result.current.accounts).toEqual([]);
+});

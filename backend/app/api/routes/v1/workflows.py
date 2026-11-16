@@ -32,6 +32,7 @@ from app.schemas.workflow import (
     WorkflowDetail,
     WorkflowDraftCheck,
     WorkflowDraftUpdate,
+    WorkflowInputSchema,
     WorkflowList,
     WorkflowPreparationCreate,
     WorkflowPreparationRead,
@@ -243,6 +244,22 @@ async def list_workflow_versions(
 ) -> Any:
     """A metadata page, newest first; pass next_before for older versions. No graphs."""
     return await service.list_versions(ctx, workflow_id, before=before, limit=limit)
+
+
+@router.get("/{workflow_id}/input-schema", response_model=WorkflowInputSchema)
+async def get_workflow_input_schema(
+    workflow_id: UUID,
+    service: WorkflowRegistrySvc,
+    ctx: Auth,
+    version_id: UUID | None = Query(default=None),
+) -> Any:
+    """Discover a published version's Draft 2020-12 trigger input contracts.
+
+    Defaults to the current published version. Pass a version id to inspect
+    an older version. Entries identify the trigger to select with entry_node_id
+    when starting a run; schemas include local references without expanding them.
+    """
+    return await service.input_schema(ctx, workflow_id, version_id=version_id)
 
 
 @router.get("/{workflow_id}/versions/{version_id}", response_model=WorkflowVersionDetail)

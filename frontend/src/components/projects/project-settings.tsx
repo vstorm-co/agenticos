@@ -19,6 +19,7 @@ import {
   type MarkdownMode,
 } from "@/components/ui";
 import { useProject } from "@/hooks/use-projects";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { ROUTES } from "@/lib/constants";
 import type { Project } from "@/types/projects";
 import { ContextHelp } from "@/components/ui/context-help";
@@ -51,6 +52,33 @@ export function ProjectSettings({ project }: { project: Project }) {
     description !== (project.description ?? "") ||
     instructions !== project.instructions ||
     agentId !== project.default_agent_id;
+
+  const discard = () => {
+    setName(project.name);
+    setDescription(project.description ?? "");
+    setInstructions(project.instructions);
+    setAgentId(project.default_agent_id);
+  };
+  const save = async (): Promise<boolean> => {
+    try {
+      await update.mutateAsync({
+        name: name.trim(),
+        description: description.trim() || null,
+        instructions,
+        // Saving instructions must not clear an unchanged, invisible default agent.
+        ...(agentId !== project.default_agent_id && { default_agent_id: agentId }),
+      });
+      return true;
+    } catch {
+      // The mutation reports the failure; keep the editor and its draft in place.
+      return false;
+    }
+  };
+  useUnsavedChanges(`project-settings:${project.id}`, {
+    dirty: editable && changed,
+    save: name.trim() ? save : undefined,
+    discard,
+  });
 
   return (
     <div className="space-y-4">
@@ -119,17 +147,7 @@ export function ProjectSettings({ project }: { project: Project }) {
               <Button
                 loading={update.isPending}
                 disabled={!changed || !name.trim()}
-                onClick={() =>
-                  update.mutate({
-                    name: name.trim(),
-                    description: description.trim() || null,
-                    instructions,
-                    // Only when it was changed: a default agent this reader may
-                    // not see reaches them as none, and saving the instructions
-                    // must not clear it.
-                    ...(agentId !== project.default_agent_id && { default_agent_id: agentId }),
-                  })
-                }
+                onClick={() => void save()}
               >
                 {t("save")}
               </Button>

@@ -1,4 +1,3 @@
-
 name: CI
 
 # Work reaches `main` by pull request from a short-lived branch, so the pull
@@ -360,6 +359,15 @@ jobs:
           PYTEST_ADDOPTS: "-q -q"
         run: make test COV_REPORT=xml
 
+      - name: Retain backend coverage diagnostics
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: Report coverage of template-inherited code
         # Informational. Holding code we did not design to the platform bar
         # would mean mock-heavy tests that buy a number rather than confidence.
@@ -715,6 +723,12 @@ jobs:
             > "$RUNNER_TEMP/backend.log" 2>&1 &
           echo "$!" > "$RUNNER_TEMP/backend.pid"
 
+      - name: Start background work for evals, ingestion and workflows
+        run: |
+          uv run --directory backend python -m app.worker --pools agent,eval,system,ingest,workflow \
+            > "$RUNNER_TEMP/eval-worker.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/eval-worker.pid"
+
       - name: Wait for the backend to be healthy
         # Polled, not slept. A fixed wait is either too short on a cold runner
         # or wasted on a warm one, and the failure it produces is a browser
@@ -824,8 +838,8 @@ jobs:
       # report embeds most of it, but only for the runs it managed to finish -
       # a suite the runner killed leaves `test-results/` and no report at all,
       # which is the case #162 was diagnosed without.
-      - name: Upload the raw Playwright output when a journey fails
-        if: failure()
+      - name: Upload the raw Playwright output and evals screenshots
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-results-${{ matrix.shard }}
@@ -838,6 +852,20 @@ jobs:
         # Half of an E2E failure is on the other side of the proxy.
         if: failure()
         run: cat "$RUNNER_TEMP/backend.log"
+
+      # Kept as a file too, and on every outcome: a backend that dies mid-suite
+      # takes the rest of the specs down until the job times out, and a
+      # cancelled job never reaches the step above.
+      - name: Upload the backend log
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backend-log-${{ matrix.shard }}
+          path: |
+            ${{ runner.temp }}/backend.log
+            ${{ runner.temp }}/eval-worker.log
+          retention-days: 7
+          if-no-files-found: ignore
 
   e2e:
     needs: [changes, build-frontend, e2e-shards]

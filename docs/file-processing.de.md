@@ -1,5 +1,5 @@
 ---
-source_sha: "ae8b5a53d44f"
+source_sha: "1555844ea407"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -407,6 +407,13 @@ verschlüsseln — SSE-S3 als Vorgabe, SSE-KMS mit einem Schlüssel, den das
 Deployment benennt. Die Einstellungen stehen in der
 [Konfiguration](configuration.md#uploaded-files-at-rest).
 
+Bei lokalem Speicher müssen API und Worker für die Wissensbasis-Ingestion
+weiterhin `MEDIA_DIR/_rag_tmp` teilen. Mit S3 lädt jede Worker-Ausführung eine
+eigene Kopie des gespeicherten Objekts und entfernt sie bei Abschluss, Parserfehler
+oder Abbruch. Pods teilen kein API-Scratch-Volume; siehe
+[Kubernetes-Deployment](kubernetes.md). Ein getöteter Kindprozess kann bis zum
+Ersetzen des Pods eine temporäre Kopie hinterlassen.
+
 !!! info "Welches Backend, und was jedes von Ihnen verlangt"
 
     Lokal ist die ehrliche Antwort für einen einzelnen Host: verschlüsseln Sie das
@@ -505,6 +512,11 @@ flowchart TD
     Schritte laufen in einer Hintergrundaufgabe mit einer eigenen Session - und
     deshalb antwortet ein Upload mit `202 {"status": "processing"}`, statt zu
     warten.
+
+Gleichzeitige erste Schreibvorgänge in dieselbe Sammlung warten darauf, dass
+ihre Tabelle und Indizes in einer Transaktion erstellt werden. Schlägt dies
+fehl, wird die Transaktion zurückgerollt und ein wartender Schreibvorgang
+kann die Tabelle erstellen.
 
 Es gibt zwei Adressen, an denen ein Upload ankommen kann —
 `POST /rag/collections/{name}/ingest` und `POST /kb/{kb_id}/documents` — und
@@ -1169,10 +1181,39 @@ Anfrage belegt eine Datenbankverbindung, und genug davon lassen alle anderen Anf
 scheitern. Ein Löschen wartet, bis der Schreibvorgang beendet ist.
 
 Eine persönliche Basis außerhalb einer Organisation übernimmt keinen nicht zugeordneten
-Chunk, doch ein Chunk, den ihre eigenen Zeilen nennen, geht mit ihr. Ein Alt-Chunk ohne
-Basis, ohne Organisation und ohne Zeile lässt sich nicht von dem eines Operators
-unterscheiden: Auch er behält die Tabelle, bleibt bis `rag-drop <name>` und gehört dem
-App-Scope, sodass eine app-scoped Basis auf dem Namen ihn liest.
+Chunk, doch ein von ihren eigenen Zeilen benannter Chunk wird mit ihr entfernt.
+Ein alter Chunk ohne Basis, Organisation und Tracking-Zeile hat eine unbekannte
+Herkunft. Er erhält die Tabelle, ist aber **über eine app-scoped Basis nicht lesbar**,
+auch wenn ein App-Administrator den Namen übernimmt ([#2773](https://github.com/vstorm-co/agenticos/issues/2773)).
+
+Eine app-scoped Basis übernimmt globale nicht zugeordnete Chunks und Tracking-Zeilen
+nur mit `writer_kind: operator`. Neue Schreibvorgänge von `rag-ingest` und CLI-Syncs
+speichern diese Herkunft; Plattform-Ingestionen speichern `document`, auch über das
+Löschen eines Benutzers oder einer Basis hinaus. Migration
+`0300_unfiled_writer_provenance.py` vertraut alten Herkunftsmarkierungen nicht,
+erhält eindeutige Dokumentzuordnungen und isoliert mehrdeutige Daten als
+`legacy_unknown`. Nicht zugeordnete Organisationsdaten bleiben auf ihren Tenant begrenzt.
+
+**Nach dem Upgrade:** Prüfe eine erhaltene Collection in der Server-Shell. Der Befehl
+benötigt nur die Datenbank und zeigt aggregierte Zahlen, niemals Dokumentinhalte:
+
+```bash
+uv run agenticos cmd rag-unfiled-provenance <name>
+```
+
+Erst nach Prüfung der Quelle und Bestätigung, dass die unbekannten globalen nicht
+zugeordneten Daten ein Operator-Import für alle Organisationen sind, ausführen:
+
+```bash
+uv run agenticos cmd rag-unfiled-provenance <name> --confirm-operator
+```
+
+Eine interaktive Bestätigung ist erforderlich (`--yes` ersetzt sie bei Automatisierung).
+Die Aktualisierung ist atomar und wiederholbar; Chunks und Zeilen mit bekannter
+Dokumentherkunft werden übersprungen. Unsichere Daten bleiben isoliert; importiere
+sie erneut in ihre autorisierte Basis oder entferne sie mit dem bestehenden
+Operator-Verfahren `rag-drop <name>`. Die Namensübernahme in der Konsole bestätigt
+niemals die Herkunft der Daten.
 
 Andernfalls, und bei `rag-drop` immer, löscht der Aufräum-Job die Tabelle. Nicht
 zugeordnete Zeilen eines anderen Tenants unter dem Namen bleiben mit ihren Dateien,

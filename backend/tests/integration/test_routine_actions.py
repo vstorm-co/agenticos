@@ -656,6 +656,38 @@ async def test_explicit_mcp_approval_and_intersected_tool_limits_cannot_be_waive
     )
 
 
+async def test_each_mcp_tool_s_own_approval_decides_whether_consent_can_waive_it(
+    db: AsyncSession, world: World, mcp_account: McpConnection
+) -> None:
+    """A tool the agent lets run takes standing consent under `writes`, and one it
+    asks before takes none under `none` (#2884)."""
+    from app.schemas.routine_actions import RoutineMcpActionOption
+
+    async def waivable(approval: str, tool_approval: dict[str, str]) -> dict[str, bool]:
+        ref = world.spec.mcp_servers[0].model_copy(
+            update={"approval": approval, "tool_approval": tool_approval}
+        )
+        world.version.spec = world.spec.model_copy(update={"mcp_servers": [ref]}).model_dump(
+            mode="json"
+        )
+        await db.flush()
+        offered = await RoutineActionService(db).options(world.ctx, world.trigger)
+        return {
+            item.tool_id: item.waivable
+            for item in offered.items
+            if isinstance(item, RoutineMcpActionOption)
+        }
+
+    assert await waivable("writes", {"send_mail": "never"}) == {
+        "send_mail": True,
+        "delete_mail": False,
+    }
+    assert await waivable("none", {"delete_mail": "required"}) == {
+        "send_mail": True,
+        "delete_mail": False,
+    }
+
+
 @pytest.mark.parametrize("metadata", [None, [{"invalid": "provider metadata"}]])
 async def test_unavailable_account_inventory_is_visible_and_cannot_block_revocation(
     db: AsyncSession,
@@ -1140,3 +1172,57 @@ async def test_mcp_action_review_omits_disabled_and_account_only_connections(
         world.ctx, world.trigger, world.spec
     )
     assert options == [] and unavailable == []
+
+
+@pytest.mark.parametrize("change", ["title", "cadence", "intent", "version", "instructions"])
+async def test_action_review_distinguishes_retained_consent_from_explicit_reselection(
+    db: AsyncSession, world: World, change: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = RoutineActionService(db)
+    await service.replace(world.ctx, world.trigger, _request(world, [WRITE]))
+    if change == "title":
+        world.trigger.name = "A clearer name"
+    elif change == "cadence":
+        world.trigger.interval_seconds = 600
+    elif change == "intent":
+        world.trigger.prompt = "Different work"
+    elif change == "version":
+        version = AgentVersion(
+            agent_id=world.agent.id,
+            organization_id=world.org.id,
+            version=2,
+            spec=world.spec.model_dump(mode="json"),
+        )
+        db.add(version)
+        await db.flush()
+        world.agent.current_version_id = version.id
+    else:
+        from unittest.mock import AsyncMock
+
+        monkeypatch.setattr(
+            "app.services.routine_actions.instruction_fingerprint", AsyncMock(return_value="f" * 64)
+        )
+    await db.flush()
+    offered = await service.options(world.ctx, world.trigger)
+    action = next(item for item in offered.items if item.tool_id == WRITE.tool_id)
+    assert action.previously_consented is True
+    if change in {"title", "cadence"}:
+        assert action.consented is True
+        assert offered.review_changes == []
+    else:
+        assert action.consented is False
+        assert change in offered.review_changes
+
+
+async def test_a_changed_action_is_explained_without_regranting_it(
+    db: AsyncSession, world: World
+) -> None:
+    service = RoutineActionService(db)
+    await service.replace(world.ctx, world.trigger, _request(world, [WRITE]))
+    stored = dict(world.trigger.action_consents[0])
+    stored["tool_id"] = "removed_action"
+    world.trigger.action_consents = [stored]
+    await db.flush()
+    offered = await service.options(world.ctx, world.trigger)
+    assert offered.review_changes == ["actions"]
+    assert not any(action.previously_consented or action.consented for action in offered.items)

@@ -8,6 +8,7 @@ import {
   nowMatching,
   pageHeading,
   pageStatus,
+  submitDialog,
 } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
@@ -72,18 +73,12 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   await page.goto("/vault");
   await expect(pageHeading(page, "Vault"), "the vault page never drew its heading").toBeVisible();
 
-  // Waited for before it is counted. `count()` does not retry, and the vault
-  // draws a skeleton until the key list answers - so a page that had simply not
-  // loaded yet read as a user who is not allowed to store keys, and this whole
-  // journey skipped itself with the wrong reason.
-  await expect(
-    page.getByText(/\d+ keys? stored|1 key stored/),
-    "the vault never said how many keys are stored, so it had not loaded",
-  ).toBeVisible();
+  // Empty lists deliberately hide their toolbar. Check the real resource
+  // response instead of treating the hidden zero-count as an unloaded page.
+  const keys = await page.request.get("/api/secrets");
+  expect(keys.ok(), "the vault resource failed to load").toBe(true);
   const addKey = page.getByRole("button", { name: "Add key" }).first();
-  if (!(await addKey.isVisible())) {
-    test.skip(true, "this user cannot store a key, so the journey cannot start");
-  }
+  await expect(addKey, "the owner must be able to store a key").toBeVisible();
   await addKey.click();
 
   // Two questions rather than one list of thirty-one: which family of service,
@@ -120,9 +115,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
     `the seeded agent ${SEEDED_AGENT_HANDLE} is not on the page, so the list had not arrived`,
   ).toBeVisible();
   const newAgent = page.getByRole("button", { name: "New agent" }).first();
-  if (!(await newAgent.isVisible())) {
-    test.skip(true, "this user cannot create agents");
-  }
+  await expect(newAgent, "the owner must be able to create agents").toBeVisible();
   await newAgent.click();
 
   const agentDialog = page.getByRole("dialog");
@@ -195,9 +188,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // agent starts with the recommended capabilities on; Calculations is not among
   // them - the starter does its sums in its workspace - so it is switched on here.
   const capability = toolbox.getByRole("switch", { name: "Give this agent Calculations" });
-  if (!(await capability.isVisible())) {
-    test.skip(true, "the capability catalog is empty in this environment");
-  }
+  await expect(capability, "the capability catalog must include Calculations").toBeVisible();
   await expect(capability).toHaveAttribute("aria-checked", "false");
   await capability.click();
   await expect(capability).toHaveAttribute("aria-checked", "true");
@@ -223,9 +214,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
 
   // 5. publishing
   const publish = page.getByRole("button", { name: "Publish" });
-  if (!(await publish.isVisible())) {
-    test.skip(true, "this user cannot publish agents");
-  }
+  await expect(publish, "the owner must be able to publish agents").toBeVisible();
   await publish.click();
 
   // The first publish creates the production environment, and the dialog says
@@ -279,9 +268,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   await page.getByRole("tab", { name: "Availability" }).click();
   const availability = page.getByRole("tabpanel");
   const publishPage = availability.getByRole("button", { name: /^Hosted page/ });
-  if (!(await publishPage.isVisible())) {
-    test.skip(true, "this user cannot publish an embed");
-  }
+  await expect(publishPage, "the owner must be able to publish a hosted page").toBeVisible();
   await publishPage.click();
 
   // The form is open once its own field is on screen. Waited for rather than
@@ -357,8 +344,22 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
     const ask = hosted.getByRole("textbox", { name: "Ask a question…" });
     await expect(ask).toBeEnabled({ timeout: 30_000 });
     await ask.fill("Say the word.");
+    await expectComposerAlignment(hosted);
     await hosted.getByRole("button", { name: "Send" }).click();
     await expect(hosted.getByText(answerToken)).toBeVisible({ timeout: 120_000 });
+    const phone = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      hasTouch: true,
+      isMobile: true,
+    });
+    try {
+      const phonePage = await phone.newPage();
+      await phonePage.goto(hostedUrl);
+      await phonePage.getByRole("textbox", { name: "Ask a question…" }).fill("A phone draft");
+      await expectComposerAlignment(phonePage);
+    } finally {
+      await phone.close();
+    }
   } finally {
     await stranger.close();
   }
@@ -404,7 +405,91 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
     /\$\d+\.\d{4}/,
   );
 
-  // 8. cleaning up
+  // Curate the chat response through Activity, then read the actual saved case.
+  // The hosted run can be newest, so select the web-chat run explicitly.
+  const chatRun = await nowMatching(
+    page.request,
+    `/api/runs?agent_id=${agentId}`,
+    (run) => run["surface"] === "web" && run["status"] === "completed",
+    "the completed chat run",
+  );
+  const datasetName = `Activity answers ${stamp}`;
+  await page.goto("/datasets");
+  await page.getByRole("button", { name: "New dataset", exact: true }).first().click();
+  const datasetDialog = page.getByRole("dialog");
+  await datasetDialog.getByRole("textbox", { name: /^Name/ }).fill(datasetName);
+  await submitDialog(page, {
+    dialog: datasetDialog,
+    submit: datasetDialog.getByRole("button", { name: "Create", exact: true }),
+    path: "/api/datasets",
+  });
+  await page.waitForURL(/\/datasets\/[^/?]+$/);
+  const datasetId = new URL(page.url()).pathname.split("/").pop();
+  if (!datasetId) throw new Error("Created dataset has no identity");
+  await page.goto(`/runs?run=${String(chatRun["id"])}&dataset=${datasetId}`);
+  await page.getByRole("button", { name: "Add to dataset", exact: true }).click();
+  const addDialog = page.getByRole("dialog");
+  await expect(addDialog.getByRole("combobox", { name: "Dataset", exact: true })).toHaveText(
+    datasetName,
+  );
+  await expect(addDialog.getByRole("radio", { name: /Reference answer/ })).toBeChecked();
+  await addDialog.getByText("View source messages", { exact: true }).click();
+  await expect(addDialog.getByText("Say the word.", { exact: true })).toBeVisible();
+  await expect(addDialog.getByText(answerToken, { exact: true })).toBeVisible();
+  await submitDialog(page, {
+    dialog: addDialog,
+    submit: addDialog.getByRole("button", { name: "Add", exact: true }),
+    path: `/api/datasets/${datasetId}/cases/from-message`,
+  });
+  const savedCase = await nowMatching(
+    page.request,
+    `/api/datasets/${datasetId}/cases`,
+    (item) => item["input"] === "Say the word.",
+    "the case curated from Activity",
+  );
+  expect(savedCase["reference_answer"]).toBe(answerToken);
+  expect(savedCase["counter_example"]).toBeNull();
+  expect(savedCase["history"]).toEqual([]);
+
+  // 9. A project hands its default agent to chat and keeps the conversation.
+  await page.goto("/projects");
+  await page.getByRole("button", { name: "New project", exact: true }).first().click();
+  const projectDialog = page.getByRole("dialog");
+  const projectName = `Journey project ${stamp}`;
+  await projectDialog.getByRole("textbox", { name: "Name", exact: true }).fill(projectName);
+  await projectDialog.getByLabel("Default agent", { exact: true }).click();
+  await page.getByRole("option", { name: agentName, exact: true }).click();
+  await submitDialog(page, {
+    dialog: projectDialog,
+    submit: projectDialog.getByRole("button", { name: "Create", exact: true }),
+    path: "/api/projects",
+  });
+  await nowListed(page.request, "/api/projects", "name", projectName);
+  await expect(page).toHaveURL(/\/projects\/[^/?]+$/);
+  const projectId = new URL(page.url()).pathname.split("/").pop();
+  if (!projectId) throw new Error("Created project has no identity");
+  await page.getByRole("main").getByRole("link", { name: "New chat", exact: true }).click();
+  await expect(page.getByRole("button", { name: /^Agent:/ })).toContainText(agentName);
+  await expect(page.getByText("Live", { exact: true })).toBeVisible();
+  const projectQuestion = `Project question ${stamp}`;
+  await composer.fill(projectQuestion);
+  await page.getByRole("button", { name: "Send message" }).click();
+  await expect(page.getByRole("main").getByText(answerToken, { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("main").getByText(answerToken, { exact: true })).toBeVisible();
+  await page.goto(`/projects/${projectId}?tab=chats`);
+  await nowMatching(
+    page.request,
+    `/api/projects/${projectId}/chats`,
+    (chat) => String(chat["title"]).includes(projectQuestion),
+    "the conversation saved in its project",
+  );
+  const projectChat = page.getByRole("row").filter({ hasText: projectQuestion });
+  await expect(projectChat).toBeVisible();
+  await projectChat.click();
+  await expect(page.getByRole("main").getByText(answerToken, { exact: true })).toBeVisible();
+
+  // 10. cleaning up
   // This is the one spec that creates a whole agent, and it runs on every push -
   // so without this the organization grows an agent, a model and a key per run,
   // and the counts other specs take start describing the history of CI rather
@@ -421,6 +506,8 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // 7 needs no line of its own: `agent_embeds.agent_id` is `ON DELETE CASCADE`,
   // and the visitor row cascades from the embed.
   for (const path of [
+    `/api/projects/${projectId}`,
+    `/api/datasets/${datasetId}`,
     `/api/agents/${agentId}`,
     `/api/providers/model-profiles/${await idOf(page, "/api/providers/model-profiles", "label", modelLabel)}`,
     `/api/secrets/${await idOf(page, "/api/secrets", "name", keyLabel)}`,
@@ -449,4 +536,23 @@ async function idOf(
   const found = items.find((item) => item[field] === value);
   expect(found, `${path} has no row whose ${field} is ${value}`).toBeDefined();
   return found!["id"]!;
+}
+
+/** Geometry assertions catch misplaced padding as well as stretched icon buttons. */
+async function expectComposerAlignment(page: import("@playwright/test").Page): Promise<void> {
+  const form = await page.locator("form").boundingBox();
+  const input = await page.getByRole("textbox", { name: "Ask a question…" }).boundingBox();
+  const button = await page.getByRole("button", { name: "Send", exact: true }).boundingBox();
+  const icon = await page
+    .getByRole("button", { name: "Send", exact: true })
+    .locator("svg")
+    .boundingBox();
+  if (!form || !input || !button || !icon)
+    throw new Error("Hosted composer controls must have visible bounds");
+  expect(Math.abs(button.width - button.height)).toBeLessThanOrEqual(0.5);
+  const center = form.y + form.height / 2;
+  expect(Math.abs(input.y + input.height / 2 - center)).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(button.y + button.height / 2 - center)).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(icon.y + icon.height / 2 - center)).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(icon.x + icon.width / 2 - button.x - button.width / 2)).toBeLessThanOrEqual(0.5);
 }

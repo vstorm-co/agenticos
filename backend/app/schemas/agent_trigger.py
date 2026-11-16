@@ -7,7 +7,6 @@ from typing import Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from croniter import CroniterBadDateError, croniter
 from pydantic import (
     AwareDatetime,
     ConfigDict,
@@ -18,6 +17,7 @@ from pydantic import (
 )
 
 from app.core.config import settings
+from app.core.cron import cron_has_next
 from app.db.models.agent_trigger import MIN_INTERVAL_SECONDS, EventSource, TriggerDeliveryStatus
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.local_target import LocalTarget
@@ -41,33 +41,6 @@ def valid_time_zone(value: str | None) -> str | None:
     except ZoneInfoNotFoundError, ValueError:
         raise ValueError("Not an IANA time zone, such as Europe/Warsaw") from None
     return value
-
-
-def _cron_has_next(expression: str) -> bool:
-    """Whether a cron expression is valid *and* ever actually fires.
-
-    `croniter.is_valid` checks only syntax, so `0 0 31 2 *` - the 31st of a
-    February that never has one - passes it, and then `_cron_next` exhausts its
-    forward search and raises `CroniterBadDateError`, turning a user's cadence
-    into a 500 at create or retime time. Resolving one occurrence here proves the
-    expression has a future, so an unschedulable one is refused as a 422 naming
-    the field instead.
-
-    Only the five-field crontab shape is accepted. croniter also parses a
-    six-field expression with a seconds column, but the heartbeat that fires
-    schedules ticks once a minute, so `* * * * * *` would be accepted promising
-    once a second and then fire once a minute, permanently overdue - a cadence
-    the platform cannot honour is refused rather than quietly rounded.
-    """
-    if len(expression.split()) != 5:
-        return False
-    if not croniter.is_valid(expression):
-        return False
-    try:
-        croniter(expression).get_next()
-    except CroniterBadDateError:
-        return False
-    return True
 
 
 TriggerOverlapName = Literal["skip", "queue", "allow"]
@@ -266,14 +239,37 @@ class OutlookTriggerConfig(BaseSchema):
 
 
 class WebhookTriggerConfig(BaseSchema):
-    """The generic webhook source carries no filter - a signed delivery fires.
+    """Signature verification for generic JSON webhooks; filtering is the sender's job.
 
-    The catch-all for anything that can POST signed JSON. Filtering is the
-    sender's job (it chose to deliver); an empty model rather than no model so an
-    unknown key is still refused instead of stored to mean nothing.
+    The default preserves the original relay signature and optional signed time.
+    Raw-body HMAC modes use the named header and do not authenticate a timestamp.
     """
 
     model_config = ConfigDict(extra="forbid")
+    signature_scheme: Literal["legacy", "hmac-sha256-hex", "hmac-sha256-base64"] = "legacy"
+    signature_header: str | None = Field(default=None, min_length=1, max_length=128)
+
+    @model_validator(mode="after")
+    def _signature_header_matches_scheme(self) -> WebhookTriggerConfig:
+        if self.signature_scheme == "legacy":
+            if self.signature_header is not None:
+                raise ValueError("signature_header is only valid with a raw-body HMAC scheme")
+        elif self.signature_header is None or not re.fullmatch(
+            r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", self.signature_header
+        ):
+            raise ValueError("raw-body HMAC requires a valid signature_header")
+        if self.signature_header is not None:
+            self.signature_header = self.signature_header.lower()
+        return self
+
+
+class LinearTriggerConfig(BaseSchema):
+    """Optional filters on Linear payload types and actions."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event_types: list[str] | None = Field(default=None, min_length=1, max_length=50)
+    actions: list[str] | None = Field(default=None, min_length=1, max_length=50)
 
 
 class HubspotTriggerConfig(BaseSchema):
@@ -320,6 +316,7 @@ EventSourceName = Literal[
     "google_calendar",
     "google_drive",
     "hubspot",
+    "linear",
     "microsoft_files",
     "outlook",
     "outlook_calendar",
@@ -465,6 +462,7 @@ _EVENT_CONFIG_MODELS: dict[str, type[BaseSchema]] = {
     EventSource.GOOGLE_CALENDAR.value: CalendarTriggerConfig,
     EventSource.GOOGLE_DRIVE.value: GoogleDriveTriggerConfig,
     EventSource.HUBSPOT.value: HubspotTriggerConfig,
+    EventSource.LINEAR.value: LinearTriggerConfig,
     EventSource.MICROSOFT_FILES.value: MicrosoftFilesTriggerConfig,
     EventSource.OUTLOOK_CALENDAR.value: CalendarTriggerConfig,
     EventSource.OUTLOOK.value: OutlookTriggerConfig,
@@ -650,7 +648,7 @@ class TriggerCreate(BaseSchema):
                 raise ValueError("cron_expression is required for a cron schedule")
             if self.interval_seconds is not None:
                 raise ValueError("interval_seconds is not valid for a cron schedule")
-            if not _cron_has_next(self.cron_expression):
+            if not cron_has_next(self.cron_expression):
                 raise ValueError(
                     "cron_expression is not a valid crontab expression that ever fires"
                 )
@@ -682,7 +680,9 @@ class TriggerCreate(BaseSchema):
         # (a GitHub trigger with no actions fires on issue creation) and refuses
         # an unknown key. `model_validate({})` cannot fail for any source.
         config_model = _EVENT_CONFIG_MODELS[self.event_source]
-        self.event_config = config_model.model_validate(self.event_config or {}).model_dump()
+        self.event_config = config_model.model_validate(self.event_config or {}).model_dump(
+            exclude_defaults=self.event_source == EventSource.WEBHOOK.value
+        )
 
     def _reject_event_fields(self) -> None:
         if self.event_source is not None:
@@ -878,6 +878,8 @@ class TriggerRead(BaseSchema, TimestampSchema):
     # The trigger's own title, or null to fall back to the agent's name.
     name: str | None = None
     created_by_user_id: UUID | None = None
+    setup_required: bool = False
+    setup_issues: list[str] = Field(default_factory=list)
     is_active: bool
     environment_id: UUID | None = None
     pinned_version_id: UUID | None = Field(
@@ -975,3 +977,36 @@ class TriggerCreateRead(TriggerRead):
 class TriggerList(BaseSchema):
     items: list[TriggerRead]
     total: int
+
+
+TriggerAttemptStatus = Literal["blocked", "failed"]
+TriggerAttemptStage = Literal["source_review", "preparation"]
+TriggerAttemptReason = Literal[
+    "platform_identity_required",
+    "source_review_required",
+    "agent_unavailable",
+    "preparation_failed",
+]
+
+
+class TriggerAttemptRead(BaseSchema):
+    """A safely redacted failure before an agent run existed; never a billed run."""
+
+    id: UUID
+    activation_id: UUID
+    status: TriggerAttemptStatus
+    stage: TriggerAttemptStage
+    reason: TriggerAttemptReason
+    occurred_at: datetime
+
+
+class TriggerAttemptList(BaseSchema):
+    items: list[TriggerAttemptRead]
+    total: int
+
+
+class TriggerFireResult(BaseSchema):
+    """Worker processing is separate from successful execution by an agent."""
+
+    outcome: Literal["processed", "blocked", "failed"]
+    attempt_id: UUID | None = None

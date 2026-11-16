@@ -194,7 +194,12 @@ def _table_problems(page: _Page, script: str) -> list[str]:
             "row in `<thead>` and the rows in `<tbody>` (`table.createTHead()`, "
             "`table.createTBody()`), or draw bound records with `AO.records`."
         )
-    unstyled = builds or any(not table.styled for table in page.tables)
+    # A self-contained design may deliberately style all tables without the kit.
+    global_table_style = (
+        re.search(r"(?:^|[{}])\s*table\s*[{,]", _CSS_COMMENT.sub("", "\n".join(page.style)))
+        is not None
+    )
+    unstyled = (builds or any(not table.styled for table in page.tables)) and not global_table_style
     if unstyled and "ao-table" not in _SCRIPT_CLASS.findall(script):
         problems.append(
             "A table has no `ao-table` class, so it is drawn with the browser's defaults. Use "

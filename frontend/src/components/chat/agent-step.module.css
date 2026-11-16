@@ -1,0 +1,10 @@
+.steps > :not(:last-child)::before {
+  content: "";
+  position: absolute;
+  top: 18px;
+  bottom: -18px;
+  left: 16px;
+  width: 1px;
+  background: color-mix(in srgb, var(--color-border) 70%, transparent);
+  pointer-events: none;
+}

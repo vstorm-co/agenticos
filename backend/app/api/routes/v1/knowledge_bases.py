@@ -27,8 +27,8 @@ from app.core.field_errors import refused_field
 from app.core.permissions import Perm
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
+    KnowledgeBaseDetailRead,
     KnowledgeBaseList,
-    KnowledgeBaseRead,
     KnowledgeBaseUpdate,
 )
 from app.schemas.rag import (
@@ -65,8 +65,8 @@ async def list_knowledge_bases(
 ) -> Any:
     """List the Knowledge Bases this caller may read in the active organization.
 
-    Carries each collection's document and chunk counts, which the single-row
-    responses do not. A picker choosing what an agent may search is choosing
+    Carries each collection's document and chunk counts, as its detail does.
+    A picker choosing what an agent may search is choosing
     between collections, and a name alone does not distinguish the one with four
     hundred documents in it from the one somebody made and never filled.
     """
@@ -75,7 +75,7 @@ async def list_knowledge_bases(
 
 @router.post(
     "",
-    response_model=KnowledgeBaseRead,
+    response_model=KnowledgeBaseDetailRead,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require(Perm.COLLECTIONS_EDIT))],
 )
@@ -95,20 +95,25 @@ async def create_knowledge_base(
     model is recorded from the deployment and is not settable - a collection's
     vectors are only comparable with themselves.
     """
-    return await service.create(data, ctx=ctx)
+    kb = await service.create(data, ctx=ctx)
+    return await service.describe(kb, ctx=ctx)
 
 
-@router.get("/{kb_id}", response_model=KnowledgeBaseRead)
+@router.get("/{kb_id}", response_model=KnowledgeBaseDetailRead)
 async def get_knowledge_base(
     kb_id: UUID,
     service: KnowledgeBaseSvc,
     ctx: Auth,
 ) -> Any:
-    """Get a Knowledge Base by ID."""
-    return await service.get(kb_id, ctx=ctx)
+    """Get a Knowledge Base with counts, usage and effective write access for this caller.
+
+    `can_edit` follows the same scope, ownership and grant rules as mutations.
+    """
+    kb = await service.get(kb_id, ctx=ctx)
+    return await service.describe(kb, ctx=ctx)
 
 
-@router.patch("/{kb_id}", response_model=KnowledgeBaseRead)
+@router.patch("/{kb_id}", response_model=KnowledgeBaseDetailRead)
 async def update_knowledge_base(
     kb_id: UUID,
     data: KnowledgeBaseUpdate,
@@ -121,7 +126,8 @@ async def update_knowledge_base(
     Nothing already indexed is re-parsed, and the embedding model cannot be
     changed here at all.
     """
-    return await service.update(kb_id, data, ctx=ctx)
+    kb = await service.update(kb_id, data, ctx=ctx)
+    return await service.describe(kb, ctx=ctx)
 
 
 @router.delete(
@@ -431,7 +437,7 @@ async def clone_kb_sync_source(
     """
     kb = await service.get_for_write(kb_id, ctx=ctx)
     await access.new_source_feeds(ctx, kb)
-    source = await access.sync_source(ctx, str(source_id))
+    source = await access.writable_sync_source(ctx, str(source_id))
     clone_data = data.model_copy(update={"collection_name": kb.collection_name})
     return await sync_source_svc.clone_source(str(source.id), clone_data, ctx=ctx)
 
@@ -450,7 +456,8 @@ async def trigger_kb_sync_source(
 ) -> Any:
     """Manually trigger a sync run for one of this KB's sources."""
     kb = await service.get_for_write(kb_id, ctx=ctx)
-    await access.kb_sync_source(ctx, kb, str(source_id), for_update=True)
+    source = await access.kb_sync_source(ctx, kb, str(source_id), for_update=True)
+    sync_source_svc.refuse_paused(source)
     sync_log = await sync_source_svc.trigger_sync(str(source_id), user_id=ctx.user_id)
     return RAGSyncResponse(
         id=str(sync_log.id),
@@ -509,12 +516,14 @@ async def update_kb_sync_source(
     A key set to `null` in `config` removes it from the stored config.
     """
     kb = await service.get_for_write(kb_id, ctx=ctx)
-    await access.kb_sync_source(ctx, kb, str(source_id), for_update=True)
+    await access.kb_sync_source(ctx, kb, str(source_id), for_update=False)
     if "collection_name" in data.model_fields_set and data.collection_name != kb.collection_name:
         raise refused_field(
             "collection_name", "A source cannot be moved to another knowledge base from here"
         )
-    return await sync_source_svc.update_source(str(source_id), data, ctx=ctx)
+    prepared = await sync_source_svc.prepare_update(str(source_id), data, ctx=ctx)
+    await access.kb_sync_source(ctx, kb, str(source_id), for_update=True)
+    return await sync_source_svc.update_source(str(source_id), data, ctx=ctx, prepared=prepared)
 
 
 @router.delete(

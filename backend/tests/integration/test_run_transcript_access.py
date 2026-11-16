@@ -128,6 +128,37 @@ def _operator(organization: Organization, user_id: uuid.UUID) -> AuthContext:
     )
 
 
+@pytest.mark.security
+@pytest.mark.parametrize("whole_conversation", [False, True])
+async def test_model_transcripts_filter_refused_turns_before_paging_and_counting(
+    db, whole_conversation: bool
+) -> None:
+    organization, owner = await _org(db)
+    agent = await _agent(db, organization)
+    conversation = await _conversation(db, organization, owner)
+    run = await _run(db, organization, agent, conversation=conversation)
+    for index in range(3):
+        turn = await _turn(
+            db,
+            conversation,
+            run,
+            role="assistant",
+            content=f"turn-{index}",
+            at=_START + timedelta(minutes=index),
+        )
+        turn.guardrail_refused = index == 1
+    await db.flush()
+    context = _operator(organization, owner.id)
+    _, messages, total = await AgentRunnerService(db).get_run_transcript(
+        context, run.id, skip=1, limit=1, whole_conversation=whole_conversation, for_model=True
+    )
+    assert total == 2 and [message.content for message in messages] == ["turn-2"]
+    _, complete, count = await AgentRunnerService(db).get_run_transcript(
+        context, run.id, whole_conversation=whole_conversation
+    )
+    assert count == 3 and len(complete) == 3
+
+
 class TestAColleagueReadsARunTheyDidNotStart:
     async def test_the_transcript_is_the_runs_turns_in_order(self, db) -> None:
         organization, owner = await _org(db)
@@ -272,3 +303,72 @@ class TestTheConversationEndpointStaysOwnerScoped:
             await ConversationService(db).transcript(
                 conversation.id, organization_id=organization.id, user_id=colleague.id
             )
+
+
+async def test_a_listing_previews_what_each_run_was_asked(db) -> None:
+    """The first user turn, on one line and cut short - the transcript's own text."""
+    organization, owner = await _org(db)
+    agent = await _agent(db, organization)
+    conversation = await _conversation(db, organization, owner)
+    asked = await _run(db, organization, agent, conversation=conversation)
+    await _turn(db, conversation, asked, role="assistant", content="Hi!", at=_START)
+    await _turn(
+        db,
+        conversation,
+        asked,
+        role="user",
+        content="Where   is\nmy order? " + "x" * 100,
+        at=_START + timedelta(seconds=1),
+    )
+    await _turn(
+        db, conversation, asked, role="user", content="And now?", at=_START + timedelta(seconds=2)
+    )
+    silent = await _run(db, organization, agent, conversation=None)
+    graded = await _run(db, organization, agent, conversation=None)
+
+    previews = await AgentRunnerService(db).previews(
+        [asked.id, silent.id, graded.id], questions={graded.id: "Can I return it?"}
+    )
+
+    assert previews == {
+        asked.id: "Where is my order? " + "x" * 60 + "…",
+        graded.id: "Can I return it?",
+    }
+    assert len(previews[asked.id]) == 80
+    assert await AgentRunnerService(db).previews([], questions={}) == {}
+
+
+@pytest.mark.security
+async def test_run_asker_is_the_channel_account_not_publisher_and_is_tenant_scoped(db) -> None:
+    from app.db.models.channel_identity import ChannelIdentity
+
+    organization, owner = await _org(db)
+    agent = await _agent(db, organization)
+    conversation = await _conversation(db, organization, owner)
+    run = await _run(db, organization, agent, conversation=conversation)
+    identity = ChannelIdentity(
+        platform="mattermost",
+        platform_user_id=uuid.uuid4().hex,
+        platform_username="participant",
+        platform_display_name="@participant",
+    )
+    db.add(identity)
+    await db.flush()
+    run.channel_identity_id = identity.id
+    run.initiated_by_publisher_fallback = True
+    await db.flush()
+    context = _operator(organization, owner.id)
+    found = await AgentRunnerService(db).run_chat_askers(context, [run.id])
+    assert found[run.id].name == "@participant" and found[run.id].platform == "mattermost"
+    assert found[run.id].bot_name is None and identity.user_id is None
+    foreign_org, foreign_owner = await _org(db)
+    assert (
+        await AgentRunnerService(db).run_chat_askers(
+            _operator(foreign_org, foreign_owner.id), [run.id]
+        )
+        == {}
+    )
+    run.initiated_by_publisher_fallback = False
+    await db.flush()
+    assert await AgentRunnerService(db).run_chat_askers(context, [run.id]) == {}
+    assert await AgentRunnerService(db).run_chat_askers(context, []) == {}

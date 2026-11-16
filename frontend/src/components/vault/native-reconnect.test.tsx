@@ -3,9 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { ConnectedAccount } from "@/types/mirage";
 import { IntegrationSetupDialog } from "./integration-setup-dialog";
-import { ImapSetupDialog } from "./imap-setup-dialog";
-import { OdooSetupDialog } from "./odoo-setup-dialog";
-import { ConnectedAccountsCard } from "./connected-accounts-card";
+import { useState } from "react";
+import { VaultTable } from "./vault-table";
+import { ConnectedAccountSetup, type AccountSetupTarget } from "./connected-account-setup";
 
 const { connect, application, token, imap, odoo, hook } = vi.hoisted(() => ({
   connect: vi.fn(),
@@ -176,9 +176,32 @@ it("reconnects a pasted Slack token in place with its selected write ceiling", a
 });
 
 it("shows a poll failure, repairs that account, and clears the target before starting a new connection", async () => {
-  render(<ConnectedAccountsCard owner="personal" canManage />);
+  function Inventory() {
+    const [target, setTarget] = useState<AccountSetupTarget | null>(null);
+    return (
+      <>
+        <button onClick={() => setTarget({ owner: "personal", provider: "google" })}>
+          Connect Google account
+        </button>
+        <VaultTable
+          secrets={[]}
+          purposes={[]}
+          accounts={[account]}
+          canManageAccount={() => true}
+          onShare={vi.fn()}
+          onRotate={vi.fn()}
+          onDelete={vi.fn()}
+          onReconnectAccount={(selected) =>
+            setTarget({ owner: selected.owner, provider: selected.provider, account: selected })
+          }
+        />
+        {target && <ConnectedAccountSetup target={target} onClose={() => setTarget(null)} />}
+      </>
+    );
+  }
+  render(<Inventory />);
   expect(screen.getByText(/Polling failed/)).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "Reconnect" }));
+  await userEvent.click(screen.getByRole("button", { name: "Reconnect mailbox@example.com" }));
   await submitApplication();
   expect(application.mock.calls[0]?.[0].connection_id).toBe(account.id);
   await userEvent.keyboard("{Escape}");
@@ -194,9 +217,12 @@ it.each([false, true])(
   async (reconnect) => {
     const close = vi.fn();
     render(
-      <ImapSetupDialog
-        owner="personal"
-        reconnectAccount={reconnect ? { ...account, provider: "imap" } : undefined}
+      <ConnectedAccountSetup
+        target={{
+          owner: "personal",
+          provider: "imap",
+          account: reconnect ? { ...account, provider: "imap" } : undefined,
+        }}
         onClose={close}
       />,
     );
@@ -231,9 +257,12 @@ it.each([false, true])(
 
 it("repairs the selected Odoo database account", async () => {
   render(
-    <OdooSetupDialog
-      owner="personal"
-      reconnectAccount={{ ...account, provider: "odoo", email: "company" }}
+    <ConnectedAccountSetup
+      target={{
+        owner: "personal",
+        provider: "odoo",
+        account: { ...account, provider: "odoo", email: "company" },
+      }}
       onClose={vi.fn()}
     />,
   );

@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.db.vector_tables import VectorScope
+from app.db.vector_tables import VectorScope, VectorWriterKind
 from app.repositories import collection_teardown_repo
 from app.services.rag import vectorstore as vectorstore_module
 from app.services.rag.models import (
@@ -178,11 +178,14 @@ class TestHowManyStatementsOneDocumentCosts:
         original = store._build_chunk_metadata
 
         def counting(
-            chunk: object, document: object, organization_id: object = None
+            chunk: DocumentPageChunk,
+            document: Document,
+            scope: VectorScope,
+            writer_kind: VectorWriterKind | None = None,
         ) -> dict[str, object]:
             nonlocal built
             built += 1
-            return original(chunk, document, organization_id)  # ty: ignore[invalid-argument-type]
+            return original(chunk, document, scope, writer_kind)
 
         store._build_chunk_metadata = counting  # ty: ignore[invalid-assignment]
         seen: list[int] = []

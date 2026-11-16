@@ -6,17 +6,21 @@
   <title>How a plane turns</title>
   <link rel="stylesheet" href="lib/agenticos-2.css">
   <style>
+    * { box-sizing: border-box; }
     html, body { margin: 0; background: transparent; }
     .wrap { display: grid; gap: 12px; padding: 4px 0 8px; }
-    .stage { position: relative; height: 340px; border-radius: 12px; overflow: hidden; background: var(--ao-muted); }
+    .stage { position: relative; height: 420px; border-radius: 12px; overflow: hidden; background: #173443; }
     .stage canvas { display: block; width: 100%; height: 100%; }
-    .hint { position: absolute; left: 12px; bottom: 8px; font-size: 12px; color: var(--ao-muted-fg); }
+    .views { position: absolute; top: 12px; right: 12px; display: flex; gap: 6px; z-index: 1; }
+    .views button { color: #f4f7fa; background: #173443; border: 1px solid #8eaab5; border-radius: 7px; min-height: 40px; padding: 6px 10px; }
+    .views button:focus-visible { outline: 3px solid #ffd18a; outline-offset: 2px; }
+    .hint { position: absolute; left: 12px; bottom: 8px; font-size: 12px; color: #d0e0e7; }
     .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px 16px; }
     .control { display: grid; gap: 4px; }
     .control-head { display: flex; justify-content: space-between; font-size: 13px; }
     .control-head output { font-weight: 600; font-variant-numeric: tabular-nums; }
     .control small { color: var(--ao-muted-fg); }
-    input[type="range"] { width: 100%; accent-color: currentColor; }
+    input[type="range"] { width: 100%; margin: 0; accent-color: currentColor; }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; }
     .ask[hidden] { display: none; }
   </style>
@@ -28,7 +32,8 @@
 <body>
   <main class="wrap">
     <div class="stage" id="stage">
-      <span class="hint">Drag to look around</span>
+      <div class="views" aria-label="Camera viewpoint"><button type="button" data-view="perspective">Perspective</button><button type="button" data-view="top">Top</button><button type="button" data-view="front">Front</button></div>
+      <span class="hint">Drag to orbit · colored surfaces steer the aircraft</span>
     </div>
 
     <section class="controls" aria-label="Attitude">
@@ -61,6 +66,7 @@
     import * as THREE from "three";
     import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
+    try {
     const START = { pitch: 10, roll: -25, yaw: 0 };
     const state = { ...START };
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -68,6 +74,10 @@
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    renderer.domElement.setAttribute("role", "img");
+    renderer.domElement.setAttribute("aria-label", "A three-dimensional aircraft. The labelled controls change pitch, bank and yaw; camera buttons provide named viewpoints.");
     stage.prepend(renderer.domElement);
 
     const scene = new THREE.Scene();
@@ -143,7 +153,14 @@
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
     }
-    new ResizeObserver(resize).observe(stage);
+    const sizeObserver = new ResizeObserver(resize);
+    sizeObserver.observe(stage);
+    const viewpoints = { perspective: [1.6, 5.2, 6.4], top: [0, 9, 0.01], front: [8, 1.2, 0] };
+    for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", () => {
+      camera.position.set(...viewpoints[button.dataset.view]);
+      controls.target.set(-0.3, 0.3, 0);
+      controls.update();
+    });
 
     let playing = null;
     function play() {
@@ -188,11 +205,31 @@
 
     pose();
     resize();
+    let visible = true;
+    const visibility = new IntersectionObserver(entries => { visible = entries[0].isIntersecting; });
+    visibility.observe(stage);
     renderer.setAnimationLoop((now) => {
+      if (!visible || document.hidden) return;
       if (playing) playing(now);
       controls.update();
       renderer.render(scene, camera);
     });
+    addEventListener("pagehide", () => {
+      renderer.setAnimationLoop(null);
+      sizeObserver.disconnect();
+      visibility.disconnect();
+      controls.dispose();
+      scene.traverse(object => {
+        object.geometry?.dispose();
+        if (Array.isArray(object.material)) object.material.forEach(material => material.dispose());
+        else object.material?.dispose();
+      });
+      renderer.dispose();
+    }, { once: true });
+    } catch (error) {
+      document.getElementById("stage").textContent = "This device could not render WebGL. Pitch raises the nose, roll banks the wings and yaw turns the nose left or right. Try a browser with WebGL enabled for the interactive model.";
+      console.error(error);
+    }
   </script>
 </body>
 </html>

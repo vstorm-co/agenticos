@@ -1,4 +1,6 @@
 "use client";
+
+import { toolLookupName } from "@/lib/tool-identity";
 import { memo, useMemo, useState, type MouseEvent } from "react";
 import { toolIcon } from "@/lib/step-icons";
 import { Code2 } from "lucide-react";
@@ -92,10 +94,9 @@ export const ToolCallCard = memo(function ToolCallCard({
   const t = useTranslations("chat.tools");
   // What this side knows about the tool: its icon, its wording, and which renderer
   // opens underneath it. One table, keyed on the id the backend registers - see
-  // `lib/tool-catalog.ts`. A tool with no entry - an MCP tool, or one a binding
-  // renamed - reads as generic, which is the honest answer for a name nothing here
-  // has ever seen.
-  const entry = toolEntry(toolCall.name);
+  // `lib/tool-catalog.ts`. Registry identity survives a rename; external calls
+  // stay generic even when their visible name matches a registered tool.
+  const entry = toolEntry(toolLookupName(toolCall));
   const renderer = entry?.render ?? "generic";
   // Memoized above the state below, which reads it: a chart that came back as an
   // error string has nothing to show, and must not be opened on sight.
@@ -200,7 +201,14 @@ export const ToolCallCard = memo(function ToolCallCard({
   // The servers are what turn `linear_create_issue` into "Linear · Create issue".
   // Nothing on a tool call says where it came from, so the prefix is matched against
   // the connections this caller has - see `useMcpToolServers`.
-  const step = toolStep(toolCall.name, toolCall.args, !isRunning && !isParked, t, mcpServers);
+  const step = toolStep(
+    toolCall.name,
+    toolCall.args,
+    !isRunning && !isParked,
+    t,
+    mcpServers,
+    toolCall,
+  );
 
   // Whether this call finished *while mounted*, which is what "somebody watched it
   // happen" means. Not `useChanged`, which reports the mount pass too - and the mount
@@ -246,7 +254,7 @@ export const ToolCallCard = memo(function ToolCallCard({
       }
       detail={delegate !== null ? null : step.detail}
       kind={step.kind}
-      icon={toolIcon(toolCall.name, step.kind)}
+      icon={toolIcon(step.kind === "mcp" ? toolCall.name : toolLookupName(toolCall), step.kind)}
       logoDomain={step.logoDomain}
       mark={
         delegate === null ? undefined : (

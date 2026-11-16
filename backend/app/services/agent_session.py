@@ -12,7 +12,7 @@ import anyio
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
 from pydantic import Field, ValidationError
-from pydantic_ai.exceptions import ModelHTTPError, UsageLimitExceeded
+from pydantic_ai.exceptions import ContentFilterError, ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage, ToolCallPart
 from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +31,7 @@ from app.agents.browser_events import BrowserEvent
 from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.compaction_events import CompactionEvent
+from app.agents.computer_on_use import ComputerAccessRequest
 from app.agents.connect_on_use import ConnectionRequest
 from app.agents.failures import run_failure_summary
 from app.agents.loop_guard import ToolLoopStopped
@@ -87,6 +88,7 @@ from app.services.conversation import ConversationService
 from app.services.notifications import NotificationService
 from app.services.parked_runs import run_result
 from app.services.run_stream import RunFrames
+from app.services.shipped_agents import ShippedAgentService
 from app.services.usage_report import usage_frame
 from app.services.ws_auth import authenticate_socket_token
 
@@ -109,9 +111,8 @@ ROOM_RETRY_SECONDS = 5.0
 TYPING_EVERY_SECONDS = 2.0
 """The least time between two "typing" announcements from one socket; the console sends one every three."""
 
-# Said to a frame that names no agent. There is nothing else a frame could run:
-# the general assistant the template shipped is gone, and guessing an agent on
-# the user's behalf would mean something they never picked answering them.
+# Frames without an agent or an eligible, explicitly requested setup path
+# cannot execute a turn. Ordinary drafts never become an execution fallback.
 _PICK_AN_AGENT = "Pick an agent to chat with. If none is listed, publish one in the Builder first."
 
 # Closed with the same 4001 the handshake uses for a bad credential: the client
@@ -182,7 +183,7 @@ def _turn_failed(exc: Exception) -> str:
     cause: BaseException = exc
     while isinstance(cause, BaseExceptionGroup):
         cause = cause.exceptions[0]
-    if isinstance(cause, ModelHTTPError | UsageLimitExceeded):
+    if isinstance(cause, ContentFilterError | ModelHTTPError | UsageLimitExceeded):
         return run_failure_summary(cause)
     return (
         f"The agent could not finish this turn ({type(exc).__name__}). "
@@ -239,6 +240,9 @@ class AgentSession:
         # A run waiting for the person to connect one of their own services;
         # completed by `connect_account_response`, one at a time under `_ask_lock`.
         self._connect_future: asyncio.Future[bool] | None = None
+        # A run paused until the person grants their computer, completed by
+        # `computer_access_response`, one at a time under `_ask_lock` too.
+        self._computer_future: asyncio.Future[bool] | None = None
         # The running turn's timeline, so `_ask_one` can record a mid-turn
         # question and its answer as a part of the turn it happened in (#502).
         # None between turns; set and cleared by `process_message`.
@@ -298,8 +302,9 @@ class AgentSession:
     async def handle_frame(self, data: dict[str, Any]) -> None:
         """Dispatch one incoming WebSocket frame.
 
-        A `stop` cancels the running turn; an `ask_user_response` or a
-        `connect_account_response` unblocks a paused run; any other control frame is ignored; a bare message starts a
+        A `stop` cancels the running turn; an `ask_user_response`, a
+        `connect_account_response` or a `computer_access_response` unblocks a
+        paused run; any other control frame is ignored; a bare message starts a
         new turn as a cancellable background task.
 
         A frame that will *act* on the session is refused first if that session
@@ -350,7 +355,7 @@ class AgentSession:
             fut = self._ask_user_future
             if fut is None or fut.done():
                 return
-            if not await self._reauthorize():
+            if not await self._reauthorize_write():
                 return
             raw = data.get("answers")
             answers = raw if isinstance(raw, list) else []
@@ -379,7 +384,7 @@ class AgentSession:
                 # steer, so the client sends it as an ordinary message instead.
                 await self._emit("steer_unapplied", {"texts": [text]})
                 return
-            if not await self._reauthorize():
+            if not await self._reauthorize_write():
                 return
             inbox.add(text)
             return
@@ -401,9 +406,18 @@ class AgentSession:
             waiting = self._connect_future
             if waiting is None or waiting.done():
                 return
-            if not await self._reauthorize():
+            if not await self._reauthorize_write():
                 return
             waiting.set_result(data.get("connected") is True)
+            return
+
+        if msg_type == "computer_access_response":
+            waiting = self._computer_future
+            if waiting is None or waiting.done():
+                return
+            if not await self._reauthorize_write():
+                return
+            waiting.set_result(data.get("granted") is True)
             return
 
         if msg_type == "attach":
@@ -483,6 +497,33 @@ class AgentSession:
                 with contextlib.suppress(RuntimeError):
                     await self.websocket.close(
                         code=_REVOKED_CLOSE_CODE, reason=_REVOKED_CLOSE_REASON
+                    )
+                return False
+        return True
+
+    async def _reauthorize_write(self) -> bool:
+        """Do not resume a live prompt under a revoked conversation grant."""
+        if not await self._reauthorize():
+            return False
+        if self.current_conversation_id is None:
+            return True
+        async with get_db_context() as db:
+            try:
+                ctx = await self._chat_context(db)
+                await ConversationService(db).get_conversation(
+                    UUID(self.current_conversation_id),
+                    organization_id=self.organization_id,
+                    user_id=self.user.id,
+                    for_write=True,
+                    turn=True,
+                    include_favourite=False,
+                    ctx=ctx,
+                )
+            except NotFoundError, AuthorizationError:
+                await self._cancel_turn()
+                with contextlib.suppress(RuntimeError):
+                    await self.websocket.close(
+                        code=4003, reason="Conversation write access revoked"
                     )
                 return False
         return True
@@ -748,6 +789,10 @@ class AgentSession:
         waiting = self._connect_future
         if waiting is not None and not waiting.done():
             waiting.set_result(False)
+        # And for one waiting on the computer: nobody is there to choose a folder.
+        computer = self._computer_future
+        if computer is not None and not computer.done():
+            computer.set_result(False)
         # `shield` is what makes the two endings distinguishable: without it
         # `wait_for`'s timeout cancels the turn *through* the wait, and the
         # explicit cancellation below - the path every existing test covers, and
@@ -779,6 +824,41 @@ class AgentSession:
         # already told them through `approval_requested` or the question's park.
         await self._tell_the_absent(self._outcome)
 
+    async def _reply_with_model_setup(self, agent_id: UUID, name: str) -> None:
+        """Persist an honest setup response without opening or charging an AI run."""
+        replies = {
+            "en": "Hi, I'm {name}. I'm ready to help you plan, work with documents and get things done. Before I can answer your request, finish connecting my AI model and publish me. Add a provider key if your chosen model needs one. Let's get that ready together.",
+            "pl": "Cześć, jestem {name}. Pomogę Ci planować, pracować z dokumentami i realizować zadania. Zanim odpowiem na Twoją wiadomość, dokończ konfigurację mojego modelu AI i opublikuj agenta. Dodaj klucz dostawcy, jeśli wybrany model go wymaga. Zróbmy ten pierwszy krok razem.",
+            "de": "Hallo, ich bin {name}. Ich helfe beim Planen, bei Dokumenten und Aufgaben. Bevor ich antworten kann, richte meinen KI-Zugang ein und veröffentliche mich. Füge bei Bedarf einen Anbieterschlüssel hinzu. Gehen wir diesen ersten Schritt gemeinsam.",
+            "tr": "Merhaba, ben {name}. Planlama, belgeler ve görevlerde yardımcı olurum. Yanıt verebilmem için AI modelimi yapılandır ve beni yayımla. Model gerektiriyorsa sağlayıcı anahtarı ekle. İlk adımı birlikte atalım.",
+        }
+        text = replies.get(self.user.locale or "en", replies["en"]).format(name=name)
+        await self._emit("model_setup_required", {"agent_id": str(agent_id), "text": text})
+        if self.current_conversation_id is None:
+            raise RuntimeError("A setup response requires a persisted conversation")
+        saved = await persist_assistant_turn(
+            self.current_conversation_id,
+            text,
+            None,
+            [],
+            organization_id=self.organization_id,
+            agent_id=agent_id,
+            parts=[
+                MessagePart(type="text", text=text),
+                MessagePart(type="model_setup", setup_agent_id=agent_id),
+            ],
+        )
+        if saved is None:
+            await self._emit(
+                "error", {"message": _UNSAVED_REPLY_NOTICE, "code": "message_save_failed"}
+            )
+        else:
+            await self._emit(
+                "message_saved",
+                {"message_id": saved, "conversation_id": self.current_conversation_id},
+            )
+        await self._emit("complete", {"conversation_id": self.current_conversation_id})
+
     async def process_message(self, data: dict[str, Any]) -> None:
         """Process one user turn: persist input, run the agent, stream events, persist output."""
         self._outcome = None
@@ -795,6 +875,17 @@ class AgentSession:
         except AppException as exc:
             await self._emit("error", {"message": exc.message})
             return
+        setup_agent = None
+        if data.get("allow_setup_reply") is True and not requested_testing(data).test:
+            try:
+                async with get_db_context() as db:
+                    ctx = await self._chat_context(db)
+                    setup_agent = await ShippedAgentService(db).setup_candidate(ctx, agent_id)
+            except AppException as exc:
+                await self._emit("error", {"message": exc.message})
+                return
+        if setup_agent is not None:
+            agent_id = setup_agent.id
         if agent_id is None:
             await self._emit("error", {"message": _PICK_AN_AGENT})
             return
@@ -802,7 +893,7 @@ class AgentSession:
         # agent can reach (#2189). It never changes which agent answers.
         try:
             mention_refs = requested_mentions(data)
-            if mention_refs:
+            if mention_refs and setup_agent is None:
                 async with get_db_context() as db:
                     resolved = await ChatAgentRunner(db).mentions(
                         user=self.user,
@@ -827,6 +918,14 @@ class AgentSession:
         # still continues the session's conversation.
         if "conversation_id" in data and data["conversation_id"] is None:
             self.current_conversation_id = None
+        try:
+            async with get_db_context() as db:
+                await ChatAgentRunner(db).refuse_system_agent(
+                    user=self.user, organization_id=self.organization_id, agent_id=agent_id
+                )
+        except AppException as exc:
+            await send_event(self.websocket, "error", {"message": exc.message})
+            return
         try:
             prompt = await persist_user_turn(
                 self.user,
@@ -867,6 +966,16 @@ class AgentSession:
             await self._admission_stack.enter_async_context(
                 claim(UUID(self.current_conversation_id), background=False)
             )
+        if setup_agent is not None:
+            await self._emit(
+                "user_prompt",
+                {
+                    "content": user_message,
+                    "message_id": None if prompt.message_id is None else str(prompt.message_id),
+                },
+            )
+            await self._reply_with_model_setup(agent_id, setup_agent.name)
+            return
         collected_tool_calls: list[dict[str, Any]] = []
         # Everything the model produces, in the order it produces it - the text,
         # the reasoning and where the tool calls sat between them. It is what gets
@@ -1010,6 +1119,7 @@ class AgentSession:
                     on_sandbox_wait=self._sandbox_wait_event,
                     on_personal_gaps=self._personal_gaps_event,
                     request_connection=self._request_connection,
+                    request_computer_access=self._request_computer_access,
                     # The chat may run a published agent on another of the
                     # organization's models. Only the model changes; the run
                     # records which one, and the budget is the agent's.
@@ -1094,7 +1204,8 @@ class AgentSession:
                                 "tool_name": parked.tool_name,
                                 "subagent_name": parked.subagent,
                                 "can_remember": turn.agent_version_id is not None
-                                and parked.subagent is None,
+                                and parked.subagent is None
+                                and not parked.always_asks,
                                 "args": parked.tool_args,
                                 "capability_tool_id": parked.capability_tool_id,
                                 "context": parked.context,
@@ -1404,6 +1515,31 @@ class AgentSession:
             finally:
                 self._connect_future = None
 
+    async def _request_computer_access(self, request: ComputerAccessRequest) -> bool:
+        """Pause the run: ask the client where the agent may work, and wait.
+
+        Emits `computer_access`, then awaits `computer_access_response` - `granted`
+        true once the person chose a folder or the whole computer in the desktop
+        app, false when they declined or the client cannot offer one. A socket
+        that goes away answers false.
+        """
+        async with self._ask_lock:
+            if self._closed or self._question_detached:
+                return False
+            waiting: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
+            self._computer_future = waiting
+            try:
+                payload: dict[str, str | bool] = {"reason": request.reason}
+                if request.coding:
+                    payload["coding"] = True
+                if self._turn_agent_id is not None:
+                    payload["agent_id"] = str(self._turn_agent_id)
+                if not await self._emit("computer_access", payload):
+                    return False
+                return await waiting
+            finally:
+                self._computer_future = None
+
     async def _subagent_event(self, event: SubagentEvent) -> None:
         """Forward one frame from inside a delegation, under the frame's own name.
 
@@ -1516,7 +1652,11 @@ class AgentSession:
         async with get_db_context() as db:
             conversations = ConversationService(db)
             if turn.summarized_history is not None:
-                await conversations.keep_summary(conversation_id, turn.summarized_history)
+                await conversations.keep_summary(
+                    conversation_id,
+                    turn.summarized_history,
+                    expected_revision=turn.history_revision,
+                )
             if turn.overhead_tokens is not None:
                 await conversations.keep_overhead(conversation_id, turn.overhead_tokens)
 

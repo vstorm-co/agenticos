@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
+import { nodeCopyKey } from "@/lib/workflows/node-copy";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -255,28 +256,55 @@ export function useWorkflowVersions(workflowId: string | null) {
  * its own query, cached per version id (a frozen version never changes).
  */
 export function useWorkflowVersion(workflowId: string, versionId: string | null) {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.workflows.version(workflowId, versionId ?? ""),
     queryFn: () => getWorkflowVersion(workflowId, versionId as string),
     enabled: !!versionId,
     staleTime: Infinity,
   });
-  return { version: data, isLoading, error };
+  return { version: data, isLoading, error, refetch };
 }
 
 /**
- * Every registered node type, for the editor's palette.
+ * Every registered node type, for the editor's palette - named, described and its
+ * ports labelled in the reader's language.
+ *
+ * The registry writes them in English; `workflowNodes` holds each node's copy by its
+ * id and each port's by its English label, and anything it does not hold - a node
+ * added since, a port an author named - keeps the server's words. Every screen that
+ * names a step reads it from here, so the palette, the card, the step dialog, a run
+ * and the logs all say the same thing.
  *
  * Cached indefinitely: the catalog changes when the backend is redeployed, not
  * while someone builds a workflow.
  */
 export function useNodeCatalog() {
+  const t = useTranslations("workflowNodes");
   const { data, isLoading } = useQuery({
     queryKey: qk.workflows.nodeCatalog(),
     queryFn: () => getNodeCatalog(),
     staleTime: Infinity,
   });
-  return { nodes: data?.items ?? [], isLoading };
+  const nodes = useMemo(
+    () =>
+      (data?.items ?? []).map((node) => {
+        const id = nodeCopyKey(node.id);
+        return {
+          ...node,
+          standardPortLabels: { error: t("port.error"), unsure: t("port.unsure") },
+          name: t.has(`node.${id}.name`) ? t(`node.${id}.name`) : node.name,
+          description: t.has(`node.${id}.description`)
+            ? t(`node.${id}.description`)
+            : node.description,
+          ports: node.ports.map((port) => {
+            const label = nodeCopyKey(port.label);
+            return { ...port, label: t.has(`port.${label}`) ? t(`port.${label}`) : port.label };
+          }),
+        };
+      }),
+    [data, t],
+  );
+  return { nodes, isLoading };
 }
 
 /**

@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
@@ -32,6 +33,9 @@ from app.services.agent_registry import AgentRegistryService
 from app.services.artifact import publish_with
 from app.services.visual import VisualService
 from sqlalchemy import select
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from demo_agents import ensure_agent  # noqa: E402
 
 CATALOG = """Fictional Trail Supply catalog. All prices EUR, inclusive of demo taxes.
 Ridge Everyday Pack: 129 EUR, Charcoal, 22L, 16-inch laptop sleeve, padded straps,
@@ -125,13 +129,7 @@ async def seed(args: argparse.Namespace) -> None:
             role=member.role,
             is_app_admin=owner.is_app_admin,
         )
-        builder = await db.scalar(
-            select(Agent).where(
-                Agent.organization_id == org, Agent.name == "Visuals Lab"
-            )
-        )
-        if builder is None:
-            raise ValueError("The demo organization needs the Visuals Lab agent")
+        builder = await ensure_agent(db, ctx, "Visuals Lab", model_profile_id=model)
         store = await publish_with(
             db,
             organization_id=org,
@@ -218,16 +216,10 @@ async def seed(args: argparse.Namespace) -> None:
             "Revenue operations — workflow review": "Sales Researcher",
             "Launch Room — handover notes": "Tech Lead",
         }
-        agents = {
-            agent.name: agent
-            for agent in (
-                await db.scalars(select(Agent).where(Agent.organization_id == org))
-            ).all()
-        }
         for name, prompt, answer in SIDEBAR:
-            actor = agents.get(sidebar_agents[name])
-            if actor is None:
-                raise ValueError("Missing demo agent: " + sidebar_agents[name])
+            actor = await ensure_agent(
+                db, ctx, sidebar_agents[name], model_profile_id=model
+            )
             thread = await db.scalar(
                 select(Conversation).where(
                     Conversation.organization_id == org,
