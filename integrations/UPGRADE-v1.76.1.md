@@ -54,3 +54,21 @@ migration was modified and no production data was used.
 
 Complete current-head CI, coverage, security and browser gates remain mandatory;
 the local results above do not replace them.
+
+## Subsequent T3 integration (2026-11-16)
+
+The candidate also preserves T3 through
+`c716a6ada4cc40e784b2d44c4244ea42b5372641`, including the table screenshot
+checks and named coding accounts with opt-in pools. The account-pool schema
+arrives through its original `0326_provider_account_pools` revision.
+
+The new no-op `0332_merge_t3_pools_v1761` joins that pool revision with
+`0331_merge_t3_rooms_and_v1761`. The published definition of `0331` remains
+unchanged, so a database already stamped at that revision still applies the
+pool schema when upgrading to the combined head. Neither branch is renumbered
+or replaced. The later Tables migration train must join this combined head.
+
+The release gates above apply to the resulting combined candidate. Earlier
+local and CI results apply to their recorded source revisions and do not
+replace validation of this integration. No production database is migrated
+by publishing or merging the candidate.
