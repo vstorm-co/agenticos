@@ -298,6 +298,10 @@ Activity retention keeps the combined cost of a session’s deleted paid runs, w
 
 Grants count: a member with an edit grant on one agent may improve that agent.
 
+If an API request selects a helper agent, you need both view and run access to
+that helper. A missing or inaccessible helper returns `404` before its settings
+are read or a model is called, as it does in skill Improve.
+
 ## Availability and cost { #when-ai-assistance-is-off }
 
 Availability follows resource access, model readiness and budgets. There is no organization AI-assistance switch. Paid work requires explicit start; accepting or dismissing an existing proposal calls no model.
