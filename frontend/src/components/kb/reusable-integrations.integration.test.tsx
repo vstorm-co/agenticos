@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ReusableIntegrations } from "./reusable-integrations";
+import { KnowledgeIntegrations } from "./reusable-integrations";
 import { apiClient } from "@/lib/api-client";
 import { useOrgStore } from "@/stores";
 import { DEFAULT_INGESTION_CONFIG } from "@/lib/ingestion-config";
@@ -70,7 +70,12 @@ function kb(id: string, name: string, collection: string): KnowledgeBase {
 
 const TARGETS = [kb("kb-1", "Handbook", "handbook_a1"), kb("kb-2", "Runbooks", "runbooks_b2")];
 
-function serve(role: OrgRole, sources: SyncSourceRead[], connectorsAvailable = true) {
+function serve(
+  role: OrgRole,
+  sources: SyncSourceRead[],
+  connectorsAvailable = true,
+  localServices = false,
+) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/me/permissions")
       return {
@@ -84,6 +89,25 @@ function serve(role: OrgRole, sources: SyncSourceRead[], connectorsAvailable = t
             ? [{ permission: "connections:manage", scope: "all" }]
             : [],
       };
+    if (path === "/local-services")
+      return {
+        items: localServices
+          ? [
+              {
+                id: "local-1",
+                organization_id: ORG_ID,
+                kind: "embedding",
+                provider: "ollama",
+                name: "Office embeddings",
+                base_url: "http://ollama:11434/v1",
+                is_active: true,
+                created_at: "2026-07-01T00:00:00Z",
+                updated_at: null,
+              },
+            ]
+          : [],
+        total: localServices ? 1 : 0,
+      };
     if (path === `/orgs/${ORG_ID}/integrations`) return { items: sources, total: sources.length };
     if (path === `/orgs/${ORG_ID}/integrations/connectors`)
       return {
@@ -95,7 +119,7 @@ function serve(role: OrgRole, sources: SyncSourceRead[], connectorsAvailable = t
   });
 }
 
-describe("ReusableIntegrations", () => {
+describe("KnowledgeIntegrations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useOrgStore.setState({ activeOrgId: ORG_ID });
@@ -103,7 +127,7 @@ describe("ReusableIntegrations", () => {
 
   it("explains unavailable connectors instead of asking for an impossible action", async () => {
     serve("owner", [], false);
-    render(<ReusableIntegrations targets={TARGETS} />, { wrapper });
+    render(<KnowledgeIntegrations targets={TARGETS} />, { wrapper });
 
     expect(
       await screen.findByText(
@@ -118,6 +142,24 @@ describe("ReusableIntegrations", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows sources and local services in one table with distinct actions", async () => {
+    serve("owner", [UNASSIGNED], true, true);
+    render(<KnowledgeIntegrations targets={TARGETS} />, { wrapper });
+    await screen.findByText("Office embeddings");
+    const table = screen.getByRole("table");
+    expect(screen.getAllByRole("table")).toHaveLength(1);
+    expect(within(table).getByText("Handbook drive")).toBeVisible();
+    expect(within(table).getByText("Google Drive")).toBeVisible();
+    expect(within(table).getByText("Embedding server (Ollama)")).toBeVisible();
+    const serviceRow = screen.getByText("Office embeddings").closest("tr");
+    if (!serviceRow) throw new Error("Missing local service row");
+    expect(
+      within(serviceRow).queryByRole("button", { name: "Use in knowledge base" }),
+    ).not.toBeInTheDocument();
+    expect(within(table).getAllByRole("button", { name: "Use in knowledge base" })).toHaveLength(1);
+    expect(screen.getByText("2 integrations")).toBeVisible();
+  });
+
   it("lets one integration be used in a second knowledge base", async () => {
     // The journey the deleted organization page owned, and the reason this
     // section exists: configure a connector once, then feed two collections
@@ -125,12 +167,14 @@ describe("ReusableIntegrations", () => {
     // be retyped anyway.
     serve("owner", [UNASSIGNED]);
     vi.mocked(apiClient.post).mockResolvedValue({ ...UNASSIGNED, id: "s2" });
-    render(<ReusableIntegrations targets={TARGETS} />, { wrapper });
+    render(<KnowledgeIntegrations targets={TARGETS} />, { wrapper });
 
-    await userEvent.click(await screen.findByRole("button", { name: "Use in…" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Use in knowledge base" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Knowledge base" }));
     await userEvent.click(screen.getByRole("option", { name: "Runbooks" }));
-    await userEvent.click(screen.getByRole("button", { name: "Add to knowledge base" }));
+    await userEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Use in knowledge base" }),
+    );
 
     await waitFor(() =>
       expect(apiClient.post).toHaveBeenCalledWith("/kb/kb-2/sync-sources/s1/clone", {
@@ -147,10 +191,10 @@ describe("ReusableIntegrations", () => {
     // only report a refusal is worse than no section, and a request that can
     // only 403 is worse than no request.
     serve("member", [UNASSIGNED]);
-    render(<ReusableIntegrations targets={TARGETS} />, { wrapper });
+    render(<KnowledgeIntegrations targets={TARGETS} />, { wrapper });
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/me/permissions"));
-    expect(screen.queryByText("Reusable integrations")).not.toBeInTheDocument();
+    expect(screen.queryByText("Integrations")).not.toBeInTheDocument();
     expect(apiClient.get).not.toHaveBeenCalledWith(`/orgs/${ORG_ID}/integrations`);
   });
 });

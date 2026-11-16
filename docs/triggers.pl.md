@@ -1,5 +1,5 @@
 ---
-source_sha: "5f01365cb00a"
+source_sha: "4cdebab6f99e"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -10,7 +10,7 @@ Są dwie drogi, którymi to do nas dociera, a to, której używa dane źródło,
 sprawą tego źródła, a nie twoją:
 
 - **Wypychane.** Provider wysyła POST-em podpisany payload: **GitHub**,
-  **HubSpot**, **Zendesk** albo cokolwiek, co potrafi wysłać podpisany JSON
+  **HubSpot**, **Zendesk**, **Linear** albo cokolwiek, co potrafi wysłać podpisany JSON
   (źródło **API**).
 - **Odpytywane.** Platforma czyta podłączone konto według harmonogramu: skrzynki
   (**Gmail**, **Outlook**), pliki (**Google Drive**, **OneDrive & SharePoint**) i
@@ -68,7 +68,7 @@ odpalenie.
 `continue`, domyślnie, dopisuje każde odpalenie do jednego dziennika uruchomień
 triggera, więc karta Runs wymienia je wszystkie; `fresh` otwiera nową rozmowę na
 każde odpalenie, więc jedno odpalenie nigdy nie czyta tur poprzednich odpaleń —
-a karta Runs nie ma jednej rozmowy do wymienienia. Trigger `fresh` nie otwiera
+a karta Runs nie ma jednej rozmowy obejmującej wszystkie odpalenia. Trigger `fresh` nie otwiera
 dziennika uruchomień przy utworzeniu, więc do pierwszego odpalenia nie ma żadnego
 elementu na pasku bocznym.
 
@@ -125,7 +125,7 @@ wymagają `runs:view` i po prostu ich nie ma bez tego uprawnienia.
 
 ## Mechanizm, raz { #the-mechanism-once }
 
-Trigger zdarzeniowy daje ci dwie rzeczy: **URL webhooka** i **sekret
+Trigger zdarzeniowy używa dwóch rzeczy: **URL webhooka** i **sekret
 podpisujący**. Provider wysyła POST-em swój payload na ten URL i podpisuje
 żądanie; platforma przelicza podpis i odpala agenta tylko wtedy, gdy oba się
 zgadzają.
@@ -138,9 +138,9 @@ flowchart TD
     V -->|yes| J{a JSON object?}
     J -->|no| R400["400"]
     J -->|yes| F{trigger active,<br/>filter matches?}
-    F -->|no| R202["202 - nothing to do"]
+    F -->|no| R202["202, or 200 for Linear - nothing to do"]
     F -->|yes| SUB["queue a fire-trigger job"]
-    SUB --> R202b["202 - accepted, not finished"]
+    SUB --> R202b["202, or 200 for Linear - accepted, not finished"]
     SUB -.->|later, in the worker| RUN[the agent runs, spending the org's budget]
 ```
 
@@ -152,7 +152,7 @@ flowchart TD
   {PUBLIC_BASE_URL}/api/v1/webhooks/triggers/{source}/{trigger_id}
   ```
 
-  `source` to `github`, `hubspot`, `zendesk` albo `webhook` (nazwa źródła API na
+  `source` to `github`, `hubspot`, `zendesk`, `linear` albo `webhook` (nazwa źródła API na
   drucie); `trigger_id` to nieodgadywalny UUID. Dialog wypełnia to za ciebie -
   skopiuj, nie buduj tego ręcznie. **Odpytywane źródło nie ma URL-a**: nie ma
   drzwi wejściowych, a POST nazywający je dostaje odpowiedź jak każde
@@ -166,15 +166,24 @@ flowchart TD
   | `github`  | `X-Hub-Signature-256`         | Surowe body, `sha256=<hex>`                                                                |
   | `webhook` | `X-Signature-256`             | Surowe body, `sha256=<hex>` - albo czas i body, zob. [niżej](#signing-a-delivery-yourself) |
   | `hubspot` | `X-HubSpot-Signature-v3`      | Metoda, URL, body i `X-HubSpot-Request-Timestamp`, base64                                  |
+  | `linear` | `Linear-Signature` | Surowe body, hex HMAC-SHA256 |
   | `zendesk` | `X-Zendesk-Webhook-Signature` | `X-Zendesk-Webhook-Signature-Timestamp` i body, base64                                     |
 
-  GitHub, HubSpot i Zendesk podpisują swoje dostarczenia same, więc dajesz
-  providerowi sekret - albo, przy HubSpocie i Zendesku, bierzesz ten, który on
-  wydał - a on robi podpisywanie. Źródło API używa schematu GitHuba pod
+  GitHub, HubSpot, Zendesk i Linear podpisują swoje dostarczenia same, więc dajesz
+  providerowi sekret - albo, przy HubSpocie, Zendesku i Linear, bierzesz ten, który on
+  wydał - a on robi podpisywanie. Źródło API domyślnie używa schematu GitHuba pod
   `X-Signature-256`, który to, co skierujesz na ten URL, musi ustawić samo.
   Źródło **odpytywane** nic nie podpisuje i nie trzyma sekretu: nie było
   adresowane, tylko odczytane, a autoryzacją odczytu jest własna zgoda OAuth tego
   konta.
+
+Ogólny `webhook` domyślnie używa powyższego podpisu. Tworząc lub zmieniając trigger przez API, ustaw `event_config` na `{"signature_scheme":"hmac-sha256-base64","signature_header":"X-Shopify-Hmac-Sha256"}` dla Shopify albo użyj `X-Hookdeck-Signature` dla domyślnego podpisu Hookdeck. `hmac-sha256-hex` przyjmuje skrót szesnastkowy bez prefiksu. Oba podpisują dokładne surowe body i wymagają sekretu dostawcy jako `event_secret`; wielkość liter w nazwie nagłówka nie ma znaczenia.
+
+Te tryby nie uwierzytelniają czasu, więc przechwycone żądanie można ponowić. Ogólny nagłówek ID dostarczenia nie jest podpisany i można go zmienić. Filtruj u dostawcy i użyj dedykowanej integracji, gdy jego kontrakt wymaga kontroli czasu, innej odpowiedzi sukcesu lub innego schematu podpisu. Te opcje nie implementują kontraktu webhooków Linear. Konsola tworzy obecnie domyślny schemat; alternatywy konfiguruje się przez API.
+
+Shopify i Hookdeck zwykle nie wysyłają `X-Delivery-ID`, więc ponowienia mogą ponownie uruchomić trigger. Ten trigger nie sprawdza ich identyfikatorów dostarczenia. Podpis body nie wiąże docelowego URL ani nagłówków dostawcy: używaj osobnego sekretu dla każdej granicy zaufania i nie autoryzuj dostarczeń na podstawie niepodpisanych nagłówków sklepu lub tematu. Sekret aplikacji Shopify może być współdzielony przez sklepy; nie używaj tego trybu, gdy podpis ma dowodzić, z którego sklepu lub subskrypcji pochodzi zdarzenie.
+
+Rotate generuje nowy sekret AgenticOS; nie pozwala wprowadzić nowego sekretu wydanego przez dostawcę. Gdy sekretem zarządza dostawca, utwórz nowy trigger i po zmianie sekretu zaktualizuj jego URL u dostawcy. Drugi podpis Hookdeck przy opóźnionej rotacji nie jest sprawdzany.
 
 !!! danger "Podpis nie jest ozdobą"
 
@@ -188,22 +197,25 @@ flowchart TD
 runner zostanie w ogóle osiągnięty; sekret jest zapieczętowany w
 [vault](secrets.md) i nigdy nie pojawia się w odczycie, w listingu ani w URL-u.
 
-!!! info "`202` znaczy przyjęte, a nie zakończone"
+Dla Linear odpowiedzią sukcesu jest `200`, także gdy filtr niczego nie dopasuje.
+
+!!! info "Przyjęcie nie oznacza zakończenia runa"
 
     Dopasowane dostarczenie jest kolejkowane jako zadanie `fire-trigger` we
     własnej transakcji żądania, a agent działa w workerze, więc provider dostaje
     swoją odpowiedź po jednym insercie, zamiast czekać na model.
-    Nie czytaj `202` jako „agent odpowiedział” - od tego jest przeczytanie runa w
+    Nie czytaj odpowiedzi sukcesu jako „agent odpowiedział” - od tego jest przeczytanie runa w
     **Aktywności** (Activity).
 
 Zweryfikowane dostarczenie, przy którym nie ma nic do zrobienia - nieaktywny
-trigger albo payload, którego filtr nie dopasowuje - odpowiada `202` dokładnie
-tak samo jak odpalone, więc posiadanie sekretu nie mówi ci nic o tym, które
-triggery istnieją. Body, które nie jest obiektem JSON, to `400`.
+trigger albo payload, którego filtr nie dopasowuje - odpowiada tym samym statusem
+sukcesu co odpalone, więc posiadanie sekretu nie mówi ci nic o tym, które
+triggery istnieją. Body inne niż obiekt JSON daje `400` (HubSpot przyjmuje tablicę);
+Linear odrzuca nieprawidłowe body z `403`.
 
 **Jeden trigger odpala się najwyżej 60 razy na minutę.** Zweryfikowane
-dostarczenie ponad to jest odrzucane z `429` i `Retry-After`, a ponowienie
-providera odpali je, gdy minuta minie. Liczone jest dopiero, gdy podpis się
+dostarczenie ponad to jest odrzucane z `429` i `Retry-After`. Provider może
+ponowić je po minucie, o ile podpis przejdzie kontrolę świeżości. Liczone jest dopiero, gdy podpis się
 zgadza, więc nikt bez sekretu go nie wyczerpie - i to ono powstrzymuje wyciekły
 sekret albo przekaźnik w pętli przed wydaniem budżetu w jedno popołudnie.
 
@@ -212,12 +224,12 @@ potem zdarzenie w bloku `<event_content>`, który mówi modelowi, by czytał je 
 dane. Issue, mail czy nazwę pliku pisze ten, kto je wysłał, a zdanie w nich, które
 brzmi jak rozkaz, nadal jest częścią zdarzenia.
 
-Dostarczenie z GitHub dociera do runa także jako jedna uporządkowana część: całe
+Dostarczenie z GitHub dociera do runa także w ustrukturyzowanej postaci: całe
 dostarczenie jako JSON, w tym samym kształcie, w jakim trigger GitHub przepływów
 pracy przekazuje je runowi, w bloku `<event_payload>` obok wyrenderowanego tekstu.
 To ta sama niezaufana treść — run czyta ją jako informację do pracy, nigdy jako
-polecenia — i jest ona zaciemniana w wierszu oczekiwania, gdy tylko odpalenie się
-ustali, więc zakończone oczekiwanie nie zachowuje ani payloadu, ani wyrenderowanego
+polecenia — i jest usuwana z wiersza oczekiwania po zakończeniu obsługi odpalenia,
+więc zakończone oczekiwanie nie zachowuje ani payloadu, ani wyrenderowanego
 kontekstu.
 
 ## Rotowanie sekretu i edytowanie filtra { #rotating-the-secret-and-editing-the-filter }
@@ -233,6 +245,9 @@ POST /agents/{agent_id}/triggers/{trigger_id}/rotate-secret
 Bije nowy sekret, pieczętuje go i zwraca trigger z `reveal_secret` ustawionym raz
 — tym samym polem, którego używa tworzenie. Rotuj w chwili, gdy sekret mógł
 wyciec; stary natychmiast przestaje się weryfikować.
+
+Sekretu Linear nie można tu rotować: utwórz nowy trigger z nowym sekretem
+Linear i zmień URL webhooka.
 
 Dla hooka, który platforma zarejestrowała sama (`auto_webhook`), rotacja
 rejestruje go ponownie z nowym sekretem, więc jego dostarczenia dalej się
@@ -406,6 +421,26 @@ nadawcę.
 Filtr nadawcy porównuje sparsowany adres, nigdy nazwę wyświetlaną. Pełny adres
 lub filtr `@domena` wymaga dokładnego dopasowania; inny tekst jest fragmentem
 adresu. DMARC nie uwierzytelnia nazwy wyświetlanej osoby.
+
+## Linear { #linear }
+
+1. Otwórz ustawienia webhooka w Linear i skopiuj sekret podpisujący.
+2. W AgenticOS utwórz trigger zdarzeniowy ze źródłem **Linear**. Wklej sekret
+   Linear i zakończ konfigurację.
+3. Skopiuj URL triggera do Linear, wybierz wysyłane zdarzenia i zapisz webhook.
+
+API obsługuje też opcjonalne filtry `event_types` i `actions` w `event_config`.
+
+AgenticOS weryfikuje `Linear-Signature` na dokładnym body i sprawdza, czy
+podpisany w body `webhookTimestamp` mieści się w 60-sekundowym oknie ważności. Odpowiedź `200`
+oznacza przyjęcie dostarczenia lub brak pracy, a nie zakończenie działania agenta.
+Identyczne body jest deduplikowane przez 15 minut, gdy Redis jest dostępny.
+
+Linear ponawia nieudane dostarczenia po minucie, godzinie i sześciu godzinach.
+Jeśli ponowienie zachowa pierwotny czas w body, kontrola świeżości je odrzuci;
+dokumentacja Linear nie określa, czy czas jest odświeżany. Sprawdź historię
+dostarczeń, jeśli ponowienie nie dotrze. Aby wymienić sekret podpisujący, utwórz
+nowy trigger z nowym sekretem Linear i zmień URL webhooka.
 
 ## HubSpot { #hubspot }
 
@@ -805,12 +840,12 @@ przekaźnika - nie widzą twojej maszyny. Dwa sposoby, żeby to obejść:
 
 ## Podsumowanie { #recap }
 
-- Trigger daje ci **URL** i **sekret podpisujący**. URL jest jego tożsamością i
-  nigdy się nie zmienia; sekret jest poświadczeniem i może być rotowany.
+- Trigger używa **URL-a** i **sekretu podpisującego**. URL jest jego tożsamością;
+  sekret jest poświadczeniem. Wymiana sekretu Linear wymaga nowego triggera.
 - Podpis to `HMAC-SHA256` po **dokładnych surowych bajtach**, w schemacie
   każdego providera, i to on czyni dostarczenie autentycznym, a nie tylko
-  poprawnie zaadresowanym. Sekrety HubSpota i Zendeska wydaje provider.
-- `202` znaczy **przyjęte**, a nie zakończone. Przeczytaj run w Aktywność.
+  poprawnie zaadresowanym. Sekrety HubSpota, Zendeska i Linear wydaje provider.
+- Odpowiedź sukcesu (`202`, dla Linear `200`) znaczy **przyjęte**, a nie zakończone. Przeczytaj run w Aktywność.
 - **Skrzynki, pliki i kalendarze są odpytywane**, więc nie mają URL-a ani sekretu
   w ogóle - podłącz konto i to cała konfiguracja.
 - Filtr nadawcy odpala się tylko na poczcie podpisanej przez domenę nadawcy.
@@ -818,7 +853,7 @@ przekaźnika - nie widzą twojej maszyny. Dwa sposoby, żeby to obejść:
 
 - Podpis to `HMAC-SHA256` po **dokładnych surowych bajtach** i to on czyni
   dostarczenie autentycznym, a nie tylko poprawnie zaadresowanym.
-- `202` znaczy **przyjęte**, a nie zakończone. Przeczytaj run w Aktywności.
+- Odpowiedź sukcesu (`202`, dla Linear `200`) znaczy **przyjęte**, a nie zakończone. Przeczytaj run w Aktywności.
 - **Gmail jest odpytywany**, więc nie ma URL-a ani sekretu w ogóle — podłącz
   skrzynkę i to cała konfiguracja.
 - Na laptopie sięgnij po **Run now**, zanim sięgniesz po tunel.

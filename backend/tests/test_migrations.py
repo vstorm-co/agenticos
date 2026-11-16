@@ -1950,6 +1950,59 @@ class TestConnectedAccountSources:
             engine.dispose()
 
 
+@pytest.mark.parametrize("previous", ["0331_merge_core_accounts", "0332_merge_t3_pools_v1761"])
+def test_core_upstream_join_preserves_saved_profiles_and_matches_models(previous: str) -> None:
+    reset = _alembic("downgrade", "base")
+    assert reset.returncode == 0, reset.stderr
+    applied = _alembic("upgrade", previous)
+    assert applied.returncode == 0, applied.stderr
+    person = uuid4()
+    email = f"{person}@example.com"
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.begin() as connection:
+            assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
+                previous
+            ]
+            connection.execute(
+                text(
+                    "INSERT INTO users (id, email, full_name, locale, is_active, is_app_admin, "
+                    "notify_budget_alerts, notify_approval_requests, notify_usage_reports) "
+                    "VALUES (:id, :email, 'Saved before convergence', 'pl', true, false, "
+                    "false, true, false)"
+                ),
+                {"id": person, "email": email},
+            )
+        upgraded = _alembic("upgrade", "head")
+        assert upgraded.returncode == 0, upgraded.stderr
+        with engine.connect() as connection:
+            assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
+                "0336_merge_core_v1761"
+            ]
+            row = connection.execute(
+                text(
+                    "SELECT email, full_name, locale, is_active, is_app_admin, "
+                    "notify_budget_alerts, notify_approval_requests, notify_usage_reports "
+                    "FROM users WHERE id = :id"
+                ),
+                {"id": person},
+            ).one()
+            assert tuple(row) == (
+                email,
+                "Saved before convergence",
+                "pl",
+                True,
+                False,
+                False,
+                True,
+                False,
+            )
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
+    finally:
+        engine.dispose()
+
+
 class TestRoomThreadMigration:
     def test_revision_follows_the_room_merge_and_keeps_one_head(self) -> None:
         script = ScriptDirectory.from_config(Config("alembic.ini"))
@@ -1974,7 +2027,13 @@ class TestRoomThreadMigration:
         merged = script.get_revision("0331_merge_core_accounts")
         assert merged is not None
         assert merged.down_revision == ("0326_provider_account_pools", "0330_role_navigation")
-        assert script.get_heads() == ["0331_merge_core_accounts"]
+        combined = script.get_revision("0336_merge_core_v1761")
+        assert combined is not None
+        assert combined.down_revision == (
+            "0331_merge_core_accounts",
+            "0332_merge_t3_pools_v1761",
+        )
+        assert script.get_heads() == ["0336_merge_core_v1761"]
 
     def test_existing_quotes_survive_roundtrip_and_models_match_head(self) -> None:
         reset = _alembic("downgrade", "base")
@@ -2002,7 +2061,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0331_merge_core_accounts"]
+                ).all() == ["0336_merge_core_v1761"]
                 rows = connection.execute(
                     text(
                         "SELECT id,reply_to_message_id,thread_root_message_id FROM messages "
@@ -2072,7 +2131,7 @@ class TestRoomThreadMigration:
             with engine.begin() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0331_merge_core_accounts"]
+                ).all() == ["0336_merge_core_v1761"]
                 assert (
                     connection.scalar(
                         text("SELECT thread_root_message_id FROM messages WHERE id=:id"),
@@ -2084,9 +2143,11 @@ class TestRoomThreadMigration:
             down = _alembic("downgrade", "0325_merge_t3_rooms_v173")
             assert down.returncode == 0, down.stderr
             with engine.connect() as connection:
-                assert connection.scalars(
-                    text("SELECT version_num FROM alembic_version")
-                ).all() == ["0325_merge_t3_rooms_v173"]
+                # Unwinding the core branch preserves the independently published upstream DDL.
+                assert set(connection.scalars(text("SELECT version_num FROM alembic_version"))) == {
+                    "0325_merge_t3_rooms_v173",
+                    "0330_linear_trigger",
+                }
                 assert (
                     connection.scalar(
                         text("SELECT reply_to_message_id FROM messages WHERE id=:id"),
@@ -2099,7 +2160,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0331_merge_core_accounts"]
+                ).all() == ["0336_merge_core_v1761"]
             check = _alembic("check")
             assert check.returncode == 0, check.stderr
         finally:
@@ -2302,7 +2363,7 @@ class TestRoomThreadMigration:
         assert resumed.returncode == 0, resumed.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0331_merge_core_accounts"
+                "0336_merge_core_v1761"
             ]
             assert connection.execute(
                 text("SELECT content, thread_root_message_id FROM messages WHERE id = :id"),

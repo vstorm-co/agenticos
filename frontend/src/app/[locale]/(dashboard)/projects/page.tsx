@@ -107,6 +107,14 @@ export default function ProjectsPage() {
           />
         ) : projects.length === 0 ? (
           <ListCardEmpty
+            onClearFilters={
+              isSearching
+                ? () => {
+                    setQuery("");
+                    setPage(0);
+                  }
+                : undefined
+            }
             icon={FolderKanban}
             title={isSearching ? t("noMatches") : t("noProjectsYet")}
             description={isSearching ? t("searchedNames") : t("noProjectsHint")}

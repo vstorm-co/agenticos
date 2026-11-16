@@ -28,6 +28,9 @@ interface ModelProfilePickerProps {
   profiles: ModelProfile[];
   /** A single selector for setup dialogs; model management keeps its full editor. */
   compact?: boolean;
+  purpose?: "chat" | "decision";
+  /** A required independent model can label the empty choice without implying inheritance. */
+  emptyLabel?: string;
   /**
    * What `profiles` is: the organization's answer, a read still in flight, or
    * one that failed.
@@ -117,6 +120,8 @@ export function ModelProfilePicker({
   onChange,
   onCreationPendingChange,
   compact = false,
+  purpose = "chat",
+  emptyLabel,
   allowAdd = false,
   allowRemove = false,
   disabled,
@@ -150,8 +155,12 @@ export function ModelProfilePicker({
   // marked, because a choice that vanished would read as no choice at all; and
   // where models are managed the rest stay too, marked and not selectable, since
   // this is the only place in the console that deletes one.
+  const usable = (profile: ModelProfile) =>
+    purpose === "decision"
+      ? profile.decision_capable === true && hasKey(profile)
+      : usableForAgents(profile);
   const offered = profiles.filter(
-    (profile) => usableForAgents(profile) || profile.id === value || allowRemove,
+    (profile) => usable(profile) || profile.id === value || allowRemove,
   );
   // Generated rather than a constant: the Builder and a dialog can both have a
   // picker mounted, and two elements answering to one id makes the second group's
@@ -173,9 +182,9 @@ export function ModelProfilePicker({
           // alone: a self-hosted model at an endpoint has no key and needs none,
           // and reading the column marked every Ollama profile "no key" (#2478).
           noKey={!hasKey(profile)}
-          notChat={!runsAgents(profile)}
+          notChat={purpose === "chat" && !runsAgents(profile)}
           personal={profile.usage_scope === "personal"}
-          selectable={usableForAgents(profile) || profile.id === value}
+          selectable={usable(profile) || profile.id === value}
           disabled={disabled}
           onRemove={allowRemove ? () => deleteProfile.mutate(profile.id) : undefined}
         />
@@ -210,14 +219,16 @@ export function ModelProfilePicker({
           {selected.provider === "claude-subscription" ? tSubscription("disconnected") : t("noKey")}
         </Badge>
       )}
-      {!runsAgents(selected) && <Badge variant="destructive">{t("notAChatModel")}</Badge>}
+      {purpose === "chat" && !runsAgents(selected) && (
+        <Badge variant="destructive">{t("notAChatModel")}</Badge>
+      )}
       {selected.usage_scope === "personal" && (
         <Badge variant="secondary">{tPersonal("personal")}</Badge>
       )}
       {selected.usage_scope === "personal" && (
         <p className="text-muted-foreground basis-full text-xs">{tPersonal("personalUse")}</p>
       )}
-      {!runsAgents(selected) && (
+      {purpose === "chat" && !runsAgents(selected) && (
         <p role="alert" className="text-destructive basis-full text-xs">
           {t("notAChatModelHint", { model: selected.model })}
         </p>
@@ -282,7 +293,7 @@ export function ModelProfilePicker({
             disabled={disabled || profilesStatus !== "loaded"}
             onValueChange={(id) => {
               if (id === "default") onChange(null);
-              else if (offered.some((profile) => profile.id === id && usableForAgents(profile)))
+              else if (offered.some((profile) => profile.id === id && usable(profile)))
                 selectProfile(id);
             }}
           >
@@ -290,13 +301,9 @@ export function ModelProfilePicker({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="default">{t("useDefaultModel")}</SelectItem>
+              <SelectItem value="default">{emptyLabel ?? t("useDefaultModel")}</SelectItem>
               {offered.map((profile) => (
-                <SelectItem
-                  key={profile.id}
-                  value={profile.id}
-                  disabled={!usableForAgents(profile)}
-                >
+                <SelectItem key={profile.id} value={profile.id} disabled={!usable(profile)}>
                   <span className="flex min-w-0 items-center gap-2">
                     <ProviderIcon provider={profile.provider} />
                     <span className="truncate">{profile.label}</span>
@@ -341,6 +348,7 @@ export function ModelProfilePicker({
       <AddModel
         key={`${selected?.id ?? "none"}:${selectionVersion}`}
         selected={selected}
+        purpose={purpose}
         disabled={disabled}
         onCreationPendingChange={onCreationPendingChange}
         onCreated={(profile) => {
@@ -366,8 +374,7 @@ export function ModelProfilePicker({
           <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
             <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
             {t("useSavedModelCount", {
-              count: offered.filter((profile) => usableForAgents(profile) || profile.id === value)
-                .length,
+              count: offered.filter((profile) => usable(profile) || profile.id === value).length,
             })}
           </summary>
           <div className="mt-2 space-y-2">

@@ -153,6 +153,70 @@ def test_deployed_personal_and_app_revisions_keep_their_original_parents() -> No
     }
 
 
+_CORE_UPGRADES = {
+    "0326_room_threads",
+    "0327_virtual_table_relations",
+    "0328_tables_tenant_rls",
+    "0329_user_appearance",
+    "0330_role_navigation",
+    "0331_merge_core_accounts",
+}
+_UPSTREAM_UPGRADES = {
+    "0322_workflow_approval_groups",
+    "0323_sync_log_ownership",
+    "0324_screened_message_replay",
+    "0325_channel_prompt_override",
+    "0326_channel_observation",
+    "0327_decision_model_api",
+    "0328_agent_task_boards",
+    "0329_merge_channel_and_coding",
+    "0330_linear_trigger",
+    "0331_merge_t3_rooms_and_v1761",
+    "0332_merge_t3_pools_v1761",
+}
+
+
+@pytest.mark.parametrize(
+    ("current", "remaining"),
+    [
+        ("0331_merge_core_accounts", _UPSTREAM_UPGRADES),
+        ("0332_merge_t3_pools_v1761", _CORE_UPGRADES),
+        (
+            "0331_merge_t3_rooms_and_v1761",
+            _CORE_UPGRADES | {"0326_provider_account_pools", "0332_merge_t3_pools_v1761"},
+        ),
+        (("0331_merge_core_accounts", "0332_merge_t3_pools_v1761"), set()),
+    ],
+)
+def test_core_and_published_v1761_apply_only_missing_revisions(
+    current: str | tuple[str, ...], remaining: set[str]
+) -> None:
+    pending = list(_chain().iterate_revisions("0336_merge_core_v1761", current, implicit_base=True))
+    ordered = [revision.revision for revision in reversed(pending)]
+    assert set(ordered) == remaining | {"0336_merge_core_v1761"}
+    assert len(ordered) == len(remaining) + 1
+    assert ordered[-1] == "0336_merge_core_v1761"
+
+
+def test_published_v1761_joins_keep_their_original_parents() -> None:
+    chain = _chain()
+    expected = {
+        "0331_merge_core_accounts": ("0326_provider_account_pools", "0330_role_navigation"),
+        "0331_merge_t3_rooms_and_v1761": (
+            "0330_linear_trigger",
+            "0325_merge_t3_rooms_v173",
+        ),
+        "0332_merge_t3_pools_v1761": (
+            "0331_merge_t3_rooms_and_v1761",
+            "0326_provider_account_pools",
+        ),
+    }
+    for revision, parents in expected.items():
+        script = chain.get_revision(revision)
+        assert script is not None
+        assert script.down_revision == parents
+
+
 # `alembic_version.version_num` is `VARCHAR(32)`, which alembic creates and never
 # widens. A longer id is not refused when the file is written or when the chain is
 # read - it is refused by the *database*, after the migration's DDL has run, on the

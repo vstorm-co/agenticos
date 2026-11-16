@@ -61,6 +61,7 @@ function AccessBadge({ artifact }: { artifact: ArtifactDetail }) {
 }
 
 interface ArtifactViewerBarProps {
+  backHref?: string | null;
   /** Null while it loads, or once it turned out not to be available. */
   artifact: ArtifactDetail | null;
   /** How the shown version's live data stands; absent when it reads none. */
@@ -106,6 +107,7 @@ export function ArtifactViewerBar({
   onWithdrawConsent,
   onChangeOwner,
   waitingRequests = 0,
+  backHref = null,
   onRequests,
   favourite,
 }: ArtifactViewerBarProps) {
@@ -131,10 +133,10 @@ export function ArtifactViewerBar({
     >
       <IconButton
         asChild
-        aria-label={t("backToArtifacts")}
+        aria-label={backHref ? t("backToConversation") : t("backToArtifacts")}
         className="max-sm:bg-background/95 max-sm:pointer-events-auto max-sm:size-11 max-sm:rounded-full max-sm:border max-sm:shadow-sm"
       >
-        <Link href={ROUTES.ARTIFACTS}>
+        <Link href={backHref ?? ROUTES.ARTIFACTS}>
           <ArrowLeft className="h-4 w-4" />
         </Link>
       </IconButton>

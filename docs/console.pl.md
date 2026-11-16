@@ -1,5 +1,5 @@
 ---
-source_sha: "27ad3422cf7b"
+source_sha: "22b67b0bc732"
 ---
 
 # Konsola { #the-console }
@@ -39,7 +39,7 @@ ustawieniach czatu, pod suwakami obok mikrofonu.
 
 Listy zasobów, w tym Inbox i Routines, wypełniają pozostałą wysokość strony również wtedy, gdy są puste. Szablony Routines pozostają w formularzu tworzenia zamiast osobnego panelu pomysłów.
 
-Czat używa większych portretów agentów bez obwódek. W pełnym widoku czatu na komputerze przełącznik Files pozostaje wśród elementów sterujących obszaru roboczego podczas otwierania i zamykania panelu; animacja respektuje ograniczenie ruchu. Ustawienia czatu pokazują najpierw bieżący model. Rozwiń **Zmień model**, aby edytować uzupełnionego dostawcę i model; wybór zaczyna działać po zatwierdzeniu. Karty załączników znajdują się nad polem wiadomości bez dodatkowego panelu z cieniem.
+Czat używa większych portretów agentów bez obwódek. W pełnym widoku czatu na komputerze przełącznik Files pozostaje wśród elementów sterujących obszaru roboczego podczas otwierania i zamykania panelu; animacja respektuje ograniczenie ruchu. Ustawienia czatu pokazują najpierw bieżący model. Rozwiń **Zmień model**, aby edytować uzupełnionego dostawcę i model; wybór zaczyna działać po **Run on this model**. Karty załączników znajdują się nad polem wiadomości bez dodatkowego panelu z cieniem.
 
 Wprowadzenia do stron i objaśnienia ustawień są dostępne pod ikoną informacji obok nagłówka. Bieżące podsumowania i ostrzeżenia o nieodwracalnych działaniach pozostają widoczne.
 
@@ -64,7 +64,9 @@ Ustawienia chatu mają stały nagłówek i przycisk zamknięcia nad przewijaną 
 
 Agenci rozmowy są uporządkowani według ostatniej wiadomości lub uruchomienia głównego agenta, od najnowszego. Zwinięty pasek chatu zachowuje pełny rozmiar avatarów, nakłada maksymalnie trzy i ukrywa starszych uczestników; pełna lista pozostaje dostępna w podpowiedzi.
 
-Gdy **Approve everything** jest niedostępne, ustawienia chatu rozróżniają brak uprawnienia do zatwierdzania i politykę organizacji wyłączającą stałą zgodę. Osoba z uprawnieniem do zatwierdzania otrzymuje odnośnik do **Budżetu i zatwierdzeń**, gdzie może jawnie zmienić tę politykę. Chat nie zmienia polityki organizacji automatycznie.
+Gdy **Zatwierdzaj wszystko** (Approve everything) jest niedostępne, ustawienia chatu rozróżniają brak uprawnienia do zatwierdzania i politykę organizacji wyłączającą stałą zgodę. Osoba z uprawnieniem do zatwierdzania otrzymuje odnośnik do **Budżetu i zatwierdzeń**, gdzie może jawnie zmienić tę politykę. Chat nie zmienia polityki organizacji automatycznie.
+
+Pole wiadomości pokazuje aktywny tryb zatwierdzania obok wyboru agenta. Kliknij etykietę, aby zmienić zapisany tryb przed wysłaniem. Obowiązują te same kontrole uprawnień i wyjątków organizacji co w **Ustawieniach czatu** (Chat controls). Automatycznie zatwierdzone wywołania zachowują zatwierdzone wpisy audytowe; tylko rzeczywiście oczekujące wywołania pokazują prośby o decyzję.
 
 Na telefonie modale zachowują 12 px marginesu z każdej strony. Zwarte nagłówki mieszczą tytuł i akcje w jednym wierszu, gdy jest na to miejsce. Opis pliku Context rozwija się z paska edytora.
 
@@ -80,7 +82,7 @@ Nagłówki korzystają z odstępów otaczającego układu bez ich podwajania. Ka
 
 Przyciski drugorzędne i filtry mają wspólne, wyraźniejsze wypełnienie, kontrastowe etykiety oraz czytelne stany najechania, naciśnięcia i otwarcia. Wybór modelu w chacie korzysta z tego samego stylu przycisku.
 
-Nagłówek chatu z agentem pokazuje bieżący model z ikoną providera. Otwórz przycisk modelu, aby przeszukać zapisane modele, zmienić providera lub konto albo wybrać **Use agent's model**. Wybór dotyczy następnej wiadomości i jest zapamiętywany dla twojego konta w bieżącej organizacji; nie edytuje agenta. Trwająca tura zachowuje swój model. Rozłączone połączenia i modele nieobsługujące chatu pozostają widoczne, ale nie można ich wybrać. Gdy lista modeli jest nieczytelna, wybierz **Retry**. **Controls** obok pola wiadomości zachowuje pełną konfigurację modeli i połączeń.
+Nagłówek chatu z agentem pokazuje bieżący model z ikoną providera. Otwórz przycisk modelu, aby przeszukać zapisane modele, zmienić providera lub konto albo wybrać **Użyj modelu agenta** (Use agent's model). Wybór dotyczy następnej wiadomości i jest zapamiętywany dla twojego konta w bieżącej organizacji; nie edytuje agenta. Trwająca tura zachowuje swój model. Rozłączone połączenia i modele nieobsługujące chatu pozostają widoczne, ale nie można ich wybrać. Jeśli nie można odczytać listy modeli, dostępne jest **Ponów** (Retry). **Ustawienia czatu** (Chat controls) obok pola wiadomości zachowuje pełną konfigurację modeli i połączeń.
 
 Zmiana modelu w nagłówku wymaga `connections:manage`, tak jak dotychczasowe kontrolki modelu. W rozmowach tylko do odczytu oraz bez tego uprawnienia bieżący model pozostaje widoczny.
 
@@ -682,15 +684,15 @@ zrzut ekranu, aby odświeżyć widok komputera.
 **Ustawienia agenta.** W pełnych czatach na komputerze przycisk ustawień po prawej
 otwiera wersję roboczą wybranego agenta obok rozmowy. Pasek jest ukryty na telefonach
 i w kompaktowych czatach; tam użyj pełnego edytora agenta. Zmień nazwę, krótki opis,
-instrukcje, domyślny model i włączone
+instrukcje, domyślny model i przełączniki skonfigurowanych
 capabilities, a następnie wybierz **Save draft**. **Review and publish** sprawdza
 zapisaną wersję roboczą i otwiera istniejące potwierdzenie publikacji. Zmiana modelu
-domyślnego nie usuwa wyboru modelu w Chat controls; trwający run zachowuje swoją
+domyślnego nie usuwa wyboru modelu w Chat controls; trwająca tura zachowuje swoją
 zamrożoną konfigurację.
 
 Edycja i publikowanie zależą od decyzji serwera dla tego agenta, w tym jawnych
 grantów. Chat tylko do odczytu pokazuje ustawienia bez przycisków edycji; agent
-należący do workflow jest nadal konfigurowany w swoim kroku. Złożenie panelu lub
+należący do workflow jest nadal konfigurowany w swoim workflow. Złożenie panelu lub
 otwarcie Browser, Computer albo Files zachowuje niezapisane zmiany wybranego agenta.
 Zapisz je przed zmianą agenta lub opuszczeniem chatu. Zmiana wykonana gdzie indziej
 wstrzymuje zapis, aż wczytasz nową wersję lub wybierzesz zachowanie swoich zmian.

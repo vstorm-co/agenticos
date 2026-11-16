@@ -1153,6 +1153,7 @@ async def fork_payload_bytes(db: AsyncSession, *, source_id: UUID, ordinal: int)
                     func.octet_length(func.coalesce(Message.content, ""))
                     + func.octet_length(func.coalesce(Message.thinking, ""))
                     + func.octet_length(func.coalesce(Message.attachment_context, ""))
+                    + func.octet_length(func.coalesce(Message.model_content, ""))
                     + func.octet_length(func.coalesce(cast(Message.parts, Text), ""))
                 ),
                 0,
@@ -1452,6 +1453,7 @@ async def fork_conversation(
             else None,
             interrupted=original.interrupted,
             guardrail_refused=original.guardrail_refused,
+            model_content=original.model_content,
             created_at=original.created_at,
             tool_calls=[
                 ToolCall(
@@ -2711,6 +2713,7 @@ async def create_message(
     conversation_id: UUID,
     role: str,
     content: str,
+    model_content: str | None = None,
     client_message_id: str | None = None,
     thinking: str | None = None,
     parts: list[dict[str, object]] | None = None,
@@ -2737,6 +2740,7 @@ async def create_message(
         conversation_id=conversation_id,
         role=role,
         content=content,
+        model_content=model_content,
         client_message_id=client_message_id,
         attachment_context=attachment_context,
         channel_identity_id=channel_identity_id,
@@ -3230,3 +3234,19 @@ async def last_answer_message(
         .limit(1)
     )
     return result.scalar_one_or_none()
+
+
+async def set_model_content(
+    db: AsyncSession, *, message_id: UUID, conversation_id: UUID, content: str
+) -> None:
+    """Save the current user's screened projection before the run's opening commit."""
+    await db.execute(
+        sql_update(Message)
+        .where(
+            Message.id == message_id,
+            Message.conversation_id == conversation_id,
+            Message.role == "user",
+        )
+        .values(model_content=content)
+    )
+    await db.flush()

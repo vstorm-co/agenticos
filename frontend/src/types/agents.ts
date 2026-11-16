@@ -205,6 +205,7 @@ export interface AlertSpec {
   enabled: boolean;
   to: AlertAudience[];
   user_ids: string[];
+  group_ids?: string[];
 }
 
 /**
@@ -906,6 +907,7 @@ export interface JsonSchemaProperty {
   default?: unknown;
   minimum?: number;
   maximum?: number;
+  "x-percent"?: boolean;
   maxLength?: number;
   enum?: unknown[];
   /**

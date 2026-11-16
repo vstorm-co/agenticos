@@ -1,5 +1,5 @@
 ---
-source_sha: "41a17f94320d"
+source_sha: "e1a252bf0cf3"
 title: "Mantén los datos personales fuera de los prompts y respuestas del agent"
 description: "Configura la capability guardrails para que oculte correos, números de teléfono, números de tarjeta y secretos, y compara después lo que recibió de verdad el modelo con lo que vio el visitante."
 ---
@@ -58,6 +58,8 @@ I need to send a wire transfer today, can you help?
 | El mismo mensaje sobre la transferencia sin la palabra clave configurada | Se ejecuta con normalidad: lo que bloquea es la palabra clave, no el tema |
 
 Merece la pena detenerse en la segunda fila de la tabla: el número de teléfono es nacional, así que solo se detecta porque `US` está en **phone_regions**. Quita `US` y llega al modelo exactamente como se escribió. La cuarta fila es la otra: una persona que revisa Activity para ver "qué pasó" ve la entrada real del visitante, porque la guardrail reescribe lo que lee el *modelo*, nunca el turno de conversación guardado.
+
+La transcripción para personas conserva el registro original de auditoría. Se guarda otra copia censurada, incluida la descripción de adjuntos, para el historial del modelo y las citas. Los turnos posteriores conservan esa copia aunque después se desactive la censura de entrada. El historial antiguo se revisa antes de gestionar el contexto del run; los turnos bloqueados siguen usando el marcador de rechazo.
 
 !!! example "Registrado en v0.0.504, 25 de septiembre de 2026, antes de ocultar números de teléfono"
 

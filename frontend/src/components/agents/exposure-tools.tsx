@@ -43,33 +43,58 @@ export function ExposureTools({
   if (available.length === 0) return null;
 
   return (
-    <fieldset className="space-y-2">
-      <legend className="text-xs font-medium">{t("channelLookupsOn", { platform })}</legend>
+    <fieldset className="space-y-3">
+      <legend className="text-sm font-medium">{t("channelLookupsOn", { platform })}</legend>
       <p className="text-muted-foreground text-xs">{t("channelLookupsHint")}</p>
-      {available.map((tool) => (
-        <div key={tool.id} className="flex items-start gap-2">
-          <Checkbox
-            id={`lookup-${exposureId}-${tool.id}`}
-            className="mt-0.5"
-            checked={granted.includes(tool.id)}
-            disabled={disabled}
-            // The whole list, not the box that moved: what a binding grants is
-            // what it is, and a patch describing one checkbox could not say
-            // "and nothing else".
-            onCheckedChange={(checked) =>
-              onChange(
-                checked === true ? [...granted, tool.id] : granted.filter((id) => id !== tool.id),
-              )
-            }
-          />
-          <Label htmlFor={`lookup-${exposureId}-${tool.id}`} className="text-xs font-normal">
-            {/* The registry's own sentence - the one the model reads before
-                deciding to call the tool. A second paraphrase written here is
-                the shape of #144. */}
-            {tool.description}
-          </Label>
-        </div>
-      ))}
+      {(["conversation", "connection"] as const).map((scope) => {
+        const tools = available.filter((tool) => (tool.scope ?? "conversation") === scope);
+        if (tools.length === 0) return null;
+        return (
+          <section
+            key={scope}
+            aria-label={t(`channelToolScope.${scope}`)}
+            className="rounded-lg border p-3"
+          >
+            <h4 className="text-xs font-medium">{t(`channelToolScope.${scope}`)}</h4>
+            <p className="text-muted-foreground mt-1 mb-3 text-xs">
+              {t(`channelToolScope.${scope}Hint`)}
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {tools.map((tool) => (
+                <div key={tool.id} className="flex items-start gap-2">
+                  <Checkbox
+                    id={`lookup-${exposureId}-${tool.id}`}
+                    className="mt-0.5"
+                    checked={granted.includes(tool.id)}
+                    disabled={disabled}
+                    onCheckedChange={(checked) =>
+                      onChange(
+                        checked === true
+                          ? [...granted, tool.id]
+                          : granted.filter((id) => id !== tool.id),
+                      )
+                    }
+                  />
+                  <div className="min-w-0 flex-1">
+                    <Label
+                      htmlFor={`lookup-${exposureId}-${tool.id}`}
+                      className="text-xs font-medium"
+                    >
+                      {t.has(`channelActionNames.${tool.id}`)
+                        ? t(`channelActionNames.${tool.id}`)
+                        : tool.name}
+                    </Label>
+                    <details className="text-muted-foreground mt-1 text-xs">
+                      <summary className="cursor-pointer">{t("channelToolDetails")}</summary>
+                      <p className="mt-1 leading-relaxed">{tool.description}</p>
+                    </details>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      })}
     </fieldset>
   );
 }

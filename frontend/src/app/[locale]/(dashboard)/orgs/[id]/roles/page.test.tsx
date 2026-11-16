@@ -20,7 +20,7 @@ vi.mock("@/hooks", () => ({
 }));
 vi.mock("@/components/dashboard/page-header", () => ({ PageHeader: () => null }));
 
-it("makes the wide permission matrix reachable by keyboard and names its headers", async () => {
+async function renderRoles() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
@@ -33,9 +33,26 @@ it("makes the wide permission matrix reachable by keyboard and names its headers
       </QueryClientProvider>,
     );
   });
+}
+
+it("makes the wide permission matrix reachable by keyboard and names its headers", async () => {
+  await renderRoles();
   const matrix = await screen.findByRole("region", { name: "Permission matrix" });
+  await userEvent.click(screen.getByRole("textbox", { name: "Search permissions…" }));
   await userEvent.tab();
   expect(matrix).toHaveFocus();
   expect(screen.getByRole("columnheader", { name: "Permission" })).toHaveAttribute("scope", "col");
   expect(screen.getByRole("rowheader", { name: /agents:view/ })).toHaveAttribute("scope", "row");
+});
+
+it("filters the permission matrix and restores it after clearing an unmatched search", async () => {
+  await renderRoles();
+  const search = await screen.findByRole("textbox", { name: "Search permissions…" });
+  await userEvent.type(search, "not-a-permission");
+  expect(screen.queryByRole("rowheader", { name: /agents:view/ })).not.toBeInTheDocument();
+  expect(screen.getByText("No permissions match your search")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  expect(screen.getByRole("rowheader", { name: /agents:view/ })).toBeVisible();
+  await userEvent.type(search, "AGENTS");
+  expect(screen.getByRole("rowheader", { name: /agents:view/ })).toBeVisible();
 });

@@ -1,5 +1,5 @@
 ---
-source_sha: "27ad3422cf7b"
+source_sha: "22b67b0bc732"
 ---
 
 # La consola { #the-console }
@@ -40,7 +40,7 @@ al micrófono.
 
 Las listas de recursos, incluidas Inbox y Routines, ocupan la altura restante de la página incluso cuando están vacías. Las plantillas de Routines siguen en el formulario de creación, sin un panel de ideas aparte.
 
-El chat usa retratos de agentes más grandes y sin marcos. En la vista completa del chat de escritorio, el control Files permanece entre los controles del espacio de trabajo al abrir y cerrar el panel; la animación respeta la preferencia de movimiento reducido. Los ajustes del chat muestran primero el modelo actual. **Change model** abre el formulario del proveedor y del modelo ya rellenados; el cambio solo se aplica al confirmarlo. Las tarjetas de adjuntos aparecen sobre el cuadro de mensaje sin otro panel con sombra.
+El chat usa retratos de agentes más grandes y sin marcos. En la vista completa del chat de escritorio, el control Files permanece entre los controles del espacio de trabajo al abrir y cerrar el panel; la animación respeta la preferencia de movimiento reducido. Los ajustes del chat muestran primero el modelo actual. **Change model** abre el formulario del proveedor y del modelo ya rellenados; el cambio solo se aplica con **Run on this model**. Las tarjetas de adjuntos aparecen sobre el cuadro de mensaje sin otro panel con sombra.
 
 Las introducciones de páginas y explicaciones de ajustes están en el icono de información junto al encabezado. Los resúmenes actuales y avisos de acciones destructivas siguen visibles.
 
@@ -68,6 +68,8 @@ Los agentes de una conversación se ordenan por su último mensaje o ejecución 
 
 Cuando **Approve everything** no está disponible, los ajustes del chat distinguen entre la falta de permiso para decidir aprobaciones y una política de la organización que desactiva el consentimiento permanente. Quien puede decidir aprobaciones recibe un enlace a **Presupuesto y aprobaciones** para cambiar esa política expresamente. El chat nunca modifica la política de la organización automáticamente.
 
+El campo de mensaje muestra el modo de aprobación activo junto al selector del agente. Abre la etiqueta para cambiar el modo guardado antes de enviar. Se aplican las mismas comprobaciones de permisos y de exención de la organización que en Chat controls. Las llamadas aprobadas automáticamente conservan sus registros de auditoría; solo las llamadas realmente pendientes muestran controles para decidir.
+
 Los diálogos mantienen un margen de 12 px en todos los bordes del teléfono. Los encabezados compactos muestran título y acciones en una línea cuando caben. La descripción de Context se abre desde la barra del editor.
 
 En el teléfono, las acciones principales siguen visibles y los comandos secundarios se despliegan con **Más acciones de la página**. Inbox y el formato de tabla usan selectores. Los ajustes con muchas secciones usan un menú; el cliente MCP se elige en una lista. Los archivos de proyecto o workspace se abren en un visor a pantalla completa; la flecha vuelve a las carpetas. El editor de pasos del workflow muestra un panel elegido: ajustes, entrada o salida. Cambiar de panel conserva las ediciones; en escritorio siguen uno al lado del otro.
@@ -80,7 +82,7 @@ Los encabezados utilizan el espaciado del diseño que los rodea sin duplicarlo. 
 
 Los botones secundarios y los filtros comparten un relleno más visible, etiquetas con contraste y estados claros al pasar el cursor, pulsar o abrir un menú. El selector de modelo del chat utiliza el mismo estilo.
 
-El encabezado del chat de un agente muestra el modelo actual con el icono del provider. Abre el selector para buscar modelos guardados, cambiar de provider o cuenta, o elegir **Use agent's model**. La selección se aplica al próximo mensaje y se recuerda para tu cuenta en la organización actual; no edita el agente. El turno activo conserva su modelo. Las conexiones desconectadas y los modelos sin chat siguen visibles, pero no se pueden seleccionar. Si no se puede leer la lista, aparece **Retry**. **Controls**, junto al mensaje, mantiene la configuración completa de modelos y conexiones.
+El encabezado del chat de un agente muestra el modelo actual con el icono del provider. Abre el selector para buscar modelos guardados, cambiar de provider o cuenta, o elegir **Use agent's model**. La selección se aplica al próximo mensaje y se recuerda para tu cuenta en la organización actual; no edita el agente. El turno activo conserva su modelo. Las conexiones desconectadas y los modelos sin chat siguen visibles, pero no se pueden seleccionar. Si no se puede leer la lista, aparece **Retry**. **Chat controls** junto al cuadro de mensaje, mantiene la configuración completa de modelos y conexiones.
 
 Cambiar la selección del encabezado requiere `connections:manage`, igual que los controles de modelo existentes. Las conversaciones de solo lectura y quienes no tienen ese permiso siguen mostrando el modelo actual.
 
@@ -705,14 +707,14 @@ no es un escritorio en directo. Pide otra captura para actualizar la vista del e
 de la derecha abre el borrador del agente seleccionado junto a la conversación.
 La barra está oculta en teléfonos y chats compactos; usa allí el editor completo
 del agente. Edita su nombre, descripción breve,
-instrucciones, modelo predeterminado y capabilities existentes; después elige
+instrucciones, modelo predeterminado y los interruptores de las capabilities existentes; después elige
 **Save draft**. **Review and publish** valida el borrador guardado y abre la
 confirmación de publicación existente. Cambiar el modelo predeterminado no elimina
-la selección de modelo de Chat controls; un run activo conserva su configuración.
+la selección de modelo de Chat controls; un turno activo conserva su configuración congelada.
 
 La edición y la publicación siguen la decisión del servidor para ese agente,
 incluidos los grants explícitos. Los chats de solo lectura muestran los ajustes
-sin controles de edición; los agentes de workflow se configuran en su propio paso.
+sin controles de edición; los agentes de un workflow se configuran en ese workflow.
 Cerrar el panel o abrir Browser, Computer o Files conserva los cambios sin guardar
 del agente seleccionado. Guarda antes de cambiar de agente o salir del chat. Los
 cambios externos detienen el guardado hasta que recargues o decidas conservar tus

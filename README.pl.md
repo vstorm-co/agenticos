@@ -1,4 +1,4 @@
-<!-- source_sha: 3aeccb10a78f -->
+<!-- source_sha: 8dc02e0ed861 -->
 
 <div align="center">
 
@@ -260,6 +260,13 @@ Ręczną konfigurację Docker Compose, przypięte wersje i rozwiązywanie proble
 </details>
 
 </details>
+
+## ☁️ Wdrożenie jednym kliknięciem
+
+<a href="https://repocloud.io/details/Agenticos/"><img src="https://d16t0pc4846x52.cloudfront.net/deploylobe.svg" alt="Wdróż na RepoCloud" height="42"></a>
+<a href="https://railway.com/deploy/agenticos"><img src="https://railway.com/button.svg" alt="Wdróż na Railway" height="42"></a>
+
+Przed wdrożeniem sprawdź instrukcje dostawcy, wersje obrazów i dostępne usługi. Te szablony hostingowe są utrzymywane niezależnie od tego repozytorium. Szablon Railway obecnie przypina starsze wydanie AgenticOS i nie zawiera lokalnego sandboxa do wykonywania kodu.
 
 ## Uruchom na swoim serwerze. Korzystaj z dowolnego urządzenia.
 
