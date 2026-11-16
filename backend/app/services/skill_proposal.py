@@ -37,7 +37,6 @@ from app.core.exceptions import (
     ConcurrentChangeError,
     NotFoundError,
 )
-from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.skill import Skill
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
@@ -271,29 +270,24 @@ class SkillProposalService:
         written against: a body reviewed against v3 must not silently replace a v4
         somebody wrote meanwhile.
 
-        A change to an existing skill goes live only through a check of it on
-        every agent of its line: `decision.check_id` names that check, and the
-        change is applied by it, under its rule. `checked` is the check itself
-        applying the change.
+        Evaluation is optional. When `decision.check_id` names a check, that
+        check's result governs the decision. `checked` is the check itself
+        applying the change, without delegating back to itself.
 
         Raises:
             AlreadyExistsError: If it was already decided.
             NotFoundError: If the proposal is not this organization's.
             ConcurrentChangeError: If the skill moved past the version it was written
                 against, or the proposal since the reviewer read it.
-            BadRequestError: A change to a skill with no check of it, or one whose
-                check does not allow applying it as it stands.
+            BadRequestError: A supplied check does not allow applying the change
+                as it stands.
         """
         proposal = await self.get(ctx, proposal_id)
         self._refuse_second_decision(proposal, decision.revision)
-        if proposal.skill_id is not None and not checked:
+        if proposal.skill_id is not None and decision.check_id is not None and not checked:
             from app.schemas.skill_check import SkillCheckApply
             from app.services.skill_check import SkillCheckService
 
-            if decision.check_id is None:
-                raise refused_field(
-                    "check_id", "Check this change on the agents of its line before applying it"
-                )
             checks = SkillCheckService(self.db)
             check = await checks.passed_for(ctx, proposal, decision.check_id)
             await checks.apply(ctx, check.skill_id, check.id, SkillCheckApply())

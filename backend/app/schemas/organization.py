@@ -266,6 +266,8 @@ class OrganizationList(BaseSchema):
 
 
 class OrganizationMemberRead(BaseSchema):
+    last_action_at: datetime | None = None
+    """Latest non-impersonated audited action in this organization; not a visit timestamp."""
     id: _ID
     organization_id: _ID
     user_id: _ID

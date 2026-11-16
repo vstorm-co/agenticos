@@ -500,6 +500,10 @@ class TriggerCreate(BaseSchema):
     is_active: bool = Field(
         default=True, description="Create paused while configuring device consent."
     )
+    review_before_activation: bool = Field(
+        default=False,
+        description="Save paused with source review required before the first activation.",
+    )
     prompt: str = Field(min_length=1, max_length=10000)
     # An optional human title; null lists the trigger by its agent's name instead.
     name: str | None = Field(default=None, max_length=120)
@@ -986,6 +990,7 @@ TriggerAttemptReason = Literal[
     "source_review_required",
     "agent_unavailable",
     "preparation_failed",
+    "previous_run_active",
 ]
 
 

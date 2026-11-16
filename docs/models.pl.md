@@ -1,5 +1,5 @@
 ---
-source_sha: "88782c453516"
+source_sha: "3ce26481a019"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -793,3 +793,7 @@ Kroki **Decision models** w workflow wybierają profil natywny. Istniejące iden
 Automatyczne dołączanie do rozmów na kanałach może korzystać z modelu natywnego lub zwykłego LLM ze structured output. Natywna decyzja tak/nie zwraca prawdopodobieństwo dołączenia; ograniczone pole liczbowe zachowuje tę wartość. LLM zwraca ocenę przydatności 0–100, a nie skalibrowane prawdopodobieństwo. Obie wartości porównujemy z suwakiem progu, włącznie z samą granicą. Klasyfikator nie ma narzędzi. Funkcja wymaga włączenia i respektuje ustawione interwały; główny agent może używać organizacyjnych kont MCP, nigdy prywatnych danych uczestnika.
 
 Źródła dostawców: [Pydantic AI](https://pydantic.dev/docs/ai/models/decision/), [OpenAI](https://developers.openai.com/api/docs/guides/decisions), [Google](https://ai.google.dev/gemini-api/docs/decisions-api), [TypeSafe](https://docs.typesafe.ai/models), [OpenRouter](https://github.com/OpenRouterTeam/skills/tree/main/skills/openrouter-decisions).
+
+ElevenLabs Realtime udostępnia `eleven_realtime_v1_mini` oraz `eleven_realtime_v1_max` przez relay PCM 24 kHz, z domyślnym głosem `brian` i semantycznym wykrywaniem tur.
+
+SDK nie raportuje opłat za tokeny. Połączenia z ustawionym budżetem wydatków są odrzucane przed nawiązaniem; połączenia bez takiego budżetu zachowują limit czasu i zapisują koszt audio jako dolną granicę, a nie pełny rachunek. Stawka katalogowa audio wynosi 0,08 USD/minutę (0,16 USD w trybie burst); tokeny kosztują dodatkowo. Wartość kontekstu 16k jest ostrożnym limitem historii przyjętym przez platformę, a nie oknem kontekstu ogłoszonym przez dostawcę. Integrację sprawdzono offline na konstrukcji modeli SDK i kontrolowanych transportach, bez testów na rzeczywistym koncie. [SDK](https://pydantic.dev/docs/ai/api/realtime/elevenlabs/), [ElevenLabs API pricing](https://elevenlabs.io/pricing/api).

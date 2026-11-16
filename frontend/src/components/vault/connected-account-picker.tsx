@@ -52,7 +52,7 @@ export function ConnectedAccountPicker({
                   checked={owner === value}
                   onChange={() => setOwner(value)}
                 />
-                <span className="peer-checked:bg-background peer-focus-visible:ring-ring block rounded-md px-3 py-2 text-center text-sm peer-checked:shadow-sm peer-focus-visible:ring-2">
+                <span className="peer-checked:bg-background peer-focus-visible:ring-ring touch:min-h-11 flex items-center justify-center rounded-md px-3 py-2 text-center text-sm peer-checked:shadow-sm peer-focus-visible:ring-2">
                   {t(`picker.${value}`)}
                 </span>
               </label>

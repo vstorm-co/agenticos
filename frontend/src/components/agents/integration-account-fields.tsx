@@ -43,7 +43,12 @@ export function IntegrationAccountFields({
   const prefix = `integration-${productId}`;
   return (
     <div className="space-y-4">
-      <FormField label={t("accountOwner")} htmlFor={`${prefix}-owner`} error={configErrors.account}>
+      <FormField
+        label={t("accountOwner")}
+        htmlFor={`${prefix}-owner`}
+        error={configErrors.account}
+        help={t(owner === "personal" ? "userAccountsHint" : "multipleAccountsHint")}
+      >
         <Select
           value={owner}
           disabled={disabled}
@@ -104,27 +109,21 @@ export function IntegrationAccountFields({
               {configErrors.connection_ids || configErrors.connection_id}
             </p>
           )}
-          <p className="text-muted-foreground text-xs">{t("multipleAccountsHint")}</p>
         </fieldset>
-      ) : (
-        <div className="space-y-2">
-          <p className="text-muted-foreground text-xs">{t("userAccountsHint")}</p>
-          {typeof config.account_name === "string" && config.account_name && (
-            <div className="space-y-2 rounded-lg border p-3">
-              <p className="text-xs">{t("legacyAccountFilter", { name: config.account_name })}</p>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={disabled}
-                onClick={() => onChange({ ...config, account_name: "" })}
-              >
-                {t("removeAccountFilter")}
-              </Button>
-            </div>
-          )}
+      ) : typeof config.account_name === "string" && config.account_name ? (
+        <div className="space-y-2 rounded-lg border p-3">
+          <p className="text-xs">{t("legacyAccountFilter", { name: config.account_name })}</p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={disabled}
+            onClick={() => onChange({ ...config, account_name: "" })}
+          >
+            {t("removeAccountFilter")}
+          </Button>
         </div>
-      )}
+      ) : null}
       <Link
         href={owner === "organization" ? ROUTES.VAULT : ROUTES.SETTINGS_PROFILE}
         className="text-muted-foreground text-xs underline underline-offset-4"

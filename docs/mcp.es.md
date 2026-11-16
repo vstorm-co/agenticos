@@ -1,5 +1,5 @@
 ---
-source_sha: "0df9c638584e"
+source_sha: "f4b488628347"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1104,7 +1104,7 @@ rechaza en su próxima publicación: enlaza en su lugar **Microsoft 365
 
 ### Elegir MCP o capabilities de Google incorporadas { #choose-mcp-or-built-in-google-capabilities }
 
-Para operaciones de Gmail, Calendar, Drive, Docs, Sheets y Slides ya cubiertas por AgenticOS, empiece por las [capabilities incorporadas](integrations.md). Usan las API normales de Google y no requieren el Developer Preview del MCP alojado ni un cliente OAuth para agentes de IA. Un administrador configura Google una vez en **Vault → Integraciones**; después cada persona conecta cuentas desde **Configuración del chat → Herramientas → Tus cuentas** o **Configuración → Perfil → Tus cuentas conectadas**. Un agente también puede usar cuentas de la organización seleccionadas explícitamente. Se admiten varias cuentas.
+Para operaciones de Gmail, Calendar, Drive, Docs, Sheets y Slides ya cubiertas por AgenticOS, empiece por las [capabilities incorporadas](integrations.md). Usan las API normales de Google y no requieren el Developer Preview del MCP alojado ni un cliente OAuth para agentes de IA. Un administrador configura Google una vez en **Vault → Integraciones**; después cada persona conecta cuentas desde **Controles del chat → Preferencias → Tus cuentas** o **Configuración → Perfil → Tus cuentas conectadas**. Un agente también puede usar cuentas de la organización seleccionadas explícitamente. Se admiten varias cuentas.
 
 Los servidores Workspace MCP alojados por Google añaden requisitos: pertenecer al Developer Preview, habilitar API del producto y MCP, marcar el cliente OAuth para agentes de IA y configurar el callback. La admisión al preview y las aprobaciones administrativas pueden retrasar la configuración; no prometa acceso inmediato ni un plazo fijo. Los servidores Workspace MCP autoalojados o de terceros tienen sus propios requisitos y no son el mismo servicio preview. Consulte [la configuración MCP de Google](https://developers.google.com/workspace/guides/configure-mcp-servers).
 

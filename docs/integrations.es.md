@@ -1,10 +1,10 @@
 ---
-source_sha: "830b6494877e"
+source_sha: "843319d0a892"
 ---
 
 # Integraciones incorporadas { #built-in-integrations }
 
-Las cuentas personales se conectan en **Configuración del chat → Herramientas → Tus cuentas** en `/chat`, o **Configuración → Perfil → Tus cuentas conectadas**. Las cuentas de la organización se conectan en **Vault → Conectar cuenta**. Se admiten varias cuentas del mismo proveedor. Cada producto de Google, Microsoft y Slack es una capability independiente en la **Toolbox**. Las integraciones usan las API directamente; no requieren servidores MCP del proveedor, Google Workspace MCP Preview ni licencia de Microsoft Copilot.
+Las cuentas personales se conectan en **Controles del chat → Preferencias → Tus cuentas** en `/chat`, o **Configuración → Perfil → Tus cuentas conectadas**. Las cuentas de la organización se conectan en **Vault → Conectar cuenta**. Se admiten varias cuentas del mismo proveedor. Cada producto de Google, Microsoft y Slack es una capability independiente en la **Toolbox**. Las integraciones usan las API directamente; no requieren servidores MCP del proveedor, Google Workspace MCP Preview ni licencia de Microsoft Copilot.
 
 ## Configurar una cuenta { #set-up-an-account }
 

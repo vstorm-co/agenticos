@@ -25,12 +25,16 @@ export function CodingAccounts() {
     <>
       <SectionCard
         title={t("title")}
-        description={t("description")}
+        description={
+          <div className="space-y-3">
+            <p>{t("description")}</p>
+            <p>{t("localHelp")}</p>
+            <p>{t("disconnectHelp")}</p>
+          </div>
+        }
         tour="personal-coding-accounts"
       >
         <CodingAccountList harnesses={HARNESSES} />
-        <p className="text-muted-foreground mt-3 text-xs leading-relaxed">{t("localHelp")}</p>
-        <p className="text-muted-foreground mt-2 text-xs">{t("disconnectHelp")}</p>
       </SectionCard>
       {isDesktopShell(shell) && <LocalAgentSettings />}
     </>
@@ -47,7 +51,7 @@ export function PersonalCodingAccount({ harness }: { harness: CodingHarness }) {
   return (
     <section
       aria-label={t("chatTitle", { name: t(harness) })}
-      className="border-foreground/10 rounded-xl border p-3"
+      className="border-border border-b py-3 first:pt-0 last:border-b-0 last:pb-0"
       data-tour="chat-coding-accounts"
     >
       <h3 className="text-[13px] font-medium">{t("chatTitle", { name: t(harness) })}</h3>

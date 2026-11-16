@@ -22,6 +22,7 @@ import {
   type RetentionPolicy,
 } from "@/lib/retention-api";
 import { useTranslations } from "next-intl";
+import { Label } from "@/components/ui/label";
 
 interface RetentionFormProps {
   policy: RetentionPolicy;
@@ -129,12 +130,12 @@ export function RetentionForm({ policy, isSaving, saved, onSave }: RetentionForm
               {t(`classes.${name}`)}
             </th>
             <td className={RETENTION_INPUT}>
-              <label
+              <Label
                 className="text-muted-foreground text-xs @3xl/retention:hidden"
                 htmlFor={`retention-${guardId}-${name}`}
               >
                 {t("keepForDays")}
-              </label>
+              </Label>
               <Input
                 id={`retention-${guardId}-${name}`}
                 aria-describedby={`retention-${guardId}-${name}-effective`}

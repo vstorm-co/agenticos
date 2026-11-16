@@ -3,6 +3,7 @@
 import { sameLocalTarget } from "@/lib/desktop/local-target-content";
 import { ZoneField, isTimeZone } from "./zone-field";
 import { RoutineDialogFrame } from "./routine-dialog-frame";
+import { ActionConsentsDialog } from "./action-consents-dialog";
 
 import { ResultModeField, type RoutineResultMode } from "./result-mode-field";
 import { RoutineOptions } from "./routine-options";
@@ -375,6 +376,7 @@ export function TriggerFormDialog({
   // type, not Trigger: `reveal_secret` exists only on the create response, and
   // losing it here is losing it forever (no read ever returns it).
   const [created, setCreated] = useState<TriggerCreated | null>(null);
+  const [reviewing, setReviewing] = useState<TriggerCreated | null>(null);
 
   const pending = create.isPending || update.isPending || savingLocal;
 
@@ -526,7 +528,8 @@ export function TriggerFormDialog({
       // Only when asked for: off is the server's default, and the request then
       // says nothing about acting as anybody.
       ...(runsAsCreator ? { runs_as_creator: true } : {}),
-      ...(runsAsCreator && localTarget ? { is_active: false } : {}),
+      is_active: false,
+      review_before_activation: true,
       ...(teamsPost !== NO_TEAMS_POST ? { teams_conversation_id: teamsPost } : {}),
       // Only when it is not the server's default, so a plain create says nothing new.
       ...(answerTo !== "primary" ? { answer_to: answerTo } : {}),
@@ -701,17 +704,13 @@ export function TriggerFormDialog({
           setApprovedLocal(approved);
           const updated = await update.mutateAsync({
             triggerId: result.id,
-            patch: { local_target: approved, is_active: true },
+            patch: { local_target: approved },
           });
           result = { ...result, ...updated };
         }
         if (!stillHere()) return;
         onCreated?.(result);
-        // A new event trigger stays open on its webhook URL - the caller has to
-        // paste it into the provider or nothing will ever fire it. A schedule
-        // has nothing more to do, so it closes.
-        if (result.trigger_type === "event") setCreated(result);
-        else onOpenChange(false);
+        setReviewing(result);
       }
     } catch (error) {
       if (error instanceof ShellError) toast.error(t("local.permissionFailed"));
@@ -782,6 +781,22 @@ export function TriggerFormDialog({
 
   function handleBack() {
     if (stepIdx > 0) setStep(steps[stepIdx - 1]!.id as WizardStepId);
+  }
+
+  if (reviewing !== null) {
+    return (
+      <ActionConsentsDialog
+        trigger={reviewing}
+        onSaved={async () => {
+          await update.mutateAsync({ triggerId: reviewing.id, patch: { is_active: true } });
+        }}
+        onClose={() => {
+          if (reviewing.trigger_type === "event") setCreated(reviewing);
+          else onOpenChange(false);
+          setReviewing(null);
+        }}
+      />
+    );
   }
 
   if (created !== null) {

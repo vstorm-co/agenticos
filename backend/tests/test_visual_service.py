@@ -939,3 +939,59 @@ async def test_shared_renamed_drawings_and_revisions_ignore_external_name_collis
     shared = await visuals.shared_visuals(conversation)
     assert [item["id"] for item in shared[message.id]] == ["d", "r"]
     assert "new" in shared[message.id][1]["content"]
+
+
+class TestDashboardPreview:
+    @pytest.mark.security
+    @pytest.mark.parametrize("owner", ["mine", "other", "none", "missing"])
+    async def test_only_the_owner_can_read_the_rebuilt_drawing(self, owner: str) -> None:
+        ctx = _ctx()
+        row = SimpleNamespace(
+            user_id=ctx.user_id if owner == "mine" else uuid.uuid4() if owner == "other" else None,
+            organization_id=ctx.organization_id,
+            conversation_id=uuid.uuid4(),
+            tool_call_id="draw-1",
+        )
+        args = ToolCallArgs(
+            "draw-1", "draw", {"kind": "html", "title": "Preview", "content": "<h1>Drawing</h1>"}
+        )
+        with (
+            patch(
+                "app.services.visual.visual_repo.get",
+                new=AsyncMock(return_value=None if owner == "missing" else row),
+            ) as get,
+            patch(
+                "app.services.visual.conversation_repo.tool_call_in_conversation",
+                new=AsyncMock(return_value=args),
+            ) as lookup,
+        ):
+            service = VisualService(MagicMock())
+            if owner == "mine":
+                result = await service.preview(ctx, uuid.uuid4())
+                assert result.kind == "html"
+                assert result.title == "Preview"
+                assert "Drawing" in result.content
+                assert lookup.await_args.kwargs["conversation_id"] == row.conversation_id
+            else:
+                with pytest.raises(NotFoundError):
+                    await service.preview(ctx, uuid.uuid4())
+                lookup.assert_not_awaited()
+            assert get.await_args.kwargs["organization_id"] == ctx.organization_id
+
+    async def test_missing_transcript_is_a_not_found(self) -> None:
+        ctx = _ctx()
+        row = SimpleNamespace(
+            user_id=ctx.user_id,
+            organization_id=ctx.organization_id,
+            conversation_id=uuid.uuid4(),
+            tool_call_id="missing",
+        )
+        with (
+            patch("app.services.visual.visual_repo.get", new=AsyncMock(return_value=row)),
+            patch(
+                "app.services.visual.conversation_repo.tool_call_in_conversation",
+                new=AsyncMock(return_value=None),
+            ),
+            pytest.raises(NotFoundError),
+        ):
+            await VisualService(MagicMock()).preview(ctx, uuid.uuid4())

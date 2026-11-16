@@ -150,7 +150,8 @@
     "whatsNewDescription": "Zmiany w wersji, z której korzystasz.",
     "whatsNewDone": "Rozumiem",
     "monitoring": "Monitorowanie",
-    "backgroundWork": "Praca w tle"
+    "backgroundWork": "Praca w tle",
+    "developerAccess": "API i MCP"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -973,6 +974,8 @@
       "spokenBy": "Głos: {voice}",
       "generateVideo": "Wideo",
       "generatingVideo": "Tworzy wideo",
+      "selectingWorkspace": "Wybieranie obszaru roboczego projektu",
+      "selectedWorkspace": "Wybierz obszar roboczy projektu",
       "videoNotStored": "Wideo powstało, ale go nie zapisano.",
       "suggestingNextSteps": "Proponuje następne kroki",
       "nextSteps": "Następne kroki",
@@ -1460,7 +1463,8 @@
       },
       "makeSkill": "Zrób z tego skill",
       "makeSkillAsk": "Zrób z tego skill, żeby każdy agent zrobił to następnym razem tak samo.\n\nO co prosiłem:\n{request}\n\nJak to zostało zrobione:\n{answer}",
-      "makeSkillFromConversation": "Zrób z tego skill, żeby każdy agent zrobił to następnym razem tak samo. Najpierw przeczytaj całą rozmowę przez read_conversation - jej id to {conversation}.\n\nO co prosiłem:\n{request}"
+      "makeSkillFromConversation": "Zrób z tego skill, żeby każdy agent zrobił to następnym razem tak samo. Najpierw przeczytaj całą rozmowę przez read_conversation - jej id to {conversation}.\n\nO co prosiłem:\n{request}",
+      "projectsUsed": "Użyte projekty"
     },
     "suggestions": {
       "label": "Propozycje dla ciebie",
@@ -2327,6 +2331,7 @@
       "perMonth": "${amount} miesięcznie"
     },
     "agents": {
+      "voiceUnreportedTokenUsage": "Ten provider nie raportuje kosztów tokenów. Rozmowy nie mogą startować z limitem wydatków; zapisany koszt audio jest dolną granicą.",
       "agentAposSBehaviour": "Zachowanie agenta mieszka tutaj, a nie w kodzie. Bądź konkretny: co ma robić, czego odmawiać i jak cytować. Markdown, a model czyta strukturę - nagłówki i listy sprawiają, że długi prompt da się śledzić, dlatego podgląd pokazuje je wyrenderowane.",
       "agentAposSOwn": "Własny miesięczny limit wydatków tego agenta. Limit organizacji obowiązuje dodatkowo - agent może go zaostrzyć, nigdy poluzować. Limit kroków łapie inny rodzaj ucieczki: pętlę narzędzi, która jest tania na wywołanie i nigdy się nie kończy.",
       "agentCannotBePublished": "Tego agenta nie można jeszcze opublikować",
@@ -2378,7 +2383,7 @@
       "addTagPlaceholder": "Dodaj tag",
       "removeTag": "Usuń tag {value}",
       "history": "Historia",
-      "howAgentAsksIts": "Jak ten agent prosi swój model o zachowanie, ponad to, co ustawia już profil modelu. Ustawienie, którego nikt nie ruszał, w ogóle nie jest wysyłane - celowo, nie dla porządku: modele rozumujące odrzucają temperaturę od razu, więc agent, który jej nie wybrał, nie może jej mieć wysłanej w swoim imieniu. Provider, który nie obsługuje ustawienia, je ignoruje. Samo rozumowanie to capability, poniżej.",
+      "howAgentAsksIts": "Dostosuj sposób odpowiadania agenta. Niezmienione ustawienia korzystają z wartości profilu modelu.",
       "howManyModelRequests": "Ile żądań do modelu może zrobić jeden run. Pętla narzędzi trafia na ten limit na długo przed tym, zanim kosztuje dość, by trafić na budget.",
       "instructions": "Instrukcje",
       "instructions2": "Instrukcje",
@@ -2782,6 +2787,7 @@
       "termsOfService": "Regulamin"
     },
     "orgs": {
+      "searchOrganizations": "Szukaj organizacji…",
       "searchPermissions": "Szukaj uprawnień…",
       "noPermissionsMatch": "Brak uprawnień pasujących do wyszukiwania",
       "retention": "Retencja",
@@ -2848,12 +2854,17 @@
       "workspaces": "Organizacje",
       "you": "(Ty)",
       "yourRoleHere": "Twoja rola tutaj to <badge>{role}</badge>",
-      "tabProfile": "Organizacja",
       "tabGovernance": "Budżet i zgody",
-      "tabProactivity": "Proaktywność",
       "tabAssistant": "AI i usługi",
-      "workspaceSettingsHint": "Nazwa i wygląd organizacji oraz domyślne ustawienia głosu dla agentów i botów kanałowych.",
-      "aiServicesHint": "Skonfiguruj Architecta organizacji i usługi utrzymujące pamięć oraz przygotowujące podsumowania. Zasady sugestii i monitorowania znajdziesz w Proaktywności."
+      "editWorkspace": "Edytuj workspace",
+      "workspaceAppearanceHint": "Nazwa, avatar i kolor tego workspace.",
+      "searchMembers": "Szukaj członków…",
+      "filterRole": "Filtruj według roli",
+      "allRoles": "Wszystkie role",
+      "noMatchingMembers": "Brak osób pasujących do wyszukiwania.",
+      "lastAction": "Ostatnie zapisane działanie",
+      "lastActionHint": "Działania z dziennika audytu tego workspace. Nie obejmuje wizyt ani działań przez impersonację.",
+      "noRecordedAction": "Brak zapisanych działań"
     },
     "rag": {
       "active": "Aktywne",
@@ -3004,6 +3015,7 @@
       "perVersionCostPerRun": "na run",
       "perVersionLatency": "p95",
       "personColumn": "Osoba",
+      "visibleColumns": "Kolumny",
       "askedByColumn": "Osoba pytająca",
       "personFilter": "Filtruj według osoby",
       "previousRun": "Poprzedni run",
@@ -3037,7 +3049,6 @@
       "runDetail": "Szczegóły runu",
       "runHistory2": "Historia runów",
       "runHistoryCouldNot": "Nie udało się odczytać historii runów",
-      "runHistoryDescription": "Każdy run zapisuje <em>wersję</em> agenta, którą wykonał, więc to, co się działo w zeszłym tygodniu, da się wyjaśnić po przepisaniu agenta.",
       "runResumed": "Run wznowiony - agent podjął pracę tam, gdzie się zatrzymał.",
       "runs": "Runy",
       "runs2": "Runy",
@@ -3471,7 +3482,9 @@
       "notificationNoMatches": "Brak pasujących powiadomień",
       "notificationSearchHint": "Spróbuj nazwy zdarzenia lub słowa z jego opisu.",
       "notificationClearSearch": "Wyczyść wyszukiwanie",
-      "notificationEventCount": "{count, plural, one {# zdarzenie} few {# zdarzenia} many {# zdarzeń} other {# zdarzenia}}"
+      "notificationEventCount": "{count, plural, one {# zdarzenie} few {# zdarzenia} many {# zdarzeń} other {# zdarzenia}}",
+      "mobileAccountHint": "Korzystaj z AgenticOS na telefonie z tym samym kontem.",
+      "openMobileApp": "Skonfiguruj aplikację mobilną"
     },
     "tables": {
       "title": "Tabele",
@@ -6050,8 +6063,8 @@
       "cancel": "Anuluj",
       "save": "Zapisz zmiany",
       "saved": "Zapisano ustawienia głosu",
-      "providerNoKey": "{name} (brak pasującego klucza)",
-      "notReadyNoKey": "Nie wybrano klucza dla {provider}. Agenci i boty, które go dziedziczą, nie mogą transkrybować przez providera, dopóki nie wybierzesz klucza poniżej."
+      "notReadyNoKey": "Nie wybrano klucza dla {provider}. Agenci i boty, które go dziedziczą, nie mogą transkrybować przez providera, dopóki nie wybierzesz klucza poniżej.",
+      "summary": "Domyślny dostawca transkrypcji i limity nagrań."
     },
     "publicAttribution": "AgenticOS na udostępnionych stronach",
     "publicAttributionDescription": "Pokazuj pływające oznaczenie AgenticOS z linkiem do GitHuba na publicznych aplikacjach, dashboardach i raportach oraz pod udostępnionymi rozmowami.",
@@ -6105,7 +6118,8 @@
       "watchMinutesHint": "Jak często pojedyncza obserwacja może najwyżej sprawdzać. Częściej znaczy drożej.",
       "switchOrganizationHint": "Przełącz się na tę organizację przed konfiguracją proaktywności, aby korzystać z jej profili modeli i kluczy.",
       "switchOrganization": "Przełącz na {name}",
-      "runAttribution": "Sugestie używają osobnego modelu, a monitoring — modelu wybranego agenta. Obie funkcje współdzielą miesięczny budżet pracy w tle na członka."
+      "runAttribution": "Sugestie używają osobnego modelu, a monitoring — modelu wybranego agenta. Obie funkcje współdzielą miesięczny budżet pracy w tle na członka.",
+      "summary": "Sugestie, monitoring i harmonogram dostarczania."
     },
     "systemAgents": {
       "configure": "Model i budżet",
@@ -6113,8 +6127,6 @@
       "description": "Usługi platformy korzystające z modeli. Rozwiń usługę, aby ustawić jej model i budżet. Zużycie i ostatnie uruchomienia są widoczne poniżej.",
       "on": "Włączona",
       "off": "Wyłączona",
-      "managedIn": "Działa na {model}. Konfiguracja w zakładce Proaktywność, ze wspólnym modelem i limitem.",
-      "managedInNoModel": "Nie wybrano jeszcze modelu. Skonfiguruj go w zakładce Proaktywność.",
       "enabled": "Uruchamiaj tę rolę",
       "model": "Model",
       "modelHint": "Wybierany, nigdy domyślny: rola wydaje pieniądze, o które nikt nie prosił w danej chwili.",
@@ -6139,7 +6151,8 @@
           "what": "Czyta zakończony czat raz i zapisuje trwałe fakty, preferencje i decyzje z niego, w zakresie samej rozmowy. Nic nie działa, gdy jest wyłączona albo nie ma modelu."
         }
       },
-      "starterAgentMissing": "Ta rola teraz nic nie robi: agent startowy AgenticOS, pod którym jest zapisywana, nie istnieje, nie jest opublikowany albo zmieniono jego nazwę. Opublikuj go ponownie pod uchwytem agenticos."
+      "starterAgentMissing": "Ta rola teraz nic nie robi: agent startowy AgenticOS, pod którym jest zapisywana, nie istnieje, nie jest opublikowany albo zmieniono jego nazwę. Opublikuj go ponownie pod uchwytem agenticos.",
+      "summary": "Modele, budżety i ostatnie uruchomienia usług platformy."
     }
   },
   "theme": {
@@ -7212,7 +7225,7 @@
       },
       "agent-share": {
         "title": "Udostępnij go",
-        "body": "Dodaj osobę lub grupę i wybierz, co mogą robić, albo otwórz go całej organizacji. Właściciel zawsze ma dostęp."
+        "body": "Otwórz Więcej akcji i wybierz Udostępnij, aby dodać osobę lub grupę oraz określić ich uprawnienia. Właściciel zawsze zachowuje dostęp."
       },
       "skills-groups": {
         "title": "Po dziale",
@@ -7993,6 +8006,9 @@
     "serverUpdated": "{name} zaktualizowany.",
     "serverUrl": "URL serwera",
     "servers": "Serwery",
+    "catalogLoadFailed": "Nie udało się wczytać serwerów",
+    "noServersMatch": "Nie znaleziono serwerów",
+    "noServersMatchHint": "Zmień wyszukiwanie lub wyczyść filtry. Możesz też dodać własny serwer.",
     "settings": "Ustawienia",
     "stateDisabled": "Wyłączone",
     "storedEncryptedNeverShown": "Zapisane w postaci zaszyfrowanej i nigdy więcej niepokazywane.",
@@ -8058,7 +8074,6 @@
   "skills": {
     "addFile": "Dodaj plik",
     "apply": "Zastosuj",
-    "applyChangeTo": "Zastosuj zmianę w {name}",
     "availableEveryAgentOrganization": "Poniżej wybierz, kto może z niego korzystać. Agent czyta go, gdy zostanie do niego dodany.",
     "cancel": "Anuluj",
     "cancel2": "Anuluj",
@@ -8066,8 +8081,6 @@
     "category2": "Kategoria",
     "changeApplied": "Zastosowano w {name}",
     "changeDiscarded": "Odrzucono zmianę w {name}",
-    "changesAgentProposed": "Zmiany zaproponowane przez agenta",
-    "changesWaitingDetail": "{count, plural, one {1 zmiana czeka} few {# zmiany czekają} many {# zmian czeka} other {# zmiany czeka}}. Przyjęcie jednej przepisuje skill, co dosięga każdego związanego z nim agenta przy jego następnym runie.",
     "close": "Zamknij",
     "create": "Utwórz",
     "created": "Utworzono {name}",
@@ -8088,7 +8101,6 @@
     "fileSaved": "Plik zapisany",
     "fileTree": "Pliki skilla",
     "files": "Pliki",
-    "files2": "Pliki",
     "files3": "Pliki",
     "filesUploaded": "{count, plural, one {Przesłano 1 plik} few {Przesłano # pliki} many {Przesłano # plików} other {Przesłano # pliku}}",
     "folder": "Folder",
@@ -8152,7 +8164,6 @@
     "moreFiles": "{count, plural, one {+1 plik} few {+# pliki} many {+# plików} other {+# pliku}}",
     "bodyPlaceholder": "# Zwroty\n\nUżyj tego, gdy klient prosi o zwrot pieniędzy.\n\n## Kroki\n\n1. Sprawdź datę zamówienia.\n2. W ciągu 14 dni zwróć bez pytania.\n3. Później poproś człowieka o zatwierdzenie.",
     "whoCanUseIt": "Kto może z tego korzystać",
-    "expectedEffect": "Oczekiwany efekt:",
     "page": {
       "skills": "Skille",
       "mainVersion": "v{number} na main",
@@ -8437,8 +8448,6 @@
       "skillDetails": "Szczegóły skilla",
       "openFullView": "Otwórz pełny widok"
     },
-    "checkOnAgents": "Sprawdź na agentach",
-    "checkChangeTo": "Sprawdź zmianę w {name} na agentach, które go używają",
     "check": {
       "title": "Sprawdź tę zmianę na każdym agencie, który używa skilla",
       "description": "Każdy agent odpowiada na swoje pytania ze skillem w obecnej wersji i z tą zmianą. Nic się nie zmienia, dopóki nie zdecydujesz.",
@@ -8491,12 +8500,32 @@
       },
       "nobody": "Żadnego z tych agentów nie da się sprawdzić, więc sprawdzenie niczego by nie zmierzyło. Dodaj pytania testowe, żeby mogło, albo przejdź dalej bez sprawdzenia i potwierdź, że nikogo nie sprawdzono.",
       "startUnchecked": "Dalej bez sprawdzenia",
-      "noReaders": "Żaden agent nie czyta tej linii, więc nie ma kogo sprawdzić. Dalej zmiana od razu zostanie zastosowana."
+      "noReaders": "Żaden agent nie czyta tej linii, więc nie ma kogo sprawdzić. Dalej zmiana od razu zostanie zastosowana.",
+      "proposalGoneTitle": "Ta aktualizacja już nie oczekuje na decyzję",
+      "proposalGoneDescription": "Została zastosowana, odrzucona lub zastąpiona w innej sesji. Lista została odświeżona.",
+      "backToChanges": "Wróć do aktualizacji"
     },
     "savedMainVersion": "Zapisano jako nową wersję main. Agenci na main czytają ją od następnego uruchomienia; przypięci agenci i forki zostają przy swoich.",
     "instructions": "Instrukcje",
     "architect": "Architekt",
-    "architectHint": "Zainstalowany dla Architekta AI, który go czyta. Zmiana tego skilla zmienia sposób pracy Architekta."
+    "architectHint": "Zainstalowany dla Architekta AI, który go czyta. Zmiana tego skilla zmienia sposób pracy Architekta.",
+    "reviewUpdates": {
+      "title": "Aktualizacje skilli",
+      "summary": "{count, plural, one {1 aktualizacja do sprawdzenia} few {# aktualizacje do sprawdzenia} many {# aktualizacji do sprawdzenia} other {# aktualizacji do sprawdzenia}}",
+      "agents": "{count, plural, one {1 powiązany agent} few {# powiązanych agentów} many {# powiązanych agentów} other {# powiązanych agentów}}",
+      "files": "{count, plural, one {1 plik referencyjny} few {# pliki referencyjne} many {# plików referencyjnych} other {# plików referencyjnych}}",
+      "library": "Aktualizacja biblioteki",
+      "impact": "Powiązani agenci",
+      "instructions": "Proponowane instrukcje",
+      "preview": "Podgląd",
+      "compare": "Porównaj z obecnym skillem",
+      "compareFailed": "Nie udało się wczytać obecnego skilla. Otwórz podgląd ponownie, aby spróbować jeszcze raz.",
+      "apply": "Zastosuj aktualizację",
+      "testOptional": "Przetestuj przed zastosowaniem (opcjonalnie)",
+      "hiddenAgents": "{count, plural, one {# inny agent} few {# innych agentów} many {# innych agentów} other {# innego agenta}}",
+      "testOptionalShort": "Test (opcjonalnie)",
+      "compareShort": "Zmiany"
+    }
   },
   "settings": {
     "builtCommands": "Wbudowane polecenia",
@@ -8738,6 +8767,11 @@
     "option": "Kolor {n}"
   },
   "triggers": {
+    "setupReviewTitle": "Sprawdź dostęp rutyny",
+    "setupReviewDescription": "Rutyna jest zapisana i wstrzymana. Sprawdź źródła i wybierz działania, które mogą wykonywać się bez pytania. Zapisz, aby ją włączyć, lub dokończ później.",
+    "enableRoutine": "Włącz rutynę",
+    "finishLater": "Dokończ później",
+    "stopWaitingRun": "Zatrzymaj oczekujące uruchomienie",
     "deliveryUnavailable": "Ostatni wynik niedostępny w czacie",
     "attemptsTitle": "Przed uruchomieniem agenta",
     "attemptsHint": "Te próby nie rozpoczęły runu agenta ani nie naliczyły kosztów modelu.",
@@ -8756,7 +8790,8 @@
       "platform_identity_required": "Włącz Działaj jako twórca albo usuń powiązanie wbudowanego platformowego MCP z agenta i jego delegatów.",
       "source_review_required": "Przejrzyj źródła procedury i sprawdź niedostępne połączenia przed kolejną próbą.",
       "agent_unavailable": "Sprawdź opublikowaną wersję, konfigurację i uprawnienia agenta, zanim ponownie włączysz procedurę.",
-      "preparation_failed": "Przygotowanie nie powiodło się przed utworzeniem runu agenta. Poproś operatora o sprawdzenie logów workera z tego czasu."
+      "preparation_failed": "Przygotowanie nie powiodło się przed utworzeniem runu agenta. Poproś operatora o sprawdzenie logów workera z tego czasu.",
+      "previous_run_active": "Pominięto, bo poprzednie uruchomienie nadal trwa lub czeka na odpowiedź. Otwórz je, aby kontynuować, albo zatrzymaj oczekujące uruchomienie tutaj."
     },
     "runAsMe": "Uruchamiaj jako ja",
     "runAsCreator": "Działa jako osoba, która go utworzyła",
@@ -13829,18 +13864,15 @@
     "defaultName": "Architekt"
   },
   "assistantSettings": {
-    "notForYou": "Twoja rola nie obejmuje uruchamiania agentów, więc asystent nie jest dla Ciebie dostępny. Administrator może to zmienić.",
     "yours": "Twoje podpowiedzi",
     "yoursDescription": "Dymki, które asystent pokazuje Ci w konsoli. Ta przeglądarka je zapamiętuje.",
     "showTips": "Pokazuj podpowiedzi w dymkach",
     "unsilence": "{count, plural, one {Pokaż znów podpowiedzi na # wyciszonej stronie} other {Pokaż znów podpowiedzi na # wyciszonych stronach}}",
     "organization": "Dla organizacji",
-    "organizationDescription": "AI Architect to agent jak każdy inny: nazwę, model i wiedzę zmienisz w Agent Builderze. Wyłączenie go i powitanie są na stronie organizacji.",
     "openBuilder": "Otwórz w Agent Builderze",
-    "openOrganization": "Ustawienia organizacji",
     "suggestions": {
       "title": "Automatyczne sugestie",
-      "description": "Ustaw, czy AgenticOS ma wysyłać Ci proaktywne sugestie do Inbox i briefingu. Tutaj zobaczysz ich historię i przywrócisz odrzucone propozycje. To ustawienie nie steruje odpowiedziami w rozmowach.",
+      "description": "Wybierz, czy AgenticOS przygotowuje dla Ciebie automatyczne sugestie. Przeglądaj sugestie i przywracaj odłożone elementy w Inbox.",
       "forMe": "Nocne propozycje dla mnie",
       "orgOff": "Twoja organizacja ma nocne propozycje wyłączone, więc na razie żadne nie powstają.",
       "turnedOn": "Nocne propozycje są dla Ciebie włączone",
@@ -13852,8 +13884,7 @@
         "open": "Czeka",
         "accepted": "Przyjęta",
         "dismissed": "Odrzucona"
-      },
-      "openInbox": "Otwórz Inbox"
+      }
     }
   },
   "orgAssistant": {
@@ -13865,7 +13896,8 @@
     "needsModel": "Nie ma jeszcze modelu, więc nie może odpowiadać. Wybierz go w sekcji Model w Agent Builderze.",
     "greeting": "Powitanie",
     "greetingHint": "Co mówi, gdy ktoś go otworzy. Zostaw puste, by użyć domyślnego.",
-    "save": "Zapisz"
+    "save": "Zapisz",
+    "summary": "Asystent workspace i jego powitanie."
   },
   "capabilityGuide": {
     "artifacts": {
@@ -14558,7 +14590,6 @@
     "accountNamed": "{server} ({account})",
     "createdWhere": "Znajdziesz ją w Rutynach, a to, co znajdzie, trafi do twojego inboksu.",
     "seeIt": "Pokaż",
-    "manageInRoutines": "Zarządzaj obserwacjami w Rutynach",
     "attemptedAt": "Ostatnia próba: {when}",
     "attempt": {
       "source_unavailable": "Źródło niedostępne — sprawdzenie nie powiodło się.",
@@ -14613,7 +14644,9 @@
       "role_pack": "Pakiet rutyn",
       "finding": "Rutyna"
     },
-    "openWorkingChat": "Otwórz rozmowę"
+    "openWorkingChat": "Otwórz rozmowę",
+    "preferences": "Ustawienia Inbox",
+    "preferencesDescription": "Wybierz, jakie automatyczne sugestie trafiają do Twojego Inbox."
   },
   "agentLimit": {
     "title": "Ta organizacja osiągnęła limit agentów",
@@ -17714,9 +17747,9 @@
   },
   "setupHints": {
     "title": "Konfiguracja do uzupełnienia",
-    "voiceModel": "Głos nie ma domyślnego dostawcy lub modelu. Wybierz je w Organizacja → Głos, aby korzystać z transkrypcji przez dostawcę.",
-    "voiceKey": "Głos ma dostawcę i model, ale nie ma klucza. Wybierz klucz organizacji w Organizacja → Głos.",
-    "proactivityOff": "Nocne sugestie są wyłączone. Włącz je w Proaktywności, jeśli asystent ma przygotowywać propozycje dla zespołu.",
+    "voiceModel": "Głos nie ma domyślnego dostawcy lub modelu. Wybierz je w AI i usługi → Głos, aby korzystać z transkrypcji przez dostawcę.",
+    "voiceKey": "Głos ma dostawcę i model, ale nie ma klucza. Wybierz klucz organizacji w AI i usługi → Głos.",
+    "proactivityOff": "Nocne sugestie są wyłączone. Włącz je w AI i usługi → Sugestie i monitoring, jeśli asystent ma przygotowywać propozycje dla zespołu.",
     "proactivityModel": "Nocne sugestie są włączone, ale nie wybrano modelu. Wybierz model w Proaktywności.",
     "memoryModel": "Utrzymanie pamięci nie ma wybranego modelu. Wybierz go w AI i usługi → Usługi w tle, aby korzystać z automatycznego utrzymania pamięci.",
     "architectModel": "Architect potrzebuje modelu. Otwórz go w Agent Builder z zakładki AI i usługi i wybierz model.",

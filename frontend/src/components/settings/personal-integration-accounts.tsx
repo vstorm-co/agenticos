@@ -1,5 +1,6 @@
 "use client";
 
+import { Unlink } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button, ConfirmDialog } from "@/components/ui";
@@ -42,47 +43,58 @@ export function PersonalIntegrationAccounts() {
       {!accounts.isLoading && !accounts.error && accounts.accounts.length === 0 && (
         <p className="text-muted-foreground text-sm">{t("noPersonalAccounts")}</p>
       )}
-      <div className="space-y-3">
+      <div className="divide-border divide-y">
         {accounts.accounts.map((account) => (
-          <div key={account.id} className="flex flex-wrap items-center gap-3 rounded-xl border p-3">
-            <ProviderIcon provider={account.provider} brand={account.provider} />
-            <div className="min-w-0 flex-1 text-sm">
-              <p className="break-words">
-                {account.label ? `${account.label} — ${account.email}` : account.email}
-              </p>
-              <p className="text-muted-foreground text-xs">
-                {account.needs_reconnect
-                  ? t("needsReconnect")
-                  : account.polling_failed
-                    ? t("pollingFailed")
-                    : t(`setup.provider.${account.provider}`)}
-              </p>
+          <div key={account.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div className="flex min-w-0 flex-1 basis-40 items-center gap-3">
+              <span className="bg-muted grid size-9 shrink-0 place-items-center rounded-lg">
+                <ProviderIcon provider={account.provider} brand={account.provider} />
+              </span>
+              <div className="min-w-0 flex-1 text-sm">
+                <p className="break-words">
+                  {account.label ? `${account.label} — ${account.email}` : account.email}
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  {account.needs_reconnect
+                    ? t("needsReconnect")
+                    : account.polling_failed
+                      ? t("pollingFailed")
+                      : t(`setup.provider.${account.provider}`)}
+                </p>
+              </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              aria-label={t(
-                account.needs_reconnect || account.polling_failed
-                  ? "reconnectNamed"
-                  : "updateAccessNamed",
-                { email: account.email },
-              )}
-              onClick={() =>
-                setSetup({
-                  owner: "personal",
-                  provider: account.provider,
-                  account,
-                  returnTo: hereForMcpOAuthReturn(),
-                })
-              }
-            >
-              {account.needs_reconnect || account.polling_failed
-                ? t("reconnect")
-                : t("updateAccess")}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setDisconnecting(account)}>
-              {t("disconnectConfirm")}
-            </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label={t(
+                  account.needs_reconnect || account.polling_failed
+                    ? "reconnectNamed"
+                    : "updateAccessNamed",
+                  { email: account.email },
+                )}
+                onClick={() =>
+                  setSetup({
+                    owner: "personal",
+                    provider: account.provider,
+                    account,
+                    returnTo: hereForMcpOAuthReturn(),
+                  })
+                }
+              >
+                {account.needs_reconnect || account.polling_failed
+                  ? t("reconnect")
+                  : t("updateAccess")}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={t("disconnect", { email: account.email })}
+                onClick={() => setDisconnecting(account)}
+              >
+                <Unlink className="size-4" aria-hidden />
+              </Button>
+            </div>
           </div>
         ))}
       </div>

@@ -245,6 +245,53 @@ async def test_nonpersonal_routines_and_runs_with_no_routine_keep_their_contract
     assert await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=run) is None
 
 
+@pytest.mark.parametrize("recorded", [None, False])
+async def test_a_nonpersonal_schedule_resumes_without_borrowing_creator_authority(
+    db: AsyncSession, recorded: bool | None
+) -> None:
+    world = await _world(db)
+    world.trigger.runs_as_creator = False
+    reviewed_sources(world.trigger, spec=AgentSpec(name="Monitor"), version_id=uuid4())
+    await db.flush()
+    policy = {"approved_sources": world.trigger.approved_sources}
+    if recorded is not None:
+        policy["acts_as_creator"] = recorded
+    run = AgentRun(
+        agent_id=world.agent.id,
+        organization_id=world.organization.id,
+        routine_origin_id=world.trigger.id,
+        user_id=world.user.id,
+        initiated_by_publisher_fallback=False,
+        routine_kind="trigger",
+        routine_policy=policy,
+    )
+    approver = replace(world.ctx, user_id=world.owner.id, role="owner", routine_id=None)
+    resumed = await RoutineAuthority.capture(db, approver, agent_id=world.agent.id, run=run)
+    assert resumed is not None and not resumed.acts_as_creator
+    assert resumed.user_id == world.user.id
+    world.trigger.runs_as_creator = True
+    await db.flush()
+    with pytest.raises(AuthorizationError):
+        await RoutineAuthority.capture(db, approver, agent_id=world.agent.id, run=run)
+
+
+async def test_an_invalid_recorded_routine_actor_is_refused(db: AsyncSession) -> None:
+    world = await _world(db)
+    run = AgentRun(
+        agent_id=world.agent.id,
+        organization_id=world.organization.id,
+        routine_origin_id=world.trigger.id,
+        user_id=world.user.id,
+        routine_kind="trigger",
+        routine_policy={
+            "approved_sources": world.trigger.approved_sources,
+            "acts_as_creator": "false",
+        },
+    )
+    with pytest.raises(AuthorizationError):
+        await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=run)
+
+
 async def test_each_tool_checks_current_committed_state_in_a_fresh_session(
     db: AsyncSession,
     engine: AsyncEngine,

@@ -1,5 +1,5 @@
 ---
-source_sha: "cab7de491f9d"
+source_sha: "3baaf4709d53"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -141,7 +141,7 @@ contabilidad. El modo de código mantiene esas paradas al cruzar el límite del 
 | `browser_use` | Navegador web | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | mediante el extra `browser` | delegada |
 | `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | para un daemon | delegada |
 | `code_execution` | Cálculos | analysis | `run_python` | `code:execute` | — | tal cual |
-| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona | delegada |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace` | `sandbox:execute` | para Daytona | delegada |
 | `mirage` | Terminal virtual | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | por carpeta, con el extra `mirage` | delegada |
 | `charts` | Gráficos | analysis | `create_chart` | — | — | tal cual |
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | tal cual |
@@ -236,7 +236,7 @@ y que un eval retiene y registra:
 | `image_generation` | `generate_image` |
 | `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
 | `memory_mem0` | `remember` |
-| `sandbox` | `write_file`, `edit_file`, `execute` |
+| `sandbox` | `write_file`, `edit_file`, `execute`, `select_project_workspace` |
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
 
 Todas las demás herramientas de arriba solo leen. Delegar cuenta como leer: las
@@ -1224,6 +1224,8 @@ que el tiempo y la memoria son los únicos límites que merece la pena fijar.
     acotados en vez de ser abiertos.
 
 ## Sandbox { #files-shell }
+
+`select_project_workspace` selecciona un proyecto accesible para los tools de archivos y shell hasta terminar el run. Sin identificador de proyecto, restaura el workspace original. Una continuación tras una aprobación conserva la selección; el siguiente turno empieza en el workspace original. La conversación permanece en su hilo. Cada operación vuelve a comprobar el acceso; las rutinas siguen limitadas a su fuente de proyecto revisada. Las evaluaciones aisladas no pueden seleccionar proyectos persistentes.
 
 `ls`, `read_file`, `glob`, `grep` — _lectura._
 `write_file`, `edit_file`, `execute` — _escritura y ejecución._

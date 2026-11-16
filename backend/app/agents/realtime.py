@@ -8,6 +8,7 @@ from the `azure_openai` secret. Gemini, xAI and Azure are not verified live.
 from typing import Literal
 
 from pydantic_ai.realtime import RealtimeModel, RealtimeModelSettings, ReconnectPolicy
+from pydantic_ai.realtime.elevenlabs import ElevenLabsRealtimeModelSettings
 from pydantic_ai.realtime.google import GoogleRealtimeModelSettings
 from pydantic_ai.realtime.openai import OpenAIRealtimeModelSettings, SemanticVAD
 from pydantic_ai.realtime.xai import XaiRealtimeModelSettings
@@ -75,6 +76,13 @@ def build_realtime_model(
         from pydantic_ai.realtime.xai import XaiRealtimeModel
 
         return XaiRealtimeModel(model, provider=XaiProvider(api_key=key), settings=settings)
+    if provider == "elevenlabs":
+        from pydantic_ai.providers.elevenlabs import ElevenLabsProvider
+        from pydantic_ai.realtime.elevenlabs import ElevenLabsRealtimeModel
+
+        return ElevenLabsRealtimeModel(
+            model, provider=ElevenLabsProvider(api_key=key), settings=settings
+        )
     raise BadRequestError(
         message="This provider cannot hold voice conversations", details={"provider": provider}
     )
@@ -104,6 +112,15 @@ def realtime_settings(
             settings["google_language_code"] = language
     elif provider == "xai":
         settings = XaiRealtimeModelSettings(xai_voice=voice)
+    elif provider == "elevenlabs":
+        settings = ElevenLabsRealtimeModelSettings(
+            elevenlabs_voice=voice,
+            openai_turn_detection=_TURNS,
+            # The platform owns the shorter call cap and closes the socket itself.
+            elevenlabs_max_duration_seconds=7200,
+        )
+        if language:
+            settings["elevenlabs_language"] = language
     else:
         settings = RealtimeModelSettings()
     if thinking is not None and supports_thinking:

@@ -1,10 +1,10 @@
 ---
-source_sha: "830b6494877e"
+source_sha: "843319d0a892"
 ---
 
 # Integrierte Integrationen { #built-in-integrations }
 
-Persönliche Konten verbinden Sie unter **Chat-Einstellungen → Werkzeuge → Ihre Konten** in `/chat` oder **Einstellungen → Profil → Ihre verbundenen Konten**. Organisationskonten werden unter **Vault → Konto verbinden** verbunden. Mehrere Konten desselben Anbieters sind möglich. Jedes Google-, Microsoft- oder Slack-Produkt ist eine eigene Capability in der **Toolbox**. Die Integrationen verwenden Anbieter-APIs direkt; Anbieter-MCP-Server, Google Workspace MCP Preview und eine Microsoft-Copilot-Lizenz sind nicht erforderlich.
+Persönliche Konten verbinden Sie unter **Chat-Steuerung → Einstellungen → Ihre Konten** in `/chat` oder **Einstellungen → Profil → Ihre verbundenen Konten**. Organisationskonten werden unter **Vault → Konto verbinden** verbunden. Mehrere Konten desselben Anbieters sind möglich. Jedes Google-, Microsoft- oder Slack-Produkt ist eine eigene Capability in der **Toolbox**. Die Integrationen verwenden Anbieter-APIs direkt; Anbieter-MCP-Server, Google Workspace MCP Preview und eine Microsoft-Copilot-Lizenz sind nicht erforderlich.
 
 ## Ein Konto einrichten { #set-up-an-account }
 

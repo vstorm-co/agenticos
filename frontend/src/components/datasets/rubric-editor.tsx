@@ -80,7 +80,7 @@ export function RubricEditor({
           <FormField
             htmlFor={`${prefix}-${index}-description`}
             label={t("criterionDescription")}
-            description={t("criterionHelp")}
+            help={t("criterionHelp")}
           >
             <Textarea
               value={criterion.description}

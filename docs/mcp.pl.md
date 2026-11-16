@@ -1,5 +1,5 @@
 ---
-source_sha: "0df9c638584e"
+source_sha: "f4b488628347"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1072,7 +1072,7 @@ następnej publikacji: podepnij zamiast niego **Microsoft 365 (self-hosted)** al
 
 ### MCP czy gotowe capabilities Google { #choose-mcp-or-built-in-google-capabilities }
 
-Dla operacji Gmail, Kalendarza, Dysku, Dokumentów, Arkuszy i Prezentacji obsługiwanych przez AgenticOS zacznij od [gotowych capabilities](integrations.md). Wywołują zwykłe API Google, bez udziału w Developer Preview hostowanego MCP i bez klienta OAuth dla agenta AI. Administrator konfiguruje Google raz w **Vault → Integracje**; użytkownicy podłączają konta w **Ustawienia czatu → Narzędzia → Twoje konta** lub **Ustawienia → Profil → Twoje podłączone konta**. Agent może też używać jawnie wybranych kont organizacji. Można podłączyć kilka kont.
+Dla operacji Gmail, Kalendarza, Dysku, Dokumentów, Arkuszy i Prezentacji obsługiwanych przez AgenticOS zacznij od [gotowych capabilities](integrations.md). Wywołują zwykłe API Google, bez udziału w Developer Preview hostowanego MCP i bez klienta OAuth dla agenta AI. Administrator konfiguruje Google raz w **Vault → Integracje**; użytkownicy podłączają konta w **Ustawienia czatu → Preferencje → Twoje konta** lub **Ustawienia → Profil → Twoje podłączone konta**. Agent może też używać jawnie wybranych kont organizacji. Można podłączyć kilka kont.
 
 Hostowane serwery Workspace MCP Google są inną opcją, ale mają dodatkowe wymagania: udział w Developer Preview, włączone API produktu i MCP, klient OAuth oznaczony jako klient agenta AI oraz poprawny callback. Przyjęcie do preview i zgody administratorów mogą opóźnić konfigurację; nie obiecuj natychmiastowego dostępu ani stałego czasu oczekiwania. Samodzielnie hostowane i zewnętrzne serwery Workspace MCP mają własną konfigurację i nie są tą samą usługą preview. Zobacz [wymagania konfiguracji MCP Google](https://developers.google.com/workspace/guides/configure-mcp-servers).
 

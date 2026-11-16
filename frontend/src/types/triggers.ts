@@ -160,6 +160,7 @@ export interface TriggerList {
 export type TriggerAnswerTo = "run_log" | "primary" | "conversation";
 
 export interface TriggerCreate {
+  review_before_activation?: boolean;
   max_failures?: number | null;
   is_active?: boolean;
   notification_channels?: RoutineNotificationChannel[] | null;
@@ -257,7 +258,8 @@ export interface TriggerAttempt {
     | "platform_identity_required"
     | "source_review_required"
     | "agent_unavailable"
-    | "preparation_failed";
+    | "preparation_failed"
+    | "previous_run_active";
   occurred_at: string;
 }
 

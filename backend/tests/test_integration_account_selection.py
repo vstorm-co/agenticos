@@ -204,7 +204,7 @@ async def test_model_is_told_which_accounts_exist_and_where_to_connect(
         "gmail", AccountSelection(), build_toolset("gmail", AccountSelection())
     )
     prompt = await integration.get_instructions()(context())
-    assert "Chat settings → Tools → Your accounts" in prompt
+    assert "Chat controls → Preferences → Your accounts" in prompt
     if held:
         assert "work-one" in prompt and "work-two" in prompt
         assert "ask before accessing any account" in prompt

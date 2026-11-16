@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -37,6 +38,7 @@ export function ScheduleStep({
   setForm: React.Dispatch<React.SetStateAction<SyncSourceCreate>>;
 }) {
   const t = useTranslations("rag");
+  const collectionId = useId();
   return (
     <div className="space-y-5">
       {/* The picker appears when there is more than one collection to pick
@@ -55,12 +57,12 @@ export function ScheduleStep({
           integration under a base. */}
       {collections.length > 1 && (
         <div className="space-y-1.5">
-          <Label>{t("targetCollection")}</Label>
+          <Label htmlFor={collectionId}>{t("targetCollection")}</Label>
           <Select
             value={form.collection_name ?? ""}
             onValueChange={(val) => setForm((f) => ({ ...f, collection_name: val }))}
           >
-            <SelectTrigger className="h-10 rounded-xl">
+            <SelectTrigger id={collectionId} className="h-10 rounded-xl">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

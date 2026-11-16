@@ -6,7 +6,7 @@ import { SECONDARY_CONTROL } from "./control-styles";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex touch:min-h-11 touch:min-w-11 touch-manipulation items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors duration-[var(--duration-fast)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground/60 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[loading=true]:opacity-100 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "pressable-control inline-flex touch:min-h-11 touch:min-w-11 touch-manipulation items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors duration-[var(--duration-fast)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground/60 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[loading=true]:opacity-100 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       // Primary actions carry full contrast; repeated row actions use softer fills.
@@ -22,12 +22,12 @@ const buttonVariants = cva(
         link: "text-brand underline-offset-4 hover:text-brand-hover hover:underline",
       },
       size: {
-        default: "h-10 px-4 py-2",
+        default: "h-9 px-3.5 py-1.5",
         sm: "h-8 px-3.5 text-[13px]",
         lg: "h-11 px-6",
-        icon: "h-9 w-9",
-        "icon-sm": "h-8 w-8 [&_svg]:size-3.5",
-        "icon-lg": "h-10 w-10",
+        icon: "pressable-icon h-9 w-9",
+        "icon-sm": "pressable-icon h-8 w-8 [&_svg]:size-3.5",
+        "icon-lg": "pressable-icon h-10 w-10",
       },
     },
     // The small secondary buttons - Export CSV, a filter, a period - are lower

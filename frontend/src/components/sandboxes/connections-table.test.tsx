@@ -40,7 +40,7 @@ describe("ConnectionsTable", () => {
     );
 
     expect(screen.getByRole("table")).toHaveAttribute("aria-busy", "true");
-    expect(screen.getAllByRole("columnheader")).toHaveLength(6);
+    expect(screen.getAllByRole("columnheader")).toHaveLength(5);
     expect(screen.getAllByRole("row")).toHaveLength(4);
     expect(screen.queryByText("Local Docker")).not.toBeInTheDocument();
   });

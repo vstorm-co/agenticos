@@ -27,15 +27,76 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Built-in Google Workspace, Microsoft Graph, Slack and read-only IMAP integrations with provider setup wizards, named personal and organization accounts, OAuth and application/token alternatives, individual Toolbox tools with mandatory approval for writes, and shared workflow operations. Drive, SharePoint/OneDrive and selected Slack channels reuse organization accounts for knowledge sync. Native-account triggers and watches persist independent change cursors; delegated Teams chats use modification timestamps and application/channel feeds use Graph delta (#2797).
 
+- Add ElevenLabs Scribe v3/v2 transcription and Eleven Realtime Mini/Max voice conversations with explicit vault keys. Realtime audio costs remain a floor because token charges are unreported; calls with spending budgets are refused before connecting.
+
+- Select an accessible project's workspace for the current agent run from chat or channels, without moving conversation history. Access is rechecked for each operation; approval continuations retain the selection and routines keep their reviewed source ceiling.
+
 ### Changed
 
 - **API action required:** creating a native integration trigger now requires an explicit `connection_id`. Clients that used an implicit organization default for Gmail, Outlook, file or calendar presets must select and send the account ID; the console already supplies it.
+
+- Add varied editorial slide compositions, an evidence-led report with reconciled filtering, and a detailed procedural product studio to the bundled Apps and Visuals skills.
+- Simplify the default Me dashboard, align Briefing rows, place Discover directly below Briefing and center visual previews. Settle answered questions when the server starts their continuation, and dismiss clicked toasts with a shorter exit.
+
+- Search organization memberships by name or slug alongside the matching count. Restore table card boundaries, fit sandbox host labels and compact dashboard project links.
+
+- Focus the Me dashboard on personal conversations, projects, agents and work; leave evaluation and authoring queues in the organization catalog. Count personal Inbox proposals and tool approvals as waiting.
+
+- Restore horizontal settings tabs and start the personal dashboard with its period summary, followed by a compact Briefing.
+
+- Move optional field guidance into contextual help, simplify notification and account panels, and use consistent navigation icons. Prioritize conversation titles and keep compact chat filters within phone viewports.
+
+- Add rotating chat illustrations with reduced-motion support, refine Chat controls and composer menus, and align workflow canvas controls with the console theme. Simplify remaining content and organization galleries, notification/search/account panels and modal surfaces.
+
+- Lighten the sidebar in both themes and refine navigation disclosures, focus transitions and menu timings. Hidden navigation stays inert, and collapsing brings the active destination into view.
+
+- Simplify console surfaces, galleries, sidebar search, dashboard rows, agent actions and settings navigation. Add optional Activity detail columns, integrate project context above the chat composer and move usage into Chat controls. Preserve page contents during navigation without a fade.
+
+- Make evaluation optional when reviewing skill proposals: apply a reviewed update directly, or run a check before deciding. Edit permissions and proposal/version conflict checks still apply.
 
 ### Fixed
 
 - Separate organization OAuth setup from personal account sign-in. Members can manage multiple connected accounts from their profile; capability settings no longer ask agent authors for user account names.
 
 - Connected-product capability illustrations show real product logos, and account settings clarify that personal accounts belong to each user talking to the agent.
+
+- Prevent App deletion from deadlocking with workflow event writes. Release partial source locks before bounded retries, return a retryable 409 when busy, and preserve run history and commit-only file cleanup (#3021).
+
+- Remove the duplicate MCP setup frame and consolidate personal Assistant settings into Account tips and Inbox preferences. Organization service configuration stays in AI & services.
+- Standardize form label, help, input and select geometry across the console, including touch targets; label the remaining unlabeled selectors and cover adjacent field alignment on desktop and touch screens.
+
+- Configure Daily briefing directly in Background services. Memory maintenance starts disabled; legacy service profiles without a model read as off, and model-less services cannot be switched on in the console. Expand compact service rows for configuration and history; Voice provider labels keep credential status in its dedicated controls.
+- Align the sandbox connection Name and Kind controls, soften personal profile fields, and keep workspace expansion controls off desktop settings tables. Model forms use unique field identifiers when several are mounted together.
+
+- Reduce sidebar duplication, group personal API/MCP access and move mobile setup under Account. Refine profile cards and stretch settings list containers to the available height.
+- Share illustrated empty states across pages, lists and tables; keep Directory in its loading state until permissions and mappings resolve, without a premature Add mapping action.
+
+- Consolidate organization settings into three tabs with expandable AI services, a guarded workspace appearance dialog and aligned provider/model fields. Search members by name or email, filter roles and show workspace-scoped audited activity without treating it as a visit.
+
+- Show explicit loading, retry and empty-search states in the MCP catalog. Keep management table names and sandbox addresses readable, restore a generated profile portrait when an uploaded image cannot load, and let long service diagnostics expand on demand.
+
+- Render recent dashboard visuals in an isolated client preview when no server thumbnail is available, and place period controls beside the dashboard view tabs.
+
+- Keep pending skill updates fresh after decisions in other sessions, recover from stale proposals, and present compact update rows with readable instruction comparisons and reference-file previews.
+
+## [1.77.0] - 2026-11-16
+
+### Fixed
+
+- Routine consent applies to sandbox tools, including renamed tools. Approval continuations preserve the original creator-authority mode instead of refusing non-personal schedules (#3045).
+- Skipped overlapping schedules record their reason in routine history. Authorized users can stop a waiting run there without executing its pending tools or losing recorded spend (#3045).
+
+### Changed
+
+- New schedules and API triggers stay paused while one review saves their sources and selected action consents before activation. The existing form opens this review directly after creation; finish later keeps the routine paused.
+
+### Upgrading
+
+- Migration `0331_routine_overlap_attempt` allows overlap history entries. Existing agent specs and routine consents remain valid; approved runs can be resumed after upgrading. Runs with withdrawn or changed access still require a new reviewed execution.
+
+## [1.76.2] - 2026-11-16
+
+### Fixed
 
 - Restore dependency freshness checks with ty 0.0.104 by updating renamed diagnostic rules and the minimum checker version, and allow the full backend CI runtime for the upgrade canary.
 
@@ -21783,7 +21844,9 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.76.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.77.0...HEAD
+[1.77.0]: https://github.com/vstorm-co/agenticos/compare/v1.76.2...v1.77.0
+[1.76.2]: https://github.com/vstorm-co/agenticos/compare/v1.76.1...v1.76.2
 [1.76.1]: https://github.com/vstorm-co/agenticos/compare/v1.76.0...v1.76.1
 [1.76.0]: https://github.com/vstorm-co/agenticos/compare/v1.75.0...v1.76.0
 [1.75.0]: https://github.com/vstorm-co/agenticos/compare/v1.74.0...v1.75.0

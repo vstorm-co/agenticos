@@ -2409,6 +2409,10 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
             await target.write_text("uploads/0000-report.csv", "month,total")
 
         with (
+            patch(
+                "app.services.agent_runner.member_repo.get_active",
+                new=AsyncMock(return_value=SimpleNamespace(role="member")),
+            ),
             patch.object(
                 service.registry,
                 "get_runnable_spec",
@@ -4294,18 +4298,32 @@ class TestResume:
         return MagicMock(id=uuid.uuid4(), status=status, tool_args=tool_args, note=note)
 
     @pytest.mark.anyio
-    async def test_an_approved_run_continues_from_the_arguments_that_were_approved(self):
+    @pytest.mark.parametrize("project_id", [None, uuid.uuid4()])
+    async def test_an_approved_run_continues_from_the_arguments_that_were_approved(
+        self, project_id
+    ):
         """The whole point: a decision has to actually restart the run."""
         service = AgentRunnerService(_db())
         approval = self._approval(
             status=ApprovalStatus.APPROVED.value, tool_args={"to": "customer@example.com"}
         )
         run = _parked_run(
-            paused_state={"messages": [], "tool_call_ids": {str(approval.id): "call-1"}}
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {str(approval.id): "call-1"},
+                "selected_project_id": None if project_id is None else str(project_id),
+            }
         )
         built = self._built()
 
+        opened_workspace = _sandbox(StateBackend())
         with (
+            patch(
+                "app.services.agent_runner.member_repo.get_active",
+                new=AsyncMock(return_value=SimpleNamespace(role="member")),
+            ),
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=opened_workspace)),
+            patch.object(service.workspaces, "close", new=AsyncMock(return_value=None)),
             patch(
                 "app.services.agent_runner.agent_run_repo.claim_parked_run",
                 new=AsyncMock(return_value=run),
@@ -4335,6 +4353,10 @@ class TestResume:
         assert segment.output == "sent"
         assert finish.call_args.kwargs["status"] == RunStatus.COMPLETED.value
 
+        selector = build.call_args.kwargs["resources"]["project_workspace_selector"]
+        assert selector.project_id == project_id
+        assert selector.ctx.user_id == run.user_id
+        assert built.agent.run.call_args.kwargs["workspace"] is selector.workspace
         deferred = built.agent.run.call_args.kwargs["deferred_tool_results"]
         assert deferred.approvals["call-1"].override_args == {"to": "customer@example.com"}
         channel = build.call_args.kwargs["request_approval"]
@@ -9643,6 +9665,9 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
         await service.prepare(ctx, agent.id)
     assert create.await_args.kwargs["trigger_id"] == ctx.routine_id
     assert create.await_args.kwargs["routine_policy"]["mcp_sources"] == {}
+    assert (
+        create.await_args.kwargs["routine_policy"]["acts_as_creator"] == authority.acts_as_creator
+    )
     guards = [
         item
         for item in build.call_args.kwargs["extra_capabilities"]
@@ -10826,6 +10851,29 @@ def test_the_parked_payload_carries_the_history_revision():
     _, _, _, state = _classify_output(result, parked={"approval-1": "send-1"}, history_revision=7)
     assert state is not None
     assert state.model_dump(mode="json")["guardrail_revision"] == 7
+
+
+@pytest.mark.parametrize("project_id", [None, uuid.uuid4()])
+def test_project_selection_is_saved_in_server_owned_paused_state(project_id):
+    from app.services.run_project_workspace import RunProjectWorkspace
+
+    prepared = _prepared()
+    original = document_workspace()
+    prepared.project_workspace = RunProjectWorkspace(original, _ctx())
+    prepared.project_workspace.project_id = project_id
+    parked = AgentRunnerService._parked_tree(
+        prepared, PausedRunState(messages=[], tool_call_ids={}), []
+    )
+    assert (
+        PausedRunState.model_validate_json(parked.model_dump_json()).selected_project_id
+        == project_id
+    )
+    assert prepared._workspace() is prepared.project_workspace.workspace
+    assert (
+        PausedRunState.model_validate({"messages": [], "tool_call_ids": {}}).selected_project_id
+        is None
+    )
+    assert RunProjectWorkspace(original, _ctx()).project_id is None
 
 
 def test_both_run_surfaces_persist_code_checkpoints_in_the_common_park_hook() -> None:

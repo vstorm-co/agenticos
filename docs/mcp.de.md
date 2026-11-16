@@ -1,5 +1,5 @@
 ---
-source_sha: "0df9c638584e"
+source_sha: "f4b488628347"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1119,7 +1119,7 @@ bindet, wird bei der nächsten Veröffentlichung abgelehnt: Binden Sie stattdess
 
 ### MCP oder integrierte Google-Capabilities wählen { #choose-mcp-or-built-in-google-capabilities }
 
-Für bereits unterstützte Vorgänge in Gmail, Kalender, Drive, Docs, Sheets und Slides beginnen Sie mit den [integrierten Capabilities](integrations.md). Sie verwenden normale Google-APIs und erfordern weder die Developer Preview des gehosteten MCP-Dienstes noch einen OAuth-Client für KI-Agenten. Ein Administrator richtet Google einmal unter **Vault → Integrationen** ein. Nutzer verbinden Konten unter **Chat-Einstellungen → Werkzeuge → Ihre Konten** oder **Einstellungen → Profil → Ihre verbundenen Konten**. Alternativ nutzt ein Agent ausdrücklich ausgewählte Organisationskonten. Mehrere Konten sind möglich.
+Für bereits unterstützte Vorgänge in Gmail, Kalender, Drive, Docs, Sheets und Slides beginnen Sie mit den [integrierten Capabilities](integrations.md). Sie verwenden normale Google-APIs und erfordern weder die Developer Preview des gehosteten MCP-Dienstes noch einen OAuth-Client für KI-Agenten. Ein Administrator richtet Google einmal unter **Vault → Integrationen** ein. Nutzer verbinden Konten unter **Chat-Steuerung → Einstellungen → Ihre Konten** oder **Einstellungen → Profil → Ihre verbundenen Konten**. Alternativ nutzt ein Agent ausdrücklich ausgewählte Organisationskonten. Mehrere Konten sind möglich.
 
 Googles gehostete Workspace-MCP-Server haben zusätzliche Voraussetzungen: Developer-Preview-Mitgliedschaft, Produkt- und MCP-APIs, einen für KI-Agenten markierten OAuth-Client und den richtigen Callback. Preview-Zulassung und Administratorfreigaben können die Einrichtung verzögern; versprechen Sie weder sofortigen Zugang noch eine feste Wartezeit. Selbst gehostete oder externe Workspace-MCP-Server haben eigene Voraussetzungen und sind nicht derselbe Preview-Dienst. Siehe [Googles MCP-Einrichtung](https://developers.google.com/workspace/guides/configure-mcp-servers).
 

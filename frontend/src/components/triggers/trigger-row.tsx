@@ -226,9 +226,10 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
                   className="h-8 w-8"
                   aria-label={trigger.is_active ? t("pause") : t("resume")}
                   disabled={setActive.isPending}
-                  onClick={() =>
-                    setActive.mutate({ triggerId: trigger.id, isActive: !trigger.is_active })
-                  }
+                  onClick={() => {
+                    if (!trigger.is_active && trigger.setup_required) setConsenting(true);
+                    else setActive.mutate({ triggerId: trigger.id, isActive: !trigger.is_active });
+                  }}
                 >
                   {trigger.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                 </Button>
@@ -250,7 +251,17 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
         </TooltipProvider>
       )}
       {consenting && (
-        <ActionConsentsDialog trigger={trigger} onClose={() => setConsenting(false)} />
+        <ActionConsentsDialog
+          trigger={trigger}
+          onClose={() => setConsenting(false)}
+          onSaved={
+            trigger.setup_required
+              ? async () => {
+                  await setActive.mutateAsync({ triggerId: trigger.id, isActive: true });
+                }
+              : undefined
+          }
+        />
       )}
       {editing && (
         <TriggerFormDialog

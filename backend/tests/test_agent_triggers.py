@@ -1217,6 +1217,12 @@ class TestClaiming:
         assert queued_fires == []
         assert busy.next_fire_at == now + timedelta(seconds=300)
         assert busy.fire_in_flight_since == earlier
+        service._record_attempt.assert_awaited_once_with(
+            busy,
+            service._record_attempt.await_args.args[1],
+            stage="preparation",
+            reason="previous_run_active",
+        )
 
     async def test_an_allowing_trigger_that_is_busy_fires_without_a_ticket(
         self, queued_fires: list[FireTrigger]
@@ -5736,3 +5742,21 @@ async def test_linear_signed_matching_delivery_produces_a_decision():
     assert decision is not None
     assert decision.trigger_id == trigger.id
     assert "Issue" in decision.event_context
+
+
+async def test_explicit_setup_review_stays_pending_even_when_initial_sources_are_available():
+    agent = _agent()
+    service = _service(agent)
+    trigger = _trigger(agent_id=agent.id)
+    service._run_log = AsyncMock()
+    with (
+        patch(
+            "app.services.agent_trigger.agent_trigger_repo.create", AsyncMock(return_value=trigger)
+        ),
+        patch("app.services.agent_trigger.record_audit", AsyncMock()),
+    ):
+        created = await service.create(
+            _ctx(), agent.id, _interval().model_copy(update={"review_before_activation": True})
+        )
+    assert created.is_active is False
+    assert created.approved_sources == {"pending_review": True, "unavailable_sources": []}

@@ -227,7 +227,9 @@ test.describe("Dashboard", () => {
       const briefing = page
         .locator(".dash-widget")
         .filter({ has: page.getByRole("heading", { name: "Briefing", exact: true }) });
-      const period = page.getByRole("heading", { name: "Your period", exact: true });
+      const period = page.locator(".dash-widget").filter({
+        has: page.getByRole("heading", { name: "Your period", exact: true }),
+      });
       const heading = page.getByRole("heading", { level: 1 });
       const beforeHeading = await heading.boundingBox();
       release?.();
@@ -249,7 +251,7 @@ test.describe("Dashboard", () => {
       } else {
         expect(afterBriefing.y).toBeGreaterThanOrEqual(checklist.y + checklist.height);
       }
-      expect(afterPeriod.y).toBeGreaterThanOrEqual(afterBriefing.y + afterBriefing.height);
+      expect(afterBriefing.y).toBeGreaterThanOrEqual(afterPeriod.y + afterPeriod.height);
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
         width,
       );

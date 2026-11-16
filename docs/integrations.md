@@ -1,6 +1,6 @@
 # Built-in integrations
 
-Personal accounts are connected in **Chat settings → Tools → Your accounts** under `/chat`, or **Settings → Profile → Your connected accounts**. Organization accounts are connected in **Vault → Connect account**. You can connect several accounts for the same provider. Each Google, Microsoft or Slack product is a separate capability in an agent’s **Toolbox**. These integrations use provider APIs directly; vendor MCP servers, Google Workspace MCP preview and a Microsoft Copilot licence are not required.
+Personal accounts are connected in **Chat controls → Preferences → Your accounts** under `/chat`, or **Settings → Profile → Your connected accounts**. Organization accounts are connected in **Vault → Connect account**. You can connect several accounts for the same provider. Each Google, Microsoft or Slack product is a separate capability in an agent’s **Toolbox**. These integrations use provider APIs directly; vendor MCP servers, Google Workspace MCP preview and a Microsoft Copilot licence are not required.
 
 ## Set up an account
 

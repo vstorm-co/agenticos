@@ -74,7 +74,7 @@ it("lists several accounts and repairs exactly the chosen one", async () => {
 it("requires confirmation to disconnect the selected account", async () => {
   state.accounts = [account];
   render(<PersonalIntegrationAccounts />);
-  await userEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+  await userEvent.click(screen.getByRole("button", { name: "Disconnect one@example.com" }));
   expect(state.disconnect).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Disconnect" }));
   expect(state.disconnect).toHaveBeenCalledWith("first");

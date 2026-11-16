@@ -46,6 +46,7 @@ export function ProfileIdentitySettings({
   const [email, setEmail] = useState(user?.email ?? "");
   const [saving, setSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
   const [colorSaving, setColorSaving] = useState(false);
   const [contextSaving, setContextSaving] = useState(false);
   const identityBusy = saving || avatarUploading || colorSaving;
@@ -154,10 +155,12 @@ export function ProfileIdentitySettings({
   }
   const profileChanged = name !== (user.full_name ?? "") || email !== user.email;
 
+  const avatarSrc = `/api/users/avatar/${user.id}?v=${avatarVersion}`;
+
   return (
     <div
       className={cn(
-        "flex flex-1 flex-col space-y-4",
+        unifiedSave ? styles.overview : "flex flex-1 flex-col space-y-4",
         onContinue && section === "identity" && styles.guided,
       )}
     >
@@ -191,9 +194,10 @@ export function ProfileIdentitySettings({
                       onContinue && styles.portrait,
                     )}
                   >
-                    {user.avatar_url ? (
+                    {user.avatar_url && failedAvatar !== avatarSrc ? (
                       <Image
-                        src={`/api/users/avatar/${user.id}?v=${avatarVersion}`}
+                        src={avatarSrc}
+                        onError={() => setFailedAvatar(avatarSrc)}
                         alt=""
                         width={80}
                         height={80}
@@ -251,7 +255,7 @@ export function ProfileIdentitySettings({
                   />
                 </MoreOptions>
               </div>
-              <div className="grid items-start gap-4 md:grid-cols-2">
+              <div className={cn("grid items-start gap-4", !unifiedSave && "md:grid-cols-2")}>
                 <FormField label={t("displayName")} htmlFor="profile-name">
                   <Input
                     id="profile-name"

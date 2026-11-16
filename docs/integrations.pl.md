@@ -1,10 +1,10 @@
 ---
-source_sha: "830b6494877e"
+source_sha: "843319d0a892"
 ---
 
 # Wbudowane integracje { #built-in-integrations }
 
-Konta osobiste podłączysz w **Ustawienia czatu → Narzędzia → Twoje konta** pod `/chat` albo **Ustawienia → Profil → Twoje podłączone konta**. Konta organizacji podłącza się w **Vault → Podłącz konto**. Możesz dodać kilka kont tej samej usługi. Każdy produkt Google, Microsoft lub Slack jest osobną capability w **Toolbox** agenta. Integracje korzystają bezpośrednio z API dostawców; nie wymagają ich serwerów MCP, Google Workspace MCP preview ani licencji Microsoft Copilot.
+Konta osobiste podłączysz w **Ustawienia czatu → Preferencje → Twoje konta** pod `/chat` albo **Ustawienia → Profil → Twoje podłączone konta**. Konta organizacji podłącza się w **Vault → Podłącz konto**. Możesz dodać kilka kont tej samej usługi. Każdy produkt Google, Microsoft lub Slack jest osobną capability w **Toolbox** agenta. Integracje korzystają bezpośrednio z API dostawców; nie wymagają ich serwerów MCP, Google Workspace MCP preview ani licencji Microsoft Copilot.
 
 ## Konfiguracja konta { #set-up-an-account }
 

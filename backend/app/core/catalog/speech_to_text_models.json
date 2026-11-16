@@ -58,5 +58,24 @@
         "chat": true
       }
     ]
+  },
+  {
+    "provider": "elevenlabs",
+    "base_url": "https://api.elevenlabs.io/v1",
+    "api": "elevenlabs",
+    "models": [
+      {
+        "id": "scribe_v3",
+        "name": "Scribe v3",
+        "description": "Accurate multilingual transcription for recorded audio, with automatic language detection.",
+        "language_field": "language_code"
+      },
+      {
+        "id": "scribe_v2",
+        "name": "Scribe v2",
+        "description": "Multilingual transcription for recordings already using Scribe v2.",
+        "language_field": "language_code"
+      }
+    ]
   }
 ]

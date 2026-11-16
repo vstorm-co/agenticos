@@ -45,7 +45,8 @@ export function SuggestionsWidget({ title, hint, seeAll, options }: DashboardWid
           <SuggestionRows
             items={first}
             dense
-            className="grid grid-cols-1 gap-3 divide-y-0 @[640px]/widget:grid-cols-2 [&>li]:min-h-36 [&>li]:rounded-lg [&>li]:border [&>li]:p-3"
+            showDetails={false}
+            className="divide-border divide-y [&>li]:py-3 [&>li:first-child]:pt-0 [&>li:last-child]:pb-0"
           />
           {suggestions.length > SHOWN && (
             <Link

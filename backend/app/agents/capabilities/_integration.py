@@ -33,7 +33,7 @@ class NativeIntegration(AbstractCapability[AgentDeps]):
         product = PRODUCTS[self.product_id]
         setup = (
             f"For a personal account, ask the user to open {settings.FRONTEND_URL.rstrip('/')}/chat, "
-            "then Chat settings → Tools → Your accounts, and connect or reconnect the account. "
+            "then Chat controls → Preferences → Your accounts, and connect or reconnect the account. "
             f"They can also manage it at {settings.FRONTEND_URL.rstrip('/')}/vault. "
             "For an organization account, ask an authorized editor to configure this agent's "
             "Toolbox account selection and the organization's Vault. "
