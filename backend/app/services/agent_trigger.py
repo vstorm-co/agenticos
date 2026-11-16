@@ -1827,6 +1827,13 @@ class AgentTriggerService:
             or job.payload.get("activation_id") != str(activation_id)
         ):
             raise NotFoundError(message="Activation not found")
+        # Device admission commits with the run. Read it before outputs too:
+        # an offline activation can outlive its first, already completed job.
+        wait = await device_wait_repo.get(self.db, activation_id)
+        if wait is not None and (
+            wait.organization_id != ctx.organization_id or wait.trigger_id != trigger.id
+        ):
+            raise NotFoundError(message="Activation not found")
         run_id = await agent_run_repo.run_id_for_routine_activation(
             self.db,
             organization_id=ctx.organization_id,
@@ -1843,6 +1850,12 @@ class AgentTriggerService:
         )
         if attempt is not None:
             return TriggerActivationRead(state="recorded")
+        if wait is not None:
+            if wait.status == "waiting":
+                return TriggerActivationRead(state="pending")
+            return TriggerActivationRead(
+                state="recorded" if wait.status == "started" else "not_started"
+            )
         if job is None:
             raise NotFoundError(message="Activation not found")
         return TriggerActivationRead(
