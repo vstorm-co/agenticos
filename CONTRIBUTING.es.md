@@ -2,7 +2,7 @@
 source_sha: "7cb876b5ef26"
 ---
 
-<!-- source_sha: 38cf8cd6bd00 -->
+<!-- source_sha: f18100260aaf -->
 
 # Contribuir a AgenticOS
 
@@ -112,9 +112,10 @@ supervisión.
 - Los bugs se entregan con un test de regresión que falla sin el arreglo.
 - Cuenta en la descripción qué decidiste y por qué. El qué ya lo enseña el
   código.
-- La CI rápida se ejecuta en cada pull request. La CI completa requiere la
-  etiqueta `full-ci`, una rama de origen del pull request que coincida con
-  `sync/upstream-*` o una publicación (push de una etiqueta `v*`).
+- La CI rápida se ejecuta en cada pull request. La CI completa se ejecuta por
+  lotes: aproximadamente cada 10 merges, haz push del último commit de `t3` a
+  `ci/batch`, y en cada publicación (push de una etiqueta `v*`). Si un lote
+  falla, corrige primero el merge que lo rompió.
 
 ## Seguridad
 

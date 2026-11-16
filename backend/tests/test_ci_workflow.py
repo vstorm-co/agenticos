@@ -100,15 +100,24 @@ class TestEveryPullRequestIsChecked:
             "The push exception must ignore only the documented documentation paths."
         )
 
-    def test_labeling_a_pull_request_rechecks_the_full_ci_choice(
-        self, triggers: dict[str, Any]
-    ) -> None:
-        """Adding full-ci to an existing PR must schedule its selected checks."""
-        required = {"opened", "synchronize", "reopened", "labeled"}
+    def test_pull_requests_run_fast_checks_on_every_update(self, triggers: dict[str, Any]) -> None:
+        """Opening, updating and reopening a PR must all run the fast checks."""
+        required = {"opened", "synchronize", "reopened"}
         assert required <= set(triggers["pull_request"].get("types", [])), (
-            "PR creation, updates, reopening and labeling must all trigger CI so full-ci "
-            "can opt an existing PR into the complete gates."
+            "PR creation, updates and reopening must all trigger the fast checks."
         )
+
+    def test_heavy_suites_run_only_for_batches_and_releases(
+        self, triggers: dict[str, Any], workflow: dict[str, Any]
+    ) -> None:
+        """Full CI runs on a `ci/batch` push or a `v*` tag, never on a PR (2026-11-16)."""
+        assert "ci/batch" in triggers["push"]["branches"], (
+            "Pushing a `t3` commit to `ci/batch` is how a batch run is started."
+        )
+        assert workflow["jobs"]["changes"]["outputs"]["full"] == (
+            "${{ github.event_name == 'push' && (github.ref == 'refs/heads/ci/batch' "
+            "|| startsWith(github.ref, 'refs/tags/v')) }}"
+        ), "Only `ci/batch` pushes and release tags may run the heavy suites."
 
 
 class TestWorkerBackedJourneys:

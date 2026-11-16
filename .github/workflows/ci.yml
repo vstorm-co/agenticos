@@ -21,19 +21,21 @@ name: CI
 # `concurrency` group is keyed on `github.ref`, so a stacked branch cancels its own
 # superseded runs like any other.
 #
-# Fast CI runs for every pull request. Heavy jobs run only for `full-ci` pull
-# requests, `sync/upstream-*` pull requests and `v*` release tags. Pushes run on
-# `t3`; docs-only pushes are ignored.
+# Fast CI runs for every pull request and every push to `t3`. The heavy suites run
+# in batches (user decision, 2026-11-16): only when a `t3` commit is pushed to the
+# `ci/batch` branch, about once every 10 merges, and for `v*` release tags. A
+# skipped heavy job satisfies its required check, so pull requests still merge.
+# Docs-only pushes are ignored.
 on:
   push:
-    branches: [t3]
+    branches: [t3, ci/batch]
     tags: ['v*']
     paths-ignore:
       - 'docs/**'
       - 'mkdocs.yml'
       - '*.md'
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened]
 
 # One run per branch. `AGENTS.md` asks for a commit and a push per finished piece,
 # which is right - but with nothing cancelling, each push started a fresh 24-minute
@@ -117,7 +119,7 @@ jobs:
       pull-requests: read
       actions: read
     outputs:
-      full: ${{ github.event_name == 'pull_request' && (contains(github.event.pull_request.labels.*.name, 'full-ci') || startsWith(github.head_ref, 'sync/upstream-')) || github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+      full: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/ci/batch' || startsWith(github.ref, 'refs/tags/v')) }}
       backend: ${{ steps.reused.outputs.backend || steps.scope.outputs.backend }}
       frontend: ${{ steps.reused.outputs.frontend || steps.scope.outputs.frontend }}
       e2e: ${{ steps.reused.outputs.e2e || steps.scope.outputs.e2e }}

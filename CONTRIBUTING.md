@@ -96,8 +96,9 @@ ends up sending email unattended.
   neither.
 - Bugs ship with a regression test that fails without the fix.
 - Say what you decided and why in the description. The code shows the what.
-- Fast CI runs on every pull request. Full CI requires the `full-ci` label, a
-  `sync/upstream-*` pull request head, or a release point (`v*` tag push).
+- Fast CI runs on every pull request. Full CI runs in batches: push the latest
+  `t3` commit to `ci/batch` about once every 10 merges, and at each release
+  (`v*` tag push). When a batch fails, fix the breaking merge first.
 
 ## Security
 

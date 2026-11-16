@@ -291,7 +291,7 @@ class TestTheWorkflowActuallyUsesIt:
         )
         assert definition["if"] == expected, (
             f"`{job}` must gate on `{expected}`. `full` limits the heavy suites to "
-            "`full-ci` pull requests, upstream syncs and release tags (#120). The scope "
+            "`ci/batch` pushes and release tags (batch CI, 2026-11-16). The scope "
             "half stays `!= 'false'`, because `== 'true'` would skip it whenever the "
             "classifier does not run; and without `!cancelled()` a *failed* `changes` "
             "job skips this suite without reading the condition at all, which a "
