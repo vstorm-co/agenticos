@@ -546,3 +546,37 @@ it("finishes deferred setup before enabling the routine", async () => {
   });
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 });
+
+it.each(["running", "awaiting_approval", "awaiting_answer", "completed", "failed", "cancelled"])(
+  "retires the starting placeholder when the dispatched run is recorded as %s",
+  async (status) => {
+    const requestedAt = Date.now() - 1000;
+    serveRuns([run({ status, started_at: new Date(requestedAt + 100).toISOString() })]);
+    render(<TriggerRunsView trigger={trigger()} pendingSince={requestedAt} />, { wrapper });
+    expect(await screen.findByRole("link", { name: "Open run" })).toBeVisible();
+    expect(screen.queryByText("Starting…")).toBeNull();
+    if (status === "awaiting_approval" || status === "awaiting_answer") {
+      expect(
+        screen.getByText(status === "awaiting_approval" ? /awaiting approval/ : /awaiting answer/),
+      ).toBeVisible();
+    }
+  },
+);
+
+it.each(["completed", "running"])(
+  "does not mistake an older %s occurrence for the newly dispatched run",
+  async (status) => {
+    const requestedAt = Date.now();
+    serveRuns([run({ status, started_at: new Date(requestedAt - 60_000).toISOString() })]);
+    render(<TriggerRunsView trigger={trigger()} pendingSince={requestedAt} />, { wrapper });
+    expect(await screen.findByRole("link", { name: "Open run" })).toBeVisible();
+    expect(screen.getByText("Starting…")).toBeVisible();
+  },
+);
+
+it("waits for the new occurrence when a history row has no start timestamp", async () => {
+  serveRuns([run({ started_at: null })]);
+  render(<TriggerRunsView trigger={trigger()} pendingSince={Date.now()} />, { wrapper });
+  expect(await screen.findByRole("link", { name: "Open run" })).toBeVisible();
+  expect(screen.getByText("Starting…")).toBeVisible();
+});

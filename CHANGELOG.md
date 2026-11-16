@@ -22,6 +22,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - Routine access reviews refresh their sources and action inventories after a personal or organization MCP connection is changed or checked, without reloading the console (#3061).
+- Routine history clears the starting placeholder when the requested run appears, including runs already waiting for approval or finished before the first refresh. Older runs do not hide a new dispatch (#3063). Waiting-for-answer runs have a translated status in every console language (#3064).
 
 ## [1.77.0] - 2026-11-16
 

@@ -10118,6 +10118,7 @@
       "pending": "starting",
       "cancelled": "cancelled",
       "awaiting_approval": "awaiting approval",
+      "awaiting_answer": "awaiting answer",
       "guardrail_blocked": "blocked by a guardrail",
       "loop_stopped": "stopped: looping"
     },
