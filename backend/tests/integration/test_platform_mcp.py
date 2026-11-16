@@ -1082,7 +1082,7 @@ async def test_connection_discovery_is_compact_and_targeted_contracts_remain_ten
         assert isinstance(_content(contract)["config_schema"], dict)
 
 
-async def test_platform_initialization_outliving_remote_connect_budget_still_lists_tools(
+async def test_platform_initialization_outliving_remote_connect_deadline_still_lists_tools(
     db: AsyncSession,
     served: None,
     monkeypatch: pytest.MonkeyPatch,

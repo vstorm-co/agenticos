@@ -431,7 +431,7 @@ class TestMakeToolset:
         assert _make_toolset(spec).wrapped.wrapped.wrapped.wrapped.include_instructions is include
 
     @pytest.mark.parametrize("in_process", [False, True])
-    def test_initialization_budget_distinguishes_local_platform_from_remote_servers(
+    def test_initialization_deadline_distinguishes_local_platform_from_remote_servers(
         self,
         monkeypatch,
         in_process: bool,

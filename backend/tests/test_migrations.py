@@ -2427,6 +2427,8 @@ def test_memory_snapshot_upgrade_preserves_legacy_runs_and_downgrades_cleanly() 
     """0336 records new-run visibility without inventing evidence for existing runs."""
     from sqlalchemy import inspect
 
+    result = _alembic("downgrade", "base")
+    assert result.returncode == 0, result.stderr
     result = _alembic("upgrade", "0335_defer_run_conversation_fk")
     assert result.returncode == 0, result.stderr
     engine = create_engine(_url(MIGRATION_DATABASE))
