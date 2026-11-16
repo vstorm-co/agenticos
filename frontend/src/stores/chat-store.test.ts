@@ -589,3 +589,24 @@ describe("HTTP continuation reconciliation", () => {
     expect(store().messages[0]?.renderKey).toBe("resume-local");
   });
 });
+
+it("does not duplicate an acknowledged prompt's final answer when history beats message_saved", () => {
+  store().addMessage(message({ id: "question", role: "user", content: "Make a deck" }));
+  store().addMessage(
+    message({
+      id: "live",
+      isTemporaryId: true,
+      isStreaming: false,
+      content: "The deck is ready.",
+      toolCalls: [toolCall({ id: "publish-deck" })],
+    }),
+  );
+  store().rereadMessages([
+    message({ id: "question", role: "user", content: "Make a deck" }),
+    message({ id: "saved", content: "The deck is ready." }),
+  ]);
+  expect(store().messages.filter((item) => item.role === "assistant")).toHaveLength(1);
+  expect(store().messages[1]?.toolCalls?.[0]?.id).toBe("publish-deck");
+  store().updateMessage("live", (item) => ({ ...item, id: "saved", isTemporaryId: false }));
+  expect(store().messages.map((item) => item.id)).toEqual(["question", "saved"]);
+});

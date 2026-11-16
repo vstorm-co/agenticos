@@ -22,6 +22,7 @@ def _job(*, notice: bool = False) -> ChannelHandback:
         run_id=uuid4(),
         bot_id=uuid4(),
         platform_chat_id="C1:123",
+        message_id="source-post",
         private_chat=False,
         output="Saved answer",
         notice=notice,
@@ -41,7 +42,10 @@ async def test_each_notice_is_queued_in_the_callers_transaction_with_independent
     db = MagicMock()
     job = _job()
     destination = ChannelDestination(
-        bot_id=job.bot_id, platform_chat_id=job.platform_chat_id, private_chat=False
+        bot_id=job.bot_id,
+        platform_chat_id=job.platform_chat_id,
+        private_chat=False,
+        message_id=job.message_id,
     )
     notices = [
         ChatNotice(job.organization_id, uuid4(), destination, EXPIRED_NOTICE) for _ in range(2)
@@ -66,7 +70,10 @@ async def test_segment_snapshot_includes_inherited_results_and_never_commits_its
     db = MagicMock()
     job = _job()
     destination = ChannelDestination(
-        bot_id=job.bot_id, platform_chat_id=job.platform_chat_id, private_chat=False
+        bot_id=job.bot_id,
+        platform_chat_id=job.platform_chat_id,
+        private_chat=False,
+        message_id=job.message_id,
     )
     run = MagicMock(
         id=job.run_id,
@@ -90,6 +97,7 @@ async def test_segment_snapshot_includes_inherited_results_and_never_commits_its
     assert saved.output == ("This run was stopped from the console." if cancelled else "Sent")
     assert saved.tool_calls[0].result == "OK"
     assert saved.generated_files == job.generated_files
+    assert saved.message_id == "source-post"
     db.commit.assert_not_called()
 
 

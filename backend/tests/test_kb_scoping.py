@@ -974,7 +974,7 @@ class TestKBAccessControl:
                 BasePurge(
                     collection="docs",
                     knowledge_base_id=kb.id,
-                    vector_document_ids=["legacy-1"],
+                    vector_document_ids=["doc-1", "legacy-1"],
                     takes_unfiled=True,
                     tenant=org_id,
                 ),
@@ -1010,7 +1010,7 @@ class TestKBAccessControl:
                 BasePurge(
                     collection="docs",
                     knowledge_base_id=kb.id,
-                    vector_document_ids=["legacy-1"],
+                    vector_document_ids=["doc-1", "legacy-1"],
                     takes_unfiled=True,
                     tenant=org_id,
                 ),

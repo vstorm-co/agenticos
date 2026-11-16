@@ -3,6 +3,7 @@
 // apart from `art.generated.ts`, which the canvas rewrites whole.
 
 export const DRAWN_HUE: Readonly<Record<string, number>> = {
+  channel_actions: 220,
   visuals: 140,
   background_tools: 222,
   background_tasks: 222,
@@ -294,7 +295,20 @@ const PHONE_CALLS =
   '<path class="ln w2" d="M16 15L24 12L30 25L25 30Q29 40 39 45L44 40L56 47L53 55Q31 60 16 32Z"/>' +
   '<path class="ln w2 breathe" d="M12 63H20L24 58L29 69L35 59L40 65H52"/></g></svg>';
 
+/** Connected chat apps: two conversations linked above the shared work surface. */
+const CHANNEL_ACTIONS =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<polygon class="ict" points="120,33.1 195.7,76.8 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icl" points="44.3,82 120,125.7 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icr" points="195.7,82 120,125.7 120,120.5 195.7,76.8"/>' +
+  '<g transform="matrix(0.9 0.5 0 1 67 12)"><rect class="int" width="46" height="34" rx="6"/>' +
+  '<path class="ln w2" d="M10 12H35M10 20H26M9 34V42L20 34M48 24L69 36"/>' +
+  '<rect class="int" x="68" y="22" width="46" height="34" rx="6"/>' +
+  '<path class="ln w2" d="M78 34H103M78 42H94M103 56V64L92 56"/></g></svg>';
+
 export const DRAWN_ART: Readonly<Record<string, string>> = {
+  channel_actions: CHANNEL_ACTIONS,
   visuals: VISUALS,
   background_tools: BACKGROUND_TOOLS,
   background_tasks: BACKGROUND_TASKS,

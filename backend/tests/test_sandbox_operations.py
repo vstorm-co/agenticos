@@ -94,6 +94,18 @@ class TestWhatIsRecorded:
         assert row.target == "echo 'a secret the command printed'"
         assert row.detail == ""
 
+    async def test_a_command_preserves_its_explicit_working_directory(self, tmp_path: Path):
+        folder = tmp_path / "reports"
+        folder.mkdir()
+        recorder, session = _wrap(tmp_path)
+
+        result = await recorder.run(["pwd"], cwd=str(folder))
+
+        assert Path(result.stdout.strip()).resolve() == folder.resolve()
+        assert len(session.rows) == 1
+        assert session.rows[0].op == "execute"
+        assert session.rows[0].ok is True
+
     async def test_a_shell_command_is_recorded_as_written(self, tmp_path: Path):
         """The console's `execute` hands the model's command to a shell as one
         string, so that string is the operation."""

@@ -168,6 +168,7 @@ class TestToolDeclarations:
         # and contributes nothing when it is not, and this test is about the
         # names it offers rather than what a platform answers.
         CHANNEL_DIRECTORY_RESOURCE: SimpleNamespace(),
+        "channel_actions": SimpleNamespace(),
         # The folders the runner resolved; one scratch folder needs no credential.
         MIRAGE_MOUNTS_RESOURCE: ResolvedTerminal(
             mounts=(ResolvedMount("/scratch/", "ram", "write", False, {}, "scratch"),)
@@ -283,6 +284,7 @@ class TestToolDeclarations:
         # subagents resource above is at its widest - an undeclared tool can only
         # appear where the most tools do.
         "channel_tools": {"tools": sorted(get("channel_tools").tool_ids)},
+        "channel_actions": {"tools": sorted(get("channel_actions").tool_ids)},
         # Builds `None` from an empty blob on purpose - enabling the capability
         # without turning on an edge attaches no guardrail. One edge on is what
         # makes it build here; it offers no tools either way.
@@ -590,6 +592,9 @@ class TestReadOnlyDeclarations:
             ("phone_calls", "list_phone_transfer_contacts"),
             ("phone_calls", "transfer_phone_call"),
             ("artifacts", "publish_artifact"),
+            ("artifacts", "export_artifact"),
+            ("channel_actions", "send_chat_message"),
+            ("channel_actions", "react_to_chat_message"),
             ("artifacts", "share_artifact"),
             ("computer_use", "computer_screenshot"),
             ("computer_use", "computer_act"),
@@ -1253,7 +1258,7 @@ def test_exactly_the_capabilities_a_call_cannot_run_live_say_so():
             "video_generation",
             "monitor",
         },
-        "never": {"channel_tools", "follow_ups", "drafts"},
+        "never": {"channel_tools", "channel_actions", "follow_ups", "drafts"},
     }
 
 

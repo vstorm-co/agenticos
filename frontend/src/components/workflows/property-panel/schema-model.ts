@@ -265,6 +265,7 @@ export type ResourceKind =
   | "secret"
   | "collection"
   | "member"
+  | "group"
   | "channel_bot"
   | "sandbox_connection"
   | "workflow"
@@ -277,6 +278,7 @@ const RESOURCE_KINDS: readonly ResourceKind[] = [
   "secret",
   "collection",
   "member",
+  "group",
   "channel_bot",
   "sandbox_connection",
   "workflow",

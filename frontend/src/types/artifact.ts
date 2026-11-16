@@ -582,3 +582,9 @@ export interface ArtifactVersionReview {
   /** Why the words are incomplete: a table nobody can read. */
   problem: string | null;
 }
+
+export interface ArtifactThumbnail {
+  version_id: string;
+  state: "ready" | "unavailable";
+  image: string | null;
+}

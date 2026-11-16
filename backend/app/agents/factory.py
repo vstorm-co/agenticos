@@ -86,7 +86,7 @@ from app.agents.capabilities.system_reminders import (
     ReminderState,
     SystemReminders,
 )
-from app.agents.capabilities.tool_search import ConfiguredToolSearch
+from app.agents.capabilities.tool_search import ConfiguredToolSearch, ToolSearchConfig
 from app.agents.capabilities.visuals import WEB_REACH_RESOURCE, web_reach
 from app.agents.code_mode import CodeCalls, code_mode
 from app.agents.computer_on_use import REQUEST_COMPUTER_ACCESS, RequestComputerOnUse
@@ -94,7 +94,7 @@ from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.isolation import IsolationGuard, RunIsolation, capability_tools
 from app.agents.loop_guard import LoopGuard
-from app.agents.manifest import RecordingModel, RunRecorder
+from app.agents.manifest import RecordedToolSearch, RecordingModel, RunRecorder
 from app.agents.model_resolver import PROMPT_CACHE, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
 from app.agents.routine_actions import RoutineToolCheck
@@ -254,11 +254,14 @@ def build_agent(
     test_bindings: frozenset[str] = frozenset(),
     voice: VoiceOptions | None = None,
     answering_call: VoiceOptions | None = None,
+    offer_setup_tools: bool = True,
 ) -> BuiltAgent:
     """Instantiate an agent from its spec.
 
     Args:
         spec: The published (or draft, when previewing) agent definition.
+        offer_setup_tools: Whether to offer implicit setup actions. Restricted
+            automatic turns and answer-only turns cannot expand their setup.
         model_spec: Already-resolved model and credentials.
         run_person: The member who answers for this run, or `None` when nobody
             does - derived by the runner, which alone knows the request. Handed
@@ -499,6 +502,18 @@ def build_agent(
     # Made before the capabilities, because a run reviewer, code mode and
     # `CacheWatch` write onto it.
     recorder = RunRecorder()
+    for binding in bindings:
+        if binding.capability_id == "tool_search":
+            search = ToolSearchConfig.model_validate(binding.config)
+            recorder.tool_search = RecordedToolSearch(
+                strategy=search.strategy,
+                max_results=search.max_results,
+                defer_capabilities=search.defer_capabilities,
+                defer_mcp_servers=search.defer_mcp_servers,
+                exclude_capabilities=tuple(search.exclude_capabilities),
+                exclude_mcp_servers=tuple(search.exclude_mcp_servers),
+                exclude_tools=tuple(search.exclude_tools),
+            )
     asking = frozenset(
         name
         for name, kind in (
@@ -550,7 +565,11 @@ def build_agent(
         # Every agent, in text: what it can and cannot do here, from the spec
         # rather than from a prompt that goes stale the moment a capability is
         # switched (#2301). A call is told by its text twin instead.
-        *((SetupBriefing.for_spec(spec, agent_id=agent_id),) if voice is None else ()),
+        *(
+            (SetupBriefing.for_spec(spec, agent_id=agent_id),)
+            if voice is None and offer_setup_tools
+            else ()
+        ),
         *extra_capabilities,
         AnswerUnknownTools(structured=voice is None),
         *(

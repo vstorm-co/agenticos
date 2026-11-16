@@ -57,6 +57,7 @@ from app.repositories import workflow_approval as approval_repo
 from app.schemas.workflow_approval import MAX_PROPOSAL_CHARS
 from app.services.notification_center import NotificationCenterService
 from app.services.workflow_execution import context
+from app.services.workflow_execution.approval_audience import check_groups, group_approvers
 from app.workflows.contracts.definition import Port
 from app.workflows.contracts.results import Completed, Failed, NodeResult, Waiting, WorkflowError
 from app.workflows.nodes._port_names import refuse_clash
@@ -109,6 +110,14 @@ class HumanApprovalConfig(BaseModel):
         title="Approvers",
         description="Who may decide. Anyone who decides approvals when empty.",
     )
+    approver_groups: tuple[UUID, ...] = Field(
+        default=(),
+        max_length=100,
+        json_schema_extra={"x-resource": "group"},
+        title="Approver groups",
+        description="Any current member with approval permission may decide. Empty or deleted groups do not grant access.",
+    )
+
     timeout_hours: int | None = Field(
         default=None,
         ge=1,
@@ -240,6 +249,11 @@ async def check_resources(
             problems.append(
                 (f"approvers.{index}", "This person cannot decide approvals in the organization")
             )
+    problems.extend(
+        await check_groups(
+            db, organization_id=ctx.organization_id, group_ids=config.approver_groups
+        )
+    )
     return problems
 
 
@@ -289,15 +303,19 @@ async def _ask(
         proposal_label=config.proposal_label,
         choices=[{"id": choice.id, "label": choice.label} for choice in config.choices] or None,
         approver_user_ids=list(config.approvers),
+        approver_group_ids=list(config.approver_groups),
         expires_at=(
             now + timedelta(hours=config.timeout_hours)
             if config.timeout_hours is not None
             else None
         ),
     )
-    if config.approvers:
+    recipients = set(config.approvers) | await group_approvers(
+        db, organization_id=current.organization_id, group_ids=list(config.approver_groups)
+    )
+    if recipients:
         await NotificationCenterService(db).write(
-            recipients=list(dict.fromkeys(config.approvers)),
+            recipients=list(recipients),
             event_type=NotificationEventType.WORKFLOW_NOTIFICATION,
             occurrence_id="workflow-approval:"
             + hashlib.sha256(current.idempotency_key.encode()).hexdigest(),

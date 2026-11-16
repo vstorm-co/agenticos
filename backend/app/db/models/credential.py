@@ -111,7 +111,7 @@ class ModelProfile(Base, TimestampMixin):
 
     __table_args__ = (
         UniqueConstraint("organization_id", "label", name="uq_model_profile_org_label"),
-        CheckConstraint("api IN ('chat', 'responses')", name="ck_model_profile_api"),
+        CheckConstraint("api IN ('chat', 'responses', 'decisions')", name="ck_model_profile_api"),
         CheckConstraint("region IN ('eu', 'eea', 'global')", name="ck_model_profile_region"),
     )
 

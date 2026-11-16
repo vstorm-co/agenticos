@@ -1,4 +1,4 @@
-<!-- source_sha: 3aeccb10a78f -->
+<!-- source_sha: 8dc02e0ed861 -->
 
 <div align="center">
 
@@ -260,6 +260,13 @@ La [guía de instalación](https://vstorm-co.github.io/agenticos/es/install/) ex
 </details>
 
 </details>
+
+## ☁️ Desplegar con un clic
+
+<a href="https://repocloud.io/details/Agenticos/"><img src="https://d16t0pc4846x52.cloudfront.net/deploylobe.svg" alt="Desplegar en RepoCloud" height="42"></a>
+<a href="https://railway.com/deploy/agenticos"><img src="https://railway.com/button.svg" alt="Desplegar en Railway" height="42"></a>
+
+Antes de desplegar, revisa las instrucciones del proveedor, las versiones de las imágenes y los servicios incluidos. Estas plantillas de alojamiento se mantienen por separado de este repositorio. La plantilla de Railway utiliza actualmente una versión anterior de AgenticOS y no incluye el sandbox local para ejecutar código.
 
 ## En tu servidor. En cualquier dispositivo.
 

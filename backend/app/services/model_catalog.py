@@ -36,7 +36,7 @@ import httpx
 from genai_prices.data_snapshot import get_snapshot
 from pydantic import TypeAdapter
 
-from app.agents.model_resolver import PROVIDERS, otari_price_identity
+from app.agents.model_resolver import PROVIDERS, ModelApi, is_decision_api, otari_price_identity
 from app.core import catalog
 
 logger = logging.getLogger(__name__)
@@ -420,8 +420,43 @@ endpoint on every run - listing there reaches no host the profile does not.
 """
 
 
+DECISION_SUGGESTIONS: dict[str, tuple[FallbackModel, ...]] = catalog.load(
+    "decision_provider_models.json", TypeAdapter(dict[str, tuple[FallbackModel, ...]])
+)
+
+
+async def _decision_models_for(
+    provider: str, *, base_url: str | None
+) -> tuple[list[CatalogModel], CatalogSource]:
+    """Keep native-decision suggestions and caches separate from text models."""
+    curated = [
+        CatalogModel(id=model.id, name=model.name, output_modalities=("decisions",))
+        for model in DECISION_SUGGESTIONS.get(provider, ())
+    ]
+    if provider != "openrouter":
+        return (
+            ([], "unlisted")
+            if base_url is not None
+            else (curated, "curated" if curated else "unlisted")
+        )
+    endpoint = (base_url or "https://openrouter.ai/api/v1").rstrip("/")
+    listing = replace(LISTINGS["openrouter"], url=f"{endpoint}/models?output_modalities=decisions")
+    try:
+        models = await _listed(
+            f"openrouter:decisions:{endpoint}", listing, None, custom=base_url is not None
+        )
+    except httpx.HTTPError, ValueError:
+        logger.warning("The native decision model catalog could not be reached")
+        return _fallback([] if base_url is not None else curated)
+    return models, "live"
+
+
 async def models_for(
-    provider: str, *, api_key: str | None = None, base_url: str | None = None
+    provider: str,
+    *,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    api: ModelApi | None = None,
 ) -> tuple[list[CatalogModel], CatalogSource]:
     """What this provider offers, and where the answer came from.
 
@@ -438,6 +473,8 @@ async def models_for(
             authorized by the caller. Its catalog never uses the global curated
             fallback.
     """
+    if is_decision_api(provider, api):
+        return await _decision_models_for(provider, base_url=base_url)
     if (
         base_url is None
         and (provider_spec := PROVIDERS.get(provider)) is not None

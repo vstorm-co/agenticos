@@ -32,6 +32,31 @@ class ManifestTool(BaseSchema):
     description: str | None = None
     parameters_json_schema: dict[str, Any] = Field(default_factory=dict)
     kind: str = "function"
+    visibility: Literal["visible", "deferred", "withheld", "via_history"] | None = Field(
+        default=None,
+        description="Provider-resolved state on the last request; null on older recordings",
+    )
+
+
+class ManifestToolCounts(BaseSchema):
+    """Provider-resolved visibility counts for one request, including native and output tools."""
+
+    visible: int = Field(ge=0)
+    deferred: int = Field(ge=0)
+    withheld: int = Field(ge=0)
+    via_history: int = Field(ge=0)
+
+
+class ManifestToolSearch(BaseSchema):
+    """The discovery policy captured when the agent was built."""
+
+    strategy: str
+    max_results: int
+    defer_capabilities: bool
+    defer_mcp_servers: bool
+    exclude_capabilities: list[str] = Field(default_factory=list)
+    exclude_mcp_servers: list[str] = Field(default_factory=list)
+    exclude_tools: list[str] = Field(default_factory=list)
 
 
 class ManifestRequest(BaseSchema):
@@ -74,6 +99,10 @@ class ManifestRequest(BaseSchema):
             "read back. A miss, not a bill: a compaction that shrank the request misses "
             "tokens it never sent again"
         ),
+    )
+    tool_counts: ManifestToolCounts | None = None
+    visible_tool_names: list[str] | None = Field(
+        default=None, description="Visible names in provider order; null when unrecorded or trimmed"
     )
 
 
@@ -154,6 +183,7 @@ class RunManifestRead(BaseSchema):
     instructions: str | None = None
     system_prompts: list[str] = Field(default_factory=list)
     tools: list[ManifestTool] = Field(default_factory=list)
+    tool_search: ManifestToolSearch | None = None
     settings: dict[str, Any] = Field(default_factory=dict)
     requests: list[ManifestRequest] = Field(default_factory=list)
     messages: list[dict[str, Any]] = Field(default_factory=list)

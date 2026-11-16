@@ -9,20 +9,20 @@ function subscribeToCapabilities(): () => void {
   return () => {};
 }
 
-/** Release completed offscreen drawings without collapsing their place in history. */
+/** Defer initial loading, then retain the drawing and its state while scrolling. */
 export function ViewportVisualFrame({
   suspended = false,
   ...props
 }: VisualFrameProps & { suspended?: boolean }) {
   const [box, setBox] = useState<HTMLDivElement | null>(null);
-  const [near, setNear] = useState(false);
+  const [seen, setSeen] = useState(!props.done);
   const [height, setHeight] = useState(() => clampHeight(props.height));
   const unsupported = useSyncExternalStore(
     subscribeToCapabilities,
     () => typeof IntersectionObserver === "undefined",
     () => false,
   );
-  const live = !suspended && (!props.done || near || unsupported);
+  const live = !suspended && (!props.done || seen || unsupported);
 
   useEffect(() => {
     const target = box;
@@ -31,7 +31,7 @@ export function ViewportVisualFrame({
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (entry.target === target) setNear(entry.isIntersecting);
+          if (entry.target === target && entry.isIntersecting) setSeen(true);
         }
       },
       { rootMargin: "320px" },
