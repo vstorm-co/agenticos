@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppearanceMenu, LanguageMenu } from "./account-preferences";
@@ -12,6 +13,8 @@ import {
 import { useThemeStore } from "@/stores/theme-store";
 
 const env = vi.hoisted(() => ({ mounted: true, push: vi.fn(), save: vi.fn() }));
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 vi.mock("@/hooks/use-user-appearance", () => ({
   useUserAppearance: () => ({ preferences: {}, pending: false, save: env.save }),
@@ -41,6 +44,7 @@ beforeEach(() => {
   env.mounted = true;
   env.push.mockClear();
   env.save.mockReset().mockResolvedValue({});
+  vi.mocked(toast.error).mockClear();
   useThemeStore.setState({ theme: "system", look: "standard" });
 });
 
@@ -53,6 +57,18 @@ describe("AppearanceMenu", () => {
     await userEvent.click(await screen.findByRole("menuitemradio", { name: "Dark" }));
 
     expect(env.save).toHaveBeenCalledWith({ theme: "dark" });
+  });
+
+  it("reports a refused save and retains the acknowledged appearance", async () => {
+    env.save.mockRejectedValueOnce(new Error("appearance unavailable"));
+    useThemeStore.setState({ theme: "dark", look: "paper" });
+    inMenu(<AppearanceMenu />);
+    await openSubmenu(/Appearance/);
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "Glass" }));
+
+    expect(env.save).toHaveBeenCalledWith({ look: "glass" });
+    expect(toast.error).toHaveBeenCalledOnce();
+    expect(useThemeStore.getState()).toMatchObject({ theme: "dark", look: "paper" });
   });
 
   it("names no theme before mount", () => {

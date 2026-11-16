@@ -492,13 +492,30 @@ for (const platform of ["ios", "android"] as const) {
           .getByText("Spend over time", { exact: true })
           .locator("..")
           .locator("..");
+        // The card survives the lazy render; Recharts replaces its animated SVG marks.
+        await chart.scrollIntoViewIfNeeded();
         await expect(chart.locator("svg.recharts-surface")).toBeVisible();
         const bars = chart.locator(".recharts-bar-rectangle");
         await expect(bars).toHaveCount(2);
         await expect(bars.first()).toBeVisible();
         await expect(bars.last()).toBeVisible();
-        // Wait for the lazy chart and its animated mark to settle before capturing.
-        await bars.first().scrollIntoViewIfNeeded();
+        await expect(chart.locator(".recharts-yAxis")).toContainText("$0.75");
+        // Capture the fixture's actual $0.50/$0.75 heights, after the entrance animation.
+        await expect
+          .poll(() =>
+            chart.evaluate((card) => {
+              const levels = Array.from(
+                card.querySelectorAll<SVGLineElement>(".recharts-cartesian-grid-horizontal line"),
+                (line) => Number(line.getAttribute("y1")),
+              );
+              const plotHeight = Math.max(...levels) - Math.min(...levels);
+              return Array.from(
+                card.querySelectorAll<SVGGraphicsElement>(".recharts-bar-rectangle"),
+                (bar) => Math.round((bar.getBBox().height / plotHeight) * 1000) / 1000,
+              );
+            }),
+          )
+          .toEqual([0.667, 1]);
         await page.screenshot({ path: test.info().outputPath(`activity-${width}.png`) });
       }
     });

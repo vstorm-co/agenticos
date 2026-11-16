@@ -238,6 +238,7 @@ test.describe("desktop pointer controls", () => {
     page,
   }, testInfo) => {
     test.setTimeout(60_000);
+    expect((await page.request.delete("/api/users/me/appearance")).ok()).toBe(true);
     await page.goto("/settings/profile");
     const appearance = page.locator('[data-tour="settings-appearance"]');
     await expect(appearance).toBeVisible();
@@ -247,6 +248,15 @@ test.describe("desktop pointer controls", () => {
         theme === "Light" ? { width: 1440, height: 1000 } : { width: 900, height: 640 },
       );
       await appearance.getByRole("radio", { name: theme, exact: true }).click();
+      // Settings previews locally until Apply; the account menu saves immediately.
+      const themeSaved = page.waitForResponse(
+        (response) =>
+          response.url().endsWith("/api/users/me/appearance") &&
+          response.request().method() === "PATCH",
+      );
+      await appearance.getByRole("button", { name: "Apply", exact: true }).click();
+      expect((await themeSaved).ok()).toBe(true);
+      await expect(appearance.getByRole("button", { name: "Apply", exact: true })).toBeDisabled();
       for (const name of ["Standard", "Glass", "Graphite", "Midnight", "Paper"]) {
         await page
           .locator("aside")

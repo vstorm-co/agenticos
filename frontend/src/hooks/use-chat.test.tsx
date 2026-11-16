@@ -515,6 +515,38 @@ describe("useChat - the streamed answer", () => {
     });
   });
 
+  it.each(["agenticos_set_my_appearance", "agenticos_reset_my_appearance"])(
+    "requests an authenticated appearance read after %s completes",
+    (toolName) => {
+      const changed = vi.fn();
+      window.addEventListener("account-appearance-changed", changed);
+      try {
+        renderHook(() => useChat(), { wrapper });
+        receive("model_request_start", {});
+        receive("tool_call", { tool_call_id: "appearance-1", tool_name: toolName, args: {} });
+        expect(changed).not.toHaveBeenCalled();
+        receive("tool_result", { tool_call_id: "appearance-1", content: '{"theme":"dark"}' });
+        expect(changed).toHaveBeenCalledOnce();
+      } finally {
+        window.removeEventListener("account-appearance-changed", changed);
+      }
+    },
+  );
+
+  it("does not treat another tool's appearance-like text as an account change", () => {
+    const changed = vi.fn();
+    window.addEventListener("account-appearance-changed", changed);
+    try {
+      renderHook(() => useChat(), { wrapper });
+      receive("model_request_start", {});
+      receive("tool_call", { tool_call_id: "search-1", tool_name: "web_search", args: {} });
+      receive("tool_result", { tool_call_id: "search-1", content: '{"theme":"dark"}' });
+      expect(changed).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("account-appearance-changed", changed);
+    }
+  });
+
   const SPEAKS_POLISH = {
     id: "u-1",
     email: "ada@example.com",

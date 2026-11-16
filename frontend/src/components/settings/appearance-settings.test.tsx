@@ -72,6 +72,30 @@ describe("AppearanceSettings", () => {
     expect(within(group("Theme")).getByRole("radio", { name: "System" })).toBeChecked();
   });
 
+  it("keeps a preview after a refused reset and lets the person retry", async () => {
+    env.reset.mockRejectedValueOnce(new Error("reset unavailable"));
+    render(<AppearanceSettings />);
+    await userEvent.click(within(group("Theme")).getByRole("radio", { name: "Dark" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset to defaults" }));
+    expect(within(group("Theme")).getByRole("radio", { name: "Dark" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeEnabled();
+    expect(useThemeStore.getState().theme).toBe("system");
+
+    await userEvent.click(screen.getByRole("button", { name: "Reset to defaults" }));
+    expect(env.reset).toHaveBeenCalledTimes(2);
+    expect(within(group("Theme")).getByRole("radio", { name: "System" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+  });
+
+  it("keeps corner changes in the preview until they are applied", async () => {
+    render(<AppearanceSettings />);
+    await userEvent.click(within(group("Corners")).getByRole("radio", { name: "Rounded" }));
+    expect(within(group("Corners")).getByRole("radio", { name: "Rounded" })).toBeChecked();
+    expect(env.save).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(env.save).toHaveBeenCalledWith({ radius: "rounded" });
+  });
+
   it("does not let one person's unsaved preview follow another account", async () => {
     const view = render(<AppearanceSettings />);
     await userEvent.click(within(group("Theme")).getByRole("radio", { name: "Dark" }));
