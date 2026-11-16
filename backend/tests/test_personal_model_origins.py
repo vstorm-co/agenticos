@@ -160,7 +160,13 @@ async def test_origin_is_checked_before_the_first_model_resolution(
     )
     seen: list[AuthContext] = []
 
-    async def resolve(models_ctx: AuthContext, *, profile_id: UUID | None) -> NoReturn:
+    async def resolve(
+        models_ctx: AuthContext,
+        *,
+        profile_id: UUID | None,
+        decision: bool = False,
+    ) -> NoReturn:
+        assert decision is False
         assert profile_id == spec.model_profile_id
         seen.append(models_ctx)
         if models_ctx.personal_user_id is None:
@@ -236,7 +242,13 @@ async def test_a_parked_nested_workflow_keeps_its_origin_without_a_live_dispatch
     )
     seen: list[AuthContext] = []
 
-    async def resolve(ctx: AuthContext, *, profile_id: UUID | None) -> NoReturn:
+    async def resolve(
+        ctx: AuthContext,
+        *,
+        profile_id: UUID | None,
+        decision: bool = False,
+    ) -> NoReturn:
+        assert decision is False
         assert profile_id == spec.model_profile_id
         seen.append(ctx)
         if ctx.personal_user_id is None:
