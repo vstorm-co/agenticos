@@ -10,6 +10,24 @@ complete it. This is a release decision, not a claim that desktop OAuth is
 technically prohibited. No desktop token-transfer endpoint or prototype ships in
 this PR. Revisit with an owner, published app registrations and a funded review.
 
+
+## Managed web broker follow-up — 2026-11-16
+
+The desktop public-client decision above remains historical context. The managed
+web OAuth path now uses the separate API-only
+[AgenticOS Bridge](https://github.com/vstorm-co/agenticos-bridge), with confidential
+provider app secrets on its server and account tokens in each deployment's Vault.
+It does not implement a desktop listener or distribute client secrets. Organization
+and personal accounts may use it or retain their own OAuth app. See
+[the integration flow](../integrations.md#continue-with-agenticos) and the bridge's
+security document for the trust boundary, encrypted PKCE handoff, origin enrollment
+and token-bound refresh receipts.
+
+The broker is deployed with provider apps unconfigured and enrollment restricted.
+Public provider verification, distribution approval and real consent/refresh tests
+remain prerequisites for opening it to arbitrary deployments. Operating the broker
+does not establish those approvals or a local-only exception for Google scopes.
+
 ## Slack
 
 PKCE supports custom schemes and loopback redirects. Desktop redirects can request
