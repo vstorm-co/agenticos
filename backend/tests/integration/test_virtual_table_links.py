@@ -3,11 +3,18 @@
 import uuid
 
 import pytest
-from sqlalchemy import delete, event
+from sqlalchemy import delete, event, func, select
 
+from app.db.models.organization import OrganizationMember
 from app.db.models.resource_grant import GrantLevel
-from app.db.models.virtual_table import VirtualTableRecord
+from app.db.models.virtual_table import (
+    VirtualTableOutbox,
+    VirtualTableReceipt,
+    VirtualTableRecord,
+    VirtualTableRecordHistory,
+)
 from app.repositories import resource_grant_repo, virtual_table_repo
+from app.repositories import virtual_table_trigger as trigger_repo
 from app.schemas.table_view import TableViewCreate
 from app.schemas.virtual_table import (
     ColumnInput,
@@ -15,8 +22,10 @@ from app.schemas.virtual_table import (
     RecordCreate,
     RecordExportQuery,
     RecordFilter,
+    RecordLinkChange,
     RecordQuery,
     RecordUpdate,
+    RowPolicy,
     SchemaUpdate,
     TableCreate,
     TableRead,
@@ -29,6 +38,7 @@ from app.services.virtual_tables import (
     computed,
 )
 from app.services.virtual_tables.exceptions import (
+    IdempotencyKeyReuseError,
     InvalidQueryError,
     InvalidRecordError,
     InvalidSchemaError,
@@ -125,6 +135,215 @@ async def _setup(db):
     owner = await make_user(db)
     org = await make_org(db, owner=owner)
     return VirtualTableService(db), ctx_for(owner, org), org
+
+
+async def test_link_deltas_are_one_revision_and_an_exact_retry_replays_once(db, monkeypatch):
+    service, ctx, _org = await _setup(db)
+    products, ids = await _products(service, ctx)
+    orders = await _orders(service, ctx, products)
+    key = cid(orders, "Items")
+    row = await service.create_record(ctx, orders.id, RecordCreate(values={key: [ids["Atlas"]]}))
+
+    async def active(*args, **kwargs):
+        return True
+
+    monkeypatch.setattr(trigger_repo, "has_active", active)
+    outbox_before = await db.scalar(select(func.count()).select_from(VirtualTableOutbox))
+    body = RecordUpdate(
+        expected_revision=1,
+        values={cid(orders, "Ref"): "Changed together"},
+        link_changes={
+            uuid.UUID(key): RecordLinkChange(
+                add=[uuid.UUID(ids["Quill"])],
+                remove=[uuid.UUID(ids["Atlas"])],
+            )
+        },
+    )
+    first = await service.update_record(
+        ctx, orders.id, row.record.id, body, operation_key="links-1"
+    )
+    retry = await service.update_record(
+        ctx, orders.id, row.record.id, body, operation_key="links-1"
+    )
+
+    assert first.record.revision == 2 and retry.record == first.record
+    assert first.record.values == {key: [ids["Quill"]], cid(orders, "Ref"): "Changed together"}
+    assert retry.replayed is True
+    assert (
+        await db.scalar(
+            select(func.count())
+            .select_from(VirtualTableRecordHistory)
+            .where(VirtualTableRecordHistory.record_id == row.record.id)
+        )
+        == 2
+    )
+    assert (
+        await db.scalar(select(func.count()).select_from(VirtualTableOutbox)) == outbox_before + 1
+    )
+    assert await db.scalar(select(func.count()).select_from(VirtualTableReceipt)) == 1
+
+    with pytest.raises(IdempotencyKeyReuseError):
+        await service.update_record(
+            ctx,
+            orders.id,
+            row.record.id,
+            body.model_copy(
+                update={
+                    "link_changes": {
+                        uuid.UUID(key): RecordLinkChange(add=[uuid.UUID(ids["Blank"])])
+                    }
+                }
+            ),
+            operation_key="links-1",
+        )
+
+
+@pytest.mark.parametrize("failing", ["add_history", "add_outbox", "set_receipt_outcome"])
+async def test_link_delta_failure_rolls_back_values_history_event_and_receipt(
+    db, monkeypatch, failing
+):
+    service, ctx, _org = await _setup(db)
+    products, ids = await _products(service, ctx)
+    orders = await _orders(service, ctx, products)
+    key = cid(orders, "Items")
+    created = await service.create_record(
+        ctx, orders.id, RecordCreate(values={key: [ids["Atlas"]]})
+    )
+    models = [VirtualTableRecordHistory, VirtualTableOutbox, VirtualTableReceipt]
+    counts = [await db.scalar(select(func.count()).select_from(model)) for model in models]
+    original = getattr(virtual_table_repo, failing)
+
+    async def active(*args, **kwargs):
+        return True
+
+    async def fail_after_write(*args, **kwargs):
+        await original(*args, **kwargs)
+        raise RuntimeError("injected persistence failure")
+
+    monkeypatch.setattr(trigger_repo, "has_active", active)
+    monkeypatch.setattr(virtual_table_repo, failing, fail_after_write)
+    with pytest.raises(RuntimeError, match="injected persistence failure"):
+        await service.update_record(
+            ctx,
+            orders.id,
+            created.record.id,
+            RecordUpdate(
+                expected_revision=1,
+                values={cid(orders, "Ref"): "Must roll back"},
+                link_changes={uuid.UUID(key): RecordLinkChange(add=[uuid.UUID(ids["Quill"])])},
+            ),
+            operation_key="links-failed",
+        )
+    db.expire_all()
+    stored = await virtual_table_repo.get_record(
+        db, created.record.id, table_id=orders.id, organization_id=ctx.organization_id
+    )
+    assert stored.revision == 1 and stored.values == {key: [ids["Atlas"]]}
+    assert [await db.scalar(select(func.count()).select_from(model)) for model in models] == counts
+
+
+@pytest.mark.security
+async def test_link_deltas_preserve_hidden_records_and_refuse_explicit_hidden_or_foreign_ids(db):
+    service, owner, org = await _setup(db)
+    colleague = await make_user(db)
+    db.add(
+        OrganizationMember(
+            id=uuid.uuid4(), organization_id=org.id, user_id=colleague.id, role="member"
+        )
+    )
+    await db.flush()
+    member = ctx_for(colleague, org, "member")
+    targets = await service.create_table(
+        owner,
+        TableCreate(
+            name="Targets",
+            visibility="org",
+            columns=[
+                column("Name", "text"),
+                column("Readers", "multi_user"),
+            ],
+        ),
+    )
+    ids = {}
+    for name, reader in [
+        ("Hidden", owner.user_id),
+        ("Visible", colleague.id),
+        ("New", colleague.id),
+    ]:
+        target = await service.create_record(
+            owner,
+            targets.id,
+            RecordCreate(
+                values={
+                    cid(targets, "Name"): name,
+                    cid(targets, "Readers"): [str(reader)],
+                }
+            ),
+        )
+        ids[name] = target.record.id
+    target_table = await virtual_table_repo.get_table(db, targets.id, organization_id=org.id)
+    target_table.row_policy = RowPolicy(
+        rule="assignee",
+        view_column_id=uuid.UUID(cid(targets, "Readers")),
+        edit_column_id=uuid.UUID(cid(targets, "Readers")),
+    ).model_dump(mode="json")
+    await db.flush()
+    source = await _orders(service, owner, targets)
+    key = cid(source, "Items")
+    created = await service.create_record(
+        owner, source.id, RecordCreate(values={key: [str(ids["Hidden"]), str(ids["Visible"])]})
+    )
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=org.id,
+        subject_user_id=colleague.id,
+        resource_type=TABLE.key,
+        resource_id=source.id,
+        level=GrantLevel.EDIT,
+    )
+
+    written = await service.update_record(
+        member,
+        source.id,
+        created.record.id,
+        RecordUpdate(
+            expected_revision=1,
+            link_changes={
+                uuid.UUID(key): RecordLinkChange(add=[ids["New"]], remove=[ids["Visible"]])
+            },
+        ),
+    )
+    assert written.record.revision == 2
+    stored = await virtual_table_repo.get_record(
+        db, created.record.id, table_id=source.id, organization_id=org.id
+    )
+    assert stored.values[key] == [str(ids["Hidden"]), str(ids["New"])]
+
+    foreign_service, foreign_owner, _foreign_org = await _setup(db)
+    foreign_table, foreign_ids = await _products(foreign_service, foreign_owner)
+    for unavailable in [
+        ids["Hidden"],
+        uuid.UUID(foreign_ids["Atlas"]),
+        created.record.id,
+        uuid.uuid4(),
+    ]:
+        for operation in ["add", "remove"]:
+            with pytest.raises(InvalidRecordError, match="No record"):
+                await service.update_record(
+                    member,
+                    source.id,
+                    created.record.id,
+                    RecordUpdate(
+                        expected_revision=2,
+                        link_changes={
+                            uuid.UUID(key): RecordLinkChange.model_validate(
+                                {operation: [unavailable]}
+                            )
+                        },
+                    ),
+                )
+    assert foreign_table.id != targets.id
+    assert (await service.get_record(owner, source.id, created.record.id)).revision == 2
 
 
 def _reading(products: TableRead) -> list[ColumnInput]:

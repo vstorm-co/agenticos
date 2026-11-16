@@ -18,10 +18,10 @@ import { useDeferredDelete } from "@/hooks/use-deferred-delete";
 import { isRecordGone, isRevisionConflict, useRecordMutation } from "@/hooks/use-record-mutation";
 import { getErrorMessage } from "@/lib/api-error";
 import { useTableViewStore } from "@/stores";
-import type { RecordConflict } from "@/stores/table-view-store";
+import { combineLinkChanges, type RecordConflict } from "@/stores/table-view-store";
 import { RecordCellEditor } from "./record-cell-editor";
 import { RecordConflictNow } from "./record-conflict-now";
-import type { CellValue, ColumnDef, RecordRead } from "@/types/tables";
+import type { CellValue, ColumnDef, RecordLinkChange, RecordRead } from "@/types/tables";
 import { recordCellText } from "@/lib/format-cell-value";
 import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
 import { cn } from "@/lib/utils";
@@ -94,11 +94,32 @@ export function RecordDetailSheet({
     onOpenChange(false);
   }, [onOpenChange]);
 
-  function commitField(targetRecord: RecordRead, columnId: string, value: CellValue) {
+  function commitField(
+    targetRecord: RecordRead,
+    columnId: string,
+    value: CellValue,
+    linkChange?: RecordLinkChange,
+  ) {
     if (!canWriteCell(targetRecord, columnId, canEdit)) return;
-    commit(targetRecord, { [columnId]: value }).then(
+    const previous =
+      useTableViewStore.getState().conflicts[targetRecord.id]?.[columnId]?.pendingLinkChanges?.[
+        columnId
+      ];
+    const combinedLinkChange = linkChange ? combineLinkChanges(previous, linkChange) : undefined;
+    const pendingLinkChanges = combinedLinkChange ? { [columnId]: combinedLinkChange } : undefined;
+    const written = pendingLinkChanges
+      ? commit(targetRecord, {}, pendingLinkChanges)
+      : commit(targetRecord, { [columnId]: value });
+    written.then(
       (updated) => {
-        clearConflict(targetRecord.id, columnId);
+        if (combinedLinkChange) {
+          clearConflict(targetRecord.id, columnId, {
+            change: combinedLinkChange,
+            value: updated.values[columnId] ?? null,
+          });
+        } else {
+          clearConflict(targetRecord.id, columnId);
+        }
         onRecordUpdated(updated);
       },
       (error: unknown) => {
@@ -108,6 +129,7 @@ export function RecordDetailSheet({
             recordId: targetRecord.id,
             pendingValues: { [columnId]: value },
             fieldId: columnId,
+            ...(pendingLinkChanges ? { pendingLinkChanges } : {}),
           });
           // A field committed by closing the sheet has no banner left to show
           // this; the edit waits in the store for the record to be reopened.
@@ -180,9 +202,14 @@ export function RecordDetailSheet({
    * the banner if the retry hits another conflict. A failed refetch leaves the
    * banner (and the typed value) where it was, so the retry is still there.
    */
-  async function reloadAndReapply(targetRecord: RecordRead, columnId: string, pending: CellValue) {
+  async function reloadAndReapply(
+    targetRecord: RecordRead,
+    columnId: string,
+    pending: CellValue,
+    linkChange?: RecordLinkChange,
+  ) {
     const fresh = await refetch(targetRecord, columnId);
-    if (fresh) commitField(fresh, columnId, pending);
+    if (fresh) commitField(fresh, columnId, pending, linkChange);
   }
 
   /**
@@ -284,7 +311,9 @@ export function RecordDetailSheet({
                       value={value}
                       links={record.links?.[column.id]}
                       disabled={!canWriteCell(record, column.id, canEdit)}
-                      onChange={(next) => commitField(record, column.id, next)}
+                      onChange={(next, linkChange) =>
+                        commitField(record, column.id, next, linkChange)
+                      }
                     />
                     {isConflicted && (
                       <div className="bg-destructive/10 text-destructive space-y-1.5 rounded-md p-2 text-xs">
@@ -304,7 +333,12 @@ export function RecordDetailSheet({
                             disabled={!canWriteCell(record, column.id, canEdit)}
                             onClick={() => {
                               const pending = conflict.pendingValues[column.id] as CellValue;
-                              void reloadAndReapply(record, column.id, pending);
+                              void reloadAndReapply(
+                                record,
+                                column.id,
+                                pending,
+                                conflict.pendingLinkChanges?.[column.id],
+                              );
                             }}
                           >
                             {t("reloadAndReapply")}

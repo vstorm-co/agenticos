@@ -12,7 +12,7 @@ import type { ColumnDef, RecordRead } from "@/types/tables";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
-  return { ...actual, apiClient: { patch: vi.fn(), get: vi.fn(), delete: vi.fn() } };
+  return { ...actual, apiClient: { patch: vi.fn(), get: vi.fn(), post: vi.fn(), delete: vi.fn() } };
 });
 const deleteLater = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/use-deferred-delete", () => ({ useDeferredDelete: () => deleteLater }));
@@ -806,6 +806,104 @@ it("places every property before document bodies, preserving property order", ()
     "cell-kind",
     "cell-doc",
   ]);
+});
+
+it("sends explicit link intent from the sheet and reapplies it without replacing concurrent links", async () => {
+  const user = userEvent.setup();
+  const link: ColumnDef = {
+    ...columns[0]!,
+    id: "items",
+    label: "Items",
+    type: "link",
+    link_table_id: "products",
+  };
+  const linked: RecordRead = {
+    ...record,
+    values: { items: ["old"] },
+    links: { items: [{ id: "old", label: "Existing" }] },
+  };
+  const fresh: RecordRead = { ...linked, revision: 4, values: { items: ["old", "concurrent"] } };
+  const updated: RecordRead = {
+    ...fresh,
+    revision: 5,
+    values: { items: ["old", "concurrent", "new"] },
+  };
+  vi.mocked(apiClient.get).mockImplementation((url) =>
+    Promise.resolve(url === "/tables/products" ? { columns: [columns[0]] } : fresh),
+  );
+  vi.mocked(apiClient.post).mockResolvedValue({
+    items: [{ ...record, id: "new", values: { c1: "New item" } }],
+  });
+  vi.mocked(apiClient.patch).mockRejectedValueOnce(conflict409()).mockResolvedValueOnce(updated);
+  const onRecordUpdated = vi.fn();
+  renderSheet({ columns: [link], record: linked, onRecordUpdated });
+  await user.click(screen.getByRole("button", { name: "Items" }));
+  await user.click(await screen.findByLabelText("New item"));
+  await screen.findByText(/someone else changed this field/i);
+  await user.keyboard("{Escape}");
+  await user.click(screen.getByRole("button", { name: /reload and reapply/i }));
+
+  await waitFor(() => expect(onRecordUpdated).toHaveBeenCalledWith(updated));
+  expect(vi.mocked(apiClient.patch).mock.calls).toEqual([
+    [
+      "/tables/t1/records/r1",
+      {
+        expected_revision: 1,
+        values: {},
+        link_changes: { items: { add: ["new"], remove: [] } },
+      },
+    ],
+    [
+      "/tables/t1/records/r1",
+      {
+        expected_revision: 4,
+        values: {},
+        link_changes: { items: { add: ["new"], remove: [] } },
+      },
+    ],
+  ]);
+  expect(useTableViewStore.getState().conflicts.r1).toBeUndefined();
+});
+
+it("keeps an earlier link conflict when a delta already in flight succeeds on another target", async () => {
+  const user = userEvent.setup();
+  const link: ColumnDef = {
+    ...columns[0]!,
+    id: "items",
+    label: "Items",
+    type: "link",
+    link_table_id: "products",
+  };
+  const linked: RecordRead = { ...record, revision: 2, values: { items: ["old"] } };
+  const updated: RecordRead = { ...linked, revision: 3, values: { items: ["old", "landed"] } };
+  const inFlight = deferred<RecordRead>();
+  vi.mocked(apiClient.get).mockResolvedValue({ columns: [columns[0]] });
+  vi.mocked(apiClient.post).mockResolvedValue({
+    items: [{ ...record, id: "landed", values: { c1: "Later choice" } }],
+  });
+  vi.mocked(apiClient.patch).mockReset().mockReturnValueOnce(inFlight.promise);
+  const onRecordUpdated = vi.fn();
+  renderSheet({ columns: [link], record: linked, onRecordUpdated });
+  await user.click(screen.getByRole("button", { name: "Items" }));
+  await user.click(await screen.findByLabelText("Later choice"));
+  await waitFor(() => expect(apiClient.patch).toHaveBeenCalledTimes(1));
+
+  // An older queued write's conflict arrives after the later request captured its intent.
+  act(() =>
+    useTableViewStore.getState().setConflict({
+      recordId: "r1",
+      fieldId: "items",
+      pendingValues: { items: ["old", "pending"] },
+      pendingLinkChanges: { items: { add: ["pending"], remove: [] } },
+    }),
+  );
+  inFlight.resolve(updated);
+  await waitFor(() => expect(onRecordUpdated).toHaveBeenCalledWith(updated));
+
+  expect(useTableViewStore.getState().conflicts.r1?.items).toMatchObject({
+    pendingValues: { items: ["old", "landed", "pending"] },
+    pendingLinkChanges: { items: { add: ["pending"], remove: [] } },
+  });
 });
 
 it("reads a replacement conflict even while the previous read is pending", async () => {

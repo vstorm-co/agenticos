@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -39,7 +39,7 @@ const items: ColumnDef = {
   link_table_id: "t1",
 };
 
-function renderCell(value: string[], onChange = vi.fn()) {
+function renderCell(value: string[], onChange = vi.fn(), column = items) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
@@ -47,7 +47,7 @@ function renderCell(value: string[], onChange = vi.fn()) {
   render(
     <LinkCell
       id="cell"
-      column={items}
+      column={column}
       value={value}
       links={[{ id: "r1", label: "Atlas" }]}
       onChange={onChange}
@@ -98,7 +98,10 @@ describe("LinkCell", () => {
     await user.click(screen.getByLabelText("Quill"));
     await user.click(screen.getByLabelText("Atlas"));
 
-    expect(onChange.mock.calls).toEqual([[["r1", "r2"]], [[]]]);
+    expect(onChange.mock.calls).toEqual([
+      [["r1", "r2"], { add: ["r2"], remove: [] }],
+      [[], { add: [], remove: ["r1"] }],
+    ]);
 
     await user.type(screen.getByRole("textbox", { name: "Find a record" }), "qu");
     await waitFor(() =>
@@ -114,5 +117,30 @@ describe("LinkCell", () => {
     await user.click(screen.getByRole("button", { name: "Not linked" }));
 
     expect(await screen.findByText("No records match.")).toBeVisible();
+  });
+
+  it("rechecks the link limit when a previously available choice is selected", async () => {
+    const selected: string[] = [];
+    const onChange = renderCell(selected, vi.fn(), { ...items, link_limit: 1 });
+    await userEvent.click(screen.getByRole("button", { name: "Not linked" }));
+    const addQuill = await screen.findByLabelText("Quill");
+    expect(addQuill).toBeEnabled();
+
+    selected.push("r1");
+    fireEvent.click(addQuill);
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps unlinking available at a single-target limit and disables another addition", async () => {
+    const user = userEvent.setup();
+    const onChange = renderCell(["r1"], vi.fn(), { ...items, link_limit: 1 });
+    await user.click(screen.getByRole("button", { name: "Atlas" }));
+    expect(await screen.findByLabelText("Quill")).toBeDisabled();
+    expect(screen.getByLabelText("Atlas")).toBeEnabled();
+    await user.click(screen.getByLabelText("Quill"));
+    expect(onChange).not.toHaveBeenCalled();
+    await user.click(screen.getByLabelText("Atlas"));
+    expect(onChange).toHaveBeenCalledWith([], { add: [], remove: ["r1"] });
   });
 });

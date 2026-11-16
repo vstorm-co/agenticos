@@ -63,6 +63,7 @@ from app.schemas.virtual_table import (
     RecordCreate,
     RecordExportQuery,
     RecordFilter,
+    RecordLinkChange,
     RecordList,
     RecordQuery,
     RecordRead,
@@ -111,6 +112,7 @@ from app.services.virtual_tables.row_policy import (
 from app.services.virtual_tables.types import (
     COLUMN_TYPES,
     COMPUTED_TYPES,
+    MAX_LINKS,
     OPTION_TYPES,
     SEARCHED_TYPES,
     CellProblem,
@@ -245,6 +247,39 @@ def _merge(
     if problems:
         raise InvalidRecordError(problems)
     return merged
+
+
+def _link_delta_values(
+    columns: list[ColumnDef],
+    stored: dict[str, CellValue],
+    changes: dict[UUID, RecordLinkChange],
+) -> dict[str, CellValue]:
+    """Apply explicit link intent to the locked values, retaining every unnamed target."""
+    by_id = {column.id: column for column in columns}
+    values: dict[str, CellValue] = {}
+    for column_id, change in changes.items():
+        key = str(column_id)
+        field = f"link_changes.{key}"
+        column = by_id.get(column_id)
+        if column is None:
+            raise InvalidRecordError([(field, "That is not a column of this table")])
+        if column.archived:
+            raise ArchivedColumnError(key)
+        if column.type != "link":
+            raise InvalidRecordError([(field, "Only link columns accept link changes")])
+        current = stored.get(key)
+        if current is None:
+            current = []
+        if not isinstance(current, list):
+            raise InvalidRecordError([(field, "The stored link is not a list of record ids")])
+        removed = {str(target) for target in change.remove}
+        linked = [target for target in current if target not in removed]
+        linked.extend(str(target) for target in change.add if str(target) not in linked)
+        if len(linked) > MAX_LINKS:
+            raise InvalidRecordError([(field, "This cell exceeds the maximum number of links")])
+        if linked != current:
+            values[key] = linked
+    return values
 
 
 def _labels(columns: list[ColumnDef]) -> dict[str, list[ColumnDef]]:
@@ -1305,7 +1340,13 @@ class RecordOperations(Operations):
             NotFoundError: There is no such record.
         """
         return await self._update(
-            ctx, table_id, record_id, data.values, data.expected_revision, operation_key
+            ctx,
+            table_id,
+            record_id,
+            data.values,
+            data.expected_revision,
+            operation_key,
+            link_changes=data.link_changes,
         )
 
     async def update_record_cells(
@@ -1338,6 +1379,8 @@ class RecordOperations(Operations):
         values: dict[str, CellValue],
         expected_revision: int | None,
         operation_key: str | None,
+        *,
+        link_changes: dict[UUID, RecordLinkChange] | None = None,
     ) -> RecordWrite:
         operation_key = _operation_key(operation_key)
         table = await self._load_table(
@@ -1348,12 +1391,17 @@ class RecordOperations(Operations):
             self._ensure_live(table)
             record = await self._lock_record(ctx, table, record_id)
             revision = record.revision if expected_revision is None else expected_revision
-            await self._apply(ctx, table, record, values, revision)
+            await self._apply(ctx, table, record, values, revision, link_changes=link_changes)
             return self._outcome(record, created=False)
 
         request: dict[str, Any] = {"table_id": table.id, "record_id": record_id, "values": values}
         if expected_revision is not None:
             request["expected_revision"] = expected_revision
+        if link_changes:
+            request["link_changes"] = {
+                str(column_id): change.model_dump(mode="json")
+                for column_id, change in link_changes.items()
+            }
         return await self._write(ctx, table, "record.update", operation_key, request, action)
 
     async def upsert_record(
@@ -1711,13 +1759,15 @@ class RecordOperations(Operations):
         ctx: AuthContext,
         columns: list[ColumnDef],
         submitted: dict[str, CellValue],
+        *,
+        field_prefix: str = "values",
     ) -> None:
-        """Every record a submitted link names exists in the table it links to, which the
-        writer can see - a link is not a way to learn which ids another table holds.
+        """Require every explicitly submitted link target to be currently visible.
 
         "Can see" is row-level here too: a linked row outside the writer's
         visibility fails with the same message as a missing one, so the error
-        cannot be used as an oracle for which ids the linked table holds.
+        cannot be used as an oracle for which ids the linked table holds. This
+        includes removals and no-ops; only omitted hidden targets are retained.
         """
         problems: list[tuple[str, str]] = []
         for column in columns:
@@ -1732,7 +1782,9 @@ class RecordOperations(Operations):
             if target is None or not await resolve_access(
                 self.db, ctx, target, Perm.TABLES_VIEW, resource_type=TABLE
             ):
-                problems.append((f"values.{column.id}", "The linked table cannot be reached"))
+                problems.append(
+                    (f"{field_prefix}.{column.id}", "The linked table cannot be reached")
+                )
                 continue
             found = await virtual_table_repo.get_records_by_ids(
                 self.db,
@@ -1762,7 +1814,7 @@ class RecordOperations(Operations):
             if missing:
                 problems.append(
                     (
-                        f"values.{column.id}",
+                        f"{field_prefix}.{column.id}",
                         "No record is available in the linked table",
                     )
                 )
@@ -1903,6 +1955,8 @@ class RecordOperations(Operations):
         record: VirtualTableRecord,
         values: dict[str, CellValue],
         expected_revision: int,
+        *,
+        link_changes: dict[UUID, RecordLinkChange] | None = None,
     ) -> None:
         """Update a locked record and write its history row.
 
@@ -1920,9 +1974,19 @@ class RecordOperations(Operations):
             raise NotFoundError(message="Record not found", details={"table_id": table.id})
         self._check_revision(record, expected_revision)
         before = dict(record.values)
-        merged = await normalize_task_cells(
-            self.db, ctx.organization_id, table.id, _merge(columns, values, before)
-        )
+        merged = _merge(columns, values, before)
+        if link_changes:
+            # Check explicit intent before applying it or checking cardinality:
+            # hidden membership must not change the error, revision or no-op result.
+            submitted: dict[str, CellValue] = {
+                str(column_id): [str(target) for target in [*change.add, *change.remove]]
+                for column_id, change in link_changes.items()
+                if change.add or change.remove
+            }
+            if submitted:
+                await self._check_links(ctx, columns, submitted, field_prefix="link_changes")
+            merged = _merge(columns, _link_delta_values(columns, before, link_changes), merged)
+        merged = await normalize_task_cells(self.db, ctx.organization_id, table.id, merged)
         # A submitted ID needs current Read even when it is already linked or
         # would leave the row unchanged. Only omitted hidden links are retained.
         await self._check_links(ctx, columns, values)

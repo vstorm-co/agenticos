@@ -1,5 +1,5 @@
 ---
-source_sha: "7ab55c32ffcb"
+source_sha: "2f21d97c1afb"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -167,6 +167,42 @@ mogą odczytać metadane tabeli z `row_policy_valid: false`, a uprawniony edytor
 tabeli może naprawić politykę przez `PUT /tables/{id}/row-policy`. Do czasu naprawy
 cel z nieprawidłową polityką nie udostępnia powiązanych rekordów ani dostępu
 dziedziczonego z projektu.
+
+### Atomowe zmiany powiązań { #atomic-link-changes }
+
+Użyj `link_changes` w `PATCH /tables/{id}/records/{record_id}`, aby dodać lub usunąć
+konkretne powiązania. Klucze to niezmienne UUID kolumn powiązań, a `add` i `remove`
+zawierają UUID rekordów docelowych. Opcjonalne `values` pozwala zmienić inne komórki
+w tym samym żądaniu:
+
+```json
+{
+  "expected_revision": 7,
+  "link_changes": {
+    "00000000-0000-4000-8000-000000000001": {
+      "add": ["00000000-0000-4000-8000-000000000002"],
+      "remove": ["00000000-0000-4000-8000-000000000003"]
+    }
+  }
+}
+```
+
+Rekord źródłowy musi być dostępny do zapisu, a każdy jawnie dodawany lub usuwany
+rekord musi być obecnie dostępny do odczytu w powiązanej tabeli i organizacji.
+Rekordy ukryte, nieistniejące i należące do innej tabeli są odrzucane bez ich
+rozróżniania. Niewskazane istniejące powiązania pozostają zapisane, także te ukryte
+przed edytującym. Końcowa komórka, łącznie z ukrytymi powiązaniami, nadal musi
+mieścić się w limicie 100 rekordów.
+
+Kolumna nie może wystąpić jednocześnie w `values` i `link_changes`. Powtórzone
+rekordy, nakładające się dodania i usunięcia, nieznane lub zarchiwizowane kolumny
+oraz zmiany kolumn innych niż powiązania są odrzucane. Wszystkie komórki zmieniają
+się w dotychczasowej transakcji z jedną rewizją, wpisem historii, zdarzeniem
+wyzwalacza, gdy jest potrzebne, i potwierdzeniem idempotencji. Nieaktualna rewizja
+powoduje konflikt także bez zmiany wartości; dozwolona operacja bez zmian nie
+tworzy historii ani potwierdzenia. Siatka i panel rekordu wysyłają jawne zmiany.
+Po konflikcie **Reload and reapply** ponawia te same wybory z nową rewizją,
+zachowując inne powiązania dodane w międzyczasie.
 
 ## Formuły { #formulas }
 

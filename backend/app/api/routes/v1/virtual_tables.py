@@ -477,7 +477,7 @@ async def update_record(
     ctx: Auth,
     idempotency_key: IdempotencyKey = None,
 ) -> Any:
-    """Change the named cells, if the record is still at `expected_revision`.
+    """Change named cells and explicit links at `expected_revision`.
 
     An update that would leave every cell as it is changes nothing: the revision stays and
     the current record is returned.

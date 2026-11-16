@@ -1,5 +1,5 @@
 ---
-source_sha: "7ab55c32ffcb"
+source_sha: "2f21d97c1afb"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -173,6 +173,43 @@ Berechtigte Benutzer können weiterhin Tabellenmetadaten mit
 `row_policy_valid: false` lesen. Ein berechtigter Tabelleneditor kann die Richtlinie
 über `PUT /tables/{id}/row-policy` reparieren. Bis dahin liefert ein Ziel mit
 ungültiger Richtlinie weder verknüpfte Datensätze noch geerbten Projektzugriff.
+
+### Atomare Änderungen an Verknüpfungen { #atomic-link-changes }
+
+Mit `link_changes` bei `PATCH /tables/{id}/records/{record_id}` lassen sich bestimmte
+Ziele hinzufügen oder entfernen. Die Schlüssel sind unveränderliche UUIDs der
+Verknüpfungsspalten; `add` und `remove` enthalten UUIDs der Zieldatensätze.
+Das optionale `values` kann andere Zellen in derselben Anfrage ändern:
+
+```json
+{
+  "expected_revision": 7,
+  "link_changes": {
+    "00000000-0000-4000-8000-000000000001": {
+      "add": ["00000000-0000-4000-8000-000000000002"],
+      "remove": ["00000000-0000-4000-8000-000000000003"]
+    }
+  }
+}
+```
+
+Der Quelldatensatz muss schreibbar sein. Jeder ausdrücklich hinzugefügte oder
+entfernte Datensatz muss aktuell in der verknüpften Tabelle und Organisation
+lesbar sein. Verborgene, fehlende und zur falschen Tabelle gehörende Ziele werden
+ohne Unterscheidung abgelehnt. Nicht genannte bestehende Verknüpfungen bleiben
+gespeichert, auch für den Bearbeiter verborgene. Die endgültige Zelle einschließlich
+verborgener Verknüpfungen muss weiterhin die Grenze von 100 Zielen einhalten.
+
+Eine Spalte darf nicht zugleich in `values` und `link_changes` stehen. Doppelte
+Ziele, Überschneidungen zwischen Hinzufügen und Entfernen, unbekannte oder archivierte
+Spalten und Änderungen an anderen Spaltentypen werden abgelehnt. Alle Zellen ändern
+sich in der bestehenden Transaktion mit einer Revision, einem Verlaufseintrag,
+gegebenenfalls einem Trigger-Ereignis und einer Idempotenzbestätigung. Eine veraltete
+Revision scheitert auch bei unveränderten Werten; eine erlaubte Anfrage ohne Änderung
+erzeugt weder Verlauf noch Bestätigung. Raster und Datensatzbereich senden diese
+expliziten Änderungen. Nach einem Konflikt wiederholt **Reload and reapply** dieselben
+Auswahlen mit der aktuellen Revision und erhält andere inzwischen hinzugefügte
+Verknüpfungen.
 
 ## Formeln { #formulas }
 

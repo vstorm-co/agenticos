@@ -542,7 +542,10 @@ def test_the_openapi_document_types_the_write_contract():
     }
     assert {"idempotency-key"} <= {p["name"] for p in patch["parameters"]}
     request = document["components"]["schemas"]["RecordUpdate"]
-    assert set(request["required"]) == {"expected_revision", "values"}
+    assert set(request["required"]) == {"expected_revision"}
+    assert request["properties"]["link_changes"]["additionalProperties"] == {
+        "$ref": "#/components/schemas/RecordLinkChange"
+    }
     assert request["additionalProperties"] is False
     assert {"created_at", "updated_at"} <= set(
         document["components"]["schemas"]["RecordRead"]["properties"]

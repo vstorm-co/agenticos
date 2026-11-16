@@ -34,6 +34,7 @@ import {
   UNSORTABLE_TYPES,
   type CellValue,
   type ColumnDef,
+  type RecordLinkChange,
   type RecordRead,
   type RecordSort,
 } from "@/types/tables";
@@ -145,12 +146,26 @@ export function TableGridView({
     setSelected(next);
   };
 
-  const writeCell = (record: RecordRead, columnId: string, value: CellValue) => {
+  const writeCell = (
+    record: RecordRead,
+    columnId: string,
+    value: CellValue,
+    linkChange?: RecordLinkChange,
+  ) => {
     if (!canWriteCell(record, columnId, canEdit)) return;
-    commit(record, { [columnId]: value }).catch((error: unknown) => {
+    const pendingLinkChanges = linkChange ? { [columnId]: linkChange } : undefined;
+    const written = pendingLinkChanges
+      ? commit(record, {}, pendingLinkChanges)
+      : commit(record, { [columnId]: value });
+    written.catch((error: unknown) => {
       // Anything but a conflict was already toasted by `useRecordMutation`.
       if (!isRevisionConflict(error)) return;
-      setConflict({ recordId: record.id, pendingValues: { [columnId]: value }, fieldId: columnId });
+      setConflict({
+        recordId: record.id,
+        pendingValues: { [columnId]: value },
+        fieldId: columnId,
+        ...(pendingLinkChanges ? { pendingLinkChanges } : {}),
+      });
       onOpenRecord(record);
     });
   };
@@ -262,7 +277,7 @@ export function TableGridView({
           column={column}
           value={value}
           links={record.links?.[column.id]}
-          onCommit={(next) => writeCell(record, column.id, next)}
+          onCommit={(next, linkChange) => writeCell(record, column.id, next, linkChange)}
           onDone={() => setEditing(null)}
         />
       );

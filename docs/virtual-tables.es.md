@@ -1,5 +1,5 @@
 ---
-source_sha: "7ab55c32ffcb"
+source_sha: "2f21d97c1afb"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -169,6 +169,42 @@ usuarios autorizados aún pueden leer los metadatos, que indican
 `row_policy_valid: false`, y un editor autorizado de la tabla puede repararla
 mediante `PUT /tables/{id}/row-policy`. Hasta entonces, un destino con una política
 inválida no proporciona registros enlazados ni acceso heredado de un proyecto.
+
+### Cambios atómicos de enlaces { #atomic-link-changes }
+
+Usa `link_changes` en `PATCH /tables/{id}/records/{record_id}` para añadir o quitar
+destinos concretos. Las claves son los UUID inmutables de las columnas de enlace;
+`add` y `remove` contienen UUID de registros de destino. El campo opcional `values`
+permite cambiar otras celdas en la misma solicitud:
+
+```json
+{
+  "expected_revision": 7,
+  "link_changes": {
+    "00000000-0000-4000-8000-000000000001": {
+      "add": ["00000000-0000-4000-8000-000000000002"],
+      "remove": ["00000000-0000-4000-8000-000000000003"]
+    }
+  }
+}
+```
+
+El registro de origen debe permitir escritura, y cada destino añadido o quitado
+explícitamente debe poder leerse actualmente en la tabla enlazada y la organización.
+Los destinos ocultos, inexistentes o de otra tabla se rechazan sin distinguirlos.
+Los enlaces existentes que no se mencionan permanecen guardados, incluidos los
+ocultos para quien edita. La celda final, incluidos los enlaces ocultos, debe seguir
+respetando el límite de 100 destinos.
+
+Una columna no puede aparecer a la vez en `values` y `link_changes`. Se rechazan
+los destinos duplicados, las coincidencias entre añadir y quitar, las columnas
+desconocidas o archivadas y los cambios en columnas que no son enlaces. Todas las
+celdas cambian en la transacción existente con una revisión, una entrada de historial,
+un evento de trigger cuando corresponde y un recibo de idempotencia. Una revisión
+antigua falla incluso sin cambios; una operación autorizada sin cambios no crea
+historial ni recibo. La cuadrícula y el panel del registro envían estos cambios
+explícitos. Tras un conflicto, **Reload and reapply** repite las mismas elecciones
+con la revisión actual y conserva otros enlaces añadidos mientras tanto.
 
 ## Fórmulas { #formulas }
 

@@ -160,6 +160,40 @@ authorized table editor can repair it through `PUT /tables/{id}/row-policy`.
 A destination with an invalid policy supplies no linked records or inherited
 project access until repaired.
 
+### Atomic link changes { #atomic-link-changes }
+
+Use `link_changes` on `PATCH /tables/{id}/records/{record_id}` to add or remove
+specific targets. Keys are immutable link-column UUIDs, and `add` and `remove`
+contain target-record UUIDs. `values` is optional and can update other cells in
+the same request:
+
+```json
+{
+  "expected_revision": 7,
+  "link_changes": {
+    "00000000-0000-4000-8000-000000000001": {
+      "add": ["00000000-0000-4000-8000-000000000002"],
+      "remove": ["00000000-0000-4000-8000-000000000003"]
+    }
+  }
+}
+```
+
+The source record must be writable, and every explicitly added or removed target
+must currently be readable in the linked table and organization. Hidden, missing
+and wrong-table targets are refused without distinguishing them. Unnamed existing
+links stay stored, including links hidden from the editor; the final stored cell,
+including hidden links, must still fit the 100-target limit.
+
+A column cannot appear in both `values` and `link_changes`. Duplicate targets,
+add/remove overlap, unknown or archived columns, and changes to a non-link column
+are refused. All cells change in the existing transaction with one revision,
+history entry, trigger event when applicable, and idempotency receipt. A stale
+revision fails even for a no-op; an authorized no-op creates no history or receipt.
+The grid and record panel send these explicit changes. After a conflict, **Reload
+and reapply** retries the same choices against the fresh revision, preserving
+unrelated links added meanwhile.
+
 ## Formulas { #formulas }
 
 A `formula` column works a value out from the record's other columns:

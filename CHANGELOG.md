@@ -29,6 +29,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Record updates accept atomic `link_changes` keyed by immutable link column IDs. Explicit additions and removals require current target read access, preserve unnamed hidden links, and share scalar edits' revision, history, transaction and idempotency behavior. The grid and record panel send link deltas and retain those choices through conflicts, so reapplying an edit preserves unrelated links added by another writer.
 - An Agent settings pane beside chat, with explicit draft saving for name, description, instructions, default model and configured capability switches. Editing and publishing use per-agent access hints, including resource grants. Publishing validates the draft and uses the existing version/environment confirmation. Edits survive switching workspace panes; remote changes pause saving. Chat model overrides and running turns keep their existing scope.
 - The agent chat header has a compact model selector with provider icons, saved-model search, explicit account filtering and a return to the agent's model. It preserves chat preferences, permission gates and the advanced connection setup in Controls; disconnected or non-chat models stay unavailable.
 - Browser, Computer and Files controls beside full desktop chats, with separate panels that open before tool activity. The rail is hidden on phones and in compact chats. Hosted-tool start actions use the selected agent's published configuration and run permissions. Opening an empty panel starts no run; completed browser and desktop images are clearly marked as the last view, and closing a panel keeps it closed as new results arrive.
@@ -103,6 +104,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Atomic table link changes refuse hidden and unknown targets identically even when the stored link cell is full, so cardinality errors cannot reveal an existing hidden connection.
 - Table link replacements validate every explicitly submitted destination before accepting an unchanged write. Hidden and missing destination IDs receive the same refusal; omitted hidden links remain preserved for older clients.
 - Table upserts return the same refusal for a hidden external ID and an unavailable creation, including absent or stale revisions, so row-grant readers cannot use error messages to discover hidden records.
 - Deleting an app waits for workflow worker mutations before changing its rows, preventing a deadlock while a worker finishes a run started by that app.

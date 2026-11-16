@@ -162,6 +162,8 @@ export interface ColumnDef {
   archived: boolean;
   /** A link column: the table whose records it links to. */
   link_table_id?: string | null;
+  /** Maximum linked targets; absent means the default of 100. */
+  link_limit?: number | null;
   /** A lookup or rollup: the link column of this table it reads through. */
   link_column_id?: string | null;
   /** A lookup or rollup: the linked table's column it reads; none for a count. */
@@ -185,6 +187,7 @@ export interface ColumnInput {
   archived?: boolean;
   /** A link column: the table whose records it links to. */
   link_table_id?: string | null;
+  link_limit?: number | null;
   /** A lookup or rollup: the link column of this table it reads through. */
   link_column_id?: string | null;
   /** A lookup or rollup: the linked table's column it reads; none for a count. */
@@ -382,9 +385,16 @@ export interface RecordCreate {
   values: Record<string, CellValue>;
 }
 
+export interface RecordLinkChange {
+  add: string[];
+  remove: string[];
+}
+
 export interface RecordUpdate {
   expected_revision: number;
-  values: Record<string, CellValue>;
+  values?: Record<string, CellValue>;
+  /** Explicit changes, keyed by immutable link column id. */
+  link_changes?: Record<string, RecordLinkChange>;
 }
 
 export type ViewKind = "table" | "kanban" | "list";

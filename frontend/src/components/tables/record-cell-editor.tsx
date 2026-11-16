@@ -31,6 +31,7 @@ import {
   type CellValue,
   type ColumnDef,
   type LinkedRecord,
+  type RecordLinkChange,
 } from "@/types/tables";
 
 const UNSET = "__unset__";
@@ -305,7 +306,7 @@ export function RecordCellEditor({
   value: CellValue;
   /** A link column's records, named as the record was read. */
   links?: LinkedRecord[];
-  onChange: (value: CellValue) => void;
+  onChange: (value: CellValue, linkChange?: RecordLinkChange) => void;
   disabled?: boolean;
   error?: string;
   /** What a typed value's empty field says - text and numbers only. */

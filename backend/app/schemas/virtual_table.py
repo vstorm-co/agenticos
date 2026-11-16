@@ -491,11 +491,37 @@ class RecordBatchResult(_Schema):
     )
 
 
+class RecordLinkChange(_Request):
+    """Explicit changes to one link cell, without replacing links the caller cannot see."""
+
+    add: list[UUID] = Field(default_factory=list, max_length=100)
+    remove: list[UUID] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode="after")
+    def distinct_targets(self) -> RecordLinkChange:
+        if len(set(self.add)) != len(self.add) or len(set(self.remove)) != len(self.remove):
+            raise ValueError("A linked record may only be named once in each change")
+        if set(self.add) & set(self.remove):
+            raise ValueError("A linked record cannot be added and removed in the same change")
+        return self
+
+
 class RecordUpdate(_Request):
-    """A partial update: only the columns named change, and `null` clears one."""
+    """Change named cells and/or explicit links at one expected revision."""
 
     expected_revision: int = Field(ge=1, description="The revision the caller last read")
-    values: dict[CellKey, CellValue]
+    values: dict[CellKey, CellValue] = Field(default_factory=dict)
+    link_changes: dict[UUID, RecordLinkChange] = Field(
+        default_factory=dict,
+        max_length=MAX_COLUMNS,
+        description="Add/remove target record ids, keyed by the immutable link column id",
+    )
+
+    @model_validator(mode="after")
+    def one_change_per_column(self) -> RecordUpdate:
+        if self.values.keys() & {str(column_id) for column_id in self.link_changes}:
+            raise ValueError("A column cannot appear in both values and link_changes")
+        return self
 
 
 class RecordUpsert(_Request):
