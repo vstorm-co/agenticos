@@ -226,6 +226,12 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "previewingArtifact",
     displayNameKey: "previewArtifact",
   },
+  export_artifact: {
+    kind: "write",
+    render: "generic",
+    captionKey: "exportingArtifact",
+    displayNameKey: "exportArtifact",
+  },
   // Files a request the owner answers in the Share dialog; nothing is shared by the call.
   share_artifact: {
     kind: "write",
@@ -366,6 +372,37 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     displayNameKey: "savedScreenshot",
     opensWhenDone: true,
     opensOnSight: true,
+  },
+
+  list_chat_connections: {
+    kind: "list",
+    render: "generic",
+    captionKey: "listingChatConnections",
+    displayNameKey: "chatConnections",
+  },
+  find_chat_channels: {
+    kind: "search",
+    render: "generic",
+    captionKey: "lookingForChannel",
+    displayNameKey: "channelSearch",
+  },
+  read_chat_messages: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingChannel",
+    displayNameKey: "channelHistory",
+  },
+  react_to_chat_message: {
+    kind: "write",
+    render: "generic",
+    captionKey: "reactingToMessage",
+    displayNameKey: "messageReactions",
+  },
+  send_chat_message: {
+    kind: "write",
+    render: "generic",
+    captionKey: "sendingChannelMessage",
+    displayNameKey: "sendChannelMessage",
   },
 
   // channel_tools - only ever called on a Slack, Telegram or Mattermost run, so these

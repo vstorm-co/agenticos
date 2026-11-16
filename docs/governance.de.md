@@ -1,5 +1,5 @@
 ---
-source_sha: "0500be2db6f4"
+source_sha: "14136b984ce9"
 ---
 
 # Governance { #governance }
@@ -48,10 +48,10 @@ Ein Event-Trigger fügt an seinem Rand eine weitere Ablehnung hinzu: ein Webhook
 dessen Signatur sich nicht gegen das eigene Secret des Triggers verifizieren
 lässt, ist ein 403, der den Runner überhaupt nie erreicht.
 
-Die Fehler, die die Plattform aufzeichnet, speisen auch die
-[Lernschleife aus Fehlern](failure-learning.md), die sich wiederholende
-Fehler in ein Verzeichnis schürft und eine Korrektur am alten Verhalten
-prüft, bevor irgendetwas angewendet wird.
+Die von der Plattform aufgezeichneten Fehler fließen auch in die
+[Lernschleife aus Fehlern](failure-learning.md) ein. Sie sammelt
+wiederkehrende Fehler in einem Ledger und prüft eine Korrektur anhand des
+bisherigen Verhaltens, bevor sie angewendet wird.
 
 ## Zustellung von Routinen { #routine-delivery }
 
@@ -2696,3 +2696,11 @@ vertrauenswürdigen Zugangsdaten eines privaten Chats zur Verfügung; Letztere
 sind auf Vorgänge dieses Chats beschränkt. Gewöhnliche API-Schlüssel,
 Hintergrundläufe und Ersatzidentitäten des Herausgebers dürfen private
 Inbox-Vorgänge weder lesen noch erledigen.
+
+## Genehmigungsgruppen { #approval-groups }
+
+Workflow-Schritte für menschliche Genehmigungen und MCP-Aufrufe können Personen, Organisationsgruppen oder beide nennen. Jede einzelne berechtigte Person darf entscheiden und muss unabhängig davon `approvals:decide` besitzen. Sind weder Personen noch Gruppen konfiguriert, gilt die bisherige berechtigungsbasierte Regel. Eine konfigurierte leere oder gelöschte Gruppe öffnet den Zugriff niemals für alle.
+
+Gruppenmitgliedschaft und aktives Konto werden bei der Entscheidung geprüft. Benachrichtigungen ermitteln berechtigte Mitglieder beim Erstellen der Anfrage und entfernen Überschneidungen mit genannten Personen. Ein späterer Beitritt kann die Entscheidung ohne erneute Benachrichtigung erlauben; Austritt oder Berechtigungsverlust entzieht sie.
+
+Agent-Benachrichtigungen für Genehmigungen, Budget und Verbrauch unterstützen Gruppen als ausgewählte Empfänger. Sie steuern nur Benachrichtigungen und erteilen oder beschränken keine Entscheidungsrechte. Persönliche Benachrichtigungseinstellungen gelten weiterhin.

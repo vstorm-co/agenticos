@@ -62,6 +62,7 @@ from app.core.security import (
     verify_password,
     verify_special_token,
 )
+from app.db.locks import LockScope, hold_subject
 from app.db.models.artifact import (
     SERVED_STATES,
     Artifact,
@@ -114,6 +115,7 @@ from app.schemas.artifact import (
     ArtifactPublicLinkRead,
     ArtifactPublicLinkUpdate,
     ArtifactRead,
+    ArtifactThumbnailRead,
     ArtifactUpdate,
     ArtifactVersionList,
     ArtifactVersionRead,
@@ -3203,6 +3205,10 @@ class ArtifactService:
         at what is stored.
         """
         artifact = await self.get(ctx, artifact_id, perm=Perm.ARTIFACTS_EDIT, archived=True)
+        # A late workflow update can recheck its artifact foreign key while holding
+        # the run row. Take the workers' guards before DELETE locks the artifact.
+        await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
+        await hold_subject(self.db, LockScope.WORKFLOW_INLINE_RESULTS_PER_ORG, ctx.organization_id)
         await resource_grant_repo.delete_for_resource(
             self.db,
             organization_id=ctx.organization_id,
@@ -3699,6 +3705,32 @@ class ArtifactService:
         )
         shown.actions = offered
         return shown
+
+    async def thumbnail(
+        self, ctx: AuthContext, artifact_id: UUID, *, version_id: UUID | None = None
+    ) -> ArtifactThumbnailRead:
+        """A cached static preview of a version this caller may open, without live data.
+
+        Access and visible-version checks run before the cache. Snapshot data
+        already published in the page is visible; live records and actions are
+        never supplied to the renderer or cached across readers.
+        """
+        from app.services.artifact_render import RenderRequest
+        from app.services.artifact_thumbnails import render_thumbnail
+
+        shown = await self.view(ctx, artifact_id, version_id=version_id)
+        version = await artifact_repo.get_version(
+            self.db, shown.version.id, artifact_id=artifact_id
+        )
+        if version is None:
+            raise NotFoundError(
+                message="App version no longer available", details={"artifact_id": str(artifact_id)}
+            )
+        source = await _load_version(version, missing="App version no longer available")
+        document = render(version, source, title="", nonce=shown.nonce, live=bool(version.bindings))
+        return await render_thumbnail(
+            version.id, RenderRequest(document=document, nonce=shown.nonce, bindings={})
+        )
 
     async def start_action(
         self,

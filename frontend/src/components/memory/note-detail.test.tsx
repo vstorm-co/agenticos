@@ -1,58 +1,140 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
 import { expect, it, vi } from "vitest";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
+import { act } from "@testing-library/react";
 import { NoteDetail } from "./note-detail";
-import { saveBlob, type FileAccess } from "@/lib/file-access";
+import { saveBlob } from "@/lib/file-access";
+import type { MemoryNote } from "@/lib/memory-api";
 vi.mock("@/lib/file-access", async (original) => ({
   ...(await original<typeof import("@/lib/file-access")>()),
   saveBlob: vi.fn(),
 }));
-vi.mock("@/components/files", () => ({
-  FileViewer: ({ access }: { access: FileAccess }) => {
-    const [bytes, setBytes] = useState("");
-    return (
-      <>
-        <button
-          onClick={async () => {
-            setBytes(await (await access.readBytes()).text());
-          }}
-        >
-          Read note bytes
-        </button>
-        <button onClick={() => access.download()}>Download note</button>
-        <output>{bytes}</output>
-      </>
-    );
-  },
-}));
-it("exports exactly the selected note as UTF-8 bytes with its original filename", async () => {
+const note: MemoryNote = {
+  id: "note",
+  agent_id: "agent",
+  agent_name: "Assistant",
+  name: "checklist.md",
+  content: "Zażółć — checklist",
+  description: null,
+  format: "md",
+  kind: "note",
+  created_at: "2026-11-06T00:00:00Z",
+  updated_at: null,
+  written_at: null,
+  deactivated_at: null,
+};
+it("exports the current note as UTF-8 without a separate metadata tab", async () => {
   render(
     <NoteDetail
-      note={{
-        id: "note",
-        agent_id: "agent",
-        agent_name: "Assistant",
-        name: "checklist.md",
-        content: "Zażółć — checklist",
-        description: null,
-        format: "md",
-        kind: "note",
-        created_at: "2026-11-06T00:00:00Z",
-        updated_at: null,
-        written_at: null,
-        deactivated_at: null,
-      }}
+      note={note}
       onClose={vi.fn()}
       setActive={vi.fn()}
       remove={vi.fn()}
+      update={vi.fn()}
     />,
   );
-  await userEvent.click(screen.getByRole("button", { name: "Read note bytes" }));
-  expect(await screen.findByText("Zażółć — checklist")).toBeVisible();
-  await userEvent.click(screen.getByRole("button", { name: "Download note" }));
-  await waitFor(() => expect(saveBlob).toHaveBeenCalled());
+  expect(screen.queryByRole("tab", { name: "Memory details" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Download" }));
   const [blob, name] = vi.mocked(saveBlob).mock.calls[0]!;
   expect(name).toBe("checklist.md");
-  expect(await blob.text()).toBe("Zażółć — checklist");
+  expect(await blob.text()).toBe(note.content);
+});
+it("keeps a refused correction open and saves against the original revision", async () => {
+  const close = vi.fn();
+  const update = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+  const view = render(
+    <NoteDetail note={note} onClose={close} setActive={vi.fn()} remove={vi.fn()} update={update} />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Source" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Note content" }), {
+    target: { value: "Corrected" },
+  });
+  view.rerender(
+    <NoteDetail
+      note={{ ...note, updated_at: "2026-11-14T00:00:00Z" }}
+      onClose={close}
+      setActive={vi.fn()}
+      remove={vi.fn()}
+      update={update}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(update).toHaveBeenCalledWith(note, "Corrected");
+  expect(close).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(close).toHaveBeenCalledOnce());
+});
+
+it("closes an unchanged note without saving", async () => {
+  const close = vi.fn();
+  const update = vi.fn();
+  render(
+    <NoteDetail note={note} onClose={close} setActive={vi.fn()} remove={vi.fn()} update={update} />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(close).toHaveBeenCalled();
+  expect(update).not.toHaveBeenCalled();
+});
+
+it.each(["save", "discard"] as const)(
+  "protects a corrected note during navigation: %s",
+  async (decision) => {
+    useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
+    const close = vi.fn();
+    const update = vi.fn().mockResolvedValue(true);
+    render(
+      <NoteDetail
+        note={note}
+        onClose={close}
+        setActive={vi.fn()}
+        remove={vi.fn()}
+        update={update}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Source" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Note content" }), {
+      target: { value: "Corrected" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(close).not.toHaveBeenCalled();
+    await act(() => useUnsavedChangesStore.getState().answer(decision));
+    expect(close).toHaveBeenCalled();
+    if (decision === "save") expect(update).toHaveBeenCalledWith(note, "Corrected");
+    else expect(update).not.toHaveBeenCalled();
+  },
+);
+
+it("closes an unchanged note from the dialog escape key", async () => {
+  const close = vi.fn();
+  render(
+    <NoteDetail
+      note={note}
+      onClose={close}
+      setActive={vi.fn()}
+      remove={vi.fn()}
+      update={vi.fn()}
+    />,
+  );
+  await userEvent.keyboard("{Escape}");
+  expect(close).toHaveBeenCalled();
+});
+
+it("keeps a blank correction open when navigation asks it to save", async () => {
+  useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
+  const close = vi.fn();
+  const update = vi.fn();
+  render(
+    <NoteDetail note={note} onClose={close} setActive={vi.fn()} remove={vi.fn()} update={update} />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Source" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Note content" }), {
+    target: { value: "   " },
+  });
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  await act(() => useUnsavedChangesStore.getState().answer("save"));
+  expect(update).not.toHaveBeenCalled();
+  expect(close).not.toHaveBeenCalled();
+  expect(screen.getByRole("textbox", { name: "Note content" })).toHaveValue("   ");
 });

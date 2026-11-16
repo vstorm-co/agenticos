@@ -92,6 +92,9 @@ class WorkflowApproval(Base, TimestampMixin):
     approver_user_ids: Mapped[list[Any]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
+    approver_group_ids: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=WorkflowApprovalStatus.PENDING.value
     )

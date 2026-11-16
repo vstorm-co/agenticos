@@ -11,6 +11,8 @@ mocked, so these tests are about triggers, not about re-proving that.
 
 import asyncio
 import contextlib
+import hashlib
+import hmac
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -180,6 +182,8 @@ def _trigger(**overrides: object) -> MagicMock:
         "ends_at": None,
         "monthly_budget_usd": None,
         "consecutive_failures": 0,
+        "setup_required": False,
+        "setup_issues": [],
     }
     defaults.update(overrides)
     return MagicMock(**defaults)
@@ -2219,6 +2223,41 @@ class TestEventTriggerSchema:
                 event_config={"path_contains": "x"},
             )
 
+    @pytest.mark.parametrize(
+        "config",
+        [
+            {"signature_scheme": "hmac-sha256-hex"},
+            {"signature_scheme": "hmac-sha256-base64", "signature_header": "bad header"},
+            {"signature_header": "X-Signature"},
+            {"signature_scheme": "none"},
+        ],
+    )
+    def test_invalid_generic_signature_configuration_is_refused(self, config):
+        with pytest.raises(PydanticValidationError):
+            TriggerCreate(
+                prompt="x",
+                trigger_type="event",
+                event_source="webhook",
+                event_secret=_SIGNING_SECRET,
+                event_config=config,
+            )
+
+    def test_generic_signature_configuration_is_normalized_at_creation(self):
+        trigger = TriggerCreate(
+            prompt="x",
+            trigger_type="event",
+            event_source="webhook",
+            event_secret=_SIGNING_SECRET,
+            event_config={
+                "signature_scheme": "hmac-sha256-base64",
+                "signature_header": "X-Shopify-Hmac-Sha256",
+            },
+        )
+        assert trigger.event_config == {
+            "signature_scheme": "hmac-sha256-base64",
+            "signature_header": "x-shopify-hmac-sha256",
+        }
+
     def test_an_event_read_exposes_its_webhook_url_on_the_public_api_host(self):
         read = TriggerRead(
             id=uuid.uuid4(),
@@ -2259,6 +2298,28 @@ class TestPreparingAnEventFire:
     """`prepare_event_fire` orchestrates the verifiers; the crypto itself is proven
     in `test_trigger_events.py`, so here `trigger_events` is mocked and what is
     asserted is the branching - what is ignored, what is a 403, what fires."""
+
+    async def test_configured_generic_signature_is_used_to_admit_delivery(self):
+        service = _service()
+        trigger = _event_trigger(
+            event_source="webhook",
+            event_config={"signature_scheme": "hmac-sha256-hex", "signature_header": "X-Provider"},
+        )
+        body = b'{"ticket":7}'
+        digest = hmac.new(b"secret", body, hashlib.sha256).hexdigest()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            decision = await service.prepare_event_fire(
+                "webhook", trigger.id, body=body, headers={"x-provider": digest}
+            )
+            assert decision is not None
+            with pytest.raises(AuthorizationError):
+                await service.prepare_event_fire(
+                    "webhook", trigger.id, body=body + b" ", headers={"x-provider": digest}
+                )
 
     async def test_an_unknown_trigger_is_ignored(self):
         service = _service()
@@ -5657,3 +5718,128 @@ async def test_inbox_mode_only_delivers_relevant_cases_to_the_owner(findings):
 async def test_invalid_or_null_routine_result_policy_is_refused(mode):
     with pytest.raises(PydanticValidationError):
         TriggerUpdate.model_validate({"result_mode": mode})
+
+
+@pytest.mark.parametrize("reason", ["sources", "platform_identity"])
+async def test_unavailable_sources_save_a_paused_routine_without_losing_its_schedule(reason):
+    from app.services.routine_sources import PlatformRoutineIdentityRequired, RoutineSourcesRequired
+
+    agent = _agent()
+    service = _service(agent)
+    refusal = RoutineSourcesRequired if reason == "sources" else PlatformRoutineIdentityRequired
+    service.sources.initial.side_effect = refusal(details={"unavailable_sources": ["notion"]})
+    trigger = _trigger(agent_id=agent.id)
+    service._run_log = AsyncMock()
+    with (
+        patch(
+            "app.services.agent_trigger.agent_trigger_repo.create", AsyncMock(return_value=trigger)
+        ),
+        patch("app.services.agent_trigger.record_audit", AsyncMock()),
+    ):
+        result = await service.create(_ctx(), agent.id, _interval(interval_seconds=900))
+    assert result is trigger and trigger.is_active is False
+    assert trigger.approved_sources == {
+        "pending_review": True,
+        "unavailable_sources": ["notion"],
+        "reason": refusal.code,
+    }
+    assert trigger.next_fire_at is not None and trigger.prompt == "summarise the day"
+
+
+@pytest.mark.security
+async def test_a_pending_source_setup_cannot_be_activated_before_review():
+    from app.services.routine_sources import RoutineSourcesRequired
+
+    agent = _agent()
+    service = _service(agent)
+    trigger = _trigger(agent_id=agent.id, setup_required=True, setup_issues=["notion"])
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo.get", AsyncMock(return_value=trigger)),
+        pytest.raises(RoutineSourcesRequired, match="schedule and prompt are saved"),
+    ):
+        await service.update(_ctx(), agent.id, trigger.id, TriggerUpdate(is_active=True))
+
+
+def test_pending_source_metadata_is_safe_and_readable_without_a_migration():
+    from app.db.models.agent_trigger import AgentTrigger
+
+    trigger = AgentTrigger(
+        approved_sources={
+            "pending_review": True,
+            "unavailable_sources": ["Notion", {"unsafe": "ignored"}],
+        }
+    )
+    assert trigger.setup_required and trigger.setup_issues == ["Notion"]
+    trigger.approved_sources = {"id": str(uuid.uuid4())}
+    assert not trigger.setup_required and trigger.setup_issues == []
+    trigger.approved_sources = {"pending_review": True, "unavailable_sources": "malformed"}
+    assert trigger.setup_issues == []
+
+
+@pytest.mark.security
+async def test_linear_secret_rotation_does_not_replace_provider_secret():
+    agent = _agent()
+    service = _service(agent)
+    trigger = _event_trigger(agent_id=agent.id, event_source="linear", delivery_mode="manual")
+    with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+        repo.get = AsyncMock(return_value=trigger)
+        repo.update = AsyncMock()
+        with pytest.raises(BadRequestError, match="recreate the Linear trigger"):
+            await service.rotate_secret(_ctx(), agent.id, trigger.id)
+        repo.update.assert_not_called()
+
+
+@pytest.mark.security
+async def test_linear_trigger_create_seals_the_supplied_secret_without_revealing_it():
+    agent = _agent()
+    service = _service(agent)
+    trigger = _event_trigger(agent_id=agent.id, event_source="linear", conversation_id=uuid.uuid4())
+    data = TriggerCreate(
+        prompt="triage",
+        trigger_type="event",
+        event_source="linear",
+        event_secret=_SIGNING_SECRET,
+        event_config={"event_types": ["Issue"], "actions": ["create"]},
+    )
+    audit = AsyncMock()
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch(
+            "app.services.agent_trigger.seal",
+            return_value=MagicMock(ciphertext="CT", key_version=1),
+        ) as seal_fn,
+        patch("app.services.agent_trigger.record_audit", new=audit),
+    ):
+        repo.create = AsyncMock(return_value=trigger)
+        created = await service.create(_ctx(), agent.id, data)
+    assert seal_fn.call_args.args[0] == _SIGNING_SECRET
+    assert repo.create.call_args.kwargs["event_secret_encrypted"] == "CT"
+    assert repo.create.call_args.kwargs["event_source"] == "linear"
+    assert created.reveal_secret is None
+    assert _SIGNING_SECRET not in str(audit.call_args.kwargs["details"])
+
+
+async def test_linear_signed_matching_delivery_produces_a_decision():
+    import hashlib
+    import hmac
+    import json
+    import time
+
+    service = _service()
+    trigger = _event_trigger(event_source="linear", event_config={"event_types": ["Issue"]})
+    body = json.dumps(
+        {"webhookTimestamp": int(time.time() * 1000), "type": "Issue", "action": "create"}
+    ).encode()
+    signature = hmac.new(_SIGNING_SECRET.encode(), body, hashlib.sha256).hexdigest()
+    with (
+        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+        patch("app.services.agent_trigger.unseal", return_value=_SIGNING_SECRET),
+        patch.object(service, "_claim", new=AsyncMock(return_value=True)),
+    ):
+        repo.get_by_id = AsyncMock(return_value=trigger)
+        decision = await service.prepare_event_fire(
+            "linear", trigger.id, body=body, headers={"linear-signature": signature}
+        )
+    assert decision is not None
+    assert decision.trigger_id == trigger.id
+    assert "Issue" in decision.event_context

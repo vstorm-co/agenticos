@@ -572,3 +572,37 @@ class TestAParkedTurnOffersItsChoices:
         _, offer_steps = await self._run("run-1", ["Make it a table"])
 
         offer_steps.assert_not_awaited()
+
+
+async def test_a_long_tool_keeps_real_progress_visible_after_a_progress_sentence():
+    from app.services.channels.base import AnswerStep
+
+    reply, push, clock = _reply()
+    await reply.add("I am checking the evidence.")
+    await reply.step(AnswerStep("one", "Reading a web page…", "in_progress"))
+    assert (
+        "I am checking" in push.await_args.args[0]
+        and "Reading a web page" in push.await_args.args[0]
+    )
+    clock.tick(65)
+    await reply.pulse()
+    assert "1m 5s" in push.await_args.args[0] and "0 steps finished" in push.await_args.args[0]
+    await reply.step(AnswerStep("one", "Reading a web page…", "complete"))
+    assert push.await_args.args[0] == "I am checking the evidence."
+    assert reply.text == "I am checking the evidence."
+
+
+async def test_progress_counts_unique_steps_and_retains_parallel_work():
+    from app.services.channels.base import AnswerStep
+
+    reply, push, clock = _reply()
+    await reply.pulse()
+    push.assert_not_awaited()
+    await reply.step(AnswerStep("one", "First", "in_progress"))
+    await reply.step(AnswerStep("two", "Second", "in_progress"))
+    await reply.step(AnswerStep("two", "Second", "complete"))
+    assert push.await_args.args[0] == "First"
+    await reply.step(AnswerStep("two", "Second", "complete"))
+    clock.tick(20)
+    await reply.pulse()
+    assert "1 steps finished" in push.await_args.args[0]

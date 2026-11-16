@@ -37,6 +37,8 @@ async def test_a_member_lists_only_account_metadata_through_the_service(service:
             secret_kind="openai_codex",
             enabled=True,
             generation=uuid4(),
+            is_default=True,
+            pool_member=False,
         )
     ]
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -49,6 +51,18 @@ async def test_a_member_lists_only_account_metadata_through_the_service(service:
         "secret_kind",
         "enabled",
         "generation",
+        "is_default",
+        "pool_member",
+        "usage",
+    }
+    assert response.json()["items"][0]["usage"] == {
+        "status": "unknown",
+        "observed_at": None,
+        "observation_age_seconds": None,
+        "valid_until": None,
+        "source": "unavailable",
+        "windows": [],
+        "reason_code": "provider_contract_unverified",
     }
     service.mine.assert_awaited_once_with(CTX)
 
@@ -59,3 +73,35 @@ async def test_disconnect_keeps_the_callers_authority(service: AsyncMock) -> Non
         response = await client.delete(f"/api/v1/coding-accounts/{identifier}")
     assert response.status_code == 204
     service.disconnect.assert_awaited_once_with(CTX, identifier)
+
+
+async def test_account_update_accepts_only_an_explicit_default_or_pool_choice(
+    service: AsyncMock,
+) -> None:
+    identifier, generation = uuid4(), uuid4()
+    service.update.return_value = CodingAccountRead(
+        id=identifier,
+        harness="codex",
+        label="Primary",
+        secret_kind="openai_codex",
+        enabled=True,
+        generation=uuid4(),
+        is_default=True,
+        pool_member=True,
+    )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.patch(
+            f"/api/v1/coding-accounts/{identifier}",
+            json={
+                "generation": str(generation),
+                "enabled": True,
+                "is_default": True,
+                "pool_member": True,
+            },
+        )
+    assert response.status_code == 200
+    service.update.assert_awaited_once()
+    args = service.update.await_args
+    assert args is not None and args.args[0] == CTX and args.args[1] == identifier
+    assert args.args[2].generation == generation and args.args[2].is_default is True
+    assert args.args[2].pool_member is True

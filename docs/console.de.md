@@ -1,5 +1,5 @@
 ---
-source_sha: "bb0dabba2198"
+source_sha: "8e1d955d9230"
 ---
 
 # Die Konsole { #the-console }
@@ -40,7 +40,7 @@ neben dem Mikrofon.
 
 Ressourcenlisten, darunter Inbox und Routines, füllen auch im leeren Zustand die verbleibende Seitenhöhe. Routines bietet Vorlagen im Erstellungsformular statt in einem eigenen Ideenbereich an.
 
-Im Chat sind Agentenporträts größer und ohne Ringe. In der vollständigen Desktop-Chatansicht bleibt der Files-Schalter beim Öffnen und Schließen des Bereichs in den Bedienelementen des Arbeitsbereichs; reduzierte Bewegung wird berücksichtigt. Die Chat-Einstellungen zeigen zuerst das aktuelle Modell. Unter **Modell ändern** lassen sich vorausgefüllter Anbieter und Modell bearbeiten; erst die Bestätigung übernimmt die Änderung. Anhangskarten stehen ohne zusätzliches Schattenpanel über dem Eingabefeld.
+Im Chat sind Agentenporträts größer und ohne Ringe. In der vollständigen Desktop-Chatansicht bleibt der Files-Schalter beim Öffnen und Schließen des Bereichs in den Bedienelementen des Arbeitsbereichs; reduzierte Bewegung wird berücksichtigt. Die Chat-Einstellungen zeigen zuerst das aktuelle Modell. Unter **Modell ändern** lassen sich vorausgefüllter Anbieter und Modell bearbeiten; erst **Run on this model** übernimmt die Änderung. Anhangskarten stehen ohne zusätzliches Schattenpanel über dem Eingabefeld.
 
 Seiteneinführungen und Erläuterungen zu Einstellungen sind über das Informationssymbol neben der Überschrift erreichbar. Aktuelle Zusammenfassungen und Warnungen vor destruktiven Aktionen bleiben sichtbar.
 
@@ -66,7 +66,9 @@ Die Chat-Einstellungen haben eine feste Überschrift und Schließen-Schaltfläch
 
 Die Agenten einer Unterhaltung sind nach ihrer letzten Nachricht oder ihrem letzten übergeordneten Lauf sortiert, die neuesten zuerst. Die eingeklappte Chat-Leiste behält die volle Avatargröße bei, überlagert bis zu drei Bilder und blendet ältere Teilnehmer aus; die vollständige Liste bleibt im Tooltip verfügbar.
 
-Ist **Approve everything** nicht verfügbar, unterscheiden die Chat-Einstellungen zwischen fehlender Entscheidungsberechtigung und einer Organisationsrichtlinie, die pauschale Zustimmung deaktiviert. Wer Genehmigungen entscheiden darf, erhält einen Link zu **Budget und Genehmigungen**, um die Richtlinie ausdrücklich zu ändern. Der Chat ändert die Organisationsrichtlinie niemals automatisch.
+Ist **Alles freigeben** (Approve everything) nicht verfügbar, unterscheiden die Chat-Einstellungen zwischen fehlender Entscheidungsberechtigung und einer Organisationsrichtlinie, die pauschale Zustimmung deaktiviert. Wer Genehmigungen entscheiden darf, erhält einen Link zu **Budget und Genehmigungen**, um die Richtlinie ausdrücklich zu ändern. Der Chat ändert die Organisationsrichtlinie niemals automatisch.
+
+Der Eingabebereich zeigt den aktiven Genehmigungsmodus neben der Agent-Auswahl. Über die Beschriftung lässt sich der gespeicherte Modus vor dem Senden ändern. Es gelten dieselben Berechtigungsprüfungen und dieselbe Prüfung der organisationsweiten Ausnahmeregelung wie in **Chat-Steuerung** (Chat controls). Automatisch genehmigte Aufrufe behalten ihre genehmigten Audit-Einträge; nur tatsächlich ausstehende Aufrufe zeigen eine Aufforderung zur Entscheidung.
 
 Dialoge behalten auf dem Smartphone an allen Rändern 12 px Abstand. Kompakte Seitenköpfe zeigen Titel und Aktionen in einer Zeile, wenn genug Platz ist. Die Context-Beschreibung öffnet sich über die Editorleiste.
 
@@ -82,7 +84,7 @@ Seitenüberschriften verwenden die Abstände des umgebenden Layouts ohne Verdopp
 
 Sekundäre Schaltflächen und Filter teilen eine deutlichere Füllfläche, kontrastreiche Beschriftungen und klare Zustände bei Hover, Betätigung und geöffnetem Menü. Die Modellauswahl im Chat verwendet denselben Stil.
 
-Der Kopf eines Agent-Chats zeigt das aktuelle Modell mit dem Provider-Symbol. Öffne die Modellauswahl, um gespeicherte Modelle zu suchen, den Provider oder das Konto zu wechseln oder **Use agent's model** zu wählen. Die Auswahl gilt ab der nächsten Nachricht und wird für dein Konto in der aktuellen Organisation gespeichert; sie bearbeitet den Agenten nicht. Ein laufender Turn behält sein Modell. Getrennte Verbindungen und Modelle ohne Chat-Unterstützung bleiben sichtbar, sind aber nicht auswählbar. Kann die Modellliste nicht gelesen werden, bietet sie **Retry**. **Controls** neben dem Nachrichtenfeld enthält weiterhin die vollständige Modell- und Verbindungseinrichtung.
+Der Kopf eines Agent-Chats zeigt das aktuelle Modell mit dem Provider-Symbol. Öffne die Modellauswahl, um gespeicherte Modelle zu suchen, den Provider oder das Konto zu wechseln oder **Modell des Agents verwenden** (Use agent's model) zu wählen. Die Auswahl gilt ab der nächsten Nachricht und wird für dein Konto in der aktuellen Organisation gespeichert; sie bearbeitet den Agenten nicht. Ein laufender Turn behält sein Modell. Getrennte Verbindungen und Modelle ohne Chat-Unterstützung bleiben sichtbar, sind aber nicht auswählbar. Kann die Modellliste nicht gelesen werden, bietet sie **Erneut versuchen** (Retry). **Chat-Steuerung** (Chat controls) neben dem Nachrichtenfeld enthält weiterhin die vollständige Modell- und Verbindungseinrichtung.
 
 Die Modellauswahl im Kopf erfordert `connections:manage`, wie die bisherigen Modellkontrollen. In schreibgeschützten Gesprächen und ohne diese Berechtigung bleibt das aktuelle Modell sichtbar.
 
@@ -741,13 +743,13 @@ verwenden Sie dort den vollständigen Agent-Editor. Bearbeiten Sie Name, Kurzbes
 Anweisungen, Standardmodell und vorhandene Capability-Schalter und wählen Sie
 **Save draft**. **Review and publish** prüft den gespeicherten Entwurf und öffnet
 die bestehende Bestätigung zur Veröffentlichung. Eine Änderung des Standardmodells
-entfernt keine Modellauswahl in Chat controls; ein laufender Run behält seine
+entfernt keine Modellauswahl in Chat controls; ein laufender Turn behält seine
 eingefrorene Konfiguration.
 
 Bearbeitung und Veröffentlichung folgen der Zugriffsentscheidung des Servers für
 diesen Agent, einschließlich ausdrücklicher Grants. Schreibgeschützte Chats zeigen
 die Einstellungen ohne Bearbeitungsaktionen; Workflow-Agents werden weiterhin in
-ihrem Schritt konfiguriert. Einklappen oder Wechsel zu Browser, Computer oder Files
+ihrem Workflow konfiguriert. Einklappen oder Wechsel zu Browser, Computer oder Files
 bewahrt ungespeicherte Änderungen des ausgewählten Agents. Speichern Sie vor einem
 Agent-Wechsel oder dem Verlassen des Chats. Externe Änderungen halten das Speichern
 an, bis Sie neu laden oder Ihre Änderungen ausdrücklich behalten.
