@@ -10,6 +10,8 @@ import { LinkFavicon } from "@/components/chat/link-favicon";
 import { SectionCard } from "@/components/settings/settings-section";
 import { useBrowserSignIns, useSignInToSite } from "@/hooks/use-browser-sign-ins";
 
+import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
+import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
 import { SignInToSiteDialog } from "./sign-in-to-site-dialog";
 
 /**
@@ -22,27 +24,46 @@ import { SignInToSiteDialog } from "./sign-in-to-site-dialog";
  * holds - cookies, storage - is never shown, and no route returns it.
  */
 export function MySignIns() {
+  const { ref, expanded, toggle } = useWorkspaceFullscreen();
   const t = useTranslations("pages.signIns");
   const { available } = useSignInToSite();
   const [signingIn, setSigningIn] = useState(false);
 
   return (
-    <SectionCard
-      title={t("title")}
-      description={t("description")}
-      tour="my-sign-ins"
-      action={
-        available ? (
-          <Button size="sm" onClick={() => setSigningIn(true)} data-tour="sign-in-to-site">
-            <LogIn className="h-4 w-4" aria-hidden />
-            {t("signInToSite")}
-          </Button>
-        ) : undefined
+    <div
+      ref={ref}
+      className={
+        expanded
+          ? "bg-background fixed inset-0 z-40 flex flex-col overflow-y-auto p-4 sm:p-6"
+          : "flex min-h-0 flex-1 flex-col"
       }
     >
-      <SignInList />
-      {signingIn && <SignInToSiteDialog onClose={() => setSigningIn(false)} />}
-    </SectionCard>
+      <SectionCard
+        className="flex min-h-0 flex-1 flex-col"
+        contentClassName="flex-1"
+        title={t("title")}
+        description={t("description")}
+        tour="my-sign-ins"
+        action={
+          <div className="flex items-center gap-2">
+            <WorkspaceFullscreenButton
+              expanded={expanded}
+              onToggle={toggle}
+              className="md:inline-flex"
+            />
+            {available && (
+              <Button size="sm" onClick={() => setSigningIn(true)} data-tour="sign-in-to-site">
+                <LogIn className="h-4 w-4" aria-hidden />
+                {t("signInToSite")}
+              </Button>
+            )}
+          </div>
+        }
+      >
+        <SignInList />
+        {signingIn && <SignInToSiteDialog onClose={() => setSigningIn(false)} />}
+      </SectionCard>
+    </div>
   );
 }
 

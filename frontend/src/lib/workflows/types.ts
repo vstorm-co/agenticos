@@ -869,6 +869,8 @@ export interface WorkflowApprovalRead {
   details: string | null;
   /** Who may decide it; empty means anyone holding `approvals:decide`. */
   approver_user_ids: Uuid[];
+  approver_group_ids?: Uuid[];
+  can_decide?: boolean;
   status: WorkflowApprovalStatus;
   expires_at: string | null;
   decided_by_user_id: Uuid | null;

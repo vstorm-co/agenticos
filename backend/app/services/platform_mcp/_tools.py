@@ -22,7 +22,7 @@ from urllib.parse import quote
 from uuid import UUID
 
 from fastmcp.exceptions import ToolError
-from pydantic import AwareDatetime, Field, JsonValue, TypeAdapter
+from pydantic import AwareDatetime, BaseModel, Field, JsonValue, TypeAdapter
 
 from app.agents.spec import CapabilityBindingSpec, McpServerRef
 from app.db.models.agent_run import RunSurface
@@ -46,6 +46,13 @@ from app.workflows.contracts.input_schema import MAX_DISCOVERY_BYTES
 from app.workflows.contracts.payload import PayloadTooLarge, json_byte_size
 from app.workflows.graph.model import WorkflowGraph
 from app.workflows.triggers import BY_HAND
+
+
+class _AppLinkState(BaseModel):
+    public_url: str | None
+    public_link: dict[str, JsonValue]
+    public_data: JsonValue = None
+
 
 InviteRole = Literal["admin", "builder", "operator", "member", "viewer"]
 
@@ -1865,20 +1872,25 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def list_task_boards() -> dict[str, object]:
         """Discover task tables the caller can currently access. Needs tables:view.
 
-        Private, project, group and organization boards are provisioned only when
+        Private, agent, project, group and organization boards are provisioned only when
         first needed. Reuse their table ids; do not create parallel TODO tables.
         """
         return {"items": await api.request("GET", "/tasks/boards")}
 
     async def ensure_task_board(
-        scope: Literal["private", "project", "group", "organization"] = "private",
+        scope: Literal["private", "agent", "project", "group", "organization"] = "private",
         scope_id: UUID | None = None,
     ) -> dict[str, object]:
         """Get or create the one task table for a scope. Needs tables:create on first use.
 
         Private is the default for personal mail and drafts. Sharing is explicit:
         supply a project/group id only when the user wants the task shared there.
-        Membership is rechecked on subsequent reads and edits.
+        Agent scope is a shared backlog for a named agent, not its private identity.
+        Use project scope for project deliverables, private for personal follow-ups,
+        organization for explicitly company-wide work, and agent for an explicitly
+        requested agent backlog. Ask when the audience is ambiguous. Reuse existing
+        boards; this tool safely creates only the missing one. Never share personal
+        content just because an agent is assigned. Access is rechecked on every use.
         """
         data = BoardEnsure(scope=scope, scope_id=scope_id)
         return await api.request("POST", "/tasks/boards", json=data.model_dump(mode="json"))
@@ -2123,6 +2135,16 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         interval. `prompt` is what the agent is asked each time, and that run
         starts with none of this conversation - write it as a complete request:
         what to do, from which sources, in which language, and what to produce.
+        For delivery to a messaging channel, first use list_chat_connections and
+        find_chat_channels, then agree the destination and whether this is the same
+        thread or a new top-level post. Include the verified bot_id, channel_id and
+        optional thread_id in the complete recurring prompt, instructing the agent
+        to send_chat_message after finishing the report. Set answer_to="run_log"
+        for that explicit delivery instead of inheriting this conversation. If the
+        routine requires standing approval for sending, direct the person to its
+        access settings in /routines; never promise unattended delivery before that.
+        If those tools are absent, explain that the agent's chat-app binding needs
+        the corresponding actions enabled. Do not replace it with an unrelated MCP.
         `runs_as_me` fires as the person creating it, with their memory and their
         own connected accounts, as in their chat. Every run lands in the routine's
         own log, which the person reads under Routines (`/routines`). A routine
@@ -2130,8 +2152,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         selects another target. `ends_at` is an ISO timestamp with its UTC offset;
         set it for time-bounded requests. `monthly_budget_usd` is a decimal USD cap.
         `pinned_version_id` keeps one published version; omitted, future fires
-        follow the published version. The result names the routine, next activation
-        and its management state.
+        follow the published version. If configured sources are unavailable, the
+        routine is saved PAUSED with setup_required=true and setup_issues. Report
+        that state honestly, link /routines and the appropriate MCP settings, and
+        repair the existing routine. Do not retry with other agents or identities
+        or create duplicates. The result names the routine and its next activation.
         """
         body: dict[str, Any] = {"prompt": prompt, "runs_as_creator": runs_as_me}
         if result_mode is not None:
@@ -4143,7 +4168,44 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             "GET", f"/tables/{table_id}/views", params={"limit": limit, "skip": skip}
         )
 
+    async def create_app_public_link(
+        artifact_id: UUID, confirm_public: Literal[True]
+    ) -> dict[str, JsonValue]:
+        """Create an App link accessible to anyone who has it. Needs edit access to that App.
+
+        Use only after the person explicitly asks for a public link and confirms
+        that its content may be read outside the organization. Sharing with a
+        colleague or posting to a private channel is not that confirmation.
+        Pass the real artifact_id returned by publish_artifact, never a guessed id.
+        Existing public links are reused without rotating their key or changing
+        password, expiry or pinned version. Normal MCP write approval applies.
+        Live data may still need the owner's separate public-data consent in
+        the App's Share dialog; this call never confirms it. Return the actual
+        URL and any expiry, password and data-consent limitations to the person.
+        A refusal is not a published link; do not retry a failed write blindly.
+        """
+        if confirm_public is not True:
+            raise ToolError("Explicit confirmation of public access is required.")
+        state = _AppLinkState.model_validate(await api.request("GET", f"/artifacts/{artifact_id}"))
+        created = state.public_url is None
+        if created:
+            state = _AppLinkState.model_validate(
+                await api.request("PUT", f"/artifacts/{artifact_id}/public-link")
+            )
+        if not state.public_url:
+            raise ToolError(
+                "The API did not confirm a public URL. Check the App's Share settings before retrying."
+            )
+        return {
+            "artifact_id": str(artifact_id),
+            "url": state.public_url,
+            "created": created,
+            "settings": state.public_link,
+            "public_data": state.public_data,
+        }
+
     operations = (
+        (create_app_public_link, True),
         (run_workflow, True),
         (get_virtual_table_record, False),
         (virtual_table_record_exists, False),

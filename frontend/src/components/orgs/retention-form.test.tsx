@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { toast } from "sonner";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
+import { RetentionFormLoading } from "./retention-table";
 import { RetentionForm } from "./retention-form";
 import type { RetentionPolicy } from "@/lib/retention-api";
 
@@ -106,7 +107,8 @@ describe("the retention form", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "save" }));
 
-    expect(onSave).toHaveBeenCalledWith({});
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "save" })).toBeDisabled();
   });
 
   it("sends null for a box the person cleared, and that alone", async () => {
@@ -177,4 +179,50 @@ describe("the retention form", () => {
     expect(screen.getByRole("button", { name: "saving" })).toBeDisabled();
     expect(screen.getByText("saved")).toBeInTheDocument();
   });
+});
+
+it("disables Save again when the stored period is restored", async () => {
+  renderForm({ requested: { runs: 30 } });
+  const box = screen.getByLabelText("classes.runs");
+  const save = screen.getByRole("button", { name: "save" });
+  expect(save).toBeDisabled();
+  await userEvent.clear(box);
+  expect(save).toBeEnabled();
+  await userEvent.type(box, "30");
+  expect(save).toBeDisabled();
+});
+
+it("keeps all seven retention classes and column labels while loading without editable values", () => {
+  render(<RetentionFormLoading />);
+  expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+  expect(screen.getAllByRole("rowheader")).toHaveLength(7);
+  expect(screen.getAllByRole("columnheader")).toHaveLength(3);
+  expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+});
+
+it("preserves an unsaved period across an identical background policy read", async () => {
+  const onSave = vi.fn();
+  const view = render(
+    <RetentionForm
+      policy={policy({ requested: { runs: 30 } })}
+      isSaving={false}
+      saved={false}
+      onSave={onSave}
+    />,
+  );
+  const box = screen.getByLabelText("classes.runs");
+  await userEvent.clear(box);
+  await userEvent.type(box, "90");
+  view.rerender(
+    <RetentionForm
+      policy={policy({ requested: { runs: 30 } })}
+      isSaving={false}
+      saved={false}
+      onSave={onSave}
+    />,
+  );
+  expect(box).toHaveValue(90);
+  expect(screen.getByRole("button", { name: "save" })).toBeEnabled();
+  await userEvent.click(screen.getByRole("button", { name: "save" }));
+  expect(onSave).toHaveBeenCalledWith({ runs: 90 });
 });

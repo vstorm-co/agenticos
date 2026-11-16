@@ -17,6 +17,7 @@ from pydantic import (
     field_validator,
 )
 
+from app.agents.capabilities.channel_tools import ChannelDirectoryUnsupported
 from app.core.config import settings
 from app.core.exceptions import ExternalServiceError
 from app.services.channels import sms_prompts
@@ -279,6 +280,43 @@ class ImessageAdapter(ChannelAdapter):
         )
         await self.send_message(
             bot_token, OutgoingMessage(platform_chat_id=press.platform_chat_id, text=text)
+        )
+
+    async def react_to_message(
+        self,
+        bot_token: str,
+        channel_id: str,
+        message_id: str,
+        emoji: str,
+        *,
+        api_base_url: str | None,
+    ) -> None:
+        reaction = {
+            "heart": "love",
+            "thumbsup": "like",
+            "+1": "like",
+            "thumbsdown": "dislike",
+            "-1": "dislike",
+            "joy": "laugh",
+            "laughing": "laugh",
+            "tada": "emphasize",
+            "question": "question",
+        }.get(emoji, emoji)
+        if reaction not in TAPBACK_REACTIONS:
+            raise ChannelDirectoryUnsupported(
+                "Choose an iMessage tapback: heart, thumbsup, thumbsdown, laughing, emphasize or question"
+            )
+        await self._bridge.json_request(
+            self._credentials(bot_token),
+            "POST",
+            "/api/v1/message/react",
+            _Accepted,
+            body={
+                "chatGuid": chat_guid(channel_id),
+                "selectedMessageGuid": message_id,
+                "reaction": reaction,
+                "partIndex": 0,
+            },
         )
 
     async def acknowledge_message(

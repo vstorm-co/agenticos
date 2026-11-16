@@ -1768,3 +1768,17 @@ class TestTheVisualFrame:
         assert response.status_code == 200
         assert response.headers["access-control-allow-origin"] == "*"
         assert b"OrbitControls" in response.content
+
+
+async def test_thumbnail_route_passes_the_exact_requested_version_to_the_authorized_service(client):
+    artifact_id, version_id = uuid.uuid4(), uuid.uuid4()
+    result = {"version_id": version_id, "state": "ready", "image": "data:image/jpeg;base64,eA=="}
+    with patch.object(ArtifactService, "thumbnail", AsyncMock(return_value=result)) as thumbnail:
+        async with client() as opened:
+            response = await opened.get(
+                f"/api/v1/artifacts/{artifact_id}/thumbnail?version_id={version_id}"
+            )
+    assert response.status_code == 200
+    assert response.json()["version_id"] == str(version_id)
+    assert thumbnail.await_args.args[1] == artifact_id
+    assert thumbnail.await_args.kwargs == {"version_id": version_id}

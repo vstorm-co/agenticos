@@ -32,6 +32,7 @@ const IDLE_READ = {
 };
 const useArtifactReasonsMock = vi.fn().mockReturnValue(IDLE_READ);
 vi.mock("@/hooks/use-artifacts", () => ({
+  useArtifactThumbnail: () => ({ data: { state: "unavailable", image: null }, isPending: false }),
   useArtifactView: (...args: unknown[]) => useArtifactViewMock(...args),
   useArtifactData: (...args: unknown[]) => useArtifactDataMock(...args),
   useArtifactReasons: (...args: unknown[]) => useArtifactReasonsMock(...args),
@@ -264,11 +265,9 @@ describe("a page asking the console to run an action", () => {
       vi.stubGlobal("ResizeObserver", undefined);
       useArtifactViewMock.mockReturnValue({ ...viewOf(), isError: false });
       const { container } = render(<ArtifactThumbnail artifactId="a1" title="Q3 page" />);
-      const frame = container.querySelector("iframe")!;
-      const post = vi.spyOn(frame.contentWindow!, "postMessage").mockImplementation(() => {});
-      ask(frame, REQUEST);
+      expect(container.querySelector("iframe")).toBeNull();
+      fireEvent(window, new MessageEvent("message", { data: REQUEST, source: window }));
       expect(dialog()).toBeNull();
-      expect(post).not.toHaveBeenCalled();
       vi.unstubAllGlobals();
     });
   });
