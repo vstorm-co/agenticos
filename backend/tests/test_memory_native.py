@@ -287,7 +287,7 @@ class TestDeleteFile:
         ):
             assert (
                 await _native.delete_file(
-                    organization_id=ORG, agent_id=AGENT, owner_key=OWNER, name="prefs"
+                    organization_id=ORG, agent_id=AGENT, owner_key=OWNER, name="prefs", run_id=None
                 )
                 is True
             )
@@ -301,7 +301,7 @@ class TestDeleteFile:
         ):
             assert (
                 await _native.delete_file(
-                    organization_id=ORG, agent_id=AGENT, owner_key=OWNER, name="prefs"
+                    organization_id=ORG, agent_id=AGENT, owner_key=OWNER, name="prefs", run_id=None
                 )
                 is False
             )
