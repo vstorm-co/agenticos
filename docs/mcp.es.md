@@ -1,5 +1,5 @@
 ---
-source_sha: "64b3eac00c71"
+source_sha: "c11105a501c2"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -258,10 +258,12 @@ nombre de la herramienta en el servidor. Un grupo cuyas herramientas difieren
 muestra **Per tool**, y elegir para el grupo vuelve a ajustar todas sus
 herramientas. Una herramienta que el servidor añada más tarde sigue a su grupo.
 
-En dos casos manda la marca del servidor. En una app de chat, una herramienta que
-el servidor no marca como de solo lectura pregunta primero aunque esté ajustada
-para ejecutarse sin preguntar, y una vigilancia nunca lee una herramienta ante la
-que su vinculación pregunta, porque no hay nadie para responder.
+Las ejecuciones en canales siguen los ajustes de aprobación del vínculo y de cada
+herramienta para todo remitente admitido, tenga o no su identidad de chat vinculada.
+El canal no añade otra aprobación. Las cuentas personales siguen requiriendo la
+identidad vinculada del remitente y su conexión autorizada; las conexiones de
+plataforma mantienen al menos `writes`. Una vigilancia no lee una herramienta
+que requiera aprobación, porque no hay nadie para responder.
 
 ### A través de qué cuenta habla una vinculación { #whose-account-a-binding-speaks-through }
 

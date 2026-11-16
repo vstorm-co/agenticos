@@ -22,8 +22,8 @@ from sqlalchemy.engine import Connection
 
 from alembic import op
 
-revision: str = "0333_sync_source_knowledge_base"
-down_revision: str | None = "0332_routine_activation_lookup"
+revision: str = "0334_sync_source_knowledge_base"
+down_revision: str | None = "0333_channel_thread_context"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

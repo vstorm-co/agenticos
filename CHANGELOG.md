@@ -19,20 +19,43 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-### Fixed
-
-- Pin each sync source to its knowledge base instead of resolving its collection name again. Sources, logs and ingested documents stay with the selected base, including same-named personal, organization and deployment bases. Deleting or clearing a base detaches and deactivates exactly its sources; another base does not inherit them (#2551).
-
-### Added
-
-- Select an organization knowledge base explicitly with `rag-source-add --knowledge-base <id>` when several bases share a collection name. Sync source responses include `knowledge_base_id`.
-
 ### Upgrading
 
-- **Breaking:** Apply `0333_sync_source_knowledge_base.py` before starting the API and worker. The migration preserves the current resolver's target, including its ID tie-break for equal creation times. Sources with no eligible base are deactivated and listed in migration logs; configuration is retained, and no separate console notification is created. Reassign these sources to a knowledge base and reactivate them before syncing again.
+- Apply `0333_channel_thread_context.py` before starting the new API and workers. Ordinary Slack, Mattermost, Telegram, Teams and Discord messages require the background worker. Legacy thread cursors are preserved so compacted conversations are not imported again. Queued runs are attempted once; after a lost worker or an unconfirmed reply, inspect existing actions before asking again.
+
+- Unlinked channel senders no longer trigger an automatic approval for every MCP or Mirage call. Review agents exposed to unlinked participants: select Ask first for tools needing confirmation, or require linked accounts in the bot's access policy. Existing pending approvals still need a decision or a stopped run; this change does not approve them automatically.
+
+
+- **Breaking:** Apply `0334_sync_source_knowledge_base.py` before starting the API and worker. The migration preserves the current resolver's target, including its ID tie-break for equal creation times. Sources with no eligible base are deactivated and listed in migration logs; configuration is retained, and no separate console notification is created. Reassign these sources to a knowledge base and reactivate them before syncing again.
 - Review migration log entries for sources kept on a member's personal base beside an organization base of the same name. They keep their previous target; move them explicitly if they belong to the organization base.
 - Add `--knowledge-base <id>` to `rag-source-add` scripts when the organization has several bases with that collection name. A source with no assigned base cannot sync.
 - Downgrade deactivates and logs sources whose pinned target would change under the older name resolver. It retains existing pauses; reassign and reactivate affected sources before syncing again.
+
+### Added
+
+- Channel thread refresh shares web-chat history and compaction, with native-post deduplication, bounded imports and explicit missing-context notices. Durable message admission, same-sender queued additions, own-run status/stop commands and final-response receipts work across workers. Personal-service feedback names missing requirements; channel readiness and dashboard connection states distinguish configuration from confirmed access.
+
+
+- Select an organization knowledge base explicitly with `rag-source-add --knowledge-base <id>` when several bases share a collection name. Sync source responses include `knowledge_base_id`.
+
+### Changed
+
+- Channel runs now respect the agent's MCP and Mirage approval settings for unlinked senders too, including delegates and resumed calls. Personal MCP accounts still require the sender's linked identity and authorized connection; bot access controls and platform MCP write approvals remain enforced.
+
+### Fixed
+
+- Resolve Telegram addressing before same-sender steering, keep slashless help as a command, preserve admitted Mattermost edits across queue delays, and target recovered replies at their original message. Readiness blocks disabled assistants and Telegram webhooks missing their required secret. Compact terminal reply snapshots across success, failure, cancellation and lost-worker recovery; pending replies share retained message quotas.
+
+- Bound retained channel job counts and payload bytes, including terminal jobs, independently of active queue capacity. Completed work cannot reset its storage quota before cleanup.
+
+- Bound channel admission before enqueueing, encrypt attachment handles through the vault, keep `/btw` tool-free across workers, and preserve rendered answers and native delivery receipts. Stale workers cannot persist terminal replies; delayed turns do not import future thread messages. Publication diagnostics no longer require the channel manager to run the agent.
+
+- Admit Slack Socket Mode commands and message shortcuts durably before acknowledgement, preserve Telegram updates when job admission fails, and keep Discord metadata lookups off its Gateway receive loop.
+
+- Standardize fields, native and custom selects, buttons and switches across the console and authentication screens. Respect the chosen look at sign-in, stack connected accounts before appearance, restore fallback avatar colours and make working-day selection clear.
+
+
+- Pin each sync source to its knowledge base instead of resolving its collection name again. Sources, logs and ingested documents stay with the selected base, including same-named personal, organization and deployment bases. Deleting or clearing a base detaches and deactivates exactly its sources; another base does not inherit them (#2551).
 
 ## [1.78.1] - 2026-11-16
 

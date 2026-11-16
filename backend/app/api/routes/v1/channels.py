@@ -17,6 +17,7 @@ from app.schemas.channel_bot import (
     ChannelBotList,
     ChannelBotRead,
     ChannelBotUpdate,
+    ChannelDiagnosticsRead,
     ChannelSessionList,
     TeamsConversationList,
     TeamsConversationRead,
@@ -75,6 +76,20 @@ async def get_bot(
     if it inherited its transcription engine - which the listing leaves out.
     """
     return await service.read(bot_id)
+
+
+@router.get(
+    "/bots/{bot_id}/diagnostics",
+    response_model=ChannelDiagnosticsRead,
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def get_bot_diagnostics(bot_id: UUID, service: OrgChannelBotSvc, ctx: Auth) -> Any:
+    """Inspect configuration for the signed-in caller without running tools or a model.
+
+    Personal checks describe this caller's account, not everybody in the channel.
+    Stored connections are not probed; provider authorization can still expire.
+    """
+    return await service.diagnostics(bot_id, ctx)
 
 
 @router.get(

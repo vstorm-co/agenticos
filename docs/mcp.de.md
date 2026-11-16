@@ -1,5 +1,5 @@
 ---
-source_sha: "64b3eac00c71"
+source_sha: "c11105a501c2"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -258,10 +258,12 @@ des Tools auf dem Server. Eine Gruppe, deren Tools sich unterscheiden, zeigt
 **Pro Tool**, und eine Wahl für die Gruppe stellt wieder alle ihre Tools ein. Ein
 Tool, das der Server später hinzufügt, folgt seiner Gruppe.
 
-An zwei Stellen gilt stattdessen der Hinweis des Servers. In einer Chat-App fragt
-ein Tool, das der Server nicht als nur lesend markiert, erst, auch wenn es ohne
-Rückfrage laufen soll, und eine Beobachtung liest nie ein Tool, vor dem ihr Binding
-fragt, weil niemand da ist, um zu antworten.
+Kanalausführungen folgen für jeden zugelassenen Absender den Genehmigungseinstellungen
+der Bindung und der einzelnen Werkzeuge, auch ohne verknüpftes Chat-Konto. Der Kanal
+fügt keine zusätzliche Genehmigung hinzu. Persönliche Konten benötigen weiterhin
+die verknüpfte Identität des Absenders und dessen autorisierte Verbindung;
+Plattformverbindungen behalten mindestens `writes`. Eine Beobachtung liest kein
+Werkzeug, das eine Genehmigung verlangt, da niemand antworten kann.
 
 ### Durch wessen Konto ein Binding spricht { #whose-account-a-binding-speaks-through }
 

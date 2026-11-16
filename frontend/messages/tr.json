@@ -3119,7 +3119,30 @@
       "transcriptionInheritedNoKey": "Bu ayar çiftinin devralındığı yerde anahtar seçilmemiş. Anahtar seçilene kadar sesli mesajlar yazıya çevrilmez.",
       "discordGuilds": "İzin verilen Discord sunucu ID’leri",
       "discordGuildsHint": "Discord’da Developer Mode’u açın ve izin verilen her sunucu ID’sini kopyalayın. ID’leri virgül veya boşlukla ayırın. Liste boşsa yalnızca DM’lere izin verilir; sunucu mesajları engellenir.",
-      "discordGuildsInvalid": "Virgül veya boşlukla ayrılmış ondalık sunucu ID’leri girin (en fazla 2.500 sunucu)."
+      "discordGuildsInvalid": "Virgül veya boşlukla ayrılmış ondalık sunucu ID’leri girin (en fazla 2.500 sunucu).",
+      "diagnostics": {
+        "open": "{bot} denetle",
+        "title": "Hazırlık: {bot}",
+        "description": "Kişisel kontroller oturum açtığınız hesaba uygulanır. Kayıtlı bağlantılar sağlayıcılarda test edilmez.",
+        "loading": "Yapılandırma denetleniyor…",
+        "error": "Yapılandırma denetlenemedi.",
+        "refresh": "Yenile",
+        "audience": "Yanıtlar bu konunun katılımcılarına görünür. Kişisel kaynak, hedefi özel yapmaz.",
+        "checks": {
+          "active": "Bot etkin",
+          "transport": "Gelen bağlantı",
+          "binding": "Ajan atanmış",
+          "published": "Yayımlanmış ajan sizin için kullanılabilir",
+          "identity": "Kanal hesabınız bağlı",
+          "personal_service": "Kişisel hizmetiniz bağlı"
+        },
+        "states": {
+          "ok": "Hazır",
+          "warning": "İlgilenilmeli",
+          "blocked": "Engellendi",
+          "unknown": "Doğrulanmadı"
+        }
+      }
     },
     "agents": {
       "voiceUnreportedTokenUsage": "Bu sağlayıcı token ücretlerini bildirmez. Harcama bütçesi olan aramalar başlatılamaz; kaydedilen ses maliyeti bir alt sınırdır.",
@@ -7541,11 +7564,18 @@
         "platforms": {
           "telegram": "Telegram",
           "slack": "Slack",
-          "mattermost": "Mattermost"
+          "mattermost": "Mattermost",
+          "teams": "Microsoft Teams",
+          "sms": "SMS",
+          "email": "Email",
+          "imessage": "iMessage",
+          "discord": "Discord"
         },
         "webhook": "dinliyor",
         "polling": "düzenli sorguluyor",
         "switchedOff": "kapalı",
+        "disconnected": "bağlantı kesildi",
+        "unknown": "bağlantı durumu bilinmiyor",
         "empty": {
           "title": "Henüz kanal yok",
           "description": "Bir bot kaydedin; agentlarına Slack, Telegram veya Mattermost üzerinden ulaşılabilsin."
@@ -8695,6 +8725,10 @@
       "chat-coding-revert": {
         "title": "Kodlama görevini incele ve geri al",
         "body": "Değişen dosyaları incelemek için kodlama görevini aç. Görev yalnızca etkilenen dosyalar görev bittikten sonra değişmediyse geri alınır."
+      },
+      "channels-diagnostics": {
+        "title": "Hazırlığı denetle",
+        "body": "Görev başlatmadan bot bağlantısını, ajan yayımını ve kendi bağlı hesaplarınızı denetleyin."
       }
     }
   },

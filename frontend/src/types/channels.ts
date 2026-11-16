@@ -302,3 +302,13 @@ export interface DiscordServerList {
   items: DiscordServer[];
   total: number;
 }
+
+export interface ChannelDiagnostics {
+  checks: {
+    code: "active" | "transport" | "binding" | "published" | "identity" | "personal_service";
+    status: "ok" | "warning" | "blocked" | "unknown";
+    detail: string | null;
+  }[];
+  account_scope: "current_user";
+  credentials_probed: boolean;
+}

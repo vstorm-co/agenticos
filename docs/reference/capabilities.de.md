@@ -1,5 +1,5 @@
 ---
-source_sha: "4f3a31df37a1"
+source_sha: "7d56de6cfe78"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1517,7 +1517,7 @@ Lesezugriffe und Text-grep; modellgestützte semantische Suche ist nicht aktivie
 Die Kontoverknüpfung muss im selben Browser und mit derselben angemeldeten
 Identität abgeschlossen werden, mit der sie begonnen wurde.
 
-Vault-Secrets müssen zum Zweck des Backends passen; `custom` erlaubt ausdrücklich eine eigene Integration. OneDrive und SharePoint akzeptieren eine Entra-App mit dem Zweck `sharepoint`, Hugging-Face-Dienste den Zweck `huggingface`. Veröffentlichung und Ausführung prüfen dieselbe Regel. Jeder Host einer PostgreSQL-Seed-Liste muss auf der Allowlist des Deployments stehen. MongoDB und GridFS benötigen genau einen `mongodb://`-Host: Die Plattform erzwingt `directConnection=true` und lehnt SRV-Erkennung ab. Nicht verknüpfte Kanalabsender benötigen für jedes Mirage-Werkzeug eine Genehmigung, auch zum Lesen; nach der Kontoverknüpfung gilt die normale Ordnerregel des Autors.
+Vault-Secrets müssen zum Zweck des Backends passen; `custom` erlaubt ausdrücklich eine eigene Integration. OneDrive und SharePoint akzeptieren eine Entra-App mit dem Zweck `sharepoint`, Hugging-Face-Dienste den Zweck `huggingface`. Veröffentlichung und Ausführung prüfen dieselbe Regel. Jeder Host einer PostgreSQL-Seed-Liste muss auf der Allowlist des Deployments stehen. MongoDB und GridFS benötigen genau einen `mongodb://`-Host: Die Plattform erzwingt `directConnection=true` und lehnt SRV-Erkennung ab. Kanalausführungen verwenden die gewöhnlichen Genehmigungseinstellungen des Autors für die Mirage-Bindung und einzelne Werkzeuge, auch bei Absendern ohne verknüpftes Konto.
 
 PostgreSQL-Mounts benötigen ein nicht leeres Passwort im Vault-DSN; leere Passwörter und passwortlose Anmeldung werden nicht unterstützt. Sie greifen nicht auf `PGPASSWORD` oder `.pgpass` zurück. DSN-Parameter für Zugangsdaten- oder TLS-Dateien auf dem Host (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`) werden abgelehnt.
 

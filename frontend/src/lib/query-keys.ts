@@ -226,6 +226,7 @@ export const qk = {
     webhookTest: (id: string, token: string) => ["workflows", id, "webhook-test", token] as const,
   },
   channelBots: {
+    diagnostics: (botId: string) => ["channel-bots", "diagnostics", botId] as const,
     list: () => ["channel-bots"] as const,
     // Under the list's prefix, so every bot mutation refreshes the one a dialog
     // has open too - its "inherit" hint reads the bot's agent.

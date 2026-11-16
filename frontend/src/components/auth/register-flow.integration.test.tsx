@@ -51,3 +51,26 @@ it("preserves an invitation destination if the new account still needs to sign i
   );
   expect(env.register).toHaveBeenCalledTimes(1);
 });
+
+it("announces invalid fields and clears their state after correction", async () => {
+  render(<RegisterForm />);
+  const email = screen.getByLabelText(/^email$/i);
+  const password = screen.getByLabelText(/^password$/i);
+  const confirmation = screen.getByLabelText(/confirm password/i);
+  await userEvent.type(email, "invalid");
+  await userEvent.tab();
+  expect(email).toHaveAttribute("aria-invalid", "true");
+  await userEvent.type(password, "short");
+  expect(password).toHaveAttribute("aria-invalid", "true");
+  await userEvent.type(confirmation, "different");
+  expect(confirmation).toHaveAttribute("aria-invalid", "true");
+  await userEvent.clear(email);
+  await userEvent.type(email, "person@example.com");
+  await userEvent.clear(password);
+  await userEvent.type(password, "ValidPassword123!");
+  await userEvent.clear(confirmation);
+  await userEvent.type(confirmation, "ValidPassword123!");
+  for (const field of [email, password, confirmation]) {
+    expect(field).toHaveAttribute("aria-invalid", "false");
+  }
+});

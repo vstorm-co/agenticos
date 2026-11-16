@@ -1372,7 +1372,7 @@ reading and text grep; model-backed semantic search is not enabled. Connected-ac
 consent must finish in the same browser and signed-in account that started it.
 
 
-Vault secrets must match the backend’s purpose; `custom` is the explicit escape hatch. OneDrive and SharePoint accept the `sharepoint` Entra-app purpose, and Hugging Face services accept `huggingface`. Publish and runtime enforce the same rule. Every host in a PostgreSQL seed list must be on the deployment allowlist. MongoDB and GridFS require one `mongodb://` host: the platform forces `directConnection=true` and refuses SRV discovery. Unlinked channel senders require approval for every Mirage tool, including reads; linking an account restores the author’s ordinary folder policy.
+Vault secrets must match the backend’s purpose; `custom` is the explicit escape hatch. OneDrive and SharePoint accept the `sharepoint` Entra-app purpose, and Hugging Face services accept `huggingface`. Publish and runtime enforce the same rule. Every host in a PostgreSQL seed list must be on the deployment allowlist. MongoDB and GridFS require one `mongodb://` host: the platform forces `directConnection=true` and refuses SRV discovery. Channel runs use the author’s ordinary Mirage binding and per-tool approval settings, including for senders without a linked account.
 
 PostgreSQL mounts require a nonempty password in the vault DSN; empty passwords and passwordless authentication are not supported. They do not fall back to `PGPASSWORD` or `.pgpass`. DSN parameters naming host credential or TLS files (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`) are refused.
 

@@ -19,6 +19,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from pydantic import BaseModel, ConfigDict
 from pydantic_ai import RunContext
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.toolsets import (
@@ -32,6 +33,8 @@ from pydantic_ai.toolsets import (
 from app.agents.capabilities._failures import steer
 from app.agents.deps import AgentDeps
 from app.agents.mcp import tool_prefix
+
+CHECK_SERVICE_ACCESS = "check_service_access"
 
 CONNECT_ACCOUNT = "connect_account"
 """The tool's name, which the approval gate leaves ungated where this is attached."""
@@ -176,4 +179,60 @@ class ConnectOnUse(AbstractCapability[AgentDeps]):
         return (
             f"{name} is connected. Its tools, named `{tool_prefix(service)}_...`, are available "
             "from your next step."
+        )
+
+
+class ServiceAccessStatus(BaseModel):
+    """A missing personal service, its exact requirements and the safe next step."""
+
+    model_config = ConfigDict(frozen=True)
+
+    service: str
+    name: str
+    reason: Literal["identity_not_linked", "not_connected", "unauthorized", "not_listed"]
+    required_steps: tuple[str, ...]
+    settings_url: str | None = None
+    tools_available: Literal[False] = False
+    execution: Literal["not_started"] = "not_started"
+
+
+@dataclass
+class UnavailableServices(AbstractCapability[AgentDeps]):
+    """Report missing personal services without starting a sign-in or borrowing an account."""
+
+    services: Sequence[ServiceAccessStatus]
+
+    def get_instructions(self) -> str:
+        return (
+            "When the request needs a personal service reported unavailable, call "
+            "`check_service_access` with its service key for the exact missing requirements. "
+            "Explain those requirements and what you could not do. Connecting the chat identity "
+            "does not also authorize the service. Never claim a tool ran or substitute another "
+            "person's or the organization's account. Do not ask them to configure unrelated services."
+        )
+
+    def get_toolset(self) -> AbstractToolset[AgentDeps]:
+        toolset: FunctionToolset[AgentDeps] = FunctionToolset()
+        toolset.add_function(self.check_service_access, name=CHECK_SERVICE_ACCESS)
+        return toolset
+
+    def check_service_access(self, service: str) -> ServiceAccessStatus:
+        """Explain why a personal service is unavailable and exactly what the sender must connect.
+
+        This reads the current run's admission result; it does not attempt a remote operation,
+        change permissions or start authentication. After fixing the requirements, ask again.
+
+        Args:
+            service: The personal service key named in the agent's availability briefing.
+        """
+        for status in self.services:
+            if status.service == service:
+                return status
+        return ServiceAccessStatus(
+            service=service,
+            name=service,
+            reason="not_listed",
+            required_steps=(
+                "This run has no missing personal service with this key. Check the availability briefing.",
+            ),
         )

@@ -1694,7 +1694,7 @@ class TestProactivityMainMerge:
 
 
 class TestSyncSourceKnowledgeBase:
-    """`0333_sync_source_knowledge_base.py`: what the operator is told, both ways.
+    """`0334_sync_source_knowledge_base.py`: what the operator is told, both ways.
 
     The upgrade and the downgrade each stop sources they cannot place, and the log
     is the only record of which and why (#2551). Each reason has its own remedy,
@@ -1704,7 +1704,7 @@ class TestSyncSourceKnowledgeBase:
     def test_each_stopped_source_is_logged_with_its_reason(self):
         reset = _alembic("downgrade", "base")
         assert reset.returncode == 0, reset.stderr
-        before = _alembic("upgrade", "0332_routine_activation_lookup")
+        before = _alembic("upgrade", "0333_channel_thread_context")
         assert before.returncode == 0, before.stderr
         org, tie_a, tie_b, single = uuid4(), uuid4(), uuid4(), uuid4()
         tied, nowhere, kept = uuid4(), uuid4(), uuid4()
@@ -1741,7 +1741,7 @@ class TestSyncSourceKnowledgeBase:
                         {"id": source_id, "org": org, "name": name},
                     )
 
-            upgraded = _alembic("upgrade", "0333_sync_source_knowledge_base")
+            upgraded = _alembic("upgrade", "0334_sync_source_knowledge_base")
             assert upgraded.returncode == 0, upgraded.stderr
             assert str(tied) not in upgraded.stderr
             with engine.connect() as connection:
@@ -1762,7 +1762,7 @@ class TestSyncSourceKnowledgeBase:
                     text("UPDATE sync_sources SET knowledge_base_id = NULL WHERE id = :id"),
                     {"id": kept},
                 )
-            downgraded = _alembic("downgrade", "0332_routine_activation_lookup")
+            downgraded = _alembic("downgrade", "0333_channel_thread_context")
             assert downgraded.returncode == 0, downgraded.stderr
             assert (
                 f"Sync source {kept} (organization {org}) records no knowledge base; "
@@ -2242,13 +2242,15 @@ def test_routine_overlap_history_round_trip_preserves_runs_and_other_attempts() 
 
 
 def test_routine_activation_index_round_trip_preserves_legacy_policy() -> None:
-    """0332_routine_activation_lookup.py adds only a reversible lookup index."""
+    """0333_channel_thread_context.py adds only a reversible lookup index."""
     from sqlalchemy import inspect
 
     from app.db.models.agent import Agent
     from app.db.models.agent_run import AgentRun
     from app.db.models.organization import Organization
 
+    result = _alembic("downgrade", "base")
+    assert result.returncode == 0, result.stderr
     result = _alembic("upgrade", "0331_routine_overlap_attempt")
     assert result.returncode == 0, result.stderr
     engine = create_engine(_url(MIGRATION_DATABASE))
@@ -2268,18 +2270,14 @@ def test_routine_activation_index_round_trip_preserves_legacy_policy() -> None:
             )
             db.add(agent)
             db.flush()
-            db.add(
-                AgentRun(
-                    id=run_id,
-                    organization_id=org.id,
-                    agent_id=agent.id,
-                    surface="schedule",
-                    status="completed",
-                    input_tokens=0,
-                    output_tokens=0,
-                    cost_usd=0,
-                    routine_policy={"acts_as_creator": True},
-                )
+            db.execute(
+                text(
+                    "INSERT INTO agent_runs (id, organization_id, agent_id, surface, status, "
+                    "input_tokens, output_tokens, cost_usd, cost_is_partial, routine_policy) "
+                    "VALUES (:id, :org, :agent, 'schedule', 'completed', 0, 0, 0, false, "
+                    "'{\"acts_as_creator\": true}'::jsonb)"
+                ),
+                {"id": run_id, "org": org.id, "agent": agent.id},
             )
             db.commit()
         result = _alembic("upgrade", "head")
@@ -2295,8 +2293,9 @@ def test_routine_activation_index_round_trip_preserves_legacy_policy() -> None:
             index["name"] for index in inspect(engine).get_indexes("agent_runs")
         }
         with DatabaseSession(engine) as db:
-            run = db.get(AgentRun, run_id)
-            assert run is not None and run.routine_policy == {"acts_as_creator": True}
+            # Later revisions may add run columns absent at this downgraded schema.
+            policy = db.scalar(select(AgentRun.routine_policy).where(AgentRun.id == run_id))
+            assert policy == {"acts_as_creator": True}
         result = _alembic("upgrade", "head")
         assert result.returncode == 0, result.stderr
     finally:

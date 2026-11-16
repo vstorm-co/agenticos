@@ -310,6 +310,12 @@ class IncomingMessage:
     discord_roles_checked_for: tuple[str, str, str] | None = None
     """Trusted preflight metadata: bot, linked user and identity; never read from raw payloads."""
 
+    edit_admitted: bool = False
+    """A durable queue receipt authorized this edit while its ignored-original receipt existed."""
+
+    discord_interaction: tuple[str, str] | None = field(default=None, repr=False)
+    """Application and token for a deferred response, encrypted before persistence."""
+
 
 @dataclass
 class OutgoingMessage:
@@ -344,6 +350,8 @@ CHANNEL_COMMANDS: tuple[tuple[str, str], ...] = (
     ("start", "Say hello"),
     ("agents", "Who answers here, and what it does"),
     ("new", "Start a new conversation"),
+    ("status", "Show the state of your latest task in this thread"),
+    ("stop", "Stop your active task before its next model request"),
     ("link", "Connect your chat account to your account"),
     ("unlink", "Disconnect your account"),
     ("help", "Show the commands"),
@@ -546,7 +554,7 @@ class ChannelAdapter(ABC):
         return incoming.addressed
 
     @abstractmethod
-    async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
+    async def send_message(self, bot_token: str, msg: OutgoingMessage) -> str | None:
         """Send a reply back to the platform."""
 
     async def send_notification(
@@ -1015,3 +1023,11 @@ async def supervise_stream(
         else:
             wait = delay = RECONNECT_FLOOR_SECONDS
         await asyncio.sleep(wait)
+
+
+def is_run_control(text: str) -> bool:
+    """Recognize native command suffixes without treating ordinary prose as control."""
+    stripped = text.strip().casefold()
+    if stripped in {"status", "stop"}:
+        return True
+    return stripped.partition(" ")[0].partition("@")[0] in {"/status", "/stop"}

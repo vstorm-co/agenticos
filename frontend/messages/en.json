@@ -3157,11 +3157,18 @@
         "platforms": {
           "telegram": "Telegram",
           "slack": "Slack",
-          "mattermost": "Mattermost"
+          "mattermost": "Mattermost",
+          "teams": "Microsoft Teams",
+          "sms": "SMS",
+          "email": "Email",
+          "imessage": "iMessage",
+          "discord": "Discord"
         },
         "webhook": "listening",
         "polling": "polling",
         "switchedOff": "switched off",
+        "disconnected": "disconnected",
+        "unknown": "connection unknown",
         "empty": {
           "title": "No channels yet",
           "description": "Register a bot and its agents become reachable from Slack, Telegram or Mattermost."
@@ -6083,6 +6090,10 @@
       "chat-coding-revert": {
         "title": "Review and revert a coding task",
         "body": "Open a coding task to review its changed files. Revert this task restores those files only when none has changed since the task ended."
+      },
+      "channels-diagnostics": {
+        "title": "Check readiness",
+        "body": "Inspect the bot connection, agent publication and your own linked accounts without running a task."
       }
     },
     "chooseLanguage": "Language",
@@ -7339,7 +7350,30 @@
       "discordGuilds": "Approved Discord server IDs",
       "discordGuildsHint": "Enable Developer Mode in Discord and copy each approved server ID. Separate IDs with commas or spaces. An empty list permits DMs only; server messages stay blocked.",
       "discordGuildsInvalid": "Enter decimal server IDs, separated by commas or spaces (up to 2,500 servers).",
-      "emailAddress": "Email address"
+      "emailAddress": "Email address",
+      "diagnostics": {
+        "open": "Inspect {bot}",
+        "title": "Readiness: {bot}",
+        "description": "Personal checks apply to your signed-in account. Stored connections are not tested against their providers.",
+        "loading": "Checking configuration…",
+        "error": "Could not check configuration.",
+        "refresh": "Refresh",
+        "audience": "Replies are visible to this thread’s participants. A personal source does not make the destination private.",
+        "checks": {
+          "active": "Bot enabled",
+          "transport": "Inbound connection",
+          "binding": "Agent assigned",
+          "published": "Published agent available to you",
+          "identity": "Your channel account linked",
+          "personal_service": "Your personal service connected"
+        },
+        "states": {
+          "ok": "Ready",
+          "warning": "Needs attention",
+          "blocked": "Blocked",
+          "unknown": "Unconfirmed"
+        }
+      }
     },
     "invitations": {
       "acceptInvitation": "Accept invitation",

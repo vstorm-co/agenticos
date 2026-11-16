@@ -457,7 +457,7 @@ def _migration() -> ModuleType:
         Path(__file__).resolve().parents[2]
         / "alembic"
         / "versions"
-        / "0333_sync_source_knowledge_base.py"
+        / "0334_sync_source_knowledge_base.py"
     )
     spec = importlib.util.spec_from_file_location("sync_source_knowledge_base_under_test", path)
     assert spec is not None and spec.loader is not None

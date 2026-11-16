@@ -24,7 +24,7 @@ import uuid
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -892,7 +892,11 @@ class TestAPublishedDelegate:
         with pytest.raises(BadRequestError, match="no longer exists"):
             await _prepare(spec, versions={pinned.id: pinned})
 
-    async def test_it_gets_its_own_mcp_connections_back(self):
+    @pytest.mark.parametrize("surface", [RunSurface.API, RunSurface.MATTERMOST])
+    @pytest.mark.parametrize("linked", [False, True])
+    async def test_it_gets_its_own_mcp_connections_back(
+        self, surface: RunSurface, linked: bool
+    ) -> None:
         """A delegate is a published agent, and half its tools coming from MCP
         does not make them optional."""
         delegate_id = uuid.uuid4()
@@ -900,7 +904,14 @@ class TestAPublishedDelegate:
         pinned = _version(
             delegate_id,
             AgentSpec(
-                name="Linear Bot", mcp_servers=[OrgMcpServerRef(connection_id=connection_id)]
+                name="Linear Bot",
+                mcp_servers=[
+                    OrgMcpServerRef(
+                        connection_id=connection_id,
+                        approval="none",
+                        tool_approval={"search": "never", "delete": "required"},
+                    )
+                ],
             ),
         )
         spec = _delegating(
@@ -911,11 +922,17 @@ class TestAPublishedDelegate:
             f"{RUNNER}.build_toolsets_for_agent",
             new=AsyncMock(return_value=ResolvedMcpToolsets(["linear-toolset"], [])),
         ) as toolsets:
-            prepared = await _prepare(spec, versions={pinned.id: pinned})
+            prepared = await _prepare(
+                spec, versions={pinned.id: pinned}, surface=surface, acts_for_sender=linked
+            )
             built = prepared.built("linear-bot")
 
         assert toolsets.await_args_list[-1].kwargs["refs"] == [
-            OrgMcpServerRef(connection_id=connection_id)
+            OrgMcpServerRef(
+                connection_id=connection_id,
+                approval="none",
+                tool_approval={"search": "never", "delete": "required"},
+            )
         ]
         assert built["extra_toolsets"] == ["linear-toolset"]
 
@@ -2540,9 +2557,10 @@ async def test_discovered_delegate_authorization_reloads_membership_and_retains_
 @pytest.mark.parametrize(
     "surface", [RunSurface.SLACK, RunSurface.MATTERMOST, RunSurface.TEAMS, RunSurface.TELEGRAM]
 )
-async def test_inline_mirage_cannot_bypass_an_unlinked_channel_gate(
-    surface: RunSurface, linked: bool
-):
+@pytest.mark.parametrize("approval", ["never", "required"])
+async def test_root_and_inline_mirage_keep_authored_approval_in_channels(
+    surface: RunSurface, linked: bool, approval: Literal["never", "required"]
+) -> None:
     from app.agents.capabilities import get
     from app.agents.capabilities.approval import approval_required_tools
 
@@ -2551,17 +2569,24 @@ async def test_inline_mirage_cannot_bypass_an_unlinked_channel_gate(
         capabilities=[
             {
                 "id": "mirage",
-                "approval": "never",
-                "tool_approval": dict.fromkeys(tools, "never"),
+                "approval": approval,
+                "tool_approval": dict.fromkeys(tools, approval),
                 "config": {"mounts": [{"path": "/data/", "backend": "ram"}]},
             }
         ]
     )
     prepared = await _prepare(
-        _delegating(inline=[specialist]), surface=surface, acts_for_sender=linked
+        _delegating(
+            inline=[specialist],
+            capabilities=[binding.model_dump() for binding in specialist.capabilities],
+        ),
+        surface=surface,
+        acts_for_sender=linked,
     )
     built = prepared.built("summariser")["spec"]
-    assert approval_required_tools(built) == (frozenset() if linked else tools)
+    expected = tools if approval == "required" else frozenset()
+    assert approval_required_tools(built) == expected
+    assert approval_required_tools(prepared.build.call_args_list[0].args[0]) == expected
 
 
 @pytest.mark.parametrize("coding", [False, True])
