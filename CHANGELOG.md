@@ -19,6 +19,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Workflow approvals reach the people who decide them.** A workflow step asking for approval now notifies its named approvers and the members of its approver groups who hold `approvals:decide`, or, when it names neither, every member of the run's organization holding `approvals:decide`. The notification opens the approvals queue. Pending workflow steps and tool calls the reader may decide lead the Inbox among urgent items, counted with the rest.
+- **Onboarding offers an owner a model to connect.** An owner who may prepare an agent sees **Connect a model** on the first-task step instead of being told an administrator must finish setting up AI. Onboarding calls the tenant an organization throughout, and a step asked as questions shows one Back, also while it loads or when it fails to.
+- **Dates in the reader's time zone.** Apps, their public pages and every other date the console formats through next-intl follow the browser's time zone, as Chat and Tables do, instead of the server's UTC.
+- **Public link settings appear with the link.** An app's Share dialog shows the link's expiry, version, embedding and password settings only once the link exists, and its address sits in a labelled read-only field.
+- **Forks and the conversation menu.** A forked conversation carries a mark naming its source in the chat list, and the conversation actions are a menu with roles, arrow keys and Escape; Rename keeps the focus in the title field.
+- **Dictation says why it failed.** With the browser's own speech recognition, a blocked microphone, a page that may not ask for one, a missing microphone, a refusing or unreachable speech service and silence each get the step that fixes them, in the console and on hosted chat pages.
+- **One Polish name per concept, and actions in empty lists.** Polish calls a run a run throughout, the skills gallery and the Apps capability read as the product names them, and the Apps filter says apps in every locale. Empty Workflows and Routines lists offer their create action, and a table made from a workflow template takes the workflow's name, with a number when the name is taken, instead of an id suffix.
+
 ## [1.76.1] - 2026-11-15
 
 ### Documentation
