@@ -24,6 +24,11 @@ Two things are versioned separately from this file and worth knowing about:
 - Let the "+" on a workflow output that already leads to a step insert the new step before it or add a parallel branch, keeping the connection when the step cannot carry it on, and mark an approval outcome or a deciding step that leads nowhere with a non-blocking warning.
 - Explain a decimal comma in a Virtual Table formula with a translated error that shows the dot, translate every formula refusal by a stable `details.formula.reason`, and show numbers in tables with the reader's decimal separator. A function given the wrong number of values is refused when its formula is saved; one saved before keeps working until it is edited.
 - Translate workflow step settings - labels, help text and placeholders, including fields inside lists - into the console's language, checked against the registry by a guard.
+
+## [1.76.2] - 2026-11-16
+
+### Fixed
+
 - Restore dependency freshness checks with ty 0.0.104 by updating renamed diagnostic rules and the minimum checker version, and allow the full backend CI runtime for the upgrade canary.
 
 ## [1.76.1] - 2026-11-15
@@ -21770,7 +21775,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.76.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.76.2...HEAD
+[1.76.2]: https://github.com/vstorm-co/agenticos/compare/v1.76.1...v1.76.2
 [1.76.1]: https://github.com/vstorm-co/agenticos/compare/v1.76.0...v1.76.1
 [1.76.0]: https://github.com/vstorm-co/agenticos/compare/v1.75.0...v1.76.0
 [1.75.0]: https://github.com/vstorm-co/agenticos/compare/v1.74.0...v1.75.0
