@@ -172,7 +172,7 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
         }
       >
         {scores.isLoading ? (
-          <LoadingState variant="skeleton-cards" rows={2} />
+          <LoadingState variant="pending" />
         ) : scores.error ? (
           <ErrorState
             description={getErrorMessage(scores.error, tErrors)}

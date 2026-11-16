@@ -15,10 +15,11 @@ import {
   FormField,
   Input,
 } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import type { NewDataset } from "@/hooks/use-datasets";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { submitFailure } from "@/lib/api-error";
-import { DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type { Dataset } from "@/types/datasets";
 import { DatasetDetailsFields } from "./dataset-details-fields";
@@ -56,10 +57,14 @@ export function EditDatasetDialog({ dataset, onOpenChange, update }: EditDataset
     discard: () => onOpenChange(false),
   });
   // Only ever asked to close: it has no trigger of its own.
-  const close = () => useUnsavedChangesStore.getState().leave(() => onOpenChange(false), [source]);
+  const close = () => {
+    if (!update.isPending)
+      useUnsavedChangesStore.getState().leave(() => onOpenChange(false), [source]);
+  };
 
   /** Saves the details; true once saved. */
   async function handleSave(): Promise<boolean> {
+    if (update.isPending || !savable) return false;
     try {
       await update.mutateAsync({
         ...(Number((Number(holdout) / 100).toFixed(3)) !== Number(originalShare)
@@ -85,39 +90,44 @@ export function EditDatasetDialog({ dataset, onOpenChange, update }: EditDataset
 
   return (
     <Dialog open onOpenChange={close}>
-      <DialogContent className={DIALOG_FORM}>
+      <DialogContent dismissible={!update.isPending} className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle>{t("editDetails")}</DialogTitle>
           <DialogDescription>{t("editDetailsBody")}</DialogDescription>
         </DialogHeader>
-        <DatasetDetailsFields
-          name={name}
-          onNameChange={setName}
-          description={description}
-          onDescriptionChange={setDescription}
-          errors={errors}
-        />
-        <FormField
-          htmlFor="improvement-holdout-share"
-          label={t("improvementSplit.share")}
-          description={t("improvementSplit.shareHint")}
-          error={
-            errors.improvement_holdout_share ??
-            (!validShare ? t("improvementSplit.shareInvalid") : undefined)
-          }
-        >
-          <Input
-            id="improvement-holdout-share"
-            type="number"
-            min={0}
-            max={100}
-            step={0.1}
-            value={holdout}
-            onChange={(event) => setHoldout(event.target.value)}
-          />
-        </FormField>
+        <div className={DIALOG_BODY}>
+          <fieldset disabled={update.isPending} className="min-w-0 space-y-4">
+            <legend className="sr-only">{t("editDetails")}</legend>
+            <DatasetDetailsFields
+              name={name}
+              onNameChange={setName}
+              description={description}
+              onDescriptionChange={setDescription}
+              errors={errors}
+            />
+            <FormField
+              htmlFor="improvement-holdout-share"
+              label={t("improvementSplit.share")}
+              description={t("improvementSplit.shareHint")}
+              error={
+                errors.improvement_holdout_share ??
+                (!validShare ? t("improvementSplit.shareInvalid") : undefined)
+              }
+            >
+              <Input
+                id="improvement-holdout-share"
+                type="number"
+                min={0}
+                max={100}
+                step={0.1}
+                value={holdout}
+                onChange={(event) => setHoldout(event.target.value)}
+              />
+            </FormField>
+          </fieldset>
+        </div>
         <DialogFooter>
-          <Button variant="outline" onClick={close}>
+          <Button variant="outline" onClick={close} disabled={update.isPending}>
             {t("cancel")}
           </Button>
           <Button disabled={update.isPending || !savable} onClick={() => void handleSave()}>

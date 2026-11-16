@@ -1,5 +1,5 @@
 ---
-source_sha: "4d205a52251b"
+source_sha: "a9b67bff9ee7"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -442,6 +442,8 @@ paleta dibuja el paso con un icono de diferencias, entre los pasos de datos.
 ::: app.workflows.nodes.text_compare._handler.TextCompareOutput
 
 ## html.parse { #html-parse }
+
+Desde la versión 1.72.0, los selectores del documento y la extracción de enlaces excluyen el contenido inerte de `<template>`. Seleccionar el propio elemento `template` sigue devolviendo su HTML y texto. Soup Sieve 4 ajusta los selectores de estado de formularios al comportamiento del navegador; al actualizar, revise los flujos que dependan de las reglas anteriores. La evaluación utiliza caché; los límites de tiempo y memoria del proceso lector siguen vigentes.
 
 **Parse HTML** lee HTML como su texto, sus enlaces y los elementos que elige un
 selector CSS. Sirve para el HTML con el que se topa un flujo: el cuerpo de un
@@ -1423,6 +1425,7 @@ de confianza.
 | El trabajo superó `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, la sesión purgada |
 | No hay una conexión `sandboxd` utilizable | `SANDBOX_UNAVAILABLE` |
 | Escribió más de 20 archivos o 100 MB, o imprimió más de 10 MB | `PYTHON_OUTPUT_TOO_LARGE`, medido en la sandbox antes de traer nada, y la sesión purgada |
+| El host respondió pero no pudo iniciar el sandbox: un directorio de workspace en el que no puede escribir, una imagen que no se pudo construir | `SANDBOX_START_FAILED` con un diagnóstico seguro; la salida sin procesar queda en los registros del host, se reintenta |
 | No se pudo alcanzar el host | `SANDBOX_UNREACHABLE`, se reintenta |
 
 ::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig

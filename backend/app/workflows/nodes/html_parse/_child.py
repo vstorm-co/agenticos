@@ -1,10 +1,9 @@
 """The parsing of `html.parse`, as a program the step runs in a child process.
 
-The step cannot parse in its own process: soupsieve backtracks without
-memoising, so a descendant selector such as `p div div` over a thousand nested
-divs takes minutes, and a thread running it cannot be stopped. `_handler.py`
-starts this file instead, under a wall-clock deadline and CPU and memory limits,
-and kills it when the deadline passes.
+The step parses untrusted markup and selectors outside its own process, under a
+wall-clock deadline and CPU and memory limits. Soup Sieve caches selector matching,
+but pathological markup must still be bounded and its reader must be killable.
+`_handler.py` starts this file and kills it when the deadline passes.
 
 Run as a script (`python _child.py`), it reads one JSON request from stdin -
 `markup`, `selector`, `max_matches`, `base_url`, `max_chars` - writes the output

@@ -236,3 +236,21 @@ it("uses server time when the local clock is ahead of a snoozed offer", async ()
     vi.useRealTimers();
   }
 });
+
+it("does not restart a failed onboarding read when the dashboard mounts its checklist", async () => {
+  vi.mocked(readOnboarding).mockRejectedValue(new Error("offline"));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const dashboard = renderHook(() => useStart(), { wrapper });
+  await waitFor(() => expect(dashboard.result.current.isError).toBe(true));
+  const checklist = renderHook(() => useStart(), { wrapper });
+  expect(checklist.result.current.isLoading).toBe(false);
+  expect(checklist.result.current.isError).toBe(true);
+  expect(readOnboarding).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    await checklist.result.current.refetch();
+  });
+  expect(readOnboarding).toHaveBeenCalledTimes(2);
+});

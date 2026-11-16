@@ -1,5 +1,7 @@
 # Virtual Tables
 
+Choose a table’s icon beside its name in the detail view. Its catalog card and dashboard row use the same mark. **Use default icon** resets it; the choice does not change columns, records or schema versions. The control follows the table’s management access, including task-board restrictions.
+
 A **virtual table** is a typed table of records that an organization keeps for its
 agents, [workflows](workflows.md) and integrations: orders to reconcile, files to
 process, leads to follow up.
@@ -323,7 +325,9 @@ in instead, so nothing is written until every required value is there.
 
 Each edit is one `PATCH` against the revision on screen, so an edit that loses to a
 newer change is refused rather than written over it. The record then opens with the
-refused value kept beside **Reload and reapply**. Ticking rows offers **Delete** for
+refused value kept beside **Reload and reapply**, and the record read again: the field
+says what it holds now, who changed the record last and when, and the panel's title
+follows. Ticking rows offers **Delete** for
 all of them, each against its own revision: a record someone changed meanwhile is
 kept, and the console says how many were. The record panel deletes one record the same
 way.
@@ -344,7 +348,11 @@ In **Columns**, **Required** makes a column need a
 value, and an archived column moves under **Archived columns**, where **Restore** brings
 it back with its values.
 
+Reading the comparison keeps unsaved edits in other fields and their original revision. A later conflict reads a new comparison; a response for a record you closed cannot close another record. Long values show a shortened preview.
+
 ### Import and export { #import-and-export }
+
+Map each table column, including **External id**, only once during CSV import. Duplicate targets are marked and block import until you choose another target or skip one of the file columns.
 
 Exports read at most 4 MiB of decoded record JSON per page (or one record),
 with at most 500 records per page. An organization can stream one export at a
@@ -463,6 +471,8 @@ leaving out empty ones. A table with no single-select column offers **Add a colu
 The view's owner switches it between **Private** and **Shared** with the button beside
 **Rename**. Someone who manages another member's view, such as an admin, does not
 get the switch: sharing a person's own filters is theirs to choose.
+
+On phones, a saved view’s **Views** menu holds creating another view, renaming, sharing and deleting, according to the same permissions as the desktop controls.
 
 `GET/POST /tables/{id}/views` and `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 list, create, read, update and delete them. The list is paged with `skip` and
@@ -838,7 +848,7 @@ attempt without it is refused with `AUTHORIZATION_ERROR` (403).
 
 ## Default view {#default-view}
 
-An editor can choose **Set as default** in the table toolbar. The current layout,
+An editor can choose **Set as default** inside **View settings**. The current layout,
 filters and grouping are saved as a shared view, then opened whenever someone
 visits the table without an explicit `view` or `viewId` URL override. New task
 boards start in Kanban. A table's default must belong to that table and be shared;
@@ -848,7 +858,7 @@ the table to its plain layout. The API uses `PATCH /tables/{id}` with
 same rich-text editor and preview as other document cells.
 
 
-**Group by** saves automatically when an editor chooses a column. It updates a manageable saved Kanban view; without one, it creates a private view and selects it. A refused save keeps the previous grouping. Readers can change the grouping temporarily. **Set as default** in the toolbar saves the current format for everyone; ordinary tables start in Table until an editor chooses another default.
+**Group by** saves automatically when an editor chooses a column. It updates a manageable saved Kanban view; without one, it creates a private view and selects it. A refused save keeps the previous grouping. Readers can change the grouping temporarily. **Set as default** inside **View settings** saves the current format for everyone; ordinary tables start in Table until an editor chooses another default.
 
 An agent cannot be deleted while a managed task still depends on its scheduled execution. Reassign, complete or cancel those tasks first; deleting an agent must not silently discard its task work.
 

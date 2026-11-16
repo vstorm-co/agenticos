@@ -3,6 +3,7 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
 import {
   ChevronRight,
+  CircleAlert,
   Check,
   MessageCircleQuestion,
   OctagonPause,
@@ -103,6 +104,7 @@ export function WorkFold({
   steps,
   durationMs,
   stopped = false,
+  failed = false,
   running = false,
   waiting,
   children,
@@ -114,6 +116,7 @@ export function WorkFold({
   durationMs: number | null;
   /** The run was stopped, which the line says instead of "Worked". */
   stopped?: boolean;
+  failed?: boolean;
   running?: boolean;
   waiting?: "awaiting_answer" | "awaiting_approval";
   children: ReactNode;
@@ -129,23 +132,27 @@ export function WorkFold({
   const toggleId = useId();
   const duration = durationMs === null ? null : formatElapsed(durationMs, t);
   const runText = useTranslations("pages.runs");
-  const label = waiting
-    ? runText("toolState", { status: waiting })
-    : running
-      ? duration === null
-        ? t("working")
-        : t("workingFor", { duration })
-      : stopped
+  const label = failed
+    ? duration === null
+      ? t("failedWork", { count: steps })
+      : t("failedAfter", { duration, count: steps })
+    : waiting
+      ? runText("toolState", { status: waiting })
+      : running
         ? duration === null
-          ? t("stopped", { count: steps })
-          : t("stoppedAfter", { duration, count: steps })
-        : steps === 0
+          ? t("working")
+          : t("workingFor", { duration })
+        : stopped
           ? duration === null
-            ? tChat("thoughtAboutIt")
-            : t("thoughtFor", { duration })
-          : duration === null
-            ? t("worked", { count: steps })
-            : t("workedFor", { duration, count: steps });
+            ? t("stopped", { count: steps })
+            : t("stoppedAfter", { duration, count: steps })
+          : steps === 0
+            ? duration === null
+              ? tChat("thoughtAboutIt")
+              : t("thoughtFor", { duration })
+            : duration === null
+              ? t("worked", { count: steps })
+              : t("workedFor", { duration, count: steps });
 
   return (
     <div>
@@ -158,7 +165,9 @@ export function WorkFold({
         className="group text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring flex min-h-8 w-full min-w-0 items-center gap-2 rounded-lg py-1 text-left text-[13px] transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
       >
         <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden>
-          {waiting === "awaiting_approval" ? (
+          {failed ? (
+            <CircleAlert className="text-destructive size-3.5" />
+          ) : waiting === "awaiting_approval" ? (
             <ShieldCheck className="size-3.5 text-amber-700 dark:text-amber-400" />
           ) : waiting === "awaiting_answer" ? (
             <MessageCircleQuestion className="size-3.5" />

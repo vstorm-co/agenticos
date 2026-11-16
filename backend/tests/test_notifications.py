@@ -196,6 +196,55 @@ class TestBudgetExceeded:
         call = written.calls[0]
         assert call["event_type"] is NotificationEventType.BUDGET_EXCEEDED
         assert set(call["recipients"]) == {admin_id, owner_id}
+        # No amounts were handed over, so none are claimed for the console to word.
+        assert "limit_usd" not in call["render_context"]
+
+    @pytest.mark.anyio
+    async def test_the_limit_and_spend_are_kept_for_the_reader_s_language(self, written):
+        """The sentence is English; the numbers and which cap bound are what a console words."""
+        admin_id = uuid.uuid4()
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(admin_id)),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()),
+            patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+        ):
+            await NotificationService(MagicMock()).budget_exceeded(
+                _run(),
+                agent=_agent(),
+                spec=_spec(),
+                reason="Agent monthly budget exhausted: $0.0008 spent of $0.0005 limit",
+                scope=BudgetScope.AGENT,
+                limit_usd=Decimal("0.0005"),
+                spent_usd=Decimal("0.0008"),
+            )
+
+        context = written.calls[0]["render_context"]
+        assert "subject" not in context
+        assert context["scope"] == "agent"
+        assert context["limit_usd"] == "0.0005"
+        assert context["spent_usd"] == "0.0008"
+
+    @pytest.mark.anyio
+    async def test_a_department_s_cap_names_the_department(self, written):
+        """A person can be in several capped departments; the row says whose cap it was."""
+        admin_id = uuid.uuid4()
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles(admin_id)),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()),
+            patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+        ):
+            await NotificationService(MagicMock()).budget_exceeded(
+                _run(),
+                agent=_agent(),
+                spec=_spec(),
+                reason="Sales department monthly budget exhausted",
+                scope=BudgetScope.ORGANIZATION,
+                limit_usd=Decimal("10"),
+                spent_usd=Decimal("10.02"),
+                subject="Sales",
+            )
+
+        assert written.calls[0]["render_context"]["subject"] == "Sales"
 
     @pytest.mark.anyio
     async def test_an_id_reached_two_ways_is_notified_once(self, written):
@@ -2497,3 +2546,18 @@ async def test_a_routine_without_a_recipient_does_not_invent_one(written):
         observed_at=datetime.now(UTC),
     )
     assert written.calls == []
+
+
+@pytest.mark.anyio
+async def test_department_warning_keeps_a_sub_cent_limit() -> None:
+    service = NotificationService(AsyncMock())
+    group = MagicMock(id=uuid.uuid4(), name="Sales", monthly_budget_usd=Decimal("0.0005"))
+    with (
+        patch.object(service, "_capped_groups", AsyncMock(return_value=[group])),
+        patch.object(service, "_department_audience", AsyncMock(return_value={uuid.uuid4()})),
+        patch(f"{MODULE}.agent_run_repo.sum_cost_since", AsyncMock(return_value=Decimal("0.0004"))),
+        patch.object(service._center, "write", AsyncMock()) as write,
+    ):
+        await service.department_budget_warnings(_run())
+    assert write.await_args.kwargs["render_context"]["limit"] == "0.0005"
+    assert write.await_args.kwargs["render_context"]["share"] == 80

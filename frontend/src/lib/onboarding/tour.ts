@@ -381,6 +381,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "chat-coding-revert",
+    page: ROUTES.CHAT,
+    target: "coding-task-revert",
+    optional: true,
+  },
+  {
     id: "chat-background-tasks",
     page: ROUTES.CHAT,
     target: "chat-background-tasks",
@@ -790,13 +796,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: SKILL_DETAIL,
     target: "skill-history",
     activate: "skill-history-tab",
-    permission: Perm.skillsView,
-  },
-  {
-    id: "skill-tree",
-    page: SKILL_DETAIL,
-    target: "skill-tree",
-    activate: "skill-tree-tab",
     permission: Perm.skillsView,
   },
 

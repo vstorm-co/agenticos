@@ -33,7 +33,8 @@ import { GradingPanel, type GradingCopy } from "@/components/datasets/grading-pa
 import { UnsavedCopiesBanner } from "@/components/datasets/unsaved-copies-banner";
 import { VersionSelect } from "@/components/datasets/version-select";
 import { DatasetEvalsPanel, DatasetRunEvalsButton } from "@/components/evals/dataset-evals-panel";
-import { ErrorState, LoadingState } from "@/components/states";
+import { DatasetLoading } from "@/components/datasets/dataset-loading";
+import { ErrorState } from "@/components/states";
 import {
   Button,
   ConfirmDialog,
@@ -163,7 +164,7 @@ export default function DatasetPage({ params }: PageProps) {
     return <ErrorState description={getErrorMessage(datasetError, tErrors)} />;
   }
   if (dataset === undefined) {
-    return <LoadingState variant="skeleton-panel" rows={3} />;
+    return <DatasetLoading />;
   }
 
   const editable = dataset.can_edit && version === null;
@@ -331,7 +332,7 @@ export default function DatasetPage({ params }: PageProps) {
                   </p>
                 )}
                 {cases.isLoading ? (
-                  <LoadingState variant="skeleton-cards" rows={2} />
+                  <CasesTable cases={[]} loading onOpen={openCase} />
                 ) : cases.error ? (
                   <ErrorState
                     description={getErrorMessage(cases.error, tErrors)}

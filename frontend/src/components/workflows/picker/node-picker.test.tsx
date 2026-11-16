@@ -282,7 +282,11 @@ describe("NodePicker app groups", () => {
       },
     ];
     mountApps();
+    // A service nobody connected offers no step yet: it waits under one row.
+    expect(screen.queryByRole("option", { name: /^Airtable/ })).toBeNull();
+    await userEvent.click(screen.getByRole("option", { name: "1 more app to connect" }));
     const row = screen.getByRole("option", { name: /^Airtable/ });
+    expect(row).toHaveTextContent(/Connect$/);
     expect(row.querySelector("img")?.getAttribute("src")).toMatch(/^data:image\//);
     expect(row.querySelector("svg.lucide-zap")).toBeNull();
   });

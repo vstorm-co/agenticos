@@ -89,7 +89,8 @@ export function AddToGroupDialog({
       return next;
     });
 
-  const submit = () =>
+  const submit = () => {
+    if (share.isPending || picked.size === 0) return;
     share.mutate(
       {
         items: shareable
@@ -99,10 +100,16 @@ export function AddToGroupDialog({
       },
       { onSuccess: onClose },
     );
+  };
 
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
+    <Dialog
+      open
+      onOpenChange={() => {
+        if (!share.isPending) onClose();
+      }}
+    >
+      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)} dismissible={!share.isPending}>
         <DialogHeader>
           <DialogTitle>{t("addToGroupTitle", { name: group.name })}</DialogTitle>
           <DialogDescription>{t("addToGroupWhy")}</DialogDescription>
@@ -113,6 +120,7 @@ export function AddToGroupDialog({
             aria-hidden
           />
           <Input
+            disabled={share.isPending}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t("addToGroupSearch")}
@@ -120,89 +128,100 @@ export function AddToGroupDialog({
             className="pl-8"
           />
         </div>
-        <div className={cn(DIALOG_BODY, "space-y-5")}>
-          {error ? (
-            <ErrorState description={getErrorMessage(error, tErrors)} />
-          ) : isLoading ? (
-            <LoadingState variant="skeleton-panel" rows={3} />
-          ) : shown.length === 0 ? (
-            <p className="text-muted-foreground py-6 text-center text-sm">
-              {needle ? t("addToGroupNoMatch") : t("addToGroupNothing")}
-            </p>
-          ) : (
-            // By kind, in the order a department is set up, rather than one
-            // list of mixed names with a grey glyph each - "agent-instructions"
-            // and "Architect" are different things to give a team.
-            KINDS.map(({ kind, icon: Icon, heading }) => {
-              const items = shown.filter((item) => item.kind === kind);
-              if (items.length === 0) return null;
-              const allPicked = items.every((item) => picked.has(key(item)));
-              return (
-                <section key={kind} className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Icon className="text-muted-foreground h-4 w-4" aria-hidden />
-                    <h3 className="text-sm font-medium">{t(heading)}</h3>
-                    <span className="text-muted-foreground text-xs">{items.length}</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleAll(items, !allPicked)}
-                      className="text-muted-foreground hover:text-foreground ml-auto text-xs underline-offset-4 hover:underline"
-                    >
-                      {allPicked ? t("addToGroupNone") : t("addToGroupAll")}
-                    </button>
-                  </div>
-                  <div className="grid gap-1.5 sm:grid-cols-2">
-                    {items.map((item) => {
-                      const on = picked.has(key(item));
-                      return (
-                        <button
-                          key={key(item)}
-                          type="button"
-                          role="checkbox"
-                          aria-checked={on}
-                          onClick={() => toggle(item)}
-                          className={cn(
-                            "flex min-w-0 items-center gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors",
-                            on
-                              ? "border-foreground/40 bg-accent"
-                              : "border-border hover:bg-accent/50",
-                          )}
-                        >
-                          {item.kind === "agent" ? (
-                            <AgentFace agentId={item.id} className="size-6 shrink-0" />
-                          ) : (
-                            <span className="bg-muted grid size-6 shrink-0 place-items-center rounded-md">
-                              <Icon className="text-muted-foreground h-3.5 w-3.5" aria-hidden />
-                            </span>
-                          )}
-                          <span className="min-w-0 flex-1 truncate">{item.name}</span>
-                          <span
-                            aria-hidden
+        <div className={DIALOG_BODY}>
+          <fieldset disabled={share.isPending} className="min-w-0 space-y-5">
+            <legend className="sr-only">{t("addToGroupTitle", { name: group.name })}</legend>
+            {error ? (
+              <ErrorState description={getErrorMessage(error, tErrors)} />
+            ) : isLoading ? (
+              <LoadingState variant="pending" />
+            ) : shown.length === 0 ? (
+              <p className="text-muted-foreground py-6 text-center text-sm">
+                {needle ? t("addToGroupNoMatch") : t("addToGroupNothing")}
+              </p>
+            ) : (
+              // By kind, in the order a department is set up, rather than one
+              // list of mixed names with a grey glyph each - "agent-instructions"
+              // and "Architect" are different things to give a team.
+              KINDS.map(({ kind, icon: Icon, heading }) => {
+                const items = shown.filter((item) => item.kind === kind);
+                if (items.length === 0) return null;
+                const allPicked = items.every((item) => picked.has(key(item)));
+                return (
+                  <section key={kind} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Icon className="text-muted-foreground h-4 w-4" aria-hidden />
+                      <h3 className="text-sm font-medium">{t(heading)}</h3>
+                      <span className="text-muted-foreground text-xs">{items.length}</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleAll(items, !allPicked)}
+                        className="text-muted-foreground hover:text-foreground ml-auto min-h-11 text-xs underline-offset-4 hover:underline"
+                      >
+                        {allPicked ? t("addToGroupNone") : t("addToGroupAll")}
+                      </button>
+                    </div>
+                    <div className="grid gap-1.5 sm:grid-cols-2">
+                      {items.map((item) => {
+                        const on = picked.has(key(item));
+                        return (
+                          <button
+                            key={key(item)}
+                            type="button"
+                            role="checkbox"
+                            aria-checked={on}
+                            onClick={() => toggle(item)}
                             className={cn(
-                              "grid size-4 shrink-0 place-items-center rounded-[4px] border",
+                              "flex min-h-11 min-w-0 items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
                               on
-                                ? "border-foreground bg-foreground text-background"
-                                : "border-border",
+                                ? "border-foreground/40 bg-accent"
+                                : "border-border hover:bg-accent/50",
                             )}
                           >
-                            {on && <Check className="h-3 w-3" />}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
-              );
-            })
-          )}
+                            {item.kind === "agent" ? (
+                              <AgentFace agentId={item.id} className="size-6 shrink-0" />
+                            ) : (
+                              <span className="bg-muted grid size-6 shrink-0 place-items-center rounded-md">
+                                <Icon className="text-muted-foreground h-3.5 w-3.5" aria-hidden />
+                              </span>
+                            )}
+                            <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+                              {item.name}
+                            </span>
+                            <span
+                              aria-hidden
+                              className={cn(
+                                "grid size-4 shrink-0 place-items-center rounded-[4px] border",
+                                on
+                                  ? "border-foreground bg-foreground text-background"
+                                  : "border-border",
+                              )}
+                            >
+                              {on && <Check className="h-3 w-3" />}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              })
+            )}
+          </fieldset>
         </div>
-        <DialogFooter className="items-center gap-2 sm:justify-between">
-          <div className="flex items-center gap-2">
+        <DialogFooter className="grid grid-cols-1 justify-stretch gap-3 sm:flex sm:items-end sm:justify-between">
+          <div className="min-w-0 space-y-2">
             <Label htmlFor="add-to-group-level" className="text-muted-foreground text-xs">
               {t("addToGroupLevel")}
             </Label>
-            <Select value={level} onValueChange={(next) => setLevel(next as GrantLevel)}>
-              <SelectTrigger id="add-to-group-level" className="h-8 w-36">
+            <Select
+              value={level}
+              disabled={share.isPending}
+              onValueChange={(next) => {
+                if (next === "read" || next === "use" || next === "edit") setLevel(next);
+              }}
+            >
+              <SelectTrigger id="add-to-group-level" className="w-full sm:w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -212,7 +231,12 @@ export function AddToGroupDialog({
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={submit} loading={share.isPending} disabled={picked.size === 0}>
+          <Button
+            className="w-full sm:w-auto"
+            onClick={submit}
+            loading={share.isPending}
+            disabled={picked.size === 0}
+          >
             {t("addToGroupShare", { count: picked.size })}
           </Button>
         </DialogFooter>

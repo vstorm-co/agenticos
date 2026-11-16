@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -113,8 +113,6 @@ async function pickCategory(name: string) {
 
 /** The status Select, which has no `htmlFor` label of its own. */
 function statusFilter() {
-  const toggle = screen.getByRole("button", { name: /^Filters/ });
-  if (toggle.getAttribute("aria-expanded") === "false") fireEvent.click(toggle);
   return screen.getByRole("combobox", { name: "Filter by status" });
 }
 
@@ -144,7 +142,7 @@ describe("the agents gallery's attention badge", () => {
 });
 
 describe("the agents gallery filter", () => {
-  it("keeps the selected status when the filters are collapsed and reopened", async () => {
+  it("keeps status visible while secondary label filters are collapsed and reopened", async () => {
     render(<AgentsPage />, { wrapper });
     await screen.findByText("Live");
     const toggle = screen.getByRole("button", { name: "Filters" });
@@ -155,7 +153,8 @@ describe("the agents gallery filter", () => {
     await userEvent.click(screen.getByRole("option", { name: "Drafts" }));
     await userEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(toggle).toHaveTextContent("1");
+    expect(toggle).not.toHaveTextContent("1");
+    expect(statusFilter()).toBeVisible();
     await userEvent.click(toggle);
     expect(statusFilter()).toHaveTextContent("Drafts");
     expect(screen.getByText("Draft")).toBeVisible();

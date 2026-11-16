@@ -127,16 +127,18 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
           {/* The routine's own name leads - it was the smallest text in the row,
               under the cadence it is only a property of. */}
           {(trigger.name || (showAgent && trigger.agent_name)) && (
-            <p className="truncate text-sm font-medium">{trigger.name ?? trigger.agent_name}</p>
+            <p className="text-sm font-medium [overflow-wrap:anywhere] sm:truncate">
+              {trigger.name ?? trigger.agent_name}
+            </p>
           )}
-          <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+          <p className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs sm:flex-nowrap">
             {trigger.name && showAgent && trigger.agent_name && (
               <>
                 <span className="text-foreground/80 truncate">{trigger.agent_name}</span>
                 <span aria-hidden>·</span>
               </>
             )}
-            <span className="truncate">
+            <span className="min-w-0 sm:truncate">
               <TriggerSummary trigger={trigger} />
             </span>
           </p>

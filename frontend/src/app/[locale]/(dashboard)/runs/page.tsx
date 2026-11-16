@@ -191,7 +191,7 @@ export default function RunsPage() {
           simply not answered yet and open the run history instead. The badges
           wait with it, for the second half of that reason. */}
       {permissionsLoading ? (
-        <LoadingState variant="skeleton-table" columns={6} rows={6} />
+        <LoadingState variant="pending" />
       ) : (
         <>
           <Tabs

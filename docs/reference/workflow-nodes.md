@@ -422,6 +422,8 @@ step with a diff icon, under the data steps.
 
 ## html.parse { #html-parse }
 
+Since 1.72.0, document selectors and link extraction exclude inert `<template>` contents. Selecting `template` itself still returns its HTML and text. Soup Sieve 4 also aligns form-state selectors with browser behavior; review workflows that depend on the previous matching rules when upgrading. Selector matching is cached; reader time and memory limits remain in place.
+
 **Parse HTML** reads HTML into its text, its links and the elements a CSS selector
 picks. It is for the HTML a flow meets: a mail body, an `http.request` body, a page
 `http.download` stored. `text.extract` reads documents, not markup - it would hand
@@ -1358,6 +1360,7 @@ configuration - choose a runtime without network for untrusted work.
 | The job ran past `timeout_seconds` | `PYTHON_SANDBOX_TIMEOUT`, the session purged |
 | No usable `sandboxd` connection | `SANDBOX_UNAVAILABLE` |
 | It wrote more than 20 files or 100 MB, or printed more than 10 MB | `PYTHON_OUTPUT_TOO_LARGE`, measured in the sandbox before anything is fetched, and the session purged |
+| The host answered but could not start the sandbox - a workspace directory it cannot write, an image that would not build | `SANDBOX_START_FAILED` with a safe diagnosis; raw host output stays in the host's logs, retried |
 | The host could not be reached | `SANDBOX_UNREACHABLE`, retried |
 
 ::: app.workflows.nodes.code_python_simple._handler.PythonSimpleConfig

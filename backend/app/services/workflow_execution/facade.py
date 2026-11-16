@@ -26,6 +26,7 @@ from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
+from app.db.models.workflow_approval import WorkflowApprovalStatus
 from app.db.models.workflow_file import WorkflowFile
 from app.db.models.workflow_run import (
     NodeAttempt,
@@ -39,6 +40,7 @@ from app.db.models.workflow_run import (
     WorkflowRunTrigger,
 )
 from app.repositories import workflow as workflow_repo
+from app.repositories import workflow_approval as workflow_approval_repo
 from app.repositories import workflow_file as workflow_file_repo
 from app.repositories import workflow_log_entry as workflow_log_repo
 from app.repositories import workflow_run as workflow_run_repo
@@ -65,6 +67,7 @@ from app.schemas.workflow_run import (
     WorkflowRunGraph,
     WorkflowRunList,
     WorkflowRunRead,
+    WorkflowStepDecision,
     WorkflowStepResolve,
     WorkflowStepTest,
 )
@@ -1177,11 +1180,30 @@ class WorkflowExecutionService:
         ):
             graph = await dispatcher.resolve_graph(self.db, run)
             awaited = {node.id for node in graph.nodes if node.definition_id == "flow.await_reply"}
+        decisions = {
+            decision.node_run_id: decision
+            for decision in await workflow_approval_repo.step_decisions(
+                self.db,
+                organization_id=ctx.organization_id,
+                node_run_ids=[row.id for row in rows],
+            )
+        }
         items = []
         for row in rows:
             read = node_run_read(row, by_run.get(row.id, []))
             if row.node_instance_id in awaited and row.resume_payload is not None:
                 read.reply_expectation = ReplyExpectation.model_validate(row.resume_payload)
+            decision = decisions.get(row.id)
+            if decision is not None:
+                read.approval = WorkflowStepDecision(
+                    status=WorkflowApprovalStatus(decision.status),
+                    decided_at=decision.decided_at,
+                    # Who decided names a member: a caller who may not list the
+                    # members - a key scoped to workflows - reads the decision alone.
+                    decided_by_name=decision.decided_by_name
+                    if ctx.has(Perm.MEMBERS_VIEW)
+                    else None,
+                )
             items.append(read)
         return WorkflowNodeRunList(items=items, total=total)
 

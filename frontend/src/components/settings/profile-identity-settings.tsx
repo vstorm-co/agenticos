@@ -6,7 +6,7 @@ import { Camera } from "lucide-react";
 import { toast } from "sonner";
 
 import { ApiError, getErrorMessage } from "@/lib/api-error";
-import { AvatarColorPicker, Button, FormField, Input } from "@/components/ui";
+import { AvatarColorPicker, Button, FormField, Input, MoreOptions } from "@/components/ui";
 import { AvatarFace } from "@/components/ui/avatar-face";
 import { AgentContextSettings } from "@/components/settings/agent-context-settings";
 import { SectionCard } from "@/components/settings/settings-section";
@@ -42,6 +42,10 @@ export function ProfileIdentitySettings({
   const [email, setEmail] = useState(user?.email ?? "");
   const [saving, setSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [colorSaving, setColorSaving] = useState(false);
+  const [contextSaving, setContextSaving] = useState(false);
+  const identityBusy = saving || avatarUploading || colorSaving;
+  const busy = identityBusy || contextSaving;
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Re-seeded when the stored profile moves - a save coming back, or another
@@ -52,7 +56,7 @@ export function ProfileIdentitySettings({
   }
 
   const handleSaveProfile = async () => {
-    if (!user) return false;
+    if (!user || identityBusy) return false;
     setSaving(true);
     try {
       const payload: { email?: string; full_name?: string | null } = {};
@@ -93,7 +97,7 @@ export function ProfileIdentitySettings({
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || busy) return;
     e.target.value = "";
     if (file.size > MAX_AVATAR_SIZE_BYTES) {
       toast.error(t("avatarTooLargeMaximum2"));
@@ -111,7 +115,8 @@ export function ProfileIdentitySettings({
   };
 
   const handleColorChange = async (slot: number | null) => {
-    if (!user || slot === (user.avatar_color ?? null)) return;
+    if (!user || busy || slot === (user.avatar_color ?? null)) return;
+    setColorSaving(true);
     try {
       const updated = await apiClient.patch<User>("/users/me", { avatar_color: slot });
       setUser(updated);
@@ -119,6 +124,8 @@ export function ProfileIdentitySettings({
       toast.error(
         err instanceof ApiError ? getErrorMessage(err, tErrors) : t("failedUpdateProfile"),
       );
+    } finally {
+      setColorSaving(false);
     }
   };
 
@@ -135,153 +142,155 @@ export function ProfileIdentitySettings({
       )}
     >
       {section !== "context" && (
-        <>
-          <SectionCard title={t("avatar")} description={t("squareImagesLookBest")}>
-            <div
-              className={cn(
-                "grid items-center gap-4 md:grid-cols-2",
-                onContinue && styles.avatarEditor,
-              )}
-            >
-              <div className={cn("flex items-center gap-4", onContinue && styles.portraitControls)}>
-                <button
-                  type="button"
-                  onClick={() => avatarInputRef.current?.click()}
-                  disabled={avatarUploading}
-                  aria-label={user.avatar_url ? t("replaceAvatar3") : t("uploadAvatar3")}
-                  className={cn(
-                    "border-border hover:bg-accent group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border transition-colors",
-                    user.avatar_url && "bg-muted",
-                    onContinue && styles.portrait,
-                  )}
-                >
-                  {user.avatar_url ? (
-                    <Image
-                      src={`/api/users/avatar/${user.id}?v=${avatarVersion}`}
-                      alt=""
-                      width={80}
-                      height={80}
-                      className="h-full w-full object-cover"
-                      unoptimized
-                    />
-                  ) : (
-                    // The same face every other screen draws for this person, at the
-                    // size they are about to replace it. Showing initials here and a
-                    // face everywhere else made this the one page that disagreed with
-                    // the product about what somebody looks like.
-                    <AvatarFace seed={user.id} colorSlot={user.avatar_color} />
-                  )}
-                  <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                    <Camera className="h-5 w-5 text-white" />
-                  </span>
-                </button>
-                <input
-                  ref={avatarInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  onChange={handleAvatarUpload}
-                  className="hidden"
-                />
-                <div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => avatarInputRef.current?.click()}
-                    disabled={avatarUploading}
-                    data-guidance={
-                      (!!onContinue && !user.avatar_url && user.avatar_color == null) || undefined
-                    }
-                  >
-                    {avatarUploading
-                      ? t("uploading3")
-                      : user.avatar_url
-                        ? t("replaceAvatar4")
-                        : t("uploadAvatar4")}
-                  </Button>
-                  <p className="text-muted-foreground mt-2 text-xs">
-                    {isAppAdmin(user) ? t("admin") : ""}
-                    {t("memberSince", { date: formatDate(user.created_at, locale) })}
-                  </p>
-                </div>
-              </div>
-              <div>
-                <p className="text-foreground mb-2 text-sm font-medium">{t("avatarColour")}</p>
-                <p className="text-muted-foreground mb-3 text-xs">{t("avatarColourHint")}</p>
-                <AvatarColorPicker
-                  value={user.avatar_color ?? null}
-                  onChange={handleColorChange}
-                  className={onContinue ? "justify-center" : undefined}
-                />
-              </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            title={t("personalInfo")}
-            description={t("visibleTeammatesSharedOrganizations")}
-            action={
-              !onContinue && (
-                <Button onClick={handleSaveProfile} disabled={saving || !profileChanged} size="sm">
-                  {saving ? t("saving3") : t("saveChanges")}
-                </Button>
-              )
-            }
+        <SectionCard
+          title={t("personalInfo")}
+          description={t("visibleTeammatesSharedOrganizations")}
+        >
+          <form
+            aria-label={t("personalInfo")}
+            onSubmit={async (event) => {
+              event.preventDefault();
+              if (busy) return;
+              if (await handleSaveProfile()) onContinue?.();
+            }}
           >
-            <div className="grid items-start gap-4 md:grid-cols-2">
-              <FormField label={t("displayName")} htmlFor="profile-name">
-                <Input
-                  id="profile-name"
-                  data-guidance={
-                    (!!onContinue &&
-                      !name.trim() &&
-                      (!!user.avatar_url || user.avatar_color != null)) ||
-                    undefined
+            <fieldset disabled={busy} className="min-w-0 space-y-5">
+              <legend className="sr-only">{t("personalInfo")}</legend>
+              <div className={cn("space-y-4", onContinue && styles.avatarEditor)}>
+                <div
+                  className={cn("flex items-center gap-4", onContinue && styles.portraitControls)}
+                >
+                  <button
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    disabled={busy}
+                    aria-label={user.avatar_url ? t("replaceAvatar3") : t("uploadAvatar3")}
+                    className={cn(
+                      "border-border hover:bg-accent group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border transition-colors",
+                      user.avatar_url && "bg-muted",
+                      onContinue && styles.portrait,
+                    )}
+                  >
+                    {user.avatar_url ? (
+                      <Image
+                        src={`/api/users/avatar/${user.id}?v=${avatarVersion}`}
+                        alt=""
+                        width={80}
+                        height={80}
+                        className="h-full w-full object-cover"
+                        unoptimized
+                      />
+                    ) : (
+                      <AvatarFace seed={user.id} colorSlot={user.avatar_color} />
+                    )}
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                      <Camera className="size-5 text-white" aria-hidden />
+                    </span>
+                  </button>
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    onChange={handleAvatarUpload}
+                    disabled={busy}
+                    className="hidden"
+                  />
+                  <div className="min-w-0">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => avatarInputRef.current?.click()}
+                      disabled={busy}
+                      data-guidance={
+                        (!!onContinue && !user.avatar_url && user.avatar_color == null) || undefined
+                      }
+                    >
+                      {avatarUploading
+                        ? t("uploading3")
+                        : user.avatar_url
+                          ? t("replaceAvatar4")
+                          : t("uploadAvatar4")}
+                    </Button>
+                    <p className="text-muted-foreground mt-2 text-xs">
+                      {isAppAdmin(user) ? t("admin") : ""}
+                      {t("memberSince", { date: formatDate(user.created_at, locale) })}
+                    </p>
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      {t("squareImagesLookBest")}
+                    </p>
+                  </div>
+                </div>
+                <MoreOptions label={t("avatarColour")}>
+                  <p className="text-muted-foreground text-xs">{t("avatarColourHint")}</p>
+                  <AvatarColorPicker
+                    value={user.avatar_color ?? null}
+                    disabled={busy}
+                    onChange={handleColorChange}
+                    className={onContinue ? "justify-center" : undefined}
+                  />
+                </MoreOptions>
+              </div>
+              <div className="grid items-start gap-4 md:grid-cols-2">
+                <FormField label={t("displayName")} htmlFor="profile-name">
+                  <Input
+                    id="profile-name"
+                    name="full_name"
+                    autoComplete="name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder={t("howShouldWeCall")}
+                    data-guidance={
+                      (!!onContinue &&
+                        !name.trim() &&
+                        (!!user.avatar_url || user.avatar_color != null)) ||
+                      undefined
+                    }
+                  />
+                </FormField>
+                <FormField
+                  label={t("email")}
+                  htmlFor="profile-email"
+                  description={
+                    user.pending_email
+                      ? t("emailChangePending", { email: user.pending_email })
+                      : t("changingEmailMayRequire")
                   }
-                  value={name}
-                  disabled={saving}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={t("howShouldWeCall")}
-                />
-              </FormField>
-              <FormField
-                label={t("email")}
-                htmlFor="profile-email"
-                description={
-                  user?.pending_email
-                    ? t("emailChangePending", { email: user.pending_email })
-                    : t("changingEmailMayRequire")
-                }
+                >
+                  <Input
+                    id="profile-email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                  />
+                </FormField>
+              </div>
+              <div
+                data-profile-actions
+                className="flex flex-wrap items-center justify-end gap-3 border-t pt-4"
               >
-                <Input
-                  id="profile-email"
-                  type="email"
-                  value={email}
-                  disabled={saving}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </FormField>
-            </div>
-          </SectionCard>
-
-          {section === "identity" && onContinue && (
-            <div data-profile-actions className="flex flex-wrap items-center gap-3">
-              <Button
-                disabled={saving || avatarUploading}
-                onClick={async () => {
-                  if (await handleSaveProfile()) onContinue();
-                }}
-              >
-                {saveLabel ?? t("saveChanges")}
-              </Button>
-              {secondaryAction}
-            </div>
-          )}
-        </>
+                <Button
+                  type="submit"
+                  loading={saving}
+                  disabled={busy || (!onContinue && !profileChanged)}
+                  className="w-full sm:w-auto"
+                >
+                  {saveLabel ?? t("saveChanges")}
+                </Button>
+                {secondaryAction}
+              </div>
+            </fieldset>
+          </form>
+        </SectionCard>
       )}
       {section !== "identity" && (
         <AgentContextSettings
           user={user}
+          disabled={identityBusy}
+          onSavingChange={setContextSaving}
           beforeSave={onContinue && section !== "context" ? handleSaveProfile : undefined}
           onSaved={onContinue}
           saveLabel={saveLabel}

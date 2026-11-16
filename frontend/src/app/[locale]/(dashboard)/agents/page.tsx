@@ -169,42 +169,48 @@ export default function AgentsPage() {
         placeholder={t("searchAgents2")}
         className="min-w-0 flex-1 sm:flex-none"
       />
-      <ListFilters compact active={Number(filter !== "all") + categories.length + tags.length}>
-        <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center max-sm:[&>button]:w-full max-sm:[&>button]:justify-between">
-          <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
-            <SelectTrigger size="sm" className="w-32 sm:w-36" aria-label={t("filterByStatus")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {FILTERS.map((entry) => (
-                <SelectItem key={entry.value} value={entry.value}>
-                  {entry.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <LabelFilter
-            options={categoryOptions}
-            selected={categories}
-            onChange={setCategories}
-            ariaLabel={t("filterByCategory")}
-            allLabel={t("allCategories")}
-            countLabel={(count) => t("categoryCount", { count })}
-            clearLabel={t("clearFilter")}
-            max={MAX_AGENT_CATEGORIES}
-          />
-          <LabelFilter
-            options={tagOptions}
-            selected={tags}
-            onChange={setTags}
-            ariaLabel={t("filterByTag")}
-            allLabel={t("allTags")}
-            countLabel={(count) => t("tagCount", { count })}
-            clearLabel={t("clearFilter")}
-            max={MAX_AGENT_TAGS}
-          />
-        </div>
-      </ListFilters>
+
+      <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
+        <SelectTrigger size="sm" className="w-32 sm:w-36" aria-label={t("filterByStatus")}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {FILTERS.map((entry) => (
+            <SelectItem key={entry.value} value={entry.value}>
+              {entry.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {(categoryOptions.length > 0 ||
+        tagOptions.length > 0 ||
+        categories.length > 0 ||
+        tags.length > 0) && (
+        <ListFilters compact active={categories.length + tags.length}>
+          <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center max-sm:[&>button]:w-full max-sm:[&>button]:justify-between">
+            <LabelFilter
+              options={categoryOptions}
+              selected={categories}
+              onChange={setCategories}
+              ariaLabel={t("filterByCategory")}
+              allLabel={t("allCategories")}
+              countLabel={(count) => t("categoryCount", { count })}
+              clearLabel={t("clearFilter")}
+              max={MAX_AGENT_CATEGORIES}
+            />
+            <LabelFilter
+              options={tagOptions}
+              selected={tags}
+              onChange={setTags}
+              ariaLabel={t("filterByTag")}
+              allLabel={t("allTags")}
+              countLabel={(count) => t("tagCount", { count })}
+              clearLabel={t("clearFilter")}
+              max={MAX_AGENT_TAGS}
+            />
+          </div>
+        </ListFilters>
+      )}
     </div>
   );
 

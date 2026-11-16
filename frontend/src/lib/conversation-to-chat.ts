@@ -66,6 +66,7 @@ export interface RawMessage {
   /** The run that produced this turn. Null for a turn written outside one. */
   run_id?: string | null;
   run_status?: string | null;
+  run_error?: string | null;
   run_duration_ms?: number | null;
   run_started_at?: string | null;
   /** The version number of the frozen spec that produced it. */
@@ -274,6 +275,10 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     // Only the one worth drawing. A completed run needs no marker, and a run
     // still going has no answer on screen to mark.
     wasStopped: msg.run_status === "cancelled",
+    runFailed: ["failed", "budget_exceeded", "guardrail_blocked", "loop_stopped"].includes(
+      msg.run_status ?? "",
+    ),
+    runError: msg.run_status === "failed" ? (msg.run_error ?? undefined) : undefined,
     turnId: msg.turn_id ?? undefined,
     interrupted: msg.interrupted === true || undefined,
     runDurationMs: msg.run_duration_ms ?? undefined,

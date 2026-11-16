@@ -18,8 +18,9 @@ import {
   type ContextDraftFields,
 } from "@/components/context/file-name";
 import { FileDropOverlay } from "@/components/files";
-import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EditorLoading } from "@/components/files/editor-loading";
+import { CatalogLoading } from "@/components/states/catalog-loading";
+import { EmptyState, ErrorState } from "@/components/states";
 import {
   Button,
   ConfirmDialog,
@@ -37,6 +38,7 @@ import {
 } from "@/components/ui";
 import { GroupFilter, NothingSharedWithGroup } from "@/components/groups/group-filter";
 import { usePermissions, useUrlState } from "@/hooks";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { useFileDrop } from "@/hooks/use-file-drop";
 import { useContextFile, useContextFiles } from "@/hooks/use-context";
 import type { ContextEdit, ContextSort } from "@/hooks/use-context";
@@ -127,6 +129,12 @@ export default function ContextPage() {
   const isSearching = search.trim() !== "";
   const isFiltering = isSearching || groupId !== null;
 
+  const closeEditor = () => {
+    useUnsavedChangesStore
+      .getState()
+      .leave(() => setSelected(null), selected ? [`context-editor:${selected.id}`] : []);
+  };
+
   async function handleSave(edit: ContextEdit) {
     await save.mutateAsync(edit);
     setSelected(null);
@@ -216,7 +224,7 @@ export default function ContextPage() {
       <div className="flex flex-1 flex-col space-y-4">
         {header}
         <ListCard fill namedByPage title={t("contextFiles")} counted={null}>
-          <LoadingState variant="skeleton-cards" rows={3} />
+          <CatalogLoading kind="document" />
         </ListCard>
       </div>
     );
@@ -340,7 +348,7 @@ export default function ContextPage() {
       <Dialog
         open={selected !== null}
         onOpenChange={(open) => {
-          if (!open) setSelected(null);
+          if (!open) closeEditor();
         }}
       >
         {selected !== null && (
@@ -357,21 +365,7 @@ export default function ContextPage() {
                 cta={{ label: tc("retry"), onClick: () => void refetchFile() }}
               />
             ) : file === undefined ? (
-              <div
-                className="flex min-h-0 flex-1 flex-col gap-3"
-                role="status"
-                aria-label={tc("loading")}
-              >
-                <div className="space-y-4 rounded-md border p-3" aria-hidden>
-                  <div className="flex flex-wrap gap-4">
-                    <Skeleton className="h-20 w-40" />
-                    <Skeleton className="h-20 w-32" />
-                    <Skeleton className="h-20 w-16" />
-                  </div>
-                  <Skeleton className="h-20 w-full" />
-                </div>
-                <Skeleton className="min-h-[22rem] w-full flex-1" />
-              </div>
+              <EditorLoading kind="context" canEdit={selected.can_edit === true} />
             ) : (
               <ContextEditor
                 key={file.id}
@@ -379,7 +373,7 @@ export default function ContextPage() {
                 canEdit={selected.can_edit === true}
                 isSaving={save.isPending}
                 onSave={handleSave}
-                onCancel={() => setSelected(null)}
+                onCancel={closeEditor}
                 onDelete={() => setPendingDelete(selected)}
               />
             )}

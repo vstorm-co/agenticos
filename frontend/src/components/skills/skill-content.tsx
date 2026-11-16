@@ -6,7 +6,7 @@ import { ErrorState } from "@/components/states";
 import { ListCard, Skeleton } from "@/components/ui";
 import { useSkillVersion } from "@/hooks/use-skill-versions";
 import { getErrorMessage } from "@/lib/api-error";
-import { Sections } from "./version-compare";
+import { VersionSections } from "./version-sections";
 
 /**
  * What the line shown serves now - its description, instructions and files - read
@@ -34,7 +34,7 @@ export function SkillContent({
         <Skeleton className="h-40 w-full" />
       ) : (
         <div className="space-y-3">
-          <Sections version={version} base={null} onlyDifferences={false} rendered />
+          <VersionSections key={version.id} version={version} />
         </div>
       )}
     </ListCard>

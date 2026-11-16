@@ -217,7 +217,7 @@ async function storeSecret(
 
   await page.getByRole("button", { name: "Add key" }).first().click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("Add a key")).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Add a key" })).toBeVisible();
 
   // Two steps rather than one list of thirty-one: the family first, which rules
   // out most of the second question.
@@ -298,7 +298,7 @@ setup("an S3 key pair is stored", async ({ page }) => {
 
   await page.getByRole("button", { name: "Add key" }).first().click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("Add a key")).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Add a key" })).toBeVisible();
 
   await dialog.getByRole("button", { name: /^Document source/ }).click();
   await dialog.getByLabel(/^(Which one|Service)$/).click();

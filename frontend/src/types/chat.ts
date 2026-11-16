@@ -76,6 +76,9 @@ export interface ChatMessage {
   /** Run-level pause, including gated delegate tools absent from this message. */
   runWaitingFor?: "approval" | "answer";
   runStartedAt?: Date;
+  runFailed?: boolean;
+  /** Safe run failure explanation, shown separately from the assistant's words. */
+  runError?: string;
   /** Group ID for related messages in a multi-agent chain. */
   groupId?: string;
   /** IDs of attached files - kept for sending. Use `files` for rendering. */

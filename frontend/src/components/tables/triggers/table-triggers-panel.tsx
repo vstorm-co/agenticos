@@ -48,7 +48,7 @@ export function TableTriggersPanel({
   const [history, setHistory] = useState<TableTriggerRead | null>(null);
   const labels = new Map(columns.map((column) => [column.id, column.label]));
 
-  if (isLoading) return <LoadingState variant="skeleton-panel" rows={2} />;
+  if (isLoading) return <LoadingState variant="pending" />;
 
   return (
     <div className="space-y-4">
@@ -156,7 +156,7 @@ function AdmissionsDialog({
           <DialogTitle>{t("historyTitle", { name: trigger.workflow_name })}</DialogTitle>
         </DialogHeader>
         {isLoading ? (
-          <LoadingState variant="skeleton-panel" rows={3} />
+          <LoadingState variant="pending" />
         ) : admissions.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t("historyEmpty")}</p>
         ) : (

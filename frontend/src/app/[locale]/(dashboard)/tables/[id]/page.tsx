@@ -25,6 +25,7 @@ import {
 import { TableIcon as Table2 } from "@/components/icons/product-icons";
 
 import { cn } from "@/lib/utils";
+import { ResourceIcon, ResourceIconPicker } from "@/components/ui/resource-icon";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { getErrorMessage, schemaDependents } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -146,6 +147,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     isLoading,
     error,
     changeSchema,
+    update: updateMetadata,
     archive,
     unarchive,
     invalidate: refreshTable,
@@ -260,7 +262,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const matching = useTableRecordCount(id, { filters: applied, search });
 
   if (isLoading || (!!table?.default_view_id && !viewIdParam && !tabParam && viewsLoading))
-    return <LoadingState variant="skeleton-panel" rows={3} />;
+    return <LoadingState variant="pending" />;
   if (error || !table) return <ErrorState />;
 
   const canEdit = table.can_edit;
@@ -386,6 +388,18 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
       <PageHeader
         className="mb-4"
         title={table.name}
+        icon={
+          canManage ? (
+            <ResourceIconPicker
+              kind="table"
+              icon={table.icon}
+              disabled={updateMetadata.isPending}
+              onChange={(icon) => updateMetadata.mutateAsync({ icon })}
+            />
+          ) : (
+            <ResourceIcon kind="table" icon={table.icon} />
+          )
+        }
         descriptionMode="summary"
         description={table.description ?? undefined}
         breadcrumbs={[{ label: tp("title"), href: ROUTES.TABLES }, { label: table.name }]}
@@ -496,23 +510,23 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
           "bg-card border-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border",
         )}
       >
-        <div className="bg-background/40 flex shrink-0 flex-col items-start gap-3 border-b px-4 py-4 sm:px-5">
+        <div className="bg-background/40 flex shrink-0 flex-col items-start gap-2 border-b px-3 py-3 sm:gap-3 sm:px-5 sm:py-4">
           {/* What the records are laid out as, and which saved view of them - one group. */}
-          <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-3">
+          <div className="flex w-full min-w-0 items-center gap-2 sm:justify-between sm:gap-3">
             <div className="flex flex-col gap-1" data-tour="table-view-tabs">
               <span id="table-format-label" className="sr-only">
                 {t("formatLabel")}
               </span>
               <div className="sm:hidden">
                 <Select value={tab} onValueChange={(next) => setTab(parseTab(next))}>
-                  <SelectTrigger aria-label={t("formatLabel")} className="w-24">
+                  <SelectTrigger aria-label={t("formatLabel")} className="w-24 text-[13px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {VIEW_TABS.map(({ kind, icon: Icon }) => (
                       <SelectItem key={kind} value={kind}>
                         <span className="flex items-center gap-1.5">
-                          <Icon aria-hidden className="size-3.5" />
+                          <Icon aria-hidden className="hidden size-3.5 shrink-0 sm:block" />
                           {t(`tabs.${kind}`)}
                         </span>
                       </SelectItem>
@@ -589,13 +603,13 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
           </div>
           <div
             data-table-view-toolbar
-            className="flex w-full flex-wrap items-center gap-2 [&>button]:h-9"
+            className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-wrap [&>button]:h-9"
           >
             <SearchInput
               value={searchDraft}
               onChange={setSearchDraft}
               placeholder={t("search")}
-              className="min-w-0 flex-1 max-sm:basis-full sm:w-56 sm:flex-none"
+              className="col-span-full min-w-0 sm:w-56 sm:flex-none"
             />
             <RecordFiltersPopover
               columns={liveColumns.filter(filterable)}
@@ -603,8 +617,53 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               onChange={setFilters}
             />
             <RecordSortPopover columns={allColumns} sort={sort} onChange={setSort} />
+            <ViewSettingsPopover
+              actions={
+                canManage && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={groupingPending || defaultView.isPending || isDefaultView}
+                    title={tViews("defaultHint")}
+                    onClick={() =>
+                      defaultView.mutate(
+                        {
+                          view: activeView,
+                          kind: tab,
+                          config: { ...emptyViewConfig(), ...working },
+                          names: views.map((view) => view.name),
+                        },
+                        {
+                          onSuccess: (view) => {
+                            setViewIdParam(view.id);
+                            setTab(view.kind);
+                          },
+                        },
+                      )
+                    }
+                  >
+                    {tViews(isDefaultView ? "isDefault" : "setDefault")}
+                  </Button>
+                )
+              }
+              columns={allColumns}
+              visible={visible}
+              display={display}
+              onChange={setDisplay}
+              onToggle={(column, shown) => {
+                if (column.system) {
+                  const key = column.system;
+                  setDisplay((current) => ({
+                    ...current,
+                    hidden_system_columns: shown
+                      ? current.hidden_system_columns.filter((item) => item !== key)
+                      : [...current.hidden_system_columns, key],
+                  }));
+                } else setShown(column.id, shown);
+              }}
+            />
             {tab === "kanban" && groupBy !== null && groupable.length > 1 && (
-              <div className="text-muted-foreground flex items-center gap-2 text-xs">
+              <div className="text-muted-foreground col-span-full flex flex-wrap items-center gap-2 text-xs sm:col-auto">
                 {t("kanbanGroupBy")}
                 <Select
                   value={groupBy ?? ""}
@@ -625,59 +684,19 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             )}
             {hidden.length > 0 && (
-              <HiddenColumnsPopover
-                hidden={hidden}
-                onShow={(column) => setShown(column.id, true)}
-                onShowAll={() => setVisible(null)}
-              />
+              <div className="col-span-full sm:col-auto">
+                <HiddenColumnsPopover
+                  hidden={hidden}
+                  onShow={(column) => setShown(column.id, true)}
+                  onShowAll={() => setVisible(null)}
+                />
+              </div>
             )}
-            {canManage && (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={groupingPending || defaultView.isPending || isDefaultView}
-                title={tViews("defaultHint")}
-                onClick={() =>
-                  defaultView.mutate(
-                    {
-                      view: activeView,
-                      kind: tab,
-                      config: { ...emptyViewConfig(), ...working },
-                      names: views.map((view) => view.name),
-                    },
-                    {
-                      onSuccess: (view) => {
-                        setViewIdParam(view.id);
-                        setTab(view.kind);
-                      },
-                    },
-                  )
-                }
-              >
-                {tViews(isDefaultView ? "isDefault" : "setDefault")}
-              </Button>
-            )}
-            <ViewSettingsPopover
-              columns={allColumns}
-              visible={visible}
-              display={display}
-              onChange={setDisplay}
-              onToggle={(column, shown) => {
-                if (column.system) {
-                  const key = column.system;
-                  setDisplay((current) => ({
-                    ...current,
-                    hidden_system_columns: shown
-                      ? current.hidden_system_columns.filter((item) => item !== key)
-                      : [...current.hidden_system_columns, key],
-                  }));
-                } else setShown(column.id, shown);
-              }}
-            />
             {unsaved && (
               <Button
                 variant="outline"
                 size="sm"
+                className="col-span-full sm:col-auto"
                 onClick={() =>
                   void updateView
                     .mutateAsync({

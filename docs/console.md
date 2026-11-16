@@ -1,8 +1,32 @@
 # The console
 
+The personal dashboard reads onboarding and Briefing together before drawing its opening row. A single reserved loading area avoids alternating placeholder layouts; other widgets load independently. Failed reads retain their retry state. Workspace expansion is offered on phones; resizing to desktop restores navigation and keeps unsaved fields.
+
+Context settings lists files in compact rows with per-agent usage controls. Long descriptions no longer stretch neighbouring files, and injected-only context uses an informational note. Availability shows each chat app’s platform logo beside the bot name. App sharing puts the page link and people with access first; expiration, version pinning, embedding and password settings start collapsed under Link settings. Active restrictions remain visible as badges, and collapsing the options preserves edits.
+
+On phones, channel registration uses a compact platform selector. Cancelling a new channel, new vault key or key rotation clears its entered credentials. Channel and vault forms block editing and dismissal during a write; a refused write keeps the values for correction and retry. Channel editing and key rotation keep their action footer visible in short windows.
+
 The console is the web application everything else on this site is configured
 through. This page is the map: what each area is for, and which page explains it
 properly.
+
+On phones, new context files put the source editor before optional details. Details shows the effective audience even while collapsed; expand it to change the description or access. A refused description automatically expands that section so its error can be corrected.
+
+New project, context-file and dataset forms ask before discarding a draft. Stay preserves it; Discard resets it. During creation, fields, Cancel, Close and Escape are blocked until the write settles. A refusal restores editing and retains the values. Context source editing is read-only during that write.
+
+When several context files were dropped, closing asks only Stay or Discard; use Create to process them in order. Dataset details and case forms also lock fields and dismissal while saving, including the case form/JSON switch. Their Save actions remain reachable in short phone windows.
+
+Starting MCP sign-in keeps the form open until the consent destination is ready. A refused start preserves its values for correction and retry.
+
+Custom slash-command editing asks before dropping a draft. Save freezes its fields and dismissal until the request settles; a refusal keeps the draft. On phones, command actions have their own row and touch-sized controls. A pending toggle blocks conflicting actions, and removal asks for confirmation. MCP connection forms also freeze their fields and dismissal while saving.
+
+When you edit project settings, an organization name, spending cap, voice defaults or data-retention periods, a skill or a context file, leaving asks whether to save, discard or stay. Switching away from an edited skill resource asks too. A refused save keeps the draft open; **Save file** clears it only after the server confirms the write. Typing added while that resource save is in flight remains unsaved.
+
+On phones, knowledge-base documents and organization members use labeled rows with visible actions. Member removal asks for confirmation and a refusal keeps it open. Knowledge-base creation, parsing and embedding-provider dialogs keep their fields disabled and stay open while saving, then restore editing and dismissal if the write is refused. A failed document download shows an error and can be retried.
+
+Changing the knowledge-search question or scope clears previous results and cancels the pending request. A late response cannot replace the results of a newer search.
+
+Hosted chat lets you compose while connecting, but enables Send only after the current WebSocket opens. Starting a new conversation waits for its own connection; an early click cannot silently drop the first question.
 
 If you are looking for one screen, the fastest route is the **"?"** in a page's
 header — it replays that page's walkthrough, and a page whose header carries no
@@ -42,7 +66,7 @@ Phone dialogs keep a 12px gutter on every edge. Compact page headers place the t
 
 On phones, primary page actions stay visible and secondary commands fold behind **More page actions**. Inbox filters and the table format use selects. Settings with many sections use a section menu, while the MCP client is selected from a dropdown. Opening a project or workspace file opens its full-screen reader; the back arrow returns to the folders. Workflow step dialogs show one chosen panel at a time: settings, input or output. Switching panels preserves edits; desktop keeps the panels side by side.
 
-Markdown fields and file editors also offer an expand button without discarding the current draft. Skill descriptions and categories can be expanded above the editor. The chat composer uses less space and caps long drafts against the available screen height. Opening navigation focuses the panel, while Tab still reaches its controls. The workflow canvas has a floating full-screen control and a smaller minimap on phones.
+Markdown fields and file editors also offer an expand button without discarding the current draft. Skill descriptions and categories can be expanded above the editor. The chat composer uses less space and caps long drafts against the available screen height. Opening navigation focuses the panel, while Tab still reaches its controls. On phones the workflow canvas has a floating full-screen control, opens with the whole flow in view and starts with the minimap hidden.
 
 Page headers use the surrounding layout’s spacing once. Cards, sidebar rows, tabs and empty states use compact spacing on desktop while interactive controls keep larger touch targets.
 
@@ -79,6 +103,10 @@ On phones, sent messages stop below the floating chat buttons, keeping the user 
 Default agents finish a one-off request without holding the answer open for an optional automation question. Questions settle decisions needed for the current task or an automation the person requests or accepts. Optional setup cards remain non-blocking proposals.
 
 The compact source button below an answer opens Sources beside the conversation, with a full-width panel on phones. Files and Sources share the side space: opening one replaces the other. Web sources use the site favicon, requested without a referrer, or a known service logo; a globe remains when the icon is unavailable. Knowledge-base sources retain their file marks and original-document viewer.
+
+Inline web links use the same favicon policy independently of MCP connections. Unknown-site icons pass through the console's same-origin proxy and DuckDuckGo's fixed icon service. Only the hostname is sent to that service, never the reader's cookies, IP address, URL path or query. The proxy refuses redirects, non-raster content and icons over 64 KiB, and times out after three seconds. Missing or unavailable icons fall back to a globe. Inert transcript views keep remote images and unknown-site icons unloaded.
+
+A failed chat run shows its failure separately from the assistant’s answer, outside folded tool work, including after reloading the conversation. A provider content filter is identified explicitly; raw provider responses and unknown historical error strings are not copied into shared transcripts. Partial work remains available, and failed work is not labelled as completed.
 
 ## The dashboard
 
@@ -176,6 +204,8 @@ snapshot you meant to keep.
     the default or from your own saved one.
 
 ## Routines and watches
+
+Routine names wrap on phones. A search with no matches offers **Clear search**; **Retry** reloads both tasks and watches after a read failure. Schedule and event editing scrolls between a fixed header and action footer. Routine writes freeze fields and dismissal until they settle; a refusal preserves the draft.
 
 Routines has two tabs. **Agent routines** runs a chosen agent on a schedule or
 event, with its configured tools; runs appear in Activity. **My watches** only
@@ -480,7 +510,13 @@ can do and to set up a routine.
 
 Conversation lists keep the main agent and also name Claude Code or Codex when saved task reports show they worked in the thread. The sidebar, project chats, dashboard and Quick Ask history share the same portraits and labels. Each coding harness appears once, survives a refresh and is independent of current chat settings; choosing a harness without running it does not add it to the history.
 
-The Files panel groups files by folder, keeping identical names in different directories distinct. HTML previews load local stylesheets and their nested assets through the same file access as the page. Preview and Source remain separate; scripts stay disabled. If a linked stylesheet cannot be read, the preview says which one failed. Files changed by a turn are linked below its answer, using paths reported by successful write/edit tools or the coding harness. These links open the current workspace files, not a versioned snapshot.
+The Files panel groups files by folder, keeping identical names in different directories distinct. HTML previews load local stylesheets and their nested assets through the same file access as the page. Preview and Source remain separate; scripts stay disabled. If a linked stylesheet cannot be read, the preview says which one failed.
+
+Files changed by a turn are linked below its answer. Coding tasks use their stored change set, including shell edits; a task without one uses its harness report. The task panel offers **Revert this task** when you can edit its original workspace and its snapshot is complete. These links open the current workspace files, not a versioned snapshot.
+
+Revert runs as a durable job in an isolated conversation workspace. Shared-scope snapshots stay read-only. The panel shows progress; an unknown outcome reserves the workspace until Retry revert checks its files.
+
+Revert snapshots are limited to 2 MiB per file and 16 MiB across their before/after blobs; larger changes remain viewable without undo. Verification also bounds reads of older snapshots. Admission allows six requests per person and twenty per organization per minute, with a local ceiling during Redis outages. Each organization runs at most one revert job at a time.
 
 While an agent works, progress messages and their following tool calls appear in arrival order inside one expanded timeline. Completing the run collapses that history under one “Worked for…” or “Thought for…” control, with only the final answer below it. Opening the history restores the same chronological messages and tool groups. Reasoning remains a separate, optional disclosure; its headings do not create process stages. Questions and approvals keep their waiting status until resolved, including delegated requests. Actionable approval cards and visual results remain visible outside completed history.
 
@@ -927,6 +963,18 @@ reads them at the start of a run, so you never repeat them in a chat; "every Mon
 at 9" is your 9. The time zone is taken from your browser the first time you sign
 in, until you choose one.
 
+Profile settings keep your portrait, display name and email in one form, with
+fallback colours under an expandable control. Save sits below the fields and
+Enter submits the identity or role form. While any profile write is pending,
+both identity and context fields stay locked; a refusal retains the draft.
+Working days use larger targets, with separate start and end fields on phones.
+
+**Settings → Notifications** searches event names and descriptions and lists six
+events per page. The chat selector changes the additional channel without
+changing other preferences. Connected private-chat destinations appear first;
+other platforms are folded below. Failed preference, destination and linked-account
+reads offer Retry instead of displaying invented defaults or an empty account list.
+
 ## The next step
 
 A page that is empty because nothing exists yet offers the way to make the first
@@ -966,7 +1014,7 @@ The sidebar footer shows the console build version beside search and notificatio
 
 A newer stable AgenticOS release highlights that version with a green dot. Click it to see the running and available versions and open the official release. A background check runs when the console opens, every 30 minutes while active, and when stale data is revisited after focus or connectivity returns. The server shares public release checks for five minutes and sends no account, organization or deployment data to GitHub. Network failures leave the running version visible without claiming it is current. The notice never reloads the page or installs an update automatically.
 
-After sign-in, **What’s new** shows the installed version’s public GitHub release notes once per account on this device. It waits for onboarding dialogs to close. Dismissing it marks that version as read; missing notes or a failed request do not interrupt the session. Features in a newer, uninstalled release appear only behind the update notice.
+After sign-in, **What’s new** shows the installed version’s public GitHub release notes once per account on this device. It waits for onboarding dialogs to close. Dismissing it marks that version as read; missing notes or a failed request do not interrupt the session. Features in a newer, uninstalled release appear only behind the update notice. The notes' **Upgrading** and **Notes for operators** sections, which hold migrations and upgrade steps, are shown to deployment administrators only; a release with nothing else opens no dialog for anyone else.
 
 Chat controls remember the model, permission mode and desktop tool preferences for this account and organization across chats. Project file settings take precedence. Whole-computer consent belongs to one conversation, or to one agent when that agent works on your computer. Approval waivers still require the current permission and organization policy. Agent setting (or Cloud for files) is disabled when the published agent lacks that capability; no local alternative is enabled automatically. Local tools can be switched off by clicking their selected option.
 

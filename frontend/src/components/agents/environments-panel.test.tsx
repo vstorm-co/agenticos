@@ -352,7 +352,7 @@ describe("the environments panel", () => {
     expect(state.rename.mutateAsync).not.toHaveBeenCalled();
   });
 
-  it("refuses a rename the backend's slug rule would reject", async () => {
+  it("normalizes a human environment name on Enter", async () => {
     // Checked before the request leaves, exactly like creation - the refusal
     // would otherwise arrive as a 422 about a pattern nobody was shown.
     render(<EnvironmentsPanel agentId="a1" canManage />);
@@ -362,8 +362,10 @@ describe("the environments panel", () => {
     await userEvent.clear(field);
     await userEvent.type(field, "Staging Two{enter}");
 
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-    expect(state.rename.mutateAsync).not.toHaveBeenCalled();
+    expect(state.rename.mutateAsync).toHaveBeenCalledWith({
+      environmentId: "staging-id",
+      name: "staging-two",
+    });
   });
 
   it("does not offer to rename the default", () => {
@@ -374,21 +376,20 @@ describe("the environments panel", () => {
     expect(screen.queryByRole("button", { name: "Rename production" })).toBeNull();
   });
 
-  it("refuses a name the backend's slug rule would reject", async () => {
-    // Checked before the request leaves, because the refusal would otherwise
-    // arrive as a 422 about a pattern nobody was shown.
+  it("formats uppercase words before creating an environment", async () => {
     render(<EnvironmentsPanel agentId="a1" canManage />);
     const add = screen.getByRole("button", { name: "Add" });
 
     await userEvent.type(screen.getByLabelText("New environment"), "Staging Two");
 
-    expect(add).toBeDisabled();
+    await userEvent.click(add);
+    expect(state.create.mutateAsync).toHaveBeenCalledWith({ name: "staging-two" });
   });
 
-  it("refuses a name that starts with a hyphen", async () => {
+  it("refuses a name containing only punctuation", async () => {
     render(<EnvironmentsPanel agentId="a1" canManage />);
 
-    await userEvent.type(screen.getByLabelText("New environment"), "-dev");
+    await userEvent.type(screen.getByLabelText("New environment"), "---");
 
     expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
   });

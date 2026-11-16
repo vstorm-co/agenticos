@@ -1,5 +1,7 @@
 "use client";
 
+import { CatalogLoading } from "@/components/states/catalog-loading";
+
 import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
 import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
 import { useMemo, useState } from "react";
@@ -18,7 +20,6 @@ import {
   ListCardEmpty,
   Pager,
   SearchInput,
-  Skeleton,
   Select,
   SelectContent,
   SelectItem,
@@ -305,11 +306,7 @@ export default function WorkflowsPage() {
         }
       >
         {loading ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {[0, 1, 2].map((row) => (
-              <Skeleton key={row} className="h-44 rounded-xl" />
-            ))}
-          </div>
+          <CatalogLoading kind="resource" />
         ) : error && workflows.length === 0 ? (
           <ErrorState cta={{ label: tc("retry"), onClick: () => void refetch() }} />
         ) : list.matched === 0 ? (

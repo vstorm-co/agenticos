@@ -42,7 +42,7 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
           aria-label={tc("openNamed", { name: dataset.name })}
         />
         <div className="pointer-events-none relative flex items-start gap-3">
-          <DatasetIcon tone="blue" icon={FlaskConical} className="size-10" />
+          <DatasetIcon tone="gray" icon={FlaskConical} className="size-10" />
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <p className="text-foreground truncate font-medium">{dataset.name}</p>
@@ -56,18 +56,14 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
               <span className="text-muted-foreground text-xs">
                 {t("caseCount", { count: dataset.case_count })}
               </span>
-              <DatasetChip
-                tone={next === "cases" ? "blue" : next === "grading" ? "yellow" : "green"}
-              >
-                {t(`journey.status.${next}`)}
-              </DatasetChip>
+              <DatasetChip tone="gray">{t(`journey.status.${next}`)}</DatasetChip>
             </div>
             <p className="text-muted-foreground mt-2 line-clamp-2 min-h-10 text-sm">
               {dataset.description}
             </p>
           </div>
         </div>
-        <div className="text-muted-foreground relative mt-auto flex min-w-0 flex-wrap items-center gap-2 border-t pt-3 text-xs">
+        <div className="text-muted-foreground relative mt-auto flex min-w-0 flex-wrap items-center gap-2 pt-3 text-xs">
           <span
             role="img"
             aria-label={t(`visibility.${dataset.visibility}`)}

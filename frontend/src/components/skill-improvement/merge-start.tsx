@@ -55,7 +55,7 @@ export function MergeStart({
       .catch((failure: unknown) => setRefusal(getErrorMessage(failure, tErrors)));
   }, [line.isLoading, line.error, open, price, locale, tErrors]);
 
-  if (line.isLoading) return <LoadingState variant="skeleton-cards" rows={2} />;
+  if (line.isLoading) return <LoadingState variant="pending" />;
   if (line.error) return <ErrorState description={getErrorMessage(line.error, tErrors)} />;
   if (open)
     return (
@@ -70,7 +70,7 @@ export function MergeStart({
       </p>
     );
   if (refusal !== null && quote === null) return <ErrorState description={refusal} />;
-  if (quote === null) return <LoadingState variant="skeleton-cards" rows={2} />;
+  if (quote === null) return <LoadingState variant="pending" />;
 
   async function begin() {
     setRefusal(null);

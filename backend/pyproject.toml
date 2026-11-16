@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.71.2"
+version = "1.72.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -110,9 +110,8 @@ dependencies = [
     # elements with soupsieve. Both already ship through `pydantic-ai-slim`'s
     # web-fetch extra; declared here so a release of it cannot drop them.
     "beautifulsoup4>=4.15.0",
-    # Soup Sieve 4 hides template contents from document selectors; preserve
-    # html.parse links and matches until that major change is supported.
-    "soupsieve>=2.9.2,<4",
+    # Patched selector matching for untrusted HTML (CVE-2026-126190).
+    "soupsieve>=4.1,<5",
     # Google Drive speaks plain REST through `app/services/rag/drive_api.py`;
     # `google-auth` only signs the service account's token, over `requests`.
     # `google-api-python-client` was 108 MB of discovery documents for four URLs.
@@ -649,6 +648,7 @@ include = [
     "app/commands/data_protection.py",
     "app/commands/mcp_audit.py",
     "app/core/permissions.py",
+    "app/core/resource_icons.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
     "app/core/tool_identity.py",
@@ -1227,6 +1227,9 @@ include = [
     "app/schemas/coding_task_change.py",
     "app/repositories/coding_task_change.py",
     "app/services/coding_task_changes.py",
+    "app/services/_coding_task_revert.py",
+    "app/services/workspace_turn_guard.py",
+    "app/worker/tasks/coding_tasks.py",
     "app/db/models/coding_account.py",
     "app/schemas/coding_account.py",
     "app/repositories/coding_account.py",
@@ -1518,6 +1521,7 @@ include = [
     "app/commands/data_protection.py",
     "app/commands/mcp_audit.py",
     "app/core/permissions.py",
+    "app/core/resource_icons.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
     "app/core/tool_identity.py",
@@ -2129,6 +2133,9 @@ include = [
     "app/schemas/coding_task_change.py",
     "app/repositories/coding_task_change.py",
     "app/services/coding_task_changes.py",
+    "app/services/_coding_task_revert.py",
+    "app/services/workspace_turn_guard.py",
+    "app/worker/tasks/coding_tasks.py",
     "app/db/models/coding_account.py",
     "app/schemas/coding_account.py",
     "app/repositories/coding_account.py",
@@ -2372,6 +2379,9 @@ exclude_also = [
 ]
 
 [tool.uv]
+# CVE-2026-126360: bound untrusted traceparent parsing in the tracing stack.
+constraint-dependencies = ["opentelemetry-api>=1.45.2"]
+
 # aiogram 3.31 caps pydantic below 2.14, and every pydantic 2.13 pins a
 # pydantic-core with no CPython 3.15 wheel, so without this the backend cannot
 # be installed on the Python it runs (#2229). aiogram raises that cap with each

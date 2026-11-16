@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useId } from "react";
 import { ShieldCheck } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -37,6 +37,7 @@ const SCOPE_VARIANT: Record<PermissionScope, "default" | "secondary" | "outline"
 
 export default function RolesPage({ params }: PageProps) {
   const t = useTranslations("pages.orgs");
+  const matrixId = useId();
   const { id: orgId } = use(params);
   const { catalog, isLoading } = useRoleCatalog();
   const { role: myRole, isAppAdmin } = usePermissions();
@@ -96,7 +97,9 @@ export default function RolesPage({ params }: PageProps) {
 
       <Card data-tour="org-roles">
         <CardHeader className="border-b px-5 py-4">
-          <CardTitle className="text-sm">{t("permissionMatrix2")}</CardTitle>
+          <CardTitle id={matrixId} className="text-sm">
+            {t("permissionMatrix2")}
+          </CardTitle>
           <CardDescription className="text-xs">
             {t.rich("scopeDescription", {
               strong: (chunks) => <strong>{chunks}</strong>,
@@ -119,13 +122,25 @@ export default function RolesPage({ params }: PageProps) {
         </CardHeader>
         <CardContent>
           {/* Wide table: scrolls inside its own container so the page never scrolls sideways. */}
-          <div className="-mx-1 overflow-x-auto px-1">
+          <div
+            role="region"
+            aria-labelledby={matrixId}
+            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- A scroll region needs focus for native arrow-key scrolling.
+            tabIndex={0}
+            className="-mx-1 overflow-x-auto rounded-md px-1"
+          >
             <table className="w-full min-w-[46rem] text-sm">
               <thead>
                 <tr className="border-b">
-                  <th className="py-2 pr-4 text-left font-medium">{t("permission")}</th>
+                  <th scope="col" className="py-2 pr-4 text-left font-medium">
+                    {t("permission")}
+                  </th>
                   {catalog.roles.map((role) => (
-                    <th key={role.name} className="px-3 py-2 text-left font-medium capitalize">
+                    <th
+                      key={role.name}
+                      scope="col"
+                      className="px-3 py-2 text-left font-medium capitalize"
+                    >
                       {role.name}
                     </th>
                   ))}
@@ -134,12 +149,12 @@ export default function RolesPage({ params }: PageProps) {
               <tbody>
                 {catalog.all_permissions.map((permission) => (
                   <tr key={permission} className="border-b last:border-0">
-                    <td className="py-2 pr-4 font-mono text-xs">
+                    <th scope="row" className="py-2 pr-4 text-left font-mono text-xs font-normal">
                       {permission}
                       {resourcePerms.has(permission) ? (
                         <span className="text-muted-foreground"> {t("scoped")}</span>
                       ) : null}
-                    </td>
+                    </th>
                     {catalog.roles.map((role) => {
                       const scope = scopeFor(role.name, permission);
                       const isResource = resourcePerms.has(permission);

@@ -1,6 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 
 import { ContextEditor } from "./context-editor";
 import type { ContextFile } from "@/types/providers";
@@ -41,7 +43,7 @@ vi.mock("@/components/authoring/improve-skill-button", () => ({
 }));
 
 function mount(props: Partial<React.ComponentProps<typeof ContextEditor>> = {}) {
-  const onSave = vi.fn();
+  const onSave = vi.fn().mockResolvedValue(undefined);
   const onCancel = vi.fn();
   render(
     <ContextEditor
@@ -63,6 +65,8 @@ const openSource = async () => {
 };
 const body = () => screen.getByLabelText("glossary.md source");
 
+beforeEach(() => useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false }));
+
 describe("ContextEditor", () => {
   it("offers the assistant to somebody who may edit the file, once the edits are saved", async () => {
     mount();
@@ -70,6 +74,16 @@ describe("ContextEditor", () => {
     await openSource();
     await userEvent.type(body(), " More.");
     expect(screen.getByRole("button", { name: "improve c1" })).toBeDisabled();
+  });
+
+  it("keeps edited content and prevents leaving after a refused save", async () => {
+    mount({ onSave: vi.fn().mockRejectedValue(new Error("Write rejected")) });
+    await userEvent.type(body(), " Cite policy.");
+    const proceed = vi.fn();
+    act(() => useUnsavedChangesStore.getState().leave(proceed));
+    await act(() => useUnsavedChangesStore.getState().answer("save"));
+    expect(proceed).not.toHaveBeenCalled();
+    expect(body()).toHaveValue("SLA: service level agreement. Cite policy.");
   });
 
   it("names the file with the format it is stored in, so the body renders as one", () => {
@@ -204,4 +218,18 @@ it("folds context details without losing the description draft", async () => {
   await userEvent.click(toggle);
   await userEvent.click(toggle);
   expect(screen.getByLabelText("Description")).toHaveValue("terms revised");
+});
+
+it("discards both edited fields before allowing navigation", async () => {
+  const { onSave } = mount();
+  await userEvent.clear(screen.getByLabelText("Description"));
+  await userEvent.type(screen.getByLabelText("Description"), "Changed");
+  await userEvent.type(body(), " extra");
+  const proceed = vi.fn();
+  act(() => useUnsavedChangesStore.getState().leave(proceed));
+  await act(() => useUnsavedChangesStore.getState().answer("discard"));
+  expect(proceed).toHaveBeenCalledOnce();
+  expect(body()).toHaveValue(FILE.content);
+  expect(screen.getByLabelText("Description")).toHaveValue(FILE.description);
+  expect(onSave).not.toHaveBeenCalled();
 });

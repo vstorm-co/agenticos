@@ -30,60 +30,73 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, onInteractOutside, onEscapeKeyDown, ...props }, ref) => {
-  const t = useTranslations("common");
-  return (
-    <DialogPortal>
-      <DialogOverlay />
-      <DialogPrimitive.Content
-        ref={ref}
-        onInteractOutside={(event) => {
-          onInteractOutside?.(event);
-          // While the onboarding coach is guiding this dialog, its freeze is the whole
-          // point — the reader operates only the field being pointed at. Radix would
-          // dismiss on any outside interaction (the backdrop, or the coach's own card,
-          // which sits outside the dialog), stranding the walk on a step whose dialog
-          // is gone. Keep it open; the coach's close button ends the walk, and the
-          // dialog's own Cancel still closes it. A no-op when no coach is active
-          // (`[data-coach-card]` renders only while a flow runs). The check is global
-          // on purpose: while any flow runs — a `roam` step included, where the page
-          // is fully interactive — every dialog in the app ignores Escape and
-          // outside-click, not only the one being guided. Deliberate, and X and Cancel
-          // still close, so nobody is trapped.
-          if (document.querySelector("[data-coach-card]")) event.preventDefault();
-        }}
-        onEscapeKeyDown={(event) => {
-          onEscapeKeyDown?.(event);
-          const target = event.target;
-          if (
-            target instanceof HTMLInputElement &&
-            target.hasAttribute("data-search-input") &&
-            target.value
-          )
-            event.preventDefault();
-          // Escape strands the coach the same way an outside click does — block it too
-          // while a flow is guiding this dialog.
-          if (document.querySelector("[data-coach-card]")) event.preventDefault();
-        }}
-        className={cn(
-          // Dialogs use the form surface; popover gray is reserved for short-lived menus.
-          // Rises a few pixels as it scales in, and settles with a spring - the
-          // motion of something placed in front of the page, not faded onto it.
-          "bg-card text-card-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-98 data-[state=open]:zoom-in-98 data-[state=open]:slide-in-from-bottom-1 border-foreground/6 fixed top-[var(--dialog-center)] left-[50%] z-50 grid max-h-[var(--dialog-available-height)] w-[calc(100%-1.5rem)] max-w-lg min-w-0 translate-x-[-50%] translate-y-[-50%] grid-cols-1 gap-3 overflow-y-auto overscroll-contain rounded-2xl border p-5 shadow-[0_32px_80px_-24px_oklch(0%_0_0/0.45),0_2px_8px_oklch(0%_0_0/0.08)] duration-300 data-[state=closed]:duration-150 data-[state=open]:ease-[var(--ease-out)] sm:gap-5 sm:p-6",
-          className,
-        )}
-        {...props}
-      >
-        {children}
-        <DialogPrimitive.Close className="text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:ring-ring touch:min-h-11 touch:min-w-11 absolute top-2 right-2 flex size-11 touch-manipulation items-center justify-center rounded-md transition-colors duration-150 focus:outline-none focus-visible:ring-2 disabled:pointer-events-none sm:size-9">
-          <X className="h-4 w-4" />
-          <span className="sr-only">{t("close")}</span>
-        </DialogPrimitive.Close>
-      </DialogPrimitive.Content>
-    </DialogPortal>
-  );
-});
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    /** Keep the operation visible until its write has settled. */
+    dismissible?: boolean;
+  }
+>(
+  (
+    { className, children, onInteractOutside, onEscapeKeyDown, dismissible = true, ...props },
+    ref,
+  ) => {
+    const t = useTranslations("common");
+    return (
+      <DialogPortal>
+        <DialogOverlay />
+        <DialogPrimitive.Content
+          ref={ref}
+          onInteractOutside={(event) => {
+            onInteractOutside?.(event);
+            if (!dismissible) event.preventDefault();
+            // While the onboarding coach is guiding this dialog, its freeze is the whole
+            // point — the reader operates only the field being pointed at. Radix would
+            // dismiss on any outside interaction (the backdrop, or the coach's own card,
+            // which sits outside the dialog), stranding the walk on a step whose dialog
+            // is gone. Keep it open; the coach's close button ends the walk, and the
+            // dialog's own Cancel still closes it. A no-op when no coach is active
+            // (`[data-coach-card]` renders only while a flow runs). The check is global
+            // on purpose: while any flow runs — a `roam` step included, where the page
+            // is fully interactive — every dialog in the app ignores Escape and
+            // outside-click, not only the one being guided. Deliberate, and X and Cancel
+            // still close, so nobody is trapped.
+            if (document.querySelector("[data-coach-card]")) event.preventDefault();
+          }}
+          onEscapeKeyDown={(event) => {
+            onEscapeKeyDown?.(event);
+            if (!dismissible) event.preventDefault();
+            const target = event.target;
+            if (
+              target instanceof HTMLInputElement &&
+              target.hasAttribute("data-search-input") &&
+              target.value
+            )
+              event.preventDefault();
+            // Escape strands the coach the same way an outside click does — block it too
+            // while a flow is guiding this dialog.
+            if (document.querySelector("[data-coach-card]")) event.preventDefault();
+          }}
+          className={cn(
+            // Dialogs use the form surface; popover gray is reserved for short-lived menus.
+            // Rises a few pixels as it scales in, and settles with a spring - the
+            // motion of something placed in front of the page, not faded onto it.
+            "bg-card text-card-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-98 data-[state=open]:zoom-in-98 data-[state=open]:slide-in-from-bottom-1 border-foreground/6 fixed top-[var(--dialog-center)] left-[50%] z-50 grid max-h-[var(--dialog-available-height)] w-[calc(100%-1.5rem)] max-w-lg min-w-0 translate-x-[-50%] translate-y-[-50%] grid-cols-1 gap-3 overflow-y-auto overscroll-contain rounded-2xl border p-5 shadow-[0_32px_80px_-24px_oklch(0%_0_0/0.45),0_2px_8px_oklch(0%_0_0/0.08)] duration-300 data-[state=closed]:duration-150 data-[state=open]:ease-[var(--ease-out)] sm:gap-5 sm:p-6",
+            className,
+          )}
+          {...props}
+        >
+          {children}
+          <DialogPrimitive.Close
+            disabled={!dismissible}
+            className="text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:ring-ring touch:min-h-11 touch:min-w-11 absolute top-2 right-2 flex size-11 touch-manipulation items-center justify-center rounded-md transition-colors duration-150 focus:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 sm:size-9"
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">{t("close")}</span>
+          </DialogPrimitive.Close>
+        </DialogPrimitive.Content>
+      </DialogPortal>
+    );
+  },
+);
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

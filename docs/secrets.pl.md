@@ -1,5 +1,5 @@
 ---
-source_sha: "c5e5aa3e7df5"
+source_sha: "f0b3009ed75d"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -10,6 +10,10 @@ source_sha: "c5e5aa3e7df5"
     i każdy klucz API strony trzeciej na tej platformie przechodzi przez
     `app/core/vault.py`. Dodanie drugiego sposobu przechowywania poświadczenia
     w spoczynku to defekt, który usunęły dwie migracje.
+
+## W konsoli { #in-the-console }
+
+Vault pokazuje klucze, Twoje połączone konta i konta organizacji w jednej tabeli. **Dodaj klucz** zapisuje poświadczenie; **Połącz konto** pozwala wybrać konto własne lub, z odpowiednim uprawnieniem, konto organizacji. Każdy wiersz zachowuje własny dostęp i akcje: udostępnianie lub rotację klucza albo ponowne połączenie lub odłączenie konta. Tokeny OAuth pozostają ukryte, a odłączenie konta wymaga potwierdzenia.
 
 ## Szyfrowanie kopertowe { #envelope-encryption }
 

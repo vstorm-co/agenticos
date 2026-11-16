@@ -1,8 +1,10 @@
 ---
-source_sha: "f42ada39df6d"
+source_sha: "ce7283b48fa2"
 ---
 
 # Virtual Tables { #virtual-tables }
+
+Das Tabellensymbol wählen Sie neben dem Namen in der Detailansicht. Katalogkarte und Dashboard-Zeile verwenden dasselbe Zeichen. **Standardsymbol verwenden** setzt es zurück; Spalten, Datensätze und Schemaversionen bleiben unverändert. Die Steuerung folgt dem Verwaltungsrecht der Tabelle, einschließlich der Einschränkungen von Aufgabenboards.
 
 Eine **Virtual Table** ist eine typisierte Tabelle mit Datensätzen, die eine
 Organisation für ihre Agents, [Workflows](workflows.md) und Integrationen führt: abzugleichende
@@ -361,7 +363,8 @@ Pflichtwerte da sind.
 Jede Bearbeitung ist ein `PATCH` gegen die angezeigte Revision, daher wird eine
 Bearbeitung, die gegen eine neuere Änderung verliert, abgelehnt statt darüber
 geschrieben. Der Datensatz öffnet sich dann mit dem abgelehnten Wert neben **Reload and
-reapply**. Markierte Zeilen bieten **Delete** für alle an, jede gegen ihre eigene
+reapply** und wird neu gelesen: Das Feld sagt, was es jetzt enthält, wer den Datensatz
+zuletzt geändert hat und wann, und der Titel des Panels zieht nach. Markierte Zeilen bieten **Delete** für alle an, jede gegen ihre eigene
 Revision: Ein zwischenzeitlich geänderter Datensatz bleibt erhalten, und die Konsole
 sagt, wie viele es waren. Das Datensatz-Panel löscht einen einzelnen Datensatz auf
 dieselbe Weise.
@@ -385,7 +388,11 @@ In **Columns** macht **Required** eine Spalte zur Pflicht, und eine archivierte 
 wandert unter **Archived columns**, wo **Restore** sie samt ihren Werten
 zurückbringt.
 
+Das Lesen des Vergleichs erhält ungespeicherte Änderungen anderer Felder und deren ursprüngliche Revision. Ein weiterer Konflikt liest einen neuen Vergleich; eine Antwort für einen geschlossenen Datensatz schließt keinen anderen. Lange Werte erscheinen als gekürzte Vorschau.
+
 ### Import und Export { #import-and-export }
+
+Ordne beim CSV-Import jede Tabellenspalte, einschließlich **External id**, nur einmal zu. Doppelte Ziele werden markiert und blockieren den Import, bis du ein anderes Ziel wählst oder eine Dateispalte überspringst.
 
 Exporte lesen höchstens 4 MiB des entpackten Datensatz-JSON pro Seite (oder
 einen Datensatz), mit maximal 500 Datensätzen pro Seite. Eine Organisation kann
@@ -521,6 +528,8 @@ Der Eigentümer einer Ansicht schaltet sie mit der Schaltfläche neben **Rename*
 zwischen **Private** und **Shared** um. Wer die Ansicht eines anderen Mitglieds
 verwaltet, etwa ein Admin, bekommt diesen Schalter nicht: Ob jemandes eigene Filter
 geteilt werden, entscheidet diese Person selbst.
+
+Auf dem Telefon enthält das Menü **Views** einer gespeicherten Ansicht das Speichern einer weiteren Ansicht, Umbenennen, Teilen und Löschen mit denselben Berechtigungen wie die Desktop-Steuerelemente.
 
 `GET/POST /tables/{id}/views` und `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 listen, erstellen, lesen, aktualisieren und löschen sie. Die Liste ist mit `skip`
@@ -897,12 +906,12 @@ Ein Versuch ohne es wird mit `AUTHORIZATION_ERROR` (403) abgelehnt.
 
 ## Standardansicht {#default-view}
 
-Tabelleneditoren können **Als Standard festlegen** in der Werkzeugleiste wählen. Layout, Filter und Gruppierung werden als geteilte Ansicht gespeichert und bei Besuchen ohne ausdrückliche URL-Parameter `view` oder `viewId` geöffnet. Neue Aufgabentabellen starten mit Kanban. Die Standardansicht muss geteilt sein und zur Tabelle gehören. Vor dem Privatmachen muss ein anderer Standard gewählt werden. Löschen stellt das einfache Tabellenlayout wieder her. Die API verwendet `PATCH /tables/{id}` mit `default_view_id`; null entfernt den Standard.
+Tabelleneditoren können **Als Standard festlegen** unter **Ansichtseinstellungen** wählen. Layout, Filter und Gruppierung werden als geteilte Ansicht gespeichert und bei Besuchen ohne ausdrückliche URL-Parameter `view` oder `viewId` geöffnet. Neue Aufgabentabellen starten mit Kanban. Die Standardansicht muss geteilt sein und zur Tabelle gehören. Vor dem Privatmachen muss ein anderer Standard gewählt werden. Löschen stellt das einfache Tabellenlayout wieder her. Die API verwendet `PATCH /tables/{id}` mit `default_view_id`; null entfernt den Standard.
 
 Aufgabennotizen sind Markdown-Dokumente mit demselben Rich-Text-Editor und derselben Vorschau wie andere Dokumentzellen. Separate Beziehungen **Person** und **Agent** behalten die verantwortliche Person und den ausführenden Agenten. **Nächster Schritt** wählt Person oder Agent und kehrt nach einem Ergebnis zur Person zurück. Die verantwortliche Person startet Agentenarbeit mit ihrem eigenen Konto. Für eine Übergabe zuerst die Person als nächsten Schritt wählen und den Empfänger selbst starten lassen.
 
 
-**Group by** wird automatisch gespeichert, wenn ein Bearbeiter eine Spalte auswählt. Ein verwaltbarer gespeicherter Kanban wird aktualisiert; andernfalls wird eine private Ansicht erstellt und ausgewählt. Bei abgelehntem Speichern bleibt die bisherige Gruppierung erhalten. Leser können die Gruppierung vorübergehend ändern. **Set as default** in der Werkzeugleiste speichert das aktuelle Format für alle; normale Tabellen öffnen sich als Table, bis ein Bearbeiter eine andere Standardansicht auswählt.
+**Group by** wird automatisch gespeichert, wenn ein Bearbeiter eine Spalte auswählt. Ein verwaltbarer gespeicherter Kanban wird aktualisiert; andernfalls wird eine private Ansicht erstellt und ausgewählt. Bei abgelehntem Speichern bleibt die bisherige Gruppierung erhalten. Leser können die Gruppierung vorübergehend ändern. **Set as default** unter **View settings** speichert das aktuelle Format für alle; normale Tabellen öffnen sich als Table, bis ein Bearbeiter eine andere Standardansicht auswählt.
 
 Ein Agent kann nicht gelöscht werden, solange eine verwaltete Aufgabe von seiner geplanten Ausführung abhängt. Weise diese Aufgaben zuerst neu zu, schließe sie ab oder brich sie ab; das Löschen darf ihre Ausführung nicht stillschweigend verwerfen.
 

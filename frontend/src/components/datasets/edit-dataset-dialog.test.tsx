@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -32,6 +32,34 @@ describe("EditDatasetDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
+  });
+
+  it("locks pending fields and close actions until the owner restores editing", async () => {
+    const onOpenChange = vi.fn();
+    const mutateAsync = vi.fn();
+    const view = render(
+      <EditDatasetDialog
+        dataset={DATASET}
+        onOpenChange={onOpenChange}
+        update={{ mutateAsync, isPending: true }}
+      />,
+    );
+    expect(screen.getByLabelText(/^Name/)).toBeDisabled();
+    expect(screen.getByLabelText("Description")).toBeDisabled();
+    expect(screen.getByRole("spinbutton")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalled();
+    view.rerender(
+      <EditDatasetDialog
+        dataset={DATASET}
+        onOpenChange={onOpenChange}
+        update={{ mutateAsync, isPending: false }}
+      />,
+    );
+    expect(screen.getByLabelText(/^Name/)).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
   });
 
   it("closes at once unchanged, and asks first with a change, saving from the question", async () => {
@@ -127,4 +155,29 @@ describe("EditDatasetDialog", () => {
       }),
     );
   });
+});
+
+it("refuses navigation's save when the dataset write becomes pending", async () => {
+  const mutateAsync = vi.fn();
+  const close = vi.fn();
+  const view = render(
+    <EditDatasetDialog
+      dataset={DATASET}
+      onOpenChange={close}
+      update={{ mutateAsync, isPending: false }}
+    />,
+  );
+  await userEvent.type(screen.getByLabelText(/^Name/), " changed");
+  view.rerender(
+    <EditDatasetDialog
+      dataset={DATASET}
+      onOpenChange={close}
+      update={{ mutateAsync, isPending: true }}
+    />,
+  );
+  const proceed = vi.fn();
+  act(() => useUnsavedChangesStore.getState().leave(proceed));
+  await act(() => useUnsavedChangesStore.getState().answer("save"));
+  expect(mutateAsync).not.toHaveBeenCalled();
+  expect(proceed).not.toHaveBeenCalled();
 });

@@ -47,6 +47,7 @@ import {
   Badge,
   Button,
   DataTable,
+  ConfirmDialog,
   EntityAvatar,
   ListCard,
   ListCardEmpty,
@@ -111,6 +112,8 @@ export default function OrgMembersPage({ params }: PageProps) {
   const { invitations, fetchInvitations, revokeInvitation } = useInvitations(id);
   const { orgs, fetchOrgs } = useOrganizations();
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [removing, setRemoving] = useState<OrganizationMember | null>(null);
+  const [removingBusy, setRemovingBusy] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
 
   useEffect(() => {
@@ -179,7 +182,7 @@ export default function OrgMembersPage({ params }: PageProps) {
     const cols: Column<OrganizationMember>[] = [
       {
         key: "member",
-        className: "pl-5",
+        className: "pl-5 @max-md/table:w-full @max-md/table:pb-1",
         header: t("member"),
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
@@ -194,7 +197,7 @@ export default function OrgMembersPage({ params }: PageProps) {
                 className="h-8 w-8 shrink-0 text-[11px]"
                 ariaHidden
               />
-              <div className="max-w-28 min-w-0 sm:max-w-xs">
+              <div className="max-w-28 min-w-0 sm:max-w-xs @max-md/table:max-w-none">
                 <p className="text-foreground truncate text-sm font-medium">
                   {m.full_name || m.email.split("@")[0]}
                   {isSelf && <span className="text-muted-foreground font-normal"> {t("you")}</span>}
@@ -210,6 +213,7 @@ export default function OrgMembersPage({ params }: PageProps) {
       {
         key: "role",
         header: t("role2"),
+        className: "@max-md/table:flex-1 @max-md/table:pl-5 @max-md/table:pt-1",
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
           const isOwner = m.role === "owner";
@@ -233,7 +237,7 @@ export default function OrgMembersPage({ params }: PageProps) {
               <div className="flex items-center gap-2">
                 <Select value={m.role} onValueChange={(v) => changeRole(m.user_id, v as OrgRole)}>
                   <SelectTrigger
-                    className="h-8 w-24 capitalize sm:w-32"
+                    className="h-8 w-32 capitalize"
                     aria-label={t("roleFor", { email: m.email })}
                   >
                     <SelectValue />
@@ -276,6 +280,7 @@ export default function OrgMembersPage({ params }: PageProps) {
         key: "joined",
         header: t("joined"),
         hideBelow: "md",
+        className: "@max-md/table:hidden",
         cell: (m) => (
           <span className="text-muted-foreground text-sm">{formatDate(m.joined_at, locale)}</span>
         ),
@@ -287,12 +292,12 @@ export default function OrgMembersPage({ params }: PageProps) {
         key: "actions",
         header: "",
         align: "right",
-        className: "w-0 pr-5",
+        className: "w-0 pr-5 @max-md/table:w-auto @max-md/table:pt-1",
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
           const isOwner = m.role === "owner";
           return (
-            <div className="flex flex-col items-center justify-end gap-1 sm:flex-row">
+            <div className="flex items-center justify-end gap-1">
               {/* Offered for the owner and for yourself too: erasing what agents
                   wrote about somebody is not a change to their standing in the
                   organization the way removing them is. */}
@@ -302,7 +307,7 @@ export default function OrgMembersPage({ params }: PageProps) {
                   variant="ghost"
                   size="sm"
                   className="text-muted-foreground hover:text-destructive"
-                  onClick={() => removeMember(m.user_id)}
+                  onClick={() => setRemoving(m)}
                   aria-label={tc("removeNamed", { name: m.full_name || m.email })}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -468,6 +473,7 @@ export default function OrgMembersPage({ params }: PageProps) {
               />
             ) : (
               <DataTable<OrganizationMember>
+                stackOnNarrow
                 columns={columns}
                 rows={members}
                 // Wait on the permission answer too, or the row-action column - built
@@ -593,6 +599,25 @@ export default function OrgMembersPage({ params }: PageProps) {
         </TabsContent>
       </Tabs>
 
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(open) => {
+          if (!open && !removingBusy) setRemoving(null);
+        }}
+        title={tc("removeNamedConfirm", { name: removing?.full_name || removing?.email || "" })}
+        confirmLabel={tc("removeNamed", { name: removing?.full_name || removing?.email || "" })}
+        loading={removingBusy}
+        destructive
+        onConfirm={async () => {
+          if (!removing || removingBusy) return;
+          setRemovingBusy(true);
+          try {
+            if (await removeMember(removing.user_id)) setRemoving(null);
+          } finally {
+            setRemovingBusy(false);
+          }
+        }}
+      />
       <InviteMemberDialog open={inviteOpen} onOpenChange={setInviteOpen} orgId={id} />
       <InviteLinkDialog open={linkOpen} onOpenChange={setLinkOpen} orgId={id} />
     </div>

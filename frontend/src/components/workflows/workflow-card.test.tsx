@@ -95,11 +95,10 @@ describe("WorkflowCard", () => {
     expect(document.querySelector("[data-node-family]")).toBeNull();
   });
 
-  it("draws its trigger in the Start family's tile", () => {
+  it("uses a quiet product mark instead of a trigger tile", () => {
     card({ workflow: workflow({ entry_node: "trigger.webhook" }) });
-    expect(document.querySelector("[data-node-family]")?.getAttribute("data-node-family")).toBe(
-      "start",
-    );
+    expect(document.querySelector("[data-node-family]")).toBeNull();
+    expect(document.querySelector("svg.lucide-workflow")).toHaveAttribute("aria-hidden", "true");
   });
 
   it("duplicates on request", async () => {

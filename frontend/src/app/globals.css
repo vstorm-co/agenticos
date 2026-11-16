@@ -594,6 +594,14 @@
     outline-offset: 2px;
     border-radius: 4px;
   }
+  @media (forced-colors: active) {
+    /* Windows high contrast removes box-shadow rings. Override control utilities
+       that suppress outlines so keyboard focus still has a visible boundary. */
+    :focus-visible {
+      outline: 2px solid Highlight !important;
+      outline-offset: 2px;
+    }
+  }
   /* Remove the default inner button focus ring on Firefox. */
   ::-moz-focus-inner {
     border: 0;

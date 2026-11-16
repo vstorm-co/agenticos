@@ -107,3 +107,15 @@ it("opens a case from its cells and keeps the active row keyboard-accessible", a
   await userEvent.keyboard("{Enter}");
   expect(onOpen).toHaveBeenCalledTimes(2);
 });
+
+it("keeps the actual columns and responsive visibility while cases load", () => {
+  const { rerender } = render(<CasesTable cases={[]} loading onOpen={vi.fn()} />);
+  const headerClasses = screen.getAllByRole("columnheader").map((header) => header.className);
+  expect(screen.getByRole("table")).toHaveAttribute("aria-busy", "true");
+  expect(screen.getAllByRole("row")).toHaveLength(7);
+  rerender(<CasesTable cases={[item]} onOpen={vi.fn()} />);
+  expect(screen.getAllByRole("columnheader").map((header) => header.className)).toEqual(
+    headerClasses,
+  );
+  expect(screen.getByRole("table")).not.toHaveAttribute("aria-busy");
+});

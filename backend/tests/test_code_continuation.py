@@ -736,15 +736,27 @@ async def test_a_concurrent_quota_stop_outweighs_an_approval_pause(
     import anyio
     from pydantic_ai.exceptions import UsageLimitExceeded
 
+    from app.agents.code_checkpoint import CodeHostCall
+    from app.agents.durable_code import _Feed
+
     script = _Script("import asyncio\nawait asyncio.gather(write(i=1), read(i=0), read(i=2))")
     ask = script.ask
+    quota_stopped = anyio.Event()
+    call = _Feed._call
+
+    async def observed(feed: _Feed, host_call: CodeHostCall) -> None:
+        await call(feed, host_call)
+        if feed.execution.usage_limit_exceeded is not None:
+            quota_stopped.set()
 
     async def delayed(request: ApprovalRequest) -> ApprovalDecision:
-        await anyio.sleep(0.02)
+        # Establish the competing outcome before parking, independent of CI scheduling.
+        await quota_stopped.wait()
         return await ask(request)
 
+    monkeypatch.setattr(_Feed, "_call", observed)
     monkeypatch.setattr(script, "ask", delayed)
-    with pytest.raises(UsageLimitExceeded):
+    with anyio.fail_after(5), pytest.raises(UsageLimitExceeded):
         await script.step(quota=3)
     assert not script.effects
     assert script.active == 0

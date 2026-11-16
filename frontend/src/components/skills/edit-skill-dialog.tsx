@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -9,24 +9,38 @@ import { categorySuggestions } from "@/components/skills/category-input";
 import { SaveConfirmDialog } from "@/components/skills/save-confirm-dialog";
 import { SkillCheckDialog } from "@/components/skills/skill-check-dialog";
 import { SkillWorkbench } from "@/components/skills/skill-workbench";
+import { EditorLoading } from "@/components/files/editor-loading";
 import { ErrorState } from "@/components/states";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  Skeleton,
-} from "@/components/ui";
+import { SkillEditorFrame, leaveSkillEditor } from "./skill-editor-frame";
 import { useSkill, useSkills } from "@/hooks";
 import { useSkillVersion, useSkillVersionWrites } from "@/hooks/use-skill-versions";
 import type { SkillEdit } from "@/hooks/use-skills";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
-import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
 import { qk } from "@/lib/query-keys";
-import { cn } from "@/lib/utils";
 import type { Skill } from "@/types/providers";
 import type { SkillFork } from "@/types/skill-versions";
+
+type SkillEditorProps = Omit<Parameters<typeof EditSkillDialogBody>[0], "onBusyChange">;
+
+export function EditSkillDialog(props: SkillEditorProps) {
+  const [busy, setBusy] = useState(false);
+  const t = useTranslations("skills.page.edit");
+  return (
+    <SkillEditorFrame
+      id={props.skill.id}
+      title={
+        props.fork === null
+          ? props.skill.name
+          : t("forkTitle", { skill: props.skill.name, name: props.fork.name })
+      }
+      description={props.fork === null ? t("nameHowModelRefers") : t("forkFiles")}
+      busy={busy}
+      onClose={props.onClose}
+    >
+      <EditSkillDialogBody {...props} onBusyChange={setBusy} />
+    </SkillEditorFrame>
+  );
+}
 
 /**
  * The skill's editor, saving a new version on the line the page is showing.
@@ -37,7 +51,7 @@ import type { SkillFork } from "@/types/skill-versions";
  * made, so a line somebody else moved since is refused, and the text stays for the
  * person to keep. A text brought back from a check opens in place of the stored one.
  */
-export function EditSkillDialog({
+export function EditSkillDialogBody({
   skill,
   fork,
   followers,
@@ -46,6 +60,8 @@ export function EditSkillDialog({
   draft,
   onClose,
   onDelete,
+  onOpenFull,
+  onBusyChange,
 }: {
   skill: Skill;
   fork: SkillFork | null;
@@ -62,6 +78,8 @@ export function EditSkillDialog({
   draft?: { description: string; content: string; baseVersionId: string };
   onClose: () => void;
   onDelete: () => void;
+  onOpenFull?: () => void;
+  onBusyChange: (busy: boolean) => void;
 }) {
   const t = useTranslations("skills.page.edit");
   const tSkills = useTranslations("skills");
@@ -69,6 +87,10 @@ export function EditSkillDialog({
   const { categories, suggestedCategories } = useSkills({ limit: 1 });
   const { save } = useSkill(skill.id);
   const { edit } = useSkillVersionWrites(skill.id);
+  useEffect(() => {
+    onBusyChange(edit.isPending || save.isPending);
+    return () => onBusyChange(false);
+  }, [edit.isPending, save.isPending, onBusyChange]);
   const queryClient = useQueryClient();
   const [opened] = useState(
     () =>
@@ -119,14 +141,14 @@ export function EditSkillDialog({
     setRefusal(null);
     if (textChanged(change) && !confirmed) {
       setPending(change);
-      return;
+      return false;
     }
     setPending(null);
     try {
       if (textChanged(change)) {
         if (baseId === null) {
           setRefusal(t("noBase"));
-          return;
+          return false;
         }
         await edit.mutateAsync({
           forkId: fork?.id ?? null,
@@ -144,60 +166,63 @@ export function EditSkillDialog({
             : t("savedFork", { name: fork.name, number: next }),
       );
       onClose();
+      return true;
     } catch (failure) {
       setRefusal(
         failure instanceof ApiError && failure.status === 409
           ? t("lineMoved")
           : getErrorMessage(failure, tErrors),
       );
+      return false;
     }
   }
 
+  const leaveEditor = (proceed: () => void) => {
+    if (!edit.isPending && !save.isPending) leaveSkillEditor(skill.id, proceed);
+  };
+
+  const closeEditor = () => leaveEditor(onClose);
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS, "max-md:overflow-y-auto")}>
-        <DialogHeader>
-          <DialogTitle className="font-mono">
-            {fork === null ? skill.name : t("forkTitle", { skill: skill.name, name: fork.name })}
-          </DialogTitle>
-          <DialogDescription>
-            {fork === null ? t("nameHowModelRefers") : t("forkFiles")}
-          </DialogDescription>
-        </DialogHeader>
-        {refusal !== null && (
-          <p role="alert" className="text-destructive text-sm">
-            {refusal}
-          </p>
-        )}
-        {fork !== null && forkText.error ? (
-          <ErrorState
-            description={getErrorMessage(forkText.error, tErrors)}
-            cta={{ label: t("retryFork"), onClick: () => void forkText.refetch() }}
-          />
-        ) : fork !== null && forkText.version === undefined ? (
-          <Skeleton className="min-h-[22rem] w-full" />
-        ) : (
-          <SkillWorkbench
-            key={`${skill.id}:${opened}`}
-            skill={
-              draft ? { ...shown, description: draft.description, content: draft.content } : shown
-            }
-            fork={fork !== null}
-            canEdit={skill.can_edit === true}
-            isSaving={edit.isPending || save.isPending}
-            categorySuggestions={categorySuggestions(categories, suggestedCategories)}
-            saveWarning={
-              fork === null
-                ? t("warnMain", { number: next, count: followers })
-                : t("warnFork", { number: next, name: fork.name, count: followers })
-            }
-            onSave={(change) => void handleSave(change)}
-            onFilesWritten={followFiles}
-            onCancel={onClose}
-            onDelete={fork === null ? onDelete : undefined}
-          />
-        )}
-      </DialogContent>
+    <>
+      {refusal !== null && (
+        <p role="alert" className="text-destructive text-sm">
+          {refusal}
+        </p>
+      )}
+      {fork !== null && forkText.error ? (
+        <ErrorState
+          description={getErrorMessage(forkText.error, tErrors)}
+          cta={{ label: t("retryFork"), onClick: () => void forkText.refetch() }}
+        />
+      ) : fork !== null && forkText.version === undefined ? (
+        <EditorLoading
+          kind="skill"
+          canEdit={skill.can_edit === true}
+          files={false}
+          fullView={onOpenFull !== undefined}
+        />
+      ) : (
+        <SkillWorkbench
+          key={`${skill.id}:${opened}`}
+          skill={
+            draft ? { ...shown, description: draft.description, content: draft.content } : shown
+          }
+          fork={fork !== null}
+          canEdit={skill.can_edit === true}
+          isSaving={edit.isPending || save.isPending}
+          categorySuggestions={categorySuggestions(categories, suggestedCategories)}
+          saveWarning={
+            fork === null
+              ? t("warnMain", { number: next, count: followers })
+              : t("warnFork", { number: next, name: fork.name, count: followers })
+          }
+          onSave={(change) => handleSave(change)}
+          onFilesWritten={followFiles}
+          onCancel={closeEditor}
+          onOpenFull={onOpenFull ? () => leaveEditor(onOpenFull) : undefined}
+          onDelete={fork === null ? onDelete : undefined}
+        />
+      )}
       {pending !== null && (
         <SaveConfirmDialog
           version={version}
@@ -238,6 +263,6 @@ export function EditSkillDialog({
           }}
         />
       )}
-    </Dialog>
+    </>
   );
 }

@@ -679,7 +679,7 @@ describe("useChat - the streamed answer", () => {
 });
 
 describe("useChat - failures and interruptions", () => {
-  it("writes the error into the message being streamed", () => {
+  it("keeps the error separate from the streamed answer", () => {
     renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("text_delta", { index: 0, content: "Let me check." });
@@ -687,7 +687,9 @@ describe("useChat - failures and interruptions", () => {
     receive("error", { message: "Budget exceeded" });
 
     expect(streaming()).toMatchObject({ isStreaming: false });
-    expect(streaming()?.content).toContain("❌ Error: Budget exceeded");
+    expect(streaming()?.content).not.toContain("Budget exceeded");
+    expect(streaming()?.runFailed).toBe(true);
+    expect(streaming()?.runError).toBe("Budget exceeded");
   });
 
   it("answers a refusal that came before the turn opened a message, instead of dropping it", () => {
@@ -698,7 +700,7 @@ describe("useChat - failures and interruptions", () => {
 
     const answer = useChatStore.getState().messages.at(-1);
     expect(answer).toMatchObject({ role: "assistant", isStreaming: false });
-    expect(answer?.content).toContain("This agent has no model");
+    expect(answer?.runError).toBe("This agent has no model");
     expect(result.current.isProcessing).toBe(false);
   });
 
@@ -708,7 +710,7 @@ describe("useChat - failures and interruptions", () => {
 
     receive("error", { message: "" });
 
-    expect(streaming()?.content).toContain("Unknown error");
+    expect(streaming()?.runError).toBe("Unknown error");
   });
 
   it("shows a late save failure on the stopped reply without restarting it", () => {
@@ -729,7 +731,7 @@ describe("useChat - failures and interruptions", () => {
 
     expect(streaming()).toMatchObject({ id: stoppedId, isStreaming: false, isTemporaryId: true });
     expect(streaming()?.content).toContain("Part of the answer.");
-    expect(streaming()?.content).toContain("The reply could not be saved.");
+    expect(streaming()?.runError).toBe("The reply could not be saved.");
     expect(streaming()?.content).not.toContain("Late text");
     expect(
       useChatStore.getState().messages.filter((message) => message.role === "assistant"),
@@ -758,7 +760,7 @@ describe("useChat - failures and interruptions", () => {
       .getState()
       .messages.filter((message) => message.role === "assistant");
     expect(replies[0]?.content).toBe("Stopped answer.");
-    expect(replies[1]?.content).toContain("The new reply was not saved.");
+    expect(replies[1]?.runError).toBe("The new reply was not saved.");
   });
 
   it("forgets the stopped reply when another conversation opens", () => {
@@ -803,7 +805,7 @@ describe("useChat - failures and interruptions", () => {
       .getState()
       .messages.filter((message) => message.role === "assistant");
     expect(replies[0]?.content).toBe("Stopped answer.");
-    expect(replies[1]?.content).toContain("The new reply was not saved.");
+    expect(replies[1]?.runError).toBe("The new reply was not saved.");
   });
 
   // Every ending ends the call that was already out too, not only the one still
@@ -1324,7 +1326,7 @@ describe("useChat - the conversation a turn belongs to", () => {
     receive("complete", { usage });
 
     expect(streaming()?.content).toContain("Two are open.");
-    expect(streaming()?.content).toContain(warning);
+    expect(streaming()?.runError).toBe(warning);
     expect(streaming()).toMatchObject({ isTemporaryId: true, isStreaming: false, usage });
     expect(result.current.lastUsage).toEqual(usage);
     expect(result.current.isProcessing).toBe(false);
@@ -5740,7 +5742,7 @@ describe("useChat - the outbox (#2097)", () => {
       expect(prompts).toHaveLength(1);
       expect(prompts[0]).toMatchObject({ id: messageId ?? prompt.id, renderKey: prompt.id });
       expect(streaming()?.content).toContain("The answer to second.");
-      expect(streaming()?.content).toContain("The reply could not be saved.");
+      expect(streaming()?.runError).toBe("The reply could not be saved.");
 
       receive("turn_followed_to_end", { conversation_id: "c-1" });
       await act(async () => vi.advanceTimersByTimeAsync(100));
@@ -5758,7 +5760,7 @@ describe("useChat - the outbox (#2097)", () => {
     receive("error", { message: "Pick an agent." });
 
     expect(result.current.queuedMessages).toEqual([]);
-    expect(useChatStore.getState().messages.at(-1)?.content).toContain("Pick an agent.");
+    expect(useChatStore.getState().messages.at(-1)?.runError).toBe("Pick an agent.");
   });
 
   it("takes the queue off the screen on a switch without dropping it from the device", () => {

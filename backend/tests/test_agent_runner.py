@@ -3276,6 +3276,36 @@ class TestWhatAFailedRunIsAllowedToSay:
             "model profile if it keeps failing. The server log has the full error."
         )
 
+    @pytest.mark.security
+    def test_a_content_filter_refusal_is_specific_without_its_provider_payload(self):
+        from pydantic_ai.exceptions import ContentFilterError
+
+        summary = run_failure_summary(ContentFilterError("private provider details: sk-live-test"))
+        assert "content filter" in summary.lower()
+        assert "retry it" not in summary
+        assert "private provider" not in summary
+        assert "sk-live-test" not in summary
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "error", [None, "https://private.example/?api_key=secret", "arbitrary historical error"]
+    )
+    def test_unknown_stored_errors_are_not_copied_into_shared_transcripts(self, error):
+        from app.agents.failures import stored_failure_summary
+
+        assert stored_failure_summary(error) is None
+
+    @pytest.mark.parametrize("legacy", [False, True])
+    def test_a_stored_content_filter_refusal_is_readable(self, legacy):
+        from app.agents.failures import CONTENT_FILTER_SUMMARY, stored_failure_summary
+
+        stored = (
+            "The run did not finish (ContentFilterError) - retry it"
+            if legacy
+            else CONTENT_FILTER_SUMMARY
+        )
+        assert stored_failure_summary(stored) == CONTENT_FILTER_SUMMARY
+
     def test_a_run_at_its_step_limit_is_told_where_the_limit_is(self):
         from pydantic_ai.exceptions import UsageLimitExceeded
 

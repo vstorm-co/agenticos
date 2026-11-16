@@ -53,7 +53,7 @@ export function JudgeDatasetsCard({ judgeId }: { judgeId: string }) {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <LoadingState variant="skeleton-cards" rows={2} />
+          <LoadingState variant="skeleton-list" rows={2} />
         ) : error ? (
           <ErrorState description={getErrorMessage(error, tErrors)} />
         ) : datasets.length === 0 ? (
