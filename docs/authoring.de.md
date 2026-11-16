@@ -1,5 +1,5 @@
 ---
-source_sha: "0ec608602ddd"
+source_sha: "0184c2dd65d3"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -324,6 +324,11 @@ Die Aufbewahrung der Aktivität erhält die Gesamtkosten gelöschter bezahlter R
 
 Grants zählen: Ein Mitglied mit einem Bearbeitungs-Grant an einem Agent darf
 diesen Agent verbessern.
+
+Wenn eine API-Anfrage einen Hilfsagent auswählt, brauchen Sie sowohl Lese- als
+auch Ausführungsrechte für ihn. Ein fehlender oder nicht zugänglicher Hilfsagent
+liefert `404`, bevor seine Einstellungen gelesen werden oder ein Modell aufgerufen
+wird, wie beim Verbessern eines Skills.
 
 ## Verfügbarkeit und Kosten { #when-ai-assistance-is-off }
 
