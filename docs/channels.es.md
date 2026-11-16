@@ -1,5 +1,5 @@
 ---
-source_sha: "6be8cc8a6c17"
+source_sha: "6c671a203336"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2009,7 +2009,7 @@ para mostrar diferencias entre la consola y Mattermost.
 
 - **Los mensajes entrantes normales son duraderos.** Los mensajes de Slack, Mattermost, Telegram, Teams y Discord entran en la cola de PostgreSQL antes de responder al webhook o completar la admisión del flujo nativo. Los workers los procesan en orden por bot e hilo. Tras comenzar la ejecución, perder un worker no repite automáticamente el run de pago ni los efectos de sus herramientas. El operador puede inspeccionar los trabajos fallidos; una petición nueva debe considerar las acciones ya realizadas.
 
-    La respuesta final se guarda en la transacción terminal del run. Una respuesta cuyo envío no se ha intentado puede entregarse desde esa copia sin volver a ejecutar el modelo. Se reclama el intento antes de contactar al proveedor: un resultado de transporte ambiguo queda sin confirmar y no se reintenta a ciegas. Los indicadores de streaming y las interacciones opcionales de UI siguen siendo best-effort. Los atajos nativos antiguos y botones conservan su gestión actual de interacciones.
+    La respuesta final se guarda en la transacción terminal del run. Una respuesta cuyo envío no se ha intentado puede entregarse desde esa copia sin volver a ejecutar el modelo. Se reclama el intento antes de contactar al proveedor: un resultado de transporte ambiguo queda sin confirmar y no se reintenta a ciegas. Los indicadores de streaming y las interacciones opcionales de UI siguen siendo best-effort. Los comandos `/agent` y atajos de mensajes de Slack usan admisión duradera tanto por HTTP como por Socket Mode; la confirmación sigue al commit del trabajo. El polling de Telegram guarda cada lote antes de que el SDK avance el offset. Discord resuelve los metadatos fuera del bucle de recepción del Gateway para no bloquear interacciones posteriores. Las decisiones de prompts y otras acciones nativas de UI conservan su gestión actual.
 
 - **El remitente puede añadir contexto durante el run.** Antes de la siguiente petición al modelo, el worker consume hasta ocho añadidos de texto pendientes de la misma persona en el mismo hilo. Vuelve a comprobar acceso y guardrails de entrada. Los mensajes de otra persona, archivos, otros comandos y añadidos tardíos esperan su propio turno. Solo se incorporan mensajes dirigidos al bot; también funciona entre workers. `/status` y `/stop` (o `status` y `stop`) afectan únicamente al último run principal del remitente en ese hilo. Stop actúa antes de la siguiente petición al modelo; una acción en curso puede terminar. Los mensajes `/btw` en la cola duradera esperan su turno, sin prometer una respuesta lateral inmediata.
 

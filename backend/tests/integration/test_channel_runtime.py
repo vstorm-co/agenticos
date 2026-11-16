@@ -398,3 +398,76 @@ async def test_native_turn_receipts_and_controls_are_bound_to_the_actual_sender(
     assert await conversations.known_channel_posts(
         db, conversation_id=conversation.id, source_ids=["question", "answer", "not-posted"]
     ) == {"question", "answer"}
+
+
+@pytest.mark.parametrize("platform", ["slack", "mattermost", "telegram", "discord"])
+async def test_native_redeliveries_are_durable_and_thread_queues_stay_isolated(
+    db: AsyncSession, platform: str
+) -> None:
+    from dataclasses import replace
+
+    from sqlalchemy import select
+
+    from app.db.models.channel_bot import ChannelBot
+    from app.services.channels.base import IncomingMessage
+    from app.services.channels.ingress import conversation_queue, queue_message
+
+    bot = ChannelBot(
+        id=uuid4(),
+        organization_id=uuid4(),
+        authorization_generation=uuid4(),
+        platform=platform,
+        name="Queue test",
+        token_encrypted="unused",
+        secret_key_version=1,
+    )
+    other_bot = ChannelBot(
+        id=uuid4(),
+        organization_id=bot.organization_id,
+        authorization_generation=uuid4(),
+        platform=platform,
+        name="Other queue",
+        token_encrypted="unused",
+        secret_key_version=1,
+    )
+    incoming = IncomingMessage(
+        platform=platform,
+        bot_id=str(bot.id),
+        platform_user_id="alice",
+        platform_chat_id="room:thread",
+        chat_type="group",
+        text="Use Friday",
+        message_id="native-1",
+        raw={"token": "must-not-persist"},
+    )
+    await queue_message(db, bot, incoming)
+    await queue_message(db, bot, incoming)
+    await queue_message(db, bot, replace(incoming, message_id="native-2"))
+    await queue_message(db, bot, replace(incoming, platform_chat_id="room:other"))
+    await queue_message(db, other_bot, replace(incoming, bot_id=str(other_bot.id)))
+    rows = list(
+        await db.scalars(
+            select(BackgroundJob).where(
+                BackgroundJob.organization_id == bot.organization_id,
+                BackgroundJob.kind == PROCESS_CHANNEL_MESSAGE.kind,
+            )
+        )
+    )
+    assert len(rows) == 4
+    assert (
+        sum(
+            row.payload["message_id"] == "native-1"
+            and row.payload["bot_id"] == str(bot.id)
+            and row.payload["platform_chat_id"] == "room:thread"
+            for row in rows
+        )
+        == 1
+    )
+    original = conversation_queue(bot.id, "room:thread")
+    assert [row.concurrency_key for row in rows].count(original) == 2
+    assert {row.concurrency_key for row in rows} == {
+        original,
+        conversation_queue(bot.id, "room:other"),
+        conversation_queue(other_bot.id, "room:thread"),
+    }
+    assert all("must-not-persist" not in str(row.payload) for row in rows)

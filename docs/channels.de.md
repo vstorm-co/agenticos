@@ -1,5 +1,5 @@
 ---
-source_sha: "6be8cc8a6c17"
+source_sha: "6c671a203336"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2102,7 +2102,7 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
 
 - **Gewöhnliche eingehende Nachrichten sind dauerhaft.** Nachrichten aus Slack, Mattermost, Telegram, Teams und Discord gelangen vor der Webhook-Antwort beziehungsweise abgeschlossenen Stream-Annahme in die PostgreSQL-Warteschlange. Worker verarbeiten sie pro Bot und Thread nacheinander. Nach Ausführungsbeginn wiederholt ein verlorener Worker weder den kostenpflichtigen Lauf noch Werkzeugwirkungen automatisch. Betreiber können fehlgeschlagene Jobs prüfen; eine neue Anfrage sollte bereits erfolgte Aktionen berücksichtigen.
 
-    Die endgültige Antwort wird in der Abschlusstransaktion des Laufs gespeichert. Eine noch nicht versuchte Zustellung kann daraus ohne erneuten Modelllauf erfolgen. Der Versandversuch wird vor dem Anbieteraufruf beansprucht: Ein mehrdeutiger Transportausgang bleibt unbestätigt und wird nicht blind wiederholt. Streaming-Platzhalter und optionale UI-Interaktionen bleiben best-effort. Ältere native Kurzbefehle und Schaltflächen behalten ihre bisherige Interaktionsverarbeitung.
+    Die endgültige Antwort wird in der Abschlusstransaktion des Laufs gespeichert. Eine noch nicht versuchte Zustellung kann daraus ohne erneuten Modelllauf erfolgen. Der Versandversuch wird vor dem Anbieteraufruf beansprucht: Ein mehrdeutiger Transportausgang bleibt unbestätigt und wird nicht blind wiederholt. Streaming-Platzhalter und optionale UI-Interaktionen bleiben best-effort. Slack-Befehle `/agent` und Nachrichten-Kurzbefehle werden über HTTP und Socket Mode dauerhaft angenommen; die Bestätigung folgt erst nach dem Commit des Jobs. Telegram-Polling speichert jeden Nachrichtenstapel, bevor das SDK den Offset erhöht. Discord löst Nachrichtenmetadaten außerhalb der Gateway-Empfangsschleife auf, damit spätere Interaktionen reaktionsfähig bleiben. Prompt-Entscheidungen und andere native UI-Aktionen behalten ihre bisherige Verarbeitung.
 
 - **Der Absender kann während eines Laufs Kontext ergänzen.** Vor der nächsten Modellanfrage übernimmt der Worker bis zu acht wartende Textergänzungen derselben Person im selben Thread. Zugriff und Eingabe-Guardrails werden erneut geprüft. Andere Personen, Dateien, andere Befehle und zu spät eingegangene Ergänzungen bleiben für eine eigene Runde in der Warteschlange. Nur an den Bot gerichtete Nachrichten werden übernommen, auch über Worker-Grenzen hinweg. `/status` und `/stop` (auch `status` und `stop`) betreffen nur den letzten eigenen Hauptlauf in diesem Thread. Stop wirkt vor der nächsten Modellanfrage; eine laufende Aktion kann noch enden. Dauerhaft eingereihte `/btw`-Nachrichten warten auf ihre Runde, ohne eine sofortige Nebenantwort zu versprechen.
 

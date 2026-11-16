@@ -183,9 +183,9 @@ answers *"command with a trigger of '/link' not found"* and never delivers
 anything. Since connecting an account is the thing somebody does before any
 channel will answer them, that was the one command that had to survive it.
 
-Only `link`, and only when it is the whole message. "link" is an ordinary word in
-English and in Polish, so anything around it - "link do dokumentu?" - is a
-question for the agent rather than a command.
+Only complete `link`, `help`, `status` and `stop` messages gain a slash.
+Phrases such as "link do dokumentu?" remain questions for the agent; reset
+commands still require an explicit slash.
 """
 
 

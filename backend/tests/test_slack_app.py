@@ -591,7 +591,7 @@ class TestSocketMode:
             patch(
                 "app.worker.background.channel.process_channel_press", new=AsyncMock()
             ) as pressed,
-            patch("app.worker.background.channel.process_channel_event", new=AsyncMock()) as asked,
+            patch("app.services.channels.ingress.admit_message", new=AsyncMock()) as asked,
         ):
             await adapter._handle_interaction(
                 "interactive",

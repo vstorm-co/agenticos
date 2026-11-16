@@ -26,6 +26,13 @@ agent pipeline as the web chat.
 Bots live in the DB (`channel_bots`), with per-user identity (`channel_identity`) and
 per-thread session (`channel_session`).
 
+Native acknowledgement belongs after admission: Slack Socket Mode message events,
+`/agent` and message shortcuts await `ingress.admit_message`. Telegram's
+`_MessageAdmission` request middleware queues `getUpdates` results before the SDK
+can advance its offset; do not move persistence back into its detached message
+handler. Discord metadata requests stay off the Gateway receive loop, then await
+admission before routing. Prompt decisions keep their existing interaction path.
+
 ## Surface prompts
 
 `formatting.house_style` supplies current defaults at run time. New binding rows

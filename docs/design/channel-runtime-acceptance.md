@@ -2,7 +2,7 @@
 
 Use the isolated local instance and its copied database. Keep the existing
 local instance running. Existing bots and automations in the copy stay disabled.
-Create a separate Mattermost bot with username `agenticos-qa`, bind the test
+Create a separate Mattermost bot with username `local-agenticos`, bind the test
 agent to it, and invite it only to a dedicated test channel. Use a second
 Mattermost participant for the identity and ownership cases.
 
@@ -33,7 +33,7 @@ Post this as a channel message without mentioning the bot:
 
 Start a **new root message**, not a reply:
 
-> @agenticos-qa Cześć. Jakie ustalenia widzisz w tym wątku? Odpowiedz na podstawie kontekstu, który już dostałeś, bez szukania historii kanału.
+> @local-agenticos Cześć. Jakie ustalenia widzisz w tym wątku? Odpowiedz na podstawie kontekstu, który już dostałeś, bez szukania historii kanału.
 
 Expected: the agent does not quote `KAKTUS-731` or claim the other conversation
 is part of this thread. Check the run input and context, not only its wording.
@@ -50,7 +50,7 @@ Reply **inside that thread**, as separate posts:
 
 > Osoba kontaktowa: Marta.
 
-> @agenticos-qa Podsumuj ustalenia tego wątku: termin, sala, osoba kontaktowa i kod. Nie szukaj innych rozmów w kanale.
+> @local-agenticos Podsumuj ustalenia tego wątku: termin, sala, osoba kontaktowa i kod. Nie szukaj innych rozmów w kanale.
 
 Expected: all four facts are available, with their original authors and times.
 `QA-OUTSIDE` is absent. A short complete thread carries no missing-history warning.
@@ -70,7 +70,7 @@ participants; no bot mention is necessary until the final question:
 
 > Nowy kod ustaleń: ŻUBR-914. Poprzedni kod jest nieaktualny.
 
-> @agenticos-qa Jakie są teraz aktualne ustalenia? Wskaż, co zmieniono od poprzedniego podsumowania.
+> @local-agenticos Jakie są teraz aktualne ustalenia? Wskaż, co zmieniono od poprzedniego podsumowania.
 
 Expected: the changed date, time and code win. Earlier context is retained once;
 the previous bot answer and earlier imported posts are not imported again.
@@ -80,7 +80,7 @@ Repeat after a longer discussion, for example 20 separate posts.
 
 In the current thread:
 
-> @agenticos-qa Teraz użyj narzędzia historii kanału: znajdź wiadomość QA-OUTSIDE i podaj jej kod oraz źródło.
+> @local-agenticos Teraz użyj narzędzia historii kanału: znajdź wiadomość QA-OUTSIDE i podaj jej kod oraz źródło.
 
 Expected: a real channel-history tool call is visible. It is allowed only when
 the binding permits channel history; otherwise the agent explains the missing
@@ -90,11 +90,11 @@ access. The code must not have appeared automatically in scenario 1.
 
 Ask for a task that needs several available read-only tool calls:
 
-> @agenticos-qa Znajdź stronę TESTOWA STRONA w Notion, przeczytaj ją i sprawdź powiązane materiały. Przygotuj krótkie podsumowanie z odnośnikami.
+> @local-agenticos Znajdź stronę TESTOWA STRONA w Notion, przeczytaj ją i sprawdź powiązane materiały. Przygotuj krótkie podsumowanie z odnośnikami.
 
 While the run is working, from the **same participant**, send:
 
-> @agenticos-qa Doprecyzowanie: odpowiedź po polsku, maksymalnie trzy punkty. Dodaj na końcu kod QA-STEER-527.
+> @local-agenticos Doprecyzowanie: odpowiedź po polsku, maksymalnie trzy punkty. Dodaj na końcu kod QA-STEER-527.
 
 Expected: when a model request is still ahead, the addition joins that run once.
 Its native receipt is marked incorporated, and the run transcript records the
@@ -109,11 +109,11 @@ first person's tool calls or borrow their personal connection.
 
 During your own active run, send in the same thread:
 
-> @agenticos-qa status
+> @local-agenticos status
 
 Then:
 
-> @agenticos-qa stop
+> @local-agenticos stop
 
 Expected: status describes your latest root run. Stop ends it before the next
 model request; an external action already in progress may finish. From the
@@ -125,7 +125,7 @@ run, `status` says there is no task there.
 Use a participant whose Mattermost identity is not linked in the copied
 instance. With a **personal** Notion binding, ask:
 
-> @agenticos-qa Wyszukaj w moim Notion stronę TESTOWA STRONA i podsumuj ją.
+> @local-agenticos Wyszukaj w moim Notion stronę TESTOWA STRONA i podsumuj ją.
 
 Expected: the agent explains the missing identity link and personal service
 connection. The diagnostic result reports `execution=not_started`. It does not
@@ -192,3 +192,16 @@ native post IDs, imported reference messages, summary position, tool-call
 identity, approval state and background-job outcome. Check for duplicate replies
 and actions, not just a plausible final answer. The developer will correlate
 these with the local API and worker logs.
+
+## Adapter regression checks
+
+The shared-context tests cover Mattermost, Slack and Discord. Native provider
+fixtures additionally check that Slack message events, `/agent` and message
+shortcuts commit admission before acknowledging in Socket Mode, including a
+failed database write. Prompt-button acknowledgements remain immediate.
+Telegram's real SDK polling iterator must keep its offset unchanged after a
+failed write and retry the update. Discord's Gateway must keep reading while a
+message waits on its metadata request. PostgreSQL tests send the same native
+receipt twice for each platform and verify one job, with independent bot/thread
+queues and no raw credentials in the payload. These checks do not post messages
+to live Slack, Telegram or Discord accounts.

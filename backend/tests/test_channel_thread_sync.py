@@ -63,7 +63,11 @@ async def refresh(case):
     )
 
 
-async def test_a_late_mention_imports_prior_discussion_in_order_without_the_question(sync):
+@pytest.mark.parametrize("platform", ["mattermost", "slack", "discord"])
+async def test_a_late_mention_imports_prior_discussion_in_order_without_the_question(
+    sync, platform
+):
+    sync.incoming.platform = platform
     sync.directory.history_page.return_value = HistoryPage(
         scanned=0,
         posts=[
@@ -82,7 +86,11 @@ async def test_a_late_mention_imports_prior_discussion_in_order_without_the_ques
     assert sync.update.await_args.kwargs["update_data"] == {"thread_context_at": NOW}
 
 
-async def test_later_mentions_only_import_the_delta_and_never_known_or_compacted_posts(sync):
+@pytest.mark.parametrize("platform", ["mattermost", "slack", "discord"])
+async def test_later_mentions_only_import_the_delta_and_never_known_or_compacted_posts(
+    sync, platform
+):
+    sync.incoming.platform = platform
     sync.session.thread_context_at = NOW - timedelta(seconds=5)
     sync.known.return_value = {"seen"}
     sync.directory.history_page.return_value = HistoryPage(

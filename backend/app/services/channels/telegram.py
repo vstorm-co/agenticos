@@ -29,8 +29,10 @@ from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     ReactionTypeEmoji,
+    Update,
 )
 from aiogram.types import Message as AiogramMessage
+from pydantic import TypeAdapter
 
 from app.agents.capabilities.channel_tools import (
     ChannelDetails,
@@ -58,6 +60,7 @@ from app.services.channels.telegram_format import to_telegram_html
 from app.services.channels.telegram_press import parse_press
 
 logger = logging.getLogger(__name__)
+_TELEGRAM_UPDATES = TypeAdapter(list[Update])
 
 
 # Every field Telegram puts a file in, with a name and a type for the kinds that
@@ -137,6 +140,28 @@ class _ConflictWatch(BaseRequestMiddleware):
         if self.conflicted and isinstance(method, GetUpdates):
             self.conflicted = False
             await self._on_recovery()
+        return response
+
+
+class _MessageAdmission(BaseRequestMiddleware):
+    """Persist polled messages before aiogram can confirm the returned batch's offset."""
+
+    def __init__(self, admit: Callable[[AiogramMessage], Awaitable[None]]) -> None:
+        self._admit = admit
+
+    async def __call__(
+        self,
+        make_request: NextRequestMiddlewareType[TelegramType],
+        bot: Bot,
+        method: TelegramMethod[TelegramType],
+    ) -> Response[TelegramType]:
+        response = await make_request(bot, method)
+        if isinstance(method, GetUpdates):
+            # aiogram declares Response[T] here but returns its decoded result T.
+            # Validate at this SDK boundary rather than casting the declaration away.
+            for update in _TELEGRAM_UPDATES.validate_python(response):
+                if update.message is not None:
+                    await self._admit(update.message)
         return response
 
 
@@ -462,11 +487,14 @@ class TelegramAdapter(ChannelAdapter):
                 lambda: connection_state.record_up(bot_id),
             )
             bot.session.middleware(watch)
+            bot.session.middleware(
+                _MessageAdmission(lambda message: self._handle_update(message, bot_id))
+            )
             dp = Dispatcher()
 
             @dp.message()
-            async def on_message(message: AiogramMessage) -> None:
-                await self._handle_update(message, bot_id)
+            async def on_message(_message: AiogramMessage) -> None:
+                """Already queued by request middleware, before the polling offset can advance."""
 
             # Buttons on approvals and questions (#2064, #2068). A handler is what
             # makes aiogram ask Telegram for `callback_query` updates at all.

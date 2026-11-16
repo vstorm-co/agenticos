@@ -561,10 +561,13 @@ class TestASlashAPlatformAte:
         assert _as_command(text) == text.strip()
 
     def test_nothing_else_gains_a_bare_form(self):
-        """Only `link`. The others are reachable wherever a slash is delivered,
-        and a bare `new` or `help` would swallow real messages."""
+        """Bare reset commands must not swallow ordinary conversation."""
         assert _as_command("new") == "new"
-        assert _as_command("help") == "help"
+        assert _as_command("agents") == "agents"
+
+    @pytest.mark.parametrize("command", ["help", "status", "stop"])
+    def test_task_controls_and_help_survive_platform_slash_commands(self, command: str):
+        assert _as_command(command) == f"/{command}"
 
 
 class TestWhatSomebodyHasConnected:

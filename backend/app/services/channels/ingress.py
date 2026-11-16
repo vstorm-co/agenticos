@@ -148,7 +148,7 @@ async def queue_message(db: AsyncSession, bot: ChannelBot, incoming: IncomingMes
 
 
 async def admit_message(incoming: IncomingMessage) -> None:
-    """Used by native streams; the context commits before the stream accepts another event."""
+    """Used by native deliveries; the job commits before acknowledging the delivery."""
     async with get_db_context() as db:
         bot = await channel_bot_repo.get_for_inbound(db, UUID(incoming.bot_id))
         if bot is not None and bot.is_active:

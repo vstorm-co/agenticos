@@ -234,9 +234,11 @@ The spec keeps these in the binding's `tool_approval`, keyed by the tool's name 
 the server. A group whose tools differ reads **Per tool**, and choosing for the
 group sets all of its tools again. A tool the server adds later follows its group.
 
-Two places go by the server's hint instead. In a chat app, a tool the server does
-not mark read-only asks first even when set to run freely, and a watch never
-reads a tool its binding asks before, because nobody is there to answer.
+Channel runs follow the binding and per-tool approval settings for every admitted
+sender, whether or not their chat identity is linked. The channel adds no extra
+approval gate. Personal accounts still require the sender's linked identity and
+authorized connection; platform connections keep their minimum `writes` policy.
+A watch never reads a tool its binding asks before, because nobody is there to answer.
 
 ### Whose account a binding speaks through
 

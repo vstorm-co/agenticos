@@ -841,13 +841,16 @@ class SlackAdapter(ChannelAdapter):
                 # platform that does not report mentions, which the router answers.
                 await self._handle_event(req.payload, bot_id)
             elif req.type in ("interactive", "slash_commands"):
-                # Buttons, the message shortcut and `/agent`, over the socket
-                # rather than the request URLs the manifest names (#2067).
-                await client_.send_socket_mode_response(
-                    SocketModeResponse(envelope_id=req.envelope_id)
-                )
+                queued = req.type == "slash_commands" or req.payload.get("type") == "message_action"
+                if not queued:
+                    # Prompt decisions keep their immediate acknowledgement; agent
+                    # requests must first commit the same job as their HTTP twin.
+                    await client_.send_socket_mode_response(
+                        SocketModeResponse(envelope_id=req.envelope_id)
+                    )
                 await self._handle_interaction(req.type, req.payload, bot_id)
-                return
+                if not queued:
+                    return
             await client_.send_socket_mode_response(SocketModeResponse(envelope_id=req.envelope_id))
 
         client.socket_mode_request_listeners.append(handler)  # type: ignore[arg-type]
@@ -1147,6 +1150,7 @@ class SlackAdapter(ChannelAdapter):
 
     async def _handle_interaction(self, kind: str, payload: dict[str, Any], bot_id: str) -> None:
         """One Socket Mode interaction or slash command, routed like its webhook twin."""
+        from app.services.channels.ingress import admit_message
         from app.services.channels.slack_app import (
             parse_command,
             parse_feedback_comment,
@@ -1154,7 +1158,6 @@ class SlackAdapter(ChannelAdapter):
             parse_shortcut,
         )
         from app.worker.background.channel import (
-            process_channel_event,
             process_channel_press,
             process_feedback_comment,
         )
@@ -1162,7 +1165,7 @@ class SlackAdapter(ChannelAdapter):
         if kind == "slash_commands":
             command = parse_command({key: str(value) for key, value in payload.items()}, bot_id)
             if command is not None:
-                await process_channel_event(command)
+                await admit_message(command)
             return
         comment = parse_feedback_comment(payload, bot_id)
         if comment is not None:
@@ -1174,7 +1177,7 @@ class SlackAdapter(ChannelAdapter):
             return
         shortcut = parse_shortcut(payload, bot_id)
         if shortcut is not None:
-            await process_channel_event(shortcut)
+            await admit_message(shortcut)
 
     async def _handle_event(self, payload: dict[str, Any], bot_id: str) -> None:
         """Route one `events_api` payload, whole.

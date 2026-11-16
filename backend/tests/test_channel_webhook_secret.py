@@ -18,7 +18,6 @@ import pytest
 from httpx import AsyncClient
 
 from app.api import deps
-from app.core import background
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.vault import VaultScope, seal, unseal
@@ -39,6 +38,7 @@ def _bot_service(bot: ChannelBot | None) -> MagicMock:
     """A `ChannelBotService` that answers the inbound lookup with `bot`."""
     service = MagicMock()
     service.find_active = AsyncMock(return_value=bot)
+    service.queue_message = AsyncMock()
     return service
 
 
@@ -256,10 +256,20 @@ def registered_adapters():
 @pytest.mark.usefixtures("registered_adapters")
 class TestTheReceiversRefuse:
     """All three webhook routes, asked the same question: does an unauthenticated
-    request reach `process_channel_event`? Each refuses with 403 (#555)."""
+    request reach durable channel admission? Each refuses with 403 (#555)."""
 
-    async def _post(self, client: AsyncClient, path: str, bot: ChannelBot | None, **kwargs) -> int:
-        app.dependency_overrides[deps.get_channel_bot_service] = lambda: _bot_service(bot)
+    async def _post(
+        self,
+        client: AsyncClient,
+        path: str,
+        bot: ChannelBot | None,
+        *,
+        service: MagicMock | None = None,
+        **kwargs,
+    ) -> int:
+        app.dependency_overrides[deps.get_channel_bot_service] = lambda: (
+            service or _bot_service(bot)
+        )
         try:
             response = await client.post(path, **kwargs)
         finally:
@@ -311,34 +321,28 @@ class TestTheReceiversRefuse:
         )
         assert status == 403
 
-    async def test_an_authenticated_call_is_work_a_shutdown_waits_for(self, client: AsyncClient):
-        """The route answers 200 and does the work afterwards, which is only
-        safe if something is holding the work.
-
-        A bare `asyncio.create_task` held it in a module-level set that
-        `background.drain()` does not know about, so a shutdown mid-message
-        dropped an answer somebody was waiting for and logged nothing. The
-        consequence asserted here is the one that matters: `drain` waits.
-        """
-        secret = "the-real-secret"
-        bot = _sealed_bot(secret)
-        processed: list[str] = []
-        # Held open so the work is genuinely in flight when `drain` is called -
-        # otherwise it finishes on its own and the test proves nothing about
-        # whether anything was waiting for it.
+    async def test_an_authenticated_call_waits_for_durable_admission(self, client: AsyncClient):
+        """A successful acknowledgement must not precede recording the worker job."""
+        bot = _sealed_bot("the-real-secret")
+        service = _bot_service(bot)
+        entered = asyncio.Event()
         gate = asyncio.Event()
+        queued: list[str] = []
 
-        async def _record(incoming) -> None:
+        async def record(_bot: ChannelBot, incoming: IncomingMessage) -> None:
+            entered.set()
             await gate.wait()
-            processed.append(incoming.text)
+            queued.append(incoming.text)
 
-        with patch("app.api.routes.v1.mattermost_webhook.process_channel_event", new=_record):
-            status = await self._post(
+        service.queue_message.side_effect = record
+        request = asyncio.create_task(
+            self._post(
                 client,
                 f"/api/v1/mattermost/{bot.id}/webhook",
                 bot,
+                service=service,
                 json={
-                    "token": secret,
+                    "token": "the-real-secret",
                     "text": "hello",
                     "user_id": "u-1",
                     "user_name": "kacper",
@@ -346,12 +350,18 @@ class TestTheReceiversRefuse:
                     "post_id": "p-1",
                 },
             )
-            assert status == 200
-            assert processed == [], "the answer must not wait for the work"
+        )
+        try:
+            await asyncio.wait_for(entered.wait(), timeout=5)
+            assert not request.done(), "acknowledged before the job was recorded"
             gate.set()
-            await background.drain(timeout=5.0)
-
-        assert processed == ["hello"], "a shutdown dropped work that was in flight"
+            assert await request == 200
+            assert queued == ["hello"]
+        finally:
+            gate.set()
+            if not request.done():
+                request.cancel()
+            await asyncio.gather(request, return_exceptions=True)
 
     async def test_an_unknown_bot_answers_200_without_running_anything(self, client: AsyncClient):
         """Not 404: an unknown or disabled bot is not something the sender can
@@ -376,26 +386,26 @@ class TestTheReceiverRecordsTheServer:
         bot = _sealed_bot(secret, api_base_url="https://mm.example.com/")
         captured: list[IncomingMessage] = []
 
-        async def _record(incoming) -> None:
+        async def _record(_bot: ChannelBot, incoming: IncomingMessage) -> None:
             captured.append(incoming)
 
-        app.dependency_overrides[deps.get_channel_bot_service] = lambda: _bot_service(bot)
+        service = _bot_service(bot)
+        service.queue_message.side_effect = _record
+        app.dependency_overrides[deps.get_channel_bot_service] = lambda: service
         try:
-            with patch("app.api.routes.v1.mattermost_webhook.process_channel_event", new=_record):
-                response = await client.post(
-                    f"/api/v1/mattermost/{bot.id}/webhook",
-                    json={
-                        "token": secret,
-                        "text": "what does this say",
-                        "user_id": "u-1",
-                        "user_name": "kacper",
-                        "channel_id": "c-1",
-                        "post_id": "p-1",
-                        "file_ids": "f1",
-                    },
-                )
-                assert response.status_code == 200
-                await background.drain(timeout=5.0)
+            response = await client.post(
+                f"/api/v1/mattermost/{bot.id}/webhook",
+                json={
+                    "token": secret,
+                    "text": "what does this say",
+                    "user_id": "u-1",
+                    "user_name": "kacper",
+                    "channel_id": "c-1",
+                    "post_id": "p-1",
+                    "file_ids": "f1",
+                },
+            )
+            assert response.status_code == 200
         finally:
             app.dependency_overrides.pop(deps.get_channel_bot_service, None)
 
@@ -416,26 +426,26 @@ class TestTheReceiverRecordsTheServer:
         adapter.remember_server(str(bot.id), "https://old.example.com")
         captured: list[IncomingMessage] = []
 
-        async def _record(incoming) -> None:
+        async def _record(_bot: ChannelBot, incoming: IncomingMessage) -> None:
             captured.append(incoming)
 
-        app.dependency_overrides[deps.get_channel_bot_service] = lambda: _bot_service(bot)
+        service = _bot_service(bot)
+        service.queue_message.side_effect = _record
+        app.dependency_overrides[deps.get_channel_bot_service] = lambda: service
         try:
-            with patch("app.api.routes.v1.mattermost_webhook.process_channel_event", new=_record):
-                response = await client.post(
-                    f"/api/v1/mattermost/{bot.id}/webhook",
-                    json={
-                        "token": secret,
-                        "text": "what does this say",
-                        "user_id": "u-1",
-                        "user_name": "kacper",
-                        "channel_id": "c-1",
-                        "post_id": "p-1",
-                        "file_ids": "f1",
-                    },
-                )
-                assert response.status_code == 200
-                await background.drain(timeout=5.0)
+            response = await client.post(
+                f"/api/v1/mattermost/{bot.id}/webhook",
+                json={
+                    "token": secret,
+                    "text": "what does this say",
+                    "user_id": "u-1",
+                    "user_name": "kacper",
+                    "channel_id": "c-1",
+                    "post_id": "p-1",
+                    "file_ids": "f1",
+                },
+            )
+            assert response.status_code == 200
         finally:
             app.dependency_overrides.pop(deps.get_channel_bot_service, None)
 

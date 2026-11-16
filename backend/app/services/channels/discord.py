@@ -1057,7 +1057,7 @@ class DiscordAdapter(ChannelAdapter):
         ):
             return
         elif event == "MESSAGE_CREATE":
-            await self._on_message(data, bot_id, bot_token)
+            spawn(self._on_message(data, bot_id, bot_token), name=f"discord-message:{bot_id}")
         elif event == "INTERACTION_CREATE":
             spawn(self._on_interaction(data, bot_id), name=f"discord-interaction:{bot_id}")
 

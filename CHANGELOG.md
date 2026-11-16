@@ -58,6 +58,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Admit Slack Socket Mode commands and message shortcuts durably before acknowledgement, preserve Telegram updates when job admission fails, and keep Discord metadata lookups off its Gateway receive loop.
+
 - Standardize fields, native and custom selects, buttons and switches across the console and authentication screens. Respect the chosen look at sign-in, stack connected accounts before appearance, restore fallback avatar colours and make working-day selection clear.
 
 - Prevent App deletion from deadlocking with workflow event writes. Release partial source locks before bounded retries, return a retryable 409 when busy, and preserve run history and commit-only file cleanup (#3021).
