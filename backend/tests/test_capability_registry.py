@@ -1217,7 +1217,7 @@ ART_DIR = (
 
 
 def _capabilities_with_art() -> frozenset[str]:
-    """The capability ids the Toolbox has a scene for, read out of the two art tables.
+    """The capability ids the Toolbox has a scene for, read out of the scene tables and product-mark map.
 
     `art.generated.ts` is the design canvas's export, one key per scene at two
     spaces; `art.drawn.ts` holds the scenes drawn by hand since, in `DRAWN_ART`.
@@ -1225,9 +1225,12 @@ def _capabilities_with_art() -> frozenset[str]:
     generated = (ART_DIR / "art.generated.ts").read_text(encoding="utf-8")
     drawn = (ART_DIR / "art.drawn.ts").read_text(encoding="utf-8")
     table = drawn[drawn.index("export const DRAWN_ART") :]
-    return frozenset(
-        re.findall(r"^  ([a-z0-9_]+):\n    '<svg", generated, re.MULTILINE)
-    ) | frozenset(re.findall(r"^  ([a-z0-9_]+): [A-Z0-9_]+,$", table, re.MULTILINE))
+    integrations = (ART_DIR / "integration-art.tsx").read_text(encoding="utf-8")
+    return (
+        frozenset(re.findall(r"^  ([a-z0-9_]+):\n    '<svg", generated, re.MULTILINE))
+        | frozenset(re.findall(r"^  ([a-z0-9_]+): [A-Z0-9_]+,$", table, re.MULTILINE))
+        | frozenset(re.findall(r'^  ([a-z0-9_]+): "[a-z0-9_]+",$', integrations, re.MULTILINE))
+    )
 
 
 class TestToolboxArt:

@@ -95,6 +95,7 @@ from app.repositories import routine_device_wait as device_wait_repo
 from app.schemas.agent_trigger import (
     _EVENT_CONFIG_MODELS,
     GithubTriggerConfig,
+    TriggerActivationRead,
     TriggerAttemptList,
     TriggerAttemptRead,
     TriggerAttemptReason,
@@ -240,6 +241,13 @@ class EventFireDecision:
     """The trigger's own organization, which the queued job carries: a job without
     one is deployment-wide, so a fire that kept killing its worker would pause
     `fire-trigger` for every tenant rather than for this one."""
+
+
+@dataclass(frozen=True, slots=True)
+class TriggerDispatch:
+    trigger: AgentTrigger
+    activation_id: UUID
+    job_id: UUID | None
 
 
 def _next_fire(
@@ -1823,7 +1831,7 @@ class AgentTriggerService:
             secret=secret,
         )
 
-    async def run_now(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> AgentTrigger:
+    async def run_now(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> TriggerDispatch:
         """Fire this trigger once, on demand, without disturbing how it normally fires.
 
         Works for either kind, and is deliberately offered on both. A schedule
@@ -1859,14 +1867,15 @@ class AgentTriggerService:
         arrive. The job is written in this request's transaction, so it exists
         exactly when the audit entry beside it does, and a worker runs it.
 
-        Returns the trigger as it stands, which is why the route answers 202: the
-        run has not happened yet, so `last_run_id` still names the previous one. The
-        fire appends to the trigger's run-log conversation as it goes.
+        Returns the trigger and this queued fire's activation identity. Runs and
+        before-run attempts record the same identity, so concurrent fires and
+        independent browser/worker clocks cannot settle the wrong dispatch.
         """
         trigger = await self._owned(ctx, agent_id, trigger_id)
         if not await self._polled_source_current(trigger):
             raise RoutineSourcesRequired()
         admitted_policy = read_policy(trigger.approved_sources).id
+        activation_id = uuid4()
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -1876,12 +1885,83 @@ class AgentTriggerService:
             target_id=str(agent_id),
             details={"trigger_id": str(trigger.id)},
         )
-        await self.queue_fire(
-            trigger.id, organization_id=trigger.organization_id, source_policy_id=admitted_policy
+        job_id = await self.queue_fire(
+            trigger.id,
+            organization_id=trigger.organization_id,
+            source_policy_id=admitted_policy,
+            activation_id=activation_id,
         )
+        if (
+            job_id is None
+            and await agent_trigger_repo.attempt_for_activation(
+                self.db,
+                trigger_id=trigger.id,
+                organization_id=trigger.organization_id,
+                activation_id=activation_id,
+            )
+            is None
+        ):
+            raise ConflictError(
+                message="The routine could not be queued. Refresh its status and try again."
+            )
         # `_owned` let this caller through, so they manage it - say so on the read.
         setattr(trigger, "can_manage", True)  # noqa: B010
-        return trigger
+        return TriggerDispatch(trigger=trigger, activation_id=activation_id, job_id=job_id)
+
+    async def activation_status(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        trigger_id: UUID,
+        activation_id: UUID,
+        job_id: UUID | None,
+    ) -> TriggerActivationRead:
+        """An exact fire's admission, including queued work that ends without a run."""
+        trigger = await self._owned(ctx, agent_id, trigger_id)
+        # Read job settlement before its outputs: workers commit outputs before
+        # acknowledging the job, so a concurrent completion cannot hide its run.
+        job = None if job_id is None else await background_job_repo.get(self.db, job_id)
+        if job is not None and (
+            job.organization_id != ctx.organization_id
+            or job.kind != FIRE_TRIGGER.kind
+            or job.payload.get("trigger_id") != str(trigger.id)
+            or job.payload.get("activation_id") != str(activation_id)
+        ):
+            raise NotFoundError(message="Activation not found")
+        # Device admission commits with the run. Read it before outputs too:
+        # an offline activation can outlive its first, already completed job.
+        wait = await device_wait_repo.get(self.db, activation_id)
+        if wait is not None and (
+            wait.organization_id != ctx.organization_id or wait.trigger_id != trigger.id
+        ):
+            raise NotFoundError(message="Activation not found")
+        run_id = await agent_run_repo.run_id_for_routine_activation(
+            self.db,
+            organization_id=ctx.organization_id,
+            trigger_id=trigger.id,
+            activation_id=activation_id,
+        )
+        if run_id is not None:
+            return TriggerActivationRead(state="recorded")
+        attempt = await agent_trigger_repo.attempt_for_activation(
+            self.db,
+            trigger_id=trigger.id,
+            organization_id=ctx.organization_id,
+            activation_id=activation_id,
+        )
+        if attempt is not None:
+            return TriggerActivationRead(state="recorded")
+        if wait is not None:
+            if wait.status == "waiting":
+                return TriggerActivationRead(state="pending")
+            return TriggerActivationRead(
+                state="recorded" if wait.status == "started" else "not_started"
+            )
+        if job is None:
+            raise NotFoundError(message="Activation not found")
+        return TriggerActivationRead(
+            state="not_started" if job.status in {"succeeded", "dead", "cancelled"} else "pending"
+        )
 
     async def prepare_event_fire(
         self, source: str, trigger_id: UUID, *, body: bytes, headers: Mapping[str, str]
@@ -3002,6 +3082,7 @@ class AgentTriggerService:
             )
             return
 
+        ctx = replace(ctx, routine_dispatch_id=activation_id)
         conversation_id = await self._run_log(trigger, agent_name=agent.name)
 
         from app.services.agent_runner import AgentRunnerService

@@ -4622,6 +4622,9 @@ class AgentRunnerService:
                     else None
                     if routine is None
                     else {
+                        "activation_id": None
+                        if ctx.routine_dispatch_id is None
+                        else str(ctx.routine_dispatch_id),
                         "acts_as_creator": routine.acts_as_creator,
                         "result_mode": routine.result_mode,
                         "approved_sources": None

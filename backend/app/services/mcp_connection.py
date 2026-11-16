@@ -2946,6 +2946,10 @@ class McpConnectionService:
             account.scope == "org" and account.organization_id != organization_id
         ):
             return False
+        if payload.bridge_url is None and (
+            payload.account_source_secret_id is None or payload.account_source_generation is None
+        ):
+            return False
         if account.scope == "user":
             membership = (
                 await decider_context(

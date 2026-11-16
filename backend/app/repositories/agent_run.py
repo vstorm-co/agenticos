@@ -16,6 +16,7 @@ from sqlalchemy import (
     case,
     func,
     literal,
+    literal_column,
     null,
     or_,
     select,
@@ -3320,3 +3321,22 @@ async def list_tool_consents(
         .order_by(ToolApproval.decided_at.desc())
     )
     return [(row[0], row[1]) for row in rows]
+
+
+async def run_id_for_routine_activation(
+    db: AsyncSession, *, organization_id: UUID, trigger_id: UUID, activation_id: UUID
+) -> UUID | None:
+    """One fire's root run, without a history page or count."""
+    # A literal JSON key lets prepared plans match the expression index.
+    activation = literal_column("agent_runs.routine_policy ->> 'activation_id'", type_=Text())
+    return await db.scalar(
+        select(AgentRun.id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.routine_origin_id == trigger_id,
+            AgentRun.routine_kind == "trigger",
+            AgentRun.parent_run_id.is_(None),
+            activation == str(activation_id),
+        )
+        .limit(1)
+    )

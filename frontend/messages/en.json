@@ -10351,6 +10351,13 @@
     "webhookUrlPreviewValue": "…/api/v1/webhooks/triggers/{source}/‹id assigned on save›",
     "webhookUrlPreviewHelp": "The provider posts here. The full URL, on the API host, appears once you create the trigger - the signing secret below is what verifies each delivery to it.",
     "secret": "Signing secret",
+    "signatureScheme": "Signature format",
+    "signatureLegacy": "Default relay signature",
+    "signatureHex": "HMAC-SHA256 (hex)",
+    "signatureBase64": "HMAC-SHA256 (base64)",
+    "signatureHeader": "Signature header",
+    "signatureRawHelp": "The sender signs the raw body. This format does not authenticate a timestamp or prevent replay. Enter a valid HTTP header name.",
+    "signatureSecretHelp": "Use the secret issued by the provider when required, or generate one if the provider lets you choose it.",
     "secretHelp": "The webhook is verified against this. Paste it into the provider, or generate one.",
     "secretHelpProvider": "Issued by the provider, not by us: paste it exactly as the provider shows it.",
     "secretPlaceholder": "A strong shared secret",
@@ -10386,6 +10393,7 @@
     "runsTitle": "Trigger runs",
     "fireCount": "{count, plural, =0 {no runs} =1 {1 run} other {# runs}}",
     "fireStarting": "Starting…",
+    "fireNotStarted": "This request finished without a run available in history.",
     "fireSummary": "{status} · ${cost}",
     "openRun": "Open run",
     "fireStatus": {
@@ -10396,6 +10404,7 @@
       "pending": "starting",
       "cancelled": "cancelled",
       "awaiting_approval": "awaiting approval",
+      "awaiting_answer": "awaiting answer",
       "guardrail_blocked": "blocked by a guardrail",
       "loop_stopped": "stopped: looping"
     },
@@ -10420,14 +10429,15 @@
     "sourceHelpOutlook": "Outlook is read from the mailbox you connect, so there is nothing to point at this and no secret to keep. Create one from the Outlook card.",
     "sourceHelpWebhook": "Trigger from your own code with a POST - any service that can send signed JSON fires it; filtering is the sender's job.",
     "sourceHelpHubspot": "Add this URL as the target of a HubSpot app's webhook subscriptions, then paste the app's client secret below - HubSpot signs every delivery with it.",
-    "sourceHelpLinear": "Copy the signing secret from Linear below. After creating the trigger, paste its URL into Linear's webhook settings.",
+    "sourceHelpLinear": "Use the same signing secret here and in Linear. After creating the trigger, Linear's API can create a webhook with this URL and secret.",
+    "linearSecretHelp": "Enter a strong shared secret. Keep it to create the Linear webhook with the same secret.",
     "sourceHelpZendesk": "Create a Zendesk webhook pointing at this URL, then paste its signing secret (Reveal secret in Admin Center) below.",
     "sourceHelpPolled": "Read from a connected account - pick its card under New event trigger.",
     "copy": "Copy",
     "copied": "Copied",
     "createdTitle": "One more step",
     "createdDescription": "Add this webhook URL to your provider, signed with the secret you set. Nothing fires until it delivers.",
-    "createdDescriptionLinear": "Paste this URL into Linear's webhook settings to finish setup.",
+    "createdDescriptionLinear": "Use this URL and the same signing secret to create a webhook in Linear. The Linear API accepts both when creating a webhook.",
     "createdSecretNote": "Copy it now - it is not shown again after this. The provider signs each delivery with it.",
     "done": "Done",
     "deleteTitle": "Delete this trigger?",
@@ -10598,9 +10608,10 @@
     "connectAction": "Connect account",
     "reauthorizeAction": "Re-authorize",
     "redirecting": "Redirecting…",
-    "advancedWebhook": "API trigger",
+    "advancedWebhook": "Webhook or API trigger",
     "ambiguousOAuthApp": "Two org-visible {credential} secrets are stored, so connecting cannot tell which one you meant. Remove one in the vault.",
-    "apiCategory": "Your own code",
+    "apiCategory": "Signed webhooks",
+    "apiProviders": "Also for Linear, HubSpot and Zendesk webhooks.",
     "addCredentials": "Add credentials",
     "needsOAuthApp": "Connecting needs your organization's {credential} credentials. Add them here, or in the vault.",
     "oauthUnavailable": "Connecting a mailbox needs this deployment's own Google client, and none is configured. An operator sets GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET; nothing in the vault fixes it.",
@@ -13802,21 +13813,6 @@
       "example2": "Prepare a change and request approval",
       "needs": "An Odoo 19+ account connected in Vault, installed business modules and matching Odoo access rights.",
       "never": "Never reads another person’s account; writes require approval."
-    },
-    "memory_mem0": {
-      "name": "Memory (mem0)",
-      "does": "Lets the agent remember facts and recall them by meaning, stored in a mem0 service.",
-      "example1": "Remember that a customer prefers email to phone calls",
-      "needs": "A mem0 account, cloud or self-hosted, and its API key in the vault.",
-      "never": "Never shows one person's memories to another. In a group chat they belong to the chat."
-    },
-    "virtual_tables": {
-      "name": "Tables",
-      "does": "Lets the agent list, read and write the typed tables it is granted - add a record, update one, look one up.",
-      "example1": "Log each new support request as a row",
-      "example2": "Check a customer's plan in a table before answering",
-      "needs": "At least one table granted, or permission to create tables.",
-      "never": "Never touches a table it was not granted, and never deletes a table; a deleted record keeps its history."
     }
   },
   "capabilityCategories": {
@@ -14977,26 +14973,6 @@
       "connection_ids": {
         "title": "Organization accounts",
         "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
-      }
-    },
-    "memory_mem0": {
-      "base_url": {
-        "title": "Self-hosted mem0 URL",
-        "description": "Base URL of a self-hosted mem0; omit for mem0's managed cloud."
-      },
-      "allow_personal": {
-        "title": "Keep private memories per person",
-        "description": "Whether the agent keeps private memories for each person it talks to, readable only when it is alone with them. Off drops that store, for compliance or privacy; group-chat memory stays."
-      }
-    },
-    "virtual_tables": {
-      "tables": {
-        "title": "Tables it may use",
-        "description": "The tables the agent may reach, and what it may do in each."
-      },
-      "allow_create": {
-        "title": "Create tables",
-        "description": "Let the agent create new tables. The member it acts for still needs the tables:create permission."
       }
     }
   },

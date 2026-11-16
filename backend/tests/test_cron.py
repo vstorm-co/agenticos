@@ -27,6 +27,11 @@ class TestCronHasNext:
 
 
 class TestCronNext:
+    def test_stored_weekday_maximum_step_keeps_its_daily_cadence(self) -> None:
+        """croniter 7 changes this existing expression to Saturdays only."""
+        now = datetime(2026, 11, 16, 12, 0, tzinfo=UTC)
+        assert cron_next("* * * * 6/1", now=now) == datetime(2026, 11, 16, 12, 1, tzinfo=UTC)
+
     def test_utc_is_the_default_zone(self) -> None:
         now = datetime(2026, 10, 19, 8, 30, tzinfo=UTC)
         assert cron_next("0 9 * * *", now=now) == datetime(2026, 10, 19, 9, 0, tzinfo=UTC)
@@ -60,6 +65,17 @@ class TestCronNext:
 class TestCronFires:
     start = datetime(2026, 10, 19, 12, 0, tzinfo=UTC)
     end = datetime(2026, 11, 18, 12, 0, tzinfo=UTC)
+
+    def test_stored_weekday_maximum_step_keeps_the_minute_run_estimate(self) -> None:
+        assert (
+            cron_fires(
+                "* * * * 6/1",
+                start=datetime(2026, 11, 16, 12, 0, tzinfo=UTC),
+                end=datetime(2026, 11, 16, 13, 0, tzinfo=UTC),
+                sample=100,
+            )
+            == 60
+        )
 
     def test_a_sparse_schedule_is_counted_fire_by_fire(self) -> None:
         assert cron_fires("0 6 * * *", start=self.start, end=self.end, sample=100) == 30

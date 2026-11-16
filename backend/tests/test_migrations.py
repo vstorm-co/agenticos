@@ -2338,3 +2338,65 @@ def test_routine_overlap_history_round_trip_preserves_runs_and_other_attempts() 
             connection.execute(text("DELETE FROM organizations WHERE id=:id"), {"id": org_id})
             connection.execute(text("DELETE FROM users WHERE id=:id"), {"id": owner_id})
         engine.dispose()
+
+
+def test_routine_activation_index_round_trip_preserves_legacy_policy() -> None:
+    """0332_routine_activation_lookup.py adds only a reversible lookup index."""
+    from sqlalchemy import inspect
+
+    from app.db.models.agent import Agent
+    from app.db.models.agent_run import AgentRun
+    from app.db.models.organization import Organization
+
+    result = _alembic("upgrade", "0331_routine_overlap_attempt")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    run_id = uuid4()
+    try:
+        with DatabaseSession(engine) as db:
+            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            db.add(owner)
+            db.flush()
+            org = Organization(
+                name="Legacy activation", slug=f"activation-{uuid4()}", created_by_user_id=owner.id
+            )
+            db.add(org)
+            db.flush()
+            agent = Agent(
+                name="Legacy", slug=f"legacy-{uuid4()}", organization_id=org.id, draft_spec={}
+            )
+            db.add(agent)
+            db.flush()
+            db.add(
+                AgentRun(
+                    id=run_id,
+                    organization_id=org.id,
+                    agent_id=agent.id,
+                    surface="schedule",
+                    status="completed",
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost_usd=0,
+                    routine_policy={"acts_as_creator": True},
+                )
+            )
+            db.commit()
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        assert "ix_agent_runs_routine_activation" in {
+            index["name"] for index in inspect(engine).get_indexes("agent_runs")
+        }
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
+        result = _alembic("downgrade", "0331_routine_overlap_attempt")
+        assert result.returncode == 0, result.stderr
+        assert "ix_agent_runs_routine_activation" not in {
+            index["name"] for index in inspect(engine).get_indexes("agent_runs")
+        }
+        with DatabaseSession(engine) as db:
+            run = db.get(AgentRun, run_id)
+            assert run is not None and run.routine_policy == {"acts_as_creator": True}
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()

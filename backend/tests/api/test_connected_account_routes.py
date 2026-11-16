@@ -46,6 +46,7 @@ def _account() -> McpConnection:
 def service() -> MagicMock:
     stub = MagicMock()
     stub.account_needs_reconnect = AsyncMock(return_value=False)
+    stub.account_credentials_source.return_value = "own"
     stub.list_accounts = AsyncMock(return_value=[_account()])
     stub.account_start = AsyncMock(return_value="https://accounts.google.com/o/oauth2/v2/auth?x=1")
     stub.delete_account = AsyncMock(return_value=None)
@@ -108,6 +109,7 @@ async def test_connecting_and_disconnecting_reach_the_right_owner(
     assert deleted.status_code == 204
     assert service.account_start.await_args.kwargs == {
         "for_organization": for_organization,
+        "credentials_source": "own",
         "browser_nonce": "n" * 43,
         "connection_id": None,
         "provider": "google",

@@ -588,6 +588,9 @@ class AuthContext:
     routine_source_policy_id: UUID | None = None
     """Exact reviewed source ceiling admitted by the trigger worker."""
 
+    routine_dispatch_id: UUID | None = None
+    """Trusted trigger fire identity, recorded as immutable run provenance."""
+
     routine_activation_id: UUID | None = None
     """A durable device activation, set only by its trigger worker before run admission."""
 
