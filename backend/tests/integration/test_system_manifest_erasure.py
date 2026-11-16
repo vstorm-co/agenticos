@@ -248,3 +248,38 @@ async def test_a_look_admitted_while_an_erasure_commits_is_still_trimmed(
     assert await thinker._erased_during(look, since=look.started_at, snapshot=look.memory_snapshot)
     # Legacy runs without visibility evidence must also respect the erasure.
     assert await thinker._erased_during(look, since=look.started_at, snapshot=None)
+
+
+@pytest.mark.parametrize("role", [MEMORY_MAINTENANCE, DAILY_BRIEFING])
+async def test_manifest_recording_holds_the_agent_memory_lock_through_commit(
+    db: AsyncSession,
+    engine: AsyncEngine,
+    role: str,
+) -> None:
+    from app.agents.manifest import RunRecorder
+    from app.services.proactive._thinker import ProactiveThinker
+    from tests.integration.test_memory_writes_after_erasure import _agent_lock_free_elsewhere
+
+    person = await _user(db)
+    org, agent = await _org(db, person)
+    run = AgentRun(
+        organization_id=org.id,
+        agent_id=agent.id,
+        user_id=person.id,
+        surface="proactive",
+        system_role=role,
+        started_at=datetime.now(UTC),
+    )
+    db.add(run)
+    await db.commit()
+    thinker = ProactiveThinker(db)
+    assert not await thinker._erased_during(run, since=run.started_at, snapshot=run.memory_snapshot)
+    assert not await _agent_lock_free_elsewhere(engine, agent)
+    recorder = RunRecorder(
+        instructions="Summarize memory",
+        messages=[{"kind": "request", "parts": [{"content": SECRET}]}],
+    )
+    await thinker._record(run, recorder, None, erased=False)
+    assert not await _agent_lock_free_elsewhere(engine, agent)
+    await db.commit()
+    assert await _agent_lock_free_elsewhere(engine, agent)

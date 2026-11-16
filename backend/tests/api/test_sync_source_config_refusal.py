@@ -95,7 +95,7 @@ def client(mock_db_session: Any, mock_redis: MagicMock) -> Iterator[Any]:
     app.dependency_overrides[deps.get_auth_context] = lambda: context
     app.dependency_overrides[deps.get_knowledge_base_service] = lambda: kb_service
     # What is under test is the config, not which base the source records.
-    app.dependency_overrides[deps.get_collection_access_service] = lambda: MagicMock()
+    app.dependency_overrides[deps.get_collection_access_service] = MagicMock
 
     @asynccontextmanager
     async def open_client() -> AsyncIterator[AsyncClient]:

@@ -1300,3 +1300,16 @@ class TestProvenance:
         assert corpus["en"] != run.corpus_fingerprint([page], docs_root=docs)
         assert exported["corpus_fingerprint_algorithm"] == "sha256-path-content-v1"
         assert exported["configurations"] == []
+
+
+def test_a_corpus_edit_during_indexing_cannot_be_reported_under_its_previous_hash(
+    tmp_path: Path,
+) -> None:
+    page = tmp_path / "page.md"
+    page.write_text("before")
+    files = {"en": [page]}
+    fingerprint = {"en": run.corpus_fingerprint([page], docs_root=tmp_path)}
+    run.ensure_corpus_unchanged(files, docs_root=tmp_path, expected=fingerprint)
+    page.write_text("edited during a paid evaluation")
+    with pytest.raises(SystemExit, match="corpus changed"):
+        run.ensure_corpus_unchanged(files, docs_root=tmp_path, expected=fingerprint)

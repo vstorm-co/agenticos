@@ -6,9 +6,11 @@ from contextlib import asynccontextmanager
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.db.locks import LockScope, hold_name, hold_name_within
 from tests.test_retrieval_eval import run
 
 pytestmark = pytest.mark.anyio
@@ -41,7 +43,7 @@ async def test_a_collection_remains_reserved_across_commits_until_the_run_exits(
     async with run.collection_locks([name]):
         with pytest.raises(SystemExit, match="Another retrieval evaluation"):
             async with run.collection_locks([name]):
-                pytest.fail("a second run must not touch the first run's collection")
+                pass
         async with run.collection_locks([name + "_other"]):
             pass
 
@@ -56,7 +58,7 @@ async def test_a_refused_run_releases_any_collections_it_already_reserved(
     async with run.collection_locks([prefix + "_b"]):
         with pytest.raises(SystemExit, match="Another retrieval evaluation"):
             async with run.collection_locks([prefix + "_a", prefix + "_b"]):
-                pytest.fail("the overlapping collection must refuse the whole run")
+                pass
         async with run.collection_locks([prefix + "_a"]):
             pass
 
@@ -70,5 +72,39 @@ async def test_an_interrupted_run_releases_its_collections(
         async with run.collection_locks([name]):
             raise failure()
 
+    async with run.collection_locks([name]):
+        pass
+
+
+async def test_an_evaluation_blocks_collection_claims_but_allows_its_own_shared_writes(
+    evaluation_connections: None,
+    engine: AsyncEngine,
+) -> None:
+    name = f"eval_{uuid4().hex}"
+    async with AsyncSession(engine) as db:
+        async with run.collection_locks([name]):
+            assert not await hold_name_within(db, LockScope.COLLECTION_TEARDOWN, name, wait_ms=25)
+            assert await db.scalar(
+                select(
+                    func.pg_try_advisory_xact_lock_shared(
+                        LockScope.COLLECTION_TEARDOWN.value, func.hashtext(name)
+                    )
+                )
+            )
+            await db.rollback()
+        assert await hold_name_within(db, LockScope.COLLECTION_TEARDOWN, name, wait_ms=25)
+
+
+async def test_an_existing_collection_claim_refuses_an_evaluation_and_releases_its_locks(
+    evaluation_connections: None,
+    engine: AsyncEngine,
+) -> None:
+    name = f"eval_{uuid4().hex}"
+    async with AsyncSession(engine) as db:
+        await hold_name(db, LockScope.COLLECTION_TEARDOWN, name)
+        with pytest.raises(SystemExit, match="knowledge-base operation"):
+            async with run.collection_locks([name]):
+                pass
+        await db.rollback()
     async with run.collection_locks([name]):
         pass

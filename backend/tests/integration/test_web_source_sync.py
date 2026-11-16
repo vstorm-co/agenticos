@@ -35,6 +35,7 @@ from app.db.models.organization import Organization
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.rag_document_claim import RAGDocumentClaim
 from app.db.models.sync_log import SyncLog
+from app.db.models.sync_source import SyncSource
 from app.db.models.user import User
 from app.repositories import sync_log as sync_log_repo
 from app.repositories import sync_source as sync_source_repo
@@ -210,12 +211,16 @@ async def _narrow_to_start_page(engine: AsyncEngine, source_id: str) -> None:
 
 async def _sync(engine: AsyncEngine, source_id: str) -> SyncLog:
     async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+        source = await db.get(SyncSource, uuid.UUID(source_id))
+        assert source is not None
         log = await sync_log_repo.create(
             db,
             source="web",
             collection_name=COLLECTION,
             mode="new_only",
             sync_source_id=uuid.UUID(source_id),
+            knowledge_base_id=source.knowledge_base_id,
+            organization_id=source.organization_id,
         )
         await db.commit()
         log_id = log.id

@@ -122,12 +122,16 @@ async def _source(engine: AsyncEngine) -> str:
 
 async def _sync(engine: AsyncEngine, source_id: str) -> SyncLog:
     async with async_sessionmaker(engine, expire_on_commit=False)() as db:
+        source = await db.get(SyncSource, uuid.UUID(source_id))
+        assert source is not None
         log = await sync_log_repo.create(
             db,
             source="sharepoint",
             collection_name=COLLECTION,
             mode="new_only",
             sync_source_id=uuid.UUID(source_id),
+            knowledge_base_id=source.knowledge_base_id,
+            organization_id=source.organization_id,
         )
         await db.commit()
         log_id = log.id

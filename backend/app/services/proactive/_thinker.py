@@ -49,7 +49,7 @@ from app.agents.failures import run_failure_summary
 from app.agents.manifest import RecordingModel, RunRecorder, as_payload, fit
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
-from app.db.locks import LockScope, hold_subject
+from app.db.locks import LockScope, hold_subject, hold_subject_shared
 from app.db.models.agent import Agent as AgentRow
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.organization import Organization
@@ -482,6 +482,7 @@ class ProactiveThinker:
         await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, run.user_id)
         if not await user_repo.existing_ids(self.db, [run.user_id]):
             return True
+        await hold_subject_shared(self.db, LockScope.MEMORY_PER_AGENT, run.agent_id)
         return since is not None and await audit_log_repo.memory_erased_since(
             self.db,
             organization_id=run.organization_id,

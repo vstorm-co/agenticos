@@ -32,7 +32,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TypedDict, get_args
 
-from dataset import Dataset, DatasetError, Item, Locale, corpus_files, load_dataset, page_key
+from dataset import (
+    Dataset,
+    DatasetError,
+    Item,
+    Locale,
+    corpus_files,
+    load_dataset,
+    page_key,
+)
 from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.usage import RunUsage
@@ -41,17 +49,26 @@ from sqlalchemy import BigInteger, cast, func, select
 
 from app.core.exceptions import BadRequestError
 from app.db.base import Base
+from app.db.locks import LockScope
 from app.db.session import close_db, get_db_context, get_worker_connection
 from app.db.vector_tables import VectorScope, validate_collection_name
 from app.repositories import knowledge_base_repo
-from app.services.ingestion_config import ChunkingStrategy, IngestionConfig, rag_settings_for
+from app.services.ingestion_config import (
+    ChunkingStrategy,
+    IngestionConfig,
+    rag_settings_for,
+)
 from app.services.rag.config import EMBEDDING_DIMENSIONS, EmbeddingsConfig, RAGSettings
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.filters import UnscopedScope
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import IngestionStatus, SearchResult
-from app.services.rag.query_analysis import GenerateText, QueryAnalysisMode, plan_queries
+from app.services.rag.query_analysis import (
+    GenerateText,
+    QueryAnalysisMode,
+    plan_queries,
+)
 from app.services.rag.retrieval import RetrievalService, fuse_over_queries
 from app.services.rag.vectorstore import BaseVectorStore, process_vector_store
 
@@ -79,11 +96,28 @@ class CorpusFingerprint(TypedDict):
 def corpus_fingerprint(files: list[Path], *, docs_root: Path) -> CorpusFingerprint:
     """Hash sorted [relative POSIX path, SHA-256(source bytes)] pairs as compact UTF-8 JSON."""
     manifest = sorted(
-        (path.relative_to(docs_root).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest())
+        (
+            path.relative_to(docs_root).as_posix(),
+            hashlib.sha256(path.read_bytes()).hexdigest(),
+        )
         for path in files
     )
     encoded = json.dumps(manifest, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     return {"pages": len(manifest), "sha256": hashlib.sha256(encoded).hexdigest()}
+
+
+def ensure_corpus_unchanged(
+    files: dict[Locale, list[Path]],
+    *,
+    docs_root: Path,
+    expected: dict[Locale, CorpusFingerprint],
+) -> None:
+    """Refuse provenance that no longer describes the files used by indexing."""
+    for locale, paths in files.items():
+        if corpus_fingerprint(paths, docs_root=docs_root) != expected[locale]:
+            raise SystemExit(
+                f"Documentation corpus changed during evaluation ({locale}); run it again."
+            )
 
 
 async def refuse_held_names(collections: list[str]) -> None:
@@ -130,6 +164,18 @@ async def collection_locks(collections: list[str]) -> AsyncGenerator[None]:
                     f"Another retrieval evaluation is using {name}. Wait for it to finish "
                     "or choose another --collection-prefix."
                 )
+            reserved = await connection.scalar(
+                select(
+                    func.pg_try_advisory_lock_shared(
+                        LockScope.COLLECTION_TEARDOWN.value, func.hashtext(name)
+                    )
+                )
+            )
+            await connection.commit()
+            if not reserved:
+                raise SystemExit(
+                    f"A knowledge-base operation is using {name}. Wait for it to finish."
+                )
         yield
 
 
@@ -157,7 +203,10 @@ async def ingest(
         for info in (document.additional_info or {} for document in stored)
     }
     wanted = {
-        (path.relative_to(docs_root).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest())
+        (
+            path.relative_to(docs_root).as_posix(),
+            hashlib.sha256(path.read_bytes()).hexdigest(),
+        )
         for path in files
     }
     if not reingest and held == wanted:
@@ -238,7 +287,8 @@ def rag_settings(arguments: argparse.Namespace) -> RAGSettings:
             f"{_flag(str(e['loc'][0]))}: {e['msg']}"
             if e["loc"]
             else _CONFIG_FIELD.sub(
-                lambda match: _flag(match[0]), str(e.get("ctx", {}).get("error", e["msg"]))
+                lambda match: _flag(match[0]),
+                str(e.get("ctx", {}).get("error", e["msg"])),
             )
             for e in error.errors(include_url=False)
         ]
@@ -261,7 +311,8 @@ def rag_settings(arguments: argparse.Namespace) -> RAGSettings:
 def collection_digest(settings: RAGSettings, base_url: str) -> str:
     """A short hash of everything that shaped a collection's vectors."""
     identity = json.dumps(
-        {"base_url": base_url, "settings": settings.model_dump(mode="json")}, sort_keys=True
+        {"base_url": base_url, "settings": settings.model_dump(mode="json")},
+        sort_keys=True,
     )
     return hashlib.sha256(identity.encode()).hexdigest()[:10]
 
@@ -323,7 +374,10 @@ def retriever(
         async def retrieve_one(query: str) -> list[SearchResult]:
             if len(names) == 1:
                 return await retrieval.retrieve(
-                    query=query, collection_name=names[0], scope=UnscopedScope(), limit=top_k
+                    query=query,
+                    collection_name=names[0],
+                    scope=UnscopedScope(),
+                    limit=top_k,
                 )
             return await retrieval.retrieve_multi(
                 query=query,
@@ -411,6 +465,7 @@ async def measure(arguments: argparse.Namespace) -> tuple[str, dict[str, object]
                 reingest=arguments.reingest,
             )
 
+        ensure_corpus_unchanged(files, docs_root=docs_root, expected=corpus)
         sections = [
             f"## Retrieval over docs/ ({', '.join(locales)}), question set v{dataset.version}, "
             f"{len(dataset.items)} questions, embeddings {arguments.embedding_model}",
@@ -448,6 +503,7 @@ async def measure(arguments: argparse.Namespace) -> tuple[str, dict[str, object]
                 f"Model calls ({arguments.llm_model}): {usage.requests} requests, "
                 f"{usage.input_tokens} input and {usage.output_tokens} output tokens.\n"
             )
+        ensure_corpus_unchanged(files, docs_root=docs_root, expected=corpus)
         exported = provenance(
             arguments,
             dataset=dataset,
@@ -513,7 +569,9 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--dataset", default=str(HERE / "docs_questions.yaml"))
     parser.add_argument(
-        "--docs", default=str(REPO_ROOT / "docs"), help="the corpus root (default: docs/)"
+        "--docs",
+        default=str(REPO_ROOT / "docs"),
+        help="the corpus root (default: docs/)",
     )
     parser.add_argument(
         "--locale",
@@ -528,7 +586,10 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
         "--mode", action="append", choices=list(MODES), help="repeatable; default off"
     )
     parser.add_argument(
-        "--max-variants", type=int, default=3, help="multi_query's rephrasings (default 3)"
+        "--max-variants",
+        type=int,
+        default=3,
+        help="multi_query's rephrasings (default 3)",
     )
     defaults = IngestionConfig()
     parser.add_argument(
@@ -556,7 +617,9 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--embedding-base-url", default="https://api.openai.com/v1")
     parser.add_argument("--embedding-api-key-env", default="OPENAI_API_KEY")
     parser.add_argument(
-        "--keyless", action="store_true", help="the endpoint takes no key (a local Ollama)"
+        "--keyless",
+        action="store_true",
+        help="the endpoint takes no key (a local Ollama)",
     )
     parser.add_argument(
         "--llm-model",
@@ -564,7 +627,9 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
         "a chat-completions-only or local OpenAI-compatible endpoint",
     )
     parser.add_argument(
-        "--answers", action="store_true", help="also answer each question and check its facts"
+        "--answers",
+        action="store_true",
+        help="also answer each question and check its facts",
     )
     parser.add_argument("--json", help="also write the per-item results to this file")
     arguments = parser.parse_args(argv)
