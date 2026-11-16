@@ -756,6 +756,36 @@ class TestWhoDecides:
         with pytest.raises(NotFoundError):
             await _decide(seeded, (await _request(seeded)).id, approved=True, ctx=stranger)
 
+    async def test_a_step_naming_nobody_tells_whoever_may_decide_in_its_own_organization(
+        self, engine: AsyncEngine
+    ):
+        """It used to tell nobody: the run waited where only Activity showed it."""
+        elsewhere = await seed_run(engine, Graph().graph)
+        seeded = await seed_run(engine, Graph().graph)
+        admin = await _another_member(seeded, role="admin")
+        member = await _another_member(seeded, role="member")
+        outsider = await _another_member(elsewhere, role="admin")
+        await drive(seeded)
+
+        async with seeded.factory() as db:
+            rows = (
+                (
+                    await db.execute(
+                        select(Notification).where(
+                            Notification.summary == "Approval needed: Send the refund?"
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        told = {row.recipient_user_id for row in rows}
+        assert {seeded.principal.id, admin.user_id} <= told
+        assert member.user_id not in told
+        assert outsider.user_id not in told and elsewhere.principal.id not in told
+        assert {row.organization_id for row in rows} == {seeded.org.id}
+        assert {row.context_url for row in rows} == {f"/runs?tab=approvals&org={seeded.org.id}"}
+
     async def test_named_approvers_are_told_and_must_be_members(self, engine: AsyncEngine):
         seeded = await seed_run(engine, Graph().graph)
         approver = await _another_member(seeded)
@@ -1157,6 +1187,39 @@ class TestGroupApprovers:
         result = await _decide(seeded, request.id, approved=True)
         assert result.status == WorkflowApprovalStatus.APPROVED
         assert result.approver_group_ids == [group_id]
+
+    async def test_only_the_deciding_members_of_a_named_group_are_told(
+        self, engine: AsyncEngine, wakes
+    ):
+        group_id = uuid.uuid4()
+        seeded = await seed_run(engine, Graph(approver_groups=[str(group_id)]).graph)
+        admin = await _another_member(seeded, role="admin")
+        member = await _another_member(seeded, role="member")
+        async with seeded.factory() as db:
+            db.add(Group(id=group_id, organization_id=seeded.org.id, name="Finance"))
+            await db.flush()
+            for user_id in (admin.user_id, member.user_id):
+                db.add(
+                    GroupMember(
+                        id=uuid.uuid4(), group_id=group_id, user_id=user_id, source="manual"
+                    )
+                )
+            await db.commit()
+        await drive(seeded)
+
+        async with seeded.factory() as db:
+            rows = (
+                (
+                    await db.execute(
+                        select(Notification).where(
+                            Notification.summary == "Approval needed: Send the refund?"
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert {row.recipient_user_id for row in rows} == {admin.user_id}
 
 
 async def _approval_step(seeded: SeededRun, shape: Graph) -> dict[str, Any] | None:

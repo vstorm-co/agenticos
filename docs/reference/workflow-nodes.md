@@ -969,9 +969,12 @@ key, so a retried step sends again.
 **Ask for approval** stops the run until a person approves or rejects what it is
 about to do, then goes on by `approved` or `rejected`. The approver reads the
 step's `title` and the `details` bound to it, in the **Approvals** tab of
-Activity or over `GET /api/v1/workflow-approvals`. `approvers` names who may
-decide, and they are notified in the app; left empty, anyone holding
-`approvals:decide` may. Past `timeout_hours` the request expires and the step
+Activity or over `GET /api/v1/workflow-approvals`. `approvers` and
+`approver_groups` name who may decide: those people and the group members
+holding `approvals:decide` ([approval groups](../governance.md#approval-groups)).
+They are notified in the app. With both left empty, anyone holding
+`approvals:decide` may decide, and they are all notified. The request also leads the
+Inbox of whoever may decide it. Past `timeout_hours` the request expires and the step
 leaves by `rejected` with `decision: "expired"`. Cancelling the run cancels what
 it asked, and so does cancelling a workflow that called the run. Each run of the step asks once, so a retry or a loop iteration never
 asks twice for the same thing.

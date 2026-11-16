@@ -23,7 +23,7 @@ export function useWorkflowApprovals(options?: { enabled?: boolean }) {
   const t = useTranslations("pages.runs");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.workflows.approvals(),
     queryFn: listWorkflowApprovals,
     refetchInterval: 30_000,
@@ -47,7 +47,14 @@ export function useWorkflowApprovals(options?: { enabled?: boolean }) {
     },
     onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
   });
-  return { approvals: data?.items ?? [], total: data?.total ?? 0, isLoading, error, decide };
+  return {
+    approvals: data?.items ?? [],
+    total: data?.total ?? 0,
+    isLoading,
+    error,
+    refetch,
+    decide,
+  };
 }
 
 /**

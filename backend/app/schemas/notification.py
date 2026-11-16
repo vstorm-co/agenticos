@@ -81,6 +81,8 @@ _PARAMS: dict[str, tuple[str, ...]] = {
     NotificationEventType.APPROVAL_REQUESTED.value: ("agent_name",),
     NotificationEventType.BUDGET_EXCEEDED.value: ("agent_name", "scope", "limit_usd", "spent_usd"),
     NotificationEventType.BUDGET_WARNING.value: ("group_name", "share", "limit"),
+    # A workflow step's own notices share the kind and carry no `approval_title`.
+    NotificationEventType.WORKFLOW_NOTIFICATION.value: ("approval_title",),
 }
 
 
