@@ -1,5 +1,8 @@
 "use client";
 
+import { Search } from "lucide-react";
+import { EmptyIllustration } from "@/components/illustrations/empty-illustration";
+
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { SortButton } from "@/components/ui/sort-button";
@@ -399,7 +402,14 @@ export function DataTable<T>({
               !empty && "px-4 py-6",
             )}
           >
-            {empty ?? t("noResults")}
+            {typeof empty === "string" || empty == null ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-5">
+                <EmptyIllustration icon={Search} />
+                <p className="text-foreground text-sm font-medium">{empty ?? t("noResults")}</p>
+              </div>
+            ) : (
+              empty
+            )}
           </div>
         )}
       </div>

@@ -8,6 +8,7 @@ import { useConversationStore } from "@/stores";
 import type { CodingHarness } from "@/types/chat";
 import { getErrorMessage } from "@/lib/api-error";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
 /** Choices come from the installed harness; leaving either unset retains its settings. */
 export function LocalCodingSettings({ harness }: { harness: CodingHarness }) {
@@ -59,9 +60,9 @@ export function LocalCodingSettings({ harness }: { harness: CodingHarness }) {
       data-tour="chat-coding-settings"
     >
       <div className="min-w-0 space-y-1">
-        <label htmlFor={`${id}-model`} className="text-muted-foreground text-xs">
+        <Label htmlFor={`${id}-model`} className="text-muted-foreground text-xs">
           {t("model")}
-        </label>
+        </Label>
         <select
           id={`${id}-model`}
           value={preferences.model ?? ""}
@@ -91,9 +92,9 @@ export function LocalCodingSettings({ harness }: { harness: CodingHarness }) {
         </select>
       </div>
       <div className="min-w-0 space-y-1">
-        <label htmlFor={`${id}-effort`} className="text-muted-foreground text-xs">
+        <Label htmlFor={`${id}-effort`} className="text-muted-foreground text-xs">
           {t("effort")}
-        </label>
+        </Label>
         <select
           id={`${id}-effort`}
           value={preferences.effort ?? ""}

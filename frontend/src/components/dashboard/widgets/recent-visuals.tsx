@@ -3,13 +3,17 @@
 import Link from "next/link";
 import { Code2, GitBranch, Shapes } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { qk } from "@/lib/query-keys";
+import { VisualFrame } from "@/components/chat/visual-frame";
+import { PreviewSkeleton } from "@/components/ui/preview-skeleton";
 
 import { ArtifactThumbnail } from "@/components/artifacts/artifact-thumbnail";
 import { useRecentVisuals } from "@/hooks/use-recent-visuals";
 import { ROUTES } from "@/lib/constants";
 import { timeAgo } from "@/lib/utils";
-import { visualThumbnailUrl, type VisualListItem } from "@/lib/visuals-api";
+import { getVisualPreview, visualThumbnailUrl, type VisualListItem } from "@/lib/visuals-api";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
@@ -57,13 +61,6 @@ function VisualTile({ visual }: { visual: VisualListItem }) {
   const t = useTranslations("dashboard.widgets.recent-visuals");
   const tTime = useTranslations("time");
   const locale = useLocale();
-  // A kept thumbnail first, being the cheapest. A page published as an app with
-  // none is shown live instead, the way the apps listing shows it: the page's own
-  // HTML from its isolated address, shrunk, which needs no browser on the server
-  // and was a bare mark wherever the deployment has none. Any other page is still
-  // asked for, since asking is what has the deployment's browser draw one, and a
-  // thumbnail the server cannot give falls back to the kind's mark rather than a
-  // broken image.
   const [broken, setBroken] = useState(false);
   const Icon = KIND_ICON[visual.kind];
   const live = !visual.has_thumbnail && visual.artifact_id !== null;
@@ -81,7 +78,7 @@ function VisualTile({ visual }: { visual: VisualListItem }) {
           {timeAgo(visual.created_at, tTime, locale)}
         </span>
       </span>
-      <span className="bg-foreground/[0.04] relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg">
+      <span className="bg-foreground/[0.04] relative flex aspect-[16/9] items-center justify-center overflow-hidden rounded-lg">
         {live && visual.artifact_id !== null ? (
           <ArtifactThumbnail artifactId={visual.artifact_id} title={visual.title} />
         ) : pictured && !broken ? (
@@ -92,10 +89,13 @@ function VisualTile({ visual }: { visual: VisualListItem }) {
             src={visualThumbnailUrl(visual.id)}
             alt=""
             onError={() => setBroken(true)}
-            className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
+            className="h-full w-full object-contain object-center transition-transform group-hover:scale-[1.02]"
           />
         ) : (
-          <Icon className="text-muted-foreground size-7" aria-hidden />
+          <VisualPreviewFallback
+            visual={visual}
+            icon={<Icon className="text-muted-foreground size-7" aria-hidden />}
+          />
         )}
         {visual.artifact_id !== null && (
           <span className="bg-background/90 text-foreground absolute top-1.5 right-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium">
@@ -104,5 +104,55 @@ function VisualTile({ visual }: { visual: VisualListItem }) {
         )}
       </span>
     </Link>
+  );
+}
+
+function VisualPreviewFallback({
+  visual,
+  icon,
+}: {
+  visual: VisualListItem;
+  icon: React.ReactNode;
+}) {
+  const [visible, setVisible] = useState(false);
+  const [box, setBox] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!box) return;
+    if (typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) setVisible(true);
+      },
+      { rootMargin: "240px" },
+    );
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [box]);
+  const query = useQuery({
+    queryKey: qk.visuals.preview(visual.id),
+    queryFn: () => getVisualPreview(visual.id),
+    enabled: visible,
+    staleTime: Infinity,
+    retry: false,
+  });
+  return (
+    <div ref={setBox} className="pointer-events-none absolute inset-0" aria-hidden>
+      {query.data ? (
+        <div className="h-[400%] w-[400%] origin-top-left scale-25">
+          <VisualFrame
+            kind={query.data.kind}
+            content={query.data.content}
+            title={query.data.title}
+            done
+            height={360}
+            fill
+          />
+        </div>
+      ) : query.isError ? (
+        <div className="flex h-full items-center justify-center">{icon}</div>
+      ) : (
+        <PreviewSkeleton />
+      )}
+    </div>
   );
 }

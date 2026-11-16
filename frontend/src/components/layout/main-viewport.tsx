@@ -12,7 +12,7 @@ export function MainViewport({ children }: { children: ReactNode }) {
   useConsoleTitle(main);
   const chat = stripLocale(usePathname()) === "/chat";
   return (
-    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+    <div className="bg-background border-border relative flex min-h-0 min-w-0 flex-1 flex-col md:my-2 md:me-2 md:rounded-2xl md:border">
       {chat && <div aria-hidden className="chat-window-drag-region" data-tauri-drag-region />}
       {!chat && <div aria-hidden className="window-drag-strip" data-tauri-drag-region />}
       <main
@@ -20,7 +20,7 @@ export function MainViewport({ children }: { children: ReactNode }) {
         id="main"
         tabIndex={-1}
         className={cn(
-          "relative flex min-h-0 flex-1 flex-col overflow-auto",
+          "relative flex min-h-0 flex-1 flex-col overflow-auto rounded-[inherit]",
           chat
             ? "p-0"
             : "px-3 pt-(--page-inset-top) [--page-inset-top:0.5rem] sm:px-6 sm:[--page-inset-top:1.25rem]",

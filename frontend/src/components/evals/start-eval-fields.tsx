@@ -106,7 +106,7 @@ export function Toggle({
 }) {
   const id = useId();
   return (
-    <label
+    <Label
       htmlFor={id}
       className={cn(
         "has-[:focus-visible]:ring-ring flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors has-[:focus-visible]:ring-2",
@@ -128,7 +128,7 @@ export function Toggle({
           {hint}
         </span>
       </span>
-    </label>
+    </Label>
   );
 }
 

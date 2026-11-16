@@ -137,6 +137,9 @@ async def reached(
         ReachedAgent(
             id=item.agent.id,
             name=item.agent.name,
+            slug=item.agent.slug,
+            has_avatar=item.agent.has_avatar,
+            avatar_color=item.agent.avatar_color,
             environments=[environment.name for environment in item.environments],
             runs_now=[names[suite] for suite in item.runs_now if suite in names],
             runs_now_count=len(item.runs_now),

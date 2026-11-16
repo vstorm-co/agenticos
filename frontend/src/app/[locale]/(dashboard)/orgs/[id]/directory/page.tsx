@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DirectoryMappingDialog } from "@/components/orgs/directory-mapping-dialog";
 import { DirectoryMappingList } from "@/components/orgs/directory-mapping-list";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState } from "@/components/states";
 import { ConfirmDialog } from "@/components/ui";
 import { useDirectoryMappings, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
@@ -65,7 +65,14 @@ export default function DirectoryPage({ params }: PageProps) {
         {permissionsError ? (
           <ErrorState />
         ) : !isLoaded ? (
-          <LoadingState variant="skeleton-table" columns={3} rows={4} />
+          <DirectoryMappingList
+            mappings={[]}
+            isLoading
+            error={null}
+            canEdit={false}
+            onAdd={() => setAdding(true)}
+            onDelete={setDeleting}
+          />
         ) : (
           <EmptyState icon={Network} title={t("notYours")} description={t("askAnAdmin")} />
         )}

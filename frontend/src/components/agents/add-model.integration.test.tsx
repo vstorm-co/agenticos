@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -191,6 +191,30 @@ async function pickProvider(label: string) {
 }
 
 describe("the add-model form", () => {
+  it("keeps labels local when multiple model forms share a page", () => {
+    render(
+      <>
+        <section aria-label="First model">
+          <AddModel onCreated={vi.fn()} />
+        </section>
+        <section aria-label="Second model">
+          <AddModel onCreated={vi.fn()} />
+        </section>
+      </>,
+    );
+    const first = within(screen.getByRole("region", { name: "First model" })).getByRole(
+      "combobox",
+      { name: "Provider" },
+    );
+    const second = within(screen.getByRole("region", { name: "Second model" })).getByRole(
+      "combobox",
+      { name: "Provider" },
+    );
+    expect(first.id).not.toBe(second.id);
+    expect(first).toHaveAccessibleName("Provider");
+    expect(second).toHaveAccessibleName("Provider");
+  });
+
   it("offers only providers, not every purpose in the vault", () => {
     // A Tavily key is a key, but it is not a model provider and picking it here
     // would produce a profile that cannot answer.

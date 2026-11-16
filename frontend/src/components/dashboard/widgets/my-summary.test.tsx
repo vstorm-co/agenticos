@@ -116,19 +116,20 @@ describe("a person's own period", () => {
       "href",
       "/runs?tab=approvals",
     );
-    expect(screen.getByText(/2 answers to review, and 1 suggestion/)).toBeVisible();
+    expect(screen.getByText(/1 suggestion/)).toBeVisible();
+    expect(screen.queryByText(/answers to review/)).toBeNull();
     expect(screen.getByText("Spent")).toBeVisible();
     others.review = 0;
     others.suggestions = 0;
   });
 
   it("links nothing when no call waits among what does", () => {
-    others.suites = 1;
+    others.suggestions = 1;
     renderWidget({ usage: usage({ pending_approvals: 0 }) });
 
-    expect(screen.getByText("1 failing suite")).toBeVisible();
+    expect(screen.getByText("1 suggestion")).toBeVisible();
     expect(screen.queryByRole("link")).toBeNull();
-    others.suites = 0;
+    others.suggestions = 0;
   });
 
   it("says nothing is waiting, at zero, rather than drawing an empty card", () => {

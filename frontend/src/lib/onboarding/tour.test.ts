@@ -505,7 +505,9 @@ describe("stepsForPage", () => {
       "members",
     ]) {
       expect(steps.find((step) => step.id === `org-${section}`)?.activate).toBe(
-        `org-tab-${section === "voice" ? "profile" : section}`,
+        section === "profile"
+          ? undefined
+          : `org-tab-${section === "voice" || section === "proactivity" ? "assistant" : section}`,
       );
     }
   });

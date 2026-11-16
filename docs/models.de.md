@@ -1,5 +1,5 @@
 ---
-source_sha: "88782c453516"
+source_sha: "3ce26481a019"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -849,3 +849,7 @@ Die Workflow-Schritte **Decision models** wählen ein natives Profil. Bestehende
 Automatisches Mitreden in Kanälen kann ein natives Modell oder ein gewöhnliches LLM mit strukturierter Ausgabe verwenden. Native Ja/Nein-Entscheidungen liefern die Wahrscheinlichkeit des Mitredens; ein begrenztes Zahlenfeld erhält diesen Wert. Ein LLM liefert eine Nützlichkeitsbewertung von 0 bis 100, keine kalibrierte Wahrscheinlichkeit. Beide werden einschließlich Gleichheit mit dem Schwellenregler verglichen. Der Klassifikator hat keine Tools. Die Funktion ist optional und beachtet die Intervalle; der Hauptagent darf organisatorische MCP-Konten nutzen, niemals private Zugangsdaten eines Teilnehmers.
 
 Anbieterquellen: [Pydantic AI](https://pydantic.dev/docs/ai/models/decision/), [OpenAI](https://developers.openai.com/api/docs/guides/decisions), [Google](https://ai.google.dev/gemini-api/docs/decisions-api), [TypeSafe](https://docs.typesafe.ai/models), [OpenRouter](https://github.com/OpenRouterTeam/skills/tree/main/skills/openrouter-decisions).
+
+ElevenLabs Realtime bietet `eleven_realtime_v1_mini` und `eleven_realtime_v1_max` über das PCM-Relay mit 24 kHz, der Standardstimme `brian` und semantischer Sprecherkennung.
+
+Das SDK meldet keine Tokenkosten. Anrufe mit einem Ausgabenbudget werden vor dem Verbindungsaufbau abgelehnt. Ohne Ausgabenbudget gilt weiterhin das Zeitlimit; Audiokosten werden als Untergrenze statt als vollständige Rechnung erfasst. Der Audiotarif beträgt 0,08 USD/Minute beziehungsweise 0,16 USD bei Burst; Tokenkosten kommen hinzu. Der Kontextwert von 16k ist ein konservatives Plattformlimit für den Verlauf, kein veröffentlichtes Kontextfenster des Anbieters. Die Integration wurde offline mit SDK-Modellkonstruktion und kontrollierten Transporten geprüft, nicht mit einem echten Konto. [SDK](https://pydantic.dev/docs/ai/api/realtime/elevenlabs/), [ElevenLabs API pricing](https://elevenlabs.io/pricing/api).

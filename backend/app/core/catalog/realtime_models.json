@@ -162,5 +162,52 @@
         "pricing": {"kind": "per_minute", "worst_case_usd_per_minute": "0.08", "usd_per_minute": "0.08"}
       }
     ]
+  },
+  {
+    "provider": "elevenlabs",
+    "models": [
+      {
+        "id": "eleven_realtime_v1_mini",
+        "name": "Eleven Realtime v1 Mini",
+        "description": "Low-latency voice conversations. Audio charges are recorded; unreported token charges prevent calls with spending budgets.",
+        "transport": "relay",
+        "input_sample_rate": 24000,
+        "output_sample_rate": 24000,
+        "voices": [
+          "brian"
+        ],
+        "default_voice": "brian",
+        "supports_thinking": false,
+        "context_window": 16384,
+        "unreported_token_usage": true,
+        "default_language": "en",
+        "pricing": {
+          "kind": "per_minute",
+          "usd_per_minute": "0.08",
+          "worst_case_usd_per_minute": "0.16"
+        }
+      },
+      {
+        "id": "eleven_realtime_v1_max",
+        "name": "Eleven Realtime v1 Max",
+        "description": "Voice conversations for complex instructions and tools. Audio charges are recorded; unreported token charges prevent calls with spending budgets.",
+        "transport": "relay",
+        "input_sample_rate": 24000,
+        "output_sample_rate": 24000,
+        "voices": [
+          "brian"
+        ],
+        "default_voice": "brian",
+        "supports_thinking": false,
+        "context_window": 16384,
+        "unreported_token_usage": true,
+        "default_language": "en",
+        "pricing": {
+          "kind": "per_minute",
+          "usd_per_minute": "0.08",
+          "worst_case_usd_per_minute": "0.16"
+        }
+      }
+    ]
   }
 ]

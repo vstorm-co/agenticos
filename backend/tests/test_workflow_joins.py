@@ -699,11 +699,13 @@ def _long_chain_graph(steps: int, *, branching: bool) -> Built:
     return _build(*nodes, edges=edges)
 
 
+# Graph construction and analysis are CPU-only. Exclude time spent descheduled
+# while other pytest workers compete for the same CI runner; keep the 5s CPU budget.
 def test_a_fan_in_of_many_wide_conditions_is_analysed_in_bounded_time_and_refused_safely() -> None:
-    started = time.perf_counter()
+    started = time.process_time()
     built = _fan_in_graph(450)
     assert len(built.graph.nodes) <= 500 and len(built.graph.edges) <= 2000
-    assert time.perf_counter() - started < 5
+    assert time.process_time() - started < 5
     assert built.condition("T").unknown
     assert can_run_together(built.analysis, built.id("T"), built.id("I0"))
     assert not runs_whenever(built.analysis, built.id("M5"), built.id("T"))
@@ -713,9 +715,9 @@ def test_a_fan_in_of_many_wide_conditions_is_analysed_in_bounded_time_and_refuse
 
 
 def test_a_long_chain_after_a_wide_condition_is_analysed_in_bounded_time() -> None:
-    started = time.perf_counter()
+    started = time.process_time()
     built = _long_chain_graph(450, branching=False)
-    assert time.perf_counter() - started < 5
+    assert time.process_time() - started < 5
     assert len(built.graph.nodes) <= 500
     last = built.id("C449")
     assert built.id("M5") in built.analysis.precede[last]
@@ -723,9 +725,9 @@ def test_a_long_chain_after_a_wide_condition_is_analysed_in_bounded_time() -> No
 
 
 def test_a_long_chain_of_choices_after_a_wide_condition_is_analysed_in_bounded_time() -> None:
-    started = time.perf_counter()
+    started = time.process_time()
     built = _long_chain_graph(450, branching=True)
-    assert time.perf_counter() - started < 5
+    assert time.process_time() - started < 5
     assert built.id("C449") in built.analysis.conditions
 
 

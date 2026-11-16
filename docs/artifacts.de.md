@@ -1,5 +1,5 @@
 ---
-source_sha: "a2ae2fb2e890"
+source_sha: "bbe82e47bf65"
 ---
 
 # Apps { #artifacts }
@@ -1014,7 +1014,7 @@ Schalten Sie **Preview screenshot** in den Einstellungen der Capability für ein
 Modell aus, das keine Bilder lesen kann; der Bericht kommt weiterhin zurück.
 `agenticos cmd doctor` sagt, ob der Renderer antwortet.
 
-Drei weitere mitgelieferte Skills bauen eine **Präsentation** als App: `presentation-decks` (eine fertige Vorlage mit 16:9-Folienrahmen, Tastatur- und Touch-Navigation, Sprechernotizen auf `n` und einer Folie pro Seite beim PDF-Druck), `deck-storyline` (Publikum, Entscheidung und eine Linie aus Aussagen, bevor eine Folie entsteht) und `deck-review` (Titel, die sich als Argument lesen, eine Aussage pro Folie, jede Zahl belegt, aus der Ferne lesbar). Sie bringen keine Bibliothek und keinen PowerPoint-Export mit.
+Drei weitere mitgelieferte Skills bauen eine **Präsentation** als App: `presentation-decks` (die abwechslungsreiche 16:9-HTML-Präsentation aus `artifact-pages`, mit Tastaturnavigation, Übersicht, Palettenauswahl und einer Folie pro Druckseite), `deck-storyline` (Publikum, Entscheidung und eine Linie aus Aussagen, bevor eine Folie entsteht) und `deck-review` (Titel, die sich als Argument lesen, eine Aussage pro Folie, jede Zahl belegt, aus der Ferne lesbar). Sie bringen keine Bibliothek und keinen PowerPoint-Export mit.
 
 ## Visuals { #visuals }
 
@@ -1578,3 +1578,5 @@ Chat-Vorschauen reservieren Platz, während der Visual-Renderer oder das App-Vor
 Der Apps-Skill enthält interaktive HTML-Präsentationen, PDF-Druckstile und wiederverwendbare Komponentenbeispiele. PDF-Export benötigt den konfigurierten Renderer; reine Validierung beweist keine erfolgreiche Skriptausführung. Diagramme, Tabellen und interaktive Inhalte müssen in der gerenderten Vorschau geprüft werden. PowerPoint-Export ist nicht enthalten.
 
 Das Plattform-MCP-Tool `create_app_public_link` benötigt Bearbeitungszugriff und die ausdrückliche Bestätigung der öffentlichen Freigabe. Es verwendet vorhandene Links weiter und erhält Passwort, Ablaufdatum und festgelegte Version. Live-Daten benötigen eine separate Zustimmung des Eigentümers. Ein Aufruf ist erst erfolgreich, wenn die API die öffentliche URL bestätigt.
+
+Das mitgelieferte Präsentationsbeispiel nutzt fünf unterschiedliche Kompositionen: illustriertes Titelblatt, große Kennzahl, Vergleich, Ablauf und Entscheidung. Das Berichtsbeispiel berechnet ausgewählte Summen und Diagramm aus denselben Anzahlen. Visual design enthält außerdem ein prozedurales Produktstudio mit abgerundeten Formen, Materialvarianten, lokaler Studiobeleuchtung, Bauteiltrennung, benannten Ansichten und einer WebGL-Ersatzansicht. Dies sind anpassbare HTML-Beispiele, kein PowerPoint- oder Fertigungsmodellexport. Bestehende Organisationen erhalten Skill-Versionen über den normalen Bibliotheks- und Prüfablauf; lokal bearbeitete Kopien bleiben geschützt.

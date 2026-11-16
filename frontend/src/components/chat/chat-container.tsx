@@ -1797,6 +1797,15 @@ function ChatUI({
                           composerStrip !== null && "rounded-t-none",
                         )}
                       >
+                        {!agentFixed && (
+                          <div className="border-border bg-muted/40 hidden items-center rounded-t-2xl border-b px-3 py-1.5 has-[a]:flex">
+                            <ProjectChip
+                              conversationId={conversationId}
+                              pickerOpen={projectPickerOpen}
+                              onPickerOpenChange={setProjectPickerOpen}
+                            />
+                          </div>
+                        )}
                         <div
                           className={cn(
                             "px-2.5 pt-1 pb-0.5",
@@ -1810,7 +1819,7 @@ function ChatUI({
                           )}
                           {/* One row of actions under the text, the same at every
                           level of every limit: attach and who answers on the left;
-                          usage, the model, the microphone and send on the right. A
+                          files, settings, the microphone and send on the right. A
                           limit near its end changes an icon's colour and never
                           costs the row a button. */}
                           <ChatInput
@@ -1870,15 +1879,6 @@ function ChatUI({
                                   onChange={onApprovalModeChange}
                                   disabled={isProcessing || readOnly}
                                 />
-                                {!agentFixed && (
-                                  <span className="contents max-md:hidden">
-                                    <ProjectChip
-                                      conversationId={conversationId}
-                                      pickerOpen={projectPickerOpen}
-                                      onPickerOpenChange={setProjectPickerOpen}
-                                    />
-                                  </span>
-                                )}
                               </>
                             }
                             onProject={
@@ -1937,14 +1937,19 @@ function ChatUI({
                               <span className="contents max-md:hidden">
                                 {/* Wide screens only, as is the panel it opens. */}
                                 <span ref={setFilesSlot} className="hidden lg:contents" />
-                                <UsageMeter
-                                  usage={lastUsage}
-                                  workspace={workspace}
-                                  total={conversationCost}
-                                  contextWindow={contextWindow}
-                                />
                                 <div>
                                   <ChatControls
+                                    usageSlot={
+                                      <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                                        <span>{t("input.contextUsed")}</span>{" "}
+                                        <UsageMeter
+                                          usage={lastUsage}
+                                          workspace={workspace}
+                                          total={conversationCost}
+                                          contextWindow={contextWindow}
+                                        />
+                                      </div>
+                                    }
                                     onModelProfileChange={onModelProfileChange}
                                     onApprovalModeChange={onApprovalModeChange}
                                     agentModel={agentModel}

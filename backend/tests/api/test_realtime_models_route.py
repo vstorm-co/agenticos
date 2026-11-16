@@ -38,4 +38,8 @@ async def test_the_catalog_lists_providers_and_their_voices(client: AsyncClient)
     openai = next(item for item in body["items"] if item["provider"] == "openai")
     assert openai["models"][0]["transport"] == "webrtc"
     assert "marin" in openai["models"][0]["voices"]
+    elevenlabs = next(item for item in body["items"] if item["provider"] == "elevenlabs")
+    assert elevenlabs["models"][0]["unreported_token_usage"] is True
+    assert elevenlabs["models"][0]["transport"] == "relay"
+    assert elevenlabs["models"][0]["default_language"] == "en"
     assert body["total"] == len(body["items"])

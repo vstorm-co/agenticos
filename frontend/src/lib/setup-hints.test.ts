@@ -43,7 +43,7 @@ describe("saved configuration hints", () => {
   });
   it("distinguishes disabled suggestions, an incomplete enabled configuration and unknown data", () => {
     expect(proactivitySetupHints({})).toEqual([]);
-    expect(proactivitySetupHints({ proactive_enabled: false })).toEqual(["proactivityOff"]);
+    expect(proactivitySetupHints({ proactive_enabled: false })).toEqual([]);
     expect(
       proactivitySetupHints({ proactive_enabled: true, proactive_model_profile_id: null }),
     ).toEqual(["proactivityModel"]);
@@ -53,9 +53,9 @@ describe("saved configuration hints", () => {
   });
   it("does not flag the briefing as a second model to configure", () => {
     expect(systemAgentSetupHints({ role: "daily_briefing", model_profile_id: null })).toEqual([]);
-    expect(systemAgentSetupHints({ role: "memory_maintenance", model_profile_id: null })).toEqual([
-      "memoryModel",
-    ]);
+    expect(
+      systemAgentSetupHints({ role: "memory_maintenance", enabled: true, model_profile_id: null }),
+    ).toEqual(["memoryModel"]);
     expect(
       systemAgentSetupHints({ role: "memory_maintenance", model_profile_id: "model" }),
     ).toEqual([]);

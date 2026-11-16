@@ -32,6 +32,10 @@ from app.agents.capabilities.sandbox._identity import (
     WorkspaceScopeUnavailable,
     scope_key,
 )
+from app.agents.capabilities.sandbox._project import (
+    PROJECT_WORKSPACE_RESOURCE,
+    ProjectWorkspacePort,
+)
 
 __all__ = [
     "SHARED_SCOPES",
@@ -172,4 +176,8 @@ def _build(ctx: CapabilityBuildContext) -> CombinedCapability[Any]:
     The runner opens it and passes it to the run.
     """
     config = ctx.config if isinstance(ctx.config, SandboxConfig) else SandboxConfig()
-    return build_workspace(include_execute=config.include_execute)
+    port = ctx.resources.get(PROJECT_WORKSPACE_RESOURCE)
+    return build_workspace(
+        include_execute=config.include_execute,
+        project_port=port if isinstance(port, ProjectWorkspacePort) else None,
+    )
