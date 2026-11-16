@@ -6,9 +6,9 @@ as `value.customer.email`. It is set once per run: a step output is never
 overwritten, so this is a named constant, not a variable another step can change.
 """
 
-from typing import Any
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, JsonValue, WithJsonSchema
 
 from app.workflows.contracts.results import Completed, Failed, NodeResult, WorkflowError
 
@@ -18,7 +18,8 @@ class DataValueInput(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    value: Any
+    # Keep the editor free-form while validating the durable JSON boundary.
+    value: Annotated[JsonValue, WithJsonSchema({})]
 
 
 class DataValueOutput(BaseModel):
@@ -26,7 +27,8 @@ class DataValueOutput(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    value: Any
+    # Keep the editor free-form while validating the durable JSON boundary.
+    value: Annotated[JsonValue, WithJsonSchema({})]
 
 
 async def handle(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:

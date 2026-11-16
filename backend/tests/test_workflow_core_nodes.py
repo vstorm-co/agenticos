@@ -9,7 +9,7 @@ import uuid
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
+from pydantic import JsonValue, ValidationError
 
 from app.core.permissions import AuthContext
 from app.services.workflow_execution import context
@@ -115,16 +115,20 @@ class TestDataValue:
         "value",
         [{"customer": {"email": "ada@example.com"}}, [1, {"a": None}], "text", 0, False, None],
     )
-    async def test_the_value_is_handed_on_unchanged(self, value: Any):
+    async def test_the_value_is_handed_on_unchanged(self, value: JsonValue) -> None:
         result = await data_value(None, DataValueInput(value=value))
         assert isinstance(result, Completed)
         assert result.output.model_dump() == {"value": value}
 
-    async def test_a_step_with_no_value_fails(self):
+    async def test_a_step_with_no_value_fails(self) -> None:
         result = await data_value(None, None)
         assert isinstance(result, Failed) and result.error.code == "DATA_NOT_SET"
 
-    def test_the_value_is_required(self):
+    def test_a_value_that_cannot_be_stored_as_json_is_refused(self) -> None:
+        with pytest.raises(ValidationError):
+            DataValueInput.model_validate({"value": {"nested": object()}})
+
+    def test_the_value_is_required(self) -> None:
         with pytest.raises(ValidationError):
             DataValueInput.model_validate({})
 

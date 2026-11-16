@@ -52,7 +52,7 @@ it("asks for a table first, and is inert for a caller who may not edit", () => {
     <FilterColumnField id="f" tableId="t1" value="c1" onPick={vi.fn()} disabled error="Gone" />,
   );
   expect(screen.getByRole("combobox", { name: "Column" })).toBeDisabled();
-  expect(screen.getByText("Gone")).toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "Column" })).toHaveAccessibleDescription("Gone");
 });
 
 it("offers nothing while the table's columns are still unknown", () => {

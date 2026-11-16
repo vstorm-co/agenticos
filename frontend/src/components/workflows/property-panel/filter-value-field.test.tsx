@@ -70,7 +70,8 @@ describe("FilterValueField", () => {
   it("offers a single select's live options and saves the chosen option's id", async () => {
     const onChange = mount({ columnId: "status", op: "eq", error: "Pick one" });
 
-    expect(screen.getByText("Pick one")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Value" })).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("combobox", { name: "Value" })).toHaveAccessibleDescription("Pick one");
     await userEvent.click(screen.getByRole("combobox", { name: "Value" }));
     expect(screen.queryByRole("option", { name: "Old" })).toBeNull();
     await userEvent.click(screen.getByRole("option", { name: "Not worth sharing" }));
@@ -125,6 +126,7 @@ describe("FilterValueField", () => {
     ["a single operand", "eq", "Nonsense"],
     ["a list", "in", ["o1", "Nonsense"]],
     ["a number", "eq", 3],
+    ["a malformed list", "in", "o1"],
   ])("keeps the typed value when %s names no option", (_, op, value) => {
     mount({ columnId: "status", op, value });
     expect(screen.getByText("typed value")).toBeInTheDocument();

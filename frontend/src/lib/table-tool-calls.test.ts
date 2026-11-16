@@ -131,6 +131,8 @@ describe("isTableTool", () => {
     expect(isTableTool("agenticos_get_virtual_table_record")).toBe(true);
     expect(isTableTool("agenticos_create_virtual_table")).toBe(false);
     expect(isTableTool("query_records")).toBe(false);
+    expect(isTableTool("toString")).toBe(false);
+    expect(parseTableCall("toString", { table_id: TABLE })).toBeNull();
   });
 });
 

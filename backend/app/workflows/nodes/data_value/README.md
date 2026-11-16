@@ -20,7 +20,7 @@ across the items of a loop, use `loop.yield`.
 | Port | Kind | Schema | What it carries |
 |---|---|---|---|
 | `in` | input | none | control flow; `value` is bound |
-| `out` | output | `DataValueOutput` | `value: Any` |
+| `out` | output | `DataValueOutput` | `value: JsonValue` |
 
 ## Errors
 

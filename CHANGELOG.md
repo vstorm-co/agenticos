@@ -30,16 +30,14 @@ Two things are versioned separately from this file and worth knowing about:
   pending table write no longer leads with its table's id. When the reader cannot
   open the table, and on hosted pages, the call is shown as sent.
 
-### Changed
-
-- Workflow record filters choose their column by name from the step's table instead of asking for a column id, and a single or multi select column's value from its options, so Record exists? no longer refuses an option typed by its label. The Record exists? and List records steps no longer offer a column list they never read; a stored narrowing stays visible so it can be cleared.
-
-### Added
-
 - Hold an object, a list or a single value in a workflow with the new **Data**
   step (`data.value`): type it in as JSON or bind it from an earlier output, and
   read it or a path into it from later steps. The value is set once per run and
   is never overwritten, and the step's panel says so.
+
+### Changed
+
+- Workflow record filters choose their column by name from the step's table instead of asking for a column id, and a single or multi select column's value from its options, so Record exists? no longer refuses an option typed by its label. The Record exists? and List records steps no longer offer a column list they never read; a stored narrowing stays visible so it can be cleared.
 
 ## [1.80.0] - 2026-11-16
 

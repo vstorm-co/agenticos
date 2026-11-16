@@ -30,7 +30,7 @@ function optionFor(options: readonly OptionDef[], value: unknown): OptionDef | n
   const byLabel = options.filter(
     (option) => !option.archived && option.label.toLowerCase() === wanted,
   );
-  return byLabel.length === 1 ? (byLabel[0] as OptionDef) : null;
+  return byLabel.length === 1 ? (byLabel[0] ?? null) : null;
 }
 
 /**
@@ -68,16 +68,21 @@ export function FilterValueField({
     return <>{fallback}</>;
   }
   const many = op === "in";
+  if (many && value !== undefined && !Array.isArray(value)) return <>{fallback}</>;
   const stored = many ? (Array.isArray(value) ? value : []) : value ? [value] : [];
   const chosen = stored.map((item) => optionFor(column.options, item));
-  if (chosen.some((option) => option === null)) return <>{fallback}</>;
-  const chosenIds = (chosen as OptionDef[]).map((option) => option.id);
+  const chosenIds = chosen.flatMap((option) => (option === null ? [] : [option.id]));
+  if (chosenIds.length !== stored.length) return <>{fallback}</>;
   const offered = column.options.filter(
     (option) => !option.archived || chosenIds.includes(option.id),
   );
   const labelOf = (option: OptionDef) =>
     option.archived ? t("nodeFormFilterOptionArchived", { label: option.label }) : option.label;
-  const errorLine = error !== undefined && <p className="text-destructive text-xs">{error}</p>;
+  const errorLine = error !== undefined && (
+    <p id={`${id}-error`} className="text-destructive text-xs">
+      {error}
+    </p>
+  );
 
   if (many) {
     const toggle = (optionId: string) => {
@@ -87,7 +92,11 @@ export function FilterValueField({
       onChange(next.length === 0 ? undefined : next);
     };
     return (
-      <fieldset className="space-y-1.5">
+      <fieldset
+        className="space-y-1.5"
+        aria-invalid={error !== undefined}
+        aria-describedby={error === undefined ? undefined : `${id}-error`}
+      >
         <legend className="text-sm font-medium">{t("nodeFormFilterValue")}</legend>
         {offered.map((option) => (
           <div key={option.id} className="flex items-center gap-2">
@@ -111,7 +120,11 @@ export function FilterValueField({
     <div className="space-y-1.5">
       <Label htmlFor={id}>{t("nodeFormFilterValue")}</Label>
       <Select value={chosenIds[0] ?? ""} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger id={id} aria-label={t("nodeFormFilterValue")}>
+        <SelectTrigger
+          id={id}
+          aria-invalid={error !== undefined}
+          aria-describedby={error === undefined ? undefined : `${id}-error`}
+        >
           <SelectValue placeholder={t("nodeFormFilterValuePlaceholder")} />
         </SelectTrigger>
         <SelectContent>

@@ -43,13 +43,17 @@ export function FilterColumnField({
       <Label htmlFor={id}>{t("nodeFormFilterColumn")}</Label>
       <Select
         value={typeof value === "string" ? value : ""}
-        // Every item's value is one of `columns`, so the lookup always finds it.
-        onValueChange={(columnId) =>
-          onPick(columns.find((column) => column.id === columnId) as ColumnDef)
-        }
+        onValueChange={(columnId) => {
+          const column = columns.find((entry) => entry.id === columnId);
+          if (column !== undefined) onPick(column);
+        }}
         disabled={disabled || tableId === null || table === null}
       >
-        <SelectTrigger id={id} aria-label={t("nodeFormFilterColumn")}>
+        <SelectTrigger
+          id={id}
+          aria-invalid={error !== undefined}
+          aria-describedby={error === undefined ? undefined : `${id}-error`}
+        >
           <SelectValue
             placeholder={
               tableId === null
@@ -66,7 +70,11 @@ export function FilterColumnField({
           ))}
         </SelectContent>
       </Select>
-      {error !== undefined && <p className="text-destructive text-xs">{error}</p>}
+      {error !== undefined && (
+        <p id={`${id}-error`} className="text-destructive text-xs">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

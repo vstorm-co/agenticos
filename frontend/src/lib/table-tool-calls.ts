@@ -93,7 +93,7 @@ function readValues(value: unknown): Record<string, CellValue> | null {
 
 /** The call as a table call, or null for any other tool or a call missing its table. */
 export function parseTableCall(toolName: string, rawArgs: unknown): TableCall | null {
-  const tool = TOOLS[toolName];
+  const tool = Object.hasOwn(TOOLS, toolName) ? TOOLS[toolName] : undefined;
   const args = object(rawArgs);
   const tableId = text(args?.table_id);
   if (tool === undefined || args === null || tableId === null) return null;
@@ -116,7 +116,7 @@ export function parseTableCall(toolName: string, rawArgs: unknown): TableCall | 
 
 /** Whether `toolName` is one of the platform's table tools. */
 export function isTableTool(toolName: string): boolean {
-  return toolName in TOOLS;
+  return Object.hasOwn(TOOLS, toolName);
 }
 
 export type TableCallAnswer =
