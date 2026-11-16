@@ -134,12 +134,18 @@ async def test_a_lost_source_sync_marks_the_source_and_closes_the_log_it_was_que
     close.assert_awaited_once_with(str(log_id), "killed")
 
 
-async def test_a_lost_source_sync_with_a_deleted_log_cannot_infer_a_new_target() -> None:
+@pytest.mark.parametrize("log_exists", [False, True])
+async def test_a_lost_source_sync_without_a_recorded_target_cannot_settle_source_status(
+    log_exists: bool,
+) -> None:
     job = SyncConnectorSource(source_id=uuid.uuid4(), sync_log_id=uuid.uuid4())
     sources = MagicMock(update_after_sync=AsyncMock())
     with (
         patch(f"{MODULE}.get_worker_db_context", _db),
-        patch(f"{MODULE}.sync_log_repo.get_by_id", new=AsyncMock(return_value=None)),
+        patch(
+            f"{MODULE}.sync_log_repo.get_by_id",
+            new=AsyncMock(return_value=MagicMock(knowledge_base_id=None) if log_exists else None),
+        ),
         patch(f"{MODULE}.SyncSourceService", return_value=sources),
         patch(f"{MODULE}._close_running_log", new=AsyncMock()) as close,
     ):

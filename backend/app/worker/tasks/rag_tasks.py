@@ -1995,7 +1995,7 @@ async def settle_lost_source_sync(job: SyncConnectorSource, reason: str) -> None
     if job.sync_log_id is not None:
         async with get_worker_db_context() as db:
             log = await sync_log_repo.get_by_id(db, job.sync_log_id)
-            if log is not None:
+            if log is not None and log.knowledge_base_id is not None:
                 await SyncSourceService(db).update_after_sync(
                     str(job.source_id),
                     "error",
