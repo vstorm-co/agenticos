@@ -121,38 +121,14 @@ class WorkflowApprovalService:
         Oldest first, as the queue drains; newest first reads the record of
         decisions. `created_from` and `created_to` narrow it to a window.
         `decidable` keeps only the requests the caller may decide, and `total`
-        then counts those across every page. It reads every request in
-        `statuses` on purpose: the audience is decided per row, so no page can be
-        cut before it. The caller's groups are read once rather than per row,
-        because the console polls this for every decider.
+        then counts those across every page. The database applies it to the
+        page and the count alike, with the caller's groups read once, because
+        the console polls this for every decider.
         """
+        my_groups: set[str] = set()
         if decidable:
-            every, _ = await approval_repo.list_with_workflow(
-                self.db,
-                organization_id=ctx.organization_id,
-                statuses=[status.value for status in statuses or [WorkflowApprovalStatus.PENDING]],
-                skip=0,
-                limit=None,
-                created_from=created_from,
-                created_to=created_to,
-                oldest_first=oldest_first,
-            )
             my_groups = await groups_deciding_through(
                 self.db, organization_id=ctx.organization_id, user_id=ctx.subject_id
-            )
-            me = str(ctx.subject_id)
-            mine = [
-                (row, name)
-                for row, name in every
-                if not (row.approver_user_ids or row.approver_group_ids)
-                or me in {str(user_id) for user_id in row.approver_user_ids}
-                or not my_groups.isdisjoint(row.approver_group_ids or [])
-            ]
-            return WorkflowApprovalList(
-                items=[
-                    _read(row, name, can_decide=True) for row, name in mine[skip : skip + limit]
-                ],
-                total=len(mine),
             )
         rows, total = await approval_repo.list_with_workflow(
             self.db,
@@ -163,8 +139,13 @@ class WorkflowApprovalService:
             created_from=created_from,
             created_to=created_to,
             oldest_first=oldest_first,
+            decidable_by=ctx.subject_id if decidable else None,
+            through_groups=my_groups,
         )
-        items = [_read(row, name, can_decide=await self._eligible(ctx, row)) for row, name in rows]
+        items = [
+            _read(row, name, can_decide=decidable or await self._eligible(ctx, row))
+            for row, name in rows
+        ]
         return WorkflowApprovalList(items=items, total=total)
 
     async def _eligible(self, ctx: AuthContext, approval: WorkflowApproval) -> bool:
