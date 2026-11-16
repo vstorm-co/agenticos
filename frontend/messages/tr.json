@@ -1863,7 +1863,8 @@
         "empty": "Formül sütunu bir formül gerektirir.",
         "too_long": "Bir formül en fazla {limit} karakterdir.",
         "not_a_column": "'{'{label}'}' bu tablonun etkin bir sütunu değil.",
-        "not_a_value": "'{'{label}'}' {type, select, link {bir bağlantı sütunu} other {bir formül sütunu}}: formül değer içeren sütunları okur."
+        "not_a_value": "'{'{label}'}' {type, select, link {bir bağlantı sütunu} other {bir formül sütunu}}: formül değer içeren sütunları okur.",
+        "arity": "{name} {kind, select, exact {{fewest, plural, one {# değer} other {# değer}}} range {{fewest} ile {most} arasında değer} other {en az {fewest, plural, one {# değer} other {# değer}}}} alır. Değerleri virgül ayırır, bu yüzden ondalık sayıları nokta ile yazın, örneğin 1.23."
       }
     },
     "defaults": {

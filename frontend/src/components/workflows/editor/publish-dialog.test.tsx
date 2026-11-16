@@ -139,6 +139,8 @@ describe("PublishDialog", () => {
       }),
       1,
     );
+    // Looking inside a loop when the warning is about a step at the top level.
+    act(() => useWorkflowEditorStore.setState({ scopePath: ["elsewhere"] }));
     render(
       <PublishDialog workflow={WORKFLOW} catalog={[DEBUG_ECHO, approval]} publish={vi.fn()} />,
     );
@@ -152,7 +154,10 @@ describe("PublishDialog", () => {
         name: "Ask for approval: The Rejected outcome leads nowhere, so the run ends here when it is chosen. If that is intended, ignore this.",
       }),
     );
+    // The warning opens the step it is about, where it is set up.
     expect(useWorkflowEditorStore.getState().selection.nodeIds).toEqual(["ok"]);
+    expect(useWorkflowEditorStore.getState().editingNodeId).toBe("ok");
+    expect(useWorkflowEditorStore.getState().scopePath).toEqual([]);
   });
 
   it("names the trigger it switches on, and shows a new webhook's secret once", async () => {

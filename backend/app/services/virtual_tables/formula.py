@@ -113,6 +113,21 @@ FUNCTIONS: dict[str, Callable[..., Value]] = {
 }
 """Every function a formula may call, by its name in capitals."""
 
+ARITY: dict[str, tuple[int, int | None]] = {
+    "IF": (3, 3),
+    "ROUND": (1, 2),
+    "ABS": (1, 1),
+    "MIN": (1, None),
+    "MAX": (1, None),
+    "CONCAT": (1, None),
+    "LEN": (1, 1),
+    "UPPER": (1, 1),
+    "LOWER": (1, 1),
+    "DAYS": (2, 2),
+    "TODAY": (0, 0),
+}
+"""How many values each function takes - fewest and most, `None` for any number."""
+
 _ARITHMETIC: dict[type[ast.operator], Callable[[float, float], float]] = {
     ast.Add: lambda a, b: a + b,
     ast.Sub: lambda a, b: a - b,
@@ -213,6 +228,15 @@ def _spreadsheet_words(source: str) -> str:
     return tokenize.untokenize(tokens)
 
 
+def _takes(fewest: int, most: int | None) -> str:
+    """How many values a function takes, in words: `3 values`, `1 to 2 values`."""
+    if most is None:
+        return f"at least {fewest} value{'' if fewest == 1 else 's'}"
+    if fewest == most:
+        return f"{fewest} value{'' if fewest == 1 else 's'}"
+    return f"{fewest} to {most} values"
+
+
 def _check(node: ast.AST, depth: int = 0) -> None:
     """Refuse anything a formula may not contain."""
     if depth > MAX_DEPTH:
@@ -252,6 +276,20 @@ def _check(node: ast.AST, depth: int = 0) -> None:
             known = ", ".join(sorted(FUNCTIONS))
             raise FormulaProblem(
                 f"A formula calls only these functions: {known}", "function", functions=known
+            )
+        fewest, most = ARITY[name]
+        if len(node.args) < fewest or (most is not None and len(node.args) > most):
+            # A decimal comma inside a call reads as one more value - `IF({Price} > 0,5, ...)`
+            # would otherwise save as a call nothing can work out.
+            kind = "exact" if fewest == most else "range" if most is not None else "at_least"
+            raise FormulaProblem(
+                f"{name} takes {_takes(fewest, most)}. A comma separates them, so write "
+                "decimals with a dot, such as 1.23",
+                "arity",
+                name=name,
+                kind=kind,
+                fewest=fewest,
+                most=fewest if most is None else most,
             )
         for arg in node.args:
             _check(arg, depth + 1)

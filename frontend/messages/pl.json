@@ -12651,7 +12651,8 @@
         "empty": "Kolumna z formułą potrzebuje formuły.",
         "too_long": "Formuła może mieć najwyżej {limit} znaków.",
         "not_a_column": "'{'{label}'}' nie jest aktywną kolumną tej tabeli.",
-        "not_a_value": "'{'{label}'}' to {type, select, link {kolumna z powiązaniem} other {kolumna z formułą}}: formuła czyta kolumny z wartościami."
+        "not_a_value": "'{'{label}'}' to {type, select, link {kolumna z powiązaniem} other {kolumna z formułą}}: formuła czyta kolumny z wartościami.",
+        "arity": "{name} przyjmuje {kind, select, exact {{fewest, plural, one {# wartość} few {# wartości} many {# wartości} other {# wartości}}} range {od {fewest} do {most} wartości} other {co najmniej {fewest, plural, one {# wartość} few {# wartości} many {# wartości} other {# wartości}}}}. Przecinek je oddziela, więc ułamki dziesiętne zapisuj z kropką, np. 1.23."
       }
     },
     "markdown": {

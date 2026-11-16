@@ -1,5 +1,5 @@
 ---
-source_sha: "84a2cdf1902d"
+source_sha: "6e9571c539e5"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -166,7 +166,8 @@ calcula al leer el registro y nunca se guarda, escribe, filtra ni ordena.
 
 Los decimales se escriben con punto, `{Price} * 1.23`, en cualquier idioma: una
 coma separa los argumentos de una función, así que `{Price} * 1,23` se rechaza con
-esa indicación en lugar de leerse como número. El rechazo da un motivo estable en
+esa indicación en lugar de leerse como número, y lo mismo una llamada a la que la coma da un valor de
+más, como `IF({Price} > 0,5, "yes", "no")`. El rechazo da un motivo estable en
 `details.formula.reason`, como `decimal_comma` o `not_a_column`, que la consola usa
 para decirlo en el idioma de quien lee. La consola muestra los números, también el
 resultado de una fórmula, con el separador decimal de quien lee - `12,177` en

@@ -146,6 +146,13 @@ describe("a number in the viewer's locale", () => {
       "0,000000000001",
     );
     expect(formatCellValue(column({ type: "number" }), 0.1, boolLabel, "pl")).toBe("0,1");
+    // Fixed notation stops at 20 fraction digits; a tiny number keeps its digits.
+    expect(formatCellValue(column({ type: "number" }), 1e-21, boolLabel, "pl")).toBe("1E-21");
+    expect(formatCellValue(column({ type: "number" }), 1.5e-7, boolLabel, "pl")).toBe("0,00000015");
+    expect(formatCellValue(column({ type: "number" }), 1.2345678e-15, boolLabel, "pl")).toBe(
+      "1,2345678E-15",
+    );
+    expect(formatCellValue(column({ type: "number" }), 0, boolLabel, "pl")).toBe("0");
     expect(formatCellValue(column({ type: "integer" }), 2026, boolLabel, "en")).toBe("2026");
     expect(formatCellValue(column({ type: "integer" }), 1234567, boolLabel, "en")).toBe(
       "1,234,567",
