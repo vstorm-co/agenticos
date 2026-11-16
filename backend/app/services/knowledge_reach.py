@@ -138,7 +138,7 @@ class KnowledgeReachService:
         # groups is shown to those it reaches, as the Builder's own list does.
         narrowed = [row for row in servers.values() if row.visibility != Visibility.ORG.value]
         reached = await accessible_ids(
-            self.db, ctx, narrowed, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+            self.db, ctx, narrowed, Perm.MCP_USE, resource_type=MCP_CONNECTION
         )
         selected_servers = [
             row

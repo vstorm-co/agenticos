@@ -100,6 +100,11 @@ class SecretRequestService:
                 request is already decided, a question is still unanswered,
                 or the secret name is already taken.
         """
+        if not ctx.has(Perm.SECRETS_EDIT):
+            raise AuthorizationError(
+                message="This caller may not create organization secrets",
+                details={"scope": Perm.SECRETS_EDIT.value},
+            )
         run = await agent_run_repo.claim_parked_run(
             self.db, run_id, organization_id=ctx.organization_id
         )

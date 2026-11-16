@@ -21,7 +21,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.group import Group, GroupMember
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
-from app.db.models.resource_grant import ResourceGrant, Visibility
+from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.user import User
 from app.schemas.mcp_connection import OrgMcpConnectionCreate, OrgMcpConnectionUpdate
 from app.schemas.resource_grant import AudienceChoice
@@ -94,9 +94,43 @@ async def _server(
 
 
 async def _listed(db: AsyncSession, ctx: AuthContext) -> list[str]:
-    rows, total = await McpConnectionService(db).list_for_org(ctx)
-    assert total == len(rows)
+    rows = await McpConnectionService(db).list_usable(ctx)
     return [row.name for row in rows]
+
+
+async def test_a_group_use_grant_keeps_binding_without_administering_the_connection(
+    db: AsyncSession,
+) -> None:
+    organization, owner = await _setup(db)
+    builder = await _member(db, organization, "builder")
+    group = await _department(db, organization, builder)
+    server = await _server(db, owner, "shared-ledger", group_ids=[group.id])
+    service = McpConnectionService(db)
+
+    assert await service.list_usable(builder) == [server]
+    assert await service.list_for_org(builder) == ([], 0)
+    assert await service.get_org_connection(builder, server.id) is server
+    with pytest.raises(NotFoundError):
+        await service.update_for_org(
+            builder, connection_id=server.id, data=OrgMcpConnectionUpdate(label="changed")
+        )
+
+    grant = await db.scalar(
+        select(ResourceGrant).where(
+            ResourceGrant.resource_id == server.id,
+            ResourceGrant.subject_group_id == group.id,
+        )
+    )
+    assert grant is not None
+    assert grant.level == GrantLevel.USE.value
+    grant.level = GrantLevel.EDIT.value
+    await db.flush()
+
+    assert await service.list_for_org(builder) == ([server], 1)
+    changed = await service.update_for_org(
+        builder, connection_id=server.id, data=OrgMcpConnectionUpdate(label="changed")
+    )
+    assert changed.label == "changed"
 
 
 async def test_a_server_is_the_whole_organization_s_unless_limited(db: AsyncSession) -> None:

@@ -1,89 +1,31 @@
-"""`AutoSkillLearningService` - turn an approved failure-learning proposal into a skill.
+"""Materialize an applied failure-learning proposal into its existing skill.
 
-The failure-learning loop (#32) mines real failures, curates them into ledger
-entries and proposes rule text; a person applies the proposal. This service is
-the step after that approval, and only that step: it takes a skill-target
-proposal a person already approved and materialises it in the skill catalog,
-so the same failure does not repeat. It mines nothing, proposes nothing, and
-writes skills only through `SkillService` — there is no second skill writer
-here, and no second mining pipeline or proposal flow.
-
-What #32 already does, and what this adds. #32's apply edits an existing
-skill live through `SkillService.update`, which bumps the skill's
-informational `version`. What it cannot express is a proposal that *is* a new
-skill: its create step requires a skill id for a skill target. So this
-service has two cases:
-
-- The proposal names a skill. When the skill already carries the approved
-  text, learning is a no-op: the call writes nothing and reports
-  `already_learned`, so learning the same proposal twice is safe. When the
-  skill still carries the text the proposal was written against (its SHA-256
-  matches `base_content_sha256`), the service applies the learned text
-  itself, through the same `SkillService.update` #32 uses. When it carries
-  neither, somebody rewrote the skill since the proposal was written, and
-  learning refuses rather than guessing — re-base the proposal instead.
-- The proposal names no skill. The service creates one through
-  `SkillService.create`, in the `learned` category so learned skills are
-  findable in the listing, with the name and description taken from the
-  request or derived from the pattern and rationale — a #32 proposal carries
-  neither field, and that gap is the adapter this service is: if #32 later
-  records a name and description on its proposals, the derivation goes away
-  and the request fields carry them instead. A skill of the derived name
-  already carrying the same text is the same no-op as above; one carrying
-  different text is a name collision, refused as `AlreadyExistsError`.
-
-Provenance. Every catalog write this service performs is audited as
-`skill.learned`, with the proposal id, the ledger entry and pattern key that
-motivated it, and the content hashes before and after. A no-op writes no
-audit entry: the approval itself was already audited when #32 applied the
-proposal. There is no version history and no rollback — `Skill.version` is
-the informational bump `SkillService` already maintains, and a bad learn is
-undone by a new edit, not a restore, exactly as #32 documents for its own
-skill applies.
-
-No migration: learned skills are ordinary `skills` rows, and their provenance
-is the audit trail. Agent access requires `AGENTS_VIEW`. Learning into an
-existing skill and creating a new learned skill both require `SKILLS_EDIT`; a
-skill refusal answers as "not found".
+The service resolves a persisted proposal within its organization and agent,
+checks that it is an applied skill proposal with consistent content hashes,
+and verifies the request against that row. It writes through `SkillService`;
+audit provenance comes from the proposal and its linked ledger entry, never
+from caller-asserted identifiers or hashes.
 """
 
 import hashlib
-import re
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, ConflictError, NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.skill import Skill
-from app.repositories import skill as skill_repo
+from app.repositories import failure_learning as failure_learning_repo
 from app.schemas.auto_skill_learning import LearnedSkillRead, LearnSkillCreate
 from app.schemas.skill import SkillUpdate
 from app.services.agent_registry import AgentRegistryService
 from app.services.skills import SkillService
 
-LEARNED_CATEGORY = "learned"
-"""The category a created learned skill is filed under.
-
-The listing filters by category, so this is how a learned skill is found
-again without a new column, table or migration — and how a reader tells a
-skill the loop wrote from one a person wrote.
-"""
-
-_FALLBACK_NAME = "learned-skill"
-_FALLBACK_DESCRIPTION = "Learned from a recurring failure. See the audit trail for its proposal."
-
 
 def _sha256(content: str) -> str:
     """The content hash, the same digest #32 records as its base."""
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
-
-
-def _slug(text: str) -> str:
-    """A name-safe slug: lowercase, hyphen-joined, no leading or trailing hyphen."""
-    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
-    return slug or _FALLBACK_NAME
 
 
 class AutoSkillLearningService:
@@ -97,28 +39,83 @@ class AutoSkillLearningService:
     async def learn(
         self, ctx: AuthContext, agent_id: UUID, data: LearnSkillCreate
     ) -> LearnedSkillRead:
-        """Learn one approved proposal, creating or updating the skill.
+        """Learn one applied proposal for its existing skill.
 
-        The caller asserts the proposal was human-approved: until #32 lands,
-        this service cannot read its proposal row to check the status itself,
-        so the approval is the caller's to enforce and the audit entry's to
-        show. See the module docstring for the two cases and the refusals.
+        The proposal is loaded for this organization and agent. Only an
+        applied skill proposal may be learned, and the submitted content,
+        target, and provenance must match the stored row. Audit provenance
+        comes from that row and its linked ledger entry.
 
         Raises:
-            NotFoundError: The agent or named skill is out of reach, or the
-                caller cannot edit skills.
-            ConflictError: The named skill changed since the proposal was
-                written — its content matches neither the approved text nor
-                the base the proposal was written against.
-            AlreadyExistsError: A different skill already owns the derived
-                name with different content.
+            NotFoundError: The agent, proposal, or named skill is out of reach,
+                or the proposal is not an applied skill proposal.
+            ConflictError: The submitted data does not match the proposal, or
+                the named skill no longer matches the proposal's content.
         """
         await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_VIEW)
-        new_hash = _sha256(data.content)
-        if data.skill_id is not None:
-            skill = await self.skills.get(ctx, data.skill_id, perm=Perm.SKILLS_EDIT)
-            return await self._learn_into_existing(ctx, skill, data, new_hash)
-        return await self._learn_as_new(ctx, data, new_hash)
+        proposal = await failure_learning_repo.get_proposal(
+            self.db,
+            data.proposal_id,
+            organization_id=ctx.organization_id,
+            agent_id=agent_id,
+        )
+        if (
+            proposal is None
+            or proposal.status != "applied"
+            or proposal.target_type != "skill"
+            or proposal.skill_id is None
+            or proposal.reverted_at is not None
+        ):
+            raise NotFoundError(
+                message="Applied skill proposal not found",
+                details={"proposal_id": str(data.proposal_id)},
+            )
+        new_hash = _sha256(proposal.new_text)
+        if proposal.applied_content_sha256 != new_hash:
+            raise ConflictError(
+                message="The applied proposal content is inconsistent",
+                details={"proposal_id": str(proposal.id)},
+            )
+        if (
+            (data.skill_id is not None and data.skill_id != proposal.skill_id)
+            or data.content != proposal.new_text
+            or (data.rationale is not None and data.rationale != proposal.rationale)
+            or (
+                data.ledger_entry_id is not None
+                and data.ledger_entry_id != proposal.ledger_entry_id
+            )
+            or (
+                data.base_content_sha256 is not None
+                and data.base_content_sha256 != proposal.base_content_sha256
+            )
+        ):
+            raise ConflictError(
+                message="The submitted learning data does not match the applied proposal",
+                details={"proposal_id": str(proposal.id)},
+            )
+        pattern_key = None
+        if proposal.ledger_entry_id is not None:
+            entry = await failure_learning_repo.get_entry(
+                self.db,
+                proposal.ledger_entry_id,
+                organization_id=ctx.organization_id,
+                agent_id=agent_id,
+            )
+            if entry is not None:
+                pattern_key = entry.pattern_key
+        verified_data = data.model_copy(
+            update={
+                "proposal_id": proposal.id,
+                "skill_id": proposal.skill_id,
+                "content": proposal.new_text,
+                "rationale": proposal.rationale,
+                "ledger_entry_id": proposal.ledger_entry_id,
+                "pattern_key": pattern_key,
+                "base_content_sha256": proposal.base_content_sha256,
+            }
+        )
+        skill = await self.skills.get(ctx, proposal.skill_id, perm=Perm.SKILLS_EDIT)
+        return await self._learn_into_existing(ctx, skill, verified_data, new_hash)
 
     async def _learn_into_existing(
         self, ctx: AuthContext, skill: Skill, data: LearnSkillCreate, new_hash: str
@@ -140,36 +137,6 @@ class AutoSkillLearningService:
                 "base_content_sha256": data.base_content_sha256,
             },
         )
-
-    async def _learn_as_new(
-        self, ctx: AuthContext, data: LearnSkillCreate, new_hash: str
-    ) -> LearnedSkillRead:
-        """The proposal is a new skill: create it, or recognise it as learned."""
-        if not ctx.has(Perm.SKILLS_EDIT):
-            raise NotFoundError(message="Skill not found", details={"org_id": ctx.organization_id})
-        name = data.name or _derive_name(data)
-        existing = await skill_repo.get_by_name(self.db, name, organization_id=ctx.organization_id)
-        if existing is not None:
-            if _sha256(existing.content) == new_hash:
-                return self._read(existing, data, created=False, already_learned=True)
-            raise AlreadyExistsError(
-                message=(
-                    f"A skill named '{name}' already exists with different content. "
-                    "The name is how a model refers to a skill and cannot be changed "
-                    "afterwards, so choose a different one - or open the existing skill "
-                    "and edit it, which reaches every agent bound to it."
-                ),
-                details={"name": name},
-            )
-        skill = await self.skills.create(
-            ctx,
-            name=name,
-            description=data.description or _derive_description(data),
-            content=data.content,
-            category=LEARNED_CATEGORY,
-        )
-        await self._audit(ctx, skill, data, new_hash, created=True)
-        return self._read(skill, data, created=True, already_learned=False)
 
     async def _audit(
         self,
@@ -217,32 +184,3 @@ class AutoSkillLearningService:
             ledger_entry_id=data.ledger_entry_id,
             pattern_key=data.pattern_key,
         )
-
-
-def _derive_name(data: LearnSkillCreate) -> str:
-    """A catalog name for a proposal that carries none.
-
-    The pattern key is the most stable thing a proposal has — `failed:...`
-    slugifies to `learned-failed-...` — and the rationale's first words are
-    the fallback when there is no pattern. Either way the name is only a
-    default: the request may name the skill explicitly, and a collision with
-    different content is refused rather than renamed silently.
-    """
-    if data.pattern_key:
-        return f"learned-{_slug(data.pattern_key)}"[:64].rstrip("-") or _FALLBACK_NAME
-    if data.rationale:
-        return _slug(" ".join(data.rationale.split()[:8]))[:64].rstrip("-") or _FALLBACK_NAME
-    return _FALLBACK_NAME
-
-
-def _derive_description(data: LearnSkillCreate) -> str:
-    """A catalog description for a proposal that carries none.
-
-    The rationale, in full when it fits the 500-character column; otherwise
-    the pattern key, so the skill still says which failure taught it.
-    """
-    if data.rationale:
-        return data.rationale[:500]
-    if data.pattern_key:
-        return f"Learned from recurring failures: {data.pattern_key}"[:500]
-    return _FALLBACK_DESCRIPTION
