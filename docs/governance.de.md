@@ -1,5 +1,5 @@
 ---
-source_sha: "844f5b6bee35"
+source_sha: "580be673475a"
 ---
 
 # Governance { #governance }
@@ -1973,9 +1973,11 @@ Einen Schritt, der seine Freigebenden nennt, können nur sie entscheiden. Eine
 Anfrage, die niemand rechtzeitig entscheidet, läuft ab, und ein abgebrochener Run
 bricht seine Anfragen ab.
 
-Ein Schritt, der seine Freigebenden nennt, benachrichtigt nur sie. Ein Schritt
-ohne benannte Freigebende benachrichtigt alle mit `approvals:decide` an der
-Glocke, und die Anfrage steht oben in ihrem Inbox.
+Ein Schritt, der Freigebende oder [Genehmigungsgruppen](#approval-groups) nennt,
+benachrichtigt diese Freigebenden und die Gruppenmitglieder mit
+`approvals:decide`. Ein Schritt, der keines von beiden nennt, benachrichtigt alle
+mit `approvals:decide`. Die Benachrichtigung kommt an der Glocke, und die Anfrage
+steht oben im Inbox aller, die sie entscheiden dürfen.
 
 Ein Schritt mit `editable` zeigt der freigebenden Person auch einen Vorschlag,
 etwa eine vorbereitete Antwort, den sie vor der Freigabe ändern darf. Der
