@@ -11,9 +11,11 @@ import { Perm } from "@/types/permissions";
  * steps asking for approval, the two queues Activity → Approvals shows.
  *
  * Read only for a caller holding `approvals:decide`, which both lists require;
- * anyone else waits on nothing here and makes no request. A step that names its
- * approvers waits only on them, so the others are left out - counted from the
- * queue's first page, which is what the inbox lists from.
+ * anyone else waits on nothing here and makes no request. A step waits only on
+ * its approval audience - its named approvers and the deciding members of its
+ * approver groups - which the server answers as `can_decide`. A row without it
+ * falls back to the named approvers alone. Counted from the queue's first page,
+ * which is what the inbox lists from.
  */
 export function usePendingApprovals() {
   const { can } = usePermissions();
@@ -23,8 +25,9 @@ export function usePendingApprovals() {
   const steps = useWorkflowApprovals({ enabled: allowed });
   const mine = steps.approvals.filter(
     (step) =>
-      step.approver_user_ids.length === 0 ||
-      (me !== undefined && step.approver_user_ids.includes(me)),
+      step.can_decide ??
+      (step.approver_user_ids.length === 0 ||
+        (me !== undefined && step.approver_user_ids.includes(me))),
   );
   return {
     tools: allowed ? tools.approvals : [],
