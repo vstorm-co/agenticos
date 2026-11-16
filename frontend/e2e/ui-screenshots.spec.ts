@@ -1,6 +1,6 @@
 import { expect, test } from "./fixtures";
 
-import { AUTH_STATE } from "./helpers";
+import { AUTH_STATE, SEEDED_AGENT_NAME } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
 
@@ -10,7 +10,8 @@ test.use({ storageState: AUTH_STATE });
  * Frontend pull requests need before and after screenshots of the running app.
  * CI uploads `test-results/` from every E2E shard, so the images land in the
  * `playwright-results-*` artifacts: run on `t3` for "before", on the pull
- * request for "after". The test asserts only that the chat loaded.
+ * request for "after". The editor capture also waits for the seeded agent's
+ * settings to load, so its image cannot show an empty or failed read.
  */
 const WIDTHS = [
   { name: "desktop", width: 1440, height: 900 },
@@ -29,4 +30,23 @@ test.describe("Review screenshots", () => {
       });
     });
   }
+
+  test("captures the selected agent's settings at desktop width", async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/chat?new=review-agent-settings");
+    await expect(page.getByText("Live")).toBeVisible();
+    await page.getByRole("button", { name: /^Agent:/ }).click();
+    await page.getByRole("radio", { name: new RegExp(SEEDED_AGENT_NAME) }).click();
+    await page.getByRole("button", { name: "Open agent settings", exact: true }).click();
+
+    const panel = page.getByRole("complementary", { name: "Agent settings", exact: true });
+    await expect(panel.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(
+      SEEDED_AGENT_NAME,
+    );
+    await expect(panel.getByRole("textbox", { name: "Instructions", exact: true })).toBeEnabled();
+    await page.screenshot({
+      path: testInfo.outputPath("chat-settings-desktop.png"),
+      fullPage: false,
+    });
+  });
 });
