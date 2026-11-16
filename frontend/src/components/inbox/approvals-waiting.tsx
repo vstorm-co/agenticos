@@ -19,7 +19,6 @@ const SHOWN = 5;
 export function ApprovalsWaiting() {
   const t = useTranslations("inbox.approvals");
   const { tools, steps, count } = usePendingApprovals();
-  if (count === 0) return null;
   const queue = `${ROUTES.RUNS}?tab=approvals`;
   const rows = [
     ...steps.map((step) => ({
