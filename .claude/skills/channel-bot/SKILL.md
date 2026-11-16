@@ -83,7 +83,7 @@ These are the ones worth testing and the ones easiest to break:
 
 ```bash
 uv run agenticos cmd channel-add-bot \
-    --platform telegram --name "Support" --token <token> --mode jwt_linked
+    --platform telegram --name "Support" --mode jwt_linked
 uv run agenticos cmd channel-list-bots [--platform telegram]
 uv run agenticos cmd channel-test-message --bot-id <uuid> --chat-id <chat> --text ping
 uv run agenticos cmd channel-webhook-register --bot-id <uuid>
@@ -91,6 +91,11 @@ uv run agenticos cmd channel-webhook-delete --bot-id <uuid>   # back to polling
 uv run agenticos cmd channel-public-line --bot-id <uuid> [--on|--off]   # WhatsApp public line
 uv run agenticos cmd channel-forget-customer --bot-id <uuid> --by bsuid|phone
 ```
+
+Omit `--token` for a hidden prompt. For automation, use `--token-file <protected-file>`
+or `--token-file -` for stdin. Never put a real token in an example, shell history
+or a process argument. These input options work for every platform; platform-specific
+webhook/app secrets still follow their existing configuration contract.
 
 There is no `cmd channel` group — the commands are flat, hyphenated names.
 

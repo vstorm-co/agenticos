@@ -1409,6 +1409,22 @@ different things in a DM gets two, for the same reason.
 3. Register the webhook from the UI, or run polling in development — no public
    URL needed.
 
+To register from a terminal, omit `--token`: the command asks for it without
+echoing the input or putting it in shell history. Use `--org <organization-id>`
+when the deployment has several organizations.
+
+```bash
+uv run agenticos cmd channel-add-bot --platform telegram --name "Support" --mode jwt_linked
+```
+
+For automation, use `--token-file /run/secrets/telegram-token` or `--token-file -`
+to read from stdin. The UTF-8 file must contain one token, at most 4096 characters
+including its trailing newline. Restrict file access to the deployment operator.
+Do not combine `--token-file` with `--token`. Existing `--token` calls still work,
+but a literal credential can remain in shell history and process arguments.
+Registration alone does not bind an agent; bind a published agent before testing.
+These token input options also work for the other bot platforms.
+
 Registering the webhook is what hands Telegram the bot's secret, and **a bot with
 no secret refuses every webhook call** rather than trusting it. So a bot switched
 from polling to webhook mode has to have its webhook registered before it will

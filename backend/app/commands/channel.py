@@ -28,7 +28,7 @@ import asyncio
 import sys
 from contextlib import asynccontextmanager
 from dataclasses import asdict
-from typing import Any, Literal
+from typing import Any, Literal, TextIO
 from uuid import UUID
 
 import click
@@ -137,6 +137,29 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
     asyncio.run(_run())
 
 
+def _read_bot_token(token: str | None, token_file: TextIO | None) -> str:
+    """Keep credentials out of shell history without removing the existing flag."""
+    if token is not None and token_file is not None:
+        raise click.UsageError("Use either --token or --token-file, not both.")
+    if token_file is not None:
+        try:
+            contents = token_file.read(4097)
+        except OSError, UnicodeError:
+            raise click.ClickException("Cannot read the bot token file as UTF-8 text.") from None
+        if len(contents) > 4096:
+            raise click.ClickException("The bot token file exceeds 4096 characters.")
+        value = contents.strip()
+    elif token is not None:
+        value = token.strip()
+    else:
+        value = click.prompt("Bot token", hide_input=True, type=str).strip()
+    if not value or len(value) > 4096 or any(char in value for char in "\n\r\x00"):
+        raise click.UsageError(
+            "The bot token must be a non-empty single line of at most 4096 characters."
+        )
+    return value
+
+
 @command("channel-add-bot", help="Register a new channel bot")
 @click.option(
     "--platform",
@@ -157,7 +180,13 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
     help="Platform name",
 )
 @click.option("--name", "-n", required=True, help="Bot display name")
-@click.option("--token", "-t", required=True, help="Bot token (e.g. from BotFather)")
+@click.option("--token", "-t", default=None, help="Bot token. Omit to enter it at a hidden prompt.")
+@click.option(
+    "--token-file",
+    type=click.File("r", encoding="utf-8"),
+    default=None,
+    help="Read the bot token from a protected UTF-8 file, or - for stdin. Mutually exclusive with --token.",
+)
 @click.option(
     "--discord-guild",
     "discord_guild_ids",
@@ -213,7 +242,8 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
 def channel_add_bot(
     platform: str,
     name: str,
-    token: str,
+    token: str | None,
+    token_file: TextIO | None,
     discord_guild_ids: tuple[str, ...],
     mode: Literal["open", "whitelist", "jwt_linked", "group_only"],
     org_id: str | None,
@@ -231,11 +261,13 @@ def channel_add_bot(
     it, which is what a Mattermost server behind a VPN usually is.
     """
 
+    resolved_token = _read_bot_token(token, token_file)
+
     async def _run() -> None:
         data = ChannelBotCreate(
             platform=platform,
             name=name,
-            token=token,
+            token=resolved_token,
             access_policy=AccessPolicy(mode=mode, discord_guild_ids=list(discord_guild_ids)),
             api_base_url=api_base_url,
             webhook_secret=webhook_secret,

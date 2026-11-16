@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Register channel bots from a terminal with a hidden token prompt, a protected
+  token file or stdin; existing `--token` arguments remain supported.
+
 - **WhatsApp as a channel** (#2076). A published agent answers on a WhatsApp Business
   number through Meta's Cloud API, in direct chats. It reads images, documents and
   voice notes (transcribed like voice on the other platforms) and sends charts and

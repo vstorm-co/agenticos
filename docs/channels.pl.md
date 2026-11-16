@@ -1,5 +1,5 @@
 ---
-source_sha: "8414da1d7d95"
+source_sha: "f568bbdda31a"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1444,6 +1444,22 @@ rzeczy dostaje dwie, z tego samego powodu.
 2. **Channels → Add channel**, platforma `telegram`.
 3. Zarejestruj webhook z poziomu UI albo uruchom polling w środowisku
    deweloperskim — publiczny URL nie jest potrzebny.
+
+Aby zarejestrować bota z terminala, pomiń `--token`: polecenie zapyta o token bez
+wyświetlania go i bez zapisywania w historii powłoki. Gdy wdrożenie ma kilka
+organizacji, dodaj `--org <organization-id>`.
+
+```bash
+uv run agenticos cmd channel-add-bot --platform telegram --name "Support" --mode jwt_linked
+```
+
+W automatyzacji użyj `--token-file /run/secrets/telegram-token` albo `--token-file -`,
+aby czytać ze stdin. Plik UTF-8 musi zawierać jeden token i najwyżej 4096 znaków,
+łącznie z końcowym znakiem nowej linii. Ogranicz dostęp do pliku do operatora wdrożenia.
+Nie łącz `--token-file` z `--token`. Dotychczasowe wywołania z `--token` nadal działają,
+ale jawny sekret może pozostać w historii powłoki i argumentach procesu.
+Sama rejestracja nie przypisuje agenta; przed testem powiąż opublikowanego agenta.
+Te opcje wprowadzania tokenu działają też dla pozostałych platform botów.
 
 To rejestracja webhooka wręcza Telegramowi sekret bota, a **bot bez sekretu
 odrzuca każde wywołanie webhooka**, zamiast mu zaufać. Więc bot przełączony
