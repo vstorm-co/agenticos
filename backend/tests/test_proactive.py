@@ -866,6 +866,7 @@ class TestTheNightlyLook:
                     new=AsyncMock(return_value=erased),
                 ),
                 patch(f"{NIGHTLY}.hold_subject", new=AsyncMock()),
+                patch(f"{NIGHTLY}.hold_subject_shared", new=AsyncMock()),
                 patch(
                     f"{NIGHTLY}.audit_log_repo.memory_erased_since",
                     new=AsyncMock(return_value=erased_meanwhile),
@@ -898,6 +899,7 @@ class TestTheNightlyLook:
             "snapshot",
             "erased",
             "lock",
+            "agent_lock",
             "erased_meanwhile",
         ]
         return made, setup["thinker"], dict(zip(names, started, strict=True))
@@ -958,6 +960,8 @@ class TestTheNightlyLook:
         assert made == 0
         assert mocks["erased_meanwhile"].await_args.kwargs["snapshot"] == "100:100:"
         mocks["lock"].assert_awaited_once()
+        agent_id = mocks["agent_lock"].await_args.args[2]
+        assert mocks["erased_meanwhile"].await_args.kwargs["agent_id"] == agent_id
         mocks["mark_read"].assert_not_awaited()
         mocks["starters"].assert_not_awaited()
         mocks["propose"].assert_not_awaited()
