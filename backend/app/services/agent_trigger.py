@@ -241,6 +241,13 @@ class EventFireDecision:
     `fire-trigger` for every tenant rather than for this one."""
 
 
+@dataclass(frozen=True, slots=True)
+class TriggerDispatch:
+    trigger: AgentTrigger
+    previous_run_id: UUID | None
+    previous_attempt_id: UUID | None
+
+
 def _next_fire(
     *,
     schedule_kind: str,
@@ -1722,7 +1729,7 @@ class AgentTriggerService:
             secret=secret,
         )
 
-    async def run_now(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> AgentTrigger:
+    async def run_now(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> TriggerDispatch:
         """Fire this trigger once, on demand, without disturbing how it normally fires.
 
         Works for either kind, and is deliberately offered on both. A schedule
@@ -1758,14 +1765,29 @@ class AgentTriggerService:
         arrive. The job is written in this request's transaction, so it exists
         exactly when the audit entry beside it does, and a worker runs it.
 
-        Returns the trigger as it stands, which is why the route answers 202: the
-        run has not happened yet, so `last_run_id` still names the previous one. The
-        fire appends to the trigger's run-log conversation as it goes.
+        Returns the trigger and its latest history identities before enqueueing.
+        The latest run may still be running and not yet stamped as `last_run_id`.
+        These identities let the console recognize a new run or refusal without
+        comparing its own clock with the worker's. The route answers 202 because
+        execution starts after commit.
         """
         trigger = await self._owned(ctx, agent_id, trigger_id)
         if not await self._polled_source_current(trigger):
             raise RoutineSourcesRequired()
         admitted_policy = read_policy(trigger.approved_sources).id
+        previous_runs, _ = (
+            await agent_run_repo.list_runs(
+                self.db,
+                organization_id=trigger.organization_id,
+                filters=agent_run_repo.RunFilters(conversation_id=trigger.conversation_id),
+                limit=1,
+            )
+            if trigger.conversation_id is not None
+            else ([], 0)
+        )
+        attempts, _ = await agent_trigger_repo.list_attempts(
+            self.db, trigger_id=trigger.id, organization_id=trigger.organization_id, skip=0, limit=1
+        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -1780,7 +1802,11 @@ class AgentTriggerService:
         )
         # `_owned` let this caller through, so they manage it - say so on the read.
         setattr(trigger, "can_manage", True)  # noqa: B010
-        return trigger
+        return TriggerDispatch(
+            trigger=trigger,
+            previous_run_id=previous_runs[0].id if previous_runs else None,
+            previous_attempt_id=attempts[0].id if attempts else None,
+        )
 
     async def prepare_event_fire(
         self, source: str, trigger_id: UUID, *, body: bytes, headers: Mapping[str, str]

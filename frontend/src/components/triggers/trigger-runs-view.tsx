@@ -23,7 +23,7 @@ import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import type { AgentRun } from "@/types/runs";
-import type { Trigger, TriggerAttemptList } from "@/types/triggers";
+import type { PendingTriggerFire, Trigger, TriggerAttemptList } from "@/types/triggers";
 
 const POLL_WHILE_WAITING_MS = 3000;
 /** What one page of fires holds. The server's own ceiling for a run listing. */
@@ -45,30 +45,40 @@ const PAGE = 50;
  * in the run history. Which is also what gives each row a status, a duration and
  * a cost the transcript could not - and a link to `/runs?run=<id>`.
  *
- * `pendingSince` is the moment "Run now" was pressed, or null. A fire is
+ * `pendingFire` identifies the history before "Run now", or is null. A fire is
  * dispatched after the request commits, so for a second there is no row for it:
  * the list shows a starting row and polls until one appears.
  */
 export function TriggerRunsView({
   trigger,
-  pendingSince,
+  pendingFire,
 }: {
   trigger: Trigger;
-  pendingSince: number | null;
+  pendingFire: PendingTriggerFire | null;
 }) {
   const t = useTranslations("triggers");
   const locale = useLocale();
   const [page, setPage] = useState(0);
-  const [lastPendingSince, setLastPendingSince] = useState(pendingSince);
-  if (lastPendingSince !== pendingSince) {
-    setLastPendingSince(pendingSince);
-    if (pendingSince !== null) setPage(0);
+  const [lastPendingFire, setLastPendingFire] = useState(pendingFire);
+  if (lastPendingFire !== pendingFire) {
+    setLastPendingFire(pendingFire);
+    if (pendingFire !== null) setPage(0);
   }
-  const query = useTriggerAttempts(trigger, page, pendingSince !== null);
+  const [settledFire, setSettledFire] = useState<PendingTriggerFire | null>(null);
+  const settled = pendingFire !== null && settledFire === pendingFire;
+  const query = useTriggerAttempts(trigger, page, pendingFire !== null && !settled);
   const attempts = query.data;
-  const settled =
-    pendingSince !== null &&
-    attempts?.items.some((attempt) => Date.parse(attempt.occurred_at) >= pendingSince);
+  const latestAttemptId = page === 0 ? attempts?.items[0]?.id : undefined;
+  if (
+    !query.isFetching &&
+    !query.error &&
+    pendingFire !== null &&
+    settledFire !== pendingFire &&
+    latestAttemptId &&
+    latestAttemptId !== pendingFire.previousAttemptId
+  ) {
+    setSettledFire(pendingFire);
+  }
   return (
     <div className="flex h-full min-h-0 flex-col">
       {query.error ? (
@@ -81,7 +91,11 @@ export function TriggerRunsView({
         <AttemptHistory attempts={attempts} page={page} onPage={setPage} locale={locale} />
       ) : null}
       <div className="min-h-0 flex-1">
-        <RunHistory trigger={trigger} pendingSince={settled ? null : pendingSince} />
+        <RunHistory
+          trigger={trigger}
+          pendingFire={settled ? null : pendingFire}
+          onSettled={setSettledFire}
+        />
       </div>
     </div>
   );
@@ -139,32 +153,49 @@ function AttemptHistory({
   );
 }
 
-function RunHistory({ trigger, pendingSince }: { trigger: Trigger; pendingSince: number | null }) {
+function RunHistory({
+  trigger,
+  pendingFire,
+  onSettled,
+}: {
+  trigger: Trigger;
+  pendingFire: PendingTriggerFire | null;
+  onSettled: (fire: PendingTriggerFire) => void;
+}) {
   const t = useTranslations("triggers");
   const [page, setPage] = useState(0);
   const conversationId = trigger.conversation_id;
 
-  const { runs, total, isLoading, error } = useRuns(undefined, {
+  const { runs, total, isLoading, isFetching, error } = useRuns(undefined, {
     enabled: conversationId !== null,
     conversationId: conversationId ?? undefined,
     skip: page * PAGE,
-    // While a fire is in flight the row for it does not exist yet; once it does,
-    // its status is still `running` for as long as the agent takes.
-    ...(pendingSince !== null ? { refetchIntervalMs: POLL_WHILE_WAITING_MS } : {}),
+    // Poll until a new history identity records the dispatched fire.
+    ...(pendingFire !== null ? { refetchIntervalMs: POLL_WHILE_WAITING_MS } : {}),
   });
+  const latestRunId = page === 0 ? runs[0]?.id : undefined;
+  const recorded =
+    !isFetching &&
+    !error &&
+    pendingFire !== null &&
+    latestRunId !== undefined &&
+    latestRunId !== pendingFire.previousRunId;
+  useEffect(() => {
+    if (recorded && pendingFire !== null) onSettled(pendingFire);
+  }, [onSettled, pendingFire, recorded]);
 
   // A trigger that has never fired has no run-log conversation either, so there
   // is nothing to poll but the trigger itself: its `conversation_id` appears with
   // the first fire, at which point the listing above takes over.
   const queryClient = useQueryClient();
   useEffect(() => {
-    if (pendingSince === null) return;
+    if (pendingFire === null) return;
     const timer = setInterval(() => {
       void queryClient.invalidateQueries({ queryKey: qk.triggers.all() });
       void queryClient.invalidateQueries({ queryKey: qk.runs.all() });
     }, POLL_WHILE_WAITING_MS);
     return () => clearInterval(timer);
-  }, [pendingSince, queryClient]);
+  }, [pendingFire, queryClient]);
 
   if (conversationId !== null && isLoading) {
     return <LoadingState variant="skeleton-table" columns={1} rows={4} className="m-5" />;
@@ -176,9 +207,7 @@ function RunHistory({ trigger, pendingSince }: { trigger: Trigger; pendingSince:
   // A row for the fire that has been dispatched and has not recorded itself yet:
   // without it, pressing Run now on a trigger with no history answers with "not
   // run yet" for a few seconds, which is the opposite of what just happened.
-  const starting =
-    pendingSince !== null &&
-    !runs.some((run) => run.started_at !== null && Date.parse(run.started_at) >= pendingSince);
+  const starting = pendingFire !== null && !recorded;
 
   if (runs.length === 0 && !starting) {
     return <p className="text-muted-foreground p-5 text-sm">{t("noMessagesDescription")}</p>;
@@ -288,12 +317,12 @@ function FireRow({ run }: { run: AgentRun }) {
  */
 export function TriggerRunsSheet({
   trigger,
-  pendingSince,
+  pendingFire,
   open,
   onOpenChange,
 }: {
   trigger: Trigger;
-  pendingSince: number | null;
+  pendingFire: PendingTriggerFire | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -307,7 +336,7 @@ export function TriggerRunsSheet({
           </SheetTitle>
           <SheetClose onClick={() => onOpenChange(false)} />
         </SheetHeader>
-        {open && <TriggerRunsView trigger={trigger} pendingSince={pendingSince} />}
+        {open && <TriggerRunsView trigger={trigger} pendingFire={pendingFire} />}
       </SheetContent>
     </Sheet>
   );

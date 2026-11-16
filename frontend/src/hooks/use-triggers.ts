@@ -8,10 +8,12 @@ import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { getErrorMessage } from "@/lib/api-error";
 import type {
+  PendingTriggerFire,
   Trigger,
   TriggerAttemptList,
   TriggerCreate,
   TriggerCreated,
+  TriggerDispatch,
   TriggerList,
   TriggerUpdate,
 } from "@/types/triggers";
@@ -79,9 +81,15 @@ export function useTriggers(agentId: string | null) {
   });
 
   const runNow = useMutation({
-    mutationFn: (triggerId: string) => apiClient.post<Trigger>(`${base}/${triggerId}/run`, {}),
+    mutationFn: async (triggerId: string): Promise<PendingTriggerFire> => {
+      const accepted = await apiClient.post<TriggerDispatch>(`${base}/${triggerId}/run`, {});
+      return {
+        previousRunId: accepted.previous_run_id,
+        previousAttemptId: accepted.previous_attempt_id,
+      };
+    },
     onSuccess: async () => {
-      await invalidate();
+      await Promise.all([invalidate(), queryClient.invalidateQueries({ queryKey: qk.runs.all() })]);
       toast.success(t("runningNow"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),

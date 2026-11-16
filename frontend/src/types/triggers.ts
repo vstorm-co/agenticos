@@ -24,6 +24,18 @@ export type ScheduleKind = "interval" | "cron";
  */
 export type TriggerOverlap = "skip" | "queue" | "allow";
 
+/** History identities observed before a manual dispatch commits. */
+export interface PendingTriggerFire {
+  previousRunId: string | null;
+  previousAttemptId: string | null;
+}
+
+/** The run-now 202 response captures history before the worker can start. */
+export interface TriggerDispatch extends Trigger {
+  previous_run_id: string | null;
+  previous_attempt_id: string | null;
+}
+
 /** Where an event trigger's fire comes from. Mirrors the backend's `EventSource`. */
 export type EventSource =
   | "github"

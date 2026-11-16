@@ -66,7 +66,9 @@ async function hook() {
 describe("useTriggers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [trigger()], total: 1 });
+    vi.mocked(apiClient.get).mockImplementation(async (path) =>
+      path.includes("/attempts?") ? { items: [], total: 0 } : { items: [trigger()], total: 1 },
+    );
   });
 
   it("does not fetch until an agent is selected", () => {
@@ -134,10 +136,15 @@ describe("useTriggers", () => {
 
   it("fires a trigger on demand through its run endpoint", async () => {
     const { toast } = await import("sonner");
-    vi.mocked(apiClient.post).mockResolvedValue(trigger());
+    vi.mocked(apiClient.post).mockResolvedValue({
+      ...trigger(),
+      previous_run_id: null,
+      previous_attempt_id: null,
+    });
     const result = await hook();
 
-    await result.current.runNow.mutateAsync("t1");
+    const pending = await result.current.runNow.mutateAsync("t1");
+    expect(pending).toEqual({ previousRunId: null, previousAttemptId: null });
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers/t1/run", {});
     expect(toast.success).toHaveBeenCalledWith("Running now");

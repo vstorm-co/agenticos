@@ -31,6 +31,7 @@ from app.schemas.agent_trigger import (
     TriggerAttemptList,
     TriggerCreate,
     TriggerCreateRead,
+    TriggerDispatchRead,
     TriggerList,
     TriggerRead,
     TriggerUpdate,
@@ -159,7 +160,7 @@ async def create_trigger(
 
 @router.post(
     "/{agent_id}/triggers/{trigger_id}/run",
-    response_model=TriggerRead,
+    response_model=TriggerDispatchRead,
     status_code=status.HTTP_202_ACCEPTED,
     dependencies=[PUBLIC],
 )
@@ -175,9 +176,17 @@ async def run_trigger_now(
 
     202, not 200: the fire is dispatched once this request commits rather than run
     inside it, so the trigger comes back as it stands and its `last_run_id` still
-    names the previous run (#658).
+    names a previous finished or parked run (#658). `previous_run_id` and
+    `previous_attempt_id` identify the latest history before dispatch, including
+    a run that is still running. Compare identities to recognize new history;
+    client and worker clocks need not agree.
     """
-    return await service.run_now(ctx, agent_id, trigger_id)
+    accepted = await service.run_now(ctx, agent_id, trigger_id)
+    return TriggerDispatchRead(
+        **TriggerRead.model_validate(accepted.trigger).model_dump(),
+        previous_run_id=accepted.previous_run_id,
+        previous_attempt_id=accepted.previous_attempt_id,
+    )
 
 
 @router.post(

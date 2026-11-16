@@ -917,6 +917,13 @@ class TriggerRead(BaseSchema, TimestampSchema):
         return webhook_url(self.event_source, self.id)
 
 
+class TriggerDispatchRead(TriggerRead):
+    """Accepted manual fire, with history identities captured before enqueueing."""
+
+    previous_run_id: UUID | None
+    previous_attempt_id: UUID | None
+
+
 class TriggerCreateRead(TriggerRead):
     """The create response - a `TriggerRead` that may carry the secret once.
 

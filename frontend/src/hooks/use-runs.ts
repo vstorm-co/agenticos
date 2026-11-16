@@ -107,7 +107,7 @@ export function useRuns(
     isTest,
     skip,
   } = options ?? {};
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: qk.runs.list({
       agentId,
       startedFrom,
@@ -163,7 +163,14 @@ export function useRuns(
     // moves on a full page reload.
     ...DASHBOARD_FRESHNESS,
   });
-  return { runs: data?.items ?? [], total: data?.total ?? 0, isLoading, error, refetch };
+  return {
+    runs: data?.items ?? [],
+    total: data?.total ?? 0,
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  };
 }
 
 /**

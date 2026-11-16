@@ -16,7 +16,7 @@ import { Badge, Button, ConfirmDialog, TooltipProvider } from "@/components/ui";
 import { ActionConsentsDialog } from "@/components/triggers/action-consents-dialog";
 import { useAuthStore } from "@/stores";
 import { useTriggers } from "@/hooks/use-triggers";
-import type { Trigger } from "@/types/triggers";
+import type { PendingTriggerFire, Trigger } from "@/types/triggers";
 
 /**
  * The mark every row leads with, so a mixed list stays aligned: a schedule gets
@@ -75,24 +75,18 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
   const [viewing, setViewing] = useState(false);
   const runDisabled =
     !trigger.is_active || runNow.isPending || (trigger.waiting_device_count ?? 0) > 0;
-  // When "Run now" was pressed, so the runs view can show a waiting animation
-  // until a reply recorded after this moment arrives. Null when the view was
-  // opened just to read the log.
-  const [pendingSince, setPendingSince] = useState<number | null>(null);
+  // Compare history identities rather than clocks from the browser and worker.
+  const [pendingFire, setPendingFire] = useState<PendingTriggerFire | null>(null);
 
   function openRuns() {
-    setPendingSince(null);
+    setPendingFire(null);
     setViewing(true);
   }
 
   function fireAndWatch() {
-    // The boundary is the press, not the response: a fast fire can record its
-    // reply before the 202 reaches the browser, and a boundary stamped after
-    // that reply would wait forever for a message "newer" than it.
-    const pressedAt = Date.now();
     runNow.mutate(trigger.id, {
-      onSuccess: () => {
-        setPendingSince(pressedAt);
+      onSuccess: (pending) => {
+        setPendingFire(pending);
         setViewing(true);
       },
     });
@@ -282,11 +276,11 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
       />
       <TriggerRunsSheet
         trigger={trigger}
-        pendingSince={pendingSince}
+        pendingFire={pendingFire}
         open={viewing}
         onOpenChange={(next) => {
           setViewing(next);
-          if (!next) setPendingSince(null);
+          if (!next) setPendingFire(null);
         }}
       />
     </div>

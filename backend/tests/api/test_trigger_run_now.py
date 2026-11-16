@@ -56,12 +56,23 @@ def _trigger(trigger_id: UUID) -> TriggerRead:
 
 async def test_running_now_is_accepted_rather_than_answered_with_the_finished_run():
     trigger_id = uuid4()
-    service = MagicMock(run_now=AsyncMock(return_value=_trigger(trigger_id)))
+    previous_run_id, previous_attempt_id = uuid4(), uuid4()
+    service = MagicMock(
+        run_now=AsyncMock(
+            return_value=MagicMock(
+                trigger=_trigger(trigger_id),
+                previous_run_id=previous_run_id,
+                previous_attempt_id=previous_attempt_id,
+            )
+        )
+    )
     async with _client(service) as client:
         response = await client.post(
             f"/api/v1/agents/{_AGENT_ID}/triggers/{trigger_id}/run", json={}
         )
     assert response.status_code == 202
+    assert response.json()["previous_run_id"] == str(previous_run_id)
+    assert response.json()["previous_attempt_id"] == str(previous_attempt_id)
 
 
 async def test_routine_reviews_and_revocations_keep_the_path_and_review_token():
