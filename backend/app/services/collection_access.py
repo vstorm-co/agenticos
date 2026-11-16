@@ -695,7 +695,7 @@ class CollectionAccessService:
             else await sync_source_repo.get_by_id(self.db, log.sync_source_id)
         )
         if log.knowledge_base_id is not None:
-            if log.organization_id is None:
+            if log.organization_id is None and not ctx.is_app_admin:
                 if source is None or not _reaches_source(ctx, source):
                     return False
             elif log.organization_id != ctx.organization_id and not ctx.is_app_admin:

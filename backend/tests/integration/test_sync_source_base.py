@@ -15,7 +15,7 @@ import importlib.util
 import uuid
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import ModuleType
@@ -928,3 +928,56 @@ async def test_claims_and_tracking_do_not_cross_a_same_named_target(
     assert await rag_document_repo.is_claimed_by_another_source(
         db, private.id, sync_source_id=estate.source.id
     )
+
+
+async def test_a_private_base_cannot_supply_a_source_history_scope(
+    db: AsyncSession, history_targets: _HistoryTargets
+) -> None:
+    with pytest.raises(NotFoundError):
+        await CollectionAccessService(db).kb_sync_log_scope(
+            history_targets.reader, history_targets.private
+        )
+
+
+@pytest.mark.parametrize("source", ["same_tenant", "foreign_tenant", "missing"])
+@pytest.mark.parametrize("admin", [False, True])
+async def test_legacy_null_tenant_runs_need_source_provenance_or_deployment_authority(
+    db: AsyncSession, history_targets: _HistoryTargets, source: str, admin: bool
+) -> None:
+    estate = history_targets
+    log = estate.shared_log
+    log.organization_id = None
+    if source == "missing":
+        log.sync_source_id = None
+    await db.flush()
+    ctx = replace(
+        estate.reader,
+        is_app_admin=admin,
+        organization_id=uuid.uuid4()
+        if source == "foreign_tenant"
+        else estate.reader.organization_id,
+    )
+    access = CollectionAccessService(db)
+    if source == "same_tenant" or (admin and source == "missing"):
+        assert (await access.sync_log(ctx, str(log.id))).id == log.id
+    else:
+        with pytest.raises(NotFoundError):
+            await access.sync_log(ctx, str(log.id))
+
+
+async def test_operator_can_act_on_a_legacy_app_run_without_source_provenance(
+    db: AsyncSession, history_targets: _HistoryTargets
+) -> None:
+    estate = history_targets
+    app = _base(None, scope=KBScope.APP)
+    db.add(app)
+    await db.flush()
+    log = await sync_log_repo.create(
+        db, source="local", collection_name=NAME, mode="full", knowledge_base_id=app.id
+    )
+    access = CollectionAccessService(db)
+    assert (
+        await access.sync_log(replace(estate.reader, is_app_admin=True), str(log.id))
+    ).id == log.id
+    with pytest.raises(NotFoundError):
+        await access.sync_log(estate.reader, str(log.id))

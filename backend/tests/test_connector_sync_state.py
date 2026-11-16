@@ -167,9 +167,12 @@ async def _sync(
     ingest_status: IngestionStatus = IngestionStatus.DONE,
     claimants: set[uuid.UUID] | None = None,
     queued_target: uuid.UUID | None = KB_ID,
+    refreshed_target: uuid.UUID | None = None,
 ) -> _Run:
     source = MagicMock(
         id=SOURCE_ID,
+        knowledge_base_id=KB_ID,
+        is_active=True,
         connector_type="fake",
         config=dict(CONFIG),
         collection_name="docs",
@@ -234,9 +237,13 @@ async def _sync(
         held.removed.append(document_id)
         return True
 
+    async def refresh(row: object) -> None:
+        if row is source and refreshed_target is not None:
+            source.knowledge_base_id = refreshed_target
+
     @asynccontextmanager
     async def _db() -> AsyncIterator[MagicMock]:
-        yield MagicMock(execute=AsyncMock(), refresh=AsyncMock())
+        yield MagicMock(execute=AsyncMock(), refresh=AsyncMock(side_effect=refresh))
 
     @asynccontextmanager
     async def _lock(_source_id: str) -> AsyncIterator[bool]:
@@ -501,3 +508,13 @@ async def test_a_replaced_same_named_target_is_not_ingested():
     assert "target changed" in run.answer["message"]
     assert connector.listed == 0
     run.ingest.assert_not_awaited()
+
+
+async def test_retargeting_while_waiting_for_the_name_lock_refuses_the_admitted_attempt():
+    connector = _Connector(files=["a.md"])
+    run = await _sync(connector, refreshed_target=uuid.uuid4())
+    assert run.answer["status"] == "error"
+    assert "changed before this sync started" in run.answer["message"]
+    assert connector.listed == 0
+    run.ingest.assert_not_awaited()
+    assert run.after.await_args.kwargs["expected_knowledge_base_id"] == KB_ID
