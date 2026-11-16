@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import String, and_, cast, column, exists, func, not_, or_, select, true, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.db.locks import LockScope, hold_subject
 from app.db.models.authoring import HunkStatus, SpecProposalBatch, SpecProposalHunk
@@ -975,13 +976,18 @@ async def _end_unfinished(
 async def scores(
     db: AsyncSession, score_ids: Sequence[UUID], *, organization_id: UUID
 ) -> dict[UUID, CaseScore]:
-    """The case scores behind a set of attempts, by id."""
+    """The case scores behind a set of attempts, by id, each with the revision it scored.
+
+    The revision is joined into the same statement rather than read after it: a
+    dataset deleted between two statements takes its revisions with it, and the
+    score read first would then have none (#141). One statement sees both or neither.
+    """
     if not score_ids:
         return {}
     result = await db.execute(
-        select(CaseScore).where(
-            CaseScore.id.in_(list(score_ids)), CaseScore.organization_id == organization_id
-        )
+        select(CaseScore)
+        .options(joinedload(CaseScore.case_revision, innerjoin=True))
+        .where(CaseScore.id.in_(list(score_ids)), CaseScore.organization_id == organization_id)
     )
     return {score.id: score for score in result.scalars().all()}
 

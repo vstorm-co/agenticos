@@ -28,8 +28,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UsageLimitExceeded
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, event, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import ORMExecuteState
 
 from app.agents.capabilities.skills import SkillBody
 from app.agents.isolation import ToolRecording
@@ -519,6 +520,44 @@ async def test_a_case_that_passed_on_v6_and_fails_on_v7_is_a_confirmed_regressio
     assert [case.input for case in failed.items] == ["Question 0"]
     # The candidate's tries, then v6's: its first answer from its run, its reruns here.
     assert [attempt.attempt for attempt in failed.items[0].attempts] == [0, 1, 2, 0, 1, 2]
+
+
+async def test_a_scored_case_lists_with_its_revision_while_the_dataset_is_deleted(db) -> None:
+    """The cases list reads each score and the revision it was scored on together.
+
+    A dataset deleted between the read of the scores and a separate read of their
+    revisions left the score with no revision, and listing the cases answered 500
+    (#141). The delete here lands right after the scores are read, on the same
+    transaction, which is where a concurrent delete's commit fell.
+    """
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    started = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), started.id, ctx)
+    db.expunge_all()
+
+    scores_read = deleted = False
+
+    def delete_after_scores_read(state: ORMExecuteState) -> None:
+        nonlocal scores_read, deleted
+        if scores_read and not deleted:
+            deleted = True
+            state.session.connection().execute(delete(Dataset).where(Dataset.id == dataset.id))
+        elif any(mapper.class_ is CaseScore for mapper in state.all_mappers):
+            scores_read = True
+
+    event.listen(db.sync_session, "do_orm_execute", delete_after_scores_read)
+    try:
+        listed = await service.cases(ctx, started.id)
+    finally:
+        event.remove(db.sync_session, "do_orm_execute", delete_after_scores_read)
+
+    assert deleted
+    score = listed.items[0].attempts[0].score
+    assert score is not None
+    assert score.question == "Question 0"
 
 
 async def test_a_case_the_agent_crashes_on_where_it_passed_is_a_regression_naming_why(
