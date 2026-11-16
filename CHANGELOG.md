@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Routine access reviews refresh their sources and action inventories after a personal or organization MCP connection is changed or checked, without reloading the console (#3061).
+
 ## [1.77.0] - 2026-11-16
 
 ### Fixed
