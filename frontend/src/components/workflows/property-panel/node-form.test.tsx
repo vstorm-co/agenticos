@@ -152,8 +152,17 @@ vi.mock("@/components/workflows/pickers", () => ({
       {error !== undefined && <span>{error}</span>}
     </div>
   ),
-  TableColumnPicker: ({ value, onChange }: { value: unknown; onChange: (v: unknown) => void }) => (
+  TableColumnPicker: ({
+    value,
+    onChange,
+    pinsColumns,
+  }: {
+    value: unknown;
+    onChange: (v: unknown) => void;
+    pinsColumns: boolean;
+  }) => (
     <div>
+      {pinsColumns && <span>pins-columns</span>}
       <button
         type="button"
         aria-label="set-table"
@@ -1479,6 +1488,113 @@ describe("record values from a table's columns", () => {
     });
 
     expect(screen.queryByText("Title")).toBeNull();
+  });
+});
+
+describe("a record filter's column", () => {
+  const filterStep = (id = "table.record.exists") =>
+    makeDefinition({
+      id,
+      config_schema: {
+        type: "object",
+        properties: {
+          table: { type: "object", title: "Table", "x-resource": "table" },
+          filters: {
+            type: "array",
+            title: "Filters",
+            items: {
+              type: "object",
+              properties: {
+                column_id: { type: "string", format: "uuid", title: "Column Id" },
+                op: { type: "string", enum: ["eq", "ne"], title: "Op" },
+                value: { type: "string", title: "Typed value" },
+              },
+              required: ["column_id", "op"],
+            },
+          },
+        },
+      },
+    });
+
+  it("offers a select column's options as the value, and leaves any other column typed", async () => {
+    tableColumns.columns = [
+      { id: "email-col", label: "Email", type: "text", archived: false, options: [] },
+      {
+        id: "status-col",
+        label: "Status",
+        type: "single_select",
+        archived: false,
+        options: [{ id: "o2", label: "Not worth sharing", archived: false }],
+      },
+    ];
+    const table = { table_id: "table-id", schema_version: 1, column_ids: null };
+    const { updateNodeConfig } = renderForm({
+      config: {
+        table,
+        filters: [
+          { column_id: "status-col", op: "eq" },
+          { column_id: "email-col", op: "eq" },
+        ],
+      },
+      definition: filterStep(),
+    });
+
+    expect(screen.getAllByLabelText("Typed value")).toHaveLength(1);
+    await userEvent.click(screen.getByRole("combobox", { name: "Value" }));
+    await userEvent.click(screen.getByRole("option", { name: "Not worth sharing" }));
+
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {
+      table,
+      filters: [
+        { column_id: "status-col", op: "eq", value: "o2" },
+        { column_id: "email-col", op: "eq" },
+      ],
+    });
+  });
+
+  it.each([
+    ["Email", { column_id: "email-col", op: "contains" }],
+    ["Done", { column_id: "done-col", op: "eq", value: true }],
+  ])(
+    "is chosen by name, saved as the column's id, and starts the row afresh for %s",
+    async (label, row) => {
+      tableColumns.columns = [
+        { id: "email-col", label: "Email", type: "text", archived: false },
+        { id: "done-col", label: "Done", type: "boolean", archived: false },
+      ];
+      const table = { table_id: "table-id", schema_version: 1, column_ids: null };
+      const { updateNodeConfig } = renderForm({
+        config: { table, filters: [{ column_id: "status-col", op: "in", value: ["o1"] }] },
+        definition: filterStep(),
+      });
+
+      expect(screen.queryByLabelText("Column Id")).toBeNull();
+      await userEvent.click(screen.getByRole("combobox", { name: "Column" }));
+      await userEvent.click(screen.getByRole("option", { name: label }));
+
+      expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { table, filters: [row] });
+    },
+  );
+
+  it("waits for a table before offering any column", () => {
+    renderForm({
+      config: { filters: [{ op: "eq" }] },
+      errors: new Map([["filters/0/column_id", "Not a live column of this table"]]),
+      definition: filterStep(),
+    });
+
+    expect(screen.getByRole("combobox", { name: "Column" })).toBeDisabled();
+    expect(screen.getByText("Choose a table first")).toBeInTheDocument();
+    expect(screen.getByText("Not a live column of this table")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["table.record.exists", false],
+    ["table.record.query", false],
+    ["trigger.table_record", true],
+  ])("%s offers the table's column list: %s", (id, pins) => {
+    renderForm({ definition: filterStep(id) });
+    expect(screen.queryByText("pins-columns") !== null).toBe(pins);
   });
 });
 

@@ -74,6 +74,9 @@ import {
   McpToolField,
   useMcpToolSchema,
 } from "@/components/workflows/pickers/mcp-tool-picker";
+import { newFilter } from "@/components/tables/record-filters";
+import { FilterColumnField } from "./filter-column-field";
+import { FilterValueField } from "./filter-value-field";
 import { ReplyMailboxPicker } from "./reply-mailbox-picker";
 import { NotificationChannels } from "./notification-channels";
 import { FormPageForm } from "./form-page-form";
@@ -144,6 +147,11 @@ const MERGE = "logic.merge";
 const MCP_SERVER = "connection_id";
 const MCP_TOOL = "tool";
 const MCP_ARGUMENTS = "arguments";
+/** Table steps that only filter: they never read the table ref's `column_ids`. */
+const FILTER_ONLY_TABLE_STEPS: ReadonlySet<string> = new Set([
+  "table.record.exists",
+  "table.record.query",
+]);
 
 /** Optional in the API does not mean secondary in a person's task. */
 const PRIMARY_CONFIG: Readonly<Record<string, readonly string[]>> = {
@@ -346,6 +354,7 @@ function ResourcePin({
   value,
   error,
   disabled,
+  pinsColumns,
   onChange,
 }: {
   kind: ResourceKind;
@@ -355,6 +364,8 @@ function ResourcePin({
   value: unknown;
   error?: string;
   disabled?: boolean;
+  /** For a table: whether the step reads the columns its ref narrows to. */
+  pinsColumns: boolean;
   onChange: (value: unknown) => void;
 }) {
   if (kind === "group") {
@@ -389,6 +400,7 @@ function ResourcePin({
         disabled={disabled}
         error={error}
         storedOnly={schema["x-columns"] === "stored"}
+        pinsColumns={pinsColumns}
       />
     );
   }
@@ -502,6 +514,7 @@ function ConfigLeaf({
           value={value}
           error={error}
           disabled={ctx.disabled}
+          pinsColumns={!FILTER_ONLY_TABLE_STEPS.has(ctx.node.definition_id)}
           onChange={onChange}
         />
       </div>
@@ -813,21 +826,68 @@ function ConfigArray({
               </Button>
             </div>
           </div>
-          {fields.map((child) => (
-            <ConfigNode
-              key={child.name}
-              schema={child.schema}
-              name={child.name}
-              required={child.required}
-              path={[...path, index, child.name]}
-              defs={defs}
-              ctx={ctx}
-              value={record(row)[child.name]}
-              onChange={(next) =>
-                onChange(replaceAt(rows, index, setKey(record(row), child.name, next)))
-              }
-            />
-          ))}
+          {fields.map((child) => {
+            const childPath = [...path, index, child.name];
+            const childValue = record(row)[child.name];
+            const childChange = (next: unknown) =>
+              onChange(replaceAt(rows, index, setKey(record(row), child.name, next)));
+            const node = (
+              <ConfigNode
+                key={child.name}
+                schema={child.schema}
+                name={child.name}
+                required={child.required}
+                path={childPath}
+                defs={defs}
+                ctx={ctx}
+                value={childValue}
+                onChange={childChange}
+              />
+            );
+            if (prefix.join("/") !== "filters") return node;
+            const field = bindingFieldPath(childPath);
+            const fieldId = `cfg-${field.replace(/[^a-zA-Z0-9]+/g, "-")}`;
+            const tableId = strOrNull(record(ctx.node.config["table"])["table_id"]);
+            if (child.name === "column_id") {
+              return (
+                <FilterColumnField
+                  key={child.name}
+                  id={fieldId}
+                  tableId={tableId}
+                  value={childValue}
+                  error={ctx.errors.get(field)}
+                  disabled={ctx.disabled}
+                  // Another column starts the row afresh: the old operator or
+                  // operand may not suit it, and would stay where nobody sees it.
+                  onPick={(column) => {
+                    const { value: operand, ...fresh } = newFilter(column);
+                    onChange(
+                      replaceAt(
+                        rows,
+                        index,
+                        operand === null ? fresh : { ...fresh, value: operand },
+                      ),
+                    );
+                  }}
+                />
+              );
+            }
+            if (child.name !== "value") return node;
+            return (
+              <FilterValueField
+                key={child.name}
+                id={fieldId}
+                tableId={tableId}
+                columnId={record(row)["column_id"]}
+                op={record(row)["op"]}
+                value={childValue}
+                error={ctx.errors.get(field)}
+                disabled={ctx.disabled}
+                fallback={node}
+                onChange={childChange}
+              />
+            );
+          })}
         </div>
       ))}
       <Button type="button" variant="outline" size="sm" disabled={ctx.disabled} onClick={add}>
