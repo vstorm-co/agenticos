@@ -290,7 +290,7 @@ async def mark_ids_read(db: AsyncSession, *, ids: list[uuid.UUID], read_at: date
         .where(Notification.id.in_(ids), Notification.read_at.is_(None))
         .values(read_at=read_at)
     )
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+    return result.rowcount or 0  # ty: ignore[missing-attribute]
 
 
 async def dismiss(
@@ -338,7 +338,7 @@ async def dismiss_ids(db: AsyncSession, *, ids: list[uuid.UUID], dismissed_at: d
             ),
         )
     )
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+    return result.rowcount or 0  # ty: ignore[missing-attribute]
 
 
 async def get_announcements(
@@ -461,7 +461,7 @@ async def settle_delivery(
         )
         .values(**values)
     )
-    return bool(result.rowcount)  # ty: ignore[unresolved-attribute]
+    return bool(result.rowcount)  # ty: ignore[missing-attribute]
 
 
 async def reap_exhausted_deliveries(
@@ -523,7 +523,7 @@ async def delete_expired(db: AsyncSession, *, read_cutoff: datetime, outer_cutof
             )
         )
     )
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+    return result.rowcount or 0  # ty: ignore[missing-attribute]
 
 
 async def list_failed_deliveries(

@@ -93,4 +93,4 @@ async def delete_by_id(db: AsyncSession, request_id: UUID) -> bool:
     """
     result = await db.execute(delete(ChannelLinkRequest).where(ChannelLinkRequest.id == request_id))
     await db.flush()
-    return (result.rowcount or 0) > 0  # ty: ignore[unresolved-attribute]
+    return (result.rowcount or 0) > 0  # ty: ignore[missing-attribute]

@@ -188,7 +188,7 @@ class RedisClient:
             raise RuntimeError("Redis client not connected")
         # `bytes` to the stubs, `str` at runtime: `connect` passes
         # `decode_responses=True`, which redis-py cannot express in a return type.
-        return await self.client.get(key)  # ty: ignore[invalid-return-type]
+        return await self.client.get(key)  # ty: ignore[invalid-explicit-return]
 
     async def set(
         self,
@@ -364,14 +364,14 @@ class RedisClient:
         """
         if not self.client:
             raise RuntimeError("Redis client not connected")
-        return await self.client.getdel(key)  # ty: ignore[invalid-return-type]
+        return await self.client.getdel(key)  # ty: ignore[invalid-explicit-return]
 
     async def pop_left(self, key: str) -> str | None:
         """Take the first item of a list, or `None` when it is empty (Redis LPOP)."""
         if not self.client:
             raise RuntimeError("Redis client not connected")
         # `bytes` to the stubs, `str` at runtime - see `get`.
-        return await self.client.lpop(key)  # ty: ignore[invalid-return-type]
+        return await self.client.lpop(key)  # ty: ignore[invalid-explicit-return]
 
     async def wait_pop_left(self, key: str, timeout: float) -> str | None:
         """Take the first item of a list, waiting up to `timeout` seconds (BLPOP).
