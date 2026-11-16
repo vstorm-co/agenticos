@@ -1,5 +1,5 @@
 ---
-source_sha: "144975623fb4"
+source_sha: "cd351d048f37"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -449,7 +449,7 @@ werden unter `/api/v1/context` verwaltet und per id an einen Agent gebunden
 Notizen, die ein Agent über Unterhaltungen hinweg selbst führt, indiziert durch
 eine, die er selbst pflegt. Wo `context` eine Bibliothek ist, die eine Person
 verfasst und an viele Agents bindet, ist das Gedächtnis das eigene des Agents: Er
-schreibt mitten im Run über Tools hinein. Eine Person kann ihre eigenen Notizen unter **Settings → Memory → Notes** korrigieren, ohne Zugriff auf fremde Notizen zu erhalten. Korrekturen bewahren den ursprünglichen Agent-Zeitstempel und den Unterdrückungsstatus, prüfen die Revision und protokollieren den Vorgang ohne Notizinhalt. Es wird
+schreibt mitten im Run über Tools hinein. Eine Person kann ihre eigenen Notizen unter **Einstellungen → Gedächtnis → Notizen** (Settings → Memory → Notes) korrigieren, ohne Zugriff auf fremde Notizen zu erhalten. Korrekturen bewahren den ursprünglichen Agent-Zeitstempel und den Unterdrückungsstatus, prüfen die Revision und protokollieren den Vorgang ohne Notizinhalt. Es wird
 nicht per id gebunden — die Capability zu aktivieren, gibt dem Agent seine Notizen.
 
 **`MEMORY.md` ist der Index, und er wird dem Agent bei jeder Anfrage gezeigt.** Er

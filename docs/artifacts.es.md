@@ -1,5 +1,5 @@
 ---
-source_sha: "dd46ea746100"
+source_sha: "fa76644c347a"
 ---
 
 # Aplicaciones { #artifacts }
@@ -921,7 +921,7 @@ La consola aporta el ID, el título y la versión de la aplicación, además de 
 ruta actual. El iframe no puede sustituir esa identidad ni conceder permisos
 adicionales. La API usa el puente existente de la sandbox; no extrae el DOM ni
 captura automáticamente campos de formulario o parámetros de consulta de la URL.
-El lector controla qué comparte en la
+Quien usa la vista controla lo que comparte en la
 [ventana del asistente](console.md#the-assistant).
 
 ### Ver la página: la vista previa { #seeing-the-page-preview }

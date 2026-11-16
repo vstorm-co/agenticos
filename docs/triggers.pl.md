@@ -1,5 +1,5 @@
 ---
-source_sha: "5f01365cb00a"
+source_sha: "4cdebab6f99e"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -68,7 +68,7 @@ odpalenie.
 `continue`, domyślnie, dopisuje każde odpalenie do jednego dziennika uruchomień
 triggera, więc karta Runs wymienia je wszystkie; `fresh` otwiera nową rozmowę na
 każde odpalenie, więc jedno odpalenie nigdy nie czyta tur poprzednich odpaleń —
-a karta Runs nie ma jednej rozmowy do wymienienia. Trigger `fresh` nie otwiera
+a karta Runs nie ma jednej rozmowy obejmującej wszystkie odpalenia. Trigger `fresh` nie otwiera
 dziennika uruchomień przy utworzeniu, więc do pierwszego odpalenia nie ma żadnego
 elementu na pasku bocznym.
 
@@ -224,12 +224,12 @@ potem zdarzenie w bloku `<event_content>`, który mówi modelowi, by czytał je 
 dane. Issue, mail czy nazwę pliku pisze ten, kto je wysłał, a zdanie w nich, które
 brzmi jak rozkaz, nadal jest częścią zdarzenia.
 
-Dostarczenie z GitHub dociera do runa także jako jedna uporządkowana część: całe
+Dostarczenie z GitHub dociera do runa także w ustrukturyzowanej postaci: całe
 dostarczenie jako JSON, w tym samym kształcie, w jakim trigger GitHub przepływów
 pracy przekazuje je runowi, w bloku `<event_payload>` obok wyrenderowanego tekstu.
 To ta sama niezaufana treść — run czyta ją jako informację do pracy, nigdy jako
-polecenia — i jest ona zaciemniana w wierszu oczekiwania, gdy tylko odpalenie się
-ustali, więc zakończone oczekiwanie nie zachowuje ani payloadu, ani wyrenderowanego
+polecenia — i jest usuwana z wiersza oczekiwania po zakończeniu obsługi odpalenia,
+więc zakończone oczekiwanie nie zachowuje ani payloadu, ani wyrenderowanego
 kontekstu.
 
 ## Rotowanie sekretu i edytowanie filtra { #rotating-the-secret-and-editing-the-filter }
@@ -432,7 +432,7 @@ adresu. DMARC nie uwierzytelnia nazwy wyświetlanej osoby.
 API obsługuje też opcjonalne filtry `event_types` i `actions` w `event_config`.
 
 AgenticOS weryfikuje `Linear-Signature` na dokładnym body i sprawdza, czy
-podpisany w body `webhookTimestamp` mieści się w 60 sekundach. Odpowiedź `200`
+podpisany w body `webhookTimestamp` mieści się w 60-sekundowym oknie ważności. Odpowiedź `200`
 oznacza przyjęcie dostarczenia lub brak pracy, a nie zakończenie działania agenta.
 Identyczne body jest deduplikowane przez 15 minut, gdy Redis jest dostępny.
 

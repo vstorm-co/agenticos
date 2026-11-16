@@ -1,5 +1,5 @@
 ---
-source_sha: "a0384ef79df4"
+source_sha: "031be7672e9f"
 ---
 
 # Konsola { #the-console }
@@ -39,7 +39,7 @@ ustawieniach czatu, pod suwakami obok mikrofonu.
 
 Listy zasobów, w tym Inbox i Routines, wypełniają pozostałą wysokość strony również wtedy, gdy są puste. Szablony Routines pozostają w formularzu tworzenia zamiast osobnego panelu pomysłów.
 
-Czat używa większych portretów agentów bez obwódek. Przełącznik Files pozostaje w przyciskach po prawej stronie podczas otwierania i zamykania panelu; animacja respektuje ograniczenie ruchu. Ustawienia czatu pokazują najpierw bieżący model. Rozwiń **Zmień model**, aby edytować uzupełnionego dostawcę i model; wybór zaczyna działać po zatwierdzeniu. Karty załączników znajdują się nad polem wiadomości bez dodatkowego panelu z cieniem.
+Czat używa większych portretów agentów bez obwódek. W pełnym widoku czatu na komputerze przełącznik Files pozostaje wśród elementów sterujących obszaru roboczego podczas otwierania i zamykania panelu; animacja respektuje ograniczenie ruchu. Ustawienia czatu pokazują najpierw bieżący model. Rozwiń **Zmień model**, aby edytować uzupełnionego dostawcę i model; wybór zaczyna działać po zatwierdzeniu. Karty załączników znajdują się nad polem wiadomości bez dodatkowego panelu z cieniem.
 
 Wprowadzenia do stron i objaśnienia ustawień są dostępne pod ikoną informacji obok nagłówka. Bieżące podsumowania i ostrzeżenia o nieodwracalnych działaniach pozostają widoczne.
 
@@ -64,9 +64,9 @@ Ustawienia chatu mają stały nagłówek i przycisk zamknięcia nad przewijaną 
 
 Agenci rozmowy są uporządkowani według ostatniej wiadomości lub uruchomienia głównego agenta, od najnowszego. Zwinięty pasek chatu zachowuje pełny rozmiar avatarów, nakłada maksymalnie trzy i ukrywa starszych uczestników; pełna lista pozostaje dostępna w podpowiedzi.
 
-Gdy **Approve everything** jest niedostępne, ustawienia chatu rozróżniają brak uprawnienia do zatwierdzania i politykę organizacji wyłączającą stałą zgodę. Osoba z uprawnieniem do zatwierdzania otrzymuje odnośnik do **Budżetu i zatwierdzeń**, gdzie może jawnie zmienić tę politykę. Chat nie zmienia polityki organizacji automatycznie.
+Gdy **Zatwierdzaj wszystko** (Approve everything) jest niedostępne, ustawienia chatu rozróżniają brak uprawnienia do zatwierdzania i politykę organizacji wyłączającą stałą zgodę. Osoba z uprawnieniem do zatwierdzania otrzymuje odnośnik do **Budżetu i zatwierdzeń**, gdzie może jawnie zmienić tę politykę. Chat nie zmienia polityki organizacji automatycznie.
 
-Pole wiadomości pokazuje aktywny tryb zatwierdzania obok wyboru agenta. Kliknij etykietę, aby zmienić zapisany tryb przed wysłaniem. Obowiązują te same uprawnienia i polityka organizacji co w Chat controls. Automatycznie zatwierdzone wywołania zachowują zatwierdzone wpisy audytowe; tylko rzeczywiście oczekujące wywołania pokazują prośby o decyzję.
+Pole wiadomości pokazuje aktywny tryb zatwierdzania obok wyboru agenta. Kliknij etykietę, aby zmienić zapisany tryb przed wysłaniem. Obowiązują te same kontrole uprawnień i wyjątków organizacji co w **Ustawieniach czatu** (Chat controls). Automatycznie zatwierdzone wywołania zachowują zatwierdzone wpisy audytowe; tylko rzeczywiście oczekujące wywołania pokazują prośby o decyzję.
 
 Na telefonie modale zachowują 12 px marginesu z każdej strony. Zwarte nagłówki mieszczą tytuł i akcje w jednym wierszu, gdy jest na to miejsce. Opis pliku Context rozwija się z paska edytora.
 
@@ -81,6 +81,10 @@ Na telefonie edytory skilli i contextu chowają opis, kategorię i zarządzanie 
 Nagłówki korzystają z odstępów otaczającego układu bez ich podwajania. Karty, wiersze panelu bocznego, zakładki i puste stany mają mniejsze odstępy na komputerze, a kontrolki zachowują większe obszary dotykowe.
 
 Przyciski drugorzędne i filtry mają wspólne, wyraźniejsze wypełnienie, kontrastowe etykiety oraz czytelne stany najechania, naciśnięcia i otwarcia. Wybór modelu w chacie korzysta z tego samego stylu przycisku.
+
+Nagłówek chatu z agentem pokazuje bieżący model z ikoną providera. Otwórz przycisk modelu, aby przeszukać zapisane modele, zmienić providera lub konto albo wybrać **Użyj modelu agenta** (Use agent's model). Wybór dotyczy następnej wiadomości i jest zapamiętywany dla twojego konta w bieżącej organizacji; nie edytuje agenta. Trwająca tura zachowuje swój model. Rozłączone połączenia i modele nieobsługujące chatu pozostają widoczne, ale nie można ich wybrać. Gdy lista modeli jest nieczytelna, wybierz **Ponów** (Retry). **Ustawienia czatu** (Chat controls) obok pola wiadomości zachowuje pełną konfigurację modeli i połączeń.
+
+Zmiana modelu w nagłówku wymaga `connections:manage`, tak jak dotychczasowe kontrolki modelu. W rozmowach tylko do odczytu oraz bez tego uprawnienia bieżący model pozostaje widoczny.
 
 Ustawienia osobiste zachowują poziome zakładki u góry, w tym opcje desktopowe dostępne w aplikacji. Panele pokazują opisy bezpośrednio, a formularze mają wysokość dopasowaną do zawartości. Konto zawiera zmianę hasła i aktywne sesje; przycisk zmiany hasła jest pod polami.
 
@@ -656,11 +660,15 @@ jako kartę w swojej odpowiedzi. Każda część ma własną ikonę kopiowania, 
 kopiuje zwykły tekst; kilka wariantów jednej wersji roboczej to zakładki w jednej
 karcie. Własne **Kopiuj** wiadomości obejmuje też jej wersje robocze.
 
-**Przeglądarka (Browser), Komputer (Computer) i Pliki (Files).** Przyciski po prawej
-stronie każdego chatu otwierają panel przeglądarki, komputera lub plików. Panele
+**Przeglądarka (Browser), Komputer (Computer) i Pliki (Files).** W pełnym widoku czatu
+na komputerze przyciski znajdują się po prawej stronie i otwierają panel przeglądarki,
+komputera lub plików. Ten pasek jest ukryty na telefonach i w kompaktowych czatach.
+
+Panele
 przeglądarki i komputera można otworzyć, zanim agent ich użyje. Otwarcie pustego
-panelu nie uruchamia runu ani hostowanej sesji. Przed uruchomieniem przeglądarki
-wpisz adres strony. Jeśli wybrany agent ma odpowiednią
+panelu nie uruchamia runu ani hostowanej sesji.
+
+Przed uruchomieniem przeglądarki wpisz adres strony. Jeśli wybrany agent ma odpowiednią
 hostowaną capability i możesz go uruchomić, osobna akcja rozpoczęcia prosi go o
 otwarcie przeglądarki lub wykonanie zrzutu pulpitu. W przeciwnym razie panel
 wyjaśnia, co jest niedostępne. Opublikowane ustawienia agenta i kontrola dostępu

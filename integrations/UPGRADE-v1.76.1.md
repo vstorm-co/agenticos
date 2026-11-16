@@ -35,3 +35,22 @@ changed while preparing this candidate.
 Betty and SL Grease downstream propagation requires the existing exact-commit
 successful validation workflow plus each consumer's compatibility checks.
 Their pins are intentionally unchanged by this PR.
+
+## Candidate verification (2026-11-16)
+
+The candidate was reconciled with T3 `83ba9d84768d9b3950bd5c56f7e1a1b7b7c93cf7`.
+Focused backend tests: 581 passed. Focused frontend tests: 402 passed on the
+initial candidate, then 137 selector/chat/catalog cases passed after reconciliation.
+Full frontend TypeScript passed with a 4 GiB Node heap; the earlier default-heap
+attempt exhausted memory. Scoped lint/format and documentation paragraph/build
+checks passed.
+
+A disposable PostgreSQL 17.11 cluster with pgvector 0.8.0 completed upgrade to
+`0331_merge_t3_rooms_and_v1761`, downgrade to base, re-upgrade and model-parity
+checks. Alembic reported no new upgrade operations. This is isolated PostgreSQL
+17 evidence, not the repository CI PostgreSQL 16 image or a production-sized
+rehearsal. The existing table-sort-cycle warning was retained. No historical
+migration was modified and no production data was used.
+
+Complete current-head CI, coverage, security and browser gates remain mandatory;
+the local results above do not replace them.

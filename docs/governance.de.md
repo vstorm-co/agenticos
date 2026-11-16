@@ -1,5 +1,5 @@
 ---
-source_sha: "0500be2db6f4"
+source_sha: "14136b984ce9"
 ---
 
 # Governance { #governance }
@@ -48,10 +48,10 @@ Ein Event-Trigger fügt an seinem Rand eine weitere Ablehnung hinzu: ein Webhook
 dessen Signatur sich nicht gegen das eigene Secret des Triggers verifizieren
 lässt, ist ein 403, der den Runner überhaupt nie erreicht.
 
-Die Fehler, die die Plattform aufzeichnet, speisen auch die
-[Lernschleife aus Fehlern](failure-learning.md), die sich wiederholende
-Fehler in ein Verzeichnis schürft und eine Korrektur am alten Verhalten
-prüft, bevor irgendetwas angewendet wird.
+Die von der Plattform aufgezeichneten Fehler fließen auch in die
+[Lernschleife aus Fehlern](failure-learning.md) ein. Sie sammelt
+wiederkehrende Fehler in einem Ledger und prüft eine Korrektur anhand des
+bisherigen Verhaltens, bevor sie angewendet wird.
 
 ## Zustellung von Routinen { #routine-delivery }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "144975623fb4"
+source_sha: "cd351d048f37"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -433,7 +433,7 @@ się pod `/api/v1/context`, a wiąże się je z agentem po id
 Notatki, które agent prowadzi sam dla siebie w poprzek rozmów, zindeksowane
 jedną, którą sam utrzymuje. Tam gdzie `context` jest biblioteką, którą pisze
 człowiek i wiąże z wieloma agentami, pamięć należy do agenta: pisze do niej
-narzędziami w trakcie runa. Użytkownik może poprawiać własne notatki w **Settings → Memory → Notes**, bez dostępu do notatek innych osób. Korekta zachowuje datę pierwotnego zapisu agenta i stan wyciszenia, sprawdza rewizję oraz zapisuje audyt bez treści notatki. Nie wiąże się jej po
+narzędziami w trakcie runa. Użytkownik może poprawiać własne notatki w **Ustawienia → Pamięć → Notatki** (Settings → Memory → Notes), bez dostępu do notatek innych osób. Korekta zachowuje datę pierwotnego zapisu agenta i stan wyciszenia, sprawdza rewizję oraz zapisuje audyt bez treści notatki. Nie wiąże się jej po
 id — włączenie capability daje agentowi jego notatki.
 
 **`MEMORY.md` jest indeksem i jest pokazywany agentowi przy każdym żądaniu.** To

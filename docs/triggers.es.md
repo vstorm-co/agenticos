@@ -1,5 +1,5 @@
 ---
-source_sha: "5f01365cb00a"
+source_sha: "4cdebab6f99e"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -232,9 +232,9 @@ Una entrega de GitHub también llega al run como una parte estructurada: la
 entrega completa como JSON, con la misma forma con la que el trigger GitHub de
 workflows se la entrega a un run, dentro de un bloque `<event_payload>` junto al
 texto renderizado. Es el mismo contenido no confiable — el run lo lee como
-información con la que trabajar, nunca como instrucciones — y se redacta de la
-fila de espera una vez que el disparo se asienta, así que una espera terminada no
-conserva ni el payload ni el contexto renderizado.
+información con la que trabajar, nunca como instrucciones — y se elimina de la
+fila de espera cuando termina el procesamiento del disparo, así que una espera
+terminada no conserva ni el payload ni el contexto renderizado.
 
 ## Rotar el secreto y editar el filtro { #rotating-the-secret-and-editing-the-filter }
 
@@ -439,7 +439,7 @@ texto se busca dentro de la dirección. DMARC no autentica el nombre visible.
 La API también admite filtros opcionales `event_types` y `actions` en `event_config`.
 
 AgenticOS verifica `Linear-Signature` sobre el cuerpo exacto y comprueba que el
-`webhookTimestamp` firmado en el cuerpo esté dentro de 60 segundos. `200` indica
+`webhookTimestamp` firmado no se aleje más de 60 segundos del momento actual. `200` indica
 una entrega aceptada o sin trabajo, no que el agent haya terminado. Los cuerpos
 idénticos se deduplican durante 15 minutos mientras Redis esté disponible.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "0500be2db6f4"
+source_sha: "14136b984ce9"
 ---
 
 # Governance { #governance }
@@ -47,9 +47,9 @@ którego podpis nie weryfikuje się względem własnego sekretu triggera, to 403
 które w ogóle nie dociera do runnera.
 
 Awarie zapisywane przez platformę zasilają też
-[pętlę uczenia się na błędach](failure-learning.md), która wydobywa
-powtarzające się awarie do rejestru i sprawdza poprawkę na tle starego
-zachowania, zanim cokolwiek zostanie zastosowane.
+[pętlę uczenia się na błędach](failure-learning.md), która gromadzi
+powtarzające się awarie w rejestrze i sprawdza poprawkę względem
+dotychczasowego zachowania, zanim cokolwiek zostanie zastosowane.
 
 ## Dostarczanie wyników rutyny { #routine-delivery }
 
@@ -2538,10 +2538,10 @@ poświadczenia prywatnej rozmowy; te ostatnie obejmują wyłącznie sprawy tej r
 Zwykłe klucze API, uruchomienia w tle i zastępcza tożsamość publikującego nie mogą
 czytać ani zamykać prywatnych spraw.
 
-## Grupy akceptujące { #approval-groups }
+## Grupy zatwierdzające { #approval-groups }
 
-Kroki akceptacji i wywołań MCP w workflowach mogą wskazywać osoby, grupy organizacji lub oba zbiory. Decyzję podejmuje jedna uprawniona osoba, która niezależnie musi mieć `approvals:decide`. Bez wskazanych osób i grup obowiązuje dotychczasowa reguła oparta na tym uprawnieniu. Wskazana pusta lub usunięta grupa nigdy nie otwiera dostępu wszystkim.
+Kroki workflow wymagające zatwierdzenia przez człowieka oraz kroki wywołań MCP mogą wskazywać osoby, grupy organizacji lub jedne i drugie. Decyzję może podjąć dowolna uprawniona osoba, która niezależnie musi mieć `approvals:decide`. Gdy nie skonfigurowano ani osób, ani grup, obowiązuje dotychczasowa reguła oparta na tym uprawnieniu. Skonfigurowana pusta lub usunięta grupa nigdy nie sprawia, że prośba staje się dostępna dla wszystkich.
 
 Członkostwo w grupie i aktywność konta są sprawdzane przy podejmowaniu decyzji. Powiadomienia trafiają do uprawnionych członków przy tworzeniu prośby; osoby wskazane kilkoma sposobami dostają je raz. Późniejsze dołączenie może dać prawo do decyzji bez nowego powiadomienia; wyjście lub utrata uprawnienia je odbiera.
 
-Alerty akceptacji, budżetu i zużycia agenta również obsługują grupy jako wybranych odbiorców. To wyłącznie adresaci powiadomień: wybór nie nadaje ani nie ogranicza prawa do decyzji. Osobiste preferencje powiadomień nadal obowiązują.
+Alerty agenta dotyczące zatwierdzania, budżetu i wykorzystania również pozwalają wybierać grupy jako odbiorców. To wyłącznie grupy odbiorców powiadomień: nie nadają prawa do zatwierdzania ani nie ograniczają tego, kto może decydować. Osobiste preferencje powiadomień nadal obowiązują.

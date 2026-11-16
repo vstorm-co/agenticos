@@ -35,7 +35,7 @@ settings, the sliders beside the microphone.
 
 Resource lists, including Inbox and Routines, fill the remaining page height even when empty. Routines keeps its templates in the creation form rather than a separate ideas panel.
 
-Chat uses larger agent portraits without rings. Its Files toggle stays in the controls on the right while the panel opens or closes, with reduced motion respected. Chat settings show the current model first. Expand **Change model** to edit the prefilled provider and model; the choice applies only after **Run on this model**. Attachment cards sit above the composer without an extra shadowed panel.
+Chat uses larger agent portraits without rings. In full desktop chats, the Files toggle stays in the workspace controls while the panel opens or closes, with reduced motion respected. Chat settings show the current model first. Expand **Change model** to edit the prefilled provider and model; the choice applies only after **Run on this model**. Attachment cards sit above the composer without an extra shadowed panel.
 
 On phones, skill and context editors keep descriptions, categories and file management folded away while writing. One button switches between source and preview. Apps use floating back and options buttons; opening options reveals the title, version, theme and sharing controls.
 
@@ -73,6 +73,10 @@ Markdown fields and file editors also offer an expand button without discarding 
 Page headers use the surrounding layout’s spacing once. Cards, sidebar rows, tabs and empty states use compact spacing on desktop while interactive controls keep larger touch targets.
 
 Secondary buttons and toolbar filters share a more visible filled surface, full-contrast labels and distinct hover, pressed and open states. The chat model picker follows the same secondary-action styling.
+
+An agent chat's header shows its current model with the provider's icon. Open the model pill to search saved models, switch provider or account, or choose **Use agent's model**. The selection applies to the next message and is remembered for your account in the current organization; it does not edit the agent. A running turn keeps its model. Disconnected connections and models that cannot chat remain visible but cannot be selected. An unreadable model list offers **Retry**. **Controls** beside the message box retains the full model and connection setup.
+
+Changing the header selection requires `connections:manage`, as the existing model controls do. Read-only conversations and people without that permission still see the current model.
 
 Personal settings keep horizontal tabs at the top, including desktop-only pages inside the app. Settings panels show their descriptions directly and use content-sized forms. Account holds password changes and active sessions; the password action sits below the fields.
 
@@ -634,9 +638,13 @@ send or paste elsewhere - an e-mail, a reply, a post - as a card in its answer. 
 part has its own copy icon, which copies plain text; several variants of one draft
 are tabs in the same card. A message's own **Copy** includes its drafts.
 
-**Browser, Computer and Files.** The controls on the right of each chat open a
-Browser, Computer or Files panel. Browser and Computer can be opened before the
+**Browser, Computer and Files.** In full desktop chats, the controls sit on the
+right and open a Browser, Computer or Files panel. This rail is hidden on phones
+and in compact chats.
+
+Browser and Computer can be opened before the
 agent has used them; opening an empty panel starts no run or hosted session.
+
 Enter the website address in Browser before starting it. If
 the selected agent has the corresponding hosted capability and you may run it,
 an explicit start action asks it to open the browser or take a desktop screenshot.

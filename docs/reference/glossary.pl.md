@@ -1,5 +1,5 @@
 ---
-source_sha: "e8a351bb48c4"
+source_sha: "242dfeb03788"
 ---
 
 # Słownik { #glossary }

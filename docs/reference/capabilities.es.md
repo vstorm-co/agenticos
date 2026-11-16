@@ -1,5 +1,5 @@
 ---
-source_sha: "144975623fb4"
+source_sha: "cd351d048f37"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -156,7 +156,7 @@ contabilidad. El modo de código mantiene esas paradas al cruzar el límite del 
 | `sol_loop` | Sol-loop | analysis | `run_sol_loop_review` | `agents:delegate` | — | delegada |
 | `eval_tool_tuning` | Ajuste de herramientas con evals | analysis | `record_eval_tool_tuning` | — | — | tal cual |
 | `burst` | Burst | analysis | `run_burst` | `agents:delegate` | — | delegada |
-| `proof_scenario` | Escenario de prueba | analysis | `proof_scenario_record`, `proof_scenario_verdict` | — | — | delegada |
+| `proof_scenario` | Escenario con evidencia | analysis | `proof_scenario_record`, `proof_scenario_verdict` | — | — | delegada |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | delegada |
 | `background_tasks` | Temas en segundo plano | reasoning | `start_background_task`, `list_background_tasks`, `stop_background_task` | — | — | delegado |
 | `agent_messages` | Mensajes de agentes | reasoning | `agent_send_message`, `agent_read_messages`, `agent_list_threads`, `agent_react` | `agents:message` | — | sin cambios |
