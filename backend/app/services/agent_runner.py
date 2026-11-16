@@ -978,6 +978,11 @@ class AdmittedAs(BaseModel):
     conversation_task_id: UUID | None = Field(
         default=None, exclude_if=lambda task_id: task_id is None
     )
+    thread_root_message_id: UUID | None = Field(
+        default=None,
+        exclude_if=lambda root_id: root_id is None,
+        description="The trusted room subthread this run answers, retained across a park",
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -3832,7 +3837,9 @@ class AgentRunnerService:
                 _add_collection(names, scopes, base)
         return {"kb_collection_names": names, "kb_vector_scopes": scopes}
 
-    async def _recorded_conversation_state(self, conversation_id: UUID | None) -> _RecordedState:
+    async def _recorded_conversation_state(
+        self, conversation_id: UUID | None, *, thread_root_message_id: UUID | None = None
+    ) -> _RecordedState:
         """What an earlier turn of this thread recorded, in one read.
 
         Three things the build seeds from the conversation - the request overhead
@@ -3851,7 +3858,10 @@ class AgentRunnerService:
         a plan store is one run's and a chat message is a run (#1077). One row, so
         one SELECT rather than one each.
         """
-        if conversation_id is None:
+        # A subthread inherits only the deliberately bounded transcript. The
+        # room's reusable plan, cadence and context sizing belong to main-room
+        # runs; a continuation restores its own paused messages and plan below.
+        if conversation_id is None or thread_root_message_id is not None:
             return _RecordedState(None, None, None)
         conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
         if conversation is None:
@@ -3873,6 +3883,7 @@ class AgentRunnerService:
         retry_of_run_id: UUID | None = None,
         channel_key: str | None = None,
         memory_room_key: str | None = None,
+        thread_root_message_id: UUID | None = None,
         channel_directory: ChannelDirectory | None = None,
         user_name: str | None = None,
         acts_for_sender: bool = False,
@@ -4080,6 +4091,7 @@ class AgentRunnerService:
             retry_of_run_id=retry_of_run_id,
             channel_key=channel_key,
             memory_room_key=memory_room_key,
+            thread_root_message_id=thread_root_message_id,
             channel_directory=channel_directory,
             model_profile_id=model_profile_id,
             user_name=user_name,
@@ -4266,6 +4278,7 @@ class AgentRunnerService:
         acts_for_sender: bool = False,
         owner_user_id: UUID | None = None,
         memory_room_key: str | None = None,
+        thread_root_message_id: UUID | None = None,
         restored_audience: RunAudience | None = None,
         restored_publisher_fallback: bool | None = None,
         extra_toolsets: list[AbstractToolset[Any]] | None,
@@ -4572,7 +4585,9 @@ class AgentRunnerService:
         }
         # What an earlier turn of this thread wrote down. Read here rather than
         # beside the build below, because one of the three is a resource.
-        recorded = await self._recorded_conversation_state(conversation_id)
+        recorded = await self._recorded_conversation_state(
+            conversation_id, thread_root_message_id=thread_root_message_id
+        )
         # Always present, like the two above and unlike the conditional resources
         # below: the planning capability reads it only when bound, but the runner
         # owns the store either way so `finish` can snapshot the checklist into the
@@ -5545,6 +5560,7 @@ class AgentRunnerService:
             finished_plan_withheld=finished_plan_withheld,
             admitted_as=AdmittedAs(
                 model_profile_id=model_profile_id,
+                thread_root_message_id=thread_root_message_id,
                 approval_mode=approval_mode,
                 local=local,
                 acts_for_sender=acts_for_sender,
@@ -7003,7 +7019,10 @@ class AgentRunnerService:
         opened empty over a finished plan: it did nothing to the checklist, and
         `[]` would delete the row #1221 keeps.
         """
-        if prepared.run.conversation_id is None:
+        if (
+            prepared.run.conversation_id is None
+            or prepared.admitted_as.thread_root_message_id is not None
+        ):
             return
         checklist = await dump_plan(prepared.plan_store)
         if status in _INTERRUPTED:
@@ -7503,6 +7522,7 @@ class AgentRunnerService:
         retry_of_run_id: UUID | None = None,
         channel_key: str | None = None,
         memory_room_key: str | None = None,
+        thread_root_message_id: UUID | None = None,
         channel_directory: ChannelDirectory | None = None,
         acts_for_sender: bool = False,
         local: LocalTarget | None = None,
@@ -7647,6 +7667,7 @@ class AgentRunnerService:
             retry_of_run_id=retry_of_run_id,
             channel_key=channel_key,
             memory_room_key=memory_room_key,
+            thread_root_message_id=thread_root_message_id,
             channel_directory=channel_directory,
             acts_for_sender=acts_for_sender,
             local=local,
@@ -7820,6 +7841,12 @@ class AgentRunnerService:
             return
 
         async def emit(kind: str, payload: dict[str, Any]) -> None:
+            root_id = prepared.admitted_as.thread_root_message_id
+            payload = {
+                **payload,
+                "conversation_id": conversation_id,
+                "thread_root_message_id": None if root_id is None else str(root_id),
+            }
             if live_surface is not None:
                 await live_surface.emit(kind, payload)
             if turn is not None:
@@ -7948,6 +7975,15 @@ class AgentRunnerService:
                 run_id, ctx.organization_id, required=True
             )
             assert room_ctx is not None, "required room authority supplies its requester"
+            assert run.conversation_id is not None, "room authority requires its conversation"
+            current_root = await conversation_repo.room_thread_for_run(
+                self.db,
+                run_id=run.id,
+                conversation_id=run.conversation_id,
+                organization_id=run.organization_id,
+            )
+            if current_root != state.admitted_as.thread_root_message_id:
+                raise BadRequestError(message="This room request changed its subthread")
             execution_ctx = room_ctx
             prior_check = check_model_request
 
@@ -8060,6 +8096,7 @@ class AgentRunnerService:
             existing_run=run,
             surface=RunSurface(run.surface),
             conversation_id=run.conversation_id,
+            thread_root_message_id=state.admitted_as.thread_root_message_id,
             user_name=None,
             # The terms the run was admitted on, restored rather than re-derived.
             # `agent_runs` records the surface and the caller, so a resume that
@@ -8549,12 +8586,20 @@ class AgentRunnerService:
         )
         calls.extend(frame.tool_call_id for frame in frames)
         await self._cancel_delegations(run, frames, at=at)
-        if state is not None and state.plan and run.conversation_id is not None:
+        if (
+            state is not None
+            and state.plan
+            and run.conversation_id is not None
+            and state.admitted_as.thread_root_message_id is None
+        ):
             await ConversationService(self.db).keep_plan(run.conversation_id, put_down(state.plan))
         await self.transcript.record(
             run,
             prompt=None,
             answer="",
+            thread_root_message_id=None
+            if state is None
+            else state.admitted_as.thread_root_message_id,
             settled=dict.fromkeys(calls, STOPPED_TOOL_RESULT),
         )
         await agent_run_repo.expire_pending_approvals(self.db, run_id=run.id, decided_at=at)
@@ -9222,6 +9267,7 @@ class AgentRunnerService:
                     prompt=said,
                     model_content=model_content,
                     answer=output,
+                    thread_root_message_id=prepared.admitted_as.thread_root_message_id,
                     attachments=attachments,
                     # Replayed after the prompt on every later turn, where the input
                     # edge no longer looks: a refused turn keeps none of it (#2578).
@@ -9246,7 +9292,10 @@ class AgentRunnerService:
                 # turn and replay it twice. A channel thread is long-lived and
                 # never rolls over, so without this every message past the window
                 # buys its own summary of a history one turn longer (#49).
-                if prepared.run.conversation_id is not None:
+                if (
+                    prepared.run.conversation_id is not None
+                    and prepared.admitted_as.thread_root_message_id is None
+                ):
                     conversations = ConversationService(self.db)
                     if summarized is not None:
                         await conversations.keep_summary(

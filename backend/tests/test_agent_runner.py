@@ -10986,7 +10986,11 @@ class TestLiveQuestionContinuation:
             "text_delta",
             "subagent_text_delta",
         ]
-        assert delivered[-1][1] == event.model_dump(mode="json")
+        assert delivered[-1][1] == {
+            **event.model_dump(mode="json"),
+            "conversation_id": str(prepared.run.conversation_id),
+            "thread_root_message_id": None,
+        }
         if redis_available:
             assert [(call.args[1], call.args[2]) for call in publish.await_args_list] == delivered
             end.assert_awaited_once_with(turn)
@@ -11426,6 +11430,9 @@ class TestRoomAndSecretBoundaries:
             yield None
 
         with (
+            patch.object(
+                runner_module.conversation_repo, "room_thread_for_run", AsyncMock(return_value=None)
+            ),
             patch.object(
                 runner_module.agent_run_repo, "claim_parked_run", AsyncMock(return_value=run)
             ),

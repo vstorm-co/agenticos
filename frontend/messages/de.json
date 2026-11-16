@@ -2753,6 +2753,28 @@
       "advancedHint": "Öffne Controls neben dem Eingabefeld, um ein Modell hinzuzufügen oder seine Verbindung zu verwalten. Deine Chat-Auswahl ändert den Agent nicht.",
       "missingKey": "Verbindung nicht verfügbar — in Controls erneut verbinden",
       "notChatModel": "Für Chats nicht verfügbar"
+    },
+    "roomThread": {
+      "historyAudience": "Gespeicherter Gesprächsverlauf",
+      "readOnly": "Dieser Thread ist schreibgeschützt.",
+      "title": "Thread",
+      "start": "Im Thread antworten",
+      "replies": "{count, plural, one {# Antwort} other {# Antworten}}",
+      "message": "Im Thread antworten",
+      "placeholder": "Hier antworten. Alle im Raum können diesen Thread lesen.",
+      "post": "Antwort senden",
+      "close": "Thread schließen",
+      "earlier": "Frühere Antworten laden",
+      "audience": "Für alle in diesem Raum sichtbar",
+      "root": "Ursprüngliche Nachricht",
+      "loading": "Thread wird geladen…",
+      "unavailable": "Dieser Thread ist nicht verfügbar. Er wurde möglicherweise entfernt oder dein Zugriff auf den Raum hat sich geändert.",
+      "retry": "Erneut versuchen",
+      "empty": "Beginne die Unterhaltung in diesem Thread.",
+      "open": "Thread öffnen",
+      "pending": "Ein Agent wartet in einem Thread auf dich.",
+      "mainPending": "Ein Agent wartet im Hauptraum auf dich.",
+      "main": "Zurück zum Raum"
     }
   },
   "common": {
@@ -6240,6 +6262,14 @@
       "table-row-access": {
         "title": "Regeln für den Zeilenzugriff",
         "body": "Wählen Sie, wer Zeilen lesen darf. Öffnen Sie dann eine Zeile, um einer Person oder Gruppe Lesen oder Schreiben zu geben."
+      },
+      "chat-room-thread": {
+        "title": "Eine Nachricht besprechen",
+        "body": "Öffne einen Thread, um Antworten zusammenzuhalten, ohne den Hauptraum zu füllen. Die Anzahl der Antworten führt zurück zur Diskussion; Antworten zitiert weiterhin eine Nachricht."
+      },
+      "chat-room-thread-panel": {
+        "title": "Antworten mit eigenem Kontext",
+        "body": "Die ursprüngliche Nachricht bleibt über den Antworten. Alle im Raum können den Thread lesen. Wähle einen Agenten für Hilfe oder schließe den Thread, um zum Raum zurückzukehren."
       }
     }
   },

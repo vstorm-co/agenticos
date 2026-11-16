@@ -34,6 +34,7 @@ export function resetTenantState(): void {
   useConversationStore.getState().reset();
   useWorkOnStore.getState().resetDraft();
   useChatStore.getState().clearMessages();
+  useChatStore.getState().clearRoomDrafts();
   useChatStore.getState().setStreaming(false);
   useWorkingStore.getState().reset();
   useFilePreviewStore.getState().close();

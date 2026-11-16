@@ -19,9 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Upgrading
+
+- Thread storage uses migration `0333_room_threads.py` after `0332_merge_t3_pools_v1761.py`. It builds the composite unique index and the thread lookup index concurrently, then attaches the unique index as a constraint. These builds allow ordinary reads and writes. Adding the nullable root column and attaching the unique constraint need brief `ACCESS EXCLUSIVE` locks, which can wait behind long transactions. The foreign-key and check constraints are added `NOT VALID` and validated without blocking ordinary writes. Rehearse on a production-sized copy and review any lock waits during upgrade; prebuilding the composite index is unnecessary.
+- If an index build fails, the revision stays pending and the nullable root column may remain. Retry the upgrade after any active build has finished. The migration reuses exact valid indexes and drops an exact invalid index with `DROP INDEX CONCURRENTLY` before rebuilding it. It stops and leaves a conflicting object untouched. Inspect any unexpected object before resolving it. Once thread replies exist, retain a thread-aware application version or restore the matching pre-upgrade backup: an older reader or dropping the root column would mix those replies into the main transcript. Downgrading refuses while replies exist; an empty downgrade returns to `0325_merge_t3_rooms_v173`.
+- The HTTP messages endpoint, `GET /api/v1/conversations/{conversation_id}/messages`, now defaults to `top_level_only=true`. Clients that need a combined timeline of main-room messages and thread replies must explicitly pass `top_level_only=false`.
+
 ### Changed
 
-- Sync upstream to v1.73.0 while preserving the T3 overlay; migration histories join at 0324_merge_t3_upstream_v173. CI and downstream compatibility remain unverified.
+- Sync upstream to v1.73.0 while preserving the T3 overlay; migration histories join at `0324_merge_t3_upstream_v173` and `0325_merge_t3_rooms_v173`.
 
 ### Security
 
@@ -29,6 +35,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Message-level side threads in Team rooms: open a saved message's thread, follow its reply count, share its direct link, and post human messages or explicitly ask an agent inside it. Threads inherit the room's project audience and share its durable request queue. Replies, resumed answers, drafts and uncertain retries retain their thread; ordinary quoted replies remain separate. Agent history prioritizes the root and thread replies, with earlier main-room context filling the remaining history budget.
+- A thread run keeps its own paused state and does not inherit or replace the main room's plan, reminder or compaction state. Removing a chat from its project keeps existing threads readable under that chat's remaining access, with further thread replies disabled. Saving an answer as a dataset example keeps its question, answer and history in the same discussion, so interleaved messages from other threads do not contaminate the example.
 - Record updates accept atomic `link_changes` keyed by immutable link column IDs. Explicit additions and removals require current target read access, preserve unnamed hidden links, and share scalar edits' revision, history, transaction and idempotency behavior. The grid and record panel send link deltas and retain those choices through conflicts, so reapplying an edit preserves unrelated links added by another writer.
 - An Agent settings pane beside chat, with explicit draft saving for name, description, instructions, default model and configured capability switches. Editing and publishing use per-agent access hints, including resource grants. Publishing validates the draft and uses the existing version/environment confirmation. Edits survive switching workspace panes; remote changes pause saving. Chat model overrides and running turns keep their existing scope.
 - The agent chat header has a compact model selector with provider icons, saved-model search, explicit account filtering and a return to the agent's model. It preserves chat preferences, permission gates and the advanced connection setup in Controls; disconnected or non-chat models stay unavailable.

@@ -1384,6 +1384,9 @@ class DatasetService:
     ) -> tuple[DatasetCaseContent, dict[str, UUID | None], Authorship]:
         """The case an agent's answer makes, and the links back to where it came from.
 
+        Question and reply steps stay in the selected main room or subthread.
+        Optional thread history keeps its root and only earlier parent-room turns.
+
         Raises as :meth:`add_from_message` documents.
         """
         missing = NotFoundError(message="Message not found", details={"message_id": message_id})
@@ -1405,12 +1408,22 @@ class DatasetService:
             raise missing from None
         if message.role != "assistant":
             raise refused_field("message_id", "Only an agent's answer can be added to a dataset")
+        root = None
+        if message.thread_root_message_id is not None:
+            root = await conversation_repo.get_thread_root(
+                self.db,
+                conversation_id=conversation.id,
+                root_message_id=message.thread_root_message_id,
+            )
+            if root is None:
+                raise missing
         before = await conversation_repo.get_messages_before(
             self.db,
             conversation.id,
             organization_id=ctx.organization_id,
             ordinal=message.ordinal,
             limit=MAX_HISTORY_TURNS + _MAX_REPLY_STEPS + 1,
+            thread_root_message_id=message.thread_root_message_id,
         )
         after = await conversation_repo.get_messages_following(
             self.db,
@@ -1418,6 +1431,7 @@ class DatasetService:
             organization_id=ctx.organization_id,
             ordinal=message.ordinal,
             limit=_MAX_REPLY_STEPS,
+            thread_root_message_id=message.thread_root_message_id,
         )
         asking = len(before)
         while asking > 0 and before[asking - 1].role == "assistant":
@@ -1463,6 +1477,26 @@ class DatasetService:
         )
         noted = next((notes[turn.id] for turn in reversed(reply) if turn.id in notes), None)
         shown = earlier[:asked][-MAX_HISTORY_TURNS:] if with_history else []
+        if with_history and root is not None:
+            # The root is context, never another step of the answer or its question.
+            # Reserve its slot before filling any spare space from the parent room.
+            shown = earlier[max(0, asked - MAX_HISTORY_TURNS + 1) : asked]
+            parent = await conversation_repo.get_messages_before(
+                self.db,
+                conversation.id,
+                organization_id=ctx.organization_id,
+                ordinal=root.ordinal,
+                limit=MAX_HISTORY_TURNS - len(shown) - 1,
+            )
+            shown = [
+                *(
+                    turn
+                    for turn in parent
+                    if turn.role in ("user", "assistant") and turn.content.strip()
+                ),
+                root,
+                *shown,
+            ]
         speakers = await self._speakers(
             [*shown, earlier[asked]],
             owner=conversation.user_id,

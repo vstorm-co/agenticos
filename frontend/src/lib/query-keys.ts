@@ -10,6 +10,14 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  roomThreads: {
+    detail: (
+      account: string | undefined,
+      tenant: string | null,
+      conversation: string | null,
+      root: string | null,
+    ) => ["room-threads", account, tenant, conversation, root] as const,
+  },
   roomRequests: {
     list: (account: string | undefined, tenant: string | null, conversation: string | null) =>
       ["room-requests", account, tenant, conversation] as const,

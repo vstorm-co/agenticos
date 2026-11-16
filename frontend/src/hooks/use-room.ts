@@ -16,7 +16,7 @@ import { useTenantGuard, useTenantId } from "./use-organizations";
 import type { RoomMessageCreate } from "@/types/room";
 
 /** Every result belongs to both the signed-in account and the effective tenant. */
-function useRoomIdentity() {
+export function useRoomIdentity() {
   const accountId = useAuthStore((state) => state.user?.id);
   const organizationId = useOrgStore((state) => state.activeOrgId);
   const tenant = useTenantId();

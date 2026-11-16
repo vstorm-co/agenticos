@@ -1059,6 +1059,7 @@ class AgentSession:
                             # on the answer from the first word rather than at the end.
                             "agent_id": str(agent_id),
                             "file_source": source_wire,
+                            "thread_root_message_id": None,
                         },
                     )
                 await chat_room.turn_begun(self._live, self.user.id)
@@ -1068,6 +1069,7 @@ class AgentSession:
                     "content": user_message,
                     "file_source": source_wire,
                     "message_id": None if prompt.message_id is None else str(prompt.message_id),
+                    "thread_root_message_id": None,
                 },
             )
 
@@ -1733,6 +1735,15 @@ class AgentSession:
         and came back follows the rest of the turn from another socket. Answers
         whether this socket took it, as `send_event` does.
         """
+        # Foreground socket turns are main-room turns. Resumed room runs already
+        # carry their trusted scope, and must retain it through this surface.
+        if isinstance(payload, dict) and kind in {
+            "model_request_start",
+            "message_saved",
+            "background_task_turn",
+            "user_prompt",
+        }:
+            payload = {"thread_root_message_id": None, **payload}
         sent = await send_event(self.websocket, kind, payload)
         if self._live_turn is not None:
             await live_turn.publish(self._live_turn, kind, payload)
@@ -2014,13 +2025,13 @@ class AgentSession:
         Whether to go on following the conversation: not when the socket closed
         or the person may no longer read it.
         """
-        await send_event(self.websocket, "turn_attached", {"conversation_id": conversation_id})
+        attached = False
         ended = False
         recheck = time.monotonic() + RECHECK_SECONDS
         async for frame in live_turn.follow(conversation_id, token):
             ended = frame["type"] == live_turn.END
-            # A long turn is asked about again as it goes: somebody removed from
-            # the project mid-answer must not read the rest of it.
+            # Revalidate before forwarding when the periodic access check is due,
+            # including a first frame delayed beyond the recheck interval.
             if time.monotonic() >= recheck and not ended:
                 if not await self._still_reads(conversation_id):
                     await send_event(
@@ -2028,11 +2039,30 @@ class AgentSession:
                     )
                     return False
                 recheck = time.monotonic() + RECHECK_SECONDS
+            if not attached:
+                data = frame["data"]
+                await send_event(
+                    self.websocket,
+                    "turn_attached",
+                    {
+                        "conversation_id": conversation_id,
+                        "thread_root_message_id": (
+                            data.get("thread_root_message_id") if isinstance(data, dict) else None
+                        ),
+                    },
+                )
+                attached = True
             if not await send_event(self.websocket, frame["type"], frame["data"]):
                 return False
         if not ended:
             # The turn ended between the check and the subscription: the
             # follower still needs to hear it is over.
+            if not attached:
+                await send_event(
+                    self.websocket,
+                    "turn_attached",
+                    {"conversation_id": conversation_id, "thread_root_message_id": None},
+                )
             return await send_event(
                 self.websocket, live_turn.END, {"conversation_id": conversation_id}
             )

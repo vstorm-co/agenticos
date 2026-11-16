@@ -255,6 +255,7 @@ class TranscriptService:
         *,
         prompt: str | None,
         answer: str,
+        thread_root_message_id: UUID | None = None,
         attachments: Sequence[ChatFile] = (),
         attachment_context: str | None = None,
         model_content: str | None = None,
@@ -352,6 +353,7 @@ class TranscriptService:
                         model_content=model_content,
                         attachment_context=attachment_context,
                         run_id=run.id,
+                        thread_root_message_id=thread_root_message_id,
                         # Off the run rather than passed in: the run row already
                         # records which chat account asked, and a second route to
                         # the same fact is a second route to getting it wrong.
@@ -381,6 +383,7 @@ class TranscriptService:
                         context_used_tokens=context_used_tokens,
                         mcp_origins=mcp_origins or {},
                         draft_tools=draft_tools,
+                        thread_root_message_id=thread_root_message_id,
                     )
         except Exception:
             # `exception`, not `warning`: this is the only place in this file that
@@ -459,6 +462,7 @@ class TranscriptService:
         context_used_tokens: int | None,
         mcp_origins: Mapping[str, UUID],
         draft_tools: Collection[str],
+        thread_root_message_id: UUID | None = None,
     ) -> UUID:
         """The assistant turn and the calls it made, attributed to the version.
 
@@ -474,6 +478,9 @@ class TranscriptService:
         # resumed writes two assistant turns and the row is cumulative, so
         # stamping both with it would count the parked half twice.
         spent = await conversation_repo.attributed_to_run(self.db, run.id)
+        # The executing/parked run carries its admitted scope even if somebody
+        # deleted the root while it was running. The FK then refuses this write
+        # inside record's savepoint; a deleted thread never becomes a main reply.
         message = await conversation_repo.create_message(
             self.db,
             conversation_id=conversation_id,
@@ -497,6 +504,7 @@ class TranscriptService:
             agent_id=run.agent_id,
             agent_version_id=run.agent_version_id,
             run_id=run.id,
+            thread_root_message_id=thread_root_message_id,
         )
         now = datetime.now(UTC)
         for call in tool_calls:

@@ -2792,6 +2792,28 @@
       "capabilities": "Tools and capabilities",
       "title": "Agent settings",
       "checking": "Checking draft…"
+    },
+    "roomThread": {
+      "historyAudience": "Saved conversation history",
+      "readOnly": "This thread is read-only.",
+      "title": "Thread",
+      "start": "Reply in thread",
+      "replies": "{count, plural, one {# reply} other {# replies}}",
+      "message": "Reply to thread",
+      "placeholder": "Reply here. Everyone in the room can read this thread.",
+      "post": "Post reply",
+      "close": "Close thread",
+      "earlier": "Load earlier replies",
+      "audience": "Visible to everyone in this room",
+      "root": "Original message",
+      "loading": "Loading thread…",
+      "unavailable": "This thread is unavailable. It may have been removed, or your room access may have changed.",
+      "retry": "Try again",
+      "empty": "Start the conversation in this thread.",
+      "open": "Open thread",
+      "pending": "An agent is waiting for you in a thread.",
+      "mainPending": "An agent is waiting for you in the main room.",
+      "main": "Back to room"
     }
   },
   "common": {
@@ -6430,6 +6452,14 @@
       "table-row-access": {
         "title": "Row access rules",
         "body": "Choose who can read rows, then open a row to give a person or group Read or Write."
+      },
+      "chat-room-thread": {
+        "title": "Discuss one message",
+        "body": "Open a thread to keep replies together without filling the main room. The reply count takes you back to the discussion; Reply still quotes a message."
+      },
+      "chat-room-thread-panel": {
+        "title": "Replies with their own context",
+        "body": "The original message stays above the replies. Everyone in the room can read the thread. Choose an agent when you want help here, or close the thread to return to the room."
       }
     }
   },

@@ -306,6 +306,8 @@ describe("stepsForPage", () => {
       "chat-agent-settings",
       "chat-team-room",
       "chat-team-composer",
+      "chat-room-thread",
+      "chat-room-thread-panel",
       "chat-local-skills",
       "chat-coding-accounts",
       "chat-local-coding",

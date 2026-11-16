@@ -10,7 +10,8 @@ import { stillMentioned } from "@/lib/mentions";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { cn } from "@/lib/utils";
-import type { ChatMessage, ChatMessageFile, TurnUsage } from "@/types";
+import type { ChatMessage, ChatMessageFile, MessageReply, TurnUsage } from "@/types";
+import { RoomThreadButton } from "./room-thread-button";
 import type { Agent } from "@/types/agents";
 import { ToolCallCard } from "./tool-call-card";
 import { AgentSteps } from "./agent-step";
@@ -115,6 +116,11 @@ interface MessageItemProps {
   onRegenerate?: () => void;
   /** Fork the conversation at a message, given its id; absent where the reader may not (#2762). */
   onFork?: (messageId: string) => void;
+  onOpenThread?: (messageId: string) => void;
+  canStartThread?: boolean;
+  onReply?: (reply: MessageReply) => void;
+  allowReply?: boolean;
+  threadRootPreview?: boolean;
   forkingMessageId?: string | null;
   /** In the test panel: a question can be pinned to ask again after each change (#2075). */
   pins?: PinnedPrompts;
@@ -137,6 +143,11 @@ export const MessageItem = memo(function MessageItem({
   openLastStep = false,
   onRegenerate,
   onFork,
+  onOpenThread,
+  canStartThread = false,
+  onReply,
+  allowReply = true,
+  threadRootPreview = false,
   forkingMessageId = null,
   pins,
   agents = [],
@@ -238,7 +249,8 @@ export const MessageItem = memo(function MessageItem({
       // The anchor the turn rail scrolls to. On the row rather than on a wrapper
       // of its own, so the rail lands on the top of the turn and not on a box
       // drawn around it.
-      data-message-id={message.id}
+      data-message-id={threadRootPreview ? undefined : message.id}
+      data-thread-root={threadRootPreview ? message.id : undefined}
       className={cn(
         // The face and the name on one line over the message, as in the
         // Architect's window, and the message under them at the column's full
@@ -551,11 +563,11 @@ export const MessageItem = memo(function MessageItem({
             )}
             {/* Stored messages only: a reply names the row it answers, and a
                 message still on this tab's own id has none yet. */}
-            {!message.isTemporaryId && !message.isStreaming && message.content && (
+            {allowReply && !message.isTemporaryId && !message.isStreaming && message.content && (
               <button
                 type="button"
                 onClick={() =>
-                  setReplyTo({
+                  (onReply ?? setReplyTo)({
                     messageId: message.id,
                     role: message.role,
                     excerpt: replyExcerpt(message.content),
@@ -577,6 +589,9 @@ export const MessageItem = memo(function MessageItem({
                 answer={message.content}
                 conversationId={message.conversationId}
               />
+            )}
+            {onOpenThread && (
+              <RoomThreadButton message={message} canStart={canStartThread} onOpen={onOpenThread} />
             )}
             {!isUser && onRegenerate && (
               <button

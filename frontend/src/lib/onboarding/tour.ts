@@ -377,6 +377,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "chat-agent-settings", page: ROUTES.CHAT, target: "chat-agent-settings", optional: true },
   { id: "chat-team-room", page: ROUTES.CHAT, target: "chat-team-room", optional: true },
   { id: "chat-team-composer", page: ROUTES.CHAT, target: "chat-team-composer", optional: true },
+  { id: "chat-room-thread", page: ROUTES.CHAT, target: "chat-room-thread", optional: true },
+  {
+    id: "chat-room-thread-panel",
+    page: ROUTES.CHAT,
+    target: "chat-room-thread-panel",
+    optional: true,
+  },
   {
     id: "chat-local-skills",
     page: ROUTES.CHAT,

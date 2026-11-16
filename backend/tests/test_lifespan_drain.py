@@ -34,14 +34,6 @@ def _no_leftovers():
     background._running.clear()
 
 
-@pytest.fixture(autouse=True)
-def restore_channel_stores(monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.services.channels import email_state, sms_prompts
-
-    monkeypatch.setattr(sms_prompts, "_redis", None)
-    monkeypatch.setattr(email_state, "_redis", None)
-
-
 class _FakeRedis:
     async def connect(self) -> None: ...
     async def close(self) -> None: ...
@@ -66,6 +58,12 @@ _ADAPTER_CLASSES = {
 
 def _stub_startup(monkeypatch: pytest.MonkeyPatch) -> None:
     from app import main
+    from app.services.channels import email_state, sms_prompts
+
+    # Imported callers do not inherit this module's autouse fixtures. Capture
+    # these stores here so their monkeypatch restores them after each test.
+    monkeypatch.setattr(sms_prompts, "_redis", None)
+    monkeypatch.setattr(email_state, "_redis", None)
 
     for name in (
         "setup_logfire",

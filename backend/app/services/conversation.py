@@ -262,6 +262,7 @@ class ConversationService:
         exclude_message_id: UUID | None = None,
         before_message_id: UUID | None = None,
         room_request_message_id: UUID | None = None,
+        thread_root_message_id: UUID | None = None,
     ) -> ModelHistory:
         """The thread as the model should read it, summary included.
 
@@ -294,23 +295,38 @@ class ConversationService:
         that filtered window, so room histories always rebuild the bounded
         transcript and retain its refusal revision.
         """
-        if room_request_message_id is not None and before_message_id is not None:
+        if (
+            sum(
+                value is not None
+                for value in (room_request_message_id, before_message_id, thread_root_message_id)
+            )
+            > 1
+        ):
             raise BadRequestError(message="Choose one conversation history boundary")
         conversation = await conversation_repo.get_conversation_by_id(
             self.db, conversation_id, include_summary=True, fresh=True
         )
         revision = None if conversation is None else conversation.guardrail_revision
-        if room_request_message_id is not None:
-            rows = await conversation_repo.get_room_history_messages(
-                self.db,
-                conversation_id,
-                request_message_id=room_request_message_id,
-                limit=limit,
-            )
+        if room_request_message_id is not None or thread_root_message_id is not None:
+            if room_request_message_id is not None:
+                rows = await conversation_repo.get_room_history_messages(
+                    self.db,
+                    conversation_id,
+                    request_message_id=room_request_message_id,
+                    limit=limit,
+                )
+            else:
+                assert thread_root_message_id is not None, "one explicit thread was selected"
+                rows = await conversation_repo.get_thread_history_messages(
+                    self.db,
+                    conversation_id,
+                    root_message_id=thread_root_message_id,
+                    limit=limit,
+                )
             if rows is None:
                 raise NotFoundError(
                     message="Room message not found",
-                    details={"message_id": room_request_message_id},
+                    details={"message_id": room_request_message_id or thread_root_message_id},
                 )
             spoken = await self._spoken(rows, conversation)
             history = build_message_history(_as_history(rows, exclude_message_id, spoken))
@@ -372,7 +388,11 @@ class ConversationService:
                 revision=revision,
             )
         since = await conversation_repo.get_messages_after(
-            self.db, conversation_id, ordinal=conversation.summary_ordinal, limit=limit
+            self.db,
+            conversation_id,
+            ordinal=conversation.summary_ordinal,
+            limit=limit,
+            top_level_only=True,
         )
         if before_ordinal is not None:
             # The summary is older than the turn being retried, so only the
@@ -412,10 +432,11 @@ class ConversationService:
                 latest=True,
                 limit=limit,
                 fresh=True,
+                top_level_only=True,
             )
         else:
             rows = await conversation_repo.get_recent_messages(
-                self.db, conversation_id, limit=limit
+                self.db, conversation_id, limit=limit, top_level_only=True
             )
         spoken = await self._spoken(rows, conversation)
         history = build_message_history(_as_history(rows, exclude_message_id, spoken))
@@ -1943,6 +1964,8 @@ class ConversationService:
         user_id: UUID | None = None,
         ctx: AuthContext | None = None,
         for_model: bool = False,
+        top_level_only: bool = False,
+        thread_root_message_id: UUID | None = None,
     ) -> tuple[list[Message | MessageRead], int, ConversationCost | None]:
         """One conversation's messages and its cost, for a reader allowed to see them.
 
@@ -1973,6 +1996,17 @@ class ConversationService:
             include_favourite=False,
             ctx=ctx,
         )
+        root = None
+        if thread_root_message_id is not None:
+            if top_level_only:
+                raise BadRequestError(message="Choose main-room history or one subthread")
+            root = await conversation_repo.get_thread_root(
+                self.db,
+                conversation_id=conversation_id,
+                root_message_id=thread_root_message_id,
+            )
+            if root is None:
+                raise NotFoundError(message="Room thread not found")
         items = await conversation_repo.get_messages_by_conversation(
             self.db,
             conversation_id,
@@ -1983,10 +2017,30 @@ class ConversationService:
             before=before,
             for_model=for_model,
             fresh=for_model,
+            top_level_only=top_level_only,
+            thread_root_message_id=thread_root_message_id,
         )
         total = await conversation_repo.count_messages(
-            self.db, conversation_id, for_model=for_model
+            self.db,
+            conversation_id,
+            for_model=for_model,
+            top_level_only=top_level_only,
+            thread_root_message_id=thread_root_message_id,
         )
+        if root is not None:
+            items.insert(0, root)
+            total += 1
+        if top_level_only or thread_root_message_id is not None:
+            summaries = await conversation_repo.thread_summaries(
+                self.db,
+                conversation_id=conversation_id,
+                root_ids={item.id for item in items if item.thread_root_message_id is None},
+            )
+            for item in items:
+                summary = summaries.get(item.id)
+                # Transient read enrichment, like sender and reply_to below.
+                item.thread_reply_count = summary.reply_count if summary else 0  # ty: ignore[unresolved-attribute]
+                item.thread_last_activity_at = summary.last_activity_at if summary else None  # ty: ignore[unresolved-attribute]
         await self._attach_senders(items, conversation)
         if for_model:
             return (
@@ -2053,6 +2107,7 @@ class ConversationService:
         organization_id: UUID,
         user_id: UUID | None = None,
         run_id: UUID | None = None,
+        thread_root_message_id: UUID | None = None,
     ) -> Message:
         """Append one message into a conversation in `organization_id`.
 
@@ -2109,11 +2164,32 @@ class ConversationService:
             and any(part.file_source is not None for part in data.parts)
         ):
             raise refused_field("parts.file_source", "File origins are recorded by the runner")
+        if thread_root_message_id is not None:
+            root = (
+                await conversation_repo.get_thread_root(
+                    self.db,
+                    conversation_id=conversation_id,
+                    root_message_id=thread_root_message_id,
+                )
+                if conversation.project_id is not None
+                else None
+            )
+            if root is None:
+                raise refused_field(
+                    "thread_root_message_id", "Choose a top-level message in this project room"
+                )
         if data.reply_to_message_id is not None:
             answered = await conversation_repo.get_message_by_id(self.db, data.reply_to_message_id)
             if answered is None or answered.conversation_id != conversation.id:
                 raise refused_field(
                     "reply_to_message_id", "Reply to a message in this conversation"
+                )
+            if thread_root_message_id is not None and (
+                answered.id != thread_root_message_id
+                and answered.thread_root_message_id != thread_root_message_id
+            ):
+                raise refused_field(
+                    "reply_to_message_id", "Quote the root or a reply in this subthread"
                 )
         message = await conversation_repo.create_message(
             self.db,
@@ -2153,6 +2229,7 @@ class ConversationService:
             # Whose words these are: in a project's chat, not always the owner's.
             author_user_id=user_id if data.role == "user" else None,
             reply_to_message_id=data.reply_to_message_id,
+            thread_root_message_id=thread_root_message_id,
         )
 
         from app.services.change_feed import announce_conversation
