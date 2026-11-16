@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Hold an object, a list or a single value in a workflow with the new **Data**
+  step (`data.value`): type it in as JSON or bind it from an earlier output, and
+  read it or a path into it from later steps. The value is set once per run and
+  is never overwritten, and the step's panel says so.
+
 ## [1.78.0] - 2026-11-16
 
 ### Added

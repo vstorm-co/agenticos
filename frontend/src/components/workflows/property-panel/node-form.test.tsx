@@ -447,6 +447,31 @@ describe("NodeForm sections", () => {
     expect(screen.getByLabelText("The branch that ran")).toBeChecked();
   });
 
+  it("says a Data step's value is set once, and takes it as JSON", () => {
+    const { upsertBinding } = renderForm({
+      definition: makeDefinition({
+        id: "data.value",
+        input_schema: {
+          type: "object",
+          properties: { value: { title: "Value" } },
+          required: ["value"],
+        } as Schema,
+      }),
+      folded: true,
+    });
+    expect(screen.getByText(/Set once per run and never overwritten/)).toBeVisible();
+    const field = screen.getByRole("textbox", { name: /^Value/ });
+    fireEvent.change(field, { target: { value: '{"limit": 10, "tags": ["a"]}' } });
+    fireEvent.blur(field);
+    expect(upsertBinding).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        target_node_id: "N",
+        target_field: "value",
+        source: { kind: "literal", value: { limit: 10, tags: ["a"] } },
+      }),
+    );
+  });
+
   it("shows an empty message when a node has no fields", () => {
     renderForm({ definition: makeDefinition({ id: "bare" }) });
     expect(screen.getByText("This node has no configurable fields.")).toBeVisible();

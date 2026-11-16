@@ -1332,6 +1332,7 @@
     "bindingJsonInvalid": "Geçerli JSON olmadığından kaydedilmedi.",
     "validationTriggerNotEntry": "Gözetimsiz her tür için bir trigger kullanın.",
     "triggerHintManual": "Düzenleyicinin sağ üstündeki Run düğmesiyle veya run sayfasından başlatın. Başlarken sorulacak alanları tanımlayın.",
+    "dataValueSetOnce": "Her run için bir kez ayarlanır ve asla üzerine yazılmaz: sonraki adımlar bu değeri okur ama değiştiremez. Değiştirmek için ondan yeni bir değer oluşturan bir adım ekleyin.",
     "triggerHintChat": "Üyeler bu workflow’u sohbette seçer. Sonraki adımlar, mesajı konuşma ve gönderen bilgisiyle birlikte prompt olarak okur.",
     "triggerHintWebhook": "Yayımlandığında bu workflow’a özel bir adres ve imzalama secret’ı verilir; yeniden yayımlayınca da aynı kalır. Sonraki adımlar, gelen JSON’u body olarak okur.",
     "publishTrigger": "{trigger} ile başlar. Yayımlandıktan sonra webhook, schedule veya table trigger sizin adınıza çalışır.",

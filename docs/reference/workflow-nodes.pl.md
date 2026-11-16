@@ -1,5 +1,5 @@
 ---
-source_sha: "68ac0f7695b1"
+source_sha: "b91ec9744e42"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -380,6 +380,20 @@ zamienić, kończy się błędem `MAPPING_COERCION_FAILED` z nazwą pola.
 ::: app.workflows.nodes.data_map._handler.DataMapConfig
 
 ::: app.workflows.nodes.data_map._handler.FieldMapping
+
+## data.value { #data-value }
+
+**Data** przechowuje jedną wartość dla kolejnych kroków: obiekt, listę albo
+pojedynczą liczbę, tekst lub wartość logiczną. Wpisz ją jako JSON albo podepnij
+w całości pod wynik wcześniejszego kroku. Krok przekazuje ją bez zmian jako
+`value`, a kolejny krok podpina całą wartość albo ścieżkę w niej, na przykład
+`value.customer.email`.
+
+Wartość jest ustawiana raz na run i nigdy nie jest nadpisywana. Wynik kroku jest
+ustalony w chwili jego zakończenia, więc żaden kolejny krok nie może go zmienić:
+Data to nazwana stała, a nie zmienna. Aby zmienić wartość, dodaj krok, który
+zbuduje z niej nową. Aby zebrać wartości z elementów pętli, użyj `loop.yield`.
+Testowy run kroku Data bez wartości kończy się błędem `DATA_NOT_SET`.
 
 ## data.filter i data.combine { #data-filter-and-data-combine }
 

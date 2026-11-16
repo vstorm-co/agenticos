@@ -367,6 +367,19 @@ fails with `MAPPING_COERCION_FAILED` and names the field.
 
 ::: app.workflows.nodes.data_map._handler.FieldMapping
 
+## data.value { #data-value }
+
+**Data** holds one value for later steps: an object, a list, or a single number,
+text or boolean. Type it in as JSON, or bind it whole from an earlier output. The
+step hands it on unchanged as `value`, and a later step binds to the whole value
+or to a path into it, such as `value.customer.email`.
+
+The value is set once per run and is never overwritten. A step's output is fixed
+when the step completes, so no later step can change it: Data is a named
+constant, not a variable. To change a value, add a step that builds a new one
+from it. To collect values from the items of a loop, use `loop.yield`. A draft
+run of a Data step with no value fails with `DATA_NOT_SET`.
+
 ## data.filter and data.combine { #data-filter-and-data-combine }
 
 **Filter a list** keeps the items of a bound list for which a JMESPath condition

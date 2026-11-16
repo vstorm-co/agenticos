@@ -10954,6 +10954,7 @@
     "publishedVersion": "Veröffentlichte Version {version}",
     "validationTriggerNotEntry": "Verwenden Sie einen Trigger je unbeaufsichtigter Art.",
     "triggerHintManual": "Starten Sie ihn mit Run oben rechts im Editor oder auf seiner Run-Seite. Deklarieren Sie Felder, um beim Start nach ihnen gefragt zu werden.",
+    "dataValueSetOnce": "Wird einmal pro Run gesetzt und nie überschrieben: Spätere Schritte lesen diesen Wert, können ihn aber nicht ändern. Um ihn zu ändern, fügen Sie einen Schritt hinzu, der daraus einen neuen Wert bildet.",
     "triggerHintChat": "Mitglieder wählen diesen Workflow im Chat. Die folgenden Schritte lesen die Nachricht als prompt, mit der Unterhaltung und dem Absender.",
     "triggerHintWebhook": "Die Veröffentlichung gibt diesem Workflow eine eigene Adresse und ein Signatur-Secret, die bei weiteren Veröffentlichungen gleich bleiben. Die folgenden Schritte lesen das JSON der Zustellung als body.",
     "publishTrigger": "Er startet mit {trigger}. Ein Webhook, Zeitplan oder Tabellenauslöser läuft nach der Veröffentlichung als Sie.",
