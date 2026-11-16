@@ -53,6 +53,7 @@ from sqlalchemy.dialects.postgresql import ARRAY, JSONB, array
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.util import ClauseAdapter
 
 from app.core.resource_icons import ResourceIconName
 from app.db.models.resource_grant import Visibility
@@ -128,6 +129,8 @@ class FilterClause:
     kind: SqlKind
     op: FilterOp
     value: FilterValue
+    expression: ColumnElement[bool] | None = None
+    """A service-authorized link predicate; never accepted from the public query document."""
 
 
 @dataclass(frozen=True)
@@ -689,7 +692,45 @@ def _operand(kind: SqlKind, value: object) -> object:
             return value
 
 
+def linked_filter_expression(
+    clause: FilterClause,
+    *,
+    organization_id: UUID,
+    target_table_id: UUID,
+    readable: bool,
+    target_policy: ColumnElement[bool] | None = None,
+) -> ColumnElement[bool]:
+    """Match only destinations the caller can read, including for emptiness checks.
+
+    The target alias also supports a link back to the source table. Adapt the
+    target's row policy rather than applying it to the outer source record.
+    """
+    if not readable:
+        visible = false()
+    else:
+        target = VirtualTableRecord.__table__.alias()
+        conditions = [
+            target.c.organization_id == organization_id,
+            target.c.table_id == target_table_id,
+            _cell(clause.column_id).contains(func.jsonb_build_array(cast(target.c.id, Text))),
+        ]
+        if clause.op == "contains":
+            conditions.append(target.c.id == UUID(str(clause.value)))
+        if target_policy is not None:
+            conditions.append(ClauseAdapter(target).traverse(target_policy))
+        visible = (
+            select(1)
+            .select_from(target)
+            .where(*conditions)
+            .correlate(VirtualTableRecord.__table__)
+            .exists()
+        )
+    return ~visible if clause.op == "is_null" and clause.value else visible
+
+
 def _predicate(clause: FilterClause) -> ColumnElement[bool]:
+    if clause.expression is not None:
+        return clause.expression
     column_id = clause.column_id
     if clause.op == "is_null":
         present = VirtualTableRecord.values.has_key(str(column_id))

@@ -1,5 +1,5 @@
 ---
-source_sha: "9bf7eb650d8e"
+source_sha: "dbe4b4b63652"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -143,13 +143,36 @@ Werte, eine Auswahl nach ihrem Label. Ein `rollup` ermittelt daraus etwas:
 gespeichert, geschrieben, gefiltert oder sortiert.
 
 Was ein Nachschlagen zeigt, reicht nicht weiter als der Leser darf: Eine
-verknüpfte Tabelle, die der Leser nicht sieht, lässt die Verknüpfungen
-unbenannt und jedes Nachschlagen und jede Zusammenfassung darüber leer. Eine
-Verknüpfung behält ihre Tabelle für immer. Ein Nachschlagen liest eine Spalte
+verknüpfte Tabelle, die der Leser nicht sieht, lässt die Verknüpfungen sowie
+jedes Nachschlagen und jede Zusammenfassung darüber leer. Auch die Zeilenrichtlinie
+des Ziels gilt: IDs in `values` und Namen in `links` enthalten nur lesbare
+Datensätze. Archivierte Verknüpfungsspalten fehlen in den zurückgegebenen Werten.
+
+Eine Verknüpfung behält ihre Tabelle für immer. Ein Nachschlagen liest eine Spalte
 mit Werten, keine andere Verknüpfung und kein Nachschlagen, und das Archivieren
 einer Verknüpfungsspalte wird abgelehnt, solange etwas über sie liest. Ein
 Export schreibt eine Verknüpfung mit den Namen ihrer Datensätze und ein
 Nachschlagen mit dem Gelesenen.
+
+Verknüpfungsfilter verwenden dieselben lesbaren Ziele. `contains` trifft nie ein
+unlesbares oder gelöschtes Ziel; `is_null: true` bedeutet, dass kein lesbares Ziel
+vorhanden ist, auch wenn verborgene Verknüpfungen gespeichert bleiben. Listen,
+Zählungen, Exporte und Seitenabfragen prüfen dies vor der Paginierung. Ein
+zurückgegebenes Verknüpfungsarray ist die sichtbare Teilmenge des Aufrufers.
+Ersetzt ein älterer Client dieses Array, bleiben bestehende unlesbare Verknüpfungen
+erhalten; Änderungen anderer Felder behalten alle Verknüpfungen bei.
+
+Jede ausdrücklich übermittelte Verknüpfungs-ID muss lesbar sein, auch wenn sie
+bereits verknüpft ist oder die Zeile unverändert ließe. Eine verborgene ID wird
+wie eine unbekannte ID abgelehnt. Nur ausgelassene verborgene Verknüpfungen
+bleiben im Namen des Aufrufers erhalten.
+
+Eine ungültige gespeicherte Zeilenrichtlinie blockiert Datensatzlesevorgänge und
+Schreibvorgänge mit `ROW_POLICY_INVALID` (409), statt die Richtlinie abzuschalten.
+Berechtigte Benutzer können weiterhin Tabellenmetadaten mit
+`row_policy_valid: false` lesen. Ein berechtigter Tabelleneditor kann die Richtlinie
+über `PUT /tables/{id}/row-policy` reparieren. Bis dahin liefert ein Ziel mit
+ungültiger Richtlinie weder verknüpfte Datensätze noch geerbten Projektzugriff.
 
 ## Formeln { #formulas }
 

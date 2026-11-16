@@ -34,8 +34,9 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.virtual_table import VirtualTable
 from app.repositories import virtual_table_repo
 from app.repositories.virtual_table import FilterClause, SqlKind, policy_expression
-from app.schemas.virtual_table import ColumnDef, RowPolicy
+from app.schemas.virtual_table import ColumnDef, RowPolicy, RowPolicyUpdate
 from app.services.virtual_tables.deadline import ReadDeadline, arm_if_set
+from app.services.virtual_tables.exceptions import InvalidRowPolicyError
 
 logger = logging.getLogger(__name__)
 
@@ -46,19 +47,21 @@ _PRINCIPAL_COLUMNS = frozenset({"user", "multi_user"})
 def parse_policy(raw: dict[str, object] | None) -> RowPolicy | None:
     """The stored policy document, or `None` for no policy.
 
-    A document that no longer validates - written before the shape changed, or
-    edited by hand - is read as no policy rather than taking the table down
-    with it; the audit log still shows who set it. Only the policy-setting
-    path writes these documents, and it validates them first.
+    A malformed document refuses record access until an authorized table editor
+    repairs it. Only an absent document or an explicitly valid `none` policy
+    means unrestricted rows; schema drift must never widen the audience.
     """
     if raw is None:
         return None
     try:
+        configured = RowPolicyUpdate.model_validate(raw)
+        if configured.rule == "none":
+            return None
         policy = RowPolicy.model_validate(raw)
     except ValidationError:
-        logger.warning("Ignoring a row policy that does not validate: %r", raw)
-        return None
-    return None if policy.rule == "none" else policy
+        logger.warning("Stored row policy is invalid; refusing record access")
+        raise InvalidRowPolicyError() from None
+    return policy
 
 
 def bypasses_policy(ctx: AuthContext, *, owner_user_id: UUID | None) -> bool:
@@ -160,7 +163,10 @@ async def visible_project_ids(
             value=str(subject),
         )
     ]
-    own = parse_policy(projects.row_policy)
+    try:
+        own = parse_policy(projects.row_policy)
+    except InvalidRowPolicyError:
+        return []
     if own is not None and not bypasses_policy(ctx, owner_user_id=projects.owner_user_id):
         own_clause = _assignee_clause(own, project_columns, subject, kind="view")
         if own_clause is None:

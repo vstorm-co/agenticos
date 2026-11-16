@@ -301,6 +301,30 @@ async def test_a_link_to_a_record_the_table_does_not_hold_is_refused(db):
         )
 
 
+async def test_updating_a_visible_already_linked_record_still_saves_other_cells(db):
+    service, ctx, _org = await _setup(db)
+    products, ids = await _products(service, ctx)
+    orders = await _orders(service, ctx, products)
+    written = await service.create_record(
+        ctx,
+        orders.id,
+        RecordCreate(values={cid(orders, "Ref"): "before", cid(orders, "Items"): [ids["Atlas"]]}),
+    )
+
+    updated = await service.update_record(
+        ctx,
+        orders.id,
+        written.record.id,
+        RecordUpdate(
+            expected_revision=1,
+            values={cid(orders, "Ref"): "after", cid(orders, "Items"): [ids["Atlas"]]},
+        ),
+    )
+
+    assert updated.record.values[cid(orders, "Ref")] == "after"
+    assert updated.record.values[cid(orders, "Items")] == [ids["Atlas"]]
+
+
 @pytest.mark.security
 async def test_a_reader_who_cannot_see_the_linked_table_gets_no_names_and_no_values_from_it(db):
     service, ctx, org = await _setup(db)

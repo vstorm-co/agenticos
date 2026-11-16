@@ -1,5 +1,5 @@
 ---
-source_sha: "9bf7eb650d8e"
+source_sha: "dbe4b4b63652"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -137,12 +137,36 @@ lub `max` kolumny liczb - `min` i `max` także dat. Obie są wyliczane przy
 odczycie rekordu i nigdy nie są zapisywane, filtrowane ani sortowane.
 
 To, co pokazuje odczyt, nie sięga dalej niż czytelnik: powiązana tabela, której
-czytelnik nie widzi, zostawia powiązania bez nazw, a każdy odczyt i każde
-podsumowanie przez nie puste. Powiązanie zachowuje swoją tabelę na zawsze.
+czytelnik nie widzi, pozostawia powiązania oraz każdy odczyt i podsumowanie puste.
+Obowiązuje też polityka wierszy tabeli docelowej: identyfikatory w `values` i nazwy
+w `links` obejmują tylko dostępne rekordy. Zarchiwizowane pola powiązań są pomijane
+w zwracanych wartościach.
+
+Powiązanie zachowuje swoją tabelę na zawsze.
 Odczyt czyta kolumnę z wartościami, nie inne powiązanie ani odczyt, a
 archiwizacja kolumny powiązania jest odrzucana, dopóki czyta przez nią odczyt
 lub podsumowanie. Eksport zapisuje powiązanie nazwami jego rekordów, a odczyt
 tym, co przeczytał.
+
+Filtry powiązań używają tych samych dostępnych rekordów docelowych. `contains`
+nigdy nie dopasowuje niedostępnego ani usuniętego rekordu; `is_null: true` oznacza
+brak dostępnego celu, nawet gdy ukryte powiązania pozostają zapisane. Listy,
+liczniki, eksporty i zapytania stron sprawdzają ten warunek przed paginacją.
+Zwrócona tablica powiązań jest widocznym podzbiorem dla wywołującego. Zastąpienie
+jej przez starszego klienta zachowuje istniejące powiązania, których wywołujący
+nie może odczytać; zmiana innego pola zachowuje wszystkie powiązania.
+
+Każdy jawnie przesłany identyfikator powiązania musi być dostępny do odczytu,
+także gdy jest już powiązany lub nie zmienia wiersza. Ukryty identyfikator jest
+odrzucany tak samo jak nieznany. W imieniu wywołującego zachowywane są wyłącznie
+pominięte ukryte powiązania.
+
+Nieprawidłowa zapisana polityka wierszy blokuje odczyt i zapis rekordów błędem
+`ROW_POLICY_INVALID` (409), zamiast wyłączać politykę. Uprawnieni użytkownicy nadal
+mogą odczytać metadane tabeli z `row_policy_valid: false`, a uprawniony edytor
+tabeli może naprawić politykę przez `PUT /tables/{id}/row-policy`. Do czasu naprawy
+cel z nieprawidłową polityką nie udostępnia powiązanych rekordów ani dostępu
+dziedziczonego z projektu.
 
 ## Formuły { #formulas }
 

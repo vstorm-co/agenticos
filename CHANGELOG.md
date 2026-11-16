@@ -99,6 +99,10 @@ Two things are versioned separately from this file and worth knowing about:
   containers, volumes and networks intact.
 - A harness capability backs an agent with a Claude Code or Codex session in its sandbox, kept open across turns: `harness_start` opens a named session with a first prompt, `harness_prompt` sends it the next one, `harness_stop` closes it and `harness_sessions` lists the open ones. The session is the CLI's own, resumed by an id kept beside the work, and a prompt runs through the same detached execution, live narration, budget ledger and approval as a coding agent's task. A ChatGPT sign-in for Codex is not accepted yet; Codex runs on an OpenAI API key.
 - The harness capability also drives OpenCode, Gemini CLI and Pi sessions, on the same pattern: the same session lifecycle and `read_only` / `edit` access semantics where the CLI supports them, with the CLI's own session id resumed across turns. The credential follows the model for OpenCode and Pi, and is always a Gemini API key for Gemini CLI. The adapters are written from the CLIs' public docs and are untested against the real CLIs; a harness that is not installed reports as failed rather than claiming otherwise.
+### Fixed
+
+- Table link replacements validate every explicitly submitted destination before accepting an unchanged write. Hidden and missing destination IDs receive the same refusal; omitted hidden links remain preserved for older clients.
+
 ## [1.73.0] - 2026-11-13
 
 ### Added
@@ -1054,6 +1058,8 @@ environment without a person's decision.
   fallbacks for email clients that do not load them.
 
 ### Fixed
+
+- Table links expose only readable destination IDs and labels, including exports and projected reads. Link filters and counts use the same visible destinations, and legacy array replacements retain hidden existing links. Invalid stored row policies block record access with a repairable `ROW_POLICY_INVALID` error instead of disabling restrictions.
 
 - Keep parked secret requests in their original conversation, account and organization.
   Leaving that context clears the card and ignores delayed reads or decisions;

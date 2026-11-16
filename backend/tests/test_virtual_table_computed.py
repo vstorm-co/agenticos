@@ -207,6 +207,8 @@ async def test_an_invisible_linked_row_yields_no_label_and_no_rollup(monkeypatch
     assert read[0].links[str(_LINK)][0].id == _VISIBLE
     assert read[0].links[str(_LINK)][0].label == "Visible"
     assert read[0].values[str(_COUNT)] == 1
+    assert read[0].values[str(_LINK)] == [str(_VISIBLE)]
+    assert str(_HIDDEN) not in read[0].model_dump_json()
 
 
 async def test_a_bypass_caller_and_a_table_without_a_policy_see_every_linked_row(monkeypatch):

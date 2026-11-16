@@ -1,5 +1,5 @@
 ---
-source_sha: "9bf7eb650d8e"
+source_sha: "dbe4b4b63652"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -140,12 +140,35 @@ una elección por su etiqueta. Un `rollup` calcula algo a partir de ellos:
 guardan, escriben, filtran ni ordenan.
 
 Lo que muestra una búsqueda no llega más allá de lo que su lector puede ver: una
-tabla enlazada que el lector no ve deja los enlaces sin nombre y vacía cada
-búsqueda y resumen a través de ellos. Un enlace conserva su tabla para siempre.
+tabla enlazada que el lector no ve deja vacíos los enlaces, las búsquedas y los
+resúmenes. También se aplica la política de filas del destino: los IDs en `values`
+y los nombres en `links` incluyen solo registros legibles. Los campos de enlace
+archivados se omiten de los valores devueltos.
+
+Un enlace conserva su tabla para siempre.
 Una búsqueda lee una columna con valores, no otro enlace ni otra búsqueda, y
 archivar una columna de enlace se rechaza mientras algo lea a través de ella. Una
 exportación escribe un enlace con los nombres de sus registros y una búsqueda con
 lo que leyó.
+
+Los filtros de enlaces usan esos mismos destinos legibles. `contains` nunca
+coincide con un destino inaccesible o eliminado; `is_null: true` significa que no
+hay ningún destino legible, aunque se conserven enlaces ocultos. Listas, recuentos,
+exportaciones y consultas de páginas aplican esta condición antes de paginar.
+El array devuelto es el subconjunto visible para quien consulta. Sustituirlo desde
+un cliente antiguo conserva los enlaces existentes que el usuario no puede leer;
+editar otro campo conserva todos los enlaces.
+
+Cada ID de enlace enviado explícitamente debe ser legible, aunque ya esté
+enlazado o no cambie la fila. Un ID oculto se rechaza igual que uno desconocido.
+Solo se conservan en nombre del usuario los enlaces ocultos que este omite.
+
+Una política de filas almacenada que sea inválida bloquea la lectura y escritura
+de registros con `ROW_POLICY_INVALID` (409), sin desactivar la política. Los
+usuarios autorizados aún pueden leer los metadatos, que indican
+`row_policy_valid: false`, y un editor autorizado de la tabla puede repararla
+mediante `PUT /tables/{id}/row-policy`. Hasta entonces, un destino con una política
+inválida no proporciona registros enlazados ni acceso heredado de un proyecto.
 
 ## Fórmulas { #formulas }
 
