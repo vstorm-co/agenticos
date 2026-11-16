@@ -62,3 +62,12 @@ it("offers nothing while the table's columns are still unknown", () => {
   expect(select).toBeDisabled();
   expect(select).toHaveTextContent("Choose a column");
 });
+
+it.each([
+  ["c3", "Retired"],
+  ["c2", "Total"],
+  ["missing", "missing"],
+])("keeps an unavailable saved column %s visible until replaced", (value, label) => {
+  render(<FilterColumnField id="f" tableId="t1" value={value} onPick={vi.fn()} />);
+  expect(screen.getByRole("combobox", { name: "Column" })).toHaveTextContent(label);
+});

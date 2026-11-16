@@ -126,6 +126,8 @@ describe("FilterValueField", () => {
     ["a single operand", "eq", "Nonsense"],
     ["a list", "in", ["o1", "Nonsense"]],
     ["a number", "eq", 3],
+    ["zero", "eq", 0],
+    ["false", "eq", false],
     ["a malformed list", "in", "o1"],
   ])("keeps the typed value when %s names no option", (_, op, value) => {
     mount({ columnId: "status", op, value });

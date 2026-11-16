@@ -38,6 +38,9 @@ export function FilterColumnField({
   const t = useTranslations("workflows");
   const { table } = useWorkflowTable(tableId);
   const columns = table?.columns.filter((column) => !column.archived && filterable(column)) ?? [];
+  const savedId = typeof value === "string" && value !== "" ? value : null;
+  const unavailable = savedId !== null && !columns.some((column) => column.id === savedId);
+  const savedColumn = table?.columns.find((column) => column.id === savedId);
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>{t("nodeFormFilterColumn")}</Label>
@@ -63,6 +66,11 @@ export function FilterColumnField({
           />
         </SelectTrigger>
         <SelectContent>
+          {unavailable && (
+            <SelectItem value={savedId} disabled>
+              {savedColumn?.label ?? savedId}
+            </SelectItem>
+          )}
           {columns.map((column) => (
             <SelectItem key={column.id} value={column.id}>
               {column.label}

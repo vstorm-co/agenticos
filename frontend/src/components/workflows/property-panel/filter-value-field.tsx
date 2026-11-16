@@ -69,7 +69,7 @@ export function FilterValueField({
   }
   const many = op === "in";
   if (many && value !== undefined && !Array.isArray(value)) return <>{fallback}</>;
-  const stored = many ? (Array.isArray(value) ? value : []) : value ? [value] : [];
+  const stored = many ? (Array.isArray(value) ? value : []) : value === undefined ? [] : [value];
   const chosen = stored.map((item) => optionFor(column.options, item));
   const chosenIds = chosen.flatMap((option) => (option === null ? [] : [option.id]));
   if (chosenIds.length !== stored.length) return <>{fallback}</>;
