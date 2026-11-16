@@ -63,14 +63,20 @@ function initialFilter(param: string | null): Filter {
 export function InboxPage() {
   const t = useTranslations("inbox");
   const ts = useTranslations("common");
-  const { suggestions, isLoading, error, refetch } = useSuggestions();
+  const suggested = useSuggestions();
+  const { suggestions } = suggested;
   const [asked, setFilter] = useUrlState("filter");
   const filter = initialFilter(asked);
   const open = filter === "done" ? [] : suggestions.filter(KEEPS[filter]);
   // A step or a tool call standing still until somebody decides is as urgent as
   // anything here, so it leads the list wherever urgent things are shown.
-  const { count: approvals } = usePendingApprovals();
-  const showsApprovals = (filter === "all" || filter === "urgent") && approvals > 0;
+  const pending = usePendingApprovals();
+  const approvals = pending.count;
+  const isLoading = suggested.isLoading || pending.isLoading;
+  const error = suggested.error ?? pending.error;
+  const refetch = () => Promise.all([suggested.refetch(), pending.refetch()]);
+  const showsApprovals =
+    (filter === "all" || filter === "urgent") && !isLoading && !error && approvals > 0;
 
   return (
     <div className="flex flex-1 flex-col space-y-4">

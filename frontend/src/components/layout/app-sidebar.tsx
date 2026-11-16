@@ -33,6 +33,7 @@ import { stripLocale } from "@/lib/active-route";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { useMounted } from "@/hooks/use-mounted";
 import { useSuggestions } from "@/hooks/use-suggestions";
+import { usePendingApprovals } from "@/hooks/use-pending-approvals";
 import { usePermissions } from "@/hooks/use-permissions";
 import { cn, isAppAdmin } from "@/lib/utils";
 import { useAuthStore, useSidebarStore } from "@/stores";
@@ -89,8 +90,10 @@ function NavLink({
 function InboxCount({ collapsed }: { collapsed: boolean }) {
   const t = useTranslations("nav");
   const { suggestions } = useSuggestions();
-  if (suggestions.length === 0) return null;
-  const label = t("inboxCount", { count: suggestions.length });
+  const approvals = usePendingApprovals();
+  const waiting = suggestions.length + approvals.count;
+  if (waiting === 0) return null;
+  const label = t("inboxCount", { count: waiting });
   return collapsed ? (
     <span
       className="bg-muted-foreground absolute top-1 right-1 h-1.5 w-1.5 rounded-full"
@@ -101,7 +104,7 @@ function InboxCount({ collapsed }: { collapsed: boolean }) {
       className="text-muted-foreground ml-auto px-1 text-xs font-medium tabular-nums"
       aria-label={label}
     >
-      {suggestions.length}
+      {waiting}
     </span>
   );
 }

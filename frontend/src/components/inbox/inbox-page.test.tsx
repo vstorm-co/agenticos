@@ -43,6 +43,9 @@ const pending = vi.hoisted(() => ({
   tools: [] as { id: string; tool_id: string; agent_name: string | null }[],
   steps: [] as { id: string; title: string; workflow_name: string }[],
   count: 0,
+  isLoading: false,
+  error: null as Error | null,
+  refetch: vi.fn(),
 }));
 vi.mock("@/hooks/use-pending-approvals", () => ({ usePendingApprovals: () => pending }));
 vi.mock("./suggestion-rows", () => ({
@@ -79,6 +82,9 @@ beforeEach(() => {
   pending.tools = [];
   pending.steps = [];
   pending.count = 0;
+  pending.isLoading = false;
+  pending.error = null;
+  pending.refetch.mockReset();
   state.open = [];
   state.loading = false;
   state.error = null;
@@ -264,6 +270,25 @@ describe("approvals waiting on the reader", () => {
     render(<InboxPage />);
     expect(screen.queryByRole("region", { name: /approvals wait on you/ })).toBeNull();
     expect(screen.getByText("Nothing waits here")).toBeInTheDocument();
+  });
+
+  it("claims no count and no empty inbox while the approvals are still read", () => {
+    pending.isLoading = true;
+    render(<InboxPage />);
+    expect(screen.queryByText("Nothing waits here")).toBeNull();
+    expect(screen.queryByText(/waiting/)).toBeNull();
+    expect(screen.queryByRole("region", { name: /approvals wait on you/ })).toBeNull();
+  });
+
+  it("offers a retry of both reads when the approvals could not be read", async () => {
+    pending.error = new Error("offline");
+    render(<InboxPage />);
+    expect(screen.queryByText("Nothing waits here")).toBeNull();
+    expect(screen.queryByRole("region", { name: /approvals wait on you/ })).toBeNull();
+    expect(screen.getByText("—")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(pending.refetch).toHaveBeenCalledOnce();
+    expect(state.refetch).toHaveBeenCalledOnce();
   });
 
   it("shows nothing of the kind to a reader nothing waits on", () => {
