@@ -1027,7 +1027,7 @@ async def test_a_completed_channel_continuation_defers_buttons_after_posting_its
 ):
     import app.services.channels.prompts as module
 
-    segment = SimpleNamespace(
+    segment = RunSegment(
         output="Sent.",
         channel_destination=None,
         tool_calls=[],

@@ -154,7 +154,11 @@ async def test_context_and_skill_resources_are_saved_and_bound_through_mcp(
 
 
 @pytest.fixture
-async def served(db: AsyncSession) -> AsyncIterator[None]:
+async def served(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[None]:
+    # This fixture measures protocol/auth behavior, not connection latency. The
+    # instrumented ASGI server shares CI CPUs with the other database workers.
+    monkeypatch.setattr("app.agents.mcp.CONNECT_TIMEOUT_SECS", 15.0)
+
     async def session() -> AsyncIterator[AsyncSession]:
         yield db
 
