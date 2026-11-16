@@ -42,6 +42,49 @@ describe("hostOf", () => {
 });
 
 describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
+  it("labels a computer honestly and preserves authorized takeover without browser chrome or resizing", async () => {
+    const live = { ...control(), canRemember: true };
+    const close = vi.fn();
+    const desktop = browse({ navigable: true, kept: "example.test" });
+    const test = render(
+      <BrowserWindow
+        surface="computer"
+        browse={desktop}
+        control={live}
+        onClose={close}
+        waitForFit
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Computer" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Pricing" })).toBeNull();
+    expect(screen.queryByTitle(desktop.url!)).toBeNull();
+    expect(screen.getByRole("application", { name: "Computer preview" })).toBeVisible();
+    expect(screen.getByRole("img", { name: "Screenshot of the agent’s computer" })).toBeVisible();
+    expect(live.send).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: /Take over/ }));
+    expect(live.send).toHaveBeenCalledExactlyOnceWith({ type: "take_over" });
+    test.rerender(
+      <BrowserWindow
+        surface="computer"
+        browse={{ ...desktop, heldBy: "Ada", heldById: "u1" }}
+        control={live}
+        onClose={close}
+      />,
+    );
+    expect(screen.getByRole("application", { name: "Interactive computer view" })).toBeVisible();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    fireEvent.keyDown(screen.getByRole("application"), { key: "ArrowRight" });
+    expect(live.send).toHaveBeenLastCalledWith({ type: "key", key: "ArrowRight" });
+    await userEvent.click(screen.getByRole("button", { name: "Computer options" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Close workspace panel" }));
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("shows computer-specific startup copy while waiting for its first screenshot", () => {
+    render(<BrowserWindow surface="computer" browse={browse({ image: null })} control={null} />);
+    expect(screen.getByRole("status")).toHaveTextContent(/computer.*screenshot/);
+    expect(screen.queryByText(/Opening the page/)).toBeNull();
+  });
   it("names the tab after the page, with a padlock on https and the host in the address bar", () => {
     render(<BrowserWindow browse={browse()} control={null} />);
 

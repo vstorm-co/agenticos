@@ -856,7 +856,11 @@ class TestATurnThatFinished:
         )
         assert _sent_events(session)[2] == (
             "message_saved",
-            {"message_id": "saved-1", "conversation_id": _CONVERSATION},
+            {
+                "message_id": "saved-1",
+                "conversation_id": _CONVERSATION,
+                "thread_root_message_id": None,
+            },
         )
 
     async def test_both_halves_of_the_turn_are_filed_under_the_run_that_produced_them(self):
@@ -2565,7 +2569,11 @@ class TestATurnThatDidNotFinishStillKeepsWhatItSaid:
         assert written.args[2] == "gpt-4.1"
         assert (
             "message_saved",
-            {"message_id": "saved-1", "conversation_id": session.current_conversation_id},
+            {
+                "message_id": "saved-1",
+                "conversation_id": session.current_conversation_id,
+                "thread_root_message_id": None,
+            },
         ) in _sent_events(session)
 
     async def test_an_unsaved_partial_reply_reports_the_save_failure_too(self) -> None:

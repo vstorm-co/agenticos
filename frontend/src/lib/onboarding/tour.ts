@@ -373,8 +373,16 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   { id: "chat-composer", page: ROUTES.CHAT, target: "chat-composer", optional: true },
+  { id: "chat-workspace", page: ROUTES.CHAT, target: "chat-workspace" },
   { id: "chat-team-room", page: ROUTES.CHAT, target: "chat-team-room", optional: true },
   { id: "chat-team-composer", page: ROUTES.CHAT, target: "chat-team-composer", optional: true },
+  { id: "chat-room-thread", page: ROUTES.CHAT, target: "chat-room-thread", optional: true },
+  {
+    id: "chat-room-thread-panel",
+    page: ROUTES.CHAT,
+    target: "chat-room-thread-panel",
+    optional: true,
+  },
   {
     id: "chat-local-skills",
     page: ROUTES.CHAT,
@@ -1339,6 +1347,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "page-secondary-actions",
   },
   { id: "table-view-tabs", page: TABLE_DETAIL, target: "table-view-tabs" },
+  { id: "table-row-access", page: TABLE_DETAIL, target: "table-row-access", optional: true },
+  { id: "record-access", page: TABLE_DETAIL, target: "record-access", optional: true },
 
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },
 

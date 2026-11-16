@@ -1,5 +1,5 @@
 ---
-source_sha: "3bce1ab7805a"
+source_sha: "c7784f62508b"
 ---
 
 # Skills { #skills }
@@ -251,24 +251,29 @@ Skills: 1–64 Zeichen für den Namen und höchstens 500 für die Beschreibung.
 die ursprünglichen Dateien bleiben erhalten. Ein Savepoint schützt den Lauf:
 ein abgelehnter Vorschlag verhindert weder Status- noch Kostenaufzeichnung.
 
-### Gelernte Skills — aus einem genehmigten Vorschlag wird ein eigener Skill { #learned-skills-an-approved-proposal-becomes-a-skill-on-its-own }
+### Gelernte Skills — ein genehmigter Vorschlag aktualisiert den genannten Skill { #learned-skills-an-approved-proposal-becomes-a-skill-on-its-own }
 
-Einen Vorschlag anzuwenden bearbeitet den Skill, den er nennt. Wenn der
-genehmigte Vorschlag selbst ein neuer Skill ist — ein wiederkehrender Fehler
-ohne Skill, an den er sich hängen ließe — legt das automatische Skill-Lernen
-ihn stattdessen an: `POST /v1/agents/{agent_id}/learned-skills` mit dem Text
-des Vorschlags und seiner Herkunft. Der neue Skill landet in der Kategorie
-`learned`, sodass die Liste zeigen kann, was die Schleife die Organisation
-gelehrt hat, und der Schreibvorgang wird als `skill.learned` auditiert, mit
-dem Vorschlag, dem Ledger-Eintrag und dem Pattern-Key, die ihn motiviert
-haben.
+Einen Vorschlag anzuwenden bearbeitet den Skill, den er nennt. Das automatische
+Skill-Lernen schreibt danach den genehmigten Text über
+`POST /v1/agents/{agent_id}/learned-skills` in diesen Skill. Der gespeicherte
+Vorschlag liefert den Ziel-Skill, den Text und die Herkunft. Die Anfrage sendet
+weiterhin `content`, und dieser Wert muss mit dem Text des Vorschlags
+übereinstimmen. `name` und `description` des Aufrufers sind veraltet und werden
+ignoriert.
 
-Denselben Vorschlag zweimal zu lernen schreibt beim zweiten Mal nichts, und
-ein Skill, den jemand seit dem Vorschlag umgeschrieben hat, wird abgelehnt
-statt überschrieben. Ein gelernter Skill ist danach ein gewöhnlicher Skill:
-bearbeitbar, versioniert durch denselben Versionssprung wie jede Bearbeitung,
-und rückgängig gemacht durch eine neue Bearbeitung statt durch eine
-Wiederherstellung.
+Das Lernen aktualisiert nur einen vorhandenen Skill, daher meldet die Antwort
+`created` immer als `false`. Ein Vorschlag ohne Ziel-Skill oder einer, der nicht
+angewendet oder zurückgenommen wurde, liefert 404. Ein Feld der Anfrage, das dem
+gespeicherten Vorschlag widerspricht, liefert 409, ebenso ein Skill, der sich
+seit dem Vorschlag geändert hat. Ein solcher Skill wird abgelehnt statt
+überschrieben.
+
+Jeder Schreibvorgang wird als `skill.learned` auditiert, mit dem Vorschlag, dem
+Ledger-Eintrag und dem Pattern-Key, die ihn motiviert haben. Denselben Vorschlag
+zweimal zu lernen schreibt beim zweiten Mal nichts. Eine gelernte Änderung ist
+danach eine gewöhnliche Bearbeitung: versioniert durch denselben Versionssprung
+wie jede Bearbeitung und rückgängig gemacht durch eine neue Bearbeitung statt
+durch eine Wiederherstellung.
 
 Eine Änderung hält fest, für welche Version des Skills sie geschrieben wurde:
 bei einem Run die Version, die dieser Run bekommen hat, und ein späterer Turn,

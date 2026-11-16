@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "4cf68409a9df"
+source_sha: "2ad663e05982"
 ---
 
 # Proyectos { #projects }
@@ -293,11 +293,47 @@ de una publicación es incierto, reintenta el mensaje pendiente para reutilizar 
 identidad. Una solicitud interrumpida no se reinicia automáticamente; revisa el
 run guardado antes de crear otra solicitud.
 
-Este campo admite texto y respuestas con cita. Sube los archivos de referencia en
+Este campo admite texto, respuestas con cita e hilos laterales. Sube los archivos de referencia en
 la pestaña **Files** del proyecto; los agents de la sala usan ese workspace
-compartido. Los agents locales de escritorio, los adjuntos por mensaje y los
-hilos laterales separados quedan fuera de esta primera interfaz. Los chats
+compartido. Los agents locales de escritorio y los adjuntos por mensaje quedan
+fuera de esta interfaz. Los chats
 personales y el asistente flotante conservan sus campos de mensajes actuales.
+
+### Hilos laterales { #side-threads }
+
+Elige **Reply in thread** en un mensaje guardado de la sala para abrir su hilo.
+El panel mantiene el mensaje original encima de las respuestas; el número de
+respuestas en la sala permite volver a la discusión. La dirección incluye la sala
+y el hilo, por lo que un enlace o una recarga abre la misma discusión. En pantallas
+estrechas, el hilo ocupa el ancho disponible. **Reply** sigue añadiendo una cita
+dentro de la discusión actual.
+
+Un hilo tiene la misma audiencia y los mismos permisos de publicación que su sala.
+Abrirlo no solicita una respuesta a un agent. Mantén **Team only** para hablar con
+personas o elige **Ask @agent** expresamente. La respuesta pertenece a ese hilo,
+incluso si el run se reanuda después de una pregunta o aprobación. La sala principal
+y sus hilos comparten una cola de solicitudes a agents; un run en espera mantiene
+las solicitudes posteriores en cola.
+
+El contexto de conversación del agent prioriza el mensaje original y las
+respuestas del hilo. El espacio restante del historial puede incluir mensajes de
+la sala principal anteriores al mensaje original. Se excluyen las respuestas de
+otros hilos y los mensajes posteriores de la sala principal. Siguen aplicándose
+las instrucciones, los archivos compartidos y el conocimiento del proyecto.
+Las citas dentro de un hilo se refieren a su mensaje original o a una de sus respuestas.
+
+Los planes y pasos pendientes pertenecen a cada run. Se conservan al reanudarlo;
+una solicitud distinta al agent dentro del hilo inicia un plan nuevo.
+
+Cada discusión conserva su borrador y su reintento pendiente al cambiar entre
+hilos durante la sesión actual. Vuelve a la discusión original para reintentar una
+publicación incierta con la misma identidad; seleccionar otro hilo no redirige
+esa publicación pendiente. Cambiar de cuenta u organización borra estos borradores.
+
+Si el chat se separa del proyecto, sus hilos existentes siguen siendo legibles
+para quienes conservan acceso al chat. Las respuestas de los hilos pasan a ser
+de solo lectura hasta que el chat vuelva a pertenecer a un proyecto; haber sido
+miembro del proyecto ya no concede acceso por sí solo.
 
 ## Borrar un proyecto { #deleting-a-project }
 

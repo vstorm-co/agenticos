@@ -432,6 +432,14 @@ class MessageRead(MessageBase, TimestampSchema):
 
     id: UUID
     conversation_id: UUID
+    thread_root_message_id: UUID | None = Field(
+        default=None, description="The top-level room message whose subthread contains this turn"
+    )
+    thread_reply_count: int = Field(default=0, ge=0, description="Replies in this root's subthread")
+    thread_last_activity_at: datetime | None = Field(
+        default=None,
+        description="Newest reply time in this root's subthread, independent of the loaded page",
+    )
     run_id: UUID | None = Field(
         default=None,
         description=(

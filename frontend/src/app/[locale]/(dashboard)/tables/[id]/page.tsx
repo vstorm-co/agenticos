@@ -30,6 +30,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { getErrorMessage, schemaDependents } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
+import { TableRowAccess } from "@/components/tables/table-row-access";
 import { HasMorePager } from "@/components/tables/has-more-pager";
 import { NewRecordDialog } from "@/components/tables/new-record-dialog";
 import { ImportCsvDialog } from "@/components/tables/import-csv-dialog";
@@ -978,6 +979,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             <DialogDescription>{t("shareDescription")}</DialogDescription>
           </DialogHeader>
           <SharingPanel resourceType="table" resourceId={id} canManage={canEdit} />
+          <TableRowAccess key={JSON.stringify(table.row_policy)} table={table} />
         </DialogContent>
       </Dialog>
     </div>

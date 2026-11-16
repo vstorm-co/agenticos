@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext, Perm
 from app.db.session import get_worker_db_context
+from app.db.table_rls import bind_table_access
 from app.repositories import virtual_table_repo
 from app.schemas.virtual_table import RecordRead, TableRead
 from app.services.access import TABLE, resolve_access
@@ -94,7 +95,9 @@ async def with_service(
     """Run `work` against the table service as the run's principal, in its own session."""
     try:
         async with get_worker_db_context() as db:
-            return await work(VirtualTableService(db), context.current().auth)
+            auth = context.current().auth
+            await bind_table_access(db, auth)
+            return await work(VirtualTableService(db), auth)
     except UnknownColumnError as unknown:
         return unknown_column(unknown)
     except AppException as exc:

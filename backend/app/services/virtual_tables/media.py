@@ -38,7 +38,7 @@ class MediaOperations(Operations):
                 mime_type=mime,
                 data=data,
             )
-            await enforce_storage(self.db, ctx, table)
+            await enforce_storage(self.db, ctx, table.id)
         return media
 
     async def read_image(

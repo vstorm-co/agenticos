@@ -535,21 +535,65 @@ async def test_fulfil_refuses_an_api_key_on_a_person_started_run() -> None:
 
 
 @pytest.mark.security
-async def test_fulfil_refuses_an_api_key_without_the_run_scope() -> None:
+async def test_unanswerable_run_refuses_an_api_key_without_the_run_scope() -> None:
     service = _service()
-    run = _run(user_id=None)
     keyed = AuthContext(
-        user_id=None,
+        user_id=USER_ID,
         organization_id=ORG_ID,
         role=OrgRoleName.OWNER,
         api_key_id=uuid.uuid4(),
-        key_scopes=frozenset(),
+        key_scopes=frozenset({Perm.SECRETS_EDIT}),
     )
+    assert keyed.has(Perm.SECRETS_EDIT)
+    assert not keyed.has(Perm.AGENTS_RUN)
+
+    with pytest.raises(AuthorizationError, match="may not run agents"):
+        await service._refuse_unanswerable(keyed, _run(user_id=None))
+
+
+@pytest.mark.security
+async def test_fulfil_refuses_an_api_key_without_secrets_edit() -> None:
+    service = _service()
+    keyed = AuthContext(
+        user_id=USER_ID,
+        organization_id=ORG_ID,
+        role=OrgRoleName.OWNER,
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset({Perm.AGENTS_RUN}),
+    )
+    assert keyed.has(Perm.AGENTS_RUN)
+    assert not keyed.has(Perm.SECRETS_EDIT)
+
     with (
-        _fulfil_patches(service, run=run, request=_request()),
-        pytest.raises(AuthorizationError, match="may not run agents"),
+        patch("app.services.secret_requests.agent_run_repo.claim_parked_run") as claim,
+        patch("app.services.secret_requests.OrganizationSecretService") as vault,
+        pytest.raises(AuthorizationError, match="may not create organization secrets"),
     ):
         await service.fulfil(keyed, RUN_ID, REQUEST_ID, value=SecretStr(SENTINEL))
+
+    claim.assert_not_awaited()
+    vault.assert_not_called()
+
+
+@pytest.mark.security
+async def test_an_operator_cannot_create_a_secret_by_fulfilling_a_request() -> None:
+    service = _service()
+    operator = AuthContext(
+        user_id=USER_ID,
+        organization_id=ORG_ID,
+        role=OrgRoleName.OPERATOR,
+    )
+    assert not operator.has(Perm.SECRETS_EDIT)
+
+    with (
+        patch("app.services.secret_requests.agent_run_repo.claim_parked_run") as claim,
+        patch("app.services.secret_requests.OrganizationSecretService") as vault,
+        pytest.raises(AuthorizationError, match="may not create organization secrets"),
+    ):
+        await service.fulfil(operator, RUN_ID, REQUEST_ID, value=SecretStr(SENTINEL))
+
+    claim.assert_not_awaited()
+    vault.assert_not_called()
 
 
 @pytest.mark.security

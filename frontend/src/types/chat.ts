@@ -113,6 +113,10 @@ export interface ChatMessage {
   senderGone?: boolean;
   /** The message this turn answers, where somebody replied to one. */
   replyTo?: MessageReply;
+  /** A room subthread, distinct from an ordinary quoted reply. */
+  threadRootMessageId?: string;
+  threadReplyCount?: number;
+  threadLastActivityAt?: string | null;
   /** The published agent that produced this assistant turn. Absent means the
    *  general assistant, which is what a turn sent without an `agent_id` runs.
    *  Recorded per message on both paths - live and reloaded - because the

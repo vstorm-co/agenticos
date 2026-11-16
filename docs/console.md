@@ -35,7 +35,7 @@ settings, the sliders beside the microphone.
 
 Resource lists, including Inbox and Routines, fill the remaining page height even when empty. Routines keeps its templates in the creation form rather than a separate ideas panel.
 
-Chat uses larger agent portraits without rings. Its Files toggle stays in the composer while the panel opens or closes, with reduced motion respected. Chat settings show the current model first. Expand **Change model** to edit the prefilled provider and model; the choice applies only after **Run on this model**. Attachment cards sit above the composer without an extra shadowed panel.
+Chat uses larger agent portraits without rings. Its Files toggle stays in the controls on the right while the panel opens or closes, with reduced motion respected. Chat settings show the current model first. Expand **Change model** to edit the prefilled provider and model; the choice applies only after **Run on this model**. Attachment cards sit above the composer without an extra shadowed panel.
 
 On phones, skill and context editors keep descriptions, categories and file management folded away while writing. One button switches between source and preview. Apps use floating back and options buttons; opening options reveals the title, version, theme and sharing controls.
 
@@ -632,10 +632,25 @@ send or paste elsewhere - an e-mail, a reply, a post - as a card in its answer. 
 part has its own copy icon, which copies plain text; several variants of one draft
 are tabs in the same card. A message's own **Copy** includes its drafts.
 
+**Browser, Computer and Files.** The controls on the right of each chat open a
+Browser, Computer or Files panel. Browser and Computer can be opened before the
+agent has used them; opening an empty panel starts no run or hosted session.
+Enter the website address in Browser before starting it. If
+the selected agent has the corresponding hosted capability and you may run it,
+an explicit start action asks it to open the browser or take a desktop screenshot.
+Otherwise the panel explains what is unavailable. The agent's published settings
+and access controls still apply. In team rooms, choose a responder in the room
+composer and ask them to open the browser or computer. The panels remain available
+for viewing.
+
+Browser and Computer views stay separate. Panels start closed; closing one keeps
+it closed as new tool results arrive. On narrow screens the selected panel fills
+the screen. After a run, a completed image is labelled **Last view**; it is not a
+live desktop. Request a new screenshot to update a Computer view.
+
 **Watching a browse.** The [web browser](reference/capabilities.md#browser-automation)
-opens automatically in a full-height side panel while the transcript scrolls.
-On narrow screens it opens full screen. Closing the panel leaves a compact link
-in the conversation to reopen it. Visited-page cards show the site icon, domain
+appears in its own panel beside the transcript. Visited-page cards reopen the
+Browser panel and show the site icon, domain
 and page title, including when the conversation is reopened. Each answer keeps
 one card per browser tab; clicks, rereads and going back update that card.
 The panel's tab strip switches between pages. After the run, the last image remains. **Resume session** asks the
@@ -714,7 +729,7 @@ in the box. A recording that failed to transcribe is kept until you press
 
 The glow around a hosted page's box while you speak follows **Voice glow** under
 **Settings → Profile → Appearance**, beside the theme and **Motion**: **Vivid**,
-**Subtle** (the default) or **Off**. It is remembered per browser. **Motion**
+**Subtle** (the default) or **Off**. Apply saves it to your account. **Motion**
 decides how much the whole console moves: **System** (the default) follows the
 operating system's reduced-motion setting, **Reduce** turns motion down without
 it, and **Full** keeps it whatever the operating system says. While motion is
@@ -723,7 +738,7 @@ is a five-step indicator.
 
 **Workflow steps** in the same card chooses how the workflow canvas draws a step:
 **In colour** (the default) draws each step in its family, **Simple** keeps the tiles
-neutral and the minimap grey. It is remembered per browser; the canvas toolbar has
+neutral and the minimap grey. It is saved on your account; the canvas toolbar has
 the same switch. See [How a step is drawn](workflows.md#how-a-step-is-drawn).
 
 ### The Voice card
@@ -956,6 +971,28 @@ The inbox requires mailbox proof in the current session: a fresh verified OAuth 
 Amber setup dots mark organization tabs and the matching Voice, nightly-suggestion, memory-maintenance and Architect cards when configuration is incomplete or suggestions are off. Hover or focus the dot for a specific explanation; click or tap it to keep the explanation open. Indicators use saved configuration, disappear when completed and respect the permissions needed to edit it. Disabled suggestions are described as optional setup, not an error. The iPhone push configuration card also marks a missing Apple key. Reduced-motion preferences disable the pulsing animation.
 
 Saved browser sign-ins use a compact, full-width settings panel instead of stretching a single entry to fill the page. Known services use their bundled brand marks; other sites use their own favicon without a referrer, with a globe if the image is unavailable.
+
+## Account appearance
+
+Choose **Settings → Profile → Appearance** to adjust your theme, style, accent
+colour, corners, text size, motion, voice glow and workflow steps. The sample
+updates as you choose. **Apply** saves your changes to your account; **Discard
+preview** leaves the saved choices alone. **Reset to defaults** immediately
+restores the system theme and standard appearance for your account.
+
+Your choices follow you across devices and organizations. The account menu's
+theme and style choices save immediately. Signing out clears the previous
+account's appearance; a different member does not inherit it. Existing browser
+preferences are not automatically copied to an account: select your choices once
+and apply them.
+
+You can ask an agent to change or reset your appearance in your own unshared
+private chat. The platform tools `get_my_appearance`, `set_my_appearance` and
+`reset_my_appearance` use the authenticated account and need `agents:run`;
+writes keep their normal approval policy. Shared chats, projects, channels,
+impersonation and unattended runs are refused. Tools accept only the listed
+tokens, never arbitrary CSS, URLs or another person's id. Open consoles refresh
+after an in-app tool completes, on focus, and within 30 seconds for other devices.
 
 ## Languages
 

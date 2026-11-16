@@ -11,7 +11,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useThemeStore } from "@/stores/theme-store";
 
-const env = vi.hoisted(() => ({ mounted: true, push: vi.fn() }));
+const env = vi.hoisted(() => ({ mounted: true, push: vi.fn(), save: vi.fn() }));
+
+vi.mock("@/hooks/use-user-appearance", () => ({
+  useUserAppearance: () => ({ preferences: {}, pending: false, save: env.save }),
+}));
 
 vi.mock("@/hooks/use-mounted", () => ({ useMounted: () => env.mounted }));
 vi.mock("@/lib/locale-navigation", () => ({
@@ -36,6 +40,7 @@ async function openSubmenu(name: RegExp) {
 beforeEach(() => {
   env.mounted = true;
   env.push.mockClear();
+  env.save.mockReset().mockResolvedValue({});
   useThemeStore.setState({ theme: "system", look: "standard" });
 });
 
@@ -47,7 +52,7 @@ describe("AppearanceMenu", () => {
 
     await userEvent.click(await screen.findByRole("menuitemradio", { name: "Dark" }));
 
-    expect(useThemeStore.getState().theme).toBe("dark");
+    expect(env.save).toHaveBeenCalledWith({ theme: "dark" });
   });
 
   it("names no theme before mount", () => {
@@ -69,7 +74,7 @@ describe("AppearanceMenu", () => {
 
       await userEvent.click(screen.getByRole("menuitemradio", { name }));
 
-      expect(useThemeStore.getState().look).toBe(name.toLowerCase());
+      expect(env.save).toHaveBeenCalledWith({ look: name.toLowerCase() });
       expect(useThemeStore.getState().theme).toBe("dark");
     },
   );
@@ -79,7 +84,7 @@ describe("AppearanceMenu", () => {
     await openSubmenu(/Appearance/);
     screen.getByRole("menuitemradio", { name: "Standard" }).focus();
     await userEvent.keyboard("{ArrowDown}{Enter}");
-    expect(useThemeStore.getState().look).toBe("glass");
+    expect(env.save).toHaveBeenCalledWith({ look: "glass" });
   });
 
   it("checks no style before mount", async () => {

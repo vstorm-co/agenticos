@@ -1,5 +1,5 @@
 ---
-source_sha: "1488eff9ea76"
+source_sha: "9bf0c90c7ded"
 ---
 
 # Konsola { #the-console }
@@ -39,7 +39,7 @@ ustawieniach czatu, pod suwakami obok mikrofonu.
 
 Listy zasobów, w tym Inbox i Routines, wypełniają pozostałą wysokość strony również wtedy, gdy są puste. Szablony Routines pozostają w formularzu tworzenia zamiast osobnego panelu pomysłów.
 
-Czat używa większych portretów agentów bez obwódek. Przełącznik Files pozostaje w polu wiadomości podczas otwierania i zamykania panelu; animacja respektuje ograniczenie ruchu. Ustawienia czatu pokazują najpierw bieżący model. Rozwiń **Zmień model**, aby edytować uzupełnionego dostawcę i model; wybór zaczyna działać po zatwierdzeniu. Karty załączników znajdują się nad polem wiadomości bez dodatkowego panelu z cieniem.
+Czat używa większych portretów agentów bez obwódek. Przełącznik Files pozostaje w przyciskach po prawej stronie podczas otwierania i zamykania panelu; animacja respektuje ograniczenie ruchu. Ustawienia czatu pokazują najpierw bieżący model. Rozwiń **Zmień model**, aby edytować uzupełnionego dostawcę i model; wybór zaczyna działać po zatwierdzeniu. Karty załączników znajdują się nad polem wiadomości bez dodatkowego panelu z cieniem.
 
 Wprowadzenia do stron i objaśnienia ustawień są dostępne pod ikoną informacji obok nagłówka. Bieżące podsumowania i ostrzeżenia o nieodwracalnych działaniach pozostają widoczne.
 
@@ -654,10 +654,26 @@ jako kartę w swojej odpowiedzi. Każda część ma własną ikonę kopiowania, 
 kopiuje zwykły tekst; kilka wariantów jednej wersji roboczej to zakładki w jednej
 karcie. Własne **Kopiuj** wiadomości obejmuje też jej wersje robocze.
 
+**Przeglądarka (Browser), Komputer (Computer) i Pliki (Files).** Przyciski po prawej
+stronie każdego chatu otwierają panel przeglądarki, komputera lub plików. Panele
+przeglądarki i komputera można otworzyć, zanim agent ich użyje. Otwarcie pustego
+panelu nie uruchamia runu ani hostowanej sesji. Przed uruchomieniem przeglądarki
+wpisz adres strony. Jeśli wybrany agent ma odpowiednią
+hostowaną capability i możesz go uruchomić, osobna akcja rozpoczęcia prosi go o
+otwarcie przeglądarki lub wykonanie zrzutu pulpitu. W przeciwnym razie panel
+wyjaśnia, co jest niedostępne. Opublikowane ustawienia agenta i kontrola dostępu
+nadal obowiązują. W pokojach zespołu wybierz w polu wiadomości, kto ma odpowiedzieć,
+i poproś o otwarcie przeglądarki lub komputera. Panele pozostają dostępne do podglądu.
+
+Widoki przeglądarki i komputera pozostają oddzielne. Panele są początkowo zamknięte;
+zamknięty panel pozostaje zamknięty także po nadejściu nowych wyników narzędzi. Na
+wąskich ekranach wybrany panel zajmuje cały ekran. Po zakończeniu runu obraz ma
+oznaczenie **Ostatni widok (Last view)**; nie jest to pulpit na żywo. Poproś o nowy
+zrzut ekranu, aby odświeżyć widok komputera.
+
 **Oglądanie przeglądania.** [Przeglądarka](reference/capabilities.md#browser-automation)
-otwiera się automatycznie w pełnym panelu obok przewijanej rozmowy.
-Na wąskim ekranie zajmuje cały widok. Po zamknięciu panelu zostaje w rozmowie
-mały przycisk do ponownego otwarcia. Karty odwiedzonych stron pokazują ikonę,
+pojawia się we własnym panelu obok rozmowy. Karty odwiedzonych stron otwierają
+ponownie panel przeglądarki i pokazują ikonę,
 domenę i tytuł, także po ponownym otwarciu rozmowy. Każda odpowiedź ma jeden
 kafelek na kartę przeglądarki; kliknięcia, ponowne odczyty i powroty aktualizują ten kafelek. Pasek kart w panelu
 przełącza strony. Po zakończeniu
@@ -742,7 +758,7 @@ Poświata wokół pola na hostowanej stronie, gdy mówisz, idzie za ustawieniem 
 dyktowania (Voice glow)** w **Ustawienia → Profil → Wygląd (Settings → Profile →
 Appearance)**, obok motywu i ustawienia **Animacje (Motion)**: **Wyrazista
 (Vivid)**, **Subtelna (Subtle)** (domyślnie) albo **Wyłączona (Off)**. Jest
-zapamiętywana dla każdej przeglądarki. **Animacje** decydują, ile ruchu pokazuje
+zapisywana na koncie po zastosowaniu. **Animacje** decydują, ile ruchu pokazuje
 cała konsola: **Systemowe (System)** (domyślnie) idą za ustawieniem ograniczenia
 ruchu w systemie operacyjnym, **Ograniczone (Reduce)** ograniczają ruch bez
 niego, a **Pełne (Full)** zachowują ruch niezależnie od systemu operacyjnego. Gdy ruch jest ograniczony, nie ma żadnej poświaty, pasek
@@ -751,7 +767,7 @@ pojawia się bez wysuwania, a poziom dźwięku to pięciostopniowy wskaźnik.
 **Kroki workflow** w tej samej karcie wybierają, jak kanwa workflow rysuje krok:
 **W kolorze (In colour)** (domyślnie) rysuje każdy krok w barwie jego rodziny,
 **Prosty (Simple)** zostawia kafelki neutralne, a minimapę szarą. Ustawienie jest
-zapamiętywane dla każdej przeglądarki; ten sam przełącznik jest na pasku narzędzi
+zapisywane na koncie; ten sam przełącznik jest na pasku narzędzi
 kanwy. Zobacz [Jak rysowany jest krok](workflows.md#how-a-step-is-drawn).
 
 ### Karta Głos (Voice) { #the-voice-card }
@@ -988,6 +1004,28 @@ Skrzynka wymaga potwierdzenia adresu w bieżącej sesji: świeżego logowania pr
 Bursztynowe kropki oznaczają zakładki organizacji i odpowiadające im karty głosu, nocnych sugestii, utrzymania pamięci oraz Architecta, gdy brakuje konfiguracji lub sugestie są wyłączone. Najedź na kropkę lub ustaw na niej fokus, aby przeczytać wyjaśnienie; kliknij lub dotknij, aby je otworzyć. Wskaźniki korzystają z zapisanych ustawień, znikają po uzupełnieniu konfiguracji i respektują uprawnienia do jej zmiany. Wyłączone sugestie są opcją do uruchomienia, a nie błędem. Karta powiadomień iPhone oznacza też brak klucza Apple. Ograniczenie ruchu wyłącza pulsowanie.
 
 Zapisane logowania do stron mają zwarty panel ustawień na pełną szerokość, zamiast rozciągać jeden wpis na całą stronę. Znane usługi pokazują wbudowane logo marki; pozostałe strony korzystają z własnej favicony bez przesyłania odsyłacza, a gdy obraz jest niedostępny — z ikony globu.
+
+## Wygląd konta { #account-appearance }
+
+W **Settings → Profile → Appearance** wybierz motyw, styl, kolor akcentu,
+narożniki, rozmiar tekstu, animacje, poświatę głosu i kroki workflow. Podgląd
+zmienia się wraz z wyborem. **Zastosuj** zapisuje zmiany na koncie, a **Odrzuć
+podgląd** zachowuje zapisane ustawienia. **Przywróć domyślne** natychmiast
+przywraca motyw systemowy i standardowy wygląd konta.
+
+Ustawienia działają na wszystkich urządzeniach i w każdej organizacji. Motyw i
+styl z menu konta zapisują się od razu. Wylogowanie usuwa wygląd poprzedniego
+konta. Dawne ustawienia przeglądarki nie są automatycznie przypisywane do konta;
+wybierz je i zastosuj raz.
+
+Możesz poprosić agenta o zmianę lub reset we własnym, nieudostępnionym prywatnym
+czacie. Narzędzia `get_my_appearance`, `set_my_appearance` i
+`reset_my_appearance` używają uwierzytelnionego konta i wymagają `agents:run`.
+Zapisy zachowują zwykłe zasady zatwierdzania. Czaty współdzielone, projekty,
+kanały, podszywanie się i uruchomienia bez nadzoru są odrzucane. Dozwolone są
+tylko określone wartości, bez dowolnego CSS, adresów URL i identyfikatorów innych
+osób. Konsola odświeża się po wewnętrznym wywołaniu narzędzia, po uzyskaniu
+fokusu oraz w ciągu 30 sekund dla zmian z innych urządzeń.
 
 ## Języki { #languages }
 

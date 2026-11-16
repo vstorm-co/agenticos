@@ -102,7 +102,7 @@ beforeEach(() => {
   });
   useOrgStore.setState({ activeOrgId: "org-a" });
   useConversationStore.setState({ currentConversationId: "room-a" });
-  useChatStore.setState({ messages: [], replyTo: null });
+  useChatStore.setState({ messages: [], replyTo: null, roomDrafts: {} });
   agents = [agent("Writer")];
   project = {
     id: "project-a",

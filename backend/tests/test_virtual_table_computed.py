@@ -136,6 +136,15 @@ from app.services.virtual_tables.computed import read_through as _read_through
 
 pytestmark = _pytest.mark.anyio
 
+
+@_pytest.fixture(autouse=True)
+def canonical_link_snapshot(monkeypatch):
+    # These tests exercise target authorization. Their source snapshots are not
+    # database rows; canonical hydration has its own integration coverage.
+    monkeypatch.setattr(_computed.relation_repo, "linked_ids", AsyncMock(return_value={}))
+    monkeypatch.setattr(_computed.resource_grant_repo, "record_levels", AsyncMock(return_value={}))
+
+
 _OTHER_TABLE = UUID("00000000-0000-4000-8000-0000000000a1")
 _ASSIGNEE = UUID("00000000-0000-4000-8000-0000000000a2")
 _NAME = UUID("00000000-0000-4000-8000-0000000000a3")
@@ -186,6 +195,7 @@ def _linked_table(policy):
 
 
 async def test_an_invisible_linked_row_yields_no_label_and_no_rollup(monkeypatch):
+    monkeypatch.setattr(_computed.resource_grant_repo, "record_levels", AsyncMock(return_value={}))
     monkeypatch.setattr(
         _computed, "linked_table_access", AsyncMock(return_value=_linked_table(_POLICY))
     )
@@ -207,6 +217,8 @@ async def test_an_invisible_linked_row_yields_no_label_and_no_rollup(monkeypatch
     assert read[0].links[str(_LINK)][0].id == _VISIBLE
     assert read[0].links[str(_LINK)][0].label == "Visible"
     assert read[0].values[str(_COUNT)] == 1
+    assert read[0].values[str(_LINK)] == [str(_VISIBLE)]
+    assert str(_HIDDEN) not in read[0].model_dump_json()
 
 
 async def test_a_bypass_caller_and_a_table_without_a_policy_see_every_linked_row(monkeypatch):

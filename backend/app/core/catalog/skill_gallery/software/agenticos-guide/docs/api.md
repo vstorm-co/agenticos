@@ -302,6 +302,8 @@ read) and on the result of a resume and of an answer. It is always false on
 `GET /api/v1/conversations/{id}/transcript` reads one of the issuer's
 conversations turn by turn, with the tools each turn called and what it cost,
 for a key holding `runs:view`.
+The paginated `GET /api/v1/conversations/{id}/messages` route excludes project-room
+thread replies by default. Set `top_level_only=false` to include them.
 
 !!! info "An API caller cannot route around governance"
 

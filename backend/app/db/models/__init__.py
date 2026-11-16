@@ -2,6 +2,11 @@
 
 # ruff: noqa: I001, RUF022 - Imports structured for Jinja2 template conditionals
 from app.db.models.task_board import TaskBoard, TaskLink
+from app.db.models.virtual_table_relation import (
+    VirtualTableLinkEvidence,
+    VirtualTableRecordLink,
+    VirtualTableRelation,
+)
 from app.db.models.project_tracking import ProjectTracking
 from app.db.models.routine_delivery import RoutineDelivery
 from app.db.models.user import User
@@ -399,6 +404,9 @@ __all__ = [
     "VirtualTableOutbox",
     "VirtualTableReceipt",
     "VirtualTableRecord",
+    "VirtualTableRecordLink",
+    "VirtualTableRelation",
+    "VirtualTableLinkEvidence",
     "VirtualTableRecordHistory",
     "VirtualTableSchemaVersion",
     "TableView",

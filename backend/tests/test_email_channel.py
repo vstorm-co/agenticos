@@ -341,7 +341,10 @@ class TestSending:
                 BOT_ADDRESS, OutgoingMessage(platform_chat_id="a@b.co", text="x")
             )
 
-    async def test_without_redis_there_is_no_thread_and_no_state(self, provider: _Provider) -> None:
+    async def test_without_redis_there_is_no_thread_and_no_state(
+        self, provider: _Provider, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(email_state, "_redis", None)
         await email_state.remember_thread("a", "b", subject="s", message_id=None, references=[])
         assert not await email_state.stash_attachments("bot", {"h": "x"})
 

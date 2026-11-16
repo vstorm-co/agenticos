@@ -285,19 +285,24 @@ class TestTheWorkflowActuallyUsesIt:
     ) -> None:
         definition = workflow["jobs"][job]
         assert "changes" in definition["needs"], f"`{job}` does not depend on `changes`"
-        expected = f"${{{{ !cancelled() && needs.changes.outputs.{output} != 'false' }}}}"
+        expected = (
+            "${{ !cancelled() && needs.changes.outputs.full == 'true' && "
+            f"needs.changes.outputs.{output} != 'false' }}}}"
+        )
         assert definition["if"] == expected, (
-            f"`{job}` must gate on `{expected}`, and both halves earn their place. "
-            "`== 'true'` would skip it on a push to `main`, where the classifier does "
-            "not run and the output is empty; and without `!cancelled()` a *failed* "
-            "`changes` job skips this suite without reading the condition at all, "
-            "which a required status check accepts as a pass."
+            f"`{job}` must gate on `{expected}`. `full` limits the heavy suites to "
+            "`full-ci` pull requests, upstream syncs and release tags (#120). The scope "
+            "half stays `!= 'false'`, because `== 'true'` would skip it whenever the "
+            "classifier does not run; and without `!cancelled()` a *failed* `changes` "
+            "job skips this suite without reading the condition at all, which a "
+            "required status check accepts as a pass."
         )
 
     def test_every_output_the_script_emits_is_declared(self, workflow: dict[str, Any]) -> None:
         """A job gating on an output nothing sets is a job that always runs."""
         declared = set(workflow["jobs"]["changes"]["outputs"])
-        assert declared == set(ci_changed_scope.JOBS)
+        # `full` is set by the workflow itself, not by the script (#120).
+        assert declared == set(ci_changed_scope.JOBS) | {"full"}
 
     def test_lint_is_never_gated(self, workflow: dict[str, Any]) -> None:
         """`make lint-spelling` reads every tracked file, so something must always.

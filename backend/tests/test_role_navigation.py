@@ -303,4 +303,4 @@ def test_the_migration_adds_a_nullable_column_and_has_a_matching_downgrade() -> 
     assert "ALTER TABLE organizations ADD COLUMN role_navigation JSONB" in sql
     assert "ALTER TABLE organizations DROP COLUMN role_navigation" in sql
     assert "NOT NULL" not in sql
-    assert migration.down_revision == "0325_merge_t3_rooms_v173"
+    assert migration.down_revision == "0329_user_appearance"

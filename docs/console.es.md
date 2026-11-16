@@ -1,5 +1,5 @@
 ---
-source_sha: "1488eff9ea76"
+source_sha: "9bf0c90c7ded"
 ---
 
 # La consola { #the-console }
@@ -40,7 +40,7 @@ al micrófono.
 
 Las listas de recursos, incluidas Inbox y Routines, ocupan la altura restante de la página incluso cuando están vacías. Las plantillas de Routines siguen en el formulario de creación, sin un panel de ideas aparte.
 
-El chat usa retratos de agentes más grandes y sin marcos. El control Files permanece en el cuadro de mensaje al abrir y cerrar el panel; la animación respeta la preferencia de movimiento reducido. Los ajustes del chat muestran primero el modelo actual. **Change model** abre el formulario del proveedor y del modelo ya rellenados; el cambio solo se aplica al confirmarlo. Las tarjetas de adjuntos aparecen sobre el cuadro de mensaje sin otro panel con sombra.
+El chat usa retratos de agentes más grandes y sin marcos. El control Files permanece en los controles de la derecha al abrir y cerrar el panel; la animación respeta la preferencia de movimiento reducido. Los ajustes del chat muestran primero el modelo actual. **Change model** abre el formulario del proveedor y del modelo ya rellenados; el cambio solo se aplica al confirmarlo. Las tarjetas de adjuntos aparecen sobre el cuadro de mensaje sin otro panel con sombra.
 
 Las introducciones de páginas y explicaciones de ajustes están en el icono de información junto al encabezado. Los resúmenes actuales y avisos de acciones destructivas siguen visibles.
 
@@ -675,11 +675,27 @@ publicación - como una tarjeta en su respuesta. Cada parte tiene su propio icon
 copiar, que copia texto plano; varias variantes de un borrador son pestañas en la
 misma tarjeta. El **Copiar** propio de un mensaje incluye también sus borradores.
 
+**Navegador (Browser), Equipo (Computer) y Archivos (Files).** Los controles a la
+derecha de cada chat abren un panel de navegador, equipo o archivos. Puedes abrir
+los paneles de navegador y equipo antes de que el agent los use. Abrir un panel
+vacío no inicia ningún run ni sesión alojada. Introduce la dirección de la página
+en el panel Navegador antes de iniciarlo. Si el agent seleccionado tiene la
+capability alojada correspondiente y puedes ejecutarlo, una acción explícita de
+inicio le pide que abra el navegador o capture el escritorio. De lo contrario,
+el panel explica qué no está disponible. Siguen vigentes la configuración
+publicada y los controles de acceso del agent. En las salas de equipo, elige quién
+debe responder en el cuadro de mensaje de la sala y pídele que abra el navegador
+o el equipo. Los paneles siguen disponibles para verlos.
+
+Las vistas de navegador y equipo permanecen separadas. Los paneles empiezan
+cerrados; al cerrar uno, permanece cerrado cuando llegan nuevos resultados de
+herramientas. En pantallas estrechas, el panel seleccionado ocupa toda la pantalla.
+Tras un run, la imagen terminada lleva la etiqueta **Última vista (Last view)**;
+no es un escritorio en directo. Pide otra captura para actualizar la vista del equipo.
+
 **Ver un recorrido.** El [navegador web](reference/capabilities.md#browser-automation)
-se abre automáticamente en un panel lateral a toda altura junto al chat.
-En pantallas estrechas ocupa toda la pantalla. Al cerrar el panel queda
-un enlace compacto en la conversación para volver a abrirlo. Las tarjetas de
-páginas visitadas muestran el icono del sitio, el dominio y el título, también
+aparece en su propio panel junto al chat. Las tarjetas de páginas visitadas
+vuelven a abrir el panel del navegador y muestran el icono del sitio, el dominio y el título, también
 al volver a abrir la conversación. Cada respuesta conserva una tarjeta por pestaña
 del navegador; los clics, las nuevas lecturas y volver atrás actualizan esa tarjeta.
 La barra de pestañas del panel cambia de página. Al terminar queda la última imagen. **Reanudar sesión** pide al
@@ -762,7 +778,7 @@ pudo transcribir se guarda hasta que pulses **Retry** o **Discard**.
 
 El brillo alrededor del cuadro de una página alojada mientras hablas sigue a **Voice glow** en
 **Settings → Profile → Appearance**, junto al tema y a **Motion**: **Vivid**,
-**Subtle** (por defecto) u **Off**. Se recuerda por navegador. **Motion** decide
+**Subtle** (por defecto) u **Off**. Apply lo guarda en tu cuenta. **Motion** decide
 cuánto se mueve toda la consola: **System** (por defecto) sigue el ajuste de
 movimiento reducido del sistema operativo, **Reduce** reduce el movimiento sin
 él y **Full** lo mantiene diga lo que diga el sistema operativo. Mientras el
@@ -771,7 +787,7 @@ y el nivel es un indicador de cinco pasos.
 
 **Workflow steps** en la misma tarjeta elige cómo dibuja un paso el lienzo del
 workflow: **In colour** (por defecto) dibuja cada paso en su familia,
-**Simple** deja las fichas neutras y el minimapa gris. Se recuerda por navegador; la
+**Simple** deja las fichas neutras y el minimapa gris. Se guarda en tu cuenta; la
 barra de herramientas del lienzo tiene el mismo interruptor. Véase
 [Cómo se dibuja un paso](workflows.md#how-a-step-is-drawn).
 
@@ -1015,6 +1031,28 @@ La bandeja exige demostrar el acceso al correo en la sesión actual: un nuevo ac
 Los puntos ámbar señalan pestañas de organización y tarjetas de voz, sugerencias nocturnas, mantenimiento de memoria y Architect cuando falta configuración o las sugerencias están desactivadas. Al pasar el cursor o enfocar el punto aparece una explicación; pulsarlo la mantiene abierta. Los indicadores usan valores guardados, desaparecen al completar la configuración y respetan los permisos de edición. Las sugerencias desactivadas se presentan como una opción, no como un error. La tarjeta de notificaciones iPhone también señala la falta de una clave Apple. La preferencia de movimiento reducido desactiva la animación.
 
 Los accesos guardados del navegador usan un panel compacto de ancho completo, sin estirar una sola entrada hasta ocupar toda la página. Los servicios conocidos muestran su marca integrada; los demás sitios usan su propio favicon sin enviar el referente y un globo si la imagen no está disponible.
+
+## Apariencia de la cuenta { #account-appearance }
+
+En **Settings → Profile → Appearance**, elige tema, estilo, color de acento,
+esquinas, tamaño de texto, movimiento, brillo de voz y pasos del workflow. La
+vista previa cambia con cada elección. **Apply** guarda los cambios en tu cuenta;
+**Discard preview** conserva lo guardado. **Reset to defaults** restaura de
+inmediato el tema del sistema y la apariencia estándar.
+
+Las opciones te siguen entre dispositivos y organizaciones. El tema y el estilo
+del menú de cuenta se guardan al instante. Al cerrar sesión se borra la
+apariencia de la cuenta anterior. Las preferencias antiguas del navegador no se
+asignan automáticamente a una cuenta: selecciónalas y aplícalas una vez.
+
+Puedes pedir cambios o un restablecimiento a un agente en tu propio chat privado
+sin compartir. `get_my_appearance`, `set_my_appearance` y
+`reset_my_appearance` usan la cuenta autenticada y necesitan `agents:run`;
+las escrituras conservan su política habitual de aprobación. Se rechazan chats
+compartidos, proyectos, canales, suplantaciones y ejecuciones sin supervisión.
+Solo se aceptan valores definidos, nunca CSS libre, URLs o el identificador de
+otra persona. La consola se actualiza tras una herramienta interna, al recuperar
+el foco y en un máximo de 30 segundos para cambios de otros dispositivos.
 
 ## Idiomas { #languages }
 

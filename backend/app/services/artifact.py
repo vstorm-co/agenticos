@@ -76,6 +76,7 @@ from app.db.models.artifact_share_request import (
 )
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.session import get_db_context
+from app.db.table_rls import bind_table_access
 from app.db.updates import writable
 from app.repositories import (
     agent_environment_repo,
@@ -3964,6 +3965,7 @@ class ArtifactService:
         """The binding's table as its owner reads it now, or why the binding reads nothing."""
         if deadline.remaining_ms() <= 0:
             return self._unavailable(binding, Unavailable("timeout"))
+        await bind_table_access(self.db, owner)
         service = VirtualTableService(self.db)
         try:
             async with self.db.begin_nested():
@@ -3992,6 +3994,7 @@ class ArtifactService:
         """The rows of a binding whose `source` is known, at most `max_records` of them."""
         if deadline.remaining_ms() <= 0:
             return self._unavailable(binding, Unavailable("timeout"))
+        await bind_table_access(self.db, owner)
         service = VirtualTableService(self.db)
         try:
             async with self.db.begin_nested():

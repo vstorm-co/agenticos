@@ -48,6 +48,7 @@ from app.core.permissions import AuthContext, Perm
 from app.core.permissions import Scope as PermScope
 from app.db.models.agent_run import AgentRun
 from app.db.session import get_db_context
+from app.db.table_rls import bind_table_access
 from app.repositories import agent as agent_repo
 from app.repositories import artifact as artifact_repo
 from app.repositories import context as context_repo
@@ -600,6 +601,8 @@ async def visible(db: AsyncSession, ctx: AuthContext, event: ChangeEvent) -> boo
         return event.actor_user_id is not None and event.actor_user_id == ctx.user_id
     if event.id is None:
         return False
+    if event.resource == "table":
+        await bind_table_access(db, ctx)
     row = await _row(db, event, event.id)
     return row is not None and await resolve_access(
         db, ctx, row, resource_type.view, resource_type=resource_type

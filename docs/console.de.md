@@ -1,5 +1,5 @@
 ---
-source_sha: "1488eff9ea76"
+source_sha: "9bf0c90c7ded"
 ---
 
 # Die Konsole { #the-console }
@@ -40,7 +40,7 @@ neben dem Mikrofon.
 
 Ressourcenlisten, darunter Inbox und Routines, füllen auch im leeren Zustand die verbleibende Seitenhöhe. Routines bietet Vorlagen im Erstellungsformular statt in einem eigenen Ideenbereich an.
 
-Im Chat sind Agentenporträts größer und ohne Ringe. Der Files-Schalter bleibt beim Öffnen und Schließen des Bereichs im Eingabefeld; reduzierte Bewegung wird berücksichtigt. Die Chat-Einstellungen zeigen zuerst das aktuelle Modell. Unter **Modell ändern** lassen sich vorausgefüllter Anbieter und Modell bearbeiten; erst die Bestätigung übernimmt die Änderung. Anhangskarten stehen ohne zusätzliches Schattenpanel über dem Eingabefeld.
+Im Chat sind Agentenporträts größer und ohne Ringe. Der Files-Schalter bleibt beim Öffnen und Schließen des Bereichs in den Bedienelementen rechts; reduzierte Bewegung wird berücksichtigt. Die Chat-Einstellungen zeigen zuerst das aktuelle Modell. Unter **Modell ändern** lassen sich vorausgefüllter Anbieter und Modell bearbeiten; erst die Bestätigung übernimmt die Änderung. Anhangskarten stehen ohne zusätzliches Schattenpanel über dem Eingabefeld.
 
 Seiteneinführungen und Erläuterungen zu Einstellungen sind über das Informationssymbol neben der Überschrift erreichbar. Aktuelle Zusammenfassungen und Warnungen vor destruktiven Aktionen bleiben sichtbar.
 
@@ -707,11 +707,28 @@ als Karte in seiner Antwort. Jeder Teil hat ein eigenes Kopiersymbol, das reinen
 kopiert; mehrere Varianten eines Entwurfs sind Tabs in derselben Karte. Das eigene
 **Kopieren** einer Nachricht enthält auch ihre Entwürfe.
 
+**Browser, Computer und Dateien (Files).** Die Schaltflächen rechts in jedem Chat
+öffnen das Panel Browser, Computer oder Dateien. Browser und Computer lassen sich
+bereits öffnen, bevor der Agent sie verwendet hat. Das Öffnen eines leeren Panels
+startet weder einen Run noch eine gehostete Sitzung. Geben Sie im Browser-Panel
+zuerst die Website-Adresse ein. Hat der ausgewählte Agent die
+entsprechende gehostete Capability und dürfen Sie ihn ausführen, bittet eine
+ausdrückliche Startaktion ihn, den Browser zu öffnen oder ein Desktop-Bild
+aufzunehmen. Andernfalls erklärt das Panel, was nicht verfügbar ist. Die
+veröffentlichten Einstellungen und Zugriffskontrollen des Agents gelten weiterhin.
+Wählen Sie in Teamräumen im Nachrichtenfeld einen Agenten aus und bitten Sie ihn,
+den Browser oder Computer zu öffnen. Die Panels bleiben zum Ansehen verfügbar.
+
+Browser- und Computer-Ansichten bleiben getrennt. Panels sind zunächst geschlossen;
+ein geschlossenes Panel bleibt auch bei neuen Werkzeugergebnissen geschlossen. Auf
+schmalen Bildschirmen füllt das ausgewählte Panel den Bildschirm. Nach einem Run
+kennzeichnet **Letzte Ansicht (Last view)** das abgeschlossene Bild; es ist kein
+Live-Desktop. Fordern Sie ein neues Bildschirmfoto an, um eine Computer-Ansicht zu
+aktualisieren.
+
 **Einem Durchlauf zusehen.** Der [Webbrowser](reference/capabilities.md#browser-automation)
-öffnet sich automatisch in einem Panel in voller Höhe neben dem Gespräch.
-Auf schmalen Bildschirmen nutzt er das Vollbild. Nach dem Schließen bleibt
-ein kompakter Link im Gespräch, um das Panel erneut zu öffnen. Karten besuchter
-Seiten zeigen das Website-Symbol, die Domain und den Seitentitel, auch nach dem
+erscheint in seinem eigenen Panel neben dem Gespräch. Karten besuchter Seiten
+öffnen das Browser-Panel erneut und zeigen das Website-Symbol, die Domain und den Seitentitel, auch nach dem
 erneuten Öffnen des Gesprächs. Jede Antwort behält eine Karte pro Browser-Tab;
 Klicks, erneutes Lesen und Zurückgehen aktualisieren diese Karte.
 Die Tableiste im Panel wechselt zwischen den Seiten. Nach dem Lauf bleibt das letzte Bild. **Sitzung fortsetzen** bittet den
@@ -800,7 +817,7 @@ Das Leuchten um das Feld einer Hosted Page, während Sie sprechen, folgt
 **Diktieranimation (Voice glow)** unter **Einstellungen → Profil → Darstellung
 (Settings → Profile → Appearance)**, neben Design und **Bewegung (Motion)**:
 **Kräftig (Vivid)**, **Dezent (Subtle)** (der Standard) oder **Aus (Off)**. Es
-wird pro Browser gespeichert. **Bewegung** bestimmt, wie viel Bewegung die ganze
+wird mit Übernehmen im Konto gespeichert. **Bewegung** bestimmt, wie viel Bewegung die ganze
 Konsole zeigt: **System** (der Standard) folgt der Einstellung für reduzierte
 Bewegung im Betriebssystem, **Reduziert (Reduce)** reduziert die Bewegung auch
 ohne sie, und **Voll (Full)** behält sie, was auch immer das Betriebssystem
@@ -811,7 +828,7 @@ und der Pegel ist eine fünfstufige Anzeige.
 **Workflow-Schritte** in derselben Karte wählt, wie die Workflow-Canvas einen Schritt
 zeichnet: **Farbig (In colour)** (der Standard) zeichnet jeden Schritt in seiner
 Familie, **Schlicht (Simple)** lässt die Kacheln neutral und die Minikarte grau. Die
-Einstellung wird pro Browser gespeichert; denselben Schalter hat die Werkzeugleiste der
+Einstellung wird im Konto gespeichert; denselben Schalter hat die Werkzeugleiste der
 Canvas. Siehe [Wie ein Schritt gezeichnet wird](workflows.md#how-a-step-is-drawn).
 
 ### Die Karte Stimme (Voice) { #the-voice-card }
@@ -1068,6 +1085,28 @@ Der Posteingang erfordert einen Nachweis der E-Mail-Adresse in der aktuellen Sit
 Bernsteinfarbene Punkte markieren Organisationstabs und die zugehörigen Karten für Sprache, nächtliche Vorschläge, Gedächtnispflege und Architect bei unvollständiger Konfiguration oder ausgeschalteten Vorschlägen. Hover oder Tastaturfokus zeigt die Erklärung; Klicken oder Tippen hält sie geöffnet. Die Hinweise verwenden gespeicherte Einstellungen, verschwinden nach der Einrichtung und beachten Bearbeitungsrechte. Ausgeschaltete Vorschläge gelten als optionale Einrichtung, nicht als Fehler. Auch die iPhone-Push-Karte markiert einen fehlenden Apple-Schlüssel. Bei reduzierter Bewegung entfällt das Pulsieren.
 
 Gespeicherte Browser-Anmeldungen stehen in einem kompakten Einstellungsbereich über die volle Breite, statt einen Eintrag auf die ganze Seite zu strecken. Bekannte Dienste verwenden mitgelieferte Markenlogos; andere Seiten ihr eigenes Favicon ohne Referrer und bei fehlendem Bild ein Globussymbol.
+
+## Darstellung des Kontos { #account-appearance }
+
+Unter **Settings → Profile → Appearance** wählen Sie Design, Stil, Akzentfarbe,
+Ecken, Textgröße, Bewegung, Diktieranimation und Workflow-Schritte. Die Vorschau
+ändert sich mit Ihrer Auswahl. **Übernehmen** speichert die Änderungen im Konto;
+**Vorschau verwerfen** behält die gespeicherten Werte. **Auf Standard
+zurücksetzen** stellt sofort das Systemdesign und die Standarddarstellung wieder her.
+
+Die Auswahl gilt auf allen Geräten und in allen Organisationen. Design und Stil
+im Kontomenü werden sofort gespeichert. Beim Abmelden wird die Darstellung des
+vorherigen Kontos gelöscht. Bestehende Browsereinstellungen werden keinem Konto
+automatisch zugeordnet; wählen und übernehmen Sie sie einmal.
+
+Sie können einen Agenten in Ihrem eigenen, nicht geteilten privaten Chat um
+Änderungen bitten. `get_my_appearance`, `set_my_appearance` und
+`reset_my_appearance` verwenden das authentifizierte Konto und benötigen
+`agents:run`. Schreibzugriffe behalten ihre normale Freigaberichtlinie.
+Geteilte Chats, Projekte, Kanäle, Identitätswechsel und unbeaufsichtigte Läufe
+werden abgewiesen. Nur festgelegte Werte sind erlaubt, kein freies CSS, URLs
+oder fremde Nutzer-IDs. Die Konsole aktualisiert sich nach einem internen
+Werkzeugaufruf, beim Fokussieren und für andere Geräte innerhalb von 30 Sekunden.
 
 ## Sprachen { #languages }
 

@@ -261,6 +261,19 @@ class RetentionService:
             something. An organization with nothing to do is left out, because a
             log line per tenant per day saying "nothing" is a log nobody reads.
         """
+        from app.core.permissions import AuthContext
+        from app.db.table_rls import (
+            bind_table_access,
+            require_table_connection_role,
+            require_table_policy_inventory,
+            table_rls_state,
+        )
+
+        # The production worker commits per organization. An explicitly atomic
+        # cross-organization invocation requires the separate maintenance role.
+        if not commit_each and (await table_rls_state(self.db)).active:
+            await require_table_policy_inventory(self.db)
+            await require_table_connection_role(self.db, maintenance=True)
         moment = now or datetime.now(UTC)
         settings_row = await deployment_settings_repo.get(self.db)
         defaults = getattr(settings_row, "retention_defaults", None)
@@ -271,6 +284,11 @@ class RetentionService:
         for organization_id, requested in await retention_repo.organizations_with_retention(
             self.db
         ):
+            if commit_each:
+                # The organization catalog supplied this scope, not a job caller.
+                await bind_table_access(
+                    self.db, AuthContext(user_id=None, organization_id=organization_id, role="")
+                )
             policy = effective_policy(
                 organization=requested,
                 defaults=defaults,

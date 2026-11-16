@@ -9,9 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.db.locks import LockScope, hold_subject
-from app.db.models.agent_run import AgentRun
+from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.conversation import Conversation
 from app.db.models.conversation_task import ConversationTask, ConversationTurnClaim
+from app.db.models.room_submission import RoomSubmission
 from app.repositories import room_submission as room_repo
 
 
@@ -124,6 +125,36 @@ async def save(db: AsyncSession, task: ConversationTask) -> None:
     await db.flush()
 
 
+async def legacy_room_pause(
+    db: AsyncSession, conversation_id: UUID, *, run_id: UUID | None = None
+) -> UUID | None:
+    """A primary room run parked before durable room submission owned its turn.
+
+    Its released live lease does not mean the room is free: the person still
+    owes an answer. Child/delegate runs belong to their primary run, and private
+    conversations keep their existing foreground admission behavior.
+    """
+    query = (
+        select(AgentRun.id)
+        .join(Conversation, Conversation.id == AgentRun.conversation_id)
+        .where(
+            AgentRun.conversation_id == conversation_id,
+            AgentRun.organization_id == Conversation.organization_id,
+            Conversation.project_id.is_not(None),
+            AgentRun.surface == RunSurface.WEB.value,
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.is_test.is_(False),
+            AgentRun.status.in_(
+                (RunStatus.AWAITING_APPROVAL.value, RunStatus.AWAITING_ANSWER.value)
+            ),
+            ~exists(select(RoomSubmission.id).where(RoomSubmission.run_id == AgentRun.id)),
+        )
+    )
+    if run_id is not None:
+        query = query.where(AgentRun.id == run_id)
+    return await db.scalar(query.limit(1))
+
+
 async def claim_turn(
     db: AsyncSession,
     conversation_id: UUID,
@@ -138,8 +169,21 @@ async def claim_turn(
     if pending is not None:
         starts_head = pending.id == room_request_id and pending.status == "queued"
         resumes_head = resume_run_id is not None and pending.run_id == resume_run_id
-        if not starts_head and not resumes_head:
-            return None
+        if not resumes_head:
+            legacy_pause = await legacy_room_pause(db, conversation_id)
+            if legacy_pause is not None:
+                # The older paused turn must finish before this queued head.
+                # Admit its exact resume so the queue cannot deadlock behind it.
+                resumes_legacy = (
+                    pending.status == "queued"
+                    and resume_run_id is not None
+                    and await legacy_room_pause(db, conversation_id, run_id=resume_run_id)
+                    is not None
+                )
+                if not resumes_legacy:
+                    return None
+            elif not starts_head:
+                return None
     # A parked room continuation is exclusive too. Its durable queue head
     # remains in place while the original requester answers an approval/question.
     exclusive = background or pending is not None

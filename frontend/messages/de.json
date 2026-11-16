@@ -1429,8 +1429,27 @@
       "title" : "{appName} wurde aktualisiert"
    },
    "appearance" : {
+      "accent" : "Akzentfarbe",
+      "radius" : "Ecken",
+      "textSize" : "Textgröße",
+      "accents" : {"default":"Neutral","blue":"Blau","violet":"Violett","green":"Grün","amber":"Bernstein","rose":"Rosa"},
+      "radii" : {"default":"Standard","square":"Dezent","rounded":"Abgerundet"},
+      "textSizes" : {"default":"Standard","large":"Groß"},
+      "preview" : "Live-Vorschau",
+      "previewTitle" : "Ihr Arbeitsbereich",
+      "previewText" : "Ein Beispiel für Ihre Farben, Ecken und Textgröße.",
+      "previewAction" : "Beispielaktion",
+      "previewHint" : "Bis Sie Übernehmen wählen, ändert sich nur die Vorschau. Zurücksetzen stellt die Standardwerte Ihres Kontos wieder her.",
+      "apply" : "Übernehmen",
+      "discard" : "Vorschau verwerfen",
+      "reset" : "Auf Standard zurücksetzen",
+      "saved" : "Darstellung gespeichert",
+      "resetDone" : "Darstellung zurückgesetzt",
+      "loading" : "Ihre Darstellung wird geladen…",
+      "loadError" : "Ihre gespeicherte Darstellung konnte nicht geladen werden.",
+      "retry" : "Erneut versuchen",
       "colour" : "Farbig",
-      "description" : "Wie die Konsole für Sie aussieht und sich bewegt. In diesem Browser gespeichert und sofort angewendet.",
+      "description" : "Wählen Sie Ihre Darstellung, prüfen Sie die Vorschau und übernehmen Sie sie für Ihr Konto auf allen Geräten.",
       "full" : "Voll",
       "look" : "Stil",
       "lookHint" : "Jeder Stil hat eine helle und eine dunkle Seite; das Design oben wählt sie. In der Desktop-App lässt Glass den Schreibtisch durchscheinen.",
@@ -3583,6 +3602,40 @@
       }
    },
    "chat" : {
+      "workspace" : {
+         "rail" : "Workspace",
+         "browser" : "Browser",
+         "computer" : "Computer",
+         "openBrowser" : "Browser öffnen",
+         "openComputer" : "Computer öffnen",
+         "close" : "Workspace-Panel schließen",
+         "resize" : "Größe des Workspace-Panels ändern",
+         "computerMenu" : "Computer-Optionen",
+         "computerWaiting" : "Warten auf das Bildschirmfoto des Computers…",
+         "computerWatching" : "Computer-Vorschau",
+         "computerControlling" : "Interaktive Computeransicht",
+         "computerImage" : "Bildschirmfoto des Computers des Agents",
+         "browserEmpty" : "Geben Sie eine Website ein und bitten Sie den Agent, seinen gehosteten Browser zu öffnen. Das Öffnen dieses Panels startet keine Sitzung.",
+         "computerEmpty" : "Bitten Sie den Agent, seinen gehosteten Computer zu starten und den Desktop zu zeigen. Das Öffnen dieses Panels startet keine Sitzung.",
+         "startBrowser" : "Agent bitten, den Browser zu öffnen",
+         "startComputer" : "Agent bitten, den Computer zu starten",
+         "browserPrompt" : "Öffne {url} in deinem gehosteten Browser und zeige die Seite. Greife nicht auf meinen lokalen Browser oder Computer zu.",
+         "computerPrompt" : "Starte deinen gehosteten Computer und zeige mir ein Bildschirmfoto seines Desktops, sobald dieser bereit ist. Greife nicht auf meinen lokalen Computer zu.",
+         "lastView" : "Letzte Ansicht",
+         "lastViewHint" : "Dies ist die zuletzt aufgenommene Ansicht. Bitten Sie den Agent um eine neue Ansicht, um fortzufahren.",
+         "unknown" : "Die veröffentlichte Werkzeugkonfiguration des Agents ist noch nicht verfügbar.",
+         "browserUnavailable" : "Dieser Agent ist nicht für einen gehosteten Browser konfiguriert. Aktualisieren und veröffentlichen Sie seine Browser-Einstellungen, um ihn hier zu starten.",
+         "computerUnavailable" : "Dieser Agent ist nicht für einen gehosteten Computer konfiguriert. Aktualisieren und veröffentlichen Sie seine Computer-Einstellungen, um ihn hier zu starten.",
+         "localSelected" : "Dieser Chat verwendet Werkzeuge auf Ihrem eigenen Computer. Schalten Sie diese in den Chat-Einstellungen aus, bevor Sie hier eine gehostete Sitzung starten.",
+         "chooseAgent" : "Wählen Sie einen Agent, um eine gehostete Sitzung zu starten.",
+         "readOnly" : "Sie können diese Unterhaltung ansehen, aber hier keine Sitzung starten.",
+         "roomComposer" : "Wählen Sie im Nachrichtenfeld des Raums einen Agenten aus und bitten Sie ihn, den Browser oder Computer zu öffnen.",
+         "busy" : "Warten Sie, bis der aktuelle Turn beendet ist, bevor Sie eine Sitzung starten.",
+         "disconnected" : "Verbinden Sie den Chat erneut, bevor Sie eine Sitzung starten.",
+         "website" : "Website-Adresse",
+         "websitePlaceholder" : "https://example.com",
+         "websiteInvalid" : "Geben Sie eine Website-Adresse ein, die mit https:// oder http:// beginnt und keine Anmeldedaten enthält."
+      },
       "accessChanged" : "Zugriff geändert",
       "accessChecking" : "Zugriff auf die Unterhaltung wird geprüft…",
       "accessFailed" : "Der Zugriff auf diese Unterhaltung konnte nicht geprüft werden",
@@ -4997,6 +5050,28 @@
             "cancelled" : "Abgebrochen",
             "interrupted" : "Unterbrochen"
          }
+      },
+      "roomThread": {
+         "historyAudience": "Gespeicherter Gesprächsverlauf",
+         "readOnly": "Dieser Thread ist schreibgeschützt.",
+         "title": "Thread",
+         "start": "Im Thread antworten",
+         "replies": "{count, plural, one {# Antwort} other {# Antworten}}",
+         "message": "Im Thread antworten",
+         "placeholder": "Hier antworten. Alle im Raum können diesen Thread lesen.",
+         "post": "Antwort senden",
+         "close": "Thread schließen",
+         "earlier": "Frühere Antworten laden",
+         "audience": "Für alle in diesem Raum sichtbar",
+         "root": "Ursprüngliche Nachricht",
+         "loading": "Thread wird geladen…",
+         "unavailable": "Dieser Thread ist nicht verfügbar. Er wurde möglicherweise entfernt oder dein Zugriff auf den Raum hat sich geändert.",
+         "retry": "Erneut versuchen",
+         "empty": "Beginne die Unterhaltung in diesem Thread.",
+         "open": "Thread öffnen",
+         "pending": "Ein Agent wartet in einem Thread auf dich.",
+         "mainPending": "Ein Agent wartet im Hauptraum auf dich.",
+         "main": "Zurück zum Raum"
       }
    },
    "claudeSubscription" : {
@@ -10090,6 +10165,10 @@
             "body" : "Wähle einen Twilio-SMS-Bot, eine öffentliche Sprachoberfläche für eingehende Anrufe, Grenzen und erlaubte Weiterleitungskontakte. Kopiere die Webhook-URLs nach Twilio. Mitglieder stimmen separat zu.",
             "title" : "Telefonrouting einrichten"
          },
+         "chat-workspace" : {
+            "title" : "Ihren Workspace öffnen",
+            "body" : "Öffnen Sie Browser, Computer oder Dateien neben dem Chat. Bitten Sie den ausgewählten Agent, ein konfiguriertes gehostetes Werkzeug zu starten. Das Öffnen eines Panels allein startet keine Sitzung."
+         },
          "chat-agent-picker" : {
             "body" : "Wechseln Sie hier zwischen Ihren Agents. Jeder bringt eigene Instruktionen, Tools und Wissen mit, dieselbe Frage kann also eine sehr andere Antwort bekommen.",
             "title" : "Wählen Sie, wer antwortet"
@@ -11206,6 +11285,22 @@
          "chat-team-composer" : {
             "title" : "Mit dem Team sprechen und bei Bedarf einen Agent fragen",
             "body" : "Schreibe deinem Team, ohne einen Agent zu starten. Wähle einen Agent ausdrücklich für eine KI-Antwort; die Anfrage kommt in die gemeinsame Warteschlange."
+         },
+         "table-row-access": {
+            "title": "Regeln für den Zeilenzugriff",
+            "body": "Wählen Sie, wer Zeilen lesen darf. Öffnen Sie dann eine Zeile, um einer Person oder Gruppe Lesen oder Schreiben zu geben."
+         },
+         "record-access": {
+            "title": "Diese Zeile teilen",
+            "body": "Schreiben umfasst Lesen und Änderungen an gewöhnlichen Zellen. Es erlaubt weder Löschen noch Zugriffsverwaltung oder Änderungen am Tabellenschema."
+         },
+         "chat-room-thread": {
+            "title": "Eine Nachricht besprechen",
+            "body": "Öffne einen Thread, um Antworten zusammenzuhalten, ohne den Hauptraum zu füllen. Die Anzahl der Antworten führt zurück zur Diskussion; Antworten zitiert weiterhin eine Nachricht."
+         },
+         "chat-room-thread-panel": {
+            "title": "Antworten mit eigenem Kontext",
+            "body": "Die ursprüngliche Nachricht bleibt über den Antworten. Alle im Raum können den Thread lesen. Wähle einen Agenten für Hilfe oder schließe den Thread, um zum Raum zurückzukehren."
          }
       }
    },
@@ -16321,6 +16416,42 @@
          "timeFormat" : "Zeitformat",
          "title" : "Ansichtseinstellungen",
          "wrapText" : "Text umbrechen"
+      },
+      "access": {
+         "read": "Lesen",
+         "write": "Schreiben",
+         "manage": "Zeilenzugriff",
+         "title": "Diese Zeile teilen",
+         "writeHelp": "Schreiben umfasst Lesen und Änderungen an gewöhnlichen Zellen. Es erlaubt weder Löschen noch Zugriffsverwaltung oder Änderungen am Tabellenschema.",
+         "tableRequired": "Personen und Gruppen benötigen auch Zugriff auf diese Tabelle. Eine Zeilenfreigabe teilt keine verknüpften Datensätze und entfernt keinen Zugriff aus Tabellenregeln.",
+         "loading": "Zeilenzugriff wird geladen…",
+         "personOrGroup": "Person oder Gruppe",
+         "chooseSubject": "Person oder Gruppe auswählen",
+         "permission": "Berechtigung",
+         "expiry": "Ablauf (optional)",
+         "expiryHelp": "Leer lassen für eine dauerhafte Personenfreigabe. Gruppenfreigaben laufen standardmäßig nach 90 Tagen ab.",
+         "add": "Freigabe speichern",
+         "grants": "Explizite Zeilenfreigaben",
+         "empty": "Keine expliziten Freigaben. Tabellen- und Zeilenregeln gelten weiterhin.",
+         "expired": "Abgelaufen — Freigabe erneut hinzufügen, um sie zu verlängern.",
+         "expires": "Läuft am {date} ab",
+         "permissionFor": "Berechtigung für {name}",
+         "removeFor": "Zugriff für {name} entfernen",
+         "saved": "Zeilenzugriff aktualisiert",
+         "rowRules": "Regeln für den Zeilenzugriff",
+         "rowRulesHelp": "Wählen Sie, wer Zeilen lesen darf. Öffnen Sie dann eine Zeile, um einer Person oder Gruppe Lesen oder Schreiben zu geben.",
+         "invalidPolicy": "Die Regeln für den Zeilenzugriff sind ungültig. Datensätze bleiben gesperrt, bis ein Tabellenadministrator hier gültige Regeln speichert.",
+         "mode": "Standardzugriff auf Zeilen",
+         "modeAll": "Alle mit Tabellenzugriff",
+         "modeGrants": "Nur Personen mit Zeilenfreigaben",
+         "modeFields": "Personen in Zeilenfeldern",
+         "allHelp": "Wer die Tabelle lesen darf, kann jede Zeile lesen. Tabellenbearbeiter behalten ihre bisherigen Schreibrechte.",
+         "grantsHelp": "Jede Zeile benötigt eine Lese- oder Schreibfreigabe. Der Tabelleneigentümer und Organisationsadministratoren behalten Zugriff. Richten Sie Freigaben vor dem Wechsel ein.",
+         "fieldsHelp": "Das Lesefeld erlaubt die Anzeige; das Schreibfeld erlaubt sie ebenfalls. Eine Zeilenfreigabe zum Schreiben kann Bearbeitung ohne Tabellenverwaltung erlauben. Bestehende Regeln zur Projektmitgliedschaft bleiben erhalten.",
+         "readField": "Lesefeld",
+         "writeField": "Schreibfeld",
+         "chooseField": "Personenfeld auswählen",
+         "saveRules": "Zeilenregeln speichern"
       }
    },
    "teams" : {

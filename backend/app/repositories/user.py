@@ -79,14 +79,21 @@ async def get_by_ids(db: AsyncSession, user_ids: Sequence[UUID]) -> list[User]:
 
 
 async def get_by_id_for_update(
-    db: AsyncSession, user_id: UUID, *, nowait: bool = False
+    db: AsyncSession, user_id: UUID, *, nowait: bool = False, fresh: bool = False
 ) -> User | None:
     """Fetch a user row and acquire a SELECT FOR UPDATE lock.
 
     `nowait=True` raises (SQLSTATE `55P03`) instead of waiting when another
     transaction holds a conflicting lock on the row.
+    `fresh=True` reloads an already-authenticated user after acquiring the lock,
+    so a concurrent appearance PATCH merges against the preceding writer.
     """
-    result = await db.execute(select(User).where(User.id == user_id).with_for_update(nowait=nowait))
+    result = await db.execute(
+        select(User)
+        .where(User.id == user_id)
+        .with_for_update(nowait=nowait)
+        .execution_options(populate_existing=fresh)
+    )
     return result.scalar_one_or_none()
 
 

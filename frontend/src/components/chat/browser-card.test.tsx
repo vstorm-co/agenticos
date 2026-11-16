@@ -2,7 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { BrowserPanelAutoOpen, LiveBrowsesProvider, TurnBrowses } from "./browser-card";
+import { LiveBrowsesProvider, TurnBrowses } from "./browser-card";
 import type { ToolCall } from "@/types";
 import type { Browse } from "@/lib/browse";
 import { useAuthStore } from "@/stores";
@@ -68,7 +68,7 @@ beforeEach(() => {
   };
   live.calls = [];
   useAuthStore.setState({ user: { id: "u1", full_name: "Ada", email: "ada@acme.test" } as never });
-  useBrowserPanelStore.setState({ openCallId: null });
+  useBrowserPanelStore.getState().close();
 });
 
 describe("TurnBrowses - a browse as a browser under its message", () => {
@@ -196,59 +196,34 @@ it("opens the native tab panel rather than presenting an empty screenshot", asyn
   expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
 });
 
-it("opens a new native browse automatically in the desktop console", () => {
-  window.__AGENTICOS_SHELL__ = {
-    platform: "macos",
-    version: "0.2.0",
-    window: "main",
-    vibrancy: true,
-  };
-  try {
-    render(<BrowserPanelAutoOpen browses={[browse({ nativeId: "native-browser-test" })]} />);
-    expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
-  } finally {
-    delete window.__AGENTICOS_SHELL__;
-  }
+it("leaves panes closed as browser activity arrives and does not steal a computer selection", () => {
+  const test = render(<BrowserCards browses={[browse({ navigable: true })]} />);
+  expect(useBrowserPanelStore.getState().surface).toBeNull();
+  test.rerender(<BrowserCards browses={[browse({ nativeId: "native", runId: "next" })]} />);
+  expect(useBrowserPanelStore.getState().surface).toBeNull();
+  act(() => useBrowserPanelStore.getState().openSurface("computer"));
+  test.rerender(<BrowserCards browses={[browse({ callId: "new", navigable: true })]} />);
+  expect(useBrowserPanelStore.getState().surface).toBe("computer");
 });
 
-it("automatically opens a remote browser without rendering a second preview", () => {
-  const { container } = render(<BrowserPanelAutoOpen browses={[browse({ navigable: true })]} />);
-  expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
-  expect(container).toBeEmptyDOMElement();
-});
-
-it("respects closing throughout a run and opens again for a new run", () => {
-  const { rerender } = render(<BrowserPanelAutoOpen browses={[browse({ navigable: true })]} />);
-  act(() => useBrowserPanelStore.getState().close());
-  rerender(<BrowserPanelAutoOpen browses={[browse({ callId: "next", navigable: true })]} />);
-  expect(useBrowserPanelStore.getState().openCallId).toBeNull();
-  rerender(
-    <BrowserPanelAutoOpen browses={[browse({ callId: "new", runId: "run-2", navigable: true })]} />,
+it("opens a computer preview in the Computer pane without stale browser chrome", async () => {
+  render(
+    <BrowserCards
+      browses={[browse({ callId: "desktop", title: "Old browser title" })]}
+      calls={[{ id: "desktop", name: "computer_screenshot", args: {}, status: "completed" }]}
+    />,
   );
-  expect(useBrowserPanelStore.getState().openCallId).toBe("new");
-});
-
-it("does not change the selected page when another browser session starts", () => {
-  useBrowserPanelStore.getState().open("reading");
-  render(<BrowserPanelAutoOpen browses={[browse({ navigable: true })]} />);
-  expect(useBrowserPanelStore.getState().openCallId).toBe("reading");
-});
-
-it("does not automatically reopen a completed browser", () => {
-  render(<BrowserPanelAutoOpen browses={[browse({ navigable: true, outcome: "done" })]} />);
-  expect(useBrowserPanelStore.getState().openCallId).toBeNull();
-});
-
-it("does not automatically open a native browser outside the desktop shell", () => {
-  render(<BrowserPanelAutoOpen browses={[browse({ nativeId: "native" })]} />);
-  expect(useBrowserPanelStore.getState().openCallId).toBeNull();
-});
-
-it("ignores an empty conversation and opens browser entries without run ids", () => {
-  const { container, rerender } = render(<BrowserPanelAutoOpen browses={[]} />);
-  expect(container).toBeEmptyDOMElement();
-  rerender(<BrowserPanelAutoOpen browses={[browse({ runId: undefined, navigable: true })]} />);
-  expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+  expect(screen.getByRole("heading", { name: "Computer" })).toBeVisible();
+  expect(screen.queryByRole("heading", { name: "Old browser title" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Computer options" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Open beside the chat" }));
+  expect(useBrowserPanelStore.getState()).toMatchObject({
+    surface: "computer",
+    openCallId: "desktop",
+  });
+  expect(live.calls.at(-1)).toEqual(["run-1", "desktop", false]);
+  await userEvent.click(screen.getByRole("button", { name: "Open Computer" }));
+  expect(useBrowserPanelStore.getState().surface).toBe("computer");
 });
 
 it("keeps legacy previews without a run or host readable in the panel", () => {

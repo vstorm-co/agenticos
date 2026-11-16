@@ -213,6 +213,13 @@ def _column(index: int, submitted: ColumnInput, previous: ColumnDef | None) -> C
         options=options,
         archived=submitted.archived,
         link_table_id=submitted.link_table_id,
+        link_limit=(
+            submitted.link_limit
+            if submitted.link_limit is not None
+            else previous.link_limit
+            if previous
+            else None
+        ),
         link_column_id=submitted.link_column_id,
         target_column_id=submitted.target_column_id,
         aggregate=submitted.aggregate,
@@ -235,6 +242,8 @@ def _check_reference(where: str, submitted: ColumnInput, previous: ColumnDef | N
     them, is the service's to ask: it takes the database (`TableOperations`).
     """
     kind = submitted.type
+    if submitted.link_limit is not None and kind != "link":
+        raise InvalidSchemaError(f"{where}.link_limit", "Only a link column limits linked records")
     if (submitted.link_table_id is not None) != (kind == "link"):
         raise InvalidSchemaError(
             f"{where}.link_table_id",
@@ -327,6 +336,7 @@ def _meaning(
         column.type,
         column.archived,
         column.link_table_id,
+        (column.link_limit or 100) if column.type == "link" else None,
         column.link_column_id,
         column.target_column_id,
         column.aggregate,

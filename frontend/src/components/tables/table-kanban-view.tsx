@@ -1,4 +1,5 @@
 "use client";
+import { canWriteCell } from "@/lib/table-record-access";
 
 import { cn } from "@/lib/utils";
 import { useTableDisplay } from "./table-display-context";
@@ -289,7 +290,9 @@ function KanbanLane({
             titleColumn={titleColumn}
             properties={properties}
             boolLabel={boolLabel}
-            dragProps={canEdit && !lane.archived ? cardProps(record) : noDrag}
+            dragProps={
+              canWriteCell(record, groupBy, canEdit) && !lane.archived ? cardProps(record) : noDrag
+            }
             onOpen={() => onOpenRecord(record)}
             conflict={isGroupingConflict(record.id)}
             onReload={() => onReload(record.id)}
@@ -298,7 +301,7 @@ function KanbanLane({
               (target) => target.id !== lane.optionId || lane.archived,
             )}
             onMoveTo={(target) => onMoveTo(record, target)}
-            canEdit={canEdit}
+            canEdit={canWriteCell(record, groupBy, canEdit)}
           />
         ))}
       </div>
@@ -391,6 +394,7 @@ export function TableKanbanView({
   const laneOf = (record: RecordRead) => record.values[groupByColumnId] ?? null;
 
   function moveRecord(record: RecordRead, targetOptionId: string | null) {
+    if (!canWriteCell(record, groupByColumnId, canEdit)) return;
     // A card dropped back on its own lane is not a move. Writing it anyway
     // could only fail - against a revision someone else has since advanced -
     // with a conflict banner for a move the user never made.
@@ -509,7 +513,13 @@ export function TableKanbanView({
               properties={properties}
               boolLabel={boolLabel}
               cardProps={cardProps}
-              laneDropProps={laneProps(lane.optionId, canEdit && lane.archived !== true)}
+              laneDropProps={laneProps(
+                lane.optionId,
+                lane.archived !== true &&
+                  (canEdit ||
+                    (draggingItem !== null &&
+                      canWriteCell(draggingItem, groupByColumnId, canEdit))),
+              )}
               pendingMoves={pendingMoves}
               onOpenRecord={onOpenRecord}
               moveTargets={moveTargets}

@@ -34,6 +34,7 @@ from app.db.models.project import Project
 from app.db.models.skill import Skill
 from app.db.models.virtual_table import VirtualTable
 from app.db.models.workflow import Workflow
+from app.db.table_rls import bind_table_access
 from app.services.access import (
     AGENT,
     ARTIFACT,
@@ -99,6 +100,7 @@ async def load_context(db: AsyncSession, context_id: UUID, ctx: AuthContext) -> 
 
 
 async def load_table(db: AsyncSession, table_id: UUID, ctx: AuthContext) -> VirtualTable:
+    await bind_table_access(db, ctx)
     missing = NotFoundError(message="Table not found", details={"table_id": str(table_id)})
     return await _visible(db, ctx, await db.get(VirtualTable, table_id), TABLE, missing)
 

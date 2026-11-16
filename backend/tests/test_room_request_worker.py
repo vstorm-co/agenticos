@@ -35,7 +35,9 @@ def work(monkeypatch: pytest.MonkeyPatch):
         created_at=datetime.now(UTC),
     )
     ctx = AuthContext(user_id=row.requester_id, organization_id=row.organization_id, role="member")
-    message = SimpleNamespace(id=row.message_id, content="Please answer this")
+    message = SimpleNamespace(
+        id=row.message_id, content="Please answer this", thread_root_message_id=None
+    )
     topic = SimpleNamespace(id=row.conversation_id)
     sender = SimpleNamespace(id=row.requester_id)
     read = MessageRead(
@@ -177,13 +179,19 @@ async def test_missing_sender_after_revalidation_still_refuses_execution(work, m
     work.execute.assert_not_called()
 
 
-async def test_pinned_requester_runs_once_with_bounded_history_and_shared_audience(work) -> None:
+@pytest.mark.parametrize("in_thread", [False, True])
+async def test_pinned_requester_runs_once_with_bounded_history_and_shared_audience(
+    work, in_thread
+) -> None:
+    work.message.thread_root_message_id = uuid4() if in_thread else None
+
     async def execute(ctx, agent_id, prompt, **options):
         assert ctx is work.ctx and ctx.user_id == work.row.requester_id
         assert agent_id == work.row.agent_id and options["version_id"] == work.row.version_id
         assert prompt == "Requester: Please answer this"
         assert options["said"] == ""  # The human post is already durable.
         assert options["memory_room_key"] == f"room:project:{work.row.conversation_id}"
+        assert options["thread_root_message_id"] == work.message.thread_root_message_id
         assert options["message_history"] is work.history
         assert options["acts_for_sender"] is True and options["parks_questions"] is True
         assert "local" not in options and "model_profile_id" not in options
@@ -319,8 +327,9 @@ async def test_reconciler_settles_resumes_and_queues_only_repository_selected_he
 
 
 @pytest.mark.parametrize("trace_available", [False, True])
+@pytest.mark.parametrize("in_thread", [False, True])
 async def test_live_stream_uses_the_same_saved_prompt_and_sender(
-    monkeypatch, trace_available
+    monkeypatch, trace_available, in_thread
 ) -> None:
     # Exercise the real stream context separately from the worker fixture.
     row = SimpleNamespace(conversation_id=uuid4(), requester_id=uuid4(), agent_id=uuid4())
@@ -332,6 +341,7 @@ async def test_live_stream_uses_the_same_saved_prompt_and_sender(
         client_message_id="token",
         created_at=datetime.now(UTC),
         sender=ChatPerson(user_id=row.requester_id, name="Sender"),
+        thread_root_message_id=uuid4() if in_thread else None,
     )
     trace = object() if trace_available else None
     begin, publish, end, begun = (
@@ -344,14 +354,19 @@ async def test_live_stream_uses_the_same_saved_prompt_and_sender(
     monkeypatch.setattr(module.live_turn, "publish", publish)
     monkeypatch.setattr(module.live_turn, "end", end)
     monkeypatch.setattr(module.chat_room, "turn_begun", begun)
-    async with module._live(row, message):
-        pass
+    async with module._live(row, message) as frames:
+        await frames.emit("model_request_start", {})
+        await frames.emit("text_delta", {"delta": "Scoped answer"})
     begun.assert_awaited_once_with(str(row.conversation_id), row.requester_id)
     if trace_available:
         event = publish.call_args_list[0].args
         assert event[1] == "turn_prompt" and event[2]["message_id"] == str(message.id)
         assert event[2]["sender"]["user_id"] == str(row.requester_id)
         assert publish.call_args_list[-1].args[1] == "complete"
+        expected = str(message.thread_root_message_id) if in_thread else None
+        assert all(
+            call.args[2]["thread_root_message_id"] == expected for call in publish.call_args_list
+        )
         end.assert_awaited_once_with(trace)
     else:
         publish.assert_not_awaited()
@@ -359,8 +374,9 @@ async def test_live_stream_uses_the_same_saved_prompt_and_sender(
 
 
 @pytest.mark.parametrize("visible", [False, True])
+@pytest.mark.parametrize("in_thread", [False, True])
 async def test_saved_acknowledgement_requires_a_committed_assistant_message(
-    monkeypatch, visible
+    monkeypatch, visible, in_thread
 ) -> None:
     db = MagicMock()
 
@@ -369,7 +385,12 @@ async def test_saved_acknowledgement_requires_a_committed_assistant_message(
         yield db
 
     run = SimpleNamespace(id=uuid4(), status="completed")
-    message = SimpleNamespace(id=uuid4(), run_id=run.id, conversation_id=uuid4())
+    message = SimpleNamespace(
+        id=uuid4(),
+        run_id=run.id,
+        conversation_id=uuid4(),
+        thread_root_message_id=uuid4() if in_thread else None,
+    )
     segment = SimpleNamespace(run=run, message_id=message.id)
     frames = MagicMock(emit=AsyncMock())
     monkeypatch.setattr(module, "get_worker_db_context", database)
@@ -383,6 +404,9 @@ async def test_saved_acknowledgement_requires_a_committed_assistant_message(
     if visible:
         assert frames.emit.call_args.args[0] == "message_saved"
         assert frames.emit.call_args.args[1]["message_id"] == str(message.id)
+        assert frames.emit.call_args.args[1]["thread_root_message_id"] == (
+            str(message.thread_root_message_id) if in_thread else None
+        )
 
 
 async def test_no_saved_acknowledgement_is_invented_for_an_unpersisted_turn() -> None:

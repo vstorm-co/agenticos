@@ -15,24 +15,34 @@ import { ReplyingTo, ReplyQuote } from "./reply-quote";
 import { TeamRoomQueue } from "./team-room-queue";
 import { roomResponders, TeamRoomResponder } from "./team-room-responder";
 
-export function TeamRoomComposer({
-  conversationId,
-  projectId,
-  readOnly,
-  onTyping,
-  actionsSlot,
-}: {
+interface RoomComposerProps {
   conversationId: string | null;
   projectId: string;
   readOnly: boolean;
   onTyping: () => void;
   actionsSlot?: ReactNode;
+}
+
+export function TeamRoomComposer(props: RoomComposerProps) {
+  const draft = useRoomDraft(props.conversationId);
+  return <RoomComposer {...props} draft={draft} />;
+}
+
+export function RoomComposer({
+  conversationId,
+  projectId,
+  readOnly,
+  onTyping,
+  actionsSlot,
+  draft,
+  threadRootMessageId = null,
+}: RoomComposerProps & {
+  draft: ReturnType<typeof useRoomDraft>;
+  threadRootMessageId?: string | null;
 }) {
   const t = useTranslations("chat.teamRoom");
   const tErrors = useTranslations("errors");
   const requests = useRoomRequests(conversationId);
-  // Keep an uncertain submission even when a queue refetch hides the form.
-  const draft = useRoomDraft(conversationId);
   const { project, isLoading: loadingProject } = useProject(projectId);
   const { agents } = useAgents();
   const canPost = !readOnly && !requests.isError && requests.data?.can_post === true;
@@ -51,7 +61,9 @@ export function TeamRoomComposer({
     <div>
       <TeamRoomQueue
         conversationId={conversationId}
-        requests={requests.data?.items ?? []}
+        requests={(requests.data?.items ?? []).filter(
+          (request) => (request.thread_root_message_id ?? null) === threadRootMessageId,
+        )}
         agents={agents}
         canPost={canPost}
       />
@@ -77,6 +89,7 @@ export function TeamRoomComposer({
           agents={roomResponders(agents)}
           onTyping={onTyping}
           actionsSlot={actionsSlot}
+          inThread={threadRootMessageId !== null}
         />
       )}
       {!canPost && actionsSlot && (
@@ -91,13 +104,16 @@ function TeamRoomForm({
   agents,
   onTyping,
   actionsSlot,
+  inThread,
 }: {
   draft: ReturnType<typeof useRoomDraft>;
   agents: readonly Agent[];
   onTyping: () => void;
   actionsSlot?: ReactNode;
+  inThread: boolean;
 }) {
   const t = useTranslations("chat.teamRoom");
+  const thread = useTranslations("chat.roomThread");
   const available = draft.agentId === null || agents.some((agent) => agent.id === draft.agentId);
   const canSend =
     !draft.sending && draft.content.trim().length > 0 && (draft.retrying || available);
@@ -128,8 +144,8 @@ function TeamRoomForm({
             if (canSend) void draft.submit();
           }
         }}
-        aria-label={t("message")}
-        placeholder={t("placeholder")}
+        aria-label={inThread ? thread("message") : t("message")}
+        placeholder={inThread ? thread("placeholder") : t("placeholder")}
         maxLength={20000}
         disabled={draft.locked}
         className="mb-3 min-h-20 resize-y border-0 bg-transparent shadow-none focus-visible:ring-0"
@@ -151,7 +167,13 @@ function TeamRoomForm({
           {actionsSlot}
           <Button type="submit" size="sm" disabled={!canSend}>
             <Send className="size-3.5" aria-hidden />
-            {draft.sending ? t("posting") : draft.retrying ? t("retryPost") : t("post")}
+            {draft.sending
+              ? t("posting")
+              : draft.retrying
+                ? t("retryPost")
+                : inThread
+                  ? thread("post")
+                  : t("post")}
           </Button>
         </div>
       </div>

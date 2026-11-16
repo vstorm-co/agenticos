@@ -75,7 +75,8 @@ async def test_nothing_deleted_replayed_or_unfinished_is_started() -> None:
         assert get.await_count == 4
 
 
-async def test_a_result_waiting_for_its_source_turn_spends_nothing() -> None:
+@pytest.mark.parametrize("status", ["running", "awaiting_approval", "awaiting_answer"])
+async def test_a_result_waiting_for_its_source_turn_spends_nothing(status: str) -> None:
     row = task(status="completed")
     with (
         patch.object(module, "get_worker_db_context", database),
@@ -83,7 +84,7 @@ async def test_a_result_waiting_for_its_source_turn_spends_nothing() -> None:
         patch.object(
             module.run_repo,
             "get_run",
-            new=AsyncMock(return_value=SimpleNamespace(status="awaiting_approval")),
+            new=AsyncMock(return_value=SimpleNamespace(status=status)),
         ),
         patch.object(module, "claim") as claim,
     ):
@@ -120,7 +121,10 @@ async def test_busy_topics_defer_without_replaying_a_model_attempt(returning: bo
 @pytest.mark.parametrize("returning", [False, True])
 async def test_revoked_authority_withdraws_work_before_any_model_call(returning: bool) -> None:
     row = task(status="completed" if returning else "queued")
-    service = MagicMock(authority=AsyncMock(side_effect=AuthorizationError(message="Revoked")))
+    service = MagicMock(
+        authority=AsyncMock(side_effect=AuthorizationError(message="Revoked")),
+        return_context=AsyncMock(side_effect=AuthorizationError(message="Revoked")),
+    )
     with (
         patch.object(module, "get_worker_db_context", database),
         patch.object(module.task_repo, "get", new=AsyncMock(return_value=row)),
@@ -159,20 +163,40 @@ async def test_crash_settlers_and_reconciler_use_the_durable_record() -> None:
         service.queue_return.assert_awaited_once_with(row)
 
 
-async def test_live_result_turn_has_agent_attribution_and_no_invented_user_prompt() -> None:
+@pytest.mark.parametrize("in_thread", [False, True])
+async def test_live_result_turn_has_agent_attribution_and_no_invented_user_prompt(
+    in_thread: bool,
+) -> None:
     trace = MagicMock()
+    conversation_id, root = uuid4(), uuid4() if in_thread else None
     with (
         patch.object(module.live_turn, "begin", new=AsyncMock(return_value=trace)),
         patch.object(module.live_turn, "publish", new=AsyncMock()) as publish,
         patch.object(module.live_turn, "end", new=AsyncMock()) as end,
         patch.object(module.chat_room, "turn_begun", new=AsyncMock()),
     ):
-        async with module._live(uuid4(), uuid4(), uuid4(), uuid4(), returning=True):
-            pass
+        async with module._live(
+            conversation_id,
+            uuid4(),
+            uuid4(),
+            uuid4(),
+            returning=True,
+            thread_root_message_id=root,
+        ) as frames:
+            await frames.emit("model_request_start", {})
+            await frames.emit("text_delta", {"content": "Result"})
         assert publish.call_args_list[0].args[1] == "background_task_turn"
         assert publish.call_args_list[0].args[2]["returning"] is True
         assert publish.call_args_list[-1].args[1] == "complete"
         assert all(call.args[1] != "turn_prompt" for call in publish.call_args_list)
+        assert all(
+            call.args[2]["conversation_id"] == str(conversation_id)
+            for call in publish.call_args_list
+        )
+        assert all(
+            call.args[2]["thread_root_message_id"] == (str(root) if root else None)
+            for call in publish.call_args_list
+        )
         end.assert_awaited_once_with(trace)
 
 
@@ -225,6 +249,91 @@ async def test_local_target_is_retained_for_execution() -> None:
             ConversationTaskJob(task_id=row.id, organization_id=row.organization_id)
         )
     assert seen == [local]
+
+
+@pytest.mark.parametrize("in_thread", [False, True])
+async def test_a_result_keeps_its_source_discussion_and_rechecks_before_models(
+    in_thread: bool,
+) -> None:
+    from app.core.permissions import AuthContext
+
+    row = task(status="completed", outcome="Verified task result")
+    root = uuid4() if in_thread else None
+    auth = AuthContext(user_id=row.user_id, organization_id=row.organization_id, role="member")
+    service = MagicMock(return_context=AsyncMock(return_value=(auth, root)))
+    history = [object()]
+    histories = MagicMock(model_history=AsyncMock(return_value=history))
+    seen = []
+
+    async def execute(_self, _ctx, _agent, _prompt, **options):
+        seen.append(options)
+        assert options["thread_root_message_id"] == root
+        assert options["conversation_id"] == row.source_conversation_id
+        assert options["message_history"] is history and options["result_only"] is True
+        await options["on_run_open"](SimpleNamespace(id=uuid4()))
+        await options["check_model_request"](MagicMock())
+
+    with (
+        patch.object(module, "get_worker_db_context", database),
+        patch.object(module.task_repo, "get", AsyncMock(return_value=row)),
+        patch.object(module.task_repo, "save", AsyncMock()),
+        patch.object(
+            module.run_repo, "get_run", AsyncMock(return_value=SimpleNamespace(status="completed"))
+        ),
+        patch.object(module, "claim", admitted),
+        patch.object(module, "ConversationTaskService", return_value=service),
+        patch.object(module, "ConversationService", return_value=histories),
+        patch.object(module.AgentRunnerService, "execute", execute),
+    ):
+        await module.return_task(
+            ConversationTaskJob(task_id=row.id, organization_id=row.organization_id)
+        )
+
+    assert len(seen) == 1 and service.return_context.await_count == 2
+    histories.model_history.assert_awaited_once_with(
+        row.source_conversation_id, limit=60, thread_root_message_id=root
+    )
+
+
+@pytest.mark.parametrize("change", ["deleted", "withdrawn", "moved"])
+async def test_result_context_changes_stop_before_a_model_request(change: str) -> None:
+    from app.core.exceptions import AlreadyExistsError
+    from app.core.permissions import AuthContext
+
+    row = task(status="completed", outcome="Result")
+    auth = AuthContext(user_id=row.user_id, organization_id=row.organization_id, role="member")
+    root = uuid4()
+    service = MagicMock(return_context=AsyncMock(side_effect=[(auth, root), (auth, uuid4())]))
+    get = AsyncMock(return_value=row)
+    model = AsyncMock()
+
+    async def execute(_self, _ctx, _agent, _prompt, **options):
+        if change == "deleted":
+            get.return_value = None
+        elif change == "withdrawn":
+            row.delivery = "withdrawn"
+        await options["check_model_request"](MagicMock())
+        await model()
+
+    with (
+        patch.object(module, "get_worker_db_context", database),
+        patch.object(module.task_repo, "get", get),
+        patch.object(module.task_repo, "save", AsyncMock()),
+        patch.object(module.run_repo, "get_run", AsyncMock(return_value=None)),
+        patch.object(module, "claim", admitted),
+        patch.object(module, "ConversationTaskService", return_value=service),
+        patch.object(
+            module,
+            "ConversationService",
+            return_value=MagicMock(model_history=AsyncMock(return_value=[])),
+        ),
+        patch.object(module.AgentRunnerService, "execute", execute),
+        pytest.raises(AlreadyExistsError),
+    ):
+        await module.return_task(
+            ConversationTaskJob(task_id=row.id, organization_id=row.organization_id)
+        )
+    model.assert_not_awaited()
 
 
 async def test_stop_between_preparation_and_opening_prevents_the_model_call() -> None:

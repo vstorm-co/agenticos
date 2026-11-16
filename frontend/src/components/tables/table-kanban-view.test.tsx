@@ -501,6 +501,30 @@ describe("TableKanbanView", () => {
     );
   });
 
+  it("does not retry a conflicted lane move after its grouping field becomes read-only", async () => {
+    mockLanes({ o1: [record("r1", "o1")] });
+    vi.mocked(apiClient.patch).mockRejectedValueOnce(conflict409());
+    vi.mocked(apiClient.get).mockResolvedValue({
+      ...record("r1", "o1", 5),
+      access: "write",
+      read_only_column_ids: ["status"],
+    });
+    const user = userEvent.setup();
+    renderBoard();
+    await screen.findByText("Record r1");
+    await user.click(screen.getByRole("button", { name: /move to/i }));
+    await user.click(screen.getByRole("menuitem", { name: "Closed" }));
+    await screen.findByText(/someone else changed this record/i);
+
+    await user.click(screen.getByRole("button", { name: /reload and reapply/i }));
+
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/records/r1"));
+    expect(apiClient.patch).toHaveBeenCalledTimes(1);
+    expect(useTableViewStore.getState().conflicts.r1?.status?.pendingValues).toEqual({
+      status: "o2",
+    });
+  });
+
   it("keeps the conflict banner when the retry move itself fails, not only when the refetch does", async () => {
     mockLanes({ o1: [record("r1", "o1")], o2: [], none: [], archived: [] });
     vi.mocked(apiClient.patch).mockRejectedValueOnce(
@@ -606,6 +630,36 @@ describe("TableKanbanView", () => {
     );
 
     expect(await screen.findByRole("button", { name: "r1" })).toBeInTheDocument();
+  });
+
+  it("lets a row writer drag a card without granting table-wide edit access", async () => {
+    mockLanes({ o1: [{ ...record("r1", "o1"), access: "write" }] });
+    vi.mocked(apiClient.patch).mockResolvedValue(record("r1", "o2", 2));
+    render(
+      <TableKanbanView
+        tableId="t1"
+        columns={COLUMNS}
+        groupByColumnId="status"
+        baseFilters={[]}
+        sort={{ by: "created_at", direction: "asc" }}
+        onOpenRecord={vi.fn()}
+        canEdit={false}
+      />,
+      { wrapper },
+    );
+    const card = (await screen.findByText("Record r1")).closest("div[draggable]") as HTMLElement;
+    const target = screen.getByText("Closed").closest("[data-kanban-lane]") as HTMLElement;
+    expect(target).toHaveAttribute("data-kanban-accepts", "false");
+    dragStart(card);
+    expect(target).toHaveAttribute("data-kanban-accepts", "true");
+    fireEvent.dragOver(target);
+    fireEvent.drop(target);
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1/records/r1", {
+        expected_revision: 1,
+        values: { status: "o2" },
+      }),
+    );
   });
 
   it("dragging a card into another lane writes the same move a Move-to click would", async () => {

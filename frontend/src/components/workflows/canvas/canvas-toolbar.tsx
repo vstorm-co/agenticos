@@ -14,6 +14,7 @@ import {
   Settings2,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 
 import {
   Button,
@@ -37,6 +38,10 @@ import type { ValidationProblem } from "@/components/workflows/validation";
 import type { NodeDefinition, Uuid } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
+import { useAuthStore } from "@/stores/auth-store";
+import { appearanceGeneration, adoptAccountAppearance } from "@/lib/account-appearance";
+import { saveUserAppearance } from "@/lib/user-appearance-api";
+import { getErrorMessage } from "@/lib/api-error";
 import { useNarrowScreen } from "@/hooks/use-narrow-screen";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
@@ -87,7 +92,28 @@ export function CanvasToolbar({
   );
   const toggleMinimap = useWorkflowEditorStore((state) => state.toggleMinimap);
   const nodeStyle = useWorkflowNodeStyleStore((state) => state.style);
-  const setNodeStyle = useWorkflowNodeStyleStore((state) => state.setStyle);
+  const [savingAppearance, setSavingAppearance] = useState(false);
+  const tErrors = useTranslations("errors");
+  const setNodeStyle = async (style: "colour" | "simple") => {
+    const owner = useAuthStore.getState().user?.id;
+    // The unauthed canvas preview has no account to write.
+    if (!owner) {
+      useWorkflowNodeStyleStore.getState().setStyle(style);
+      return;
+    }
+    const epoch = appearanceGeneration();
+    setSavingAppearance(true);
+    try {
+      const saved = await saveUserAppearance({ workflow_nodes: style });
+      if (adoptAccountAppearance(owner, epoch, saved)) {
+        window.dispatchEvent(new Event("account-appearance-changed"));
+      }
+    } catch (error) {
+      toast.error(getErrorMessage(error, tErrors));
+    } finally {
+      setSavingAppearance(false);
+    }
+  };
   // Opened from the "+", from Tab, or from the "+" on a connection.
   const adding = overlay === "picker" && !empty;
   const setAdding = (open: boolean) => setOverlay(open ? "picker" : null);
@@ -173,7 +199,8 @@ export function CanvasToolbar({
               <DropdownMenuCheckboxItem
                 className="gap-3"
                 checked={nodeStyle === "colour"}
-                onCheckedChange={(on) => setNodeStyle(on ? "colour" : "simple")}
+                disabled={savingAppearance}
+                onCheckedChange={(on) => void setNodeStyle(on ? "colour" : "simple")}
               >
                 <Palette className="size-4" />
                 {t(nodeStyle === "colour" ? "toolbarSimpleSteps" : "toolbarColourSteps")}

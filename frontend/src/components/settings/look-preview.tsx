@@ -11,7 +11,10 @@ import { cn } from "@/lib/utils";
  * where a thumbnail of another look cannot reach them, so a picture of the
  * standard look drawn while Midnight is on would otherwise be Midnight.
  */
-const PREVIEW: Record<Look, { light: [string, string, string]; dark: [string, string, string] }> = {
+export const LOOK_PREVIEW: Record<
+  Look,
+  { light: [string, string, string]; dark: [string, string, string] }
+> = {
   standard: {
     light: ["#eeeef1", "#f7f7f9", "#242428"],
     dark: ["#141416", "#1c1c1f", "#eeeef1"],
@@ -51,7 +54,7 @@ export function LookPreview({
   dark: boolean;
   className?: string;
 }) {
-  const [column, page, ink] = PREVIEW[look][dark ? "dark" : "light"];
+  const [column, page, ink] = LOOK_PREVIEW[look][dark ? "dark" : "light"];
   const backdrop: CSSProperties & {
     "--preview-glass-highlight"?: string;
     "--preview-glass-base"?: string;

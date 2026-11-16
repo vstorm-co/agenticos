@@ -2,6 +2,7 @@
 
 import { Globe, Monitor, Moon, Sun } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
+import { toast } from "sonner";
 import type { LucideIcon } from "lucide-react";
 
 import {
@@ -14,6 +15,8 @@ import {
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useChooseLocale } from "@/hooks/use-choose-locale";
+import { useUserAppearance } from "@/hooks/use-user-appearance";
+import { getErrorMessage } from "@/lib/api-error";
 import { useMounted } from "@/hooks/use-mounted";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
 import { LookPreview } from "@/components/settings/look-preview";
@@ -65,7 +68,14 @@ const THEME_LABEL: Record<Theme, string> = {
 export function AppearanceMenu() {
   const t = useTranslations("theme");
   const ta = useTranslations("appearance");
-  const { theme, setTheme, look, setLook } = useThemeStore();
+  const { theme, look } = useThemeStore();
+  const account = useUserAppearance();
+  const tErrors = useTranslations("errors");
+  const save = (changes: Parameters<typeof account.save>[0]) => {
+    void account
+      .save(changes)
+      .catch((error: unknown) => toast.error(getErrorMessage(error, tErrors)));
+  };
   const resolved = useResolvedTheme();
   // `false` on the server, `true` once hydrated - `useMounted` says why.
   const mounted = useMounted();
@@ -91,13 +101,18 @@ export function AppearanceMenu() {
         <DropdownMenuRadioGroup
           value={mounted ? current : undefined}
           onValueChange={(next) => {
-            if (next === "light" || next === "dark" || next === "system") setTheme(next);
+            if (next === "light" || next === "dark" || next === "system") save({ theme: next });
           }}
         >
           {(["light", "dark", "system"] as const).map((option) => {
             const Icon = THEME_ICON[option];
             return (
-              <DropdownMenuRadioItem key={option} value={option} className="gap-2">
+              <DropdownMenuRadioItem
+                key={option}
+                value={option}
+                className="gap-2"
+                disabled={account.pending || !account.preferences}
+              >
                 <Icon className="h-4 w-4 shrink-0" aria-hidden />
                 {t(THEME_LABEL[option])}
               </DropdownMenuRadioItem>
@@ -111,11 +126,16 @@ export function AppearanceMenu() {
         <DropdownMenuRadioGroup
           value={mounted ? look : undefined}
           onValueChange={(next) => {
-            if (isLook(next)) setLook(next);
+            if (isLook(next)) save({ look: next });
           }}
         >
           {LOOKS.map((option) => (
-            <DropdownMenuRadioItem key={option} value={option} className="gap-3 py-2">
+            <DropdownMenuRadioItem
+              key={option}
+              value={option}
+              className="gap-3 py-2"
+              disabled={account.pending || !account.preferences}
+            >
               <LookPreview look={option} dark={resolved === "dark"} className="h-8 w-12 shrink-0" />
               {ta(`looks.${option}.name`)}
             </DropdownMenuRadioItem>

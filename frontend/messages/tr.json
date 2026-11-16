@@ -1272,8 +1272,27 @@
       "yourAccounts" : "Bağlı hesaplarınız"
    },
    "appearance" : {
+      "accent" : "Vurgu rengi",
+      "radius" : "Köşeler",
+      "textSize" : "Metin boyutu",
+      "accents" : {"default":"Nötr","blue":"Mavi","violet":"Mor","green":"Yeşil","amber":"Kehribar","rose":"Pembe"},
+      "radii" : {"default":"Standart","square":"Hafif","rounded":"Yuvarlak"},
+      "textSizes" : {"default":"Standart","large":"Büyük"},
+      "preview" : "Canlı önizleme",
+      "previewTitle" : "Çalışma alanınız",
+      "previewText" : "Seçtiğiniz renklerin, köşelerin ve metin boyutunun bir örneği.",
+      "previewAction" : "Örnek işlem",
+      "previewHint" : "Uygula seçilene kadar yalnızca önizleme değişir. Sıfırla, hesabınızdaki varsayılanları geri yükler.",
+      "apply" : "Uygula",
+      "discard" : "Önizlemeyi iptal et",
+      "reset" : "Varsayılanlara sıfırla",
+      "saved" : "Görünüm kaydedildi",
+      "resetDone" : "Görünüm sıfırlandı",
+      "loading" : "Görünümünüz yükleniyor…",
+      "loadError" : "Kaydedilmiş görünümünüz yüklenemedi.",
+      "retry" : "Tekrar dene",
       "colour" : "Renkli",
-      "description" : "Konsolun sizin için nasıl görünüp davrandığı. Bu tarayıcıda saklanır ve hemen uygulanır.",
+      "description" : "Görünümünüzü seçin, önizleyin ve tüm cihazlarda hesabınıza uygulayın.",
       "full" : "Tam",
       "look" : "Görünüm stili",
       "lookHint" : "Her stilin açık ve koyu biçimi vardır; hangisinin kullanılacağını yukarıdaki tema belirler. Masaüstü uygulamasındaki Glass, masaüstünüzü saydam gösterir.",
@@ -2941,6 +2960,40 @@
       }
    },
    "chat" : {
+      "workspace" : {
+         "rail" : "Workspace",
+         "browser" : "Tarayıcı",
+         "computer" : "Bilgisayar",
+         "openBrowser" : "Tarayıcıyı aç",
+         "openComputer" : "Bilgisayarı aç",
+         "close" : "Workspace panelini kapat",
+         "resize" : "Workspace panelini yeniden boyutlandır",
+         "computerMenu" : "Bilgisayar seçenekleri",
+         "computerWaiting" : "Bilgisayarın ekran görüntüsü bekleniyor…",
+         "computerWatching" : "Bilgisayar önizlemesi",
+         "computerControlling" : "Etkileşimli bilgisayar görünümü",
+         "computerImage" : "Agent'ın bilgisayarının ekran görüntüsü",
+         "browserEmpty" : "Bir web sitesi adresi girin ve Agent'tan barındırılan tarayıcısını açmasını isteyin. Bu paneli açmak oturum başlatmaz.",
+         "computerEmpty" : "Agent'tan barındırılan bilgisayarını başlatmasını ve masaüstünü göstermesini isteyin. Bu paneli açmak oturum başlatmaz.",
+         "startBrowser" : "Agent'tan tarayıcıyı açmasını iste",
+         "startComputer" : "Agent'tan bilgisayarı başlatmasını iste",
+         "browserPrompt" : "Barındırılan tarayıcında {url} adresini aç ve sayfayı göster. Yerel tarayıcıma veya bilgisayarıma erişme.",
+         "computerPrompt" : "Barındırılan bilgisayarını başlat ve masaüstü hazır olduğunda bana bir ekran görüntüsü göster. Yerel bilgisayarıma erişme.",
+         "lastView" : "Son görünüm",
+         "lastViewHint" : "Bu, son kaydedilen görünümdür. Devam etmek için Agent'tan yeni bir görünüm isteyin.",
+         "unknown" : "Agent'ın yayımlanmış araç yapılandırması henüz kullanılamıyor.",
+         "browserUnavailable" : "Bu Agent, barındırılan tarayıcı kullanımı için yapılandırılmamış. Buradan başlatmak için Tarayıcı ayarlarını güncelleyip yayımlayın.",
+         "computerUnavailable" : "Bu Agent, barındırılan bilgisayar kullanımı için yapılandırılmamış. Buradan başlatmak için Bilgisayar ayarlarını güncelleyip yayımlayın.",
+         "localSelected" : "Bu chat kendi bilgisayarınızdaki araçları kullanıyor. Burada barındırılan bir oturum başlatmadan önce Chat ayarlarından bunları kapatın.",
+         "chooseAgent" : "Barındırılan bir oturum başlatmak için bir Agent seçin.",
+         "readOnly" : "Bu konuşmayı görüntüleyebilirsiniz ancak burada oturum başlatamazsınız.",
+         "roomComposer" : "Odanın mesaj alanında kimin yanıt vereceğini seçin ve tarayıcıyı veya bilgisayarı açmasını isteyin.",
+         "busy" : "Oturum başlatmadan önce mevcut turun bitmesini bekleyin.",
+         "disconnected" : "Oturum başlatmadan önce chat'e yeniden bağlanın.",
+         "website" : "Web sitesi adresi",
+         "websitePlaceholder" : "https://example.com",
+         "websiteInvalid" : "https:// veya http:// ile başlayan, oturum açma bilgileri içermeyen bir web sitesi adresi girin."
+      },
       "accessChanged" : "Erişim değiştirildi",
       "accessChecking" : "Sohbet erişimi kontrol ediliyor…",
       "accessFailed" : "Bu sohbete erişim doğrulanamadı",
@@ -4247,6 +4300,28 @@
       "workflowRun" : {
          "unnamed" : "Workflow",
          "viewSteps" : "Adımlarını görüntüle"
+      },
+      "roomThread": {
+         "historyAudience": "Kaydedilmiş sohbet geçmişi",
+         "readOnly": "Bu konu salt okunurdur.",
+         "title": "Konu",
+         "start": "Konuda yanıtla",
+         "replies": "{count, plural, one {# yanıt} other {# yanıt}}",
+         "message": "Konuya yanıt ver",
+         "placeholder": "Buradan yanıtlayın. Odadaki herkes bu konuyu okuyabilir.",
+         "post": "Yanıtı gönder",
+         "close": "Konuyu kapat",
+         "earlier": "Önceki yanıtları yükle",
+         "audience": "Bu odadaki herkes görebilir",
+         "root": "İlk mesaj",
+         "loading": "Konu yükleniyor…",
+         "unavailable": "Bu konu kullanılamıyor. Silinmiş veya odaya erişiminiz değişmiş olabilir.",
+         "retry": "Tekrar dene",
+         "empty": "Bu konuda sohbeti başlatın.",
+         "open": "Konuyu aç",
+         "pending": "Bir ajan bir konuda sizi bekliyor.",
+         "mainPending": "Bir ajan ana odada sizi bekliyor.",
+         "main": "Odaya dön"
       }
    },
    "claudeSubscription" : {
@@ -7443,6 +7518,10 @@
             "body" : "Slack, Telegram veya Mattermost gibi bir sohbet platformu kaydedin; ardından yanıt vermesi için herhangi bir agent’ı bağlayabilirsiniz. Bot token’ı vault’ta korunur. Buradan bir kanal ekleyin.",
             "title" : "Agent’lara insanların bulunduğu yerden ulaşın"
          },
+         "chat-workspace" : {
+            "title" : "Workspace'inizi açın",
+            "body" : "Chat'in yanında Tarayıcı, Bilgisayar veya Dosyalar'ı açın. Yapılandırılmış bir barındırılan aracı başlatmasını seçili Agent'tan isteyin. Yalnızca bir paneli açmak oturum başlatmaz."
+         },
          "chat-agent-picker" : {
             "body" : "Buradan agent’larınız arasında geçiş yapın. Her agent kendi talimatlarını, araçlarını ve bilgisini getirir; aynı soru çok farklı yanıtlar alabilir.",
             "title" : "Yanıt verecek agent’ı seçin"
@@ -8122,6 +8201,22 @@
          "workspaces-detail" : {
             "body" : "Bir agent’ın dosyaları, klasörlere göre düzenlenir. Dosyayı önizleyin veya agent’ın sizin için oluşturduğu dosyaları indirin.",
             "title" : "Klasörün içi"
+         },
+         "table-row-access": {
+            "title": "Satır erişim kuralları",
+            "body": "Satırları kimlerin okuyabileceğini seçin, ardından bir kişiye veya gruba Okuma ya da Yazma izni vermek için satırı açın."
+         },
+         "record-access": {
+            "title": "Bu satırı paylaş",
+            "body": "Yazma, Okuma ve normal hücreleri değiştirme hakkını içerir. Silme, erişim yönetimi veya tablo şemasını değiştirme izni vermez."
+         },
+         "chat-room-thread": {
+            "title": "Bir mesajı tartışın",
+            "body": "Ana odayı doldurmadan yanıtları bir arada tutmak için bir konu açın. Yanıt sayısı sizi tartışmaya geri götürür; Yanıtla bir mesajı alıntılamaya devam eder."
+         },
+         "chat-room-thread-panel": {
+            "title": "Kendi bağlamında yanıtlar",
+            "body": "İlk mesaj yanıtların üstünde kalır. Odadaki herkes konuyu okuyabilir. Yardım istediğinizde bir ajan seçin veya odaya dönmek için konuyu kapatın."
          }
       }
    },
@@ -12176,6 +12271,42 @@
          "timeFormat" : "Saat biçimi",
          "title" : "Görünüm ayarları",
          "wrapText" : "Metni kaydır"
+      },
+      "access": {
+         "read": "Okuma",
+         "write": "Yazma",
+         "manage": "Satır erişimi",
+         "title": "Bu satırı paylaş",
+         "writeHelp": "Yazma, Okuma ve normal hücreleri değiştirme hakkını içerir. Silme, erişim yönetimi veya tablo şemasını değiştirme izni vermez.",
+         "tableRequired": "Kişiler ve gruplar bu tabloya da erişebilmelidir. Satır izni bağlantılı kayıtları paylaşmaz ve tablo kurallarından gelen erişimi kaldırmaz.",
+         "loading": "Satır erişimi yükleniyor…",
+         "personOrGroup": "Kişi veya grup",
+         "chooseSubject": "Bir kişi veya grup seçin",
+         "permission": "İzin",
+         "expiry": "Bitiş (isteğe bağlı)",
+         "expiryHelp": "Kişiye kalıcı izin vermek için boş bırakın. Grup izinleri varsayılan olarak 90 gün sonra sona erer.",
+         "add": "İzni kaydet",
+         "grants": "Açık satır izinleri",
+         "empty": "Açık izin yok. Tablo ve satır kuralları geçerliliğini korur.",
+         "expired": "Süresi doldu — yenilemek için izni tekrar ekleyin.",
+         "expires": "Bitiş: {date}",
+         "permissionFor": "{name} için izin",
+         "removeFor": "{name} için erişimi kaldır",
+         "saved": "Satır erişimi güncellendi",
+         "rowRules": "Satır erişim kuralları",
+         "rowRulesHelp": "Satırları kimlerin okuyabileceğini seçin, ardından bir kişiye veya gruba Okuma ya da Yazma izni vermek için satırı açın.",
+         "invalidPolicy": "Satır erişim kuralları geçersiz. Bir tablo yöneticisi burada geçerli kuralları kaydedene kadar kayıtlar engellenir.",
+         "mode": "Varsayılan satır erişimi",
+         "modeAll": "Tabloya erişimi olan herkes",
+         "modeGrants": "Yalnızca satır izni olan kişiler",
+         "modeFields": "Satır alanlarında belirtilen kişiler",
+         "allHelp": "Tabloyu okuyabilen herkes her satırı okuyabilir. Tablo düzenleyicileri mevcut yazma izinlerini korur.",
+         "grantsHelp": "Her satır için Okuma veya Yazma izni gerekir. Tablo sahibi ve kuruluş yöneticileri erişimi korur. Bu moda geçmeden önce izinleri ayarlayın.",
+         "fieldsHelp": "Okuma alanı görüntülemeye izin verir; Yazma alanı da görüntülemeye izin verir. Satır Yazma izni, tablo yönetimi olmadan düzenlemeye izin verebilir. Mevcut proje üyeliği kuralları korunur.",
+         "readField": "Okuma alanı",
+         "writeField": "Yazma alanı",
+         "chooseField": "Bir kişi alanı seçin",
+         "saveRules": "Satır kurallarını kaydet"
       }
    },
    "teams" : {
