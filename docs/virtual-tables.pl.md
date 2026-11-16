@@ -1,5 +1,5 @@
 ---
-source_sha: "dbe4b4b63652"
+source_sha: "e0e623421c5e"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -314,6 +314,12 @@ Aktualizacja lub usunięcie ze starą revision jest odrzucane kodem `REVISION_CO
 i spróbuj jeszcze raz. Upsert, który znajdzie istniejący rekord i nie dostanie
 `expected_revision`, otrzymuje `REVISION_REQUIRED` (428), znów z revision do wysłania.
 
+Bieżący dostęp Write jest sprawdzany przed ujawnieniem zapisanej revision.
+Upsert dla istniejącego, ale ukrytego external id oraz dla nowego ID, którego
+wywołujący nie może utworzyć, zwracają `NOT_FOUND` (404) z taką samą wiadomością
+i ID tabeli. Utworzenie wiersza wymaga też Edit na tabeli oraz polityki pozwalającej
+twórcy odczytać ten wiersz; sam grant Write do wiersza nie pozwala tworzyć rekordów.
+
 External id ma od 1 do 255 znaków i może zawierać `/`, jak w `2026/ORD-1`. Nie może zawierać NUL ani znaku nowego wiersza. Serwis sprawdza to
 tak samo jak trasy. Przez HTTP trasa odrzuca to pierwsza, kodem `VALIDATION_ERROR`;
 wywołujący, który używa serwisu bezpośrednio, dostaje `INVALID_RECORD`.
@@ -447,8 +453,13 @@ tego samego ciągu, a jeden wywołujący może go użyć do create i do upsert. 
 są tylko sukcesy: odrzucony zapis nie zostawia potwierdzenia, więc poprawiasz go i
 ponawiasz z tym samym kluczem.
 
-Powtórzona odpowiedź trafia tylko do wywołującego, który nadal może edytować tabelę.
-Po cofnięciu dostępu to samo ponowienie to 404.
+Ponowienie sprawdza aktualny dostęp do tabeli, zakresy klucza API i prawo Write do
+wiersza. Cofnięcie dostępu daje 404 bez ujawniania ID ani rewizji ukrytego rekordu.
+Archiwizacja tabeli pozwala odczytać nadal autoryzowane potwierdzenie z flagami rekordu
+tylko do odczytu; nie pozwala na nowy zapis. Import partii nadal wymaga Edit do tabeli,
+ponieważ może tworzyć rekordy. Ponowienia zachowują pierwotne liczniki i `as_of`, ale
+przed zwróceniem raportu sprawdzają ponownie wiersze wskazane przez zewnętrzne ID lub
+szczegóły zapisanych błędów.
 
 Receipt trwa 24 godziny. Potem klucz jest zapominany, a ten sam klucz z tą samą treścią to
 nowy zapis: wykonuje się ponownie, zamiast zwrócić pierwszą odpowiedź. Ponawiaj w tym
@@ -756,6 +767,73 @@ samo jak `Agent.can_run` - więc wiersz katalogu albo strona szczegółów nigdy
 musi zgadywać, czy jej kontrolki edycji zostałyby odrzucone. Własne `can_manage` i
 `can_delete` zapisanego widoku to ta sama idea, o jeden poziom niżej (zobacz
 [Zapisane widoki](#saved-views)).
+
+### Odczyt i zapis pojedynczych wierszy { #row-read-write }
+
+Dostęp do wiersza ma dwa poziomy. **Odczyt (Read)** pokazuje wiersz i widoczne
+powiązane rekordy. **Zapis (Write)** obejmuje odczyt i zmianę zwykłych komórek.
+Sam zapis nie pozwala usuwać wiersza, udostępniać go, zmieniać jego pól dostępu,
+tworzyć rekordów ani zmieniać schematu tabeli. Administratorzy tabeli zachowują
+dotychczasowe prawa. Osoba nadal potrzebuje dostępu do tabeli nadrzędnej; grant do
+wiersza sam nie otwiera innej tabeli ani powiązanego rekordu.
+
+W oknie udostępniania tabeli **Reguły dostępu do wierszy (Row access rules)**
+określają domyślny dostęp:
+
+| Reguła | Odczyt | Zapis |
+|---|---|---|
+| `none` | Każdy, kto może odczytać tabelę | Dotychczasowi edytorzy tabeli i granty zapisu do wiersza |
+| `grants` | Aktualny grant odczytu lub zapisu do wiersza | Aktualny grant zapisu do wiersza |
+| `assignee` | Pole odczytu, pole zapisu, opcjonalne członkostwo projektu lub grant do wiersza | Pole zapisu lub grant zapisu do wiersza |
+
+Właściciel tabeli, role Owner/Admin organizacji i administrator wdrożenia zachowują
+pominięcie polityki. Nadal muszą przejść kontrolę dostępu do tabeli i ograniczeń klucza API.
+W trybie `grants` skonfiguruj granty przed przełączeniem istniejących użytkowników.
+
+Utworzenie wiersza nadal wymaga administracji tabelą. W trybie `grants` bezpośrednie
+tworzenie wiersza niewidocznego dla edytora tabeli zwraca 403:
+`You do not have permission to write this row`. Tworzenie zbiorcze raportuje dla tego
+wiersza `AUTHORIZATION_ERROR`. Upsert zwraca taki sam kod 404 dla istniejącego, lecz
+ukrytego identyfikatora zewnętrznego i niedozwolonego utworzenia, aby odmowa nie ujawniała,
+czy taki identyfikator istnieje.
+
+Zarządzane tablice zadań zachowują własne reguły i nie oferują tych
+kontrolek udostępniania wierszy.
+
+Otwórz wiersz i wybierz **Dostęp do wiersza (Row access)**, aby dodać osobę lub grupę,
+wybrać odczyt lub zapis, ustawić termin wygaśnięcia, zmienić poziom albo odebrać dostęp.
+Granty dla osób mogą być bezterminowe; grupowe domyślnie wygasają po 90 dniach.
+Obowiązują aktualne członkostwa organizacji i grup oraz niewygasłe granty.
+Wygrywa najsilniejszy aktualny grant. Odebranie jednego grantu nie odbiera dostępu
+wynikającego z innego grantu ani reguły tabeli.
+
+Trasy REST znajdują się pod `/tables/{table_id}/records/{record_id}/access`:
+
+- `GET` wyświetla jawne granty administratorowi tabeli, który może odczytać wiersz.
+- `PUT /grants` zapisuje jedno `subject_user_id` lub `subject_group_id`,
+  `level` równy `read` lub `write` i opcjonalne `expires_at`.
+- `DELETE /grants/{subject_user_id}` i
+  `DELETE /group-grants/{subject_group_id}` odbierają wskazany grant.
+
+Ten sam serwis chroni zapis z konsoli, API, agenta i workflow. Granty wierszy trafiają
+do istniejącej tabeli `resource_grants` z typem `table_record`; tylko tam API `write`
+odpowiada zapisanemu `edit`. Nie stają się grantami administracji tabelą.
+Klucz API wymaga zakresu `tables:view` do odczytu i `tables:edit` do zapisu;
+grant nie poszerza klucza. Usunięcie rekordu usuwa jego granty w tej samej transakcji.
+
+Każdy zwracany rekord zawiera `access`, `can_delete`, `can_manage_access` i
+`read_only_column_ids`. Ostatnia lista obejmuje pola sterujące polityką i pola
+członkostwa projektu używane przez inną tabelę. Korzystają z nich komórki siatki,
+panel rekordu i przesunięcia kanban. Listy rekordów, liczniki katalogu, eksport i etykiety
+powiązań stosują tę samą regułę odczytu. Ponowienie zapisu idempotentnego sprawdza
+aktualne prawa, więc zapisane potwierdzenie nie zachowuje odebranego zapisu.
+
+Wyzwalacze workflow ponownie sprawdzają aktualne prawo odczytu publikującego do wiersza
+źródłowego. Filtry i dane wejściowe uruchomienia obejmują wyłącznie dostępne powiązane
+rekordy, zarówno w wartościach bieżących, jak i poprzednich. Zmiana samych ukrytych
+powiązań nie uruchamia workflow. Nieprawidłowa polityka tabeli docelowej nie ujawnia
+identyfikatorów; nieprawidłowa polityka źródła odfiltrowuje zdarzenie. Zapisane
+zdarzenie i historia pozostają bez zmian.
 
 ## Błędy { #errors }
 

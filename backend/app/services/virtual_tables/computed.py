@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, Perm
 from app.db.models.virtual_table import VirtualTableRecord
-from app.repositories import virtual_table_repo
+from app.repositories import resource_grant_repo, virtual_table_repo
 from app.repositories.virtual_table import RecordCells
 from app.schemas.virtual_table import CellValue, ColumnDef, LinkedRecord, RecordRead, RowPolicy
 from app.services.access import TABLE, resolve_access
@@ -31,6 +31,7 @@ from app.services.virtual_tables.formula import references, work_out
 from app.services.virtual_tables.row_policy import (
     bypasses_policy,
     parse_policy,
+    policy_columns_valid,
     row_matches,
     visible_project_ids,
 )
@@ -146,6 +147,8 @@ async def linked_table_access(
         policy = parse_policy(table.row_policy)
     except InvalidRowPolicyError:
         return None
+    if not policy_columns_valid(policy, columns):
+        return None
     return LinkedTable(
         table_id=table.id,
         columns=columns,
@@ -167,7 +170,10 @@ def linked_cell_keys(linked: LinkedTable, targets: Iterable[UUID]) -> list[str]:
     if linked.named_by is not None:
         keys.add(str(linked.named_by.id))
     if linked.row_policy is not None:
-        keys.add(str(linked.row_policy.view_column_id))
+        if linked.row_policy.view_column_id is not None:
+            keys.add(str(linked.row_policy.view_column_id))
+        if linked.row_policy.edit_column_id is not None:
+            keys.add(str(linked.row_policy.edit_column_id))
         if linked.row_policy.view_project_link_column_id is not None:
             keys.add(str(linked.row_policy.view_project_link_column_id))
     return sorted(keys)
@@ -220,10 +226,22 @@ async def _linked_table(
         # records are left out entirely - no label and no id - so lookups
         # and rollups below are worked out over the visible subset only.
         project_ids = await visible_project_ids(db, ctx, linked.row_policy, deadline=deadline)
+        await arm_if_set(db, deadline)
+        grants = (
+            await resource_grant_repo.record_levels(
+                db,
+                organization_id=ctx.organization_id,
+                subject_user_id=ctx.user_id,
+                record_ids=[row.id for row in rows],
+            )
+            if ctx.user_id is not None and rows
+            else {}
+        )
         rows = [
             row
             for row in rows
-            if row_matches(
+            if row.id in grants
+            or row_matches(
                 row.values,
                 linked.row_policy,
                 linked.columns,

@@ -11360,6 +11360,14 @@
          "chat-team-composer" : {
             "title" : "Rozmawiaj z zespołem, a agenta pytaj w razie potrzeby",
             "body" : "Pisz do zespołu bez uruchamiania agenta. Aby otrzymać odpowiedź AI, wybierz agenta. Prośba trafi do wspólnej kolejki."
+         },
+         "table-row-access": {
+            "title": "Reguły dostępu do wierszy",
+            "body": "Wybierz, kto może odczytywać wiersze, a następnie otwórz wiersz, aby nadać osobie lub grupie odczyt lub zapis."
+         },
+         "record-access": {
+            "title": "Udostępnij ten wiersz",
+            "body": "Zapis obejmuje odczyt i zmianę zwykłych komórek. Nie pozwala usuwać, zarządzać dostępem ani zmieniać schematu tabeli."
          }
       }
    },
@@ -16445,6 +16453,42 @@
          "timeFormat" : "Format godziny",
          "title" : "Ustawienia widoku",
          "wrapText" : "Zawijaj tekst"
+      },
+      "access": {
+         "read": "Odczyt",
+         "write": "Zapis",
+         "manage": "Dostęp do wiersza",
+         "title": "Udostępnij ten wiersz",
+         "writeHelp": "Zapis obejmuje odczyt i zmianę zwykłych komórek. Nie pozwala usuwać, zarządzać dostępem ani zmieniać schematu tabeli.",
+         "tableRequired": "Osoby i grupy potrzebują także dostępu do tej tabeli. Grant do wiersza nie udostępnia powiązanych rekordów ani nie odbiera dostępu wynikającego z reguł tabeli.",
+         "loading": "Ładowanie dostępu do wiersza…",
+         "personOrGroup": "Osoba lub grupa",
+         "chooseSubject": "Wybierz osobę lub grupę",
+         "permission": "Uprawnienie",
+         "expiry": "Wygaśnięcie (opcjonalnie)",
+         "expiryHelp": "Pozostaw puste, aby grant dla osoby był bezterminowy. Granty grupowe domyślnie wygasają po 90 dniach.",
+         "add": "Zapisz grant",
+         "grants": "Jawne granty do wiersza",
+         "empty": "Brak jawnych grantów. Nadal obowiązują reguły tabeli i wierszy.",
+         "expired": "Wygasł — dodaj grant ponownie, aby go odnowić.",
+         "expires": "Wygasa {date}",
+         "permissionFor": "Uprawnienie dla {name}",
+         "removeFor": "Usuń dostęp dla {name}",
+         "saved": "Zaktualizowano dostęp do wiersza",
+         "rowRules": "Reguły dostępu do wierszy",
+         "rowRulesHelp": "Wybierz, kto może odczytywać wiersze, a następnie otwórz wiersz, aby nadać osobie lub grupie odczyt lub zapis.",
+         "invalidPolicy": "Reguły dostępu do wierszy są nieprawidłowe. Rekordy pozostają zablokowane, dopóki administrator tabeli nie zapisze tu prawidłowych reguł.",
+         "mode": "Domyślny dostęp do wierszy",
+         "modeAll": "Każdy z dostępem do tabeli",
+         "modeGrants": "Tylko osoby z grantami do wierszy",
+         "modeFields": "Osoby wskazane w polach wiersza",
+         "allHelp": "Każdy, kto może odczytać tabelę, może odczytać każdy wiersz. Edytorzy tabeli zachowują obecne uprawnienia zapisu.",
+         "grantsHelp": "Każdy wiersz wymaga grantu odczytu lub zapisu. Właściciel tabeli i administratorzy organizacji zachowują dostęp. Skonfiguruj granty przed zmianą trybu.",
+         "fieldsHelp": "Pole odczytu pozwala wyświetlać wiersz; pole zapisu także. Grant zapisu do wiersza może pozwolić na edycję bez administrowania tabelą. Istniejące reguły członkostwa w projektach pozostają zachowane.",
+         "readField": "Pole odczytu",
+         "writeField": "Pole zapisu",
+         "chooseField": "Wybierz pole osób",
+         "saveRules": "Zapisz reguły wierszy"
       }
    },
    "teams" : {

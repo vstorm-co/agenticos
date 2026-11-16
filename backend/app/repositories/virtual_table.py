@@ -67,6 +67,7 @@ from app.db.models.virtual_table import (
     VirtualTableSchemaVersion,
 )
 from app.repositories._search import contains_ci
+from app.repositories.resource_grant import readable_record_ids
 from app.schemas.virtual_table import CellValue, FilterOp, FilterValue, SortDirection
 
 
@@ -378,7 +379,11 @@ async def count_records_up_to(
 
 
 async def record_counts(
-    db: AsyncSession, *, organization_id: UUID, table_ids: Sequence[UUID]
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    table_ids: Sequence[UUID],
+    extra_by_table: dict[UUID, ColumnElement[bool] | bool] | None = None,
 ) -> dict[UUID, int]:
     """How many records each table holds, for a page of tables in one grouped query.
 
@@ -386,11 +391,29 @@ async def record_counts(
     """
     if not table_ids:
         return {}
+    visibility = extra_by_table or {}
+    restrictions = (
+        [
+            or_(
+                VirtualTableRecord.table_id.not_in(list(visibility)),
+                *(
+                    and_(
+                        VirtualTableRecord.table_id == table_id,
+                        literal(extra) if isinstance(extra, bool) else extra,
+                    )
+                    for table_id, extra in visibility.items()
+                ),
+            )
+        ]
+        if visibility
+        else []
+    )
     rows = await db.execute(
         select(VirtualTableRecord.table_id, func.count(VirtualTableRecord.id))
         .where(
             VirtualTableRecord.organization_id == organization_id,
             VirtualTableRecord.table_id.in_(table_ids),
+            *restrictions,
         )
         .group_by(VirtualTableRecord.table_id)
     )
@@ -800,6 +823,7 @@ def _matching(
 def policy_expression(
     assignee: FilterClause | None,
     *,
+    writer: FilterClause | None = None,
     link_column_id: UUID | None = None,
     project_ids: Collection[UUID] = (),
 ) -> ColumnElement[bool] | None:
@@ -814,11 +838,36 @@ def policy_expression(
     parts: list[ColumnElement[bool]] = []
     if assignee is not None:
         parts.append(_predicate(assignee))
+    if writer is not None:
+        parts.append(_predicate(writer))
     if link_column_id is not None and project_ids:
         parts.append(_cell(link_column_id).has_any(array([str(item) for item in project_ids])))
     if not parts:
         return None
     return parts[0] if len(parts) == 1 else or_(*parts)
+
+
+def record_grant_expression(*, organization_id: UUID, subject_user_id: UUID) -> ColumnElement[bool]:
+    """The same live row grants used by single reads, without loading an ID list."""
+    return VirtualTableRecord.id.in_(
+        readable_record_ids(organization_id=organization_id, subject_user_id=subject_user_id)
+    )
+
+
+async def referenced_access_columns(
+    db: AsyncSession, *, organization_id: UUID, table_id: UUID
+) -> set[str]:
+    """Membership fields of this table that another table uses to grant access."""
+    result = await db.execute(
+        select(VirtualTable.row_policy["view_project_members_column_id"].as_string())
+        .where(
+            VirtualTable.organization_id == organization_id,
+            VirtualTable.row_policy["view_projects_table_id"].as_string() == str(table_id),
+            VirtualTable.row_policy["rule"].as_string() == "assignee",
+        )
+        .distinct()
+    )
+    return {column_id for column_id in result.scalars() if column_id is not None}
 
 
 async def list_record_ids(

@@ -274,12 +274,17 @@ class RowPolicy(_Schema):
     missing members column - view degrades to assignee-only, never wider.
     """
 
-    rule: Literal["assignee", "none"] = Field(
+    rule: Literal["assignee", "grants", "none"] = Field(
         default="assignee",
         description="Which rule filters the table's rows; `none` clears the policy.",
     )
-    view_column_id: UUID = Field(description="The user or multi_user column that gates viewing")
-    edit_column_id: UUID = Field(description="The user or multi_user column that gates editing")
+    view_column_id: UUID | None = Field(
+        default=None, description="The user or multi_user column granting Read access"
+    )
+    edit_column_id: UUID | None = Field(
+        default=None,
+        description="The user or multi_user column granting Write access, including Read",
+    )
     view_project_link_column_id: UUID | None = Field(
         default=None,
         description="The link column of this table that names the row's project, "
@@ -301,7 +306,7 @@ class RowPolicyUpdate(_Request):
     columns; the three project fields are set together or not at all.
     """
 
-    rule: Literal["assignee", "none"]
+    rule: Literal["assignee", "grants", "none"]
     view_column_id: UUID | None = None
     edit_column_id: UUID | None = None
     view_project_link_column_id: UUID | None = None
@@ -315,6 +320,17 @@ class RowPolicyUpdate(_Request):
                 raise ValueError("An assignee policy names the column that gates viewing")
             if self.edit_column_id is None:
                 raise ValueError("An assignee policy names the column that gates editing")
+        elif self.rule == "grants" and any(
+            value is not None
+            for value in (
+                self.view_column_id,
+                self.edit_column_id,
+                self.view_project_link_column_id,
+                self.view_projects_table_id,
+                self.view_project_members_column_id,
+            )
+        ):
+            raise ValueError("Explicit row grants do not name policy columns")
         project = (
             self.view_project_link_column_id,
             self.view_projects_table_id,
@@ -375,6 +391,9 @@ class TableSummary(_Schema):
 
 class TableRead(TableSummary):
     columns: list[ColumnDef]
+    can_manage_row_access: bool = Field(
+        default=False, description="Whether the caller may configure row access on this table."
+    )
     row_policy: RowPolicy | None = Field(
         default=None,
         description="The table's row-level access policy, or null when every row is "
@@ -521,6 +540,15 @@ class RecordSource(_Schema):
 class RecordRead(_Schema):
     id: UUID
     table_id: UUID
+    access: Literal["read", "write"] = Field(
+        default="read",
+        description="This caller's effective access to this record; Write includes Read",
+    )
+    can_delete: bool = False
+    can_manage_access: bool = False
+    read_only_column_ids: list[UUID] = Field(
+        default_factory=list, description="Access-driving fields this caller cannot change"
+    )
     external_id: str | None = None
     schema_version: int
     values: dict[str, Any]

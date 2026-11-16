@@ -35,6 +35,7 @@ from app.core.audit import current_impersonator
 from app.core.exceptions import (
     AlreadyExistsError,
     AppException,
+    AuthorizationError,
     ConcurrentChangeError,
     ExportTooLargeError,
     NotFoundError,
@@ -44,7 +45,7 @@ from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, try_hold_name
 from app.db.models.virtual_table import VirtualTable, VirtualTableRecord
-from app.repositories import virtual_table_repo
+from app.repositories import resource_grant_repo, virtual_table_repo
 from app.repositories import virtual_table_trigger as trigger_repo
 from app.repositories.virtual_table import FilterClause, SearchClause, SortClause
 from app.schemas.virtual_table import (
@@ -94,6 +95,11 @@ from app.services.virtual_tables.exceptions import (
 )
 from app.services.virtual_tables.principals import principal_problems
 from app.services.virtual_tables.receipts import DeleteOutcome, WriteOutcome, run_once
+from app.services.virtual_tables.record_access import (
+    can_write_record,
+    require_access_fields,
+    with_record_access,
+)
 from app.services.virtual_tables.record_sources import source_for
 from app.services.virtual_tables.row_policy import (
     may_edit_row,
@@ -116,6 +122,7 @@ from app.services.workflow_execution import context as workflow_context
 CREATED_EVENT = trigger_repo.CREATED_EVENT
 UPDATED_EVENT = trigger_repo.UPDATED_EVENT
 DELETED_EVENT = trigger_repo.DELETED_EVENT
+_ROW_WRITE_DENIED = "You do not have permission to write this row"
 
 _RECORD_TIMESTAMPS = ("created_at", "updated_at")
 
@@ -611,7 +618,9 @@ class RecordOperations(Operations):
         )
         if record is None:
             raise NotFoundError(message="Record not found", details={"record_id": record_id})
-        if not await may_view_row(self.db, ctx, table, await self._columns(table), record.values):
+        if not await may_view_row(
+            self.db, ctx, table, await self._columns(table), record.values, record_id=record.id
+        ):
             raise NotFoundError(message="Record not found", details={"record_id": record_id})
         return await self._read_through(ctx, table, RecordRead.model_validate(record))
 
@@ -625,7 +634,9 @@ class RecordOperations(Operations):
         )
         if record is None:
             raise NotFoundError(message="Record not found", details={"external_id": external_id})
-        if not await may_view_row(self.db, ctx, table, await self._columns(table), record.values):
+        if not await may_view_row(
+            self.db, ctx, table, await self._columns(table), record.values, record_id=record.id
+        ):
             raise NotFoundError(message="Record not found", details={"external_id": external_id})
         return await self._read_through(ctx, table, RecordRead.model_validate(record))
 
@@ -741,6 +752,7 @@ class RecordOperations(Operations):
             columns,
             [RecordRead.model_validate(row) for row in rows[: query.limit]],
         )
+        items = await with_record_access(self.db, ctx, table, columns, items)
         if selected is not None:
             # Compute before projecting: a selected formula can depend on an omitted cell.
             items = [
@@ -996,7 +1008,12 @@ class RecordOperations(Operations):
                     failed.extend(_failure(at, refused) for at in range(index, len(data.records)))
                     break
                 failed.append(_failure(index, refused))
-            except (InvalidRecordError, ArchivedColumnError, AlreadyExistsError) as refused:
+            except (
+                InvalidRecordError,
+                ArchivedColumnError,
+                AlreadyExistsError,
+                AuthorizationError,
+            ) as refused:
                 failed.append(_failure(index, refused))
             except NotFoundError as refused:
                 # A row the policy refuses: one failed entry, not a failed batch.
@@ -1040,7 +1057,47 @@ class RecordOperations(Operations):
             # failed wrote nothing else that was checked.
             if not replayed:
                 await quotas.enforce_storage(self.db, ctx, table)
+        if replayed:
+            await self._authorize_batch_replay(ctx, table, data, result)
         return result, replayed
+
+    async def _authorize_batch_replay(
+        self,
+        ctx: AuthContext,
+        table: VirtualTable,
+        data: RecordBatchCreate,
+        result: RecordBatchResult,
+    ) -> None:
+        """Keep historical counts, but reauthorize rows named by the request or errors."""
+        records: dict[UUID, VirtualTableRecord] = {}
+        for external_id in {row.external_id for row in data.records if row.external_id is not None}:
+            record = await virtual_table_repo.get_record_by_external_id(
+                self.db, external_id, table_id=table.id, organization_id=ctx.organization_id
+            )
+            if record is not None:
+                records[record.id] = record
+        for failure in result.failed:
+            if failure.details is None or "record_id" not in failure.details:
+                continue
+            try:
+                record_id = UUID(str(failure.details["record_id"]))
+            except ValueError:
+                raise NotFoundError(
+                    message="Record not found", details={"table_id": table.id}
+                ) from None
+            if record_id not in records:
+                record = await virtual_table_repo.get_record(
+                    self.db, record_id, table_id=table.id, organization_id=ctx.organization_id
+                )
+                if record is None:
+                    raise NotFoundError(message="Record not found", details={"table_id": table.id})
+                records[record_id] = record
+        columns = await self._columns(table)
+        for record in records.values():
+            if not await can_write_record(
+                self.db, ctx, table, record.id, columns, record.values, allow_archived=True
+            ):
+                raise NotFoundError(message="Record not found", details={"table_id": table.id})
 
     async def _create_one(
         self,
@@ -1067,7 +1124,9 @@ class RecordOperations(Operations):
                 # A conflict names the stored record and its revision. Check access
                 # before the import timestamp can disclose either through an external id.
                 columns = await self._columns(table)
-                if not await may_edit_row(self.db, ctx, table, columns, existing.values):
+                if not await can_write_record(
+                    self.db, ctx, table, existing.id, columns, existing.values
+                ):
                     raise NotFoundError(message="Record not found", details={"table_id": table.id})
                 if (existing.updated_at or existing.created_at) > as_of:
                     raise _ChangedSince(existing)
@@ -1281,7 +1340,9 @@ class RecordOperations(Operations):
         operation_key: str | None,
     ) -> RecordWrite:
         operation_key = _operation_key(operation_key)
-        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
+        table = await self._load_table(
+            ctx, table_id, Perm.TABLES_EDIT, share=True, alternative_perm=Perm.TABLES_VIEW
+        )
 
         async def action() -> WriteOutcome:
             self._ensure_live(table)
@@ -1366,7 +1427,9 @@ class RecordOperations(Operations):
     ) -> RecordWrite:
         external_id = _external_id(external_id)
         operation_key = _operation_key(operation_key)
-        table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, share=True)
+        table = await self._load_table(
+            ctx, table_id, Perm.TABLES_EDIT, share=True, alternative_perm=Perm.TABLES_VIEW
+        )
 
         async def action() -> WriteOutcome:
             self._ensure_live(table)
@@ -1379,7 +1442,12 @@ class RecordOperations(Operations):
                 await quotas.lock_record_count(self.db, table)
                 existing = await self._lookup(ctx, table, external_id)
             if existing is None:
-                created = await self._insert(ctx, table, external_id, values)
+                try:
+                    created = await self._insert(ctx, table, external_id, values)
+                except AuthorizationError:
+                    raise NotFoundError(
+                        message="Record not found", details={"table_id": table.id}
+                    ) from None
                 if created is not None:
                     return self._outcome(created, created=True)
                 # Another transaction took the external id between the lookup and
@@ -1387,10 +1455,10 @@ class RecordOperations(Operations):
                 existing = await self._lookup(ctx, table, external_id)
                 if existing is None:
                     raise ConcurrentChangeError()
-            if not await may_edit_row(
-                self.db, ctx, table, await self._columns(table), existing.values
+            if not await can_write_record(
+                self.db, ctx, table, existing.id, await self._columns(table), existing.values
             ):
-                raise NotFoundError(message="Record not found")
+                raise NotFoundError(message="Record not found", details={"table_id": table.id})
             revision = existing.revision if at_current_revision else expected_revision
             if revision is None:
                 raise RevisionRequiredError(
@@ -1462,6 +1530,12 @@ class RecordOperations(Operations):
             from app.services.task_execution import TaskExecution
 
             await TaskExecution(self.db).deleted(ctx, record)
+            await resource_grant_repo.delete_for_resource(
+                self.db,
+                organization_id=ctx.organization_id,
+                resource_type="table_record",
+                resource_id=record.id,
+            )
             await virtual_table_repo.delete_record(self.db, record)
             return DeleteOutcome(record_id=record_id)
 
@@ -1512,6 +1586,30 @@ class RecordOperations(Operations):
             )
         # Worked out after the receipt, never stored in it: a replay shows what the
         # linked records say now, as any other read would.
+        if replayed:
+            current = await virtual_table_repo.get_record(
+                self.db,
+                outcome.record.id,
+                table_id=table.id,
+                organization_id=ctx.organization_id,
+            )
+            columns = await self._columns(table)
+            if (
+                current is None
+                or not await can_write_record(
+                    self.db, ctx, table, current.id, columns, current.values, allow_archived=True
+                )
+                or not await can_write_record(
+                    self.db,
+                    ctx,
+                    table,
+                    current.id,
+                    columns,
+                    outcome.record.values,
+                    allow_archived=True,
+                )
+            ):
+                raise NotFoundError(message="Record not found", details={"table_id": table.id})
         return RecordWrite(
             record=await self._read_through(ctx, table, outcome.record),
             created=outcome.created,
@@ -1562,7 +1660,9 @@ class RecordOperations(Operations):
         self, ctx: AuthContext, table: VirtualTable, record: RecordRead
     ) -> RecordRead:
         """One record with its links named and its lookups and rollups worked out."""
-        return (await read_through(self.db, ctx, await self._columns(table), [record]))[0]
+        columns = await self._columns(table)
+        records = await read_through(self.db, ctx, columns, [record])
+        return (await with_record_access(self.db, ctx, table, columns, records))[0]
 
     async def _preserve_unreadable_links(
         self,
@@ -1649,7 +1749,13 @@ class RecordOperations(Operations):
                 str(row.id)
                 for row in found
                 if await may_view_row(
-                    self.db, ctx, target, target_columns, row.values, project_ids=project_ids
+                    self.db,
+                    ctx,
+                    target,
+                    target_columns,
+                    row.values,
+                    project_ids=project_ids,
+                    record_id=row.id,
                 )
             }
             missing = set(map(str, ids)) - seen
@@ -1694,6 +1800,10 @@ class RecordOperations(Operations):
         values: dict[str, CellValue],
     ) -> VirtualTableRecord | None:
         """Insert a record with its history and created event, or `None` if the id is taken."""
+        if not await resolve_access(self.db, ctx, table, Perm.TABLES_EDIT, resource_type=TABLE):
+            # Upserts must not distinguish an unavailable existing external ID
+            # from a new ID this caller cannot create.
+            raise NotFoundError(message="Record not found", details={"table_id": table.id})
         columns = await self._columns(table)
         merged = await normalize_task_cells(
             self.db, ctx.organization_id, table.id, _merge(columns, values, None)
@@ -1715,7 +1825,10 @@ class RecordOperations(Operations):
         await quotas.enforce_record_count(self.db, ctx, table)
         # What is created must be visible to its creator: a row assigned to
         # someone else is refused here, not created and then hidden.
+        policy = parse_policy(table.row_policy)
         if not await may_view_row(self.db, ctx, table, columns, merged):
+            if policy is not None and policy.rule == "grants":
+                raise AuthorizationError(message=_ROW_WRITE_DENIED, details={"table_id": table.id})
             raise NotFoundError(message="Record not found", details={"table_id": table.id})
         record = await virtual_table_repo.insert_record(
             self.db,
@@ -1803,8 +1916,8 @@ class RecordOperations(Operations):
         refusal never confirms the row exists.
         """
         columns = await self._columns(table)
-        if not await may_edit_row(self.db, ctx, table, columns, record.values):
-            raise NotFoundError(message="Record not found", details={"record_id": record.id})
+        if not await can_write_record(self.db, ctx, table, record.id, columns, record.values):
+            raise NotFoundError(message="Record not found", details={"table_id": table.id})
         self._check_revision(record, expected_revision)
         before = dict(record.values)
         merged = await normalize_task_cells(
@@ -1814,6 +1927,7 @@ class RecordOperations(Operations):
         # would leave the row unchanged. Only omitted hidden links are retained.
         await self._check_links(ctx, columns, values)
         await self._preserve_unreadable_links(ctx, columns, values, before, merged)
+        await require_access_fields(self.db, ctx, table, columns, before, merged)
         if merged == before:
             # Nothing to record. Bumping the revision and keeping a full before-and-after
             # snapshot, and a receipt holding a whole copy, for a request that changed
@@ -1831,7 +1945,7 @@ class RecordOperations(Operations):
         )
         if problems:
             raise InvalidRecordError([(f"values.{key}", message) for key, message in problems])
-        if not await may_edit_row(self.db, ctx, table, columns, merged):
+        if not await can_write_record(self.db, ctx, table, record.id, columns, merged):
             raise NotFoundError(message="Record not found", details={"record_id": record.id})
         await quotas.enforce_record_size(ctx, table, merged)
         await virtual_table_repo.update_record(

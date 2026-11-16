@@ -29,10 +29,19 @@ def _record(revision: int):
 
 @pytest.fixture
 def service(monkeypatch) -> tuple[RecordOperations, AuthContext, SimpleNamespace]:
-    table = SimpleNamespace(id=uuid.uuid4(), archived_at=None, schema_version=1, row_policy=None)
+    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
+    table = SimpleNamespace(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        owner_user_id=ctx.user_id,
+        visibility="org",
+        archived_at=None,
+        schema_version=1,
+        row_policy=None,
+    )
     service = RecordOperations(db=MagicMock(spec=AsyncSession))
 
-    async def load(ctx, table_id, perm, *, lock=False, share=False):
+    async def load(ctx, table_id, perm, *, lock=False, share=False, alternative_perm=None):
         return table
 
     async def passthrough(db, ctx, *, action, **_):
@@ -61,7 +70,6 @@ def service(monkeypatch) -> tuple[RecordOperations, AuthContext, SimpleNamespace
     monkeypatch.setattr(records.quotas, "lock_record_count", within_quota)
     monkeypatch.setattr(records.quotas, "lock_storage", within_quota)
     monkeypatch.setattr(records.quotas, "enforce_storage", within_quota)
-    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
     return service, ctx, table
 
 

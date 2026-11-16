@@ -27,6 +27,7 @@ import { useDeferredDelete } from "@/hooks/use-deferred-delete";
 import { isRevisionConflict, useRecordMutation } from "@/hooks/use-record-mutation";
 import { recordCellText } from "@/lib/format-cell-value";
 import { cn } from "@/lib/utils";
+import { canDeleteRecord, canWriteCell, canWriteRecord } from "@/lib/table-record-access";
 import { useTableViewStore } from "@/stores";
 import {
   COMPUTED_TYPES,
@@ -131,8 +132,11 @@ export function TableGridView({
 
   // Only the rows in view count: a selection made on another page, or of a
   // record since deleted, is not what the bar offers to delete.
-  const chosen = records.filter((record) => selected.has(record.id));
-  const allChosen = records.length > 0 && chosen.length === records.length;
+  const deletable = records.filter((record) => canDeleteRecord(record, canEdit));
+  const chosen = deletable.filter((record) => selected.has(record.id));
+  const allChosen = deletable.length > 0 && chosen.length === deletable.length;
+  const interactive = canEdit || records.some((record) => canWriteRecord(record, canEdit));
+  const showSelection = canEdit || deletable.length > 0;
 
   const toggle = (recordId: string, on: boolean) => {
     const next = new Set(selected);
@@ -142,6 +146,7 @@ export function TableGridView({
   };
 
   const writeCell = (record: RecordRead, columnId: string, value: CellValue) => {
+    if (!canWriteCell(record, columnId, canEdit)) return;
     commit(record, { [columnId]: value }).catch((error: unknown) => {
       // Anything but a conflict was already toasted by `useRecordMutation`.
       if (!isRevisionConflict(error)) return;
@@ -244,7 +249,11 @@ export function TableGridView({
 
   const renderCell = (column: ColumnDef, record: RecordRead) => {
     // A worked-out column is read, never edited: what it shows comes from its link.
-    if (!canEdit || column.system || COMPUTED_TYPES.has(column.type))
+    if (
+      !canWriteCell(record, column.id, canEdit) ||
+      column.system ||
+      COMPUTED_TYPES.has(column.type)
+    )
       return display(column, record);
     const value = record.values[column.id] ?? null;
     if (editing?.recordId === record.id && editing.columnId === column.id) {
@@ -323,31 +332,36 @@ export function TableGridView({
       : !columnActions && !UNSORTABLE_TYPES.has(column.type),
   }));
 
-  if (canEdit) {
-    tableColumns.unshift({
-      key: "__select",
-      className: "bg-card sticky left-0 z-20 w-12 min-w-12 px-3 sm:px-3",
-      header: (
-        <Checkbox
-          aria-label={tGrid("selectAll")}
-          checked={allChosen ? true : chosen.length > 0 ? "indeterminate" : false}
-          disabled={records.length === 0}
-          onCheckedChange={(on) =>
-            setSelected(on === true ? new Set(records.map((record) => record.id)) : new Set())
-          }
-        />
-      ),
-      cell: (record) => (
-        <Checkbox
-          aria-label={tGrid("selectRow")}
-          checked={selected.has(record.id)}
-          onCheckedChange={(on) => toggle(record.id, on === true)}
-        />
-      ),
-    });
-    tableColumns.splice(1, 0, {
+  if (interactive) {
+    if (showSelection)
+      tableColumns.unshift({
+        key: "__select",
+        className: "bg-card sticky left-0 z-20 w-12 min-w-12 px-3 sm:px-3",
+        header: (
+          <Checkbox
+            aria-label={tGrid("selectAll")}
+            checked={allChosen ? true : chosen.length > 0 ? "indeterminate" : false}
+            disabled={deletable.length === 0}
+            onCheckedChange={(on) =>
+              setSelected(on === true ? new Set(deletable.map((record) => record.id)) : new Set())
+            }
+          />
+        ),
+        cell: (record) =>
+          canDeleteRecord(record, canEdit) ? (
+            <Checkbox
+              aria-label={tGrid("selectRow")}
+              checked={selected.has(record.id)}
+              onCheckedChange={(on) => toggle(record.id, on === true)}
+            />
+          ) : null,
+      });
+    tableColumns.splice(showSelection ? 1 : 0, 0, {
       key: "__open",
-      className: "bg-card sticky left-12 z-20 w-10 min-w-10 px-1 sm:px-1",
+      className: cn(
+        "bg-card sticky z-20 w-10 min-w-10 px-1 sm:px-1",
+        showSelection ? "left-12" : "left-0",
+      ),
       header: <span className="sr-only">{tGrid("openRecord")}</span>,
       cell: (record) => (
         <Button
@@ -410,8 +424,8 @@ export function TableGridView({
         rows={records}
         getRowKey={(record) => record.id}
         loading={isLoading}
-        onRowClick={canEdit ? undefined : onOpenRecord}
-        isRowActive={canEdit ? (record) => selected.has(record.id) : undefined}
+        onRowClick={interactive ? undefined : onOpenRecord}
+        isRowActive={showSelection ? (record) => selected.has(record.id) : undefined}
         fillHeight
         afterRows={
           onAddRecord && records.length > 0 ? (
