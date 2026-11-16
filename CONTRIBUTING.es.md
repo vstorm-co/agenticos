@@ -2,7 +2,7 @@
 source_sha: "7cb876b5ef26"
 ---
 
-<!-- source_sha: b3b3173c34cf -->
+<!-- source_sha: cd2b76cc88df -->
 
 # Contribuir a AgenticOS
 
@@ -118,6 +118,9 @@ supervisión.
   `v*` ejecutan la CI completa; si una ejecución de `t3` falla, reviértela o
   corrígela antes del siguiente merge. Un despliegue a producción la necesita
   en verde.
+- Si T3 no está disponible, añade en su lugar la etiqueta `quick-check` al
+  pull request. El workflow Quick check ejecuta entonces la misma comprobación
+  en la CI, y el pull request se fusiona cuando pasa.
 
 ## Seguridad
 

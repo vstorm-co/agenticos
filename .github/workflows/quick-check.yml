@@ -1,0 +1,68 @@
+name: Quick check
+
+# Fallback for when T3 is down (user decision, 2026-11-16). Normally the T3
+# session runs the quick check before it pushes and pastes the output into the
+# pull request, so no CI runs on pull requests. When T3 is unavailable, the
+# lead adds the `quick-check` label to the pull request; this workflow then
+# runs the same quick check (lint, type checks, related frontend tests) once,
+# and the pull request merges when it passes. Re-add the label to rerun it.
+# The full suite still runs after the merge, from ci.yml.
+
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quick-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  quick-check:
+    if: ${{ github.event.label.name == 'quick-check' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TY_OUTPUT_FORMAT: github
+      BASE_REF: ${{ github.event.pull_request.base.ref }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "latest"
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install 3.15
+      - name: Install backend dependencies
+        run: uv sync --directory backend --dev
+      - name: Lint, format-check and type-check the backend
+        run: make lint-backend
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.3.5
+      - name: Cache Bun packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('frontend/bun.lock') }}
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+      - name: Lint and type-check the frontend
+        run: make lint-frontend
+      - name: Run the frontend tests related to the change
+        working-directory: frontend
+        run: |
+          mapfile -t changed < <(git diff --name-only --diff-filter=d "origin/${BASE_REF}...HEAD" -- 'frontend/src/**' | sed 's|^frontend/||')
+          if [ "${#changed[@]}" -eq 0 ]; then
+            echo "No frontend source changes; no related tests to run."
+            exit 0
+          fi
+          bunx vitest related --run --passWithNoTests "${changed[@]}"

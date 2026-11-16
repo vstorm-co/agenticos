@@ -2,7 +2,7 @@
 source_sha: "7cb876b5ef26"
 ---
 
-<!-- source_sha: b3b3173c34cf -->
+<!-- source_sha: cd2b76cc88df -->
 
 # Współtworzenie AgenticOS
 
@@ -116,6 +116,9 @@ zapomniana flaga jest tym, przez co agent kończy, wysyłając maile bez nadzoru
   uruchamia pełne CI; gdy przebieg na `t3` się nie powiedzie, wycofaj lub
   napraw zmianę przed kolejnym scaleniem. Wdrożenie produkcyjne wymaga
   zielonego przebiegu.
+- Gdy T3 jest niedostępne, dodaj zamiast tego etykietę `quick-check` do pull
+  requestu. Workflow Quick check uruchomi wtedy tę samą kontrolę w CI, a pull
+  request zostanie scalony, gdy przejdzie.
 
 ## Bezpieczeństwo
 

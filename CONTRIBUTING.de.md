@@ -2,7 +2,7 @@
 source_sha: "7cb876b5ef26"
 ---
 
-<!-- source_sha: b3b3173c34cf -->
+<!-- source_sha: cd2b76cc88df -->
 
 # Zu AgenticOS beitragen
 
@@ -120,6 +120,9 @@ verschickt.
   vollständige CI; schlägt ein `t3`-Lauf fehl, mache ihn vor dem nächsten Merge
   rückgängig oder behebe ihn. Ein Produktions-Deployment setzt einen grünen
   Lauf voraus.
+- Ist T3 nicht verfügbar, versieh den Pull Request stattdessen mit dem Label
+  `quick-check`. Der Workflow „Quick check“ führt dann dieselbe Prüfung in der
+  CI aus, und der Pull Request wird gemergt, sobald sie besteht.
 
 ## Sicherheit
 

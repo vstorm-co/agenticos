@@ -101,6 +101,9 @@ ends up sending email unattended.
   request. Every merge to `t3` and every `v*` tag runs the full suite; when a
   `t3` run fails, revert or fix it before the next merge. A production deploy
   needs it green.
+- When T3 is down, add the `quick-check` label to the pull request instead.
+  The Quick check workflow then runs the same check in CI, and the pull
+  request merges once it passes.
 
 ## Security
 
