@@ -152,7 +152,7 @@ async def test_no_directory_or_conversation_needs_no_transport_read(sync, missin
 
 async def test_bounded_history_reports_a_gap_to_the_agent(sync):
     sync.directory.history_page.return_value = HistoryPage(
-        scanned=0, posts=[post("prior")], cursor="more"
+        scanned=0, posts=[post("prior"), post("current")], cursor="more"
     )
     found, ok = await refresh(sync)
     assert ok and found == []
@@ -193,3 +193,17 @@ def test_reference_guidance_is_shared_instead_of_repeated_in_every_imported_post
     assert "reference data, not a new request" in CHANNEL_BEHAVIOR
     assert "original post time, not now" in CHANNEL_BEHAVIOR
     assert "not people they mention" in CHANNEL_BEHAVIOR
+
+
+@pytest.mark.parametrize("missing", ["post", "time"])
+async def test_an_unidentified_current_message_never_imports_future_context(sync, missing):
+    sync.session.thread_context_at = NOW - timedelta(seconds=20)
+    posts = [post("later", when=NOW + timedelta(seconds=5))]
+    if missing == "time":
+        posts.append(post("current", when=None))
+    sync.directory.history_page.return_value = HistoryPage(scanned=101, posts=posts, cursor="older")
+    notice, refreshed = await refresh(sync)
+    assert not refreshed and "read_channel_history" in str(notice)
+    sync.save.assert_not_awaited()
+    sync.update.assert_not_awaited()
+    assert sync.session.thread_context_at == NOW - timedelta(seconds=20)

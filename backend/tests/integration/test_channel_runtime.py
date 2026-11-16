@@ -82,7 +82,7 @@ async def test_a_final_answer_is_claimed_once_and_records_transport_separately(
     assert record.max_attempts == 1
     await jobs.settle_channel_reply(db, job_id=job_id, delivered=True)
     await db.refresh(record)
-    assert record.status == "succeeded" and record.result == {"delivery": "delivered"}
+    assert record.status == "dead" and record.result == {"delivery": "unconfirmed"}
     assert await jobs.get_channel_reply(db, reply_id=None) is None
 
 
@@ -148,12 +148,15 @@ async def test_an_expired_or_unstarted_job_cannot_steer_as_the_active_worker(
     db.add(row)
     await db.flush()
     assert not await jobs.channel_message_is_running(db, receipt_id=receipt)
+    assert not await jobs.lock_channel_message_lease(db, receipt_id=receipt)
     row.status, row.lease_until = "running", datetime.now(UTC) + timedelta(minutes=1)
     await db.flush()
     assert await jobs.channel_message_is_running(db, receipt_id=receipt)
+    assert await jobs.lock_channel_message_lease(db, receipt_id=receipt)
     row.lease_until = datetime.now(UTC) - timedelta(seconds=1)
     await db.flush()
     assert not await jobs.channel_message_is_running(db, receipt_id=receipt)
+    assert not await jobs.lock_channel_message_lease(db, receipt_id=receipt)
 
 
 async def test_consumed_native_receipts_survive_compaction(db: AsyncSession) -> None:
@@ -417,6 +420,7 @@ async def test_native_redeliveries_are_durable_and_thread_queues_stay_isolated(
         organization_id=uuid4(),
         authorization_generation=uuid4(),
         platform=platform,
+        access_policy={"discord_guild_ids": ["123456789"]},
         name="Queue test",
         token_encrypted="unused",
         secret_key_version=1,
@@ -426,6 +430,7 @@ async def test_native_redeliveries_are_durable_and_thread_queues_stay_isolated(
         organization_id=bot.organization_id,
         authorization_generation=uuid4(),
         platform=platform,
+        access_policy={"discord_guild_ids": ["123456789"]},
         name="Other queue",
         token_encrypted="unused",
         secret_key_version=1,
@@ -438,7 +443,7 @@ async def test_native_redeliveries_are_durable_and_thread_queues_stay_isolated(
         chat_type="group",
         text="Use Friday",
         message_id="native-1",
-        raw={"token": "must-not-persist"},
+        raw={"token": "must-not-persist", "guild_id": "123456789"},
     )
     await queue_message(db, bot, incoming)
     await queue_message(db, bot, incoming)
@@ -471,3 +476,102 @@ async def test_native_redeliveries_are_durable_and_thread_queues_stay_isolated(
         conversation_queue(other_bot.id, "room:thread"),
     }
     assert all("must-not-persist" not in str(row.payload) for row in rows)
+
+
+@pytest.mark.parametrize("control,limit", [(True, 8), (False, 100)])
+async def test_channel_queue_caps_are_scoped_to_bot_and_organization(
+    db: AsyncSession, control, limit
+):
+    org, bot = uuid4(), uuid4()
+    kind = "process-channel-control" if control else "process-channel-message"
+    db.add_all(
+        [
+            BackgroundJob(
+                kind=kind,
+                pool="system" if control else "agent",
+                organization_id=org,
+                max_attempts=1,
+                payload={"bot_id": str(bot)},
+            )
+            for _ in range(limit)
+        ]
+    )
+    await db.flush()
+    assert not await jobs.channel_queue_has_room(
+        db, organization_id=org, bot_id=bot, control=control, size=10
+    )
+    assert await jobs.channel_queue_has_room(
+        db, organization_id=org, bot_id=uuid4(), control=control, size=10
+    )
+    assert await jobs.channel_queue_has_room(
+        db, organization_id=uuid4(), bot_id=bot, control=control, size=10
+    )
+    assert await jobs.channel_queue_has_room(
+        db, organization_id=org, bot_id=bot, control=not control, size=10
+    )
+
+
+@pytest.mark.parametrize("control", [True, False])
+async def test_channel_queue_caps_payload_bytes_even_before_the_count_limit(
+    db: AsyncSession, control
+):
+    org, bot = uuid4(), uuid4()
+    size = 32 * 1024 if control else 2 * 1024 * 1024
+    db.add(
+        BackgroundJob(
+            kind="process-channel-control" if control else "process-channel-message",
+            pool="agent",
+            organization_id=org,
+            max_attempts=1,
+            payload={"bot_id": str(bot), "text": "x" * size},
+        )
+    )
+    await db.flush()
+    assert not await jobs.channel_queue_has_room(
+        db, organization_id=org, bot_id=bot, control=control, size=1
+    )
+
+
+async def test_recovered_reply_leaves_terminal_transition_to_the_fenced_worker(
+    db: AsyncSession, monkeypatch
+):
+    from contextlib import asynccontextmanager
+    from unittest.mock import AsyncMock
+
+    from app.worker.tasks import channel_tasks
+
+    payload = ChannelHandback(
+        initial_reply_id=uuid4(),
+        organization_id=uuid4(),
+        run_id=uuid4(),
+        bot_id=uuid4(),
+        platform_chat_id="room:thread",
+        private_chat=False,
+        output="Rendered answer\n\n_Cost: $0.03_",
+    )
+    job_id = await enqueue(db, DELIVER_CHANNEL_REPLY, payload)
+    claimed = await jobs.claim(
+        db, pool=DELIVER_CHANNEL_REPLY.pool.value, worker_id="recovery", lease=timedelta(minutes=1)
+    )
+    assert claimed is not None and claimed.id == job_id
+    # The live route may not steal a job already held by recovery.
+    assert not await jobs.claim_channel_reply(db, job_id=job_id)
+
+    @asynccontextmanager
+    async def context():
+        yield db
+
+    monkeypatch.setattr(channel_tasks, "get_db_context", context)
+    monkeypatch.setattr(channel_tasks, "deliver_handback", AsyncMock(return_value=True))
+    await channel_tasks.deliver_initial_reply(payload)
+    record = await jobs.get_channel_reply(db, reply_id=payload.initial_reply_id)
+    assert record is not None
+    await db.refresh(record)
+    assert record.status == "running" and record.worker_id == "recovery"
+    assert await jobs.complete(db, claimed.id, fence=claimed.attempts, result=None)
+    await db.refresh(record)
+    assert (
+        record.status == "succeeded"
+        and record.worker_id == "recovery"
+        and record.lease_until is None
+    )

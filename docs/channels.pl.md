@@ -1,5 +1,5 @@
 ---
-source_sha: "6c671a203336"
+source_sha: "d632bac3e0cd"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1960,7 +1960,9 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
 
     Końcowa odpowiedź jest zapisywana w transakcji kończącej run. Niewysłaną odpowiedź można dostarczyć z zapisu bez kolejnego wywołania modelu. Przed kontaktem z dostawcą zajmowana jest próba wysyłki: niejednoznaczny wynik transportu pozostaje niepotwierdzony i nie jest ponawiany w ciemno. Placeholdery streamingu i opcjonalne interakcje UI pozostają best-effort. Polecenia `/agent` i skróty wiadomości Slacka korzystają z trwałego przyjęcia zarówno przez HTTP, jak i Socket Mode; potwierdzenie następuje po zatwierdzeniu zadania w bazie. Polling Telegrama zapisuje partię wiadomości, zanim SDK przesunie offset. Discord odczytuje metadane wiadomości poza pętlą odbioru Gateway, aby nie blokować kolejnych interakcji. Decyzje dotyczące promptów i inne natywne interakcje UI zachowują dotychczasową obsługę.
 
-- **Nadawca może dopisać kontekst podczas pracy.** Przed następnym wywołaniem modelu worker pobiera do ośmiu oczekujących dopisków tekstowych tej samej osoby w tym samym wątku. Ponownie sprawdza dostęp i guardrails wejścia. Wiadomość innej osoby, plik, inne polecenie lub spóźniony dopisek pozostają w kolejce na własną turę. Pobierane są tylko wiadomości skierowane do bota. Działa to także między workerami. `/status` i `/stop` (także samo `status` i `stop`) dotyczą wyłącznie ostatniego głównego runa nadawcy w tym wątku. Stop działa przed kolejnym wywołaniem modelu; rozpoczęta akcja może się zakończyć. Trwałe wiadomości `/btw` czekają na swoją turę i nie obiecują natychmiastowej odpowiedzi na boku.
+    Przed zapisem zadania sprawdzane są polityka dostępu bota i osobny limit nadawcy zgodny ze skonfigurowanym RPM. Transakcje serializują limity aktywnych zadań: 100 wiadomości / 2 MiB na bota i 1000 / 16 MiB na organizację; polecenia sterujące mają osobne limity 8 / 32 KiB oraz 64 / 256 KiB. Nadmiarowe i zbyt duże wiadomości są potwierdzane i odrzucane bez zapisywania zadania. Wejście mieści do 64 KiB tekstu, dziesięciu plików i 128 KiB znormalizowanego payloadu. Uchwyty załączników są szyfrowane vaultem dla organizacji i obsługiwane przez `vault-rotate`.
+
+- **Nadawca może dopisać kontekst podczas pracy.** Przed następnym wywołaniem modelu worker pobiera do ośmiu oczekujących dopisków tekstowych tej samej osoby w tym samym wątku. Ponownie sprawdza dostęp i guardrails wejścia. Wiadomość innej osoby, plik, inne polecenie lub spóźniony dopisek pozostają w kolejce na własną turę. Pobierane są tylko wiadomości skierowane do bota. Działa to także między workerami. `/status` i `/stop` (także samo `status` i `stop`) dotyczą wyłącznie ostatniego głównego runa nadawcy w tym wątku. Stop działa przed kolejnym wywołaniem modelu; rozpoczęta akcja może się zakończyć. `/btw` korzysta z niezależnego zadania i zawsze działa bez narzędzi, także gdy główny run wykonuje inny worker.
 
 - **Brak osobistej usługi zwraca konkretne wymagania.** Jeśli agent potrzebuje niedostępnej osobistej usługi MCP, `check_service_access` zwraca powód, brakujące kroki i odpowiedni link do ustawień. Powiązanie tożsamości kanału i połączenie usługi to osobne kroki. Żadna operacja zewnętrzna nie rusza, a konto publikującego lub organizacji nie zastępuje osobistego konta nadawcy. Odpowiedź oparta na osobistym źródle nadal widzą uczestnicy bieżącego wątku.
 

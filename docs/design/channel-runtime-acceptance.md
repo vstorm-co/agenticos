@@ -205,3 +205,15 @@ message waits on its metadata request. PostgreSQL tests send the same native
 receipt twice for each platform and verify one job, with independent bot/thread
 queues and no raw credentials in the payload. These checks do not post messages
 to live Slack, Telegram or Discord accounts.
+
+## Review regressions
+
+- `/btw` has no thread concurrency key and always sets the tool-free aside context, including across workers. It cannot promise an idle model slot.
+- Sender limits and access checks run before admission; transaction-scoped organization locks protect count and byte caps, including a separate control lane. Oversized/excess messages are acknowledged and discarded.
+- Signed Discord/Teams attachment handles are organization-bound vault envelopes in jobs; `vault-rotate` includes retained channel jobs. Cross-tenant unwrap fails.
+- The terminal transaction stores the rendered usage footer. Live delivery commits native assistant receipts with delivery settlement. Recovery leaves fenced completion to the worker runtime.
+- A lease lost at a model boundary skips terminal writes; loss during the final request is checked again under a job-row lock before committing its answer.
+- A history page missing the current native post or its timestamp adds a gap notice without importing future messages, fetching their files or advancing the cursor.
+- Publication diagnostics inspect the bound agent and environment inside the organization, without requiring the manager to run that agent. Personal-service diagnostics still use the current caller.
+
+The security review's proposal to restore approvals for unlinked participants is intentionally not adopted: this change explicitly honors authored Run freely/Ask first policies on channel exposures. The upgrade note tells operators to select Ask first or require linked accounts. Personal credentials and platform MCP write floors remain enforced.

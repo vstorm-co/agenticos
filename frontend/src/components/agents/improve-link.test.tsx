@@ -48,7 +48,7 @@ it("reopens the session still open, marking an agent that needs it without leadi
     name: "Needs attention: 1 failed run. Improve this agent",
   });
   expect(button).not.toHaveClass("bg-action");
-  expect(button).toHaveClass("border");
+  expect(button).toHaveClass("border-2", "border-input");
   expect(screen.getByTestId("improve-attention")).toBeInTheDocument();
   expect(button.querySelector("svg.lucide-trending-up")).toBeInTheDocument();
   expect(button).toHaveAttribute("data-tour", "strip-improve");

@@ -96,7 +96,8 @@ class ChannelMessageFile(Payload):
     filename: str
     mime_type: str
     size: int
-    handle: str
+    handle: str = Field(repr=False)
+    handle_key_version: int | None = None
     duration_seconds: float | None = None
     author_id: str | None = None
 

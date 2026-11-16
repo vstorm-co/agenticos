@@ -11152,6 +11152,7 @@ async def test_channel_stop_finishes_as_cancelled_without_replaying_the_run(reas
     from app.agents.steering import ChannelTurnStopped
 
     db = _db()
+    db.rollback = AsyncMock()
     service = AgentRunnerService(db)
     prepared = _prepared()
     stop = ChannelTurnStopped(reason)
@@ -11160,7 +11161,18 @@ async def test_channel_stop_finishes_as_cancelled_without_replaying_the_run(reas
         patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
         patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
     ):
-        await service.execute(_ctx(), uuid.uuid4(), "hello")
-    assert finish.await_args.kwargs["status"] == RunStatus.CANCELLED.value
-    assert finish.await_args.kwargs["error"] == str(stop)
-    assert db.commit.await_count == 2
+        if reason == "lease_lost":
+            sink = AsyncMock()
+            with pytest.raises(asyncio.CancelledError, match="lease"):
+                await service.execute(_ctx(), uuid.uuid4(), "hello", on_segment=sink)
+            sink.assert_not_awaited()
+        else:
+            await service.execute(_ctx(), uuid.uuid4(), "hello")
+    if reason == "lease_lost":
+        finish.assert_not_awaited()
+        assert db.commit.await_count == 1
+        db.rollback.assert_awaited_once()
+    else:
+        assert finish.await_args.kwargs["status"] == RunStatus.CANCELLED.value
+        assert finish.await_args.kwargs["error"] == str(stop)
+        assert db.commit.await_count == 2

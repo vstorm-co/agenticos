@@ -121,8 +121,8 @@ async def test_recovery_only_delivers_a_saved_unattempted_answer(monkeypatch, st
     )
     monkeypatch.setattr(module.job_repo, "settle_channel_reply", settle)
     monkeypatch.setattr(channel_tasks, "deliver_handback", deliver)
-    if state in {"claimed", "failed"}:
-        with pytest.raises(BadRequestError if state == "claimed" else RuntimeError):
+    if state in {"claimed", "failed", "refused"}:
+        with pytest.raises(BadRequestError if state in {"claimed", "refused"} else RuntimeError):
             await channel_tasks.deliver_initial_reply(job)
     else:
         await channel_tasks.deliver_initial_reply(job)
@@ -131,7 +131,7 @@ async def test_recovery_only_delivers_a_saved_unattempted_answer(monkeypatch, st
         settle.assert_not_awaited()
     else:
         deliver.assert_awaited_once_with(job)
-        assert settle.await_args.kwargs["delivered"] is (state == "delivered")
+        settle.assert_not_awaited()
 
 
 async def test_native_reply_id_is_remembered_without_adding_another_history_message(monkeypatch):
@@ -139,12 +139,24 @@ async def test_native_reply_id_is_remembered_without_adding_another_history_mess
     reply.run_id = uuid4()
     bind = AsyncMock()
     monkeypatch.setattr(module.conversation_repo, "bind_channel_source", bind)
+    reply.job_id = uuid4()
+    settled_db = MagicMock()
+
+    @asynccontextmanager
+    async def context():
+        yield settled_db
+
+    monkeypatch.setattr(module, "get_db_context", context)
+    settle = AsyncMock()
+    monkeypatch.setattr(module.job_repo, "settle_channel_reply", settle)
     await module.remember_delivered_post("ignored")
     with module.required_reply(reply):
         await module.remember_delivered_post(None)
         await module.remember_delivered_post("native-reply")
+        bind.assert_not_awaited()
+        await reply.settle(delivered=True)
     bind.assert_awaited_once_with(
-        reply.db, run_id=reply.run_id, role="assistant", source_id="native-reply"
+        settled_db, run_id=reply.run_id, role="assistant", source_id="native-reply"
     )
 
 
@@ -160,6 +172,7 @@ async def test_the_live_turn_and_recovery_never_both_submit_the_terminal_respons
 
     reply = receipt()
     run = SimpleNamespace(id=uuid4(), status="completed")
+    monkeypatch.setattr(module.job_repo, "lock_channel_message_lease", AsyncMock(return_value=True))
 
     @asynccontextmanager
     async def context():
@@ -167,6 +180,7 @@ async def test_the_live_turn_and_recovery_never_both_submit_the_terminal_respons
 
     monkeypatch.setattr(module, "get_db_context", context)
     monkeypatch.setattr(module, "enqueue", AsyncMock(return_value=uuid4()))
+    monkeypatch.setattr(module.job_repo, "render_channel_reply", AsyncMock())
     monkeypatch.setattr(module.conversation_repo, "bind_channel_source", AsyncMock())
     monkeypatch.setattr(
         module.job_repo, "claim_channel_reply", AsyncMock(return_value=outcome != "already_claimed")
@@ -222,3 +236,94 @@ async def test_the_live_turn_and_recovery_never_both_submit_the_terminal_respons
     assert settle.await_count == int(outcome != "already_claimed")
     if outcome != "already_claimed":
         assert settle.await_args.kwargs["delivered"] is (outcome != "delivery_failed")
+
+
+async def test_usage_rendering_is_in_the_terminal_snapshot_before_commit(monkeypatch):
+    reply = receipt()
+    monkeypatch.setattr(module.conversation_repo, "bind_channel_source", AsyncMock())
+    enqueue = AsyncMock(return_value=uuid4())
+    monkeypatch.setattr(module, "enqueue", enqueue)
+    renderer = AsyncMock(return_value="Answer\n\n_Cost: $0.03_")
+    segment = RunSegment(
+        output="Answer",
+        run=SimpleNamespace(id=uuid4(), status="completed"),
+        tool_calls=[],
+        settled={},
+    )
+    with module.required_reply(reply):
+        sink = module.segment_sink(renderer)
+        assert sink is not None
+        await sink(segment)
+        assert module.saved_rendering() == "Answer\n\n_Cost: $0.03_"
+    assert module.saved_rendering() is None
+    assert (
+        enqueue.await_args.args[2].output
+        == "Answer\n\n_Cost: $0.03_\n\nAn attachment could not be read."
+    )
+    renderer.assert_awaited_once_with(segment)
+    reply.db.commit.assert_not_called()
+
+
+async def test_receipt_failure_prevents_delivery_settlement(monkeypatch):
+    reply = receipt()
+    reply.job_id, reply.run_id = uuid4(), uuid4()
+    reply.native_ids.add("native-answer")
+    db = MagicMock()
+    events = []
+
+    @asynccontextmanager
+    async def context():
+        try:
+            yield db
+        except RuntimeError:
+            events.append("rollback")
+            raise
+        else:
+            events.append("commit")
+
+    monkeypatch.setattr(module, "get_db_context", context)
+    monkeypatch.setattr(
+        module.conversation_repo,
+        "bind_channel_source",
+        AsyncMock(side_effect=RuntimeError("database")),
+    )
+    settle = AsyncMock()
+    monkeypatch.setattr(module.job_repo, "settle_channel_reply", settle)
+    with pytest.raises(RuntimeError):
+        await reply.settle(delivered=True)
+    assert events == ["rollback"]
+    settle.assert_not_awaited()
+
+
+async def test_a_lease_lost_during_the_last_model_request_cannot_save_a_reply(monkeypatch):
+    import asyncio
+
+    from app.services.channels.steering import queued_turn
+
+    reply = receipt()
+    reply.db.rollback = AsyncMock()
+    monkeypatch.setattr(
+        module.job_repo, "lock_channel_message_lease", AsyncMock(return_value=False)
+    )
+    enqueue = AsyncMock()
+    monkeypatch.setattr(module, "enqueue", enqueue)
+    with queued_turn(uuid4()), pytest.raises(asyncio.CancelledError, match="lease"):
+        await reply.persist(
+            RunSegment(
+                output="Late answer",
+                run=SimpleNamespace(id=uuid4(), status="completed"),
+                tool_calls=[],
+                settled={},
+            )
+        )
+    reply.db.rollback.assert_awaited_once()
+    enqueue.assert_not_awaited()
+
+
+async def test_rendering_before_a_snapshot_keeps_native_placeholder_without_a_job(monkeypatch):
+    reply = receipt()
+    write = AsyncMock()
+    monkeypatch.setattr(module.job_repo, "render_channel_reply", write)
+    await reply.render("Answer", native_id="placeholder")
+    assert reply.native_ids == {"placeholder"}
+    write.assert_not_awaited()

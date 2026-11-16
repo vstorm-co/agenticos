@@ -201,16 +201,12 @@ async def deliver_initial_reply(job: ChannelHandback) -> None:
         if record is None:
             return
         job_id = record.id
-        claimed = await job_repo.claim_channel_reply(db, job_id=job_id)
+        claimed = await job_repo.claim_channel_reply(db, job_id=job_id, running=True)
     if not claimed:
         raise BadRequestError(
             message="The original answer submission has an unknown outcome. Check the channel before sending it again."
         )
-    try:
-        delivered = await deliver_handback(job)
-    except BaseException:
-        async with get_db_context() as db:
-            await job_repo.settle_channel_reply(db, job_id=job_id, delivered=False)
-        raise
-    async with get_db_context() as db:
-        await job_repo.settle_channel_reply(db, job_id=job_id, delivered=delivered)
+    if not await deliver_handback(job):
+        raise BadRequestError(
+            message="The final answer delivery was not confirmed; do not repeat the agent's actions"
+        )

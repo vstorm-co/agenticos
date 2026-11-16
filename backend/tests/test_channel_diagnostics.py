@@ -7,14 +7,13 @@ from uuid import uuid4
 import pytest
 
 from app.agents.spec import PersonalMcpServerRef
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import NotFoundError
 from app.repositories import (
     agent_exposure_repo,
     channel_bot_repo,
     channel_identity_repo,
     mcp_connection_repo,
 )
-from app.services.agent_registry import AgentRegistryService
 from app.services.channel_bot import ChannelBotService
 from app.services.channels import connection_state
 
@@ -50,10 +49,9 @@ async def test_personal_checks_describe_only_this_caller(monkeypatch, linked, co
         mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="notion")]
     )
     registry = AsyncMock(
-        return_value=(object(), published_spec, uuid4()),
-        side_effect=None if published else BadRequestError(message="Not published"),
+        return_value=published_spec if published else None,
     )
-    monkeypatch.setattr(AgentRegistryService, "get_runnable_spec", registry)
+    monkeypatch.setattr(ChannelBotService, "_diagnostic_spec", registry)
     result = await ChannelBotService(MagicMock(), org).diagnostics(
         botid, SimpleNamespace(user_id=user)
     )
@@ -146,9 +144,7 @@ async def test_nonpersonal_bindings_and_api_keys_do_not_borrow_a_persons_account
             PersonalMcpServerRef(account="personal", catalog_key="notion"),
         ]
     )
-    monkeypatch.setattr(
-        AgentRegistryService, "get_runnable_spec", AsyncMock(return_value=(object(), spec, uuid4()))
-    )
+    monkeypatch.setattr(ChannelBotService, "_diagnostic_spec", AsyncMock(return_value=spec))
     accounts = AsyncMock()
     monkeypatch.setattr(mcp_connection_repo, "list_user_scoped_by_catalog_key", accounts)
     result = await ChannelBotService(MagicMock(), uuid4()).diagnostics(
@@ -156,3 +152,63 @@ async def test_nonpersonal_bindings_and_api_keys_do_not_borrow_a_persons_account
     )
     accounts.assert_not_awaited()
     assert result.checks[-1].code == "personal_service" and result.checks[-1].status == "warning"
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        "published",
+        "missing",
+        "archived",
+        "draft",
+        "environment",
+        "foreign_environment",
+        "foreign_version",
+        "missing_version",
+    ],
+)
+async def test_publication_inspection_uses_organization_scope_and_no_run_authorization(
+    monkeypatch, state
+):
+    from app.agents.spec import AgentSpec
+    from app.repositories import agent_environment_repo, agent_repo
+    from app.services.agent_registry import AgentRegistryService
+
+    org, agent_id, version_id = uuid4(), uuid4(), uuid4()
+    agent = SimpleNamespace(
+        id=agent_id,
+        current_version_id=None if state == "draft" else version_id,
+        status="archived" if state == "archived" else "active",
+    )
+    lookup = AsyncMock(return_value=None if state == "missing" else agent)
+    monkeypatch.setattr(agent_repo, "get", lookup)
+    binding = SimpleNamespace(
+        agent_id=agent_id,
+        environment_id=uuid4() if state in {"environment", "foreign_environment"} else None,
+    )
+    environment_version = uuid4()
+    environment = SimpleNamespace(
+        agent_id=uuid4() if state == "foreign_environment" else agent_id,
+        version_id=environment_version,
+    )
+    monkeypatch.setattr(agent_environment_repo, "get", AsyncMock(return_value=environment))
+    version_lookup = AsyncMock(
+        return_value=None
+        if state == "missing_version"
+        else SimpleNamespace(
+            agent_id=uuid4() if state == "foreign_version" else agent_id,
+            spec=AgentSpec(name="Sales").model_dump(),
+        )
+    )
+    monkeypatch.setattr(agent_repo, "get_version", version_lookup)
+    run_check = AsyncMock(side_effect=AssertionError("Diagnostic must not require agents:run"))
+    monkeypatch.setattr(AgentRegistryService, "get_runnable_spec", run_check)
+    result = await ChannelBotService(MagicMock(), org)._diagnostic_spec(binding)
+    assert (result is not None) is (state in {"published", "environment"})
+    assert lookup.await_args.kwargs["organization_id"] == org
+    if result is not None:
+        assert version_lookup.await_args.args[1] == (
+            environment_version if state == "environment" else version_id
+        )
+        assert version_lookup.await_args.kwargs["organization_id"] == org
+    run_check.assert_not_awaited()

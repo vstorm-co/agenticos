@@ -36,6 +36,7 @@ class ChannelTurnStopped(Exception):
     """End a queued turn without another paid model request."""
 
     def __init__(self, reason: Literal["sender", "lease_lost"] = "sender") -> None:
+        self.reason = reason
         super().__init__(
             "Stopped by the sender in the channel."
             if reason == "sender"

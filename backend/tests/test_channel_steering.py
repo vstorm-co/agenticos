@@ -61,8 +61,8 @@ class _Turns:
             self.running.set()
             await self.release.wait()
             steering = current_steering()
-            assert steering is not None
-            if self.asks_again:
+            assert steering is not None or is_asked_aside()
+            if self.asks_again and steering is not None:
                 steering.take()
 
 
@@ -157,7 +157,7 @@ async def test_a_side_question_is_answered_at_once_without_its_command():
         await first
 
 
-async def test_with_nothing_running_a_side_question_is_simply_the_next_message():
+async def test_side_question_is_tool_free_when_another_worker_may_own_the_turn():
     turns = _Turns()
     turns.release.set()
     router = ChannelMessageRouter()
@@ -168,8 +168,8 @@ async def test_with_nothing_running_a_side_question_is_simply_the_next_message()
         await router.route(_message("/btw anything new?"), MagicMock())
 
     text, inbox, aside = turns.seen[0]
-    assert (text, aside) == ("anything new?", False)
-    assert inbox is not None
+    assert (text, aside) == ("anything new?", True)
+    assert inbox is None
 
 
 async def test_a_correction_too_late_for_the_turn_is_answered_as_its_own():

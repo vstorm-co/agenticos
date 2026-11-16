@@ -954,14 +954,29 @@ async def channel_message_is_running(db: AsyncSession, *, receipt_id: UUID) -> b
     return bool(result.scalar_one())
 
 
-async def claim_channel_reply(db: AsyncSession, *, job_id: UUID) -> bool:
+async def lock_channel_message_lease(db: AsyncSession, *, receipt_id: UUID) -> bool:
+    """Fence terminal writes against concurrent lease rescue until commit."""
+    result = await db.execute(
+        select(BackgroundJob.id)
+        .where(
+            BackgroundJob.kind == "process-channel-message",
+            BackgroundJob.status == "running",
+            BackgroundJob.payload["receipt_id"].astext == str(receipt_id),
+            BackgroundJob.lease_until > func.now(),
+        )
+        .with_for_update()
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def claim_channel_reply(db: AsyncSession, *, job_id: UUID, running: bool = False) -> bool:
     """Commit this fence before submitting; a timeout must not send the answer twice."""
     result = await db.execute(
         update(BackgroundJob)
         .where(
             BackgroundJob.id == job_id,
             BackgroundJob.kind == "deliver-channel-reply",
-            BackgroundJob.status.in_(("queued", "running")),
+            BackgroundJob.status == ("running" if running else "queued"),
             BackgroundJob.payload["submission_started"].astext == "false",
         )
         .values(payload=BackgroundJob.payload.op("||")({"submission_started": True}))
@@ -970,17 +985,34 @@ async def claim_channel_reply(db: AsyncSession, *, job_id: UUID) -> bool:
     return result.scalar_one_or_none() is not None
 
 
+async def render_channel_reply(db: AsyncSession, *, job_id: UUID, output: str) -> None:
+    await db.execute(
+        update(BackgroundJob)
+        .where(
+            BackgroundJob.id == job_id,
+            BackgroundJob.kind == "deliver-channel-reply",
+            BackgroundJob.status == "queued",
+            BackgroundJob.payload["submission_started"].astext == "false",
+        )
+        .values(payload=BackgroundJob.payload.op("||")({"output": output}))
+    )
+
+
 async def settle_channel_reply(db: AsyncSession, *, job_id: UUID, delivered: bool) -> None:
     await db.execute(
         update(BackgroundJob)
         .where(
             BackgroundJob.id == job_id,
             BackgroundJob.kind == "deliver-channel-reply",
+            BackgroundJob.status == "queued",
+            BackgroundJob.payload["submission_started"].astext == "true",
         )
         .values(
             status="succeeded" if delivered else "dead",
             finished_at=func.now(),
             result={"delivery": "delivered" if delivered else "unconfirmed"},
+            worker_id=None,
+            lease_until=None,
             last_error=None
             if delivered
             else "The final answer submission could not be confirmed; do not repeat the agent's actions",
@@ -998,3 +1030,33 @@ async def get_channel_reply(db: AsyncSession, *, reply_id: UUID | None) -> Backg
         )
     )
     return result.scalar_one_or_none()
+
+
+async def channel_queue_has_room(
+    db: AsyncSession, *, organization_id: UUID, bot_id: UUID, control: bool, size: int
+) -> bool:
+    """Serialize aggregate channel admission in the enqueue transaction."""
+    await db.execute(select(func.pg_advisory_xact_lock(7319, func.hashtext(str(organization_id)))))
+    kinds = ("process-channel-control",) if control else ("process-channel-message",)
+    bot = BackgroundJob.payload["bot_id"].astext == str(bot_id)
+    result = await db.execute(
+        select(
+            func.count(),
+            func.coalesce(func.sum(func.octet_length(cast(BackgroundJob.payload, String))), 0),
+            func.count().filter(bot),
+            func.coalesce(
+                func.sum(func.octet_length(cast(BackgroundJob.payload, String))).filter(bot), 0
+            ),
+        ).where(
+            BackgroundJob.organization_id == organization_id,
+            BackgroundJob.kind.in_(kinds),
+            BackgroundJob.status.in_(ACTIVE_STATUSES),
+        )
+    )
+    count, total, bot_count, bot_total = result.one()
+    return (
+        count < (64 if control else 1000)
+        and bot_count < (8 if control else 100)
+        and total + size <= (256 * 1024 if control else 16 * 1024 * 1024)
+        and bot_total + size <= (32 * 1024 if control else 2 * 1024 * 1024)
+    )

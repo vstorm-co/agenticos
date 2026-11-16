@@ -1,6 +1,7 @@
 """Durable channel admission and safe, sender-owned additions to an active turn."""
 
 import hashlib
+import logging
 from dataclasses import asdict
 from uuid import UUID, uuid4
 
@@ -10,7 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.deps import AgentDeps
 from app.agents.steering import ChannelTurnStopped
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import AuthorizationError, BadRequestError
+from app.core.vault import VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
 from app.db.session import get_db_context
 from app.repositories import agent_run_repo, channel_bot_repo, conversation_repo
@@ -24,6 +26,7 @@ from app.worker.jobs import (
     ChannelMessageFile,
 )
 
+logger = logging.getLogger(__name__)
 _JSON = TypeAdapter(JsonValue)
 
 
@@ -78,7 +81,15 @@ def normalize(bot: ChannelBot, incoming: IncomingMessage) -> ChannelMessage:
                 )
             },
             "attachments": [
-                ChannelMessageFile.model_validate(asdict(file)) for file in incoming.attachments
+                ChannelMessageFile(
+                    **{key: value for key, value in asdict(file).items() if key != "handle"},
+                    handle=sealed.ciphertext,
+                    handle_key_version=sealed.key_version,
+                )
+                for file in incoming.attachments
+                for sealed in (
+                    seal(file.handle, scope=VaultScope.organization(bot.organization_id)),
+                )
             ],
             "metadata": metadata,
         }
@@ -105,12 +116,26 @@ def restore(message: ChannelMessage) -> IncomingMessage:
         },
         bot_id=str(message.bot_id),
         raw=dict(message.metadata),
-        attachments=[IncomingAttachment(**file.model_dump()) for file in message.attachments],
+        attachments=[
+            IncomingAttachment(
+                **file.model_dump(exclude={"handle", "handle_key_version"}),
+                handle=file.handle
+                if file.handle_key_version is None
+                else unseal(
+                    file.handle,
+                    scope=VaultScope.organization(message.organization_id),
+                    key_version=file.handle_key_version,
+                ),
+            )
+            for file in message.attachments
+        ],
     )
 
 
 async def queue_message(db: AsyncSession, bot: ChannelBot, incoming: IncomingMessage) -> None:
-    message = normalize(bot, incoming)
+    from app.services.channels.steering import aside_question
+
+    aside = aside_question(incoming.text) is not None
     control = is_run_control(incoming.text) and incoming.addressed is not False
     # Edits have their own admission, but the router's observed-original receipt
     # still decides whether an edit may start a run. Persist no arbitrary raw envelope.
@@ -127,6 +152,29 @@ async def queue_message(db: AsyncSession, bot: ChannelBot, incoming: IncomingMes
         db, organization_id=bot.organization_id, idempotency_key=key
     ):
         return
+    from app.services.channels.router import ChannelMessageRouter
+
+    router = ChannelMessageRouter()
+    try:
+        router._check_access(incoming, bot)
+        await router._check_rate_limit(
+            bot,
+            incoming.platform_user_id,
+            surface="channel-control-ingress" if control else "channel-ingress",
+        )
+    except AuthorizationError, BadRequestError:
+        logger.info("channel_admission_refused", extra={"bot_id": str(bot.id)})
+        return
+    if len(incoming.text.encode()) > 64 * 1024 or len(incoming.attachments) > 10:
+        logger.info("channel_admission_too_large", extra={"bot_id": str(bot.id)})
+        return
+    message = normalize(bot, incoming)
+    size = len(message.model_dump_json().encode())
+    if size > 128 * 1024 or not await job_repo.channel_queue_has_room(
+        db, organization_id=bot.organization_id, bot_id=bot.id, control=control, size=size
+    ):
+        logger.warning("channel_admission_queue_full", extra={"bot_id": str(bot.id)})
+        return
     try:
         async with db.begin_nested():
             await enqueue(
@@ -136,7 +184,7 @@ async def queue_message(db: AsyncSession, bot: ChannelBot, incoming: IncomingMes
                 organization_id=bot.organization_id,
                 idempotency_key=key,
                 concurrency_key=None
-                if control
+                if control or aside
                 else conversation_queue(bot.id, incoming.platform_chat_id),
             )
     except IntegrityError:

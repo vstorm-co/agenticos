@@ -574,7 +574,7 @@ async def test_text_refresh_does_not_download_previously_backfilled_files(
     result = await service._thread_context(
         MagicMock(), MagicMock(), MagicMock(), MagicMock(), session, MagicMock(), []
     )
-    if old_files:
+    if old_files or not text_ok:
         files.assert_not_awaited()
         assert session.thread_backfilled_at == marker
         assert result[1] == []

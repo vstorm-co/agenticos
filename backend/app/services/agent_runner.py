@@ -8528,6 +8528,7 @@ class AgentRunnerService:
         # of this run (#235). `sys.exc_info()` cannot answer that: it also reports
         # a caller's handled exception when `execute` is awaited from inside one.
         finished_cleanly = False
+        terminal_owned = True
         # The opening commit: the row is visible mid-run and no connection is
         # held across the model call - the docstring carries the whole of it
         # (#12, #3).
@@ -8606,6 +8607,9 @@ class AgentRunnerService:
                 )
             finished_cleanly = True
         except ChannelTurnStopped as exc:
+            if exc.reason == "lease_lost":
+                terminal_owned = False
+                raise asyncio.CancelledError("Channel execution lease lost") from exc
             status = RunStatus.CANCELLED
             error = str(exc)
             finished_cleanly = True
@@ -8661,103 +8665,108 @@ class AgentRunnerService:
             # on any exception and is skipped entirely by a cancellation, so a run
             # that failed, was stopped or ran out of budget would otherwise vanish
             # from the history somebody opens.
-            try:
-                await self.finish(
-                    prepared,
-                    status=status,
-                    error=error,
-                    paused_state=paused,
-                    budget_scope=budget_scope,
-                    budget=budget,
-                )
-                if prepared.run.status == RunStatus.FAILED.value:
-                    status = RunStatus.FAILED
-                    paused = None
-                # So a run that failed, parked or was stopped still says what was
-                # asked and what it managed to do.
-                message_id = await self.transcript.record(
-                    prepared.run,
-                    prompt=said,
-                    model_content=model_content,
-                    answer=output,
-                    attachments=attachments,
-                    # Replayed after the prompt on every later turn, where the input
-                    # edge no longer looks: a refused turn keeps none of it (#2578).
-                    attachment_context=(
-                        None if status is RunStatus.GUARDRAIL_BLOCKED else attachment_context
-                    ),
-                    tool_calls=called,
-                    settled=settled,
-                    # So the step the run stopped on reads "awaiting approval" when
-                    # the conversation is read back, not as a call that ran (#601).
-                    parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),
-                    question_tool_call_ids=paused.questions if paused else (),
-                    model_label=prepared.built.model_label,
-                    mcp_origins=prepared.mcp_origins,
-                    draft_tools=draft_tool_names(prepared.spec),
-                    # The last request's own size, for the anchor a replayed history
-                    # is measured against - see `build_message_history`.
-                    context_used_tokens=prepared.built.context.latest,
-                )
-                # After the rows, because what is stored beside a summary is how
-                # far it reaches: recorded before them it would stop short of this
-                # turn and replay it twice. A channel thread is long-lived and
-                # never rolls over, so without this every message past the window
-                # buys its own summary of a history one turn longer (#49).
-                if prepared.run.conversation_id is not None:
-                    conversations = ConversationService(self.db)
-                    if summarized is not None:
-                        await conversations.keep_summary(
-                            prepared.run.conversation_id,
-                            summarized,
-                            expected_revision=message_history.revision
-                            if isinstance(message_history, ModelHistory)
-                            else None,
-                        )
-                    # On every turn, not only a summarising one: it is what the
-                    # *next* turn needs before it has a response of its own.
-                    if prepared.built.context.overhead is not None:
-                        await conversations.keep_overhead(
-                            prepared.run.conversation_id, prepared.built.context.overhead
-                        )
-                    # How far the reminder cadence advanced this turn, so the next
-                    # one resumes it. Only when the counter has moved off zero,
-                    # which it does exactly when a reminders capability ran this
-                    # turn or a previous one recorded it - so an agent that has
-                    # none never writes an empty blob, and `keep_reminder_state`
-                    # skips a value unchanged since it was seeded.
-                    if prepared.built.reminder_state.request_count:
-                        await conversations.keep_reminder_state(
-                            prepared.run.conversation_id,
-                            prepared.built.reminder_state.snapshot(),
-                        )
-                    await self.keep_plan(prepared, status=status)
-                if deferred_tool_results is not None:
-                    from app.services.routine_delivery import RoutineDeliveryService
-
-                    await RoutineDeliveryService(self.db).queue(prepared.run, answer=output)
-
-                # Persist required handback in the same transaction as this segment,
-                # including failures and cancellations. Delivery never replays tools.
-                if on_segment is not None:
-                    await on_segment(
-                        RunSegment(
-                            output=output or error or "",
-                            channel_destination=prepared.channel_destination,
-                            run=prepared.run,
-                            tool_calls=called,
-                            settled=settled,
-                            structured=structured,
-                            delegations=tuple(prepared.delegations),
-                            generated_files=frozenset(prepared.built.deps.generated_files),
-                        )
+            if not terminal_owned:
+                await self.db.rollback()
+            else:
+                try:
+                    await self.finish(
+                        prepared,
+                        status=status,
+                        error=error,
+                        paused_state=paused,
+                        budget_scope=budget_scope,
+                        budget=budget,
                     )
-                await self.db.commit()
-                await change_feed.publish_run(prepared.run, "updated")
-            except Exception:
-                if finished_cleanly:
-                    raise
-                logger.exception("Could not persist the terminal state of run %s", prepared.run.id)
+                    if prepared.run.status == RunStatus.FAILED.value:
+                        status = RunStatus.FAILED
+                        paused = None
+                    # So a run that failed, parked or was stopped still says what was
+                    # asked and what it managed to do.
+                    message_id = await self.transcript.record(
+                        prepared.run,
+                        prompt=said,
+                        model_content=model_content,
+                        answer=output,
+                        attachments=attachments,
+                        # Replayed after the prompt on every later turn, where the input
+                        # edge no longer looks: a refused turn keeps none of it (#2578).
+                        attachment_context=(
+                            None if status is RunStatus.GUARDRAIL_BLOCKED else attachment_context
+                        ),
+                        tool_calls=called,
+                        settled=settled,
+                        # So the step the run stopped on reads "awaiting approval" when
+                        # the conversation is read back, not as a call that ran (#601).
+                        parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),
+                        question_tool_call_ids=paused.questions if paused else (),
+                        model_label=prepared.built.model_label,
+                        mcp_origins=prepared.mcp_origins,
+                        draft_tools=draft_tool_names(prepared.spec),
+                        # The last request's own size, for the anchor a replayed history
+                        # is measured against - see `build_message_history`.
+                        context_used_tokens=prepared.built.context.latest,
+                    )
+                    # After the rows, because what is stored beside a summary is how
+                    # far it reaches: recorded before them it would stop short of this
+                    # turn and replay it twice. A channel thread is long-lived and
+                    # never rolls over, so without this every message past the window
+                    # buys its own summary of a history one turn longer (#49).
+                    if prepared.run.conversation_id is not None:
+                        conversations = ConversationService(self.db)
+                        if summarized is not None:
+                            await conversations.keep_summary(
+                                prepared.run.conversation_id,
+                                summarized,
+                                expected_revision=message_history.revision
+                                if isinstance(message_history, ModelHistory)
+                                else None,
+                            )
+                        # On every turn, not only a summarising one: it is what the
+                        # *next* turn needs before it has a response of its own.
+                        if prepared.built.context.overhead is not None:
+                            await conversations.keep_overhead(
+                                prepared.run.conversation_id, prepared.built.context.overhead
+                            )
+                        # How far the reminder cadence advanced this turn, so the next
+                        # one resumes it. Only when the counter has moved off zero,
+                        # which it does exactly when a reminders capability ran this
+                        # turn or a previous one recorded it - so an agent that has
+                        # none never writes an empty blob, and `keep_reminder_state`
+                        # skips a value unchanged since it was seeded.
+                        if prepared.built.reminder_state.request_count:
+                            await conversations.keep_reminder_state(
+                                prepared.run.conversation_id,
+                                prepared.built.reminder_state.snapshot(),
+                            )
+                        await self.keep_plan(prepared, status=status)
+                    if deferred_tool_results is not None:
+                        from app.services.routine_delivery import RoutineDeliveryService
+
+                        await RoutineDeliveryService(self.db).queue(prepared.run, answer=output)
+
+                    # Persist required handback in the same transaction as this segment,
+                    # including failures and cancellations. Delivery never replays tools.
+                    if on_segment is not None:
+                        await on_segment(
+                            RunSegment(
+                                output=output or error or "",
+                                channel_destination=prepared.channel_destination,
+                                run=prepared.run,
+                                tool_calls=called,
+                                settled=settled,
+                                structured=structured,
+                                delegations=tuple(prepared.delegations),
+                                generated_files=frozenset(prepared.built.deps.generated_files),
+                            )
+                        )
+                    await self.db.commit()
+                    await change_feed.publish_run(prepared.run, "updated")
+                except Exception:
+                    if finished_cleanly:
+                        raise
+                    logger.exception(
+                        "Could not persist the terminal state of run %s", prepared.run.id
+                    )
 
         return RunSegment(
             output=output,

@@ -466,10 +466,10 @@ class ChannelMessageRouter:
             # The command is a gesture, not part of what is asked.
             incoming = replace(incoming, text=question)
         try:
-            if running is not None and question is not None:
+            if question is not None:
                 # A question on the side of the running turn: answered now, from
                 # the thread so far, rather than queued behind what it asks about.
-                # With nothing running it is simply the next message.
+                # This stays tool-free even when another worker owns the active turn.
                 with answering_aside():
                     await self._route_inner(incoming, db)
                 return
@@ -1055,15 +1055,17 @@ class ChannelMessageRouter:
         answer = self._with_notes(
             answered.text, file_refusals, _kept_back(answered.refused), answered.delivery_notices
         )
-        if answered.run_id is not None:
+        if answered.run_id is not None and receipt is None:
             await conversation_repo.bind_channel_source(
                 db, run_id=answered.run_id, role="user", source_id=incoming.message_id
             )
             await conversation_repo.bind_channel_source(
                 db, run_id=answered.run_id, role="assistant", source_id=handle()
             )
-        if receipt is not None and not await receipt.begin_submission():
-            return True
+        if receipt is not None:
+            await receipt.render(answer, native_id=handle())
+            if not await receipt.begin_submission():
+                return True
         try:
             with required_reply(receipt):
                 delivered = await self._deliver(bot, incoming, answer, answered, handle(), streamed)
@@ -2307,8 +2309,8 @@ class ChannelMessageRouter:
         )
         files: list[ChatFile] = []
         refusals: list[str] = []
-        read_files = True
-        if needs_files:
+        read_files = not needs_files
+        if needs_files and read_transcript:
             files, refusals, read_files = await self._thread_files(
                 db, bot, incoming, identity, handled=handled
             )
@@ -2363,11 +2365,20 @@ class ChannelMessageRouter:
                 )
             ], False
         current = next((post for post in posts if self._is_current_post(post, incoming)), None)
-        through = (
-            current.posted_at
-            if current is not None and current.posted_at is not None
-            else datetime.now(UTC)
-        )
+        if current is None or current.posted_at is None:
+            return [
+                ModelRequest(
+                    parts=[
+                        UserPromptPart(
+                            content=(
+                                "[This thread's history page did not identify the current message's time. "
+                                "No later messages were imported; use read_channel_history for earlier discussion.]"
+                            )
+                        )
+                    ]
+                )
+            ], False
+        through = current.posted_at
         since = session.thread_context_at
         candidates = [
             post

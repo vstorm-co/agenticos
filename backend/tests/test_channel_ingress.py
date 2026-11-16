@@ -14,14 +14,25 @@ from app.agents.deps import AgentDeps
 from app.agents.steering import ChannelTurnStopped
 from app.services.channels import ingress
 from app.services.channels.base import IncomingAttachment, IncomingMessage
+from app.services.channels.router import ChannelMessageRouter
 from app.worker.jobs import PROCESS_CHANNEL_MESSAGE
 
 pytestmark = pytest.mark.anyio
 
 
+@pytest.fixture(autouse=True)
+def admission_limits(monkeypatch):
+    monkeypatch.setattr(ChannelMessageRouter, "_check_rate_limit", AsyncMock())
+    monkeypatch.setattr(ingress.job_repo, "channel_queue_has_room", AsyncMock(return_value=True))
+
+
 def bot():
     return SimpleNamespace(
-        id=uuid4(), organization_id=uuid4(), authorization_generation=uuid4(), is_active=True
+        id=uuid4(),
+        organization_id=uuid4(),
+        authorization_generation=uuid4(),
+        is_active=True,
+        access_policy={},
     )
 
 
@@ -383,3 +394,70 @@ async def test_webhook_admission_uses_the_request_transaction(monkeypatch):
     await ChannelBotService(db).queue_message(owner, incoming)
     queue.assert_awaited_once_with(db, owner, incoming)
     db.commit.assert_not_called()
+
+
+@pytest.mark.parametrize("platform", ["discord", "teams"])
+def test_preauthenticated_attachment_handles_are_sealed_for_the_organization(platform):
+    from app.core.exceptions import BadRequestError
+
+    owner = bot()
+    url = "https://cdn.example.test/file?signature=credential-do-not-store"
+    incoming = replace(
+        message(owner),
+        platform=platform,
+        attachments=[
+            IncomingAttachment(filename="a.pdf", mime_type="application/pdf", size=12, handle=url)
+        ],
+    )
+    payload = ingress.normalize(owner, incoming)
+    assert "credential-do-not-store" not in payload.model_dump_json()
+    assert url not in repr(payload)
+    assert ingress.restore(payload).attachments[0].handle == url
+    with pytest.raises(BadRequestError):
+        ingress.restore(payload.model_copy(update={"organization_id": uuid4()}))
+
+
+@pytest.mark.parametrize("reason", ["access", "rate", "capacity", "size", "files"])
+async def test_admission_refuses_before_enqueue(monkeypatch, reason):
+    from app.core.exceptions import AuthorizationError, BadRequestError
+
+    owner, incoming = bot(), message()
+    monkeypatch.setattr(ingress.job_repo, "get_by_idempotency_key", AsyncMock(return_value=None))
+    if reason == "access":
+        monkeypatch.setattr(
+            ChannelMessageRouter,
+            "_check_access",
+            MagicMock(side_effect=AuthorizationError(message="Denied")),
+        )
+    elif reason == "rate":
+        monkeypatch.setattr(
+            ChannelMessageRouter,
+            "_check_rate_limit",
+            AsyncMock(side_effect=BadRequestError(message="Slow down")),
+        )
+    elif reason == "capacity":
+        monkeypatch.setattr(
+            ingress.job_repo, "channel_queue_has_room", AsyncMock(return_value=False)
+        )
+    elif reason == "size":
+        incoming.text = "x" * (64 * 1024 + 1)
+    else:
+        incoming.attachments = [
+            IncomingAttachment(filename="a", mime_type="text/plain", size=1, handle="id")
+        ] * 11
+    enqueue = AsyncMock()
+    monkeypatch.setattr(ingress, "enqueue", enqueue)
+    await ingress.queue_message(MagicMock(), owner, incoming)
+    enqueue.assert_not_awaited()
+
+
+async def test_side_question_is_queued_without_the_active_threads_concurrency_key(monkeypatch):
+    db = MagicMock()
+    db.begin_nested.return_value.__aenter__ = AsyncMock()
+    db.begin_nested.return_value.__aexit__ = AsyncMock(return_value=False)
+    monkeypatch.setattr(ingress.job_repo, "get_by_idempotency_key", AsyncMock(return_value=None))
+    enqueue = AsyncMock()
+    monkeypatch.setattr(ingress, "enqueue", enqueue)
+    await ingress.queue_message(db, bot(), replace(message(), text="/btw status of the draft?"))
+    assert enqueue.await_args.args[1] is PROCESS_CHANNEL_MESSAGE
+    assert enqueue.await_args.kwargs["concurrency_key"] is None

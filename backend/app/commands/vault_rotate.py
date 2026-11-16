@@ -25,6 +25,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import click
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,6 +34,7 @@ from app.core.exceptions import AppException
 from app.core.vault import VaultScope, current_key_version, needs_rotation, rewrap, unseal
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_trigger import AgentTrigger
+from app.db.models.background_job import BackgroundJob
 from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.coding_account import CodingAccount
@@ -43,6 +45,7 @@ from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.workflow_exposure import WorkflowExposure
 from app.db.session import get_db_context
 from app.services.mcp_connection import connection_scope
+from app.worker.jobs import ChannelMessage
 
 
 def _org_scope(
@@ -253,12 +256,61 @@ async def _rotate_table(
         report.rotated += 1
 
 
+async def _rotate_channel_files(
+    db: AsyncSession, *, target: int, dry_run: bool, report: Report
+) -> None:
+    statement = select(BackgroundJob).where(
+        BackgroundJob.kind.in_(("process-channel-message", "process-channel-control"))
+    )
+    if not dry_run:
+        statement = statement.with_for_update()
+    for row in (await db.execute(statement)).scalars().all():
+        try:
+            message = ChannelMessage.model_validate(row.payload)
+            if row.organization_id != message.organization_id:
+                report.failures.append(f"background_jobs {row.id}: invalid channel owner")
+                continue
+            changed = False
+            attachments = list(message.attachments)
+            for index, file in enumerate(message.attachments):
+                if file.handle_key_version is None:
+                    continue
+                scope = VaultScope.organization(message.organization_id)
+                if dry_run:
+                    unseal(file.handle, scope=scope, key_version=file.handle_key_version)
+                if needs_rotation(file.handle, key_version=file.handle_key_version):
+                    if not dry_run:
+                        handle = rewrap(
+                            file.handle,
+                            scope=scope,
+                            from_version=file.handle_key_version,
+                            to_version=target,
+                        )
+                        attachments[index] = file.model_copy(
+                            update={"handle": handle, "handle_key_version": target}
+                        )
+                    changed = True
+            if changed:
+                if not dry_run:
+                    row.payload = message.model_copy(
+                        update={"attachments": attachments}
+                    ).model_dump(mode="json")
+                report.rotated += 1
+            else:
+                report.current += 1
+        except AppException, ValidationError:
+            report.failures.append(
+                f"background_jobs {row.id}: channel attachment could not be rotated"
+            )
+
+
 async def _run(*, dry_run: bool) -> Report:
     target = current_key_version()
     report = Report()
     async with get_db_context() as db:
         for spec in SEALED_TABLES:
             await _rotate_table(db, spec, target=target, dry_run=dry_run, report=report)
+        await _rotate_channel_files(db, target=target, dry_run=dry_run, report=report)
     return report
 
 
