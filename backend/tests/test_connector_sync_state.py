@@ -518,3 +518,13 @@ async def test_retargeting_while_waiting_for_the_name_lock_refuses_the_admitted_
     assert connector.listed == 0
     run.ingest.assert_not_awaited()
     assert run.after.await_args.kwargs["expected_knowledge_base_id"] == KB_ID
+
+
+async def test_a_deleted_queued_target_cannot_restore_detached_source_status() -> None:
+    connector = _Connector(files=["a.md"])
+    run = await _sync(connector, queued_target=None)
+    assert run.answer["status"] == "error"
+    assert connector.listed == 0
+    run.ingest.assert_not_awaited()
+    run.after.assert_not_awaited()
+    run.complete.assert_awaited_once()
