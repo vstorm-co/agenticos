@@ -22,7 +22,7 @@ export function ContextHelp({
         <button
           type="button"
           aria-label={t("moreInformation")}
-          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring touch:size-11 inline-flex size-8 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-2"
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring touch:size-11 inline-flex size-6 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-2"
         >
           <Info className="size-4" aria-hidden />
         </button>

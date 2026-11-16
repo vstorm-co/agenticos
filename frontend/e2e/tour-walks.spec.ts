@@ -68,13 +68,14 @@ test("an organization's tour opens each settings tab it describes", async ({ pag
 
   await page.goto(`/orgs/${organizationId}/members`);
   const tabFor: Record<string, string> = {
-    "Name and face": "Workspace",
     "Budget and approvals": "Budget and approvals",
-    Proactivity: "Proactivity",
-    Voice: "Workspace",
+    Proactivity: "AI & services",
+    Voice: "AI & services",
     "The AI Architect": "AI & services",
   };
   const seen = await walkPageTour(page, async (title) => {
+    if (title === "Name and face")
+      await expect(page.getByRole("button", { name: "Edit workspace", exact: true })).toBeVisible();
     const tab = tabFor[title];
     if (tab)
       await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("data-state", "active");

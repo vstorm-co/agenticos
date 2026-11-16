@@ -59,7 +59,7 @@ export default async function LocaleLayout({
   const t = await getTranslations("common");
 
   return (
-    <Providers>
+    <Providers toastCloseLabel={t("close")}>
       <NextIntlClientProvider messages={messages}>
         <BrowserTimeZone>
           <a href="#main" className="skip-link">

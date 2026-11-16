@@ -2,6 +2,7 @@
 
 import contextlib
 import uuid
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -66,6 +67,10 @@ class TestMemberService:
                 new=AsyncMock(return_value=[_row("member"), _row("admin")]),
             ),
             patch("app.services.member.member_repo.count_for_org", new=AsyncMock(return_value=2)),
+            patch(
+                "app.services.member.audit_log_repo.latest_member_actions",
+                new=AsyncMock(return_value={}),
+            ),
         ):
             rows, _ = await service.list_for_org(uuid.uuid4(), uuid.uuid4())
 
@@ -91,10 +96,45 @@ class TestMemberService:
                 new=AsyncMock(return_value=[_row("member"), _row("viewer")]),
             ),
             patch("app.services.member.member_repo.count_for_org", new=AsyncMock(return_value=2)),
+            patch(
+                "app.services.member.audit_log_repo.latest_member_actions",
+                new=AsyncMock(return_value={}),
+            ),
         ):
             rows, _ = await service.list_for_org(uuid.uuid4(), uuid.uuid4())
 
         assert all(row[-1] is False for row in rows)
+
+    @pytest.mark.anyio
+    async def test_list_projects_only_the_requested_members_activity(self, service):
+        organization_id, requester_id, quiet_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        requester = MagicMock(role="owner", user_id=requester_id)
+        quiet = MagicMock(role="viewer", user_id=quiet_id)
+        at = datetime(2026, 11, 15, tzinfo=UTC)
+        with (
+            patch("app.services.member.member_repo.get", new=AsyncMock(return_value=requester)),
+            patch(
+                "app.services.member.member_repo.list_for_org",
+                new=AsyncMock(
+                    return_value=[
+                        (requester, "owner@example.com", None, None, None),
+                        (quiet, "quiet@example.com", None, None, None),
+                    ]
+                ),
+            ),
+            patch("app.services.member.member_repo.count_for_org", new=AsyncMock(return_value=2)),
+            patch(
+                "app.services.member.audit_log_repo.latest_member_actions",
+                new=AsyncMock(return_value={requester_id: at}),
+            ) as activity,
+        ):
+            rows, total = await service.list_for_org(organization_id, requester_id)
+        activity.assert_awaited_once_with(
+            service.db, organization_id=organization_id, user_ids=[requester_id, quiet_id]
+        )
+        assert total == 2
+        assert rows[0][-2] == at
+        assert rows[1][-2] is None
 
     @pytest.mark.anyio
     async def test_change_role_raises_if_requester_not_admin_or_owner(self, service):

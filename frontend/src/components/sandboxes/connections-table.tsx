@@ -63,44 +63,43 @@ export function ConnectionsTable({
         // Takes what the others leave and cuts a long name short, rather than
         // pushing the actions off a phone.
         // Bound the name on wider screens instead of separating it from its metadata.
-        className: "w-[32%] pl-5 @max-md/table:w-full",
+        className: "w-[28%] pl-5 @max-md/table:w-full",
         header: t("name"),
         sortable: true,
         sortValue: (connection) => connection.name,
         cell: (connection) => (
-          <div className="flex min-w-0 items-center gap-2">
-            <ConnectionKindIcon
-              kind={connection.kind}
-              className="text-muted-foreground size-4 shrink-0"
-            />
-            <span title={connection.name} className="truncate font-medium">
-              {connection.name}
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <ConnectionKindIcon
+                kind={connection.kind}
+                className="text-muted-foreground size-4 shrink-0"
+              />
+              <span title={connection.name} className="truncate font-medium">
+                {connection.name}
+              </span>
+              {connection.is_default && (
+                <Badge variant="secondary" className="shrink-0 gap-1">
+                  <Star className="h-3 w-3" aria-hidden />
+                  {t("default")}
+                </Badge>
+              )}
+              {!connection.is_active && <Badge variant="outline">{t("off")}</Badge>}
+            </div>
+            <span className="text-muted-foreground mt-1 block pl-6 text-xs">
+              {kindLabel(connection.kind, t)}
             </span>
-            {connection.is_default && (
-              <Badge variant="secondary" className="shrink-0 gap-1">
-                <Star className="h-3 w-3" aria-hidden />
-                {t("default")}
-              </Badge>
-            )}
-            {!connection.is_active && <Badge variant="outline">{t("off")}</Badge>}
           </div>
         ),
       },
       {
-        key: "kind",
-        header: t("kind"),
-        cell: (connection) => (
-          <span className="text-muted-foreground flex items-center gap-2 whitespace-nowrap">
-            <ConnectionKindIcon kind={connection.kind} className="h-3.5 w-3.5" />
-            {kindLabel(connection.kind, t)}
-          </span>
-        ),
-      },
-      {
         key: "address",
+        className: "w-[26%] @max-md/table:w-full",
         header: t("address"),
         cell: (connection) => (
-          <span className="text-muted-foreground font-mono text-xs break-all">
+          <span
+            title={addressLabel(connection)}
+            className="text-muted-foreground block truncate font-mono text-xs"
+          >
             {addressLabel(connection)}
           </span>
         ),
@@ -147,10 +146,11 @@ export function ConnectionsTable({
                 size="sm"
                 onClick={() => onInspect(connection)}
                 aria-label={t("whatNamedAllows", { name: connection.name })}
+                title={t("whatNamedAllows", { name: connection.name })}
               >
                 {/* An icon on a phone, where the words took the name's room. */}
-                <ShieldCheck className="h-4 w-4 sm:hidden" aria-hidden />
-                <span className="max-sm:hidden">{t("whatAllows")}</span>
+                <ShieldCheck className="hidden h-4 w-4 @max-[64rem]/table:block" aria-hidden />
+                <span className="@max-[64rem]/table:hidden">{t("whatAllows")}</span>
               </Button>
             )}
             <Button

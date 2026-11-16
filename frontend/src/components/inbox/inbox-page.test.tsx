@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -48,6 +49,9 @@ const pending = vi.hoisted(() => ({
   refetch: vi.fn(),
 }));
 vi.mock("@/hooks/use-pending-approvals", () => ({ usePendingApprovals: () => pending }));
+vi.mock("@/components/assistant/your-suggestions", () => ({
+  YourSuggestions: () => <section aria-label="Personal suggestion preferences" />,
+}));
 vi.mock("./suggestion-rows", () => ({
   SuggestionRows: ({ items }: { items: Suggestion[] }) => {
     state.shown = items;
@@ -61,7 +65,12 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/inbox",
 }));
 vi.mock("@/components/dashboard/page-header", () => ({
-  PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
+  PageHeader: ({ title, actions }: { title: string; actions?: ReactNode }) => (
+    <header>
+      <h1>{title}</h1>
+      {actions}
+    </header>
+  ),
 }));
 vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
 
@@ -299,4 +308,11 @@ describe("approvals waiting on the reader", () => {
     expect(screen.queryByRole("region", { name: /approvals wait on you/ })).toBeNull();
     expect(screen.getByText("Nothing waits here")).toBeInTheDocument();
   });
+});
+
+it("opens personal delivery preferences from Inbox without a second history view", async () => {
+  render(<InboxPage />);
+  await userEvent.click(screen.getByRole("button", { name: "Inbox preferences" }));
+  expect(screen.getByRole("dialog", { name: "Inbox preferences" })).toBeVisible();
+  expect(screen.getByRole("region", { name: "Personal suggestion preferences" })).toBeVisible();
 });

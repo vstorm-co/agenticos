@@ -1,16 +1,31 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { CheckCheck, CircleAlert, Radar, Sparkles, type LucideIcon } from "lucide-react";
+import {
+  CheckCheck,
+  CircleAlert,
+  Radar,
+  SlidersHorizontal,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
 import { InboxIcon as InboxIcon } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { YourSuggestions } from "@/components/assistant/your-suggestions";
+import { DIALOG_FORM } from "@/lib/dialog-sizes";
 import { ErrorState, LoadingState } from "@/components/states";
 import { useUrlState } from "@/hooks/use-url-state";
 import { SuggestionMark } from "@/components/chat/suggestion-actions";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
   Badge,
   Button,
   ListCard,
@@ -80,7 +95,27 @@ export function InboxPage() {
 
   return (
     <div className="flex flex-1 flex-col space-y-4">
-      <PageHeader title={t("title")} description={t("description")} />
+      <PageHeader
+        title={t("title")}
+        description={t("description")}
+        actions={
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <SlidersHorizontal className="size-4" aria-hidden />
+                {t("preferences")}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className={DIALOG_FORM}>
+              <DialogHeader>
+                <DialogTitle>{t("preferences")}</DialogTitle>
+                <DialogDescription>{t("preferencesDescription")}</DialogDescription>
+              </DialogHeader>
+              <YourSuggestions />
+            </DialogContent>
+          </Dialog>
+        }
+      />
       <ListCard
         fill
         namedByPage

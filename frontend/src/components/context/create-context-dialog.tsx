@@ -1,5 +1,7 @@
 "use client";
 
+import { ContextHelp } from "@/components/ui/context-help";
+
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import {
@@ -171,8 +173,13 @@ export function CreateContextDialog({
     <Dialog open={open} onOpenChange={close}>
       <DialogContent dismissible={!create.isPending} className={cn(DIALOG_COLUMN, DIALOG_FORM)}>
         <DialogHeader>
-          <DialogTitle>{t("newContext")}</DialogTitle>
-          <DialogDescription>{t("availableEveryAgentOrganization")}</DialogDescription>
+          <div className="flex items-center gap-1.5">
+            <DialogTitle>{t("newContext")}</DialogTitle>
+            <ContextHelp>{t("availableEveryAgentOrganization")}</ContextHelp>
+          </div>
+          <DialogDescription className="sr-only">
+            {t("availableEveryAgentOrganization")}
+          </DialogDescription>
         </DialogHeader>
 
         {/* `overflow-auto` is a clipping box, and a focus ring is drawn outside

@@ -1,6 +1,7 @@
 """Saving a visual from the conversation as an app."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Field
@@ -52,3 +53,11 @@ class VisualListItem(BaseSchema):
 
 class VisualList(BaseSchema):
     items: list[VisualListItem]
+
+
+class VisualPreview(BaseSchema):
+    """A caller-owned drawing rebuilt for an isolated client preview."""
+
+    kind: Literal["svg", "html", "mermaid"]
+    title: str
+    content: str

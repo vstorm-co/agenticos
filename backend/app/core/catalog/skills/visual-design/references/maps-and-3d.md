@@ -15,7 +15,7 @@ Start from `templates/route-atlas.html`: locally bundled geography, an explicit 
 
 ## Three dimensions
 
-Start with the existing module-based `templates/scene.html`, then art-direct the subject. Keep three.js imports behind the documented local import map. Use module scope; unsupported bare imports and CDN dependencies do not work in this surface.
+Start with `templates/product-studio.html` for an inspectable product, or the module-based `templates/scene.html` for a teaching model, then art-direct the subject. Keep three.js imports behind the documented local import map. Use module scope; unsupported bare imports and CDN dependencies do not work in this surface.
 
 1. Establish scale with a floor, contact shadow or reference grid; aim the camera at the subject. The main object should fill a useful part of the viewport, with room for labels. Set near/far planes deliberately.
 2. Build a hierarchy of forms, materials and light: a readable silhouette, a restrained accent for the moving part, soft hemisphere fill and a directional key. Use color management and tone mapping supported by the bundled three.js release. Avoid a black unlit object in a dark scene or chrome/glow on every surface.
@@ -25,3 +25,13 @@ Start with the existing module-based `templates/scene.html`, then art-direct the
 6. Catch initialization failures and leave a useful labelled fallback. If WebGL is unavailable, say so; never claim the 3D scene rendered from a lint-only result. Inspect a real screenshot, orbit the camera, test reset and use the controls at phone and desktop widths.
 
 For school, favor comprehensible shapes, annotation and a small experiment. For work, prioritize precise labels, comparisons and source/assumption disclosure. For play, use composition, color and procedural variation while retaining predictable controls and a reproducible seed.
+
+## Model the object before adding an effect
+
+Block out the silhouette, then build the structures that make this particular object recognizable. A camera needs a sculpted shell, a stepped optical barrel, a viewfinder, controls and attachment points; replacing that with a box and one cylinder loses its identity. Use bevels, profiles, extruded outlines or lathed sections where the subject needs them. Primitives are construction pieces, not the finished composition. Keep a legible hierarchy of large, medium and small forms.
+
+Choose material behavior by component: rough grip, brushed or satin metal, coated optical surfaces. Procedural textures can supply grain without a network asset. Use studio fill, a directional key, a restrained reflected environment and a real contact shadow. The bundled product study builds its reflection environment locally; no HDR download or missing addon is required. Keep exposure controlled so a metallic body retains its shape.
+
+Make exploration specific to the object: assembly separation, a material choice or a meaningful cutaway. A generic spin is not an inspection tool. Supply an attractive assembled default, named views, a reset that restores material, assembly and camera, and accessible HTML labels. Fit the subject on a phone as well as in the large viewer. Do not claim exportable manufacturing geometry, physical accuracy or a downloadable model unless the actual tool provides that deliverable.
+
+Use the product study as a modeling and lighting example, not a camera to substitute for every request. For furniture, buildings, vehicles or scientific objects, rebuild the silhouette and relevant components. Inspect the real scene at several angles: hidden intersections, a floating model and a flattened lens may pass code lint but still fail the visual brief.

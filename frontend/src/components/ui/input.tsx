@@ -13,7 +13,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
           // the only sign, and on a form with several inputs it does not say
           // which one it is about.
           FORM_CONTROL,
-          "file:text-foreground touch:min-h-11 flex h-10 scroll-m-4 px-3 py-2 text-base file:border-0 file:bg-transparent file:text-sm file:font-medium md:text-sm",
+          "file:text-foreground touch:min-h-11 flex h-10 scroll-m-4 px-3 py-1.5 text-base file:border-0 file:bg-transparent file:text-sm file:font-medium md:text-sm",
           className,
         )}
         ref={ref}

@@ -48,8 +48,16 @@ const CATALOG = {
       name: "Mistral",
       models: [{ id: "voxtral-mini-latest", name: "Voxtral Mini", description: "Mistral's." }],
     },
+    {
+      provider: "elevenlabs",
+      name: "ElevenLabs",
+      models: [
+        { id: "scribe_v3", name: "Scribe v3", description: "Recorded audio transcription." },
+        { id: "scribe_v2", name: "Scribe v2", description: "Previous transcription model." },
+      ],
+    },
   ],
-  total: 3,
+  total: 4,
   languages: ["en", "pl", "de"],
 };
 
@@ -168,8 +176,9 @@ async function mount(stored: Partial<Organization> = {}, served: Served = {}) {
   serve(served);
   render(<OrgVoiceSettings org={org(stored)} />, { wrapper });
   await screen.findByRole("heading", { name: "Voice" });
-  // The vault decides which providers have a key; wait for it to arrive.
-  await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/secrets"));
+  await waitFor(() =>
+    expect(apiClient.get).toHaveBeenCalledWith("/providers/speech-to-text-models"),
+  );
 }
 
 async function choose(field: string | RegExp, option: string | RegExp) {
@@ -225,7 +234,7 @@ describe("OrgVoiceSettings", () => {
   it("offers a provider with no key yet, and says how to add one", async () => {
     await mount({}, { vault: [] });
 
-    await choose("Provider", "OpenAI (no usable key)");
+    await choose("Provider", "OpenAI");
     expect(
       await screen.findByText(/No organization-wide OpenAI keys in the vault yet/),
     ).toBeInTheDocument();
@@ -233,7 +242,7 @@ describe("OrgVoiceSettings", () => {
 
   it("names an existing private OpenAI key and explains its required access", async () => {
     await mount({}, { vault: [key("Private OpenAI", "openai", "private")] });
-    await choose("Provider", "OpenAI (no usable key)");
+    await choose("Provider", "OpenAI");
     expect(
       await screen.findByText(/Private OpenAI.*shared with the whole organization/),
     ).toBeVisible();
@@ -242,7 +251,7 @@ describe("OrgVoiceSettings", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the provider's fields, marking providers with no organization-wide key", async () => {
+  it("shows provider names without credential annotations", async () => {
     await mount();
 
     await choose("Provider", "OpenAI");
@@ -258,9 +267,9 @@ describe("OrgVoiceSettings", () => {
 
     // A private Mistral key does not count: this one is spent for everybody.
     await userEvent.click(screen.getByRole("combobox", { name: "Provider" }));
-    expect(
-      await screen.findByRole("option", { name: "Mistral (no usable key)" }),
-    ).not.toHaveAttribute("aria-disabled");
+    expect(await screen.findByRole("option", { name: "Mistral" })).not.toHaveAttribute(
+      "aria-disabled",
+    );
     expect(screen.getByRole("option", { name: "Groq" })).toBeInTheDocument();
   });
 
@@ -704,4 +713,24 @@ describe("OrgVoiceSettings", () => {
       expect(screen.queryByRole("region", { name: "Transcription usage" })).toBeNull();
     });
   });
+});
+
+it("saves ElevenLabs Scribe with its explicit organization-wide vault key", async () => {
+  vi.clearAllMocks();
+  vi.mocked(apiClient.patch).mockResolvedValue(org());
+  useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
+  useOrgStore.setState({ activeOrgId: ORG_ID });
+  await mount({}, { vault: [...VAULT, key("team-elevenlabs", "elevenlabs")] });
+  await choose("Provider", "ElevenLabs");
+  expect(screen.getByRole("combobox", { name: "Model" })).toHaveTextContent("Scribe v3");
+  await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  await waitFor(() =>
+    expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
+      speech_to_text_language: null,
+      dictation_max_seconds: 300,
+      speech_to_text_provider: "elevenlabs",
+      speech_to_text_model: "scribe_v3",
+      speech_to_text_secret_id: "team-elevenlabs",
+    }),
+  );
 });

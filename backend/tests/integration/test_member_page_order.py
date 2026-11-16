@@ -90,3 +90,42 @@ async def test_the_same_page_comes_back_the_same_way_twice(db) -> None:
     again = await member_repo.list_for_org(db, organization.id, skip=5, limit=5)
 
     assert [row[0].id for row in first] == [row[0].id for row in again]
+
+
+async def test_member_action_stays_in_its_org_and_excludes_impersonation(db) -> None:
+    from datetime import timedelta
+
+    from app.db.models.audit_log import AppAdminAuditLog
+    from app.repositories import audit_log as audit_repo
+
+    organization = await _org(db)
+    other = await _org(db)
+    member = await _member(db, organization, 1)
+    quiet = await _member(db, organization, 2)
+    for org_id, actor, impersonator, at in [
+        (organization.id, member.user_id, None, JOINED),
+        (other.id, member.user_id, None, JOINED + timedelta(days=1)),
+        (organization.id, member.user_id, other.created_by_user_id, JOINED + timedelta(days=2)),
+        (organization.id, quiet.user_id, other.created_by_user_id, JOINED + timedelta(days=3)),
+    ]:
+        db.add(
+            AppAdminAuditLog(
+                organization_id=org_id,
+                actor_user_id=actor,
+                impersonator_user_id=impersonator,
+                action="test.member-action",
+                entry_hash="fixture",
+                created_at=at,
+            )
+        )
+    await db.flush()
+    assert await audit_repo.latest_member_actions(
+        db, organization_id=organization.id, user_ids=[member.user_id, quiet.user_id]
+    ) == {member.user_id: JOINED}
+    assert await audit_repo.latest_member_actions(
+        db, organization_id=other.id, user_ids=[member.user_id]
+    ) == {member.user_id: JOINED + timedelta(days=1)}
+    assert (
+        await audit_repo.latest_member_actions(db, organization_id=organization.id, user_ids=[])
+        == {}
+    )

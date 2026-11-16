@@ -1,5 +1,5 @@
 ---
-source_sha: "4154d0af5d18"
+source_sha: "fc26a8af977d"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
 description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y budgets, redes de seguridad y transcripciones."
@@ -82,6 +82,7 @@ sitio donde se nombra un modelo realtime.
 | Azure OpenAI | un deployment de `gpt-realtime` | Relay | **No verificado en vivo** |
 | Google | Gemini Live: `gemini-2.5-flash-native-audio-latest`, `gemini-3.1-flash-live-preview` | Relay | **No verificado en vivo** |
 | xAI | `grok-voice-latest`, facturado por minuto | Relay | **No verificado en vivo** |
+| ElevenLabs | `eleven_realtime_v1_mini`, `eleven_realtime_v1_max` | Relay | **No verificado en vivo** |
 
 Solo OpenAI se pudo probar contra una cuenta real. Azure, Gemini y xAI están
 construidos a partir de la documentación de los providers y de Pydantic AI, y
@@ -437,3 +438,9 @@ Confirmar, resolver o silenciar el caso, o leer su notificación, cancela las ll
 No se permite eliminar cuentas ni organizaciones mientras haya llamadas telefónicas sin finalizar. Finaliza las llamadas y espera su estado final antes de volver a intentar la eliminación; así se conservan los callbacks del proveedor y los límites de duración. La exportación personal incluye todos los casos, incluso sin intento telefónico, y todo su contenido cuenta para el límite de tamaño de la exportación.
 
 También se rechaza cambiar las credenciales del bot SMS hasta que terminen sus llamadas telefónicas. La cancelación durante una solicitud de llamada guarda la intención de finalizar y cuelga en cuanto llega el identificador del proveedor. La limpieza confirma esa intención antes de contactar al proveedor, permitiendo que los callbacks de estado firmados liquiden el registro a la vez.
+
+ElevenLabs Realtime incorpora `eleven_realtime_v1_mini` y `eleven_realtime_v1_max` mediante el relay PCM de 24 kHz, con la voz predeterminada `brian` y detección semántica de turnos.
+
+El SDK no informa los cargos por tokens. Las llamadas con un presupuesto de gasto se rechazan antes de conectar. Las llamadas sin presupuesto conservan el límite de tiempo y registran el coste de audio como límite inferior, no como factura completa. La tarifa de audio es de 0,08 USD/minuto (0,16 USD con burst); los tokens se cobran aparte. El contexto de 16k es un límite conservador de historial de la plataforma, no una ventana de contexto publicada por el proveedor. La integración se ha probado sin conexión mediante la construcción de modelos SDK y transportes controlados, no con cuentas reales. [SDK](https://pydantic.dev/docs/ai/api/realtime/elevenlabs/), [ElevenLabs API pricing](https://elevenlabs.io/pricing/api).
+
+Si se omite el idioma de la llamada se usa inglés; el selector muestra ese valor en lugar de ofrecer detección automática.

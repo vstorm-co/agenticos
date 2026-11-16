@@ -519,6 +519,7 @@ export const qk = {
   },
   // The drawings agents made for the caller (#2171).
   visuals: {
+    preview: (id: string) => ["visuals", "preview", id] as const,
     all: () => ["visuals"] as const,
     recent: (limit: number) => ["visuals", "recent", limit] as const,
   },

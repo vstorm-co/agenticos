@@ -136,6 +136,13 @@ export function SkillCheckDialog({
   }, [estimate.error, onLineMoved]);
   const [decidedIn, setDecidedIn] = useState<string | null>(null);
   const failed = (error: unknown) => {
+    if (
+      proposalId !== null &&
+      error instanceof ApiError &&
+      error.code === "NOT_FOUND" &&
+      error.details?.skill_id === skillId
+    )
+      return;
     if (onLineMoved && lineMoved(error)) {
       onLineMoved();
       return;
@@ -153,7 +160,17 @@ export function SkillCheckDialog({
     if (typeof open === "string") setCheckId(open);
     else failed(error);
   };
-  const plan = check === null ? (estimate.data ?? null) : null;
+  // A proposal can be decided in another tab while its cached row is still visible.
+  const proposalGone = (error: unknown) =>
+    proposalId !== null &&
+    error instanceof ApiError &&
+    error.code === "NOT_FOUND" &&
+    error.details?.skill_id === skillId;
+  const unavailable = check === null && (proposalGone(estimate.error) || proposalGone(start.error));
+  const plan =
+    check === null && (!estimate.isError || lineMoved(estimate.error)) && !unavailable
+      ? (estimate.data ?? null)
+      : null;
   const unchecked = plan !== null && nobodyCheckable(plan);
   const noReaders = plan !== null && plan.agents.length + plan.hidden === 0;
   const unknownFor = (...reasons: string[]) =>
@@ -167,8 +184,17 @@ export function SkillCheckDialog({
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
-        {estimate.isError && (
+        {estimate.isError && !unavailable && (
           <p className="text-destructive text-sm">{getErrorMessage(estimate.error, tErrors)}</p>
+        )}
+        {unavailable && (
+          <div role="status" className="bg-muted/40 space-y-2 rounded-lg border p-4">
+            <p className="text-sm font-medium">{t("proposalGoneTitle")}</p>
+            <p className="text-muted-foreground text-sm">{t("proposalGoneDescription")}</p>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              {t("backToChanges")}
+            </Button>
+          </div>
         )}
         {check === null && reading.error !== null && (
           <p role="alert" className="text-destructive text-sm">

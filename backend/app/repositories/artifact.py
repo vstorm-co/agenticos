@@ -28,6 +28,7 @@ from app.db.models.artifact import (
 )
 from app.db.models.conversation import Conversation
 from app.db.models.resource_grant import Visibility
+from app.db.models.workflow_run import WorkflowRun
 from app.repositories._search import contains_ci
 
 
@@ -377,6 +378,29 @@ async def update(db: AsyncSession, *, artifact: Artifact, update_data: dict[str,
     await db.flush()
     await db.refresh(artifact)
     return artifact
+
+
+async def lock_for_delete(db: AsyncSession, artifact: Artifact) -> None:
+    """Take every source lock without waiting; the caller owns a savepoint.
+
+    Waiting on a run while holding its App can block a writer's FK recheck
+    on a second event flush, even when the FK value did not change. NOWAIT
+    lets the caller release every partial lock before trying again.
+    """
+    await db.execute(
+        select(Artifact.id)
+        .where(Artifact.id == artifact.id, Artifact.organization_id == artifact.organization_id)
+        .with_for_update(nowait=True)
+    )
+    await db.execute(
+        select(WorkflowRun.id)
+        .where(
+            WorkflowRun.source_artifact_id == artifact.id,
+            WorkflowRun.organization_id == artifact.organization_id,
+        )
+        .order_by(WorkflowRun.id)
+        .with_for_update(nowait=True)
+    )
 
 
 async def delete_artifact(db: AsyncSession, artifact: Artifact) -> None:

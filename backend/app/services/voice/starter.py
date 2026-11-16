@@ -237,6 +237,12 @@ class VoiceCallStarter:
             # page's do not, and with no channel the agent is offered no `ask_user`.
             prepared.built.deps.ask_questions = questions
         headroom = await prepared.built.budget.headroom()
+        if resolved.entry.unreported_token_usage and headroom is not None:
+            raise VoiceRefused(
+                "not_priced",
+                "This provider does not report its token charges. Choose a metered voice model "
+                "when a spending budget must be enforced.",
+            )
         if limits.budget_refuses(
             headroom=headroom, worst=limits.worst_case_usd(cap_seconds=cap, entry=resolved.entry)
         ):

@@ -125,6 +125,7 @@ export function WidgetOptionsMenu({
           <Group label={t("options.agent")}>
             <Picker
               value={options?.agentId ?? ANY}
+              label={t("options.agent")}
               placeholder={t("options.allAgents")}
               onSelect={(value) => set({ agentId: value === ANY ? undefined : value })}
               items={[
@@ -152,6 +153,7 @@ export function WidgetOptionsMenu({
           <Group label={t("options.person")}>
             <Picker
               value={options?.userId ?? ANY}
+              label={t("options.person")}
               placeholder={t("options.everyone")}
               onSelect={(value) => set({ userId: value === ANY ? undefined : value })}
               items={[
@@ -243,6 +245,7 @@ function Choices({
 function Picker({
   value,
   items,
+  label,
   placeholder,
   onSelect,
 }: {
@@ -250,11 +253,12 @@ function Picker({
   /** `mark` is the face beside a name - an agent's, a colleague's. */
   items: { value: string; label: string; mark?: React.ReactNode }[];
   placeholder: string;
+  label: string;
   onSelect: (value: string) => void;
 }) {
   return (
     <Select value={value} onValueChange={onSelect}>
-      <SelectTrigger className="h-8 text-xs">
+      <SelectTrigger className="h-8 text-xs" aria-label={label}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>

@@ -171,6 +171,8 @@ export interface OrganizationMember {
    *  Optional because only the members list computes it; absent reads as "no",
    *  which is the safe default for a control that would otherwise 403. */
   can_change_role?: boolean;
+  /** Latest audited action in this workspace, not a sign-in or visit. */
+  last_action_at?: string | null;
 }
 
 export interface OrganizationMemberList {

@@ -16,6 +16,7 @@ import {
   runInputFrom,
   serverFieldProblems,
 } from "@/lib/workflows/input-fields";
+import { Label } from "@/components/ui/label";
 
 /** What a workflow's public form shows - `WorkflowFormPage`. */
 export interface PublicFormPage {
@@ -164,7 +165,7 @@ export function PublicForm({ page, token, onSubmitValues, preview = false }: Pub
         ))}
       </fieldset>
       <div aria-hidden="true" className="absolute -left-[9999px] h-px w-px overflow-hidden">
-        <label htmlFor="form-website">{t("trapLabel")}</label>
+        <Label htmlFor="form-website">{t("trapLabel")}</Label>
         <input
           id="form-website"
           name="website"

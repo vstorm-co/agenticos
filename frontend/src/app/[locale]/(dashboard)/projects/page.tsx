@@ -78,6 +78,7 @@ export default function ProjectsPage() {
     <div className="flex flex-1 flex-col space-y-4">
       {header}
       <ListCard
+        layout="grid"
         fill
         data-tour="projects-list"
         namedByPage

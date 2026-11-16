@@ -303,7 +303,8 @@
     "viewRelease": "Sürümü görüntüle",
     "whatsNewTitle": "{version} sürümündeki yenilikler",
     "whatsNewDescription": "Kullandığınız sürümdeki son değişiklikler.",
-    "whatsNewDone": "Anladım"
+    "whatsNewDone": "Anladım",
+    "developerAccess": "API ve MCP"
   },
   "layout": {
     "breadcrumb": "Gezinme yolu",
@@ -620,7 +621,6 @@
   "skills": {
     "addFile": "Dosya ekle",
     "apply": "Uygula",
-    "applyChangeTo": "Değişikliği {name} öğesine uygula",
     "availableEveryAgentOrganization": "Kimlerin kullanabileceğini aşağıdan seçin. Bir Agent'a eklendiğinde Agent bunu okur.",
     "cancel": "İptal",
     "cancel2": "İptal",
@@ -628,8 +628,6 @@
     "category2": "Kategori",
     "changeApplied": "{name} öğesine uygulandı",
     "changeDiscarded": "{name} için yapılan değişiklikten vazgeçildi",
-    "changesAgentProposed": "Agent'ın önerdiği değişiklikler",
-    "changesWaitingDetail": "{count, plural, =1 {1 değişiklik bekliyor} other {# değişiklik bekliyor}}. Birini kabul etmek skill'i yeniden yazar; bir sonraki çalıştırmada bu skill'e bağlı her Agent'a ulaşır.",
     "close": "Kapat",
     "create": "Oluştur",
     "created": "{name} oluşturuldu",
@@ -650,7 +648,6 @@
     "fileSaved": "Dosya kaydedildi",
     "fileTree": "Skill dosyaları",
     "files": "Dosyalar",
-    "files2": "Dosyalar",
     "files3": "Dosyalar",
     "filesUploaded": "{count, plural, =1 {1 dosya yüklendi} other {# dosya yüklendi}}",
     "folder": "Klasör",
@@ -721,6 +718,28 @@
         "files": "Dosyalar",
         "noFiles": "Dosya yok."
       }
+    },
+    "reviewUpdates": {
+      "title": "Skill güncellemeleri",
+      "summary": "{count, plural, =1 {İncelenecek 1 güncelleme} other {İncelenecek # güncelleme}}",
+      "agents": "{count, plural, =1 {Etkilenen 1 Agent} other {Etkilenen # Agent}}",
+      "files": "{count, plural, =1 {1 başvuru dosyası} other {# başvuru dosyası}}",
+      "library": "Kütüphane güncellemesi",
+      "impact": "Etkilenen Agentlar",
+      "instructions": "Önerilen talimatlar",
+      "preview": "Önizleme",
+      "compare": "Mevcut skill ile karşılaştır",
+      "compareFailed": "Mevcut skill yüklenemedi. Tekrar denemek için incelemeyi yeniden açın.",
+      "apply": "Güncellemeyi uygula",
+      "testOptional": "Uygulamadan önce test et (isteğe bağlı)",
+      "hiddenAgents": "{count, plural, one {# diğer ajan} other {# diğer ajan}}",
+      "testOptionalShort": "Test (isteğe bağlı)",
+      "compareShort": "Değişiklikler"
+    },
+    "check": {
+      "proposalGoneTitle": "Bu güncelleme artık beklemede değil",
+      "proposalGoneDescription": "Başka bir oturumda uygulandı, reddedildi veya değiştirildi. Liste yenilendi.",
+      "backToChanges": "Güncellemelere dön"
     }
   },
   "workflows": {
@@ -2748,6 +2767,7 @@
       "moreUploads": "Yükleme kuyruğunda {count, plural, one {# dosya daha} other {# dosya daha}}"
     },
     "orgs": {
+      "searchOrganizations": "Organizasyonlarda ara…",
       "searchPermissions": "İzinlerde ara…",
       "noPermissionsMatch": "Aramanızla eşleşen izin yok",
       "retention": "Saklama süresi",
@@ -2814,12 +2834,17 @@
       "workspaces": "Kuruluşlar",
       "you": "(siz)",
       "yourRoleHere": "Buradaki rolünüz: <badge>{role}</badge>",
-      "tabProfile": "Çalışma alanı",
       "tabGovernance": "Budget ve onaylar",
-      "tabProactivity": "Proaktiflik",
       "tabAssistant": "Yapay zekâ ve hizmetler",
-      "workspaceSettingsHint": "Kuruluş kimliği ve ajanların ve kanal botlarının devraldığı varsayılan ses ayarları.",
-      "aiServicesHint": "Kuruluş Architect’ini, bellek bakımı ve özetler için arka plan hizmetlerini yapılandırın. Öneri ve izleme ilkeleri Proaktiflik sekmesindedir."
+      "editWorkspace": "Çalışma alanını düzenle",
+      "workspaceAppearanceHint": "Bu çalışma alanının adı, avatarı ve rengi.",
+      "searchMembers": "Üye ara…",
+      "filterRole": "Role göre filtrele",
+      "allRoles": "Tüm roller",
+      "noMatchingMembers": "Aramanızla eşleşen üye yok.",
+      "lastAction": "Son kayıtlı işlem",
+      "lastActionHint": "Bu çalışma alanındaki denetim kayıtları. Ziyaretler ve başka kullanıcı adına yapılan işlemler dahil değildir.",
+      "noRecordedAction": "Kayıtlı işlem yok"
     },
     "admin": {
       "active": "Etkin",
@@ -3099,6 +3124,7 @@
       "discordGuildsInvalid": "Virgül veya boşlukla ayrılmış ondalık sunucu ID’leri girin (en fazla 2.500 sunucu)."
     },
     "agents": {
+      "voiceUnreportedTokenUsage": "Bu sağlayıcı token ücretlerini bildirmez. Harcama bütçesi olan aramalar başlatılamaz; kaydedilen ses maliyeti bir alt sınırdır.",
       "agentAposSBehaviour": "Agentın davranış talimatları kodda değil, burada bulunur. Ne yapması, neyi reddetmesi ve nasıl kaynak göstermesi gerektiğini açıkça belirtin. Markdown kullanın; model yapıyı okur. Uzun bir promptun izlenebilmesi için başlıklar ve listeler önemlidir; önizleme de bu yapıyı görüntüleyebilmenizi sağlar.",
       "agentAposSOwn": "Bu agentın kendi aylık harcama sınırı. Kuruluşun sınırı ayrıca geçerlidir; agent bu sınırı düşürebilir ama yükseltemez. Adım sınırı başka türden kontrolsüz çalışmayı yakalar: çağrı başına ucuz olan ama hiç bitmeyen araç döngüsü.",
       "agentCannotBePublished": "Bu agent henüz yayımlanamaz",
@@ -3597,7 +3623,9 @@
       "notificationNoMatches": "Eşleşen bildirim yok",
       "notificationSearchHint": "Olay adını veya açıklamasından bir kelimeyi deneyin.",
       "notificationClearSearch": "Aramayı temizle",
-      "notificationEventCount": "{count, plural, =1 {1 olay} other {# olay}}"
+      "notificationEventCount": "{count, plural, =1 {1 olay} other {# olay}}",
+      "mobileAccountHint": "AgenticOS’u aynı hesapla telefonunuzda kullanın.",
+      "openMobileApp": "Mobil uygulamayı kur"
     },
     "rag": {
       "active": "Etkin",
@@ -4739,6 +4767,9 @@
     "serverUrl": "Server URL'si",
     "client": "MCP client",
     "servers": "Server'lar",
+    "catalogLoadFailed": "Sunucular yüklenemedi",
+    "noServersMatch": "Sunucu bulunamadı",
+    "noServersMatchHint": "Aramayı değiştirin veya filtreleri temizleyin. Özel bir sunucu da ekleyebilirsiniz.",
     "settings": "Ayarlar",
     "stateDisabled": "Devre dışı",
     "storedEncryptedNeverShown": "Şifrelenerek saklanır ve bir daha gösterilmez.",
@@ -9386,6 +9417,8 @@
       "spokenBy": "Voice: {voice}",
       "generateVideo": "Video",
       "generatingVideo": "Video oluşturuluyor",
+      "selectingWorkspace": "Proje çalışma alanı seçiliyor",
+      "selectedWorkspace": "Proje çalışma alanı seç",
       "videoNotStored": "Video oluşturuldu ama saklanmadı.",
       "suggestingNextSteps": "Sonraki adımlar öneriliyor",
       "nextSteps": "Sonraki adımlar",
@@ -9855,7 +9888,8 @@
       },
       "makeSkill": "Bundan skill oluştur",
       "makeSkillAsk": "Bundan bir skill oluştur; böylece herhangi bir agent sonraki sefer bunu aynı şekilde yapabilir.\n\nİsteğim:\n{request}\n\nVerilen yanıt:\n{answer}",
-      "makeSkillFromConversation": "Bundan bir skill oluştur; böylece sonraki sefer her Agent aynı şekilde yapabilir. Önce read_conversation ile konuşmanın tamamını oku; id'si {conversation}.\n\nİstediğim:\n{request}"
+      "makeSkillFromConversation": "Bundan bir skill oluştur; böylece sonraki sefer her Agent aynı şekilde yapabilir. Önce read_conversation ile konuşmanın tamamını oku; id'si {conversation}.\n\nİstediğim:\n{request}",
+      "projectsUsed": "Kullanılan projeler"
     },
     "suggestions": {
       "label": "Size öneriler",
@@ -10968,8 +11002,8 @@
       "cancel": "İptal",
       "save": "Değişiklikleri kaydet",
       "saved": "Ses ayarları kaydedildi",
-      "providerNoKey": "{name} (kullanılabilir key yok)",
-      "notReadyNoKey": "{provider} için key seçilmedi. Bunu devralan agent’lar ve botlar aşağıdan bir key seçene kadar provider ile transkripsiyon yapamaz."
+      "notReadyNoKey": "{provider} için key seçilmedi. Bunu devralan agent’lar ve botlar aşağıdan bir key seçene kadar provider ile transkripsiyon yapamaz.",
+      "summary": "Varsayılan transkripsiyon sağlayıcısı ve kayıt sınırları."
     },
     "publicAttribution": "Paylaşılan sayfalarda AgenticOS",
     "publicAttributionDescription": "Herkese açık uygulama, pano ve raporlarda yüzen bir AgenticOS rozeti ve GitHub bağlantısı; paylaşılan konuşmaların altında aynı rozeti gösterin.",
@@ -10991,8 +11025,6 @@
       "configure": "Model ve bütçeyi yapılandır",
       "on": "Açık",
       "off": "Kapalı",
-      "managedIn": "{model} üzerinde çalışır. Ortak model ve sınır Proaktiflik sekmesinde yapılandırılır.",
-      "managedInNoModel": "Henüz model seçilmedi. Proaktiflik sekmesinde yapılandırın.",
       "enabled": "Bu rolü çalıştır",
       "model": "Model",
       "modelHint": "Rol, o anda istenmemiş bir iş için para harcadığından model açıkça seçilir.",
@@ -11017,7 +11049,8 @@
           "what": "Tamamlanan bir sohbeti okuyarak kalıcı bilgileri, tercihleri ve kararları sohbetin kapsamına kaydeder. Kapalıyken veya modeli yokken çalışmaz."
         }
       },
-      "starterAgentMissing": "Bu rol şu anda çalışmıyor: kayıt için kullandığı AgenticOS başlangıç temsilcisi eksik, yayınlanmamış veya yeniden adlandırılmış. agenticos adıyla yeniden yayınlayın."
+      "starterAgentMissing": "Bu rol şu anda çalışmıyor: kayıt için kullandığı AgenticOS başlangıç temsilcisi eksik, yayınlanmamış veya yeniden adlandırılmış. agenticos adıyla yeniden yayınlayın.",
+      "summary": "Platform hizmetlerinin modelleri, bütçeleri ve son çalışmaları."
     },
     "proactive": {
       "budgetTitle": "Bütçe ve sınırlar",
@@ -11057,7 +11090,8 @@
       "watchMinutesHint": "Bir watch’ın en sık ne zaman kontrol edebileceği. Daha sık kontrol daha maliyetlidir.",
       "switchOrganizationHint": "Proactivity’yi yapılandırmadan önce bu kuruluşa geçin; böylece buradaki model profilleri ve key’ler kullanılır.",
       "switchOrganization": "{name} kuruluşuna geç",
-      "runAttribution": "Öneriler ayrı bir model kullanır; izleme, seçilen temsilcinin modelini kullanır. Her iki özellik de üye başına aylık arka plan çalışma bütçesini paylaşır."
+      "runAttribution": "Öneriler ayrı bir model kullanır; izleme, seçilen temsilcinin modelini kullanır. Her iki özellik de üye başına aylık arka plan çalışma bütçesini paylaşır.",
+      "summary": "Öneriler, izleme ve teslimat zamanları."
     }
   },
   "groups": {
@@ -12554,18 +12588,15 @@
     "defaultName": "Architect"
   },
   "assistantSettings": {
-    "notForYou": "Rolünüz agent çalıştırma izni içermediğinden asistanı kullanamazsınız. Yönetici bunu değiştirebilir.",
     "yours": "İpuçlarınız",
     "yoursDescription": "Asistanın konsol çevresinde size gösterdiği konuşma balonları. Bu tarayıcı tercihlerinizi hatırlar.",
     "showTips": "Konuşma balonlarında ipuçlarını göster",
     "unsilence": "{count, plural, =1 {İpuçlarını susturduğum 1 sayfada yeniden göster} other {İpuçlarını susturduğum # sayfada yeniden göster}}",
     "organization": "Kuruluş için",
-    "organizationDescription": "AI Architect diğer agentlar gibi bir agenttır: adını, modelini ve bilgisini Agent Builder’da düzenleyin. Açma-kapama ayarı ve karşılama mesajı kuruluş sayfasındadır.",
     "openBuilder": "Agent Builder’da aç",
-    "openOrganization": "Kuruluş ayarları",
     "suggestions": {
       "title": "Otomatik öneriler",
-      "description": "AgenticOS’un Inbox ve brifing üzerinden proaktif öneriler gönderip göndermeyeceğini belirleyin. Burada geçmişi görebilir ve reddedilen önerileri geri getirebilirsiniz. Bu ayar konuşmalardaki yanıtları yönetmez.",
+      "description": "AgenticOS’un senin için otomatik öneriler hazırlayıp hazırlamayacağını seç. Önerileri Gelen Kutusunda incele ve kapattıklarını geri getir.",
       "forMe": "Bana yönelik gece önerileri",
       "orgOff": "Kuruluşunuzda gece önerileri kapalı olduğundan henüz öneri oluşturulmadı.",
       "turnedOn": "Gece önerileri sizin için açıldı",
@@ -12577,8 +12608,7 @@
         "open": "Bekliyor",
         "accepted": "Kabul edildi",
         "dismissed": "Reddedildi"
-      },
-      "openInbox": "Inbox’u aç"
+      }
     }
   },
   "orgAssistant": {
@@ -12590,7 +12620,8 @@
     "needsModel": "Henüz modeli yok; bu nedenle yanıt veremez. Agent Builder’daki Model bölümünden bir model seçin.",
     "greeting": "Karşılama mesajı",
     "greetingHint": "Birisi açtığında söylediği. Varsayılanı kullanmak için boş bırakın.",
-    "save": "Kaydet"
+    "save": "Kaydet",
+    "summary": "Çalışma alanı asistanını ve karşılamasını yapılandırın."
   },
   "appearance": {
     "description": "Konsolun sizin için nasıl görünüp davrandığı. Bu tarayıcıda saklanır ve hemen uygulanır.",
@@ -12833,7 +12864,6 @@
     "accountNamed": "{server} ({account})",
     "createdWhere": "Routines altında bulunur; buldukları gelen kutunuza düşer.",
     "seeIt": "Görüntüle",
-    "manageInRoutines": "Watch’larınızı Routines’ten yönetin",
     "watchAndInform": "İzle ve bildir"
   },
   "inbox": {
@@ -12863,6 +12893,8 @@
       "finding": "Rutin"
     },
     "openWorkingChat": "Sohbeti aç",
+    "preferences": "Gelen kutusu tercihleri",
+    "preferencesDescription": "Gelen kutuna hangi otomatik önerilerin ulaşacağını seç.",
     "approvals": {
       "title": "{count, plural, =1 {1 onay sizi bekliyor} other {# onay sizi bekliyor}}",
       "open": "Onayları aç",
@@ -13174,9 +13206,9 @@
   },
   "setupHints": {
     "title": "Yapılandırma mevcut",
-    "voiceModel": "Ses için varsayılan sağlayıcı veya model yok. Sağlayıcı üzerinden transkripsiyon için Çalışma alanı → Ses bölümünde seçin.",
-    "voiceKey": "Ses sağlayıcısı ve modeli var ancak anahtar yok. Çalışma alanı → Ses bölümünde kuruluş anahtarı seçin.",
-    "proactivityOff": "Gece önerileri kapalı. Asistanın ekibiniz için öneriler hazırlamasını istiyorsanız Proaktiflik bölümünde açın.",
+    "voiceModel": "Ses için varsayılan sağlayıcı veya model yok. Sağlayıcı üzerinden transkripsiyon için Yapay zekâ ve hizmetler → Ses bölümünde seçin.",
+    "voiceKey": "Ses sağlayıcısı ve modeli var ancak anahtar yok. Yapay zekâ ve hizmetler → Ses bölümünde kuruluş anahtarı seçin.",
+    "proactivityOff": "Gece önerileri kapalı. Asistanın ekibiniz için öneriler hazırlamasını istiyorsanız Yapay zekâ ve hizmetler → Öneriler ve izleme bölümünde açın.",
     "proactivityModel": "Gece önerileri açık ancak model seçilmedi. Proaktiflik bölümünde bir model seçin.",
     "memoryModel": "Bellek bakımı için model seçilmedi. Otomatik bellek bakımı için Yapay zekâ ve hizmetler → Arka plan hizmetleri bölümünde model seçin.",
     "architectModel": "Architect bir model gerektiriyor. Yapay zekâ ve hizmetler üzerinden Agent Builder’da açın ve bir model seçin.",
