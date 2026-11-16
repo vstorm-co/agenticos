@@ -24,6 +24,7 @@ from app.services.integrations.odoo import execute as execute_odoo_operation
 from app.services.integrations.service import (
     AccountSelection,
     AccountToken,
+    IntegrationAccountRequired,
     IntegrationService,
     OdooAccountToken,
     can_read_feed,
@@ -38,6 +39,7 @@ __all__ = [
     "ApplicationGrant",
     "Change",
     "Changes",
+    "IntegrationAccountRequired",
     "IntegrationService",
     "IntegrationSetup",
     "OdooAccountToken",

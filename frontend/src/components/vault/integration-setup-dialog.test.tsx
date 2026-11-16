@@ -120,3 +120,21 @@ describe("IntegrationSetupDialog", () => {
     ).toBeInTheDocument();
   });
 });
+
+it("keeps the current conversation as the OAuth return and preselects its product", async () => {
+  render(
+    <IntegrationSetupDialog
+      owner="personal"
+      provider="google"
+      initialProducts={["gmail"]}
+      returnTo="/en/chat?conversation=existing-chat"
+      onClose={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("checkbox", { name: "Gmail" })).toBeChecked();
+  await userEvent.click(screen.getByRole("button", { name: "Continue to account consent" }));
+  expect(connect).toHaveBeenCalledWith(
+    "/en/chat?conversation=existing-chat",
+    expect.objectContaining({ provider: "google", products: ["gmail"] }),
+  );
+});

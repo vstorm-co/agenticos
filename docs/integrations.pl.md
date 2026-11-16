@@ -1,10 +1,10 @@
 ---
-source_sha: "2e56e827219e"
+source_sha: "864476c5a2d0"
 ---
 
 # Wbudowane integracje { #built-in-integrations }
 
-Połącz konto w **Ustawienia → Vault → Połączone konta**. Każdy produkt Google, Microsoft i Slack ma osobną capability w **Toolboxie** agenta: wybór konta i przełączniki poszczególnych narzędzi. Integracje używają bezpośrednio API dostawców. Nie wymagają serwerów MCP dostawców, programu Google Workspace MCP Preview ani licencji Microsoft Copilot.
+Podłącz konta w **Vault → Podłącz konto**. Konta osobiste można też podłączyć lub naprawić bezpośrednio w **Ustawienia czatu → Narzędzia → Twoje konta** w `/chat`. Możesz podłączyć kilka kont tego samego dostawcy. Każdy produkt Google, Microsoft i Slack ma osobną capability w **Toolboxie** agenta, z wyborem kont i przełącznikami narzędzi. Integracje używają bezpośrednio API dostawców; nie wymagają ich serwerów MCP, programu Google Workspace MCP Preview ani licencji Microsoft Copilot.
 
 ## Konfiguracja konta { #set-up-an-account }
 
@@ -42,7 +42,11 @@ Produkty Microsoft: Outlook mail, Calendar, pliki OneDrive/SharePoint, Excel, do
 
 Czytniki Drive, SharePoint i Slack pobierają token uprawnionego konta przed każdym żądaniem do dostawcy. Długi sync może dzięki temu odnowić OAuth bez przechowywania sekretów odświeżania w konfiguracji konektora. Cofnięcie grantu do konta wejściowego zatrzymuje też polling natywnych triggerów przed otwarciem tokenu. Triggery plików Microsoft rozpoznają własne edycje konta aplikacyjnego po skonfigurowanym użytkowniku i identyfikatorze aplikacji; domyślny filtr je pomija.
 
-Wybierz **personal**, aby użyć konta aktualnej osoby po dokładnej nazwie, etykiecie lub adresie. Pusta nazwa działa tylko przy jednym pasującym koncie. Narzędzia osobiste wymagają prywatnej rozmowy i aktualnego członkostwa w organizacji. Dla wspólnych automatyzacji wybierz **organization** i ID połączenia. Capability nie pożycza konta innego członka.
+Wybierz **personal**, aby użyć własnych kont aktualnej osoby. Pusta nazwa udostępnia jej konta w czasie wykonania; dokładna nazwa, etykieta lub adres ogranicza capability do jednego pasującego konta. Narzędzia osobiste wymagają prywatnej rozmowy i aktualnego członkostwa w organizacji. Agent nie pożycza kont innych członków ani swojego autora.
+
+Wybierz **organization** i zaznacz konta dostępne dla agenta. Dotychczasowe specy z jednym `connection_id` pozostają poprawne; `connection_ids` dopuszcza kilka kont. Publikacja sprawdza każde konto i włączone operacje. Każda operacja ponownie sprawdza bieżący dostęp autora konfiguracji.
+
+Model otrzymuje nazwy i etykiety kont przed odpowiedzią. Wybiera konto argumentem narzędzia `account_name` i może użyć kilku kont w jednej prośbie. Jeśli prośba nie wskazuje konta, dopytuje przed odczytem danych. Przy braku dostępu wyjaśnia problem i wskazuje ustawienia czatu lub Vault. Operacje workflow również przyjmują `account_name` na wejściu, gdy skonfigurowano kilka kont. Dodanie konta lub ponowna autoryzacja wymaga przeglądu źródeł routine, zanim routine będzie mogła go użyć.
 
 Każdy zapis wymaga zatwierdzenia przez człowieka w uruchomieniach agenta, niezależnie od łagodniejszych ustawień narzędzia. Wyłączone narzędzie znika z oferty. Workflow udostępnia te same operacje jako `integration.<product>.<operation>`, z tym samym kontem i transportem. Zapisy nie są automatycznie ponawiane. Przed zapisem wymagającym zatwierdzenia w workflow umieść węzeł approval.
 

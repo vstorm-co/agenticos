@@ -1320,7 +1320,9 @@
         "connected": "Connected",
         "not_connected": "Not connected",
         "unauthorized": "Needs authorizing again"
-      }
+      },
+      "nativeAccounts": "Your connected app accounts",
+      "addAccount": "Add account"
     },
     "connectAccount": {
       "title": "The agent needs your {name}",
@@ -8263,8 +8265,10 @@
         "accountOwner": "Account owner",
         "chooseAccount": "Choose a connected account",
         "accountNameLabel": "Personal account name",
-        "accountNameHint": "Use the same label, such as Work, for each person’s account. Leave empty only when each person has one matching account.",
-        "manageAccounts": "Manage connected accounts"
+        "accountNameHint": "Leave empty to let the agent use your connected accounts and ask which one you mean. Set a name or label to restrict it to that account.",
+        "manageAccounts": "Manage connected accounts",
+        "chooseAccounts": "Choose connected accounts",
+        "multipleAccountsHint": "Select every organization account this agent may use. With several accounts, it asks which one you mean when needed."
       },
       "connectAccount": "Connect account",
       "personalAccount": "Your account",
@@ -14220,7 +14224,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14233,6 +14237,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "google_calendar": {
@@ -14242,7 +14250,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14255,6 +14263,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "google_drive": {
@@ -14264,7 +14276,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14277,6 +14289,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "google_docs": {
@@ -14286,7 +14302,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14299,6 +14315,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "google_sheets": {
@@ -14308,7 +14328,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14321,6 +14341,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "google_slides": {
@@ -14330,7 +14354,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14343,6 +14367,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "outlook_mail": {
@@ -14352,7 +14380,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14365,6 +14393,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "outlook_calendar": {
@@ -14374,7 +14406,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14387,6 +14419,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "microsoft_files": {
@@ -14396,7 +14432,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14409,6 +14445,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "excel": {
@@ -14418,7 +14458,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14431,6 +14471,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "teams": {
@@ -14440,7 +14484,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14453,6 +14497,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "slack": {
@@ -14462,7 +14510,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14475,6 +14523,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "imap_mail": {
@@ -14484,7 +14536,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14497,6 +14549,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "word": {
@@ -14506,7 +14562,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14519,6 +14575,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "odoo_contacts": {
@@ -14528,7 +14588,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14541,6 +14601,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "odoo_crm": {
@@ -14550,7 +14614,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14563,6 +14627,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "odoo_sales": {
@@ -14572,7 +14640,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14585,6 +14653,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "odoo_accounting": {
@@ -14594,7 +14666,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14607,6 +14679,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "odoo_inventory": {
@@ -14616,7 +14692,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14629,6 +14705,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     },
     "odoo_projects": {
@@ -14638,7 +14718,7 @@
       },
       "account_name": {
         "title": "Account name",
-        "description": "The connected account's name or label. Leave empty only when exactly one account is connected."
+        "description": "The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed."
       },
       "connection_id": {
         "title": "Organization account",
@@ -14651,6 +14731,10 @@
       "disabled_tools": {
         "title": "Disabled tools",
         "description": "Stable tool IDs this capability must not offer."
+      },
+      "connection_ids": {
+        "title": "Organization accounts",
+        "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
       }
     }
   },
@@ -18865,6 +18949,506 @@
       "workflow_run": {
         "name": "Run a workflow",
         "description": "Run another workflow as a step, and hand on what it answers."
+      },
+      "integration_gmail_search_threads": {
+        "name": "Gmail: search threads",
+        "description": "Search Gmail threads using a Gmail query."
+      },
+      "integration_gmail_read_thread": {
+        "name": "Gmail: read thread",
+        "description": "Read a Gmail thread including its messages."
+      },
+      "integration_gmail_read_message": {
+        "name": "Gmail: read message",
+        "description": "Read a Gmail message."
+      },
+      "integration_gmail_list_labels": {
+        "name": "Gmail: list labels",
+        "description": "List labels in the connected mailbox."
+      },
+      "integration_gmail_create_draft": {
+        "name": "Gmail: create draft",
+        "description": "Create a Gmail draft from a base64url encoded MIME message in message.raw."
+      },
+      "integration_gmail_send_message": {
+        "name": "Gmail: send message",
+        "description": "Send a Gmail message with base64url encoded MIME content in raw."
+      },
+      "integration_gmail_modify_labels": {
+        "name": "Gmail: modify labels",
+        "description": "Add or remove labels using addLabelIds and removeLabelIds."
+      },
+      "integration_google_calendar_list_events": {
+        "name": "Google Calendar: list events",
+        "description": "List events in a calendar; use timeMin and timeMax for a time window."
+      },
+      "integration_google_calendar_free_busy": {
+        "name": "Google Calendar: free busy",
+        "description": "Check availability using timeMin, timeMax and items with calendar ids."
+      },
+      "integration_google_calendar_create_event": {
+        "name": "Google Calendar: create event",
+        "description": "Create or update an event using a Google Calendar event object."
+      },
+      "integration_google_calendar_update_event": {
+        "name": "Google Calendar: update event",
+        "description": "Create or update an event using a Google Calendar event object."
+      },
+      "integration_google_drive_search_files": {
+        "name": "Google Drive: search files",
+        "description": "Search Drive metadata using the Drive q syntax."
+      },
+      "integration_google_drive_file_metadata": {
+        "name": "Google Drive: file metadata",
+        "description": "Read the metadata of a Drive file."
+      },
+      "integration_google_drive_copy_file": {
+        "name": "Google Drive: copy file",
+        "description": "Copy a Drive file; provide name and parents to create from a template."
+      },
+      "integration_google_drive_read_file": {
+        "name": "Google Drive: read file",
+        "description": "Read a Drive text, PDF or Word file, up to 20 MB and 100000 output characters."
+      },
+      "integration_google_drive_upload_file": {
+        "name": "Google Drive: upload file",
+        "description": "Upload a file with content_base64, name, content_type and optional parent_id."
+      },
+      "integration_google_docs_read": {
+        "name": "Google Docs: read",
+        "description": "Read the document structure and content."
+      },
+      "integration_google_docs_create": {
+        "name": "Google Docs: create",
+        "description": "Create a new document using its title or properties."
+      },
+      "integration_google_docs_batch_update": {
+        "name": "Google Docs: batch update",
+        "description": "Apply the product API requests array to a document."
+      },
+      "integration_google_sheets_read": {
+        "name": "Google Sheets: read",
+        "description": "Read the document structure and content."
+      },
+      "integration_google_sheets_create": {
+        "name": "Google Sheets: create",
+        "description": "Create a new document using its title or properties."
+      },
+      "integration_google_sheets_batch_update": {
+        "name": "Google Sheets: batch update",
+        "description": "Apply the product API requests array to a document."
+      },
+      "integration_google_sheets_read_range": {
+        "name": "Google Sheets: read range",
+        "description": "Read a spreadsheet range in A1 notation."
+      },
+      "integration_google_sheets_append_rows": {
+        "name": "Google Sheets: append rows",
+        "description": "Append a values array to a spreadsheet range."
+      },
+      "integration_google_sheets_update_cells": {
+        "name": "Google Sheets: update cells",
+        "description": "Update cells with a values array."
+      },
+      "integration_google_slides_read": {
+        "name": "Google Slides: read",
+        "description": "Read the document structure and content."
+      },
+      "integration_google_slides_create": {
+        "name": "Google Slides: create",
+        "description": "Create a new document using its title or properties."
+      },
+      "integration_google_slides_batch_update": {
+        "name": "Google Slides: batch update",
+        "description": "Apply the product API requests array to a document."
+      },
+      "integration_outlook_mail_search_messages": {
+        "name": "Outlook mail: search messages",
+        "description": "Search Outlook messages using Graph search syntax."
+      },
+      "integration_outlook_mail_read_message": {
+        "name": "Outlook mail: read message",
+        "description": "Read an Outlook message."
+      },
+      "integration_outlook_mail_create_draft": {
+        "name": "Outlook mail: create draft",
+        "description": "Create an Outlook draft using subject, body and recipients."
+      },
+      "integration_outlook_mail_send_mail": {
+        "name": "Outlook mail: send mail",
+        "description": "Send Outlook mail using a message object."
+      },
+      "integration_outlook_calendar_list_events": {
+        "name": "Outlook Calendar: list events",
+        "description": "List events in the connected Outlook calendar."
+      },
+      "integration_outlook_calendar_free_busy": {
+        "name": "Outlook Calendar: free busy",
+        "description": "Read availability using schedules, startTime and endTime."
+      },
+      "integration_outlook_calendar_create_event": {
+        "name": "Outlook Calendar: create event",
+        "description": "Create or update an Outlook event."
+      },
+      "integration_outlook_calendar_update_event": {
+        "name": "Outlook Calendar: update event",
+        "description": "Create or update an Outlook event."
+      },
+      "integration_microsoft_files_read_metadata": {
+        "name": "OneDrive / SharePoint: read metadata",
+        "description": "Read a OneDrive or SharePoint item by drive and item id."
+      },
+      "integration_microsoft_files_list_children": {
+        "name": "OneDrive / SharePoint: list children",
+        "description": "List folder items. Pass the nextLink $skipToken as query.$skipToken for subsequent pages."
+      },
+      "integration_microsoft_files_search_files": {
+        "name": "OneDrive / SharePoint: search files",
+        "description": "Search files within a drive."
+      },
+      "integration_microsoft_files_read_file": {
+        "name": "OneDrive / SharePoint: read file",
+        "description": "Read a OneDrive or SharePoint text, PDF or Word file up to 20 MB."
+      },
+      "integration_microsoft_files_upload_file": {
+        "name": "OneDrive / SharePoint: upload file",
+        "description": "Create or replace a file in a folder using content_base64 and content_type."
+      },
+      "integration_excel_list_sheets": {
+        "name": "Excel: list sheets",
+        "description": "List worksheets in an Excel workbook."
+      },
+      "integration_excel_append_rows": {
+        "name": "Excel: append rows",
+        "description": "Append rows using a values array to an Excel table."
+      },
+      "integration_teams_list_chats": {
+        "name": "Teams: list chats",
+        "description": "List chats of the connected Microsoft account."
+      },
+      "integration_teams_read_messages": {
+        "name": "Teams: read messages",
+        "description": "Read messages in a Teams chat."
+      },
+      "integration_teams_read_channel": {
+        "name": "Teams: read channel",
+        "description": "Read messages in a Teams channel."
+      },
+      "integration_teams_post_message": {
+        "name": "Teams: post message",
+        "description": "Post a Teams chat message with a body object."
+      },
+      "integration_teams_post_channel": {
+        "name": "Teams: post channel",
+        "description": "Post a Teams channel message with a body object."
+      },
+      "integration_slack_my_mentions": {
+        "name": "Slack: my mentions",
+        "description": "Search mentions of the connected Slack user."
+      },
+      "integration_slack_search_messages": {
+        "name": "Slack: search messages",
+        "description": "Search Slack messages using a Slack query."
+      },
+      "integration_slack_read_history": {
+        "name": "Slack: read history",
+        "description": "Read a Slack conversation."
+      },
+      "integration_slack_read_thread": {
+        "name": "Slack: read thread",
+        "description": "Read replies to a Slack message."
+      },
+      "integration_slack_list_channels": {
+        "name": "Slack: list channels",
+        "description": "List accessible Slack conversations."
+      },
+      "integration_slack_list_users": {
+        "name": "Slack: list users",
+        "description": "List Slack users."
+      },
+      "integration_slack_lookup_user": {
+        "name": "Slack: lookup user",
+        "description": "Look up a Slack user by email."
+      },
+      "integration_slack_post_message": {
+        "name": "Slack: post message",
+        "description": "Post or reply in a Slack conversation using channel, text and optional thread_ts."
+      },
+      "integration_slack_open_dm": {
+        "name": "Slack: open dm",
+        "description": "Open a Slack direct message conversation using users."
+      },
+      "integration_slack_react": {
+        "name": "Slack: react",
+        "description": "Add a reaction using channel, timestamp and name."
+      },
+      "integration_imap_mail_search_messages": {
+        "name": "IMAP mail: search messages",
+        "description": "Search the connected IMAP mailbox using IMAP search syntax."
+      },
+      "integration_imap_mail_read_message": {
+        "name": "IMAP mail: read message",
+        "description": "Read one IMAP message by UID without marking it as read."
+      },
+      "integration_word_read_document": {
+        "name": "Word: read document",
+        "description": "Read the text of a Word document in OneDrive or SharePoint."
+      },
+      "integration_word_write_document": {
+        "name": "Word: write document",
+        "description": "Create or replace a Word document using title and paragraphs. The filename must end in .docx."
+      },
+      "integration_odoo_contacts_search_contacts": {
+        "name": "Odoo Contacts: search contacts",
+        "description": "res.partner: Search with body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_contacts_read_contacts": {
+        "name": "Odoo Contacts: read contacts",
+        "description": "res.partner: Read body {ids, fields}; at most 100 records."
+      },
+      "integration_odoo_contacts_fields_contacts": {
+        "name": "Odoo Contacts: fields contacts",
+        "description": "res.partner: Inspect available field names and types before writing."
+      },
+      "integration_odoo_contacts_create_contacts": {
+        "name": "Odoo Contacts: create contacts",
+        "description": "res.partner: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+      },
+      "integration_odoo_contacts_update_contacts": {
+        "name": "Odoo Contacts: update contacts",
+        "description": "res.partner: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+      },
+      "integration_odoo_crm_search_leads": {
+        "name": "Odoo CRM: search leads",
+        "description": "crm.lead: Search with body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_crm_read_leads": {
+        "name": "Odoo CRM: read leads",
+        "description": "crm.lead: Read body {ids, fields}; at most 100 records."
+      },
+      "integration_odoo_crm_fields_leads": {
+        "name": "Odoo CRM: fields leads",
+        "description": "crm.lead: Inspect available field names and types before writing."
+      },
+      "integration_odoo_crm_create_leads": {
+        "name": "Odoo CRM: create leads",
+        "description": "crm.lead: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+      },
+      "integration_odoo_crm_update_leads": {
+        "name": "Odoo CRM: update leads",
+        "description": "crm.lead: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+      },
+      "integration_odoo_sales_search_orders": {
+        "name": "Odoo Sales: search orders",
+        "description": "sale.order: Search with body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_sales_read_orders": {
+        "name": "Odoo Sales: read orders",
+        "description": "sale.order: Read body {ids, fields}; at most 100 records."
+      },
+      "integration_odoo_sales_fields_orders": {
+        "name": "Odoo Sales: fields orders",
+        "description": "sale.order: Inspect available field names and types before writing."
+      },
+      "integration_odoo_sales_create_orders": {
+        "name": "Odoo Sales: create orders",
+        "description": "sale.order: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+      },
+      "integration_odoo_sales_update_orders": {
+        "name": "Odoo Sales: update orders",
+        "description": "sale.order: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+      },
+      "integration_odoo_sales_search_order_lines": {
+        "name": "Odoo Sales: search order lines",
+        "description": "sale.order.line: Search with body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_sales_read_order_lines": {
+        "name": "Odoo Sales: read order lines",
+        "description": "sale.order.line: Read body {ids, fields}; at most 100 records."
+      },
+      "integration_odoo_sales_fields_order_lines": {
+        "name": "Odoo Sales: fields order lines",
+        "description": "sale.order.line: Inspect available field names and types before writing."
+      },
+      "integration_odoo_sales_create_order_lines": {
+        "name": "Odoo Sales: create order lines",
+        "description": "sale.order.line: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+      },
+      "integration_odoo_sales_update_order_lines": {
+        "name": "Odoo Sales: update order lines",
+        "description": "sale.order.line: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+      },
+      "integration_odoo_sales_confirm_orders": {
+        "name": "Odoo Sales: confirm orders",
+        "description": "Confirm prepared quotations using Odoo's business workflow. Body: {ids}, at most 100 records. Read the records afterward to confirm their state; a returned wizard action is not proof of completion."
+      },
+      "integration_odoo_accounting_search_invoices": {
+        "name": "Odoo Invoicing: search invoices",
+        "description": "account.move: Search with body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_accounting_read_invoices": {
+        "name": "Odoo Invoicing: read invoices",
+        "description": "account.move: Read body {ids, fields}; at most 100 records."
+      },
+      "integration_odoo_accounting_fields_invoices": {
+        "name": "Odoo Invoicing: fields invoices",
+        "description": "account.move: Inspect available field names and types before writing."
+      },
+      "integration_odoo_accounting_create_invoices": {
+        "name": "Odoo Invoicing: create invoices",
+        "description": "account.move: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools. Set values.move_type to out_invoice/in_invoice or the corresponding out_refund/in_refund/out_receipt/in_receipt kind; a journal entry is not an invoice."
+      },
+      "integration_odoo_accounting_update_invoices": {
+        "name": "Odoo Invoicing: update invoices",
+        "description": "account.move: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+      },
+      "integration_odoo_accounting_search_invoice_lines": {
+        "name": "Odoo Invoicing: search invoice lines",
+        "description": "account.move.line: Search with body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_accounting_read_invoice_lines": {
+        "name": "Odoo Invoicing: read invoice lines",
+        "description": "account.move.line: Read body {ids, fields}; at most 100 records."
+      },
+      "integration_odoo_accounting_fields_invoice_lines": {
+        "name": "Odoo Invoicing: fields invoice lines",
+        "description": "account.move.line: Inspect available field names and types before writing."
+      },
+      "integration_odoo_accounting_create_invoice_lines": {
+        "name": "Odoo Invoicing: create invoice lines",
+        "description": "account.move.line: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+      },
+      "integration_odoo_accounting_update_invoice_lines": {
+        "name": "Odoo Invoicing: update invoice lines",
+        "description": "account.move.line: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+      },
+      "integration_odoo_accounting_post_invoices": {
+        "name": "Odoo Invoicing: post invoices",
+        "description": "Post prepared invoices using Odoo's accounting validation. Body: {ids}, at most 100 records. Read the records afterward to confirm their state; a returned wizard action is not proof of completion."
+      },
+      "integration_odoo_inventory_search_products": {
+        "name": "Odoo Inventory: search products",
+        "description": "product.product: Search with body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_inventory_read_products": {
+        "name": "Odoo Inventory: read products",
+        "description": "product.product: Read body {ids, fields}; at most 100 records."
+      },
+      "integration_odoo_inventory_fields_products": {
+        "name": "Odoo Inventory: fields products",
+        "description": "product.product: Inspect available field names and types before writing."
+      },
+      "integration_odoo_inventory_create_products": {
+        "name": "Odoo Inventory: create products",
+        "description": "product.product: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+      },
+      "integration_odoo_inventory_update_products": {
+        "name": "Odoo Inventory: update products",
+        "description": "product.product: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+      },
+      "integration_odoo_inventory_search_transfers": {
+        "name": "Odoo Inventory: search transfers",
+        "description": "stock.picking: Search with body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_inventory_read_transfers": {
+        "name": "Odoo Inventory: read transfers",
+        "description": "stock.picking: Read body {ids, fields}; at most 100 records."
+      },
+      "integration_odoo_inventory_fields_transfers": {
+        "name": "Odoo Inventory: fields transfers",
+        "description": "stock.picking: Inspect available field names and types before writing."
+      },
+      "integration_odoo_inventory_create_transfers": {
+        "name": "Odoo Inventory: create transfers",
+        "description": "stock.picking: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+      },
+      "integration_odoo_inventory_update_transfers": {
+        "name": "Odoo Inventory: update transfers",
+        "description": "stock.picking: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+      },
+      "integration_odoo_inventory_search_moves": {
+        "name": "Odoo Inventory: search moves",
+        "description": "stock.move: Search with body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_inventory_read_moves": {
+        "name": "Odoo Inventory: read moves",
+        "description": "stock.move: Read body {ids, fields}; at most 100 records."
+      },
+      "integration_odoo_inventory_fields_moves": {
+        "name": "Odoo Inventory: fields moves",
+        "description": "stock.move: Inspect available field names and types before writing."
+      },
+      "integration_odoo_inventory_create_moves": {
+        "name": "Odoo Inventory: create moves",
+        "description": "stock.move: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+      },
+      "integration_odoo_inventory_update_moves": {
+        "name": "Odoo Inventory: update moves",
+        "description": "stock.move: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+      },
+      "integration_odoo_inventory_search_stock_levels": {
+        "name": "Odoo Inventory: search stock levels",
+        "description": "stock.quant: Search with body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_inventory_read_stock_levels": {
+        "name": "Odoo Inventory: read stock levels",
+        "description": "stock.quant: Read body {ids, fields}; at most 100 records."
+      },
+      "integration_odoo_inventory_fields_stock_levels": {
+        "name": "Odoo Inventory: fields stock levels",
+        "description": "stock.quant: Inspect available field names and types before writing."
+      },
+      "integration_odoo_inventory_confirm_transfers": {
+        "name": "Odoo Inventory: confirm transfers",
+        "description": "Confirm prepared stock transfers. Body: {ids}, at most 100 records. Read the records afterward to confirm their state; a returned wizard action is not proof of completion."
+      },
+      "integration_odoo_inventory_reserve_transfers": {
+        "name": "Odoo Inventory: reserve transfers",
+        "description": "Reserve available stock for prepared transfers. Body: {ids}, at most 100 records. Read the records afterward to confirm their state; a returned wizard action is not proof of completion."
+      },
+      "integration_odoo_inventory_validate_transfers": {
+        "name": "Odoo Inventory: validate transfers",
+        "description": "Validate prepared transfers; Odoo may require a backorder or other wizard. Body: {ids}, at most 100 records. Read the records afterward to confirm their state; a returned wizard action is not proof of completion."
+      },
+      "integration_odoo_projects_search_projects": {
+        "name": "Odoo Projects: search projects",
+        "description": "project.project: Search with body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_projects_read_projects": {
+        "name": "Odoo Projects: read projects",
+        "description": "project.project: Read body {ids, fields}; at most 100 records."
+      },
+      "integration_odoo_projects_fields_projects": {
+        "name": "Odoo Projects: fields projects",
+        "description": "project.project: Inspect available field names and types before writing."
+      },
+      "integration_odoo_projects_create_projects": {
+        "name": "Odoo Projects: create projects",
+        "description": "project.project: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+      },
+      "integration_odoo_projects_update_projects": {
+        "name": "Odoo Projects: update projects",
+        "description": "project.project: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+      },
+      "integration_odoo_projects_search_tasks": {
+        "name": "Odoo Projects: search tasks",
+        "description": "project.task: Search with body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_projects_read_tasks": {
+        "name": "Odoo Projects: read tasks",
+        "description": "project.task: Read body {ids, fields}; at most 100 records."
+      },
+      "integration_odoo_projects_fields_tasks": {
+        "name": "Odoo Projects: fields tasks",
+        "description": "project.task: Inspect available field names and types before writing."
+      },
+      "integration_odoo_projects_create_tasks": {
+        "name": "Odoo Projects: create tasks",
+        "description": "project.task: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+      },
+      "integration_odoo_projects_update_tasks": {
+        "name": "Odoo Projects: update tasks",
+        "description": "project.task: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
       }
     },
     "port": {

@@ -1,10 +1,10 @@
 ---
-source_sha: "2e56e827219e"
+source_sha: "864476c5a2d0"
 ---
 
 # Integraciones incorporadas { #built-in-integrations }
 
-Conecte una cuenta en **Configuración → Vault → Cuentas conectadas**. Cada producto de Google, Microsoft y Slack es una capability independiente en la **Toolbox** del agente, con selección de cuenta y controles por herramienta. Usan las API directamente: no requieren servidores MCP del proveedor, Google Workspace MCP Preview ni licencia de Microsoft Copilot.
+Conecte cuentas en **Vault → Conectar cuenta**. Las cuentas personales también pueden conectarse o repararse desde **Configuración del chat → Herramientas → Tus cuentas** en `/chat`. Puede conectar varias cuentas del mismo proveedor. Cada producto de Google, Microsoft y Slack es una capability independiente en la **Toolbox** del agente, con selección de cuentas y controles por herramienta. Usan las API directamente; no requieren servidores MCP del proveedor, Google Workspace MCP Preview ni licencia de Microsoft Copilot.
 
 ## Configurar una cuenta { #set-up-an-account }
 
@@ -42,7 +42,11 @@ Microsoft: correo Outlook, Calendar, archivos OneDrive/SharePoint, Excel, docume
 
 Los lectores conectados de Drive, SharePoint y Slack vuelven a obtener el token de la cuenta autorizada antes de cada petición al proveedor. Una sincronización larga puede renovar OAuth sin guardar secretos de renovación en la configuración del conector. Revocar el permiso de la cuenta de entrada también detiene el sondeo de triggers nativos antes de abrir el token. Los triggers de archivos Microsoft reconocen cambios propios de cuentas de aplicación por el usuario configurado y el ID de aplicación; el filtro predeterminado los omite.
 
-Seleccione **personal** para resolver la cuenta de la persona actual por nombre, etiqueta o dirección exactos. El nombre vacío solo funciona con una coincidencia. Las herramientas personales requieren conversación privada y pertenencia actual a la organización. Para automatizaciones compartidas use **organization** y el ID de conexión. Nunca se toma la cuenta de otro miembro.
+Seleccione **personal** para usar las cuentas propias de la persona actual. Deje el nombre vacío para disponer de sus cuentas durante la ejecución, o indique un nombre, etiqueta o dirección exactos para limitar la capability a una cuenta coincidente. Las herramientas personales requieren conversación privada y pertenencia actual a la organización. El agente nunca toma la cuenta de otro miembro ni la de su autor.
+
+Seleccione **organization** y las cuentas permitidas para el agente. Las especificaciones existentes con una `connection_id` siguen siendo válidas; `connection_ids` permite varias cuentas. La publicación comprueba cada cuenta y las operaciones activadas. Cada operación vuelve a comprobar el acceso actual del autor de la configuración.
+
+El modelo recibe nombres y etiquetas antes de responder. Selecciona la cuenta mediante el argumento `account_name` y puede usar varias cuentas en una petición. Si la petición no identifica la cuenta, pregunta antes de acceder a los datos. Cuando falta acceso, explica el problema e indica la configuración del chat o Vault. Las operaciones de workflow también aceptan `account_name` en su entrada cuando hay varias cuentas configuradas. Añadir o volver a autorizar una cuenta exige revisar las fuentes de la rutina antes de que pueda usarla.
 
 Toda escritura en ejecuciones de agentes requiere aprobación humana, incluso con una configuración individual más permisiva. Las herramientas desactivadas desaparecen. Los workflows usan las mismas operaciones como `integration.<product>.<operation>` y las mismas comprobaciones de cuenta y transporte. No se reintentan escrituras automáticamente; ponga un nodo de aprobación antes de las que deban revisarse en un workflow.
 

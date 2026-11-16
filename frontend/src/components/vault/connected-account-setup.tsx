@@ -10,6 +10,8 @@ export interface AccountSetupTarget {
   owner: AccountOwner;
   provider: IntegrationProvider;
   account?: ConnectedAccount;
+  products?: string[];
+  returnTo?: string;
 }
 
 /** Keep account repair on its original provider, owner and credential identity. */
@@ -27,5 +29,12 @@ export function ConnectedAccountSetup({
   };
   if (target.provider === "imap") return <ImapSetupDialog {...props} />;
   if (target.provider === "odoo") return <OdooSetupDialog {...props} />;
-  return <IntegrationSetupDialog {...props} provider={target.provider} />;
+  return (
+    <IntegrationSetupDialog
+      {...props}
+      provider={target.provider}
+      initialProducts={target.products}
+      returnTo={target.returnTo}
+    />
+  );
 }

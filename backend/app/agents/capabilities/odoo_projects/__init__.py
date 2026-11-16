@@ -28,6 +28,7 @@ class ProductConfig(AccountSelection):
             id=f"{_PRODUCT.id}_{operation.id}",
             description=operation.description,
             side_effecting=operation.side_effecting,
+            read_only=not operation.side_effecting,
             always_requires_approval=operation.side_effecting,
         )
         for operation in _PRODUCT.operations
@@ -35,4 +36,6 @@ class ProductConfig(AccountSelection):
 )
 def _build(ctx: CapabilityBuildContext) -> NativeIntegration:
     config = ProductConfig.model_validate(ctx.config)
-    return NativeIntegration(toolset=build_toolset(_PRODUCT.id, config))
+    return NativeIntegration(
+        product_id=_PRODUCT.id, selection=config, toolset=build_toolset(_PRODUCT.id, config)
+    )

@@ -336,7 +336,9 @@
         "connected": "Połączone",
         "not_connected": "Niepołączone",
         "unauthorized": "Wymaga ponownej autoryzacji"
-      }
+      },
+      "nativeAccounts": "Twoje konta aplikacji",
+      "addAccount": "Dodaj konto"
     },
     "connectAccount": {
       "title": "Agent potrzebuje Twojego {name}",
@@ -4423,8 +4425,10 @@
         "accountOwner": "Właściciel konta",
         "chooseAccount": "Wybierz połączone konto",
         "accountNameLabel": "Nazwa konta osobistego",
-        "accountNameHint": "Używaj wspólnej etykiety, np. Praca, dla kont każdej osoby. Pozostaw puste tylko wtedy, gdy każda osoba ma jedno pasujące konto.",
-        "manageAccounts": "Zarządzaj połączonymi kontami"
+        "accountNameHint": "Pozostaw puste, aby agent mógł używać Twoich podłączonych kont i dopytać o wybór. Podaj nazwę lub etykietę, aby ograniczyć dostęp do jednego konta.",
+        "manageAccounts": "Zarządzaj połączonymi kontami",
+        "chooseAccounts": "Wybierz podłączone konta",
+        "multipleAccountsHint": "Wybierz konta organizacji dostępne dla tego agenta. Przy wielu kontach agent w razie potrzeby dopyta, które masz na myśli."
       },
       "connectAccount": "Połącz konto",
       "personalAccount": "Twoje konto",
@@ -10837,7 +10841,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -10850,6 +10854,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "google_calendar": {
@@ -10859,7 +10867,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -10872,6 +10880,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "google_drive": {
@@ -10881,7 +10893,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -10894,6 +10906,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "google_docs": {
@@ -10903,7 +10919,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -10916,6 +10932,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "google_sheets": {
@@ -10925,7 +10945,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -10938,6 +10958,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "google_slides": {
@@ -10947,7 +10971,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -10960,6 +10984,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "outlook_mail": {
@@ -10969,7 +10997,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -10982,6 +11010,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "outlook_calendar": {
@@ -10991,7 +11023,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -11004,6 +11036,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "microsoft_files": {
@@ -11013,7 +11049,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -11026,6 +11062,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "excel": {
@@ -11035,7 +11075,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -11048,6 +11088,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "teams": {
@@ -11057,7 +11101,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -11070,6 +11114,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "slack": {
@@ -11079,7 +11127,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -11092,6 +11140,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "imap_mail": {
@@ -11101,7 +11153,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -11114,6 +11166,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "word": {
@@ -11123,7 +11179,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -11136,6 +11192,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "odoo_contacts": {
@@ -11145,7 +11205,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -11158,6 +11218,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "odoo_crm": {
@@ -11167,7 +11231,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -11180,6 +11244,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "odoo_sales": {
@@ -11189,7 +11257,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -11202,6 +11270,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "odoo_accounting": {
@@ -11211,7 +11283,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -11224,6 +11296,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "odoo_inventory": {
@@ -11233,7 +11309,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -11246,6 +11322,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     },
     "odoo_projects": {
@@ -11255,7 +11335,7 @@
       },
       "account_name": {
         "title": "Nazwa konta",
-        "description": "Nazwa lub etykieta połączonego konta. Pozostaw puste tylko wtedy, gdy połączono dokładnie jedno konto."
+        "description": "Nazwa lub etykieta podłączonego konta. Pozostaw puste, aby udostępnić konta bieżącego użytkownika i w razie potrzeby dopytać o wybór."
       },
       "connection_id": {
         "title": "Konto organizacji",
@@ -11268,6 +11348,10 @@
       "disabled_tools": {
         "title": "Wyłączone narzędzia",
         "description": "Stałe identyfikatory narzędzi, których ta capability nie udostępnia."
+      },
+      "connection_ids": {
+        "title": "Konta organizacji",
+        "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
       }
     }
   },
@@ -18638,6 +18722,506 @@
       "workflow_run": {
         "name": "Uruchom workflow",
         "description": "Uruchom inny workflow jako krok i przekaż dalej jego odpowiedź."
+      },
+      "integration_gmail_search_threads": {
+        "name": "Gmail: Wyszukaj wątki",
+        "description": "Wyszukuje wątki za pomocą zapytania Gmail."
+      },
+      "integration_gmail_read_thread": {
+        "name": "Gmail: Odczytaj wątek",
+        "description": "Odczytuje wątek wraz z wiadomościami lub odpowiedziami."
+      },
+      "integration_gmail_read_message": {
+        "name": "Gmail: Odczytaj wiadomość",
+        "description": "Odczytuje wiadomość Gmail."
+      },
+      "integration_gmail_list_labels": {
+        "name": "Gmail: Wyświetl etykiety",
+        "description": "Wyświetla etykiety podłączonej skrzynki."
+      },
+      "integration_gmail_create_draft": {
+        "name": "Gmail: Utwórz wersję roboczą",
+        "description": "Tworzy wersję roboczą Gmail z wiadomości MIME zakodowanej base64url w message.raw."
+      },
+      "integration_gmail_send_message": {
+        "name": "Gmail: Wyślij wiadomość",
+        "description": "Wysyła wiadomość Gmail z treścią MIME zakodowaną base64url w raw."
+      },
+      "integration_gmail_modify_labels": {
+        "name": "Gmail: Zmień etykiety",
+        "description": "Dodaje lub usuwa etykiety przez addLabelIds i removeLabelIds."
+      },
+      "integration_google_calendar_list_events": {
+        "name": "Google Calendar: Wyświetl wydarzenia",
+        "description": "Wyświetla wydarzenia; timeMin i timeMax określają okno czasu."
+      },
+      "integration_google_calendar_free_busy": {
+        "name": "Google Calendar: Sprawdź dostępność",
+        "description": "Sprawdza dostępność przez timeMin, timeMax i items z identyfikatorami kalendarzy."
+      },
+      "integration_google_calendar_create_event": {
+        "name": "Google Calendar: Utwórz wydarzenie",
+        "description": "Tworzy wydarzenie przy użyciu obiektu wydarzenia odpowiedniej usługi kalendarza."
+      },
+      "integration_google_calendar_update_event": {
+        "name": "Google Calendar: Zaktualizuj wydarzenie",
+        "description": "Aktualizuje wydarzenie przy użyciu obiektu wydarzenia odpowiedniej usługi kalendarza."
+      },
+      "integration_google_drive_search_files": {
+        "name": "Google Drive: Wyszukaj pliki",
+        "description": "Wyszukuje metadane Drive składnią zapytania q."
+      },
+      "integration_google_drive_file_metadata": {
+        "name": "Google Drive: Odczytaj metadane pliku",
+        "description": "Odczytuje metadane pliku Drive."
+      },
+      "integration_google_drive_copy_file": {
+        "name": "Google Drive: Skopiuj plik",
+        "description": "Kopiuje plik Drive; name i parents pozwalają utworzyć plik z szablonu."
+      },
+      "integration_google_drive_read_file": {
+        "name": "Google Drive: Odczytaj plik",
+        "description": "Odczytuje plik tekstowy, PDF lub Word z Drive, do 20 MB i 100000 znaków wyniku."
+      },
+      "integration_google_drive_upload_file": {
+        "name": "Google Drive: Prześlij plik",
+        "description": "Przesyła plik przez content_base64, name, content_type i opcjonalne parent_id."
+      },
+      "integration_google_docs_read": {
+        "name": "Google Docs: Odczytaj dokument",
+        "description": "Odczytuje strukturę i zawartość dokumentu."
+      },
+      "integration_google_docs_create": {
+        "name": "Google Docs: Utwórz dokument",
+        "description": "Tworzy dokument z podanym tytułem lub właściwościami."
+      },
+      "integration_google_docs_batch_update": {
+        "name": "Google Docs: Wprowadź zmiany",
+        "description": "Stosuje tablicę requests API produktu do dokumentu."
+      },
+      "integration_google_sheets_read": {
+        "name": "Google Sheets: Odczytaj dokument",
+        "description": "Odczytuje strukturę i zawartość dokumentu."
+      },
+      "integration_google_sheets_create": {
+        "name": "Google Sheets: Utwórz dokument",
+        "description": "Tworzy dokument z podanym tytułem lub właściwościami."
+      },
+      "integration_google_sheets_batch_update": {
+        "name": "Google Sheets: Wprowadź zmiany",
+        "description": "Stosuje tablicę requests API produktu do dokumentu."
+      },
+      "integration_google_sheets_read_range": {
+        "name": "Google Sheets: Odczytaj zakres",
+        "description": "Odczytuje zakres arkusza w notacji A1."
+      },
+      "integration_google_sheets_append_rows": {
+        "name": "Google Sheets: Dodaj wiersze",
+        "description": "Dodaje tablicę values do zakresu arkusza."
+      },
+      "integration_google_sheets_update_cells": {
+        "name": "Google Sheets: Zaktualizuj komórki",
+        "description": "Aktualizuje komórki za pomocą tablicy values."
+      },
+      "integration_google_slides_read": {
+        "name": "Google Slides: Odczytaj dokument",
+        "description": "Odczytuje strukturę i zawartość dokumentu."
+      },
+      "integration_google_slides_create": {
+        "name": "Google Slides: Utwórz dokument",
+        "description": "Tworzy dokument z podanym tytułem lub właściwościami."
+      },
+      "integration_google_slides_batch_update": {
+        "name": "Google Slides: Wprowadź zmiany",
+        "description": "Stosuje tablicę requests API produktu do dokumentu."
+      },
+      "integration_outlook_mail_search_messages": {
+        "name": "Outlook mail: Wyszukaj wiadomości",
+        "description": "Wyszukuje wiadomości Outlook składnią wyszukiwania Graph."
+      },
+      "integration_outlook_mail_read_message": {
+        "name": "Outlook mail: Odczytaj wiadomość",
+        "description": "Odczytuje wiadomość Outlook."
+      },
+      "integration_outlook_mail_create_draft": {
+        "name": "Outlook mail: Utwórz wersję roboczą",
+        "description": "Tworzy wersję roboczą Outlook z subject, body i odbiorcami."
+      },
+      "integration_outlook_mail_send_mail": {
+        "name": "Outlook mail: Wyślij e-mail",
+        "description": "Wysyła e-mail Outlook przy użyciu obiektu message."
+      },
+      "integration_outlook_calendar_list_events": {
+        "name": "Outlook Calendar: Wyświetl wydarzenia",
+        "description": "Wyświetla wydarzenia podłączonego kalendarza Outlook."
+      },
+      "integration_outlook_calendar_free_busy": {
+        "name": "Outlook Calendar: Sprawdź dostępność",
+        "description": "Sprawdza dostępność przez schedules, startTime i endTime."
+      },
+      "integration_outlook_calendar_create_event": {
+        "name": "Outlook Calendar: Utwórz wydarzenie",
+        "description": "Tworzy wydarzenie przy użyciu obiektu wydarzenia odpowiedniej usługi kalendarza."
+      },
+      "integration_outlook_calendar_update_event": {
+        "name": "Outlook Calendar: Zaktualizuj wydarzenie",
+        "description": "Aktualizuje wydarzenie przy użyciu obiektu wydarzenia odpowiedniej usługi kalendarza."
+      },
+      "integration_microsoft_files_read_metadata": {
+        "name": "OneDrive / SharePoint: Odczytaj metadane",
+        "description": "Odczytuje element OneDrive lub SharePoint po identyfikatorach dysku i elementu."
+      },
+      "integration_microsoft_files_list_children": {
+        "name": "OneDrive / SharePoint: Wyświetl zawartość folderu",
+        "description": "Wyświetla elementy folderu. Dla kolejnych stron przekaż $skipToken z nextLink jako query.$skipToken."
+      },
+      "integration_microsoft_files_search_files": {
+        "name": "OneDrive / SharePoint: Wyszukaj pliki",
+        "description": "Wyszukuje pliki na dysku."
+      },
+      "integration_microsoft_files_read_file": {
+        "name": "OneDrive / SharePoint: Odczytaj plik",
+        "description": "Odczytuje plik tekstowy, PDF lub Word do 20 MB."
+      },
+      "integration_microsoft_files_upload_file": {
+        "name": "OneDrive / SharePoint: Prześlij plik",
+        "description": "Tworzy lub zastępuje plik w folderze przez content_base64 i content_type."
+      },
+      "integration_excel_list_sheets": {
+        "name": "Excel: Wyświetl arkusze",
+        "description": "Wyświetla arkusze w skoroszycie Excel."
+      },
+      "integration_excel_append_rows": {
+        "name": "Excel: Dodaj wiersze",
+        "description": "Dodaje wiersze z tablicy values do tabeli Excel."
+      },
+      "integration_teams_list_chats": {
+        "name": "Teams: Wyświetl czaty",
+        "description": "Wyświetla czaty podłączonego konta Microsoft."
+      },
+      "integration_teams_read_messages": {
+        "name": "Teams: Odczytaj wiadomości",
+        "description": "Odczytuje wiadomości czatu Teams."
+      },
+      "integration_teams_read_channel": {
+        "name": "Teams: Odczytaj kanał",
+        "description": "Odczytuje wiadomości kanału Teams."
+      },
+      "integration_teams_post_message": {
+        "name": "Teams: Opublikuj wiadomość",
+        "description": "Publikuje wiadomość czatu Teams z obiektem body."
+      },
+      "integration_teams_post_channel": {
+        "name": "Teams: Opublikuj na kanale",
+        "description": "Publikuje wiadomość kanału Teams z obiektem body."
+      },
+      "integration_slack_my_mentions": {
+        "name": "Slack: Wyszukaj moje wzmianki",
+        "description": "Wyszukuje wzmianki o podłączonym użytkowniku Slack."
+      },
+      "integration_slack_search_messages": {
+        "name": "Slack: Wyszukaj wiadomości",
+        "description": "Wyszukuje wiadomości zapytaniem Slack."
+      },
+      "integration_slack_read_history": {
+        "name": "Slack: Odczytaj historię",
+        "description": "Odczytuje rozmowę Slack."
+      },
+      "integration_slack_read_thread": {
+        "name": "Slack: Odczytaj wątek",
+        "description": "Odczytuje wątek wraz z wiadomościami lub odpowiedziami."
+      },
+      "integration_slack_list_channels": {
+        "name": "Slack: Wyświetl rozmowy",
+        "description": "Wyświetla dostępne rozmowy Slack."
+      },
+      "integration_slack_list_users": {
+        "name": "Slack: Wyświetl użytkowników",
+        "description": "Wyświetla użytkowników Slack."
+      },
+      "integration_slack_lookup_user": {
+        "name": "Slack: Znajdź użytkownika",
+        "description": "Wyszukuje użytkownika Slack po adresie e-mail."
+      },
+      "integration_slack_post_message": {
+        "name": "Slack: Opublikuj wiadomość",
+        "description": "Publikuje wiadomość lub odpowiedź Slack przez channel, text i opcjonalne thread_ts."
+      },
+      "integration_slack_open_dm": {
+        "name": "Slack: Otwórz wiadomość prywatną",
+        "description": "Otwiera prywatną rozmowę Slack dla użytkowników z pola users."
+      },
+      "integration_slack_react": {
+        "name": "Slack: Dodaj reakcję",
+        "description": "Dodaje reakcję przy użyciu channel, timestamp i name."
+      },
+      "integration_imap_mail_search_messages": {
+        "name": "IMAP mail: Wyszukaj wiadomości",
+        "description": "Wyszukuje w podłączonej skrzynce składnią wyszukiwania IMAP."
+      },
+      "integration_imap_mail_read_message": {
+        "name": "IMAP mail: Odczytaj wiadomość",
+        "description": "Odczytuje wiadomość IMAP po UID bez oznaczania jej jako przeczytanej."
+      },
+      "integration_word_read_document": {
+        "name": "Word: Odczytaj dokument",
+        "description": "Odczytuje tekst dokumentu Word z OneDrive lub SharePoint."
+      },
+      "integration_word_write_document": {
+        "name": "Word: Zapisz dokument",
+        "description": "Tworzy lub zastępuje dokument Word z title i paragraphs. Nazwa pliku musi kończyć się na .docx."
+      },
+      "integration_odoo_contacts_search_contacts": {
+        "name": "Odoo Contacts: Wyszukiwanie (kontakty)",
+        "description": "res.partner: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_contacts_read_contacts": {
+        "name": "Odoo Contacts: Odczyt (kontakty)",
+        "description": "res.partner: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+      },
+      "integration_odoo_contacts_fields_contacts": {
+        "name": "Odoo Contacts: Pola i typy (kontakty)",
+        "description": "res.partner: Sprawdza dostępne nazwy i typy pól przed zapisem."
+      },
+      "integration_odoo_contacts_create_contacts": {
+        "name": "Odoo Contacts: Tworzenie (kontakty)",
+        "description": "res.partner: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+      },
+      "integration_odoo_contacts_update_contacts": {
+        "name": "Odoo Contacts: Aktualizacja (kontakty)",
+        "description": "res.partner: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+      },
+      "integration_odoo_crm_search_leads": {
+        "name": "Odoo CRM: Wyszukiwanie (szanse sprzedaży)",
+        "description": "crm.lead: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_crm_read_leads": {
+        "name": "Odoo CRM: Odczyt (szanse sprzedaży)",
+        "description": "crm.lead: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+      },
+      "integration_odoo_crm_fields_leads": {
+        "name": "Odoo CRM: Pola i typy (szanse sprzedaży)",
+        "description": "crm.lead: Sprawdza dostępne nazwy i typy pól przed zapisem."
+      },
+      "integration_odoo_crm_create_leads": {
+        "name": "Odoo CRM: Tworzenie (szanse sprzedaży)",
+        "description": "crm.lead: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+      },
+      "integration_odoo_crm_update_leads": {
+        "name": "Odoo CRM: Aktualizacja (szanse sprzedaży)",
+        "description": "crm.lead: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+      },
+      "integration_odoo_sales_search_orders": {
+        "name": "Odoo Sales: Wyszukiwanie (zamówienia)",
+        "description": "sale.order: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_sales_read_orders": {
+        "name": "Odoo Sales: Odczyt (zamówienia)",
+        "description": "sale.order: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+      },
+      "integration_odoo_sales_fields_orders": {
+        "name": "Odoo Sales: Pola i typy (zamówienia)",
+        "description": "sale.order: Sprawdza dostępne nazwy i typy pól przed zapisem."
+      },
+      "integration_odoo_sales_create_orders": {
+        "name": "Odoo Sales: Tworzenie (zamówienia)",
+        "description": "sale.order: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+      },
+      "integration_odoo_sales_update_orders": {
+        "name": "Odoo Sales: Aktualizacja (zamówienia)",
+        "description": "sale.order: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+      },
+      "integration_odoo_sales_search_order_lines": {
+        "name": "Odoo Sales: Wyszukiwanie (pozycje zamówień)",
+        "description": "sale.order.line: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_sales_read_order_lines": {
+        "name": "Odoo Sales: Odczyt (pozycje zamówień)",
+        "description": "sale.order.line: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+      },
+      "integration_odoo_sales_fields_order_lines": {
+        "name": "Odoo Sales: Pola i typy (pozycje zamówień)",
+        "description": "sale.order.line: Sprawdza dostępne nazwy i typy pól przed zapisem."
+      },
+      "integration_odoo_sales_create_order_lines": {
+        "name": "Odoo Sales: Tworzenie (pozycje zamówień)",
+        "description": "sale.order.line: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+      },
+      "integration_odoo_sales_update_order_lines": {
+        "name": "Odoo Sales: Aktualizacja (pozycje zamówień)",
+        "description": "sale.order.line: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+      },
+      "integration_odoo_sales_confirm_orders": {
+        "name": "Odoo Sales: Potwierdzanie (zamówienia)",
+        "description": "Potwierdza przygotowane oferty w procesie biznesowym Odoo. Body: {ids}, najwyżej 100 rekordów. Odczytaj rekordy po operacji, aby potwierdzić stan; zwrócony kreator nie dowodzi zakończenia."
+      },
+      "integration_odoo_accounting_search_invoices": {
+        "name": "Odoo Invoicing: Wyszukiwanie (faktury)",
+        "description": "account.move: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_accounting_read_invoices": {
+        "name": "Odoo Invoicing: Odczyt (faktury)",
+        "description": "account.move: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+      },
+      "integration_odoo_accounting_fields_invoices": {
+        "name": "Odoo Invoicing: Pola i typy (faktury)",
+        "description": "account.move: Sprawdza dostępne nazwy i typy pól przed zapisem."
+      },
+      "integration_odoo_accounting_create_invoices": {
+        "name": "Odoo Invoicing: Tworzenie (faktury)",
+        "description": "account.move: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+      },
+      "integration_odoo_accounting_update_invoices": {
+        "name": "Odoo Invoicing: Aktualizacja (faktury)",
+        "description": "account.move: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+      },
+      "integration_odoo_accounting_search_invoice_lines": {
+        "name": "Odoo Invoicing: Wyszukiwanie (pozycje faktur)",
+        "description": "account.move.line: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_accounting_read_invoice_lines": {
+        "name": "Odoo Invoicing: Odczyt (pozycje faktur)",
+        "description": "account.move.line: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+      },
+      "integration_odoo_accounting_fields_invoice_lines": {
+        "name": "Odoo Invoicing: Pola i typy (pozycje faktur)",
+        "description": "account.move.line: Sprawdza dostępne nazwy i typy pól przed zapisem."
+      },
+      "integration_odoo_accounting_create_invoice_lines": {
+        "name": "Odoo Invoicing: Tworzenie (pozycje faktur)",
+        "description": "account.move.line: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+      },
+      "integration_odoo_accounting_update_invoice_lines": {
+        "name": "Odoo Invoicing: Aktualizacja (pozycje faktur)",
+        "description": "account.move.line: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+      },
+      "integration_odoo_accounting_post_invoices": {
+        "name": "Odoo Invoicing: Księgowanie (faktury)",
+        "description": "Księguje przygotowane faktury z walidacją księgową Odoo. Body: {ids}, najwyżej 100 rekordów. Odczytaj rekordy po operacji, aby potwierdzić stan; zwrócony kreator nie dowodzi zakończenia."
+      },
+      "integration_odoo_inventory_search_products": {
+        "name": "Odoo Inventory: Wyszukiwanie (produkty)",
+        "description": "product.product: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_inventory_read_products": {
+        "name": "Odoo Inventory: Odczyt (produkty)",
+        "description": "product.product: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+      },
+      "integration_odoo_inventory_fields_products": {
+        "name": "Odoo Inventory: Pola i typy (produkty)",
+        "description": "product.product: Sprawdza dostępne nazwy i typy pól przed zapisem."
+      },
+      "integration_odoo_inventory_create_products": {
+        "name": "Odoo Inventory: Tworzenie (produkty)",
+        "description": "product.product: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+      },
+      "integration_odoo_inventory_update_products": {
+        "name": "Odoo Inventory: Aktualizacja (produkty)",
+        "description": "product.product: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+      },
+      "integration_odoo_inventory_search_transfers": {
+        "name": "Odoo Inventory: Wyszukiwanie (przesunięcia magazynowe)",
+        "description": "stock.picking: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_inventory_read_transfers": {
+        "name": "Odoo Inventory: Odczyt (przesunięcia magazynowe)",
+        "description": "stock.picking: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+      },
+      "integration_odoo_inventory_fields_transfers": {
+        "name": "Odoo Inventory: Pola i typy (przesunięcia magazynowe)",
+        "description": "stock.picking: Sprawdza dostępne nazwy i typy pól przed zapisem."
+      },
+      "integration_odoo_inventory_create_transfers": {
+        "name": "Odoo Inventory: Tworzenie (przesunięcia magazynowe)",
+        "description": "stock.picking: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+      },
+      "integration_odoo_inventory_update_transfers": {
+        "name": "Odoo Inventory: Aktualizacja (przesunięcia magazynowe)",
+        "description": "stock.picking: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+      },
+      "integration_odoo_inventory_search_moves": {
+        "name": "Odoo Inventory: Wyszukiwanie (ruchy magazynowe)",
+        "description": "stock.move: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_inventory_read_moves": {
+        "name": "Odoo Inventory: Odczyt (ruchy magazynowe)",
+        "description": "stock.move: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+      },
+      "integration_odoo_inventory_fields_moves": {
+        "name": "Odoo Inventory: Pola i typy (ruchy magazynowe)",
+        "description": "stock.move: Sprawdza dostępne nazwy i typy pól przed zapisem."
+      },
+      "integration_odoo_inventory_create_moves": {
+        "name": "Odoo Inventory: Tworzenie (ruchy magazynowe)",
+        "description": "stock.move: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+      },
+      "integration_odoo_inventory_update_moves": {
+        "name": "Odoo Inventory: Aktualizacja (ruchy magazynowe)",
+        "description": "stock.move: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+      },
+      "integration_odoo_inventory_search_stock_levels": {
+        "name": "Odoo Inventory: Wyszukiwanie (stany magazynowe)",
+        "description": "stock.quant: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_inventory_read_stock_levels": {
+        "name": "Odoo Inventory: Odczyt (stany magazynowe)",
+        "description": "stock.quant: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+      },
+      "integration_odoo_inventory_fields_stock_levels": {
+        "name": "Odoo Inventory: Pola i typy (stany magazynowe)",
+        "description": "stock.quant: Sprawdza dostępne nazwy i typy pól przed zapisem."
+      },
+      "integration_odoo_inventory_confirm_transfers": {
+        "name": "Odoo Inventory: Potwierdzanie (przesunięcia magazynowe)",
+        "description": "Potwierdza przygotowane przesunięcia magazynowe. Body: {ids}, najwyżej 100 rekordów. Odczytaj rekordy po operacji, aby potwierdzić stan; zwrócony kreator nie dowodzi zakończenia."
+      },
+      "integration_odoo_inventory_reserve_transfers": {
+        "name": "Odoo Inventory: Rezerwacja (przesunięcia magazynowe)",
+        "description": "Rezerwuje dostępny towar dla przygotowanych przesunięć. Body: {ids}, najwyżej 100 rekordów. Odczytaj rekordy po operacji, aby potwierdzić stan; zwrócony kreator nie dowodzi zakończenia."
+      },
+      "integration_odoo_inventory_validate_transfers": {
+        "name": "Odoo Inventory: Zatwierdzanie (przesunięcia magazynowe)",
+        "description": "Zatwierdza przesunięcia; Odoo może wymagać kreatora zamówienia zaległego lub innego działania. Body: {ids}, najwyżej 100 rekordów. Odczytaj rekordy po operacji, aby potwierdzić stan; zwrócony kreator nie dowodzi zakończenia."
+      },
+      "integration_odoo_projects_search_projects": {
+        "name": "Odoo Projects: Wyszukiwanie (projekty)",
+        "description": "project.project: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_projects_read_projects": {
+        "name": "Odoo Projects: Odczyt (projekty)",
+        "description": "project.project: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+      },
+      "integration_odoo_projects_fields_projects": {
+        "name": "Odoo Projects: Pola i typy (projekty)",
+        "description": "project.project: Sprawdza dostępne nazwy i typy pól przed zapisem."
+      },
+      "integration_odoo_projects_create_projects": {
+        "name": "Odoo Projects: Tworzenie (projekty)",
+        "description": "project.project: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+      },
+      "integration_odoo_projects_update_projects": {
+        "name": "Odoo Projects: Aktualizacja (projekty)",
+        "description": "project.project: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+      },
+      "integration_odoo_projects_search_tasks": {
+        "name": "Odoo Projects: Wyszukiwanie (zadania)",
+        "description": "project.task: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+      },
+      "integration_odoo_projects_read_tasks": {
+        "name": "Odoo Projects: Odczyt (zadania)",
+        "description": "project.task: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+      },
+      "integration_odoo_projects_fields_tasks": {
+        "name": "Odoo Projects: Pola i typy (zadania)",
+        "description": "project.task: Sprawdza dostępne nazwy i typy pól przed zapisem."
+      },
+      "integration_odoo_projects_create_tasks": {
+        "name": "Odoo Projects: Tworzenie (zadania)",
+        "description": "project.task: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+      },
+      "integration_odoo_projects_update_tasks": {
+        "name": "Odoo Projects: Aktualizacja (zadania)",
+        "description": "project.task: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
       }
     },
     "port": {

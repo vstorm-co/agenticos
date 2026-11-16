@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Native integration capabilities can use several organization or personal accounts in one request. Personal accounts can be connected and repaired from chat settings; agents receive account choices and setup guidance when access is missing. Routine source reviews retain the exact approved accounts.
+
 - Odoo 19+ JSON-2 integration for contacts, CRM, sales, invoicing, inventory and projects, with named accounts, approval-gated tools, shared workflow operations, record-change routines and explicitly selected knowledge fields. Exchange Online mail and calendar use the Microsoft Graph connection.
 
 - Built-in Google Workspace, Microsoft Graph, Slack and read-only IMAP integrations with provider setup wizards, named personal and organization accounts, OAuth and application/token alternatives, individual Toolbox tools with mandatory approval for writes, and shared workflow operations. Drive, SharePoint/OneDrive and selected Slack channels reuse organization accounts for knowledge sync. Native-account triggers and watches persist independent change cursors; delegated Teams chats use modification timestamps and application/channel feeds use Graph delta (#2797).

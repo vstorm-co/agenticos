@@ -3,6 +3,7 @@
 import { Check, ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { NativePersonalConnections } from "./native-personal-connections";
 import { ConnectOwnButton } from "@/components/agents/connect-server-dialog";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { Button } from "@/components/ui";
@@ -41,55 +42,61 @@ export function YourConnections() {
   const personal = (version?.spec.mcp_servers ?? []).filter(
     (ref): ref is PersonalMcpServerRef => ref.account === "personal",
   );
-  if (personal.length === 0) return null;
+  const bindings = version?.spec.capabilities ?? [];
+  if (personal.length === 0 && bindings.length === 0) return null;
 
   return (
-    <div className="border-foreground/10 mt-4 border-t pt-4" data-tour="chat-your-connections">
-      <p className="text-muted-foreground mb-3 text-xs leading-relaxed">{t("yourAccounts")}</p>
-      <ul className="space-y-1">
-        {personal.map((ref) => {
-          const entry = servers.find((one) => one.key === ref.catalog_key) ?? null;
-          const name = entry?.name ?? ref.catalog_key;
-          const status = ownAccountStatus(ref.catalog_key, connections);
-          return (
-            <li
-              key={ref.catalog_key}
-              className="flex items-center gap-3 rounded-xl px-3 py-2"
-              aria-label={name}
-            >
-              <McpServerIcon icon={entry?.icon ?? null} name={name} url={entry?.url} />
-              <span className="min-w-0 flex-1">
-                <span className="block text-xs font-medium">{name}</span>
-                <span className="text-muted-foreground block text-xs leading-relaxed">
-                  {t(`status.${status}`)}
-                </span>
-              </span>
-              {status === "connected" ? (
-                <Check className="text-brand h-4 w-4 shrink-0" aria-hidden />
-              ) : status === "not_connected" && entry !== null ? (
-                <ConnectOwnButton
-                  entry={entry}
-                  label={t("connect")}
-                  // Back to this conversation once the consent lands, rather
-                  // than to the servers page: nothing here is unsaved, and the
-                  // question is here.
-                  returnTo={hereForMcpOAuthReturn()}
-                />
-              ) : (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => window.open(ROUTES.MCP_SERVERS, "_blank", "noopener")}
+    <div data-tour="chat-your-connections">
+      {bindings.length > 0 && <NativePersonalConnections bindings={bindings} />}
+      {personal.length > 0 && (
+        <div className="border-foreground/10 mt-4 border-t pt-4">
+          <p className="text-muted-foreground mb-3 text-xs leading-relaxed">{t("yourAccounts")}</p>
+          <ul className="space-y-1">
+            {personal.map((ref) => {
+              const entry = servers.find((one) => one.key === ref.catalog_key) ?? null;
+              const name = entry?.name ?? ref.catalog_key;
+              const status = ownAccountStatus(ref.catalog_key, connections);
+              return (
+                <li
+                  key={ref.catalog_key}
+                  className="flex items-center gap-3 rounded-xl px-3 py-2"
+                  aria-label={name}
                 >
-                  <ExternalLink className="mr-1 h-3.5 w-3.5" />
-                  {t("openServers")}
-                </Button>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+                  <McpServerIcon icon={entry?.icon ?? null} name={name} url={entry?.url} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs font-medium">{name}</span>
+                    <span className="text-muted-foreground block text-xs leading-relaxed">
+                      {t(`status.${status}`)}
+                    </span>
+                  </span>
+                  {status === "connected" ? (
+                    <Check className="text-brand h-4 w-4 shrink-0" aria-hidden />
+                  ) : status === "not_connected" && entry !== null ? (
+                    <ConnectOwnButton
+                      entry={entry}
+                      label={t("connect")}
+                      // Back to this conversation once the consent lands, rather
+                      // than to the servers page: nothing here is unsaved, and the
+                      // question is here.
+                      returnTo={hereForMcpOAuthReturn()}
+                    />
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => window.open(ROUTES.MCP_SERVERS, "_blank", "noopener")}
+                    >
+                      <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                      {t("openServers")}
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

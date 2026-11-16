@@ -15,6 +15,7 @@ from app.workflows.contracts.results import Completed, Failed, NodeResult, Workf
 
 class IntegrationInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    account_name: str | None = Field(default=None, max_length=320, title="Account name")
     parameters: dict[str, str] = Field(default_factory=dict, title="Identifiers")
     query: dict[str, str] = Field(default_factory=dict, title="Query")
     body: dict[str, JsonValue] | None = Field(default=None, title="Request body")
@@ -56,6 +57,7 @@ def handler_for(
                     query=node_input.query,
                     body=node_input.body,
                     workflow_run_id=current.workflow_run_id,
+                    account_name=node_input.account_name,
                 )
             return Completed(output=IntegrationOutput(result=result))
         except AppException as exc:
@@ -75,9 +77,10 @@ def check_for(
             return [("account", "Choose an integration account")]
         try:
             product = PRODUCTS[product_id]
-            account = await IntegrationService(db).binding_account(product, config, auth)
+            accounts = await IntegrationService(db).binding_accounts(product, config, auth)
             operation = next(op for op in product.operations if op.id == operation_id)
-            IntegrationService.check_operation_scopes(account, product, operation)
+            for account in accounts:
+                IntegrationService.check_operation_scopes(account, product, operation)
         except AppException as exc:
             return [("account", exc.message)]
         return []

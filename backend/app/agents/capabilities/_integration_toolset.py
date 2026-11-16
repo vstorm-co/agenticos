@@ -7,9 +7,15 @@ from pydantic_ai import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.deps import AgentDeps
-from app.core.exceptions import AppException
+from app.core.exceptions import AppException, AuthorizationError, NotFoundError
 from app.db.session import get_db_context
-from app.services.integrations import PRODUCTS, AccountSelection, IntegrationService, Operation
+from app.services.integrations import (
+    PRODUCTS,
+    AccountSelection,
+    IntegrationAccountRequired,
+    IntegrationService,
+    Operation,
+)
 
 
 def _operation_tool(
@@ -20,6 +26,7 @@ def _operation_tool(
         parameters: dict[str, str] | None = None,
         query: dict[str, str] | None = None,
         body: dict[str, JsonValue] | None = None,
+        account_name: str | None = None,
     ) -> dict[str, JsonValue]:
         """Call this integration operation.
 
@@ -46,16 +53,28 @@ def _operation_tool(
                     query=query or {},
                     body=body,
                     agent_run_id=deps.run_id,
+                    account_name=account_name,
                 )
         except AppException as exc:
-            return {"error": exc.message}
+            result: dict[str, JsonValue] = {"error": exc.message}
+            if isinstance(exc, (AuthorizationError, NotFoundError, IntegrationAccountRequired)):
+                result["next_step"] = (
+                    "Explain the missing access or account choice to the user. "
+                    "For a personal account, open Chat settings → Tools → Your accounts "
+                    "to connect or repair it. Organization accounts must be configured by "
+                    "an authorized agent editor in Toolbox and Vault. Do not retry with "
+                    "another person's or an unconfigured account."
+                )
+            return result
 
     call.__doc__ = (
         operation.description
         + f"\n\nRequired parameters: {', '.join(operation.parameters) or 'none'}. "
         + f"Allowed query fields: {', '.join(operation.query) or 'none'}. "
         + "The body follows this operation's documented format. "
-        + "Only the selected connected account is reachable.\n\nReturns:\n"
+        + "Use account_name to select one of the accounts listed in your integration instructions. "
+        + "With several accounts and an unclear request, ask which one to use before calling. "
+        + "Only accounts allowed by this capability are reachable.\n\nReturns:\n"
         + "    The provider's JSON object with its next-page cursor when present, or an error. "
         + "Responses exceeding 2 MB are refused; narrow the query."
     )

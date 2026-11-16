@@ -344,7 +344,9 @@ export function CapabilityDetail({
             definition.category === "integrations"
               ? [
                   "disabled_tools",
-                  ...(integrationProvider ? ["account", "account_name", "connection_id"] : []),
+                  ...(integrationProvider
+                    ? ["account", "account_name", "connection_id", "connection_ids"]
+                    : []),
                   ...(["slack", "teams"].includes(binding.id) ? [] : ["channels"]),
                 ]
               : binding.id === "context"

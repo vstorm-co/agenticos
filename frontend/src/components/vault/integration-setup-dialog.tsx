@@ -39,11 +39,15 @@ export function IntegrationSetupDialog({
   provider,
   onClose,
   reconnectAccount,
+  initialProducts = [],
+  returnTo: oauthReturnTo,
 }: {
   owner: AccountOwner;
   provider: Exclude<IntegrationProvider, "imap" | "odoo">;
   onClose: () => void;
   reconnectAccount?: ConnectedAccount;
+  initialProducts?: string[];
+  returnTo?: string;
 }) {
   const t = useTranslations("pages.vault.connectedAccounts.setup");
   const errors = useTranslations("errors");
@@ -55,7 +59,7 @@ export function IntegrationSetupDialog({
   const { can } = usePermissions();
   const secrets = useSecrets();
   const [adding, setAdding] = useState(false);
-  const [products, setProducts] = useState<string[]>([]);
+  const [products, setProducts] = useState<string[]>(initialProducts);
   const [token, setToken] = useState("");
   const [label, setLabel] = useState(reconnectAccount?.label ?? "");
   const [method, setMethod] = useState<"oauth" | "application">(
@@ -69,7 +73,8 @@ export function IntegrationSetupDialog({
       : "",
   );
   const applicationKind = provider === "google" ? "gcp_service_account" : "entra_app";
-  const returnTo = usePathname();
+  const pathname = usePathname();
+  const returnTo = oauthReturnTo ?? pathname;
   const info = setup.data;
   const scopes =
     info?.products

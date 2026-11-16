@@ -1,10 +1,10 @@
 ---
-source_sha: "2e56e827219e"
+source_sha: "864476c5a2d0"
 ---
 
 # Integrierte Integrationen { #built-in-integrations }
 
-Unter **Einstellungen → Vault → Verbundene Konten** verbinden Sie ein Konto. Jedes Google-, Microsoft- und Slack-Produkt ist eine eigene Capability in der **Toolbox** eines Agenten, mit eigener Kontowahl und einzelnen Werkzeugschaltern. Die Integrationen nutzen Anbieter-APIs direkt. Anbieter-MCP-Server, Google Workspace MCP Preview und eine Microsoft-Copilot-Lizenz sind nicht erforderlich.
+Verbinden Sie Konten unter **Vault → Konto verbinden**. Persönliche Konten lassen sich auch direkt unter **Chat-Einstellungen → Werkzeuge → Ihre Konten** in `/chat` verbinden oder reparieren. Mehrere Konten desselben Anbieters sind möglich. Jedes Google-, Microsoft- oder Slack-Produkt ist eine eigene Capability in der **Toolbox** des Agenten, mit Kontenauswahl und einzelnen Werkzeugschaltern. Die Integrationen verwenden die Anbieter-APIs direkt; Anbieter-MCP-Server, Google Workspace MCP Preview und eine Microsoft-Copilot-Lizenz sind nicht erforderlich.
 
 ## Ein Konto einrichten { #set-up-an-account }
 
@@ -42,7 +42,11 @@ Microsoft: Outlook-Mail, Calendar, OneDrive/SharePoint-Dateien, Excel, Word-Doku
 
 Verbundene Drive-, SharePoint- und Slack-Leser beziehen vor jeder Provideranfrage das Token des autorisierten Kontos erneut. Lange Synchronisierungen können OAuth dadurch erneuern, ohne Refresh-Secrets in der Connector-Konfiguration zu speichern. Der Entzug der Eingabekontofreigabe stoppt auch natives Trigger-Polling vor dem Tokenzugriff. Microsoft-Dateitrigger erkennen eigene Änderungen von Anwendungskonten anhand des konfigurierten Benutzers und der Anwendungs-ID; der standardmäßige Eigenänderungsfilter unterdrückt sie.
 
-**personal** wählt das Konto der aktuellen Person nach exaktem Namen, Label oder Adresse. Ein leerer Name funktioniert nur bei genau einem Treffer. Persönliche Werkzeuge benötigen einen privaten Chat und aktive Organisationsmitgliedschaft. Für gemeinsame Automatisierung **organization** und Verbindungs-ID wählen. Ein Agent leiht kein Konto eines anderen Mitglieds aus.
+Wählen Sie **personal** für die eigenen Konten der aktuellen Person. Ein leerer Kontoname stellt deren Konten zur Laufzeit bereit; ein exakter Name, ein Label oder eine Adresse beschränkt die Capability auf ein passendes Konto. Persönliche Werkzeuge benötigen einen privaten Chat und aktive Organisationsmitgliedschaft. Der Agent leiht weder fremde Konten noch das Konto seines Autors aus.
+
+Wählen Sie **organization** und die für den Agenten zugelassenen Konten. Bestehende Spezifikationen mit einer `connection_id` bleiben gültig; `connection_ids` erlaubt mehrere Konten. Die Veröffentlichung prüft jedes Konto und seine aktivierten Operationen. Jede Operation prüft den aktuellen Zugriff des Bindungsautors erneut.
+
+Das Modell erhält vor der Antwort Kontonamen und Labels. Es wählt ein Konto mit dem Werkzeugargument `account_name` und kann mehrere Konten in einer Anfrage verwenden. Ist die Kontowahl unklar, fragt es vor dem Datenzugriff nach. Fehlenden Zugriff erklärt es mit Hinweisen zu Chat-Einstellungen oder Vault. Workflow-Operationen akzeptieren ebenfalls `account_name` als Eingabe, wenn mehrere Konten konfiguriert sind. Neue oder erneut autorisierte Konten erfordern eine Quellenprüfung, bevor eine Routine sie verwenden darf.
 
 Jeder Schreibzugriff in Agentenläufen benötigt menschliche Freigabe, auch bei einer schwächeren Werkzeugüberschreibung. Deaktivierte Werkzeuge werden nicht angeboten. Workflows nutzen dieselben Operationen als `integration.<product>.<operation>` mit denselben Konto- und Transportprüfungen. Schreibzugriffe werden nicht automatisch wiederholt; für menschliche Prüfung im Workflow davor einen Approval-Knoten setzen.
 

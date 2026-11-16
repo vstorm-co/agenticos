@@ -26,7 +26,7 @@ it("keeps a personal label portable across the people running an agent", async (
     "/vault",
   );
 });
-it("selects an organization account by its label and stores its ID", async () => {
+it("selects organization accounts by label and stores only their IDs", async () => {
   const change = vi.fn();
   render(
     <IntegrationAccountFields
@@ -36,9 +36,12 @@ it("selects an organization account by its label and stores its ID", async () =>
       onChange={change}
     />,
   );
-  await userEvent.click(screen.getByRole("combobox", { name: "Choose a connected account" }));
-  await userEvent.click(screen.getByRole("option", { name: "Work" }));
-  expect(change).toHaveBeenCalledWith({ account: "organization", connection_id: "org-account" });
+  await userEvent.click(screen.getByRole("checkbox", { name: "Work — work@example.com" }));
+  expect(change).toHaveBeenCalledWith({
+    account: "organization",
+    connection_id: null,
+    connection_ids: ["org-account"],
+  });
   expect(accounts).toHaveBeenCalledWith("organization", { provider: "google", enabled: true });
 });
 it("clears an account reference when its owner changes", async () => {
@@ -57,6 +60,7 @@ it("clears an account reference when its owner changes", async () => {
     account: "personal",
     account_name: "",
     connection_id: null,
+    connection_ids: [],
   });
 });
 it("makes a read-only capability unable to change accounts", () => {
@@ -109,4 +113,31 @@ it("submits the unique account name when two personal accounts share a label", (
     target: { value: "google-account-two" },
   });
   expect(change).toHaveBeenCalledWith({ account_name: "google-account-two" });
+});
+
+it("keeps a legacy organization account selected when another one is added", async () => {
+  accounts.mockReturnValue({
+    accounts: [
+      { id: "one", email: "one@example.com", label: "Work" },
+      { id: "two", email: "two@example.com", label: "Work" },
+    ],
+    isLoading: false,
+    error: null,
+  });
+  const change = vi.fn();
+  render(
+    <IntegrationAccountFields
+      productId="gmail"
+      provider="google"
+      config={{ account: "organization", connection_id: "one" }}
+      onChange={change}
+    />,
+  );
+  expect(screen.getByRole("checkbox", { name: "Work — one@example.com" })).toBeChecked();
+  await userEvent.click(screen.getByRole("checkbox", { name: "Work — two@example.com" }));
+  expect(change).toHaveBeenCalledWith({
+    account: "organization",
+    connection_id: null,
+    connection_ids: ["one", "two"],
+  });
 });

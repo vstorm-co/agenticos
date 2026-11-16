@@ -53,9 +53,13 @@ export function useConnectedAccounts(
   const accounts = useQuery({
     queryKey: provider === "google" ? KEY[owner]() : [...KEY[owner](), provider],
     queryFn: async () => {
-      const providers = provider === "all" ? INTEGRATION_PROVIDERS : [provider];
+      if (provider !== "all") {
+        return apiClient.get<ConnectedAccountList>(
+          provider === "google" ? PREFIX[owner] : `${PREFIX[owner]}?provider=${provider}`,
+        );
+      }
       const lists = await Promise.all(
-        providers.map((id) =>
+        INTEGRATION_PROVIDERS.map((id) =>
           apiClient.get<ConnectedAccountList>(
             id === "google" ? PREFIX[owner] : `${PREFIX[owner]}?provider=${id}`,
           ),

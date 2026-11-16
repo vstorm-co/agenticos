@@ -13,7 +13,7 @@ from pydantic_ai.usage import RunUsage
 from app.agents.audience import RunAudience
 from app.agents.capabilities import _integration_toolset as tools
 from app.agents.deps import AgentDeps
-from app.core.exceptions import AuthorizationError
+from app.core.exceptions import AuthorizationError, ExternalServiceError
 from app.core.permissions import AuthContext
 from app.services.integrations import AccountSelection, IntegrationService
 from app.services.workflow_execution import context
@@ -54,13 +54,15 @@ async def test_workflow_node_calls_the_same_operation_as_the_agent_tool(native_c
     current = dispatch()
     with context.dispatching_as(current):
         result = await nodes.handler_for("gmail", "search_threads")(
-            AccountSelection(), nodes.IntegrationInput(query={"q": "in:inbox"})
+            AccountSelection(),
+            nodes.IntegrationInput(query={"q": "in:inbox"}, account_name="work-two"),
         )
     assert isinstance(result, Completed) and result.output.result == {"id": "remote-result"}
     assert native_calls.await_args.kwargs["person_id"] == current.auth.user_id
     assert native_calls.await_args.kwargs["organization_id"] == current.organization_id
     assert native_calls.await_args.kwargs["workflow_run_id"] == current.workflow_run_id
     assert native_calls.await_args.kwargs["query"] == {"q": "in:inbox"}
+    assert native_calls.await_args.kwargs["account_name"] == "work-two"
 
 
 @pytest.mark.parametrize("configured", [False, True])
@@ -93,13 +95,18 @@ async def test_publish_checks_the_account_without_spending_its_credential(monkey
     ctx = dispatch().auth
     account = AsyncMock(
         return_value=SimpleNamespace(
-            auth_type="oauth", granted_scopes=["https://www.googleapis.com/auth/gmail.readonly"]
+            name="work",
+            auth_type="oauth",
+            granted_scopes=["https://www.googleapis.com/auth/gmail.readonly"],
         )
     )
     from app.services.mcp_connection import McpConnectionService
 
     monkeypatch.setattr(
         McpConnectionService, "account_needs_reconnect", AsyncMock(return_value=False)
+    )
+    monkeypatch.setattr(
+        IntegrationService, "accounts", AsyncMock(return_value=[account.return_value])
     )
     monkeypatch.setattr(IntegrationService, "account", account)
     assert await check(AsyncMock(), ctx, AccountSelection()) == []
@@ -132,11 +139,18 @@ async def test_agent_tool_uses_the_current_run_person_and_reports_account_refusa
     )
     ctx = RunContext(deps=deps, model=TestModel(), usage=RunUsage(), prompt="test")
     tool = tools.build_toolset("gmail", AccountSelection()).tools["gmail_search_threads"].function
-    assert await tool(ctx, query={"q": "unread"}) == {"id": "remote-result"}
+    assert await tool(ctx, query={"q": "unread"}, account_name="work-two") == {
+        "id": "remote-result"
+    }
+    assert native_calls.await_args.kwargs["account_name"] == "work-two"
     assert native_calls.await_args.kwargs["person_id"] == person
     assert native_calls.await_args.kwargs["agent_run_id"] == deps.run_id
     native_calls.side_effect = AuthorizationError(message="reconnect")
-    assert await tool(ctx) == {"error": "reconnect"}
+    refused = await tool(ctx)
+    assert refused["error"] == "reconnect"
+    assert "Your accounts" in refused["next_step"]
+    native_calls.side_effect = ExternalServiceError(message="provider temporarily unavailable")
+    assert await tool(ctx) == {"error": "provider temporarily unavailable"}
     deps.organization_id = None
     assert "error" in await tool(ctx)
 
@@ -150,9 +164,11 @@ async def test_a_disabled_product_tool_is_absent_from_the_runtime():
 
 async def test_workflow_publish_refuses_write_operations_on_a_read_only_account(monkeypatch):
     account = SimpleNamespace(
-        auth_type="oauth", granted_scopes=["https://www.googleapis.com/auth/gmail.readonly"]
+        name="work",
+        auth_type="oauth",
+        granted_scopes=["https://www.googleapis.com/auth/gmail.readonly"],
     )
-    monkeypatch.setattr(IntegrationService, "binding_account", AsyncMock(return_value=account))
+    monkeypatch.setattr(IntegrationService, "binding_accounts", AsyncMock(return_value=[account]))
     check = nodes.check_for("gmail", "send_message")
     assert await check(AsyncMock(), dispatch().auth, AccountSelection()) == [
         ("account", "Reconnect this account with the permissions this operation requires")

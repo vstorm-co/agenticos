@@ -28,6 +28,12 @@ from app.services.integrations import client
 from app.services.integrations.catalog import PRODUCTS, Operation, Product, application_scopes
 
 
+class IntegrationAccountRequired(BadRequestError):
+    """A product needs a connected account or an explicit choice among held accounts."""
+
+    code = "INTEGRATION_ACCOUNT_REQUIRED"
+
+
 class AccountToken(ApiKeySecret):
     """An ephemeral bearer token minted from an authorized connected account.
 
@@ -84,12 +90,18 @@ class AccountSelection(BaseModel):
         default="",
         max_length=320,
         title="Account name",
-        description="The connected account's name or label. Leave empty only when exactly one account is connected.",
+        description="The connected account's name or label. Leave empty to make the current person's accounts available and ask which one to use when needed.",
     )
     connection_id: UUID | None = Field(
         default=None,
         title="Organization account",
         description="The organization account to use when account owner is organization.",
+    )
+    connection_ids: list[UUID] = Field(
+        default_factory=list,
+        max_length=20,
+        title="Organization accounts",
+        description="The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous.",
     )
     channels: list[str] = Field(
         default_factory=list,
@@ -107,6 +119,11 @@ class AccountSelection(BaseModel):
 
     @model_validator(mode="after")
     def _known_tools(self) -> Self:
+        if (
+            len(set(self.connection_ids) | ({self.connection_id} if self.connection_id else set()))
+            > 20
+        ):
+            raise ValueError("Choose at most 20 organization accounts")
         if self._product_id is not None:
             allowed = {
                 f"{self._product_id}_{op.id}" for op in PRODUCTS[self._product_id].operations
@@ -120,24 +137,32 @@ class IntegrationService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def account(
+    async def accounts(
         self,
         product: Product,
         selection: AccountSelection,
         *,
         organization_id: UUID,
         person_id: UUID | None,
-    ) -> McpConnection:
+    ) -> list[McpConnection]:
+        """Resolve only configured organization accounts or the current member's own accounts."""
         from app.services.mcp_connection import account_source_organization
 
         if selection.account == "organization":
-            row = (
-                await mcp_connection_repo.get_account(self.db, selection.connection_id)
-                if selection.connection_id
-                else None
+            identifiers = list(
+                dict.fromkeys(
+                    ([selection.connection_id] if selection.connection_id else [])
+                    + selection.connection_ids
+                )
             )
-            if row is None or row.scope != "org" or row.organization_id != organization_id:
+            if not identifiers:
                 raise NotFoundError(message="Organization integration account not found")
+            rows: list[McpConnection] = []
+            for identifier in identifiers:
+                row = await mcp_connection_repo.get_account(self.db, identifier)
+                if row is None or row.scope != "org" or row.organization_id != organization_id:
+                    raise NotFoundError(message="Organization integration account not found")
+                rows.append(row)
         else:
             if person_id is None:
                 raise AuthorizationError(
@@ -152,31 +177,101 @@ class IntegrationService:
                 raise AuthorizationError(
                     message="Integration access requires current organization membership"
                 )
-            rows = await mcp_connection_repo.list_accounts(
+            held = await mcp_connection_repo.list_accounts(
                 self.db, provider=product.provider, user_id=person_id
             )
-            owned = [row for row in rows if account_source_organization(row) == organization_id]
-            named = [
-                row
-                for row in owned
-                if selection.account_name and row.name == selection.account_name
-            ]
-            candidates = named or [
-                row
-                for row in owned
-                if not selection.account_name
-                or selection.account_name in {row.label, row.account_email}
-            ]
-            if len(candidates) != 1:
-                raise BadRequestError(
-                    message="Connect one integration account or select an unambiguous account name"
+            rows = [row for row in held if account_source_organization(row) == organization_id]
+            if selection.account_name:
+                rows = self._named_accounts(rows, selection.account_name)
+        for row in rows:
+            if row.catalog_key != product.provider or not row.is_enabled:
+                raise AuthorizationError(
+                    message="This account is disabled or belongs to another integration"
                 )
-            row = candidates[0]
-        if row.catalog_key != product.provider or not row.is_enabled:
-            raise AuthorizationError(
-                message="This account is disabled or belongs to another integration"
+        return rows
+
+    @staticmethod
+    def _named_accounts(rows: list[McpConnection], name: str) -> list[McpConnection]:
+        exact = [row for row in rows if row.name == name]
+        return exact or [row for row in rows if name in {row.label, row.account_email}]
+
+    async def account(
+        self,
+        product: Product,
+        selection: AccountSelection,
+        *,
+        organization_id: UUID,
+        person_id: UUID | None,
+        account_name: str | None = None,
+    ) -> McpConnection:
+        candidates = await self.accounts(
+            product, selection, organization_id=organization_id, person_id=person_id
+        )
+        if account_name:
+            candidates = self._named_accounts(candidates, account_name)
+        if len(candidates) != 1:
+            raise IntegrationAccountRequired(
+                message="Connect one integration account or select an unambiguous account name"
             )
-        return row
+        return candidates[0]
+
+    async def available_accounts(
+        self,
+        product: Product,
+        selection: AccountSelection,
+        *,
+        organization_id: UUID,
+        person_id: UUID | None,
+        agent_run_id: UUID | None = None,
+    ) -> list[McpConnection]:
+        """Return account metadata only after rechecking the binding author's authority."""
+        rows = await self.accounts(
+            product, selection, organization_id=organization_id, person_id=person_id
+        )
+        from app.services.integrations.authority import require_reviewed_accounts
+
+        await require_reviewed_accounts(
+            self.db, rows, organization_id=organization_id, agent_run_id=agent_run_id
+        )
+        if selection.account == "organization":
+            from app.services.integrations.authority import authorize, run_author
+
+            author = await run_author(
+                self.db,
+                organization_id=organization_id,
+                person_id=person_id,
+                agent_run_id=agent_run_id,
+                workflow_run_id=None,
+            )
+            for row in rows:
+                await authorize(self.db, row, author)
+        return rows
+
+    async def binding_accounts(
+        self, product: Product, selection: AccountSelection, ctx: AuthContext
+    ) -> list[McpConnection]:
+        """Validate every account admitted by a published binding or routine review."""
+        if selection.account == "organization":
+            identifiers = list(
+                dict.fromkeys(
+                    ([selection.connection_id] if selection.connection_id else [])
+                    + selection.connection_ids
+                )
+            )
+            selections = [
+                selection.model_copy(update={"connection_id": identifier, "connection_ids": []})
+                for identifier in identifiers or [None]
+            ]
+        else:
+            rows = await self.accounts(
+                product, selection, organization_id=ctx.organization_id, person_id=ctx.user_id
+            )
+            if not rows:
+                raise IntegrationAccountRequired(
+                    message="Connect an integration account before binding it"
+                )
+            selections = [selection.model_copy(update={"account_name": row.name}) for row in rows]
+        return [await self.binding_account(product, selected, ctx) for selected in selections]
 
     async def binding_account(
         self, product: Product, selection: AccountSelection, ctx: AuthContext
@@ -290,6 +385,7 @@ class IntegrationService:
         body: dict[str, JsonValue] | None,
         agent_run_id: UUID | None = None,
         workflow_run_id: UUID | None = None,
+        account_name: str | None = None,
     ) -> dict[str, JsonValue]:
         from app.services.mcp_connection import McpConnectionService
 
@@ -300,7 +396,16 @@ class IntegrationService:
         if operation is None:
             raise BadRequestError(message="Unknown integration operation")
         account = await self.account(
-            product, selection, organization_id=organization_id, person_id=person_id
+            product,
+            selection,
+            organization_id=organization_id,
+            person_id=person_id,
+            account_name=account_name,
+        )
+        from app.services.integrations.authority import require_reviewed_accounts
+
+        await require_reviewed_accounts(
+            self.db, [account], organization_id=organization_id, agent_run_id=agent_run_id
         )
         if selection.account == "organization":
             from app.services.integrations.authority import authorize, run_author

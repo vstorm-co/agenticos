@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useConnectedAccounts, type IntegrationProvider } from "@/hooks/use-connected-accounts";
 import { ErrorState } from "@/components/states";
 import {
+  Checkbox,
   FormField,
   Input,
   Select,
@@ -47,7 +48,13 @@ export function IntegrationAccountFields({
           value={owner}
           disabled={disabled}
           onValueChange={(account) =>
-            onChange({ ...config, account, connection_id: null, account_name: "" })
+            onChange({
+              ...config,
+              account,
+              connection_id: null,
+              connection_ids: [],
+              account_name: "",
+            })
           }
         >
           <SelectTrigger id={`${prefix}-owner`}>
@@ -61,28 +68,44 @@ export function IntegrationAccountFields({
       </FormField>
       {error && <ErrorState description={getErrorMessage(error, errors)} />}
       {owner === "organization" ? (
-        <FormField
-          label={t("chooseAccount")}
-          htmlFor={`${prefix}-account`}
-          error={configErrors.connection_id}
-        >
-          <Select
-            value={typeof config.connection_id === "string" ? config.connection_id : ""}
-            disabled={disabled || isLoading}
-            onValueChange={(connection_id) => onChange({ ...config, connection_id })}
-          >
-            <SelectTrigger id={`${prefix}-account`}>
-              <SelectValue placeholder={t("chooseAccount")} />
-            </SelectTrigger>
-            <SelectContent>
-              {accounts.map((account) => (
-                <SelectItem key={account.id} value={account.id}>
-                  {account.label || account.email}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FormField>
+        <fieldset className="space-y-2" disabled={disabled || isLoading}>
+          <legend className="text-sm font-medium">{t("chooseAccounts")}</legend>
+          {accounts.map((account) => {
+            const selected = [
+              ...new Set([
+                ...(typeof config.connection_id === "string" ? [config.connection_id] : []),
+                ...(Array.isArray(config.connection_ids)
+                  ? config.connection_ids.filter((id): id is string => typeof id === "string")
+                  : []),
+              ]),
+            ];
+            const label = account.label ? `${account.label} — ${account.email}` : account.email;
+            return (
+              <label key={account.id} className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  aria-label={label}
+                  checked={selected.includes(account.id)}
+                  onCheckedChange={(checked) =>
+                    onChange({
+                      ...config,
+                      connection_id: null,
+                      connection_ids: checked
+                        ? [...selected, account.id]
+                        : selected.filter((id) => id !== account.id),
+                    })
+                  }
+                />
+                {label}
+              </label>
+            );
+          })}
+          {(configErrors.connection_ids || configErrors.connection_id) && (
+            <p role="alert" className="text-destructive text-xs">
+              {configErrors.connection_ids || configErrors.connection_id}
+            </p>
+          )}
+          <p className="text-muted-foreground text-xs">{t("multipleAccountsHint")}</p>
+        </fieldset>
       ) : (
         <FormField
           label={t("accountNameLabel")}

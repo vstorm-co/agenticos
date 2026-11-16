@@ -1,6 +1,6 @@
 # Built-in integrations
 
-Connect an account under **Settings → Vault → Connected accounts**. Each Google, Microsoft or Slack product is a separate capability in an agent's **Toolbox**, with its own account selection and individual tool switches. These integrations use provider APIs directly; vendor MCP servers, Google Workspace MCP preview and a Microsoft Copilot licence are not required.
+Connect accounts in **Vault → Connect account**. Personal accounts can also be connected or repaired directly in **Chat settings → Tools → Your accounts** under `/chat`. You can connect several accounts for the same provider. Each Google, Microsoft or Slack product is a separate capability in an agent's **Toolbox**, with its own account selection and individual tool switches. These integrations use provider APIs directly; vendor MCP servers, Google Workspace MCP preview and a Microsoft Copilot licence are not required.
 
 ## Set up an account
 
@@ -36,7 +36,11 @@ Google products: Gmail (search/read, labels, draft/send), Calendar (events and f
 
 Microsoft products: Outlook mail, Calendar, OneDrive/SharePoint files, Excel and Word documents, and Teams chats/channels. Slack offers search, my mentions, history/threads, channels/users, lookup, posting/replies, DMs and reactions. IMAP offers search and message reads without marking them seen.
 
-Choose **personal** to resolve the current person's account by its exact name, label or address. An empty name works only with one matching account. Personal tools require a private conversation and current organization membership. Choose **organization** and a connection ID for shared automations. A capability never borrows another member's account.
+Choose **personal** to use the current person's own accounts. Leave the account name empty to make their accounts available at run time, or set an exact name, label or address to restrict the capability to one matching account. Personal tools require a private conversation and current organization membership; the agent never borrows another member's or its publisher's account.
+
+Choose **organization** and select the accounts the agent may use. Existing specs with one `connection_id` remain valid; `connection_ids` admits several accounts. Publication checks every selected account and its enabled operations. Each operation rechecks the binding author's current access.
+
+The model receives account names and labels before answering. It selects an account with the tool's `account_name` argument and can use several accounts in one request. If the request does not identify an account, it asks before accessing data. Missing access is explained with directions to Chat settings or Vault. Workflow operations also accept `account_name` in their input when several accounts are configured. Adding or reauthorizing an account requires reviewing a routine's sources before that routine may use it.
 
 Each write requires human approval in agent runs, even if a per-tool override requests otherwise. Disable tools individually to remove them. Workflows expose the same operations as `integration.<product>.<operation>` nodes, with the same account and transport checks. Writes are not automatically retried; place an approval node before writes that need human review in a workflow.
 
@@ -60,7 +64,7 @@ Each watch has an independent durable cursor; it advances only after a successfu
 
 Reconnect from the affected account row to replace credentials in place. The account ID and stable name remain, preserving agent, source and trigger references; its authorization generation changes and existing routines need a source review. Use the same authentication method. Polling errors appear on the account and clear after a successful poll. An inaccessible spreadsheet retains its own cursor while healthy spreadsheets continue. Slack change feeds exclude messages sent by the connected user or bot to prevent reply loops.
 
-See [capabilities](reference/capabilities.md), [triggers](triggers.md), [governance and watches](governance.md#proactive-work) and [MCP](mcp.md) for their existing controls.
+See [capabilities](https://vstorm-co.github.io/agenticos/reference/capabilities/), [triggers](https://vstorm-co.github.io/agenticos/triggers/), [governance and watches](https://vstorm-co.github.io/agenticos/governance/#proactive-work) and [MCP](mcp.md) for their existing controls.
 
 Set a label such as Work when connecting; use the same label for each person’s corresponding account.
 

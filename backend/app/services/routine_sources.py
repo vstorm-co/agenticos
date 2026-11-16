@@ -363,7 +363,7 @@ class RoutineSourceService:
             for binding in candidate.capabilities:
                 if binding.enabled and binding.id in PRODUCTS:
                     try:
-                        native_account = await IntegrationService(self.db).binding_account(
+                        native_accounts = await IntegrationService(self.db).binding_accounts(
                             PRODUCTS[binding.id],
                             AccountSelection.model_validate(binding.config),
                             ctx,
@@ -371,13 +371,16 @@ class RoutineSourceService:
                     except AppException:
                         unavailable.add(f"Integration account · {binding.id}")
                     else:
-                        mirage_accounts[native_account.id] = native_account.authorization_generation
-                        native_client = account_client_identity(native_account)
-                        if native_client is not None:
-                            secret_sources[native_client[1]] = native_client[2]
-                        resources.add(
-                            f"Integration account · {binding.id} · {native_account.label or native_account.name}"
-                        )
+                        for native_account in native_accounts:
+                            mirage_accounts[native_account.id] = (
+                                native_account.authorization_generation
+                            )
+                            native_client = account_client_identity(native_account)
+                            if native_client is not None:
+                                secret_sources[native_client[1]] = native_client[2]
+                            resources.add(
+                                f"Integration account · {binding.id} · {native_account.label or native_account.name}"
+                            )
                     continue
                 if not binding.enabled or binding.id != "mirage":
                     continue

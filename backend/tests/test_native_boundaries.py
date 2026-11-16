@@ -79,11 +79,13 @@ async def test_watch_connection_choices_keep_accounts_in_the_active_organization
 
 
 @pytest.mark.parametrize("available,client_bound", [(False, False), (True, False), (True, True)])
+@pytest.mark.parametrize("account_count", [1, 2])
 async def test_routine_review_records_native_account_and_client_generations(
-    monkeypatch, available, client_bound
+    monkeypatch, available, client_bound, account_count
 ):
     ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
     native = source(ctx)
+    native_accounts = [native] + ([source(ctx)] if account_count == 2 else [])
     spec = AgentSpec(name="Monitor", capabilities=[CapabilityBindingSpec(id="odoo_contacts")])
     trigger = AgentTrigger(
         id=uuid4(),
@@ -99,13 +101,16 @@ async def test_routine_review_records_native_account_and_client_generations(
         connection_id=native.id,
         runs_as_creator=True,
     )
+    monkeypatch.setattr(
+        "app.services.channel_actions.granted_connections", AsyncMock(return_value={})
+    )
     service = routine_sources.RoutineSourceService(AsyncMock())
     service.agents.get_runnable_spec = AsyncMock(return_value=(MagicMock(), spec, uuid4()))
     lookup = AsyncMock(
-        return_value=native,
+        return_value=native_accounts,
         side_effect=None if available else AuthorizationError(message="not shared"),
     )
-    monkeypatch.setattr(IntegrationService, "binding_account", lookup)
+    monkeypatch.setattr(IntegrationService, "binding_accounts", lookup)
     monkeypatch.setattr(
         routine_sources.mcp_connection_repo, "get_by_id", AsyncMock(return_value=native)
     )
@@ -116,6 +121,11 @@ async def test_routine_review_records_native_account_and_client_generations(
     )
     snapshot = await service.snapshot(ctx, trigger)
     assert snapshot.policy.mirage_accounts[native.id] == native.authorization_generation
+    if available:
+        assert all(
+            snapshot.policy.mirage_accounts[row.id] == row.authorization_generation
+            for row in native_accounts
+        )
     assert snapshot.policy.input_connection_id == native.id
     assert (secret_id in snapshot.policy.secret_sources) is client_bound
     assert bool(snapshot.unavailable) is not available
@@ -245,6 +255,9 @@ async def test_revoking_the_trigger_input_grant_blocks_polling_even_without_a_ca
         event_config={"product_id": "odoo_contacts"},
         connection_id=native.id,
         runs_as_creator=True,
+    )
+    monkeypatch.setattr(
+        "app.services.channel_actions.granted_connections", AsyncMock(return_value={})
     )
     service = routine_sources.RoutineSourceService(AsyncMock())
     service.agents.get_runnable_spec = AsyncMock(return_value=(MagicMock(), spec, uuid4()))

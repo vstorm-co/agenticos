@@ -61,3 +61,30 @@ async def run_author(
             message="The integration binding author is no longer authorized in this organization"
         )
     return context
+
+
+async def require_reviewed_accounts(
+    db: AsyncSession,
+    accounts: list[McpConnection],
+    *,
+    organization_id: UUID,
+    agent_run_id: UUID | None,
+) -> None:
+    """A running routine cannot acquire a newly connected or reauthorized account."""
+    if agent_run_id is None:
+        return
+    run = await agent_run_repo.get_run(db, agent_run_id, organization_id=organization_id)
+    if run is None:
+        raise AuthorizationError(message="This integration run no longer exists")
+    if run.routine_kind != "trigger":
+        return
+    from app.schemas.routine_sources import RoutineSourcePolicy
+
+    policy = RoutineSourcePolicy.model_validate(run.routine_policy)
+    if any(
+        policy.mirage_accounts.get(account.id) != account.authorization_generation
+        for account in accounts
+    ):
+        raise AuthorizationError(
+            message="Review this routine's sources before using changed integration accounts"
+        )
