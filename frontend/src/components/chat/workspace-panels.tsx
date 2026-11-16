@@ -131,6 +131,9 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
       />
       {surface !== "browser" && <div id={panelIds.browser} hidden aria-hidden="true" />}
       {surface !== "computer" && <div id={panelIds.computer} hidden aria-hidden="true" />}
+      {props.agentId !== null && surface !== "settings" && (
+        <div id={panelIds.settings} hidden aria-hidden="true" />
+      )}
       <WorkspaceFiles
         key={`${account}:${organization}:${props.agentId}:${props.conversationId}`}
         conversationId={props.conversationId}
