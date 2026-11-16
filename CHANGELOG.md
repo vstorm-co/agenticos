@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.78.1] - 2026-11-16
+
 ### Added
 
 - Configure API webhook signature formats and headers in the routine editor, and find Linear webhooks from the event picker.
@@ -21855,7 +21857,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.78.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.78.1...HEAD
+[1.78.1]: https://github.com/vstorm-co/agenticos/compare/v1.78.0...v1.78.1
 [1.78.0]: https://github.com/vstorm-co/agenticos/compare/v1.77.0...v1.78.0
 [1.77.0]: https://github.com/vstorm-co/agenticos/compare/v1.76.2...v1.77.0
 [1.76.2]: https://github.com/vstorm-co/agenticos/compare/v1.76.1...v1.76.2
