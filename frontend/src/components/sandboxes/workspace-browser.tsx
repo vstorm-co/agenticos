@@ -132,7 +132,34 @@ function FlatFiles() {
   const download = (file: FlatFile) =>
     void workspaceFileAccess({ kind: "workspace", id: file.workspace_id }, file.path).download();
 
-  if (isLoading) return <Skeleton className="m-5 h-24" />;
+  if (isLoading)
+    return (
+      <div aria-busy="true" className="flex flex-1 flex-col space-y-5">
+        <div aria-hidden="true" className="flex flex-wrap items-center gap-2">
+          <Skeleton className="h-9 w-full sm:w-64" />
+          <Skeleton className="h-8 w-36 rounded-lg" />
+          <Skeleton className="h-8 w-36 rounded-lg" />
+        </div>
+        <div
+          aria-hidden="true"
+          className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+        >
+          {[0, 1, 2, 3].map((file) => (
+            <div key={file} className="border-border bg-card overflow-hidden rounded-xl border">
+              <Skeleton className="h-32 rounded-none" />
+              <div className="space-y-3 p-4">
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
+                <div className="flex items-center justify-between pt-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="size-8 rounded-lg" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   if (error !== null) return <p className="text-destructive px-5 py-4 text-sm">{error}</p>;
   if (listing === null) return null;
 

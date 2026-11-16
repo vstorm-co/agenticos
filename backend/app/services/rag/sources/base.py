@@ -10,7 +10,11 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from app.db.session import get_db_context
+from app.db.vector_tables import VectorWriterKind
+from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.filters import Source
+from app.services.rag_document import RAGDocumentService
 
 logger = logging.getLogger(__name__)
 
@@ -113,20 +117,70 @@ class BaseDocumentSource(ABC):
                 try:
                     local_path = await self.download_file(source_file.id, dest)
                     source_uri = f"{source_file.path or source_file.id}"
-                    ingest_result = await ingestion_service.ingest_file(
-                        filepath=local_path,
-                        collection_name=collection_name,
-                        source_path=source_uri,
-                        source=self.SOURCE.value,
+                    ingested, error = await self._ingest_tracked(
+                        ingestion_service, local_path, collection_name, source_uri
                     )
-                    if ingest_result.status.value == "done":
+                    if ingested:
                         result.ingested += 1
                     else:
                         result.failed += 1
-                        result.errors.append(f"{source_file.name}: {ingest_result.error_message}")
+                        result.errors.append(f"{source_file.name}: {error}")
                 except Exception as e:
                     result.failed += 1
                     result.errors.append(f"{source_file.name}: {e}")
                     logger.error("Failed to sync %s: %s", source_file.name, e)
 
         return result
+
+    async def _ingest_tracked(
+        self, ingestion: IngestionService, local: Path, collection: str, source_path: str
+    ) -> tuple[bool, str | None]:
+        """Fence an operator sync against teardown and retain each file's outcome."""
+        async with get_db_context() as db:
+            documents = RAGDocumentService(db)
+            await documents.hold_ingestion_name(collection)
+            row = await documents.create_document(
+                collection_name=collection,
+                writer_kind=VectorWriterKind.OPERATOR,
+                filename=local.name,
+                filesize=local.stat().st_size,
+                filetype=local.suffix.lstrip(".").lower(),
+                source_path=source_path,
+            )
+            document_id = row.id
+        try:
+            result = await ingestion.ingest_file(
+                filepath=local,
+                collection_name=collection,
+                source_path=source_path,
+                source=self.SOURCE.value,
+                rag_document_id=document_id,
+            )
+        except Exception as exc:
+            async with get_db_context() as db:
+                await RAGDocumentService(db).fail_ingestion(
+                    str(document_id),
+                    error_message=failure_summary(exc, stage=IngestionStage.INGEST),
+                    attempt=1,
+                )
+            raise
+        async with get_db_context() as db:
+            documents = RAGDocumentService(db)
+            if result.status.value != "done":
+                error = result.error_message or "The file could not be ingested"
+                await documents.fail_ingestion(str(document_id), error_message=error, attempt=1)
+                return False, error
+            assert result.document_id is not None
+            recorded = await documents.complete_ingestion(
+                str(document_id),
+                vector_document_id=result.document_id,
+                chunk_count=result.chunk_count,
+                replaced_document_id=result.replaced_document_id,
+                attempt=1,
+            )
+            if not recorded:
+                await documents.discard_untracked(
+                    collection, result.document_id, scope=ingestion.scope
+                )
+                return False, "The document was deleted while indexing"
+        return True, None

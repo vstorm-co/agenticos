@@ -51,7 +51,10 @@ pytestmark = pytest.mark.anyio
 @pytest.fixture(autouse=True)
 def _no_question_waiting() -> Iterator[None]:
     """No run in these chats is parked on a question, so every message is a turn."""
-    with patch("app.services.channels.router.ChannelPrompts.reply", AsyncMock(return_value=False)):
+    with (
+        patch("app.services.channels.router.ChannelPrompts.reply", AsyncMock(return_value=False)),
+        patch("app.services.channels.observation.observe", AsyncMock()),
+    ):
         yield
 
 

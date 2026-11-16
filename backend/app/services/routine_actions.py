@@ -236,6 +236,9 @@ class RoutineActionService:
             and consent.intent_hash == action_intent(trigger)
             and consent.instructions_hash == instructions
         }
+        from app.services.channel_actions import ChannelActionService, with_actions
+
+        spec = with_actions(spec, await ChannelActionService(ctx, trigger.agent_id).tools(self.db))
         options = [*action_options(spec, local=trigger.local_target is not None), *mcp]
         review_changes: list[RoutineReviewChange] = []
         if any(consent.version_id != version for consent in previous):
@@ -296,6 +299,9 @@ class RoutineActionService:
             raise ConflictError(
                 message="This routine, its published version, instructions or connected actions changed. Review its actions again before consenting."
             )
+        from app.services.channel_actions import ChannelActionService, with_actions
+
+        spec = with_actions(spec, await ChannelActionService(ctx, current.agent_id).tools(self.db))
         available = {
             action_key(option)
             for option in [*action_options(spec, local=current.local_target is not None), *mcp]

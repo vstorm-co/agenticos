@@ -149,7 +149,7 @@ across the sandbox boundary.
 | `compaction` | Long conversations | utility | none, by design | — | — | no effect |
 | `media` | Media offload | utility | none, by design | — | — | no effect |
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — | as-is |
-| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | as-is |
+| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `export_artifact`, `share_artifact` | — | — | as-is |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | not available |
 | `phone_calls` | [Telephone calls](../voice.md#telephone-calls) | channels | `get_phone_contact_policy`, `call_me`, `list_phone_transfer_contacts`, `transfer_phone_call`, `end_phone_call` | `endpoint_id` | — | — |
 | `ask_user` | Ask the user | utility | `ask_user_question` | — | — | on screen |
@@ -400,8 +400,10 @@ same way `knowledge` bound to no collections is not. Files are managed under
 
 Notes an agent keeps of its own across conversations, indexed by one it maintains
 itself. Where `context` is a library a person authors and binds to many agents,
-memory is the agent's own: it writes through tools mid-run, and nobody else writes
-here at all. It is not bound by id — enabling the capability gives the agent its
+memory is the agent's own: it writes through tools mid-run. A person can correct
+their own notes in **Settings → Memory → Notes**; this does not grant access to
+other people’s notes. Corrections preserve the original agent-write timestamp and
+suppression state, use a revision check and record an audit entry without content. It is not bound by id — enabling the capability gives the agent its
 notes.
 
 **`MEMORY.md` is the index, and it is shown to the agent every request.** It is an
@@ -1867,6 +1869,8 @@ See [Visuals](../artifacts.md#visuals).
 
 ## Apps { #artifacts }
 
+`export_artifact` exports the current published version to a real PDF in the workspace. It uses the isolated renderer, supports A4 reports and 16:9 browser presentations, preserves preview access and audience checks, and refuses unavailable bound data. The renderer and `browser` extra must be configured. Exports have unique filenames and are limited to 50 pages and 20 MB. See [design resources](../skills.md#design-resources).
+
 `publish_artifact` — *Publish a finished page - a report, a small dashboard, a
 summary - under a stable link.*
 `read_artifact` — *Read the current version of a page this agent published, as it
@@ -2939,6 +2943,8 @@ prompt reaches the model scrubbed, but the conversation stores the message as th
 person typed it, personal data included. Anyone who can read the conversation can
 read that message.
 
+The human transcript remains the original audit record. A separate screened copy, including any attachment briefing, is stored for model replay and quotations. Later turns keep that copy even if input redaction is disabled afterwards. Legacy replay is screened before the run’s context management; blocked turns still use the refusal marker.
+
 **The input edge screens an attachment before it is written.** An attached file
 reaches the prompt as its name, its path and its first 20 lines (at most 2,000
 characters), and the input edge reads them with the person's message. An agent with
@@ -3318,3 +3324,17 @@ Local access choices belong to the selected agent, not to a global default inher
 While local coding sessions run, `[session:api] Use the EU numbers` redirects the session named `api`. With one active session, an unaddressed correction reaches it; with several, it stays with the parent agent to avoid changing an unrelated task. The parent records the correction once when it continues.
 
  Sandbox coding tasks in the same toolset queue so their workspace snapshots do not overlap; independent local sessions still run in parallel.
+
+
+## Connected chat apps (`channel_actions`)
+
+Explicit bot grants for finding channels, searching messages and delivering requested reports from any run.
+
+| Tool | Action |
+| --- | --- |
+| `list_chat_connections` | Bot IDs, granted actions, current destination |
+| `find_chat_channels` | Joined channel metadata and pagination |
+| `read_chat_messages` | Bounded, filtered message history |
+| `send_chat_message` | Requested message or report, new post or existing thread |
+
+The service rechecks organization membership, agent access, the active binding and bot, then destination membership and thread ownership on each operation. It never joins channels or borrows another agent’s bot. Search and history are bounded pages; follow their cursors and treat empty matches as one scanned page. Provider failures are refusals, not empty results. Sending follows the approval policy; an unconfirmed submission must be checked at the destination before retrying. Other platforms retain their existing conversation tools; cross-channel actions are offered only where the adapter verifies membership.
