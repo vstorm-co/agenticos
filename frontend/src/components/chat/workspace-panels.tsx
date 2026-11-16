@@ -15,6 +15,7 @@ import type { PageComment } from "./browser-comment";
 import { BrowserPanel } from "./browser-panel";
 import { WorkspaceFiles } from "./workspace-files";
 import { WorkspaceRail } from "./workspace-rail";
+import { ChatAgentSettingsPanel } from "./agent-settings-panel";
 
 interface WorkspacePanelsProps {
   teamRoom: boolean;
@@ -52,6 +53,7 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
   const panelIds = {
     browser: `${panelPrefix}-browser`,
     computer: `${panelPrefix}-computer`,
+    settings: `${panelPrefix}-settings`,
   };
   const localSelected = useWorkOnStore((state) =>
     Boolean(
@@ -81,7 +83,8 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
       before.account !== account ||
       before.organization !== organization ||
       before.agent !== props.agentId ||
-      (before.conversation !== props.conversationId && !adopted)
+      (before.conversation !== props.conversationId && !adopted) ||
+      (surface === "settings" && props.agentId === null)
     )
       close();
   }, [
@@ -91,6 +94,7 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
     props.conversationId,
     props.busy,
     props.loading,
+    surface,
     close,
   ]);
   const access: WorkspaceStartAccess = {
@@ -137,7 +141,23 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
         onOpenChange={(shown) => (shown ? open("files") : close())}
         responsive
       />
-      {!props.compact && <WorkspaceRail filesSlot={setFilesSlot} panelIds={panelIds} />}
+      {props.agentId !== null && (
+        <ChatAgentSettingsPanel
+          key={`${account}:${organization}:${props.agentId}`}
+          panelId={panelIds.settings}
+          agentId={props.agentId}
+          open={surface === "settings"}
+          readOnly={props.readOnly || props.loading}
+          onClose={close}
+        />
+      )}
+      {!props.compact && (
+        <WorkspaceRail
+          filesSlot={setFilesSlot}
+          hasAgent={props.agentId !== null}
+          panelIds={panelIds}
+        />
+      )}
     </>
   );
 }

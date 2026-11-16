@@ -3636,6 +3636,38 @@
       "accessLevelFor" : "Access level for {name}",
       "accessRetry" : "Retry",
       "accessRevoked" : "Access revoked",
+      "agentSettings" : {
+         "close" : "Close agent settings",
+         "draftHint" : "These settings belong to the agent. Save the draft, then publish a version to make it available. Running turns keep their current configuration.",
+         "expand" : "Expand agent settings",
+         "capabilitiesHint" : "Enable or disable tools already configured for this agent. Add tools and edit their configuration in the full editor.",
+         "loading" : "Loading agent settings…",
+         "restore" : "Dock agent settings",
+         "workflowOwned" : "This agent is configured in its workflow step.",
+         "noCapabilities" : "No capabilities are configured yet.",
+         "instructionsHint" : "The guidance the agent follows when it works. Keep existing instruction variables intact.",
+         "description" : "Description",
+         "saved" : "Draft saved · publish to apply changes",
+         "descriptionHint" : "A short description for people choosing this agent.",
+         "readOnly" : "You can view this agent’s settings. Editing is not available with your current access.",
+         "open" : "Open agent settings",
+         "save" : "Save draft",
+         "publishContextFailed" : "Publication history or environments could not be loaded. Open the full editor to retry before publishing.",
+         "modelHint" : "This changes the agent’s draft default. A model chosen in the chat header still overrides it for chat requests.",
+         "instructions" : "Instructions",
+         "nameRequired" : "Enter a name for the agent.",
+         "model" : "Default model",
+         "unsaved" : "Unsaved changes",
+         "saving" : "Saving draft…",
+         "reset" : "Discard changes",
+         "loadFailed" : "Agent settings could not be loaded.",
+         "openBuilder" : "Open full editor for skills, knowledge, connections and limits",
+         "publish" : "Review and publish",
+         "name" : "Name",
+         "capabilities" : "Tools and capabilities",
+         "title" : "Agent settings",
+         "checking" : "Checking draft…"
+      },
       "agentPicker" : {
          "appliesNext" : "Applies from your next message - earlier answers keep their agent.",
          "current" : "Agent: {name}",
@@ -10613,6 +10645,10 @@
          "chat-agent-picker" : {
             "body" : "Switch between your agents right here. Each brings its own instructions, tools and knowledge, so the same question can get a very different answer.",
             "title" : "Choose who answers"
+         },
+         "chat-agent-settings" : {
+            "title" : "Edit the agent beside your chat",
+            "body" : "Open the settings pane to change this agent’s instructions, default model and configured tools. Save a draft and review it before publishing. The model in the chat header is a separate chat choice."
          },
          "chat-approval-mode" : {
             "body" : "Follow the agent's own settings, ask about every tool it can use, or - if you may decide approvals - let this conversation run without stopping. Every waived call is still recorded against your account.",

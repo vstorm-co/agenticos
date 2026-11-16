@@ -1418,6 +1418,105 @@ class TestMayRun:
             assert await AgentRegistryService(_db()).may_run(ctx, agent) is False
 
 
+class TestConfigurationAccess:
+    @pytest.mark.anyio
+    async def test_an_explicit_edit_grant_enables_this_agents_editor_and_publish(self):
+        ctx = _ctx(OrgRoleName.VIEWER)
+        agent = _agent(ctx, owner_user_id=uuid.uuid4())
+        with patch(
+            "app.services.access.resource_grant_repo.get_level",
+            new=AsyncMock(return_value=GrantLevel.EDIT),
+        ):
+            assert await AgentRegistryService(_db()).configuration_access(ctx, agent) == (
+                True,
+                True,
+            )
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("grant", [None, GrantLevel.READ, GrantLevel.USE])
+    async def test_read_and_run_grants_do_not_offer_editing(self, grant):
+        ctx = _ctx(OrgRoleName.VIEWER)
+        agent = _agent(ctx, owner_user_id=uuid.uuid4())
+        with patch(
+            "app.services.access.resource_grant_repo.get_level",
+            new=AsyncMock(return_value=grant),
+        ):
+            assert await AgentRegistryService(_db()).configuration_access(ctx, agent) == (
+                False,
+                False,
+            )
+
+    @pytest.mark.anyio
+    async def test_role_scope_still_enables_the_owners_editor(self):
+        ctx = _ctx()
+        assert await AgentRegistryService(_db()).configuration_access(ctx, _agent(ctx)) == (
+            True,
+            True,
+        )
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_another_tenant_remains_unreachable_even_for_the_owner(self):
+        ctx = _ctx()
+        agent = _agent(ctx, organization_id=uuid.uuid4())
+        assert await AgentRegistryService(_db()).configuration_access(ctx, agent) == (False, False)
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "changes", [{"workflow_id": uuid.uuid4()}, {"status": AgentStatus.ARCHIVED.value}]
+    )
+    async def test_workflow_and_archived_agents_keep_the_listings_resource_access(self, changes):
+        ctx = _ctx()
+        agent = _agent(ctx, **changes)
+        service = AgentRegistryService(_db())
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([agent], 1)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+        ):
+            rows, _total = await service.list_agents(ctx, include_archived=True)
+        assert (
+            (rows[0].can_edit, rows[0].can_publish)
+            == await service.configuration_access(ctx, agent)
+            == (True, True)
+        )
+
+    @pytest.mark.anyio
+    async def test_the_detail_response_carries_resolved_edit_access(self):
+        from app.api.routes.v1.agents import get_agent
+
+        ctx = _ctx(OrgRoleName.VIEWER)
+        agent = _agent(
+            ctx,
+            owner_user_id=uuid.uuid4(),
+            local_coding_agent=None,
+            personal_coding_harness=None,
+            published_model=None,
+            starter_titles={},
+            starter_icons={},
+        )
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=GrantLevel.EDIT),
+            ),
+        ):
+            result = await get_agent(agent.id, AgentRegistryService(_db()), ctx)
+        assert result.can_edit is True
+        assert result.can_publish is True
+        assert result.can_run is True
+
+
 class TestCreate:
     @pytest.mark.anyio
     async def test_a_user_agent_cannot_use_the_internal_helper_creation_path(self) -> None:
