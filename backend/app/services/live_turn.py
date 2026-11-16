@@ -322,15 +322,27 @@ async def follow(conversation_id: str, token: str) -> AsyncGenerator[dict[str, A
             if frame["type"] == END:
                 await _forget(turn)
                 return
-        if not await _alive(turn):
-            return
-        while True:
+        alive = await _alive(turn)
+        while alive:
             message = await pubsub.get_message(timeout=QUIET_SECONDS)
             if message is None:
-                if not await _alive(turn):
-                    return
+                alive = await _alive(turn)
                 continue
             frame = _frame(str(message["data"]))
+            if frame is None or frame["seq"] <= last:
+                continue
+            last = frame["seq"]
+            yield frame
+            if frame["type"] == END:
+                await _forget(turn)
+                return
+        # The writer can finish while the snapshot is replayed or the channel is
+        # quiet. Its final frames were recorded before its alive key was removed;
+        # recover that suffix before closing, without replaying earlier frames.
+        async with asyncio.timeout(redis_view.TIMEOUT_SECONDS):
+            trace = await _redis.list_range(turn.key("trace"))
+        for raw in trace:
+            frame = _frame(raw)
             if frame is None or frame["seq"] <= last:
                 continue
             last = frame["seq"]
