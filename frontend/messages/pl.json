@@ -17424,6 +17424,17 @@
     "voiceModel": "Głos nie ma domyślnego dostawcy lub modelu. Wybierz je w Organizacja → Głos, aby korzystać z transkrypcji przez dostawcę."
   },
   "codingAccounts": {
+    "default": "Domyślne",
+    "makeDefault": "Ustaw jako domyślne",
+    "inPool": "W puli",
+    "addToPool": "Dodaj do puli",
+    "removeFromPool": "Usuń z puli",
+    "quotaUnknown": "Użycie dostawcy: Nieznane",
+    "quotaStatus": "Stan dostawcy: {status}",
+    "usageSource": "źródło: {source}",
+    "observedSecondsAgo": "sprawdzone {seconds} s temu",
+    "unknownValue": "Nieznane",
+    "resetsAt": "reset o {time}",
     "apiKey": "Klucz API",
     "baseRevision": "Snapshot workspace: {revision}",
     "callback": "Adres zwrotny",

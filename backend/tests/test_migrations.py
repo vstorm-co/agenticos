@@ -179,6 +179,116 @@ def migration_database() -> Iterator[None]:
         _outside_a_transaction(maintenance, drop)
 
 
+def test_provider_account_migration_preserves_existing_grant_and_refuses_lossy_downgrade() -> None:
+    """The new defaults retain old consent and downgrade will not collapse accounts."""
+    from app.db.models.organization import Organization
+
+    assert _alembic("upgrade", "head").returncode == 0
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    account_id, generation = uuid4(), uuid4()
+    try:
+        with DatabaseSession(engine) as db:
+            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            db.add(owner)
+            db.flush()
+            org = Organization(
+                name="Provider accounts",
+                slug=f"provider-accounts-{uuid4()}",
+                created_by_user_id=owner.id,
+            )
+            db.add(org)
+            db.commit()
+            owner_id, organization_id = owner.id, org.id
+
+        assert _alembic("downgrade", "0325_merge_t3_rooms_v173").returncode == 0
+        with engine.begin() as db:
+            db.execute(
+                text(
+                    "INSERT INTO coding_accounts "
+                    "(id, organization_id, user_id, harness, label, secret_kind, sealed_secret, "
+                    "key_version, enabled, generation) "
+                    "VALUES (:id, :organization, :user, 'codex', 'Existing', 'openai_codex', "
+                    "'sealed-existing-value', 1, false, :generation)"
+                ),
+                {
+                    "id": account_id,
+                    "organization": organization_id,
+                    "user": owner_id,
+                    "generation": generation,
+                },
+            )
+        assert _alembic("upgrade", "head").returncode == 0
+        with engine.connect() as db:
+            preserved = db.execute(
+                text(
+                    "SELECT id, enabled, generation, sealed_secret, is_default, pool_member, "
+                    "provider_identity_fingerprint FROM coding_accounts WHERE id = :id"
+                ),
+                {"id": account_id},
+            ).one()
+        assert preserved == (
+            account_id,
+            False,
+            generation,
+            "sealed-existing-value",
+            True,
+            False,
+            None,
+        )
+
+        with engine.begin() as db:
+            db.execute(
+                text(
+                    "INSERT INTO coding_accounts "
+                    "(id, organization_id, user_id, harness, label, secret_kind, sealed_secret, "
+                    "key_version, enabled, generation, is_default, pool_member, "
+                    "provider_identity_fingerprint) "
+                    "VALUES (:id, :organization, :user, 'codex', 'Second', 'openai_codex', "
+                    "'sealed-second-value', 1, false, :generation, false, false, :identity)"
+                ),
+                {
+                    "id": uuid4(),
+                    "organization": organization_id,
+                    "user": owner_id,
+                    "generation": uuid4(),
+                    "identity": "a" * 64,
+                },
+            )
+        downgrade = _alembic("downgrade", "0325_merge_t3_rooms_v173")
+        assert downgrade.returncode != 0
+        assert "Cannot downgrade while multiple coding accounts exist" in downgrade.stderr
+        with engine.connect() as db:
+            assert (
+                db.execute(
+                    text("SELECT count(*) FROM coding_accounts WHERE organization_id = :org"),
+                    {"org": organization_id},
+                ).scalar_one()
+                == 2
+            )
+        with engine.begin() as db:
+            db.execute(
+                text("DELETE FROM coding_accounts WHERE organization_id = :org AND id != :id"),
+                {"org": organization_id, "id": account_id},
+            )
+        downgrade = _alembic("downgrade", "0325_merge_t3_rooms_v173")
+        assert downgrade.returncode == 0, downgrade.stderr
+        upgrade = _alembic("upgrade", "head")
+        assert upgrade.returncode == 0, upgrade.stderr
+        with engine.connect() as db:
+            assert (
+                db.execute(
+                    text(
+                        "SELECT id, enabled, generation, sealed_secret, is_default, pool_member, "
+                        "provider_identity_fingerprint FROM coding_accounts WHERE id = :id"
+                    ),
+                    {"id": account_id},
+                ).one()
+                == preserved
+            )
+    finally:
+        engine.dispose()
+
+
 def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs() -> None:
     """0322_coding_task_revert.py and 0323_coding_revert_admission.py preserve legacy diffs."""
     from app.db.models.conversation import Conversation
