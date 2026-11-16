@@ -165,7 +165,13 @@ describe("pageKey", () => {
   it("offers a table's own help stops without adding them to the catalog walkthrough", () => {
     expect(
       stepsForPage(ROUTES.TABLE_DETAIL("table-123"), () => true).map((step) => step.id),
-    ).toEqual(["table-columns", "table-triggers", "table-view-tabs"]);
+    ).toEqual([
+      "table-columns",
+      "table-triggers",
+      "table-view-tabs",
+      "table-row-access",
+      "record-access",
+    ]);
     expect(stepsForPage(ROUTES.TABLES, () => true).map((step) => step.id)).toEqual([
       "tables-catalog",
       "tables-new",
@@ -297,6 +303,7 @@ describe("stepsForPage", () => {
       "chat-agent-picker",
       "chat-composer",
       "chat-workspace",
+      "chat-agent-settings",
       "chat-team-room",
       "chat-team-composer",
       "chat-room-thread",
@@ -309,12 +316,24 @@ describe("stepsForPage", () => {
       "chat-background-tasks",
       "chat-plan",
       "chat-visual",
+      "chat-model-selector",
       "chat-model-picker",
       "chat-voice-call",
       "chat-approval-mode",
       "chat-your-connections",
       "chat-subscription-model",
     ]);
+  });
+
+  it("only offers the model selector stop to someone who can choose a model", () => {
+    expect(stepsForPage(ROUTES.CHAT, () => false).map((step) => step.id)).not.toContain(
+      "chat-model-selector",
+    );
+    expect(
+      stepsForPage(ROUTES.CHAT, (permission) => permission === Perm.connectionsManage).find(
+        (step) => step.id === "chat-model-selector",
+      ),
+    ).toMatchObject({ optional: true });
   });
 
   it("walks the list and then the whole builder when asked from the Agents list", () => {

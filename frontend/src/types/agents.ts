@@ -644,6 +644,9 @@ export interface Agent {
 
 export interface AgentDetail extends Agent {
   draft_spec: AgentSpec;
+  /** Resolved for this caller, including resource grants. Absent on older servers. */
+  can_edit?: boolean;
+  can_publish?: boolean;
 }
 
 /**

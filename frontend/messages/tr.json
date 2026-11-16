@@ -3534,6 +3534,28 @@
          "runModel" : "Bu modelle çalıştır",
          "thisChat" : "Yalnızca bu chat"
       },
+      "modelSelector" : {
+         "choose" : "Sohbet modelini seç: {model}",
+         "chooseUnavailable" : "Sohbet modelini seç: {model} (kullanılamıyor)",
+         "title" : "Sohbet modeli",
+         "default" : "Varsayılan",
+         "override" : "Özel seçim",
+         "unavailable" : "Model kullanılamıyor",
+         "useDefault" : "Agent’ın modelini kullan",
+         "scope" : "Sonraki mesajın için kayıtlı bir model seç. Bu sohbet tercihi, bu kuruluştaki hesabın için hatırlanır.",
+         "afterTurn" : "Devam eden run kendi modelini kullanmaya devam eder. Seçimin sonraki mesaj için geçerlidir ve sohbet tercihin olarak hatırlanır.",
+         "providers" : "Model providerları",
+         "search" : "Kayıtlı modellerde veya hesaplarda ara…",
+         "account" : "Provider hesabı",
+         "allAccounts" : "Tüm hesaplar",
+         "personalAccount" : "Kişisel hesabın",
+         "savedModels" : "Kayıtlı modeller",
+         "empty" : "Henüz kayıtlı model yok. Model eklemek için mesaj kutusunun yanındaki Controls bölümünü aç.",
+         "noMatches" : "Bu aramayla eşleşen kayıtlı model yok.",
+         "advancedHint" : "Model eklemek veya bağlantısını yönetmek için mesaj kutusunun yanındaki Controls bölümünü aç. Sohbet modeli seçimin agent’ı değiştirmez.",
+         "missingKey" : "Bağlantı kullanılamıyor — Controls bölümünden yeniden bağlan",
+         "notChatModel" : "Sohbet için kullanılamıyor"
+      },
       "modelSetup" : {
          "action" : "AI modelimi bağla",
          "contact" : "Yöneticinle iletişime geç",
@@ -7550,6 +7572,10 @@
          "chat-model-picker" : {
             "body" : "Agent’ı değiştirmeden, yalnızca bu konuşmada yanıt verecek kuruluş modelini seçin.",
             "title" : "Modeli ayarlayın"
+         },
+         "chat-model-selector" : {
+            "body" : "Kayıtlı modelleri aramak, provider veya hesap değiştirmek ve agent’ın modeline dönmek için model seçiciyi aç. Seçimin sonraki mesaj için geçerlidir ve sohbet tercihin olarak hatırlanır. Tam bağlantı kurulumu mesaj kutusunun yanındaki Controls bölümündedir.",
+            "title" : "Üst bilgiden model seç"
          },
          "chat-plan" : {
             "body" : "Plan yapan bir agent, composer’ın üstünde bir kontrol listesi gösterir: yürütülen adım ve kalan işler. Planın tamamını açın; run ilerledikçe liste güncel kalır.",

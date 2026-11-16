@@ -4186,6 +4186,28 @@
          "runModel" : "Uruchom na tym modelu",
          "thisChat" : "Tylko ten czat"
       },
+      "modelSelector" : {
+         "choose" : "Wybierz model czatu: {model}",
+         "chooseUnavailable" : "Wybierz model czatu: {model} (niedostępny)",
+         "title" : "Model czatu",
+         "default" : "Domyślny",
+         "override" : "Własny wybór",
+         "unavailable" : "Model niedostępny",
+         "useDefault" : "Użyj modelu agenta",
+         "scope" : "Wybierz zapisany model dla następnej wiadomości. Ten wybór jest zapamiętywany dla Twojego konta w tej organizacji.",
+         "afterTurn" : "Trwający run zachowuje swój model. Twój wybór dotyczy następnej wiadomości i jest zapamiętywany jako ustawienie czatu.",
+         "providers" : "Providerzy modeli",
+         "search" : "Szukaj zapisanych modeli lub kont…",
+         "account" : "Konto providera",
+         "allAccounts" : "Wszystkie konta",
+         "personalAccount" : "Twoje osobiste konto",
+         "savedModels" : "Zapisane modele",
+         "empty" : "Nie ma jeszcze zapisanych modeli. Otwórz Controls obok pola wiadomości, aby dodać model.",
+         "noMatches" : "Żaden zapisany model nie pasuje do tego wyszukiwania.",
+         "advancedHint" : "Otwórz Controls obok pola wiadomości, aby dodać model lub zarządzać jego połączeniem. Wybór modelu czatu nie zmienia agenta.",
+         "missingKey" : "Połączenie niedostępne — połącz ponownie w Controls",
+         "notChatModel" : "Niedostępny dla czatu"
+      },
       "modelSetup" : {
          "action" : "Podłącz mój model AI",
          "contact" : "Skontaktuj się z administratorem",
@@ -10280,6 +10302,10 @@
          "chat-model-picker" : {
             "body" : "Wybierz, który z modeli organizacji odpowiada - tylko dla tej rozmowy, bez zmiany agenta.",
             "title" : "Dostrój model"
+         },
+         "chat-model-selector" : {
+            "body" : "Otwórz wybór modelu, aby wyszukać zapisane modele, zmienić providera lub konto i wrócić do modelu agenta. Wybór dotyczy następnej wiadomości i jest zapamiętywany jako ustawienie czatu. Pełną konfigurację połączenia znajdziesz w Controls obok pola wiadomości.",
+            "title" : "Wybierz model w nagłówku"
          },
          "chat-plan" : {
             "body" : "Agent, który planuje, trzyma tu listę kontrolną, nad polem wiadomości - bieżący krok i ile zostało. Otwórz ją, aby zobaczyć cały plan; aktualizuje się w miarę postępu runu.",

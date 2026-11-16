@@ -15,18 +15,20 @@ export function BrowserPanelFrame({
   children,
   label,
   resizeLabel,
+  initialWidth = INITIAL_WIDTH,
   id: suppliedId,
 }: {
   children: (layout: { fullscreen: boolean; toggleFullscreen: () => void }) => ReactNode;
   label?: string;
   resizeLabel?: string;
+  initialWidth?: number;
   id?: string;
 }) {
   const t = useTranslations("chat");
   const generatedId = useId();
   const id = suppliedId ?? generatedId;
   const panel = useRef<HTMLElement>(null);
-  const [width, setWidth] = useState(INITIAL_WIDTH);
+  const [width, setWidth] = useState(() => bounded(initialWidth));
   const [fullscreen, setFullscreen] = useState(false);
   const [dragging, setDragging] = useState(false);
   const style: CSSProperties & { "--browser-panel-width": string } = {
@@ -82,7 +84,7 @@ export function BrowserPanelFrame({
           onPointerUp={() => setDragging(false)}
           onPointerCancel={() => setDragging(false)}
           onLostPointerCapture={() => setDragging(false)}
-          onDoubleClick={() => setWidth(INITIAL_WIDTH)}
+          onDoubleClick={() => setWidth(bounded(initialWidth))}
         />
       )}
       {dragging && (

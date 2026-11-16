@@ -1,5 +1,5 @@
 ---
-source_sha: "a0384ef79df4"
+source_sha: "bb0dabba2198"
 ---
 
 # La consola { #the-console }
@@ -40,7 +40,7 @@ al micrófono.
 
 Las listas de recursos, incluidas Inbox y Routines, ocupan la altura restante de la página incluso cuando están vacías. Las plantillas de Routines siguen en el formulario de creación, sin un panel de ideas aparte.
 
-El chat usa retratos de agentes más grandes y sin marcos. El control Files permanece en los controles de la derecha al abrir y cerrar el panel; la animación respeta la preferencia de movimiento reducido. Los ajustes del chat muestran primero el modelo actual. **Change model** abre el formulario del proveedor y del modelo ya rellenados; el cambio solo se aplica al confirmarlo. Las tarjetas de adjuntos aparecen sobre el cuadro de mensaje sin otro panel con sombra.
+El chat usa retratos de agentes más grandes y sin marcos. En la vista completa del chat de escritorio, el control Files permanece entre los controles del espacio de trabajo al abrir y cerrar el panel; la animación respeta la preferencia de movimiento reducido. Los ajustes del chat muestran primero el modelo actual. **Change model** abre el formulario del proveedor y del modelo ya rellenados; el cambio solo se aplica al confirmarlo. Las tarjetas de adjuntos aparecen sobre el cuadro de mensaje sin otro panel con sombra.
 
 Las introducciones de páginas y explicaciones de ajustes están en el icono de información junto al encabezado. Los resúmenes actuales y avisos de acciones destructivas siguen visibles.
 
@@ -79,6 +79,10 @@ En teléfonos, los editores de skills y contexto mantienen plegadas la descripci
 Los encabezados utilizan el espaciado del diseño que los rodea sin duplicarlo. Las tarjetas, las filas de la barra lateral, las pestañas y los estados vacíos tienen un espaciado más compacto en escritorio; los controles conservan áreas táctiles mayores.
 
 Los botones secundarios y los filtros comparten un relleno más visible, etiquetas con contraste y estados claros al pasar el cursor, pulsar o abrir un menú. El selector de modelo del chat utiliza el mismo estilo.
+
+El encabezado del chat de un agente muestra el modelo actual con el icono del provider. Abre el selector para buscar modelos guardados, cambiar de provider o cuenta, o elegir **Use agent's model**. La selección se aplica al próximo mensaje y se recuerda para tu cuenta en la organización actual; no edita el agente. El turno activo conserva su modelo. Las conexiones desconectadas y los modelos sin chat siguen visibles, pero no se pueden seleccionar. Si no se puede leer la lista, aparece **Retry**. **Controls**, junto al mensaje, mantiene la configuración completa de modelos y conexiones.
+
+Cambiar la selección del encabezado requiere `connections:manage`, igual que los controles de modelo existentes. Las conversaciones de solo lectura y quienes no tienen ese permiso siguen mostrando el modelo actual.
 
 Los ajustes personales mantienen pestañas horizontales en la parte superior, incluidas las páginas exclusivas de escritorio dentro de la aplicación. Los paneles muestran sus descripciones directamente y los formularios se ajustan al contenido. Cuenta reúne el cambio de contraseña y las sesiones activas; la acción de contraseña aparece debajo de los campos.
 
@@ -675,11 +679,15 @@ publicación - como una tarjeta en su respuesta. Cada parte tiene su propio icon
 copiar, que copia texto plano; varias variantes de un borrador son pestañas en la
 misma tarjeta. El **Copiar** propio de un mensaje incluye también sus borradores.
 
-**Navegador (Browser), Equipo (Computer) y Archivos (Files).** Los controles a la
-derecha de cada chat abren un panel de navegador, equipo o archivos. Puedes abrir
+**Navegador (Browser), Equipo (Computer) y Archivos (Files).** En la vista completa
+del chat de escritorio, los controles están a la derecha y abren un panel de
+navegador, equipo o archivos. Esta barra está oculta en teléfonos y chats compactos.
+
+Puedes abrir
 los paneles de navegador y equipo antes de que el agent los use. Abrir un panel
-vacío no inicia ningún run ni sesión alojada. Introduce la dirección de la página
-en el panel Navegador antes de iniciarlo. Si el agent seleccionado tiene la
+vacío no inicia ningún run ni sesión alojada.
+
+Introduce la dirección de la página en el panel Navegador antes de iniciarlo. Si el agent seleccionado tiene la
 capability alojada correspondiente y puedes ejecutarlo, una acción explícita de
 inicio le pide que abra el navegador o capture el escritorio. De lo contrario,
 el panel explica qué no está disponible. Siguen vigentes la configuración
@@ -692,6 +700,23 @@ cerrados; al cerrar uno, permanece cerrado cuando llegan nuevos resultados de
 herramientas. En pantallas estrechas, el panel seleccionado ocupa toda la pantalla.
 Tras un run, la imagen terminada lleva la etiqueta **Última vista (Last view)**;
 no es un escritorio en directo. Pide otra captura para actualizar la vista del equipo.
+
+**Ajustes del agente.** En los chats completos de escritorio, el control de ajustes
+de la derecha abre el borrador del agente seleccionado junto a la conversación.
+La barra está oculta en teléfonos y chats compactos; usa allí el editor completo
+del agente. Edita su nombre, descripción breve,
+instrucciones, modelo predeterminado y capabilities existentes; después elige
+**Save draft**. **Review and publish** valida el borrador guardado y abre la
+confirmación de publicación existente. Cambiar el modelo predeterminado no elimina
+la selección de modelo de Chat controls; un run activo conserva su configuración.
+
+La edición y la publicación siguen la decisión del servidor para ese agente,
+incluidos los grants explícitos. Los chats de solo lectura muestran los ajustes
+sin controles de edición; los agentes de workflow se configuran en su propio paso.
+Cerrar el panel o abrir Browser, Computer o Files conserva los cambios sin guardar
+del agente seleccionado. Guarda antes de cambiar de agente o salir del chat. Los
+cambios externos detienen el guardado hasta que recargues o decidas conservar tus
+cambios.
 
 **Ver un recorrido.** El [navegador web](reference/capabilities.md#browser-automation)
 aparece en su propio panel junto al chat. Las tarjetas de páginas visitadas

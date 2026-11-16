@@ -10,6 +10,7 @@ import { McpBindingsEditor, toolChoice } from "./mcp-bindings-editor";
 
 const state = vi.hoisted(() => ({
   canManage: true,
+  canManageHosts: true,
   probe: vi.fn(),
   toolsForBinding: vi.fn(),
   picker: null as ToolPickerState | null,
@@ -27,7 +28,10 @@ const toast = vi.hoisted(() => ({ error: vi.fn() }));
 
 vi.mock("sonner", () => ({ toast }));
 vi.mock("@/hooks", () => ({
-  usePermissions: () => ({ can: () => state.canManage }),
+  usePermissions: () => ({
+    can: (permission: string) =>
+      permission === "mcp:manage" ? state.canManage : state.canManageHosts,
+  }),
   useOrgMcpConnections: () => ({ connections: [], test: state.probe }),
   useMcpCatalog: () => ({ servers: [] }),
   useMcpConnections: () => ({ connections: [] }),
@@ -128,6 +132,7 @@ vi.mock("@/components/agents/connect-server-dialog", () => ({
 
 beforeEach(() => {
   state.canManage = true;
+  state.canManageHosts = true;
   state.toolsForBinding.mockReset();
   state.picker = null;
   toast.error.mockReset();
@@ -170,7 +175,7 @@ describe("McpBindingsEditor", () => {
     expect(screen.queryByText("picker:Notion")).toBeNull();
   });
 
-  it("does not probe for somebody who may not manage connections, and says why it could not", async () => {
+  it("does not let host-management permission authorize probing an MCP server", async () => {
     state.canManage = false;
     state.toolsForBinding.mockResolvedValue({ connection: connection(null), error: "No list yet" });
     render(<McpBindingsEditor spec={specWith([ref])} onChange={vi.fn()} />);
