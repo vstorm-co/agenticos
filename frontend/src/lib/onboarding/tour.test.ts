@@ -166,7 +166,13 @@ describe("pageKey", () => {
   it("offers a table's own help stops without adding them to the catalog walkthrough", () => {
     expect(
       stepsForPage(ROUTES.TABLE_DETAIL("table-123"), () => true).map((step) => step.id),
-    ).toEqual(["table-columns", "table-triggers", "table-view-tabs"]);
+    ).toEqual([
+      "table-columns",
+      "table-triggers",
+      "table-view-tabs",
+      "table-row-access",
+      "record-access",
+    ]);
     expect(stepsForPage(ROUTES.TABLES, () => true).map((step) => step.id)).toEqual([
       "tables-catalog",
       "tables-new",
