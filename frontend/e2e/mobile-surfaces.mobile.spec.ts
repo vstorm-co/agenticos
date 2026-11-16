@@ -499,7 +499,10 @@ for (const platform of ["ios", "android"] as const) {
         await expect(bars).toHaveCount(2);
         await expect(bars.first()).toBeVisible();
         await expect(bars.last()).toBeVisible();
-        await expect(chart.locator(".recharts-yAxis")).toContainText("$0.75");
+        // Recharts renders tick labels in a separate SVG layer from the axis group.
+        await expect(
+          chart.locator("svg.recharts-surface").getByText("$0.75", { exact: true }),
+        ).toBeVisible();
         // Capture the fixture's actual $0.50/$0.75 heights, after the entrance animation.
         await expect
           .poll(() =>
