@@ -180,7 +180,7 @@ async def reserve_use(db: AsyncSession, *, invitation_id: UUID, email: str) -> b
     await db.flush()
     # `execute` is typed to return `Result`, which has no `rowcount`; a DML
     # statement returns `CursorResult`, which does.
-    return bool(result.rowcount)  # ty: ignore[unresolved-attribute]
+    return bool(result.rowcount)  # ty: ignore[missing-attribute]
 
 
 async def list_for_org(
@@ -267,7 +267,7 @@ async def expire_stale(db: AsyncSession) -> int:
         .values(status=InvitationStatus.EXPIRED.value)
     )
     await db.flush()
-    return result.rowcount  # ty: ignore[unresolved-attribute]
+    return result.rowcount  # ty: ignore[missing-attribute]
 
 
 async def record_use(

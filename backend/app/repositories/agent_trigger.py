@@ -396,7 +396,7 @@ async def renew_fire_marker(
     # `execute` is typed to return `Result`, which has no `rowcount`; a DML
     # statement actually returns `CursorResult`, which does (`resource_grant`
     # documents the same suppression).
-    return result.rowcount == 1  # ty: ignore[unresolved-attribute]
+    return result.rowcount == 1  # ty: ignore[missing-attribute]
 
 
 async def clear_fire_marker(db: AsyncSession, *, trigger_id: UUID, claimed_at: datetime) -> None:
