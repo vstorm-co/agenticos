@@ -54,6 +54,10 @@ interface WorkspaceFilesProps {
    * composer until its buttons fell out of it.
    */
   overlay?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** The workspace rail is present on phones as well as wide chats. */
+  responsive?: boolean;
 }
 
 /**
@@ -81,6 +85,9 @@ export function WorkspaceFiles({
   attachments,
   buttonSlot,
   overlay = false,
+  open: controlledOpen,
+  onOpenChange,
+  responsive = false,
 }: WorkspaceFilesProps) {
   const t = useTranslations("chat.files");
   // A chat working on this computer keeps its files in the folder there, which
@@ -96,7 +103,13 @@ export function WorkspaceFiles({
   );
   const { workspace, error, refresh } = localRoot === null ? cloud : local;
   const openAttachment = useFilePreviewStore((state) => state.open);
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const open = controlledOpen ?? ownOpen;
+  const setOpen = (value: boolean | ((current: boolean) => boolean)) => {
+    const next = typeof value === "function" ? value(open) : value;
+    if (onOpenChange) onOpenChange(next);
+    else setOwnOpen(next);
+  };
   const sourcesOpen = useSourcesPanelStore((state) => state.isOpen);
   const closeSources = useSourcesPanelStore((state) => state.close);
   const visible = open && !sourcesOpen;
@@ -104,6 +117,23 @@ export function WorkspaceFiles({
   const toggle = useRef<HTMLButtonElement>(null);
   const reduceMotion = useReducedMotion();
   const [reading, setReading] = useState<ConversationFile | null>(null);
+  useEffect(() => {
+    if (!visible) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (
+        event.key !== "Escape" ||
+        event.defaultPrevented ||
+        (event.target instanceof HTMLElement &&
+          event.target.closest('[role="menu"], [role="dialog"]'))
+      )
+        return;
+      if (onOpenChange) onOpenChange(false);
+      else setOwnOpen(false);
+      toggle.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [visible, onOpenChange]);
   // The chat addresses files through its conversation, not through the workspace's
   // id: that route authorises by fetching the conversation, so somebody this chat
   // was shared with reaches the same files.
@@ -196,6 +226,7 @@ export function WorkspaceFiles({
             }}
             className={cn(
               "text-muted-foreground hover:text-foreground hover:bg-accent/60 relative inline-flex size-8 items-center justify-center rounded-lg transition-colors",
+              responsive && "size-11 @min-[900px]/browser-layout:size-9",
               visible && "bg-foreground/[0.06] text-foreground",
             )}
           >
@@ -211,6 +242,7 @@ export function WorkspaceFiles({
       <AnimatePresence initial={false}>
         {visible && (
           <motion.aside
+            aria-label={t("title")}
             data-native-browser-blocked={overlay ? "" : undefined}
             id={panelId}
             initial={{ width: 0, opacity: 0 }}
@@ -220,6 +252,8 @@ export function WorkspaceFiles({
             className={cn(
               "h-full shrink-0 overflow-hidden",
               overlay && "bg-background shadow-card absolute inset-y-0 right-0 z-20 max-w-[85%]",
+              responsive &&
+                "bg-background shadow-card fixed inset-y-0 right-0 z-50 max-w-full @min-[900px]/browser-layout:relative @min-[900px]/browser-layout:inset-auto @min-[900px]/browser-layout:z-20 @min-[900px]/browser-layout:shadow-none",
             )}
           >
             <div className="border-border flex h-full min-h-0 w-72 flex-col border-l">

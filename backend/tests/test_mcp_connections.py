@@ -4839,7 +4839,7 @@ class TestOrganizationConnections:
     async def test_authorizing_the_organizations_second_account_again_needs_no_label(
         self, service, ctx, repo, monkeypatch
     ):
-        existing = _connection(name="github-oss", catalog_key="github", scope="org")
+        existing = self._org_connection(ctx, name="github-oss", catalog_key="github")
         repo.get_org_scoped_by_name = AsyncMock(return_value=existing)
         repo.get_org_scoped_by_catalog_key = AsyncMock(
             return_value=_connection(name="github", catalog_key="github", scope="org")

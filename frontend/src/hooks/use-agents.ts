@@ -534,7 +534,7 @@ export function useAgentVersions(
 ) {
   const skip = options?.skip ?? 0;
   const limit = options?.limit ?? VERSIONS_PAGE_SIZE;
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: qk.agents.versions(agentId ?? "", skip, limit),
     queryFn: () =>
       apiClient.get<AgentVersionList>(`/agents/${agentId}/versions`, {
@@ -545,7 +545,7 @@ export function useAgentVersions(
     // history does not blank the card it is in.
     placeholderData: keepPreviousData,
   });
-  return { versions: data?.items ?? [], total: data?.total ?? 0, isLoading };
+  return { versions: data?.items ?? [], total: data?.total ?? 0, isLoading, error };
 }
 
 /** The largest page the versions route will answer (`limit: le=100`). */

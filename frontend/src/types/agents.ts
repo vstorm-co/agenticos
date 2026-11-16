@@ -614,6 +614,8 @@ export interface Agent {
   published_model?: PublishedModel | null;
   /** Enabled bindings from the frozen version; absent on older servers. */
   published_capabilities?: string[] | null;
+  /** Enabled frozen bindings configured for hosted browser/computer use; not a health probe. */
+  published_hosted_capabilities?: string[] | null;
   /**
    * The coding agent the published version runs on the person's own computer, or
    * null when it runs none there; the composer names it. Listing only.
@@ -642,6 +644,9 @@ export interface Agent {
 
 export interface AgentDetail extends Agent {
   draft_spec: AgentSpec;
+  /** Resolved for this caller, including resource grants. Absent on older servers. */
+  can_edit?: boolean;
+  can_publish?: boolean;
 }
 
 /**

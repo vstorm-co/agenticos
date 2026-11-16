@@ -30,7 +30,7 @@ import { Perm } from "@/types/permissions";
  *
  * The tools come from the connection's **last successful probe** rather than a
  * fresh one: probing dials out to a third party and is gated on
- * `connections:manage`, which an agent author need not hold (#1341).
+ * `mcp:manage`, which an agent author need not hold (#1341).
  *
  * A connection nothing has probed yet has no catalogue, and a binding that
  * already names tools would then read "0 of 0 on" while its card says three -
@@ -133,7 +133,7 @@ export function McpBindingsEditor({
           try {
             const { connection: probed, error } = await toolsForBinding(
               connection,
-              can(Perm.connectionsManage) ? probe : null,
+              can(Perm.mcpManage) ? probe : null,
             );
             if (error !== null) toast.error(error);
             setToolPicker(toolChoice(ref, probed, name));

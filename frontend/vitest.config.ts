@@ -168,6 +168,10 @@ export default defineConfig({
         "src/components/layout/app-update-banner.tsx",
         "src/components/layout/notification-glyph.tsx",
         "src/components/chat/project-chip.tsx",
+        "src/components/chat/chat-model-header.tsx",
+        "src/components/chat/chat-model-menu.tsx",
+        "src/components/chat/chat-model-options.tsx",
+        "src/components/chat/chat-model-selector.tsx",
         "src/components/chat/chat-room-bar.tsx",
         "src/components/chat/typing-indicator.tsx",
         "src/components/chat/reply-quote.tsx",
@@ -302,6 +306,9 @@ export default defineConfig({
         "src/components/chat/tool-approval-dialog.tsx",
         "src/components/chat/agent-draft-proposal.tsx",
         "src/components/chat/workspace-files.tsx",
+        "src/components/chat/workspace-panels.tsx",
+        "src/components/chat/workspace-rail.tsx",
+        "src/components/chat/workspace-empty.tsx",
         // `.ts` too: the grant-subject helpers the panel's rows share live beside it.
         "src/components/sharing/**/*.{ts,tsx}",
         // The directory (LDAP) sign-in form (#1773). The rest of `auth/` predates
