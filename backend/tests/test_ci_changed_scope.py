@@ -9,10 +9,10 @@ quietly rather than loudly:
     is a green one with a gate missing from it. That is #143 and #165 exactly, and
     the reason the script is written to skip only what it can prove irrelevant.
   - **The concurrency group.** Nothing checks that it exists, so deleting it costs
-    ~1,800 billed minutes per six days and produces no signal at all. Its `main`
-    exemption is load-bearing in the other direction: cancel a merge's run and the
-    commit's CI never finishes - and `cancel-in-progress: false` does not deliver
-    that exemption, which is the mistake the first version of this made.
+    ~1,800 billed minutes per six days and produces no signal at all. Since
+    2026-11-16 it cancels on `t3` too; that is safe only because a push classifies
+    its changes against the last successful `t3` run, so a cancelled run's commits
+    are tested by the run that replaced it.
 
 Three of the assertions here are about the *shape* of `ci.yml` rather than about the
 classifier, and they are the ones that matter most: a perfect classifier wired to a
@@ -291,7 +291,7 @@ class TestTheWorkflowActuallyUsesIt:
         )
         assert definition["if"] == expected, (
             f"`{job}` must gate on `{expected}`. `full` limits the heavy suites to "
-            "`ci/batch` pushes and release tags (batch CI, 2026-11-16). The scope "
+            "pushes to `t3` and release tags (2026-11-16). The scope "
             "half stays `!= 'false'`, because `== 'true'` would skip it whenever the "
             "classifier does not run; and without `!cancelled()` a *failed* `changes` "
             "job skips this suite without reading the condition at all, which a "
@@ -324,20 +324,12 @@ class TestTheConcurrencyGroup:
         """A shared group would have one branch cancelling another's run."""
         assert "github.ref" in workflow["concurrency"]["group"]
 
-    def test_a_push_gets_a_group_of_its_own(self, workflow: dict[str, Any]) -> None:
-        """`cancel-in-progress: false` is not how `main` is protected.
+    def test_every_ref_cancels_its_superseded_runs(self, workflow: dict[str, Any]) -> None:
+        """`t3` included (user decision, 2026-11-16).
 
-        `false` means *queue*, and GitHub cancels any previously **pending** run in
-        the group when a newer one is queued - so with one group for `main`, a third
-        merge arriving cancels the second outright and that commit gets no CI at all.
-        `github.run_id` is unique per run, which keeps every push out of every other
-        push's group rather than merely out of the cancelling.
+        A cancelled `t3` run is safe only because the next push classifies its
+        changes against the last successful `t3` run, not against the cancelled one;
+        `test_ci_workflow` pins that step.
         """
-        assert "github.run_id" in workflow["concurrency"]["group"]
-
-    def test_a_push_to_main_is_never_cancelled(self, workflow: dict[str, Any]) -> None:
-        """The merge's own run is what makes the history and the badge mean anything."""
-        assert (
-            workflow["concurrency"]["cancel-in-progress"]
-            == "${{ github.event_name == 'pull_request' }}"
-        )
+        assert workflow["concurrency"]["group"] == "ci-${{ github.ref }}"
+        assert workflow["concurrency"]["cancel-in-progress"] is True

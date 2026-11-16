@@ -59,30 +59,21 @@ def triggers(workflow: dict[str, Any]) -> dict[str, Any]:
     return block
 
 
-class TestEveryPullRequestIsChecked:
-    """A pull request that runs nothing must not be possible to open."""
+class TestPullRequestsRunNoCI:
+    """The PR quick check runs in the T3 session and is pasted into the PR (2026-11-16)."""
 
-    def test_the_pull_request_trigger_matches_whatever_the_base_is(
-        self, triggers: dict[str, Any]
-    ) -> None:
-        assert "pull_request" in triggers, "CI no longer runs on pull requests at all"
-        event = triggers["pull_request"]
-        filters = sorted(
-            set(event or {}) & {"branches", "branches-ignore", "paths", "paths-ignore"}
-        )
-        assert not filters, (
-            f"the `pull_request` trigger filters on {filters}. A `branches` filter matches "
-            "the base, so a pull request stacked on a feature branch would run no jobs and "
-            "report an empty checks list rather than a red one - #359. A `paths` filter is "
-            "worse: the required checks never report and the merge button stays grey."
+    def test_pull_requests_trigger_nothing(self, triggers: dict[str, Any]) -> None:
+        assert "pull_request" not in triggers, (
+            "CI runs after merge and on release tags only; the lead reads the quick "
+            "check output pasted into each pull request before merging."
         )
 
     def test_no_trigger_is_filtered_by_path(self, triggers: dict[str, Any]) -> None:
         """No trigger may carry a path filter.
 
         A path filter on pull requests hides their required contexts, including stacked
-        PRs. On pushes it skips a new `ci/batch` branch equal to `t3`, whose diff is
-        empty, so the batch run would never start.
+        PRs. On pushes, docs-only merges are classified by the `changes` job instead,
+        against the last successful `t3` run, so a cancelled run's commits stay covered.
         """
         filtered = {
             event: config
@@ -91,24 +82,26 @@ class TestEveryPullRequestIsChecked:
         }
         assert not filtered, f"path filters appear on {sorted(filtered)}."
 
-    def test_pull_requests_run_fast_checks_on_every_update(self, triggers: dict[str, Any]) -> None:
-        """Opening, updating and reopening a PR must all run the fast checks."""
-        required = {"opened", "synchronize", "reopened"}
-        assert required <= set(triggers["pull_request"].get("types", [])), (
-            "PR creation, updates and reopening must all trigger the fast checks."
-        )
-
-    def test_heavy_suites_run_only_for_batches_and_releases(
+    def test_heavy_suites_run_after_every_merge_and_release(
         self, triggers: dict[str, Any], workflow: dict[str, Any]
     ) -> None:
-        """Full CI runs on a `ci/batch` push or a `v*` tag, never on a PR (2026-11-16)."""
-        assert "ci/batch" in triggers["push"]["branches"], (
-            "Pushing a `t3` commit to `ci/batch` is how a batch run is started."
-        )
+        """Every `t3` push and `v*` tag runs the full suite."""
+        assert triggers["push"]["branches"] == ["t3"]
+        assert triggers["push"]["tags"] == ["v*"]
         assert workflow["jobs"]["changes"]["outputs"]["full"] == (
-            "${{ github.event_name == 'push' && (github.ref == 'refs/heads/ci/batch' "
-            "|| startsWith(github.ref, 'refs/tags/v')) }}"
-        ), "Only `ci/batch` pushes and release tags may run the heavy suites."
+            "${{ github.event_name == 'push' }}"
+        ), "The heavy suites run on pushes (merges and tags), never on pull requests."
+
+    def test_a_push_classifies_against_the_last_successful_t3_run(
+        self, workflow: dict[str, Any]
+    ) -> None:
+        """With cancel-in-progress, `github.event.before` may be a commit never tested."""
+        step = next(
+            step for step in workflow["jobs"]["changes"]["steps"] if step.get("id") == "pushed"
+        )
+        assert "status=success" in step["run"]
+        assert "github.event.before" not in step["run"]
+        assert "merge-base --is-ancestor" in step["run"]
 
 
 class TestWorkerBackedJourneys:

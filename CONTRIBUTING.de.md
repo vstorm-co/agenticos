@@ -2,7 +2,7 @@
 source_sha: "7cb876b5ef26"
 ---
 
-<!-- source_sha: f18100260aaf -->
+<!-- source_sha: b3b3173c34cf -->
 
 # Zu AgenticOS beitragen
 
@@ -114,10 +114,12 @@ verschickt.
 - Bugs kommen mit einem Regressionstest, der ohne den Fix fehlschlägt.
 - Schreiben Sie in die Beschreibung, was Sie entschieden haben und warum. Das
   Was zeigt der Code.
-- Die schnelle CI läuft für jeden Pull Request. Die vollständige CI läuft
-  gebündelt: Pushe etwa alle 10 Merges den neuesten `t3`-Commit nach
-  `ci/batch`, außerdem bei jeder Veröffentlichung (Push eines `v*`-Tags).
-  Schlägt ein Batch fehl, behebe zuerst den verursachenden Merge.
+- Für Pull Requests läuft keine CI. Führe vor dem Push die schnelle Prüfung
+  aus (Lint, Typprüfung, betroffene Tests) und füge Befehl und Ausgabe in den
+  Pull Request ein. Jeder Merge nach `t3` und jedes `v*`-Tag startet die
+  vollständige CI; schlägt ein `t3`-Lauf fehl, mache ihn vor dem nächsten Merge
+  rückgängig oder behebe ihn. Ein Produktions-Deployment setzt einen grünen
+  Lauf voraus.
 
 ## Sicherheit
 

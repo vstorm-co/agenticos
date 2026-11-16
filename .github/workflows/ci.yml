@@ -21,43 +21,25 @@ name: CI
 # `concurrency` group is keyed on `github.ref`, so a stacked branch cancels its own
 # superseded runs like any other.
 #
-# Fast CI runs for every pull request and every push to `t3`. The heavy suites run
-# in batches (user decision, 2026-11-16): only when a `t3` commit is pushed to the
-# `ci/batch` branch, about once every 10 merges, and for `v*` release tags. A
-# skipped heavy job satisfies its required check, so pull requests still merge.
-# Pushes carry no path filter: a new `ci/batch` branch equal to `t3` shows no
-# changed files, so a filter would skip the batch run entirely.
+# No CI runs on pull requests (user decision, 2026-11-16). The quick check (lint,
+# type checks, related tests) runs in the T3 session before it pushes, and its
+# command and output are pasted into the pull request for the lead to read before
+# merging; `t3` requires no status checks. Every push to `t3` (each merge) and
+# every `v*` tag runs the full suite. A failed `t3` run is reverted or fixed
+# before the next merge, and a production deploy needs it green.
 on:
   push:
-    branches: [t3, ci/batch]
+    branches: [t3]
     tags: ['v*']
-  pull_request:
-    types: [opened, synchronize, reopened]
 
-# One run per branch. `AGENTS.md` asks for a commit and a push per finished piece,
-# which is right - but with nothing cancelling, each push started a fresh 24-minute
-# matrix and left the previous one running to completion, answering a question
-# about a commit nobody was waiting on. 75 of the 369 runs in the first six days of
-# August were superseded while still in flight, about 1,800 billed minutes, and
-# only 2 runs in that window were ever `cancelled`. See #317.
-#
-# `main` is deliberately excluded: the push run is what makes the merge history and
-# the badge mean anything, and a commit whose CI never finished is worse than a
-# minute overspent. `cancel-in-progress: false` is **not** how you exclude it, which
-# is the trap this originally fell into: false means *queue*, and GitHub's rule is
-# that "any existing pending job or workflow in the same concurrency group will be
-# canceled and the new queued job or workflow will take its place". So with one
-# group for `main`, merge A running and B pending, C landing cancels B outright and
-# B's commit gets no CI at all - at fourteen releases in six days plus feature
-# merges, against a ~10 minute `main` run, two merges inside one window is not rare.
-#
-# So `main` is kept out of the group entirely rather than out of the cancelling:
-# `github.run_id` is unique per run, so every push gets a group of its own and
-# neither queues nor cancels. Pull requests all resolve to `-pr` and cancel each
-# other per `github.ref`, which is the whole point.
+# One run per ref, and a newer run cancels an older one on every ref, `t3`
+# included (user decision, 2026-11-16). A cancelled `t3` run never becomes a
+# baseline: the next push classifies its changes against the last *successful*
+# `t3` run (see `changes`), so the commits whose run was cancelled are still
+# tested by the run that replaced it.
 concurrency:
-  group: ci-${{ github.ref }}-${{ github.event_name == 'push' && github.run_id || 'pr' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 # Least privilege for every job. Nothing in this workflow writes anything back -
 # Codecov uses its own token - and a job that later needs more should declare it
@@ -116,10 +98,10 @@ jobs:
       pull-requests: read
       actions: read
     outputs:
-      full: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/ci/batch' || startsWith(github.ref, 'refs/tags/v')) }}
-      backend: ${{ steps.reused.outputs.backend || steps.scope.outputs.backend }}
-      frontend: ${{ steps.reused.outputs.frontend || steps.scope.outputs.frontend }}
-      e2e: ${{ steps.reused.outputs.e2e || steps.scope.outputs.e2e }}
+      full: ${{ github.event_name == 'push' }}
+      backend: ${{ steps.reused.outputs.backend || steps.scope.outputs.backend || steps.pushed.outputs.backend }}
+      frontend: ${{ steps.reused.outputs.frontend || steps.scope.outputs.frontend || steps.pushed.outputs.frontend }}
+      e2e: ${{ steps.reused.outputs.e2e || steps.scope.outputs.e2e || steps.pushed.outputs.e2e }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -167,6 +149,28 @@ jobs:
           # above, with full-run evidence; paths alone never exempt manifests.
           python3 scripts/ci_changed_scope.py \
             "$RUNNER_TEMP/changed.txt" >> "$GITHUB_OUTPUT"
+
+      - name: Work out which suites a t3 push requires
+        id: pushed
+        # Docs-only merges skip the heavy suites. The diff is taken from the head of
+        # the last *successful* `t3` run, not from `github.event.before`: with
+        # cancel-in-progress, the previous push's run may have been cancelled, and
+        # its changes must still be tested here. No usable baseline emits nothing,
+        # which runs every suite.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/t3' && steps.release.outputs.cut != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          base=$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=t3&event=push&status=success&per_page=1" \
+            --jq '.workflow_runs[0].head_sha // empty')
+          if [ -n "$base" ] && git cat-file -e "$base^{commit}" 2>/dev/null \
+            && git merge-base --is-ancestor "$base" "$GITHUB_SHA"; then
+            git diff --name-only "$base" "$GITHUB_SHA" > "$RUNNER_TEMP/changed.txt"
+            python3 scripts/ci_changed_scope.py \
+              "$RUNNER_TEMP/changed.txt" >> "$GITHUB_OUTPUT"
+          fi
 
   lint:
     # Never gated. It is one billed minute, `make lint-spelling` reads every
