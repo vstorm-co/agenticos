@@ -39,6 +39,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Workflow record filters choose their column by name from the step's table instead of asking for a column id, and a single or multi select column's value from its options, so Record exists? no longer refuses an option typed by its label. The Record exists? and List records steps no longer offer a column list they never read; a stored narrowing stays visible so it can be cleared.
 
+### Fixed
+
+- Validate whole Data values at dispatch against their consumer and settle non-object paths as missing values. Resolve saved select option labels in Record exists as List records does. Invalid rating values in pending table writes retain a raw preview without breaking the approvals queue.
+
 ## [1.80.0] - 2026-11-16
 
 ### Fixed

@@ -1085,8 +1085,14 @@ def _members(annotation: Any) -> list[Any]:
 
 
 def _types_compatible(source: Any, target: Any) -> bool:
-    # `Any` on either side is checked at dispatch rather than here; see `_is_dynamic`.
-    if source is target or source is Any or target is Any:
+    # An opaque JSON value is checked against its concrete target at dispatch.
+    if (
+        source is target
+        or source is Any
+        or target is Any
+        or source is JsonValue
+        or target is JsonValue
+    ):
         return True
     # A free-form object field takes any structured value: a model's output
     # reaches it as the dict it is stored as.

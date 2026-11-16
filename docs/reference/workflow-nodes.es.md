@@ -1,5 +1,5 @@
 ---
-source_sha: "5571edc3aae0"
+source_sha: "b5a555f17ceb"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -1328,6 +1328,8 @@ Cuatro pasos más leen qué tablas tiene la organización, y no cambian nada.
 workflow puede crear su tabla la primera vez que se ejecuta y reutilizarla
 después. Las dos preguntas salen por exactamente un puerto, y un `logic.merge`
 puede volver a unir las ramas.
+
+`table.record.exists` y `table.record.query` aceptan etiquetas de opciones de selección además de IDs en filtros guardados. Resuelven las etiquetas con la tabla actual antes de consultar; las etiquetas desconocidas o ambiguas siguen causando errores de validación.
 
 ::: app.workflows.nodes.table_list._handler.TableListOutput
 

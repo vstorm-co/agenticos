@@ -1,5 +1,5 @@
 ---
-source_sha: "5571edc3aae0"
+source_sha: "b5a555f17ceb"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -1369,6 +1369,8 @@ nichts.
 Kleinschreibung, sodass ein Workflow seine Tabelle beim ersten Lauf anlegen und
 danach wiederverwenden kann. Beide Fragen verlassen den Schritt über genau einen
 Port, und ein `logic.merge` kann die Zweige wieder zusammenführen.
+
+`table.record.exists` und `table.record.query` akzeptieren in gespeicherten Filtern Optionsnamen von Auswahlspalten sowie IDs. Sie lösen Namen anhand der aktuellen Tabelle vor der Abfrage auf; unbekannte oder mehrdeutige Namen bleiben Validierungsfehler.
 
 ::: app.workflows.nodes.table_list._handler.TableListOutput
 

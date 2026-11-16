@@ -1264,6 +1264,8 @@ Four more steps read what the organization's tables are, and change nothing.
 create its table the first time it runs and reuse it after. The two questions
 leave by exactly one port, and a `logic.merge` can join the branches again.
 
+`table.record.exists` and `table.record.query` accept select option labels as well as IDs in saved filters. They resolve labels against the current table before querying; unknown or ambiguous labels remain validation errors.
+
 ::: app.workflows.nodes.table_list._handler.TableListOutput
 
 ::: app.workflows.nodes.table_describe._handler.TableDescribeOutput

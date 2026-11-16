@@ -1,5 +1,5 @@
 ---
-source_sha: "5571edc3aae0"
+source_sha: "b5a555f17ceb"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -1305,6 +1305,8 @@ zmieniają.
 może utworzyć swoją tabelę przy pierwszym uruchomieniu, a potem jej używać. Oba
 pytania wychodzą dokładnie jednym portem, a `logic.merge` może z powrotem
 połączyć gałęzie.
+
+`table.record.exists` i `table.record.query` przyjmują w zapisanych filtrach etykiety opcji select obok identyfikatorów. Rozwiązują etykiety według bieżącej tabeli przed zapytaniem; nieznane lub niejednoznaczne etykiety nadal powodują błąd walidacji.
 
 ::: app.workflows.nodes.table_list._handler.TableListOutput
 

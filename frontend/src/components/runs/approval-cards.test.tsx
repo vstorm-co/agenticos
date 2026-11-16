@@ -236,6 +236,65 @@ describe("PendingApproval - a call from an MCP server", () => {
     expect(screen.queryByText(table)).toBeNull();
   });
 
+  it.each([-1, 6, 0.5])(
+    "keeps a pending invalid rating %s readable alongside other approvals",
+    async (value) => {
+      const tableId = "638b016e-c0fd-4e4d-b916-c4810a49a54c";
+      vi.mocked(getTable).mockResolvedValue({
+        id: tableId,
+        name: "Ratings",
+        description: null,
+        visibility: "private",
+        owner_user_id: null,
+        schema_version: 1,
+        archived_at: null,
+        created_at: "2026-11-01T10:00:00Z",
+        updated_at: null,
+        can_edit: true,
+        can_restore: false,
+        can_manage: true,
+        columns: [
+          {
+            id: "rating",
+            label: "Rating",
+            type: "rating",
+            nullable: true,
+            default: null,
+            options: [],
+            archived: false,
+          },
+        ],
+      });
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <NextIntlClientProvider locale="en" messages={messages}>
+            <ul>
+              <PendingApproval
+                approval={approval({
+                  tool_id: "agenticos_add_virtual_table_record",
+                  tool_args: { table_id: tableId, values: { rating: value } },
+                })}
+                deciding={false}
+                onDecide={vi.fn()}
+                onOpenRun={vi.fn()}
+              />
+              <PendingApproval
+                approval={approval({ id: "other" })}
+                deciding={false}
+                onDecide={vi.fn()}
+                onOpenRun={vi.fn()}
+              />
+            </ul>
+          </NextIntlClientProvider>
+        </QueryClientProvider>,
+      );
+      expect(await screen.findByRole("link", { name: "Ratings" })).toBeVisible();
+      expect(screen.getByText(String(value))).toBeVisible();
+      expect(screen.getByText("MEMORY.md")).toBeVisible();
+      expect(screen.getAllByRole("button", { name: "Approve" })).toHaveLength(2);
+    },
+  );
+
   it("keeps a table write's target line for an approver who cannot read the table", async () => {
     const table = "638b016e-c0fd-4e4d-b916-c4810a49a54c";
     vi.mocked(getTable).mockRejectedValue(new Error("Forbidden"));
