@@ -2883,3 +2883,20 @@ async def set_model_content(
         .values(model_content=content)
     )
     await db.flush()
+
+
+async def answer_message(
+    db: AsyncSession, message_id: UUID, *, run_id: UUID, organization_id: UUID
+) -> Message | None:
+    """One saved answer of this tenant's run, by its id; `None` for any other message."""
+    result = await db.execute(
+        select(Message)
+        .join(Conversation, Message.conversation_id == Conversation.id)
+        .where(
+            Message.id == message_id,
+            Message.run_id == run_id,
+            Message.role == "assistant",
+            Conversation.organization_id == organization_id,
+        )
+    )
+    return result.scalar_one_or_none()

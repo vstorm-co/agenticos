@@ -6,8 +6,10 @@ import { toast } from "sonner";
 
 import { AnswerStyleFields, REACTION_PATTERN } from "@/components/channels/answer-style-fields";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
+import { PublicLineField } from "@/components/channels/public-line-field";
 import { SlackTransport } from "@/components/channels/slack-transport";
 import { ImessageSetup } from "@/components/channels/imessage-setup";
+import { WhatsAppLateTemplateField } from "@/components/channels/whatsapp-late-template-field";
 import {
   Button,
   Dialog,
@@ -50,11 +52,16 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   imessage: "iMessage",
 
   discord: "Discord",
+  // i18n-exempt: a product\'s own name, written the same in every language
+  whatsapp: "WhatsApp",
 };
 
 const MAX_NAME = 255;
 const MAX_URL = 500;
 const MIN_TOKEN = 10;
+/** What the backend accepts as a WhatsApp id, and the shortest secret it seals. */
+const WHATSAPP_ID = /^\d{5,32}$/;
+const MIN_SECRET = 8;
 
 /** What somebody typed into the dialog, before it becomes a patch. */
 export interface ChannelBotDraft {
@@ -65,9 +72,18 @@ export interface ChannelBotDraft {
   signingSecret: string;
   appToken: string;
   commandToken: string;
+  whatsappPhoneNumberId: string;
+  whatsappAccountId: string;
+  whatsappVerifyToken: string;
+  /** WhatsApp: the template a late answer goes out in, by name and language; null for none. */
+  whatsappLateTemplate: { name: string; language: string } | null;
   /** Slack: whether Slack calls this deployment, or the deployment connects out. */
   webhookMode: boolean;
   respondToBroadcasts: boolean;
+  /** WhatsApp: answer people with no linked account, as the agent. */
+  answerUnlinkedDirect: boolean;
+  /** WhatsApp: take files from such customers. */
+  acceptCustomerFiles: boolean;
   discordGuilds: string;
   answerStyle: AnswerStyle;
   transcription: TranscriptionChoice;
@@ -118,6 +134,27 @@ export function botPatch(bot: ChannelBot, draft: ChannelBotDraft): ChannelBotUpd
     if (draft.webhookMode !== bot.webhook_mode) patch.webhook_mode = draft.webhookMode;
   }
 
+  if (bot.platform === "whatsapp") {
+    // The backend refuses a null for any of these, and an emptied id is not a
+    // change worth sending: the input's own check holds the save back instead.
+    const phoneNumberId = draft.whatsappPhoneNumberId.trim();
+    if (phoneNumberId && phoneNumberId !== bot.whatsapp_phone_number_id) {
+      patch.whatsapp_phone_number_id = phoneNumberId;
+    }
+    const accountId = draft.whatsappAccountId.trim();
+    if (accountId && accountId !== bot.whatsapp_account_id) patch.whatsapp_account_id = accountId;
+    const appSecret = draft.webhookSecret.trim();
+    if (appSecret) patch.webhook_secret = appSecret;
+    const verifyToken = draft.whatsappVerifyToken.trim();
+    if (verifyToken) patch.whatsapp_verify_token = verifyToken;
+    // Sent when the choice differs from what is stored, and null to clear it.
+    const stored = bot.whatsapp_late_template;
+    const chosen = draft.whatsappLateTemplate;
+    if (stored?.name !== chosen?.name || stored?.language !== chosen?.language) {
+      patch.whatsapp_late_template = chosen;
+    }
+  }
+
   for (const field of ANSWER_STYLE_FIELDS) {
     if (draft.answerStyle[field] !== bot[field]) {
       Object.assign(patch, { [field]: draft.answerStyle[field] });
@@ -129,6 +166,20 @@ export function botPatch(bot: ChannelBot, draft: ChannelBotDraft): ChannelBotUpd
       ...bot.access_policy,
       respond_to_broadcasts: draft.respondToBroadcasts,
     };
+  }
+  if (bot.platform === "whatsapp") {
+    // Both keys ride in the one policy, merged over whatever else this patch put there.
+    const stored = bot.access_policy;
+    const changes: Partial<ChannelBot["access_policy"]> = {};
+    if (draft.answerUnlinkedDirect !== (stored.answer_unlinked_direct ?? false)) {
+      changes.answer_unlinked_direct = draft.answerUnlinkedDirect;
+    }
+    if (draft.acceptCustomerFiles !== (stored.accept_customer_files ?? false)) {
+      changes.accept_customer_files = draft.acceptCustomerFiles;
+    }
+    if (Object.keys(changes).length > 0) {
+      patch.access_policy = { ...stored, ...patch.access_policy, ...changes };
+    }
   }
   if (bot.platform === "discord") {
     const guilds = parseDiscordGuilds(draft.discordGuilds);
@@ -207,8 +258,16 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
     signingSecret: "",
     appToken: "",
     commandToken: "",
+    whatsappPhoneNumberId: bot.whatsapp_phone_number_id ?? "",
+    whatsappAccountId: bot.whatsapp_account_id ?? "",
+    whatsappVerifyToken: "",
+    whatsappLateTemplate: bot.whatsapp_late_template
+      ? { name: bot.whatsapp_late_template.name, language: bot.whatsapp_late_template.language }
+      : null,
     webhookMode: bot.webhook_mode,
     respondToBroadcasts: bot.access_policy.respond_to_broadcasts ?? false,
+    answerUnlinkedDirect: bot.access_policy.answer_unlinked_direct ?? false,
+    acceptCustomerFiles: bot.access_policy.accept_customer_files ?? false,
     discordGuilds: (bot.access_policy.discord_guild_ids ?? []).join(", "),
     answerStyle: {
       ack_reaction: bot.ack_reaction,
@@ -231,7 +290,10 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
       | "webhookSecret"
       | "signingSecret"
       | "appToken"
-      | "commandToken",
+      | "commandToken"
+      | "whatsappPhoneNumberId"
+      | "whatsappAccountId"
+      | "whatsappVerifyToken",
     value: string,
   ) {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -244,6 +306,14 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
 
   const patch = botPatch(bot, draft);
   const shortToken = draft.token.trim().length > 0 && draft.token.trim().length < MIN_TOKEN;
+  const whatsapp = bot.platform === "whatsapp";
+  const badWhatsapp =
+    whatsapp &&
+    (!WHATSAPP_ID.test(draft.whatsappPhoneNumberId.trim()) ||
+      !WHATSAPP_ID.test(draft.whatsappAccountId.trim()) ||
+      (draft.webhookSecret.trim().length > 0 && draft.webhookSecret.trim().length < MIN_SECRET) ||
+      (draft.whatsappVerifyToken.trim().length > 0 &&
+        draft.whatsappVerifyToken.trim().length < MIN_SECRET));
   const nothingToSave = Object.keys(patch).length === 0;
   const badReaction =
     draft.answerStyle.ack_reaction !== null &&
@@ -265,6 +335,12 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
             "webhook_secret",
             "transcribe_voice_notes",
             "speech_to_text_secret_id",
+            "whatsapp_phone_number_id",
+            "whatsapp_account_id",
+            "whatsapp_verify_token",
+            "whatsapp_late_template",
+            "access_policy.answer_unlinked_direct",
+            "access_policy.accept_customer_files",
           ],
           identifiedBy: "name",
         },
@@ -439,6 +515,85 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
               </FormField>
             ))}
 
+          {whatsapp && <WhatsAppSetup bot={bot} />}
+
+          {whatsapp && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                label={t("whatsappPhoneNumberId")}
+                htmlFor="edit-channel-whatsapp-phone-number-id"
+                error={errors.whatsapp_phone_number_id}
+                description={t("whatsappPhoneNumberIdHint")}
+                required
+              >
+                <Input
+                  id="edit-channel-whatsapp-phone-number-id"
+                  value={draft.whatsappPhoneNumberId}
+                  onChange={(event) => set("whatsappPhoneNumberId", event.target.value)}
+                  inputMode="numeric"
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField
+                label={t("whatsappAccountId")}
+                htmlFor="edit-channel-whatsapp-account-id"
+                error={errors.whatsapp_account_id}
+                description={t("whatsappAccountIdHint")}
+                required
+              >
+                <Input
+                  id="edit-channel-whatsapp-account-id"
+                  value={draft.whatsappAccountId}
+                  onChange={(event) => set("whatsappAccountId", event.target.value)}
+                  inputMode="numeric"
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField
+                label={t("whatsappAppSecret")}
+                htmlFor="edit-channel-whatsapp-app-secret"
+                error={errors.webhook_secret}
+                description={stored(bot.has_webhook_secret)}
+              >
+                <Input
+                  id="edit-channel-whatsapp-app-secret"
+                  type="password"
+                  value={draft.webhookSecret}
+                  onChange={(event) => set("webhookSecret", event.target.value)}
+                  autoComplete="off"
+                  maxLength={MAX_NAME}
+                />
+              </FormField>
+              <FormField
+                label={t("whatsappVerifyToken")}
+                htmlFor="edit-channel-whatsapp-verify-token"
+                error={errors.whatsapp_verify_token}
+                description={stored(bot.has_whatsapp_verify_token ?? false)}
+              >
+                <Input
+                  id="edit-channel-whatsapp-verify-token"
+                  type="password"
+                  value={draft.whatsappVerifyToken}
+                  onChange={(event) => set("whatsappVerifyToken", event.target.value)}
+                  autoComplete="off"
+                  maxLength={MAX_NAME}
+                />
+              </FormField>
+            </div>
+          )}
+
+          {whatsapp && (
+            <WhatsAppLateTemplateField
+              botId={bot.id}
+              value={draft.whatsappLateTemplate}
+              stored={bot.whatsapp_late_template}
+              onChange={(next) =>
+                setDraft((current) => ({ ...current, whatsappLateTemplate: next }))
+              }
+              error={errors.whatsapp_late_template}
+            />
+          )}
+
           {bot.platform === "discord" && (
             <DiscordGuildsField
               idPrefix="edit-channel"
@@ -446,20 +601,37 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
               onChange={(discordGuilds) => setDraft((current) => ({ ...current, discordGuilds }))}
             />
           )}
-          <MentionPolicyFields
-            idPrefix="edit-channel"
-            platform={bot.platform}
-            enabled={draft.respondToBroadcasts}
-            onChange={(respondToBroadcasts) =>
-              setDraft((current) => ({ ...current, respondToBroadcasts }))
-            }
-          />
+          {!whatsapp && (
+            <MentionPolicyFields
+              idPrefix="edit-channel"
+              platform={bot.platform}
+              enabled={draft.respondToBroadcasts}
+              onChange={(respondToBroadcasts) =>
+                setDraft((current) => ({ ...current, respondToBroadcasts }))
+              }
+            />
+          )}
           <AnswerStyleFields
             idPrefix="edit-channel"
             platform={bot.platform}
             value={draft.answerStyle}
             onChange={(answerStyle) => setDraft((current) => ({ ...current, answerStyle }))}
           />
+          {whatsapp && (
+            <PublicLineField
+              botId={bot.id}
+              answers={draft.answerUnlinkedDirect}
+              files={draft.acceptCustomerFiles}
+              onAnswers={(answerUnlinkedDirect) =>
+                setDraft((current) => ({ ...current, answerUnlinkedDirect }))
+              }
+              onFiles={(acceptCustomerFiles) =>
+                setDraft((current) => ({ ...current, acceptCustomerFiles }))
+              }
+              error={errors["access_policy.answer_unlinked_direct"]}
+              filesError={errors["access_policy.accept_customer_files"]}
+            />
+          )}
 
           <TranscriptionFields
             idPrefix="edit-channel"
@@ -483,6 +655,7 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
             nothingToSave ||
             shortToken ||
             badReaction ||
+            badWhatsapp ||
             (bot.platform === "discord" && !validDiscordGuilds(draft.discordGuilds))
           }
         >
@@ -660,6 +833,50 @@ function TeamsSetup({ bot }: { bot: ChannelBot }) {
           <Download className="h-4 w-4" />
           {t("teamsPackageDownload")}
         </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A WhatsApp bot, set up in Meta's app dashboard (#2076): the callback URL goes
+ * under the app's WhatsApp configuration with the verify token the operator chose
+ * - which is stored sealed and so never shown here - and the `messages` field is
+ * subscribed. A bot Meta refused a send for shows why, so "it stopped answering"
+ * has a visible cause.
+ */
+function WhatsAppSetup({ bot }: { bot: ChannelBot }) {
+  const t = useTranslations("pages.channels");
+  return (
+    <div className="border-border space-y-3 rounded-lg border p-3">
+      {bot.connection?.state === "down" && (
+        <p role="alert" className="text-destructive text-sm">
+          <span className="block font-medium">{t("whatsappSendDown")}</span>
+          {bot.connection.reason && <span className="block">{bot.connection.reason}</span>}
+        </p>
+      )}
+      {!bot.whatsapp_late_template && (
+        <p role="status" className="text-warning text-sm">
+          {t("whatsappNoLateTemplateHint")}
+        </p>
+      )}
+      {bot.whatsapp_callback_url && (
+        <div className="space-y-1">
+          <p className="text-sm font-medium">{t("whatsappCallback")}</p>
+          <p className="text-muted-foreground text-xs">{t("whatsappCallbackHint")}</p>
+          <code className="bg-muted block rounded-md px-2 py-1.5 text-xs break-all">
+            {bot.whatsapp_callback_url}
+          </code>
+        </div>
+      )}
+      <div className="space-y-1">
+        <p className="text-muted-foreground text-sm">{t("whatsappSetupSteps")}</p>
+        <ol className="text-muted-foreground list-decimal space-y-0.5 pl-5 text-sm">
+          <li>{t("whatsappStepCallback")}</li>
+          <li>{t("whatsappStepSubscribe")}</li>
+          <li>{t("whatsappStepLive")}</li>
+          <li>{t("whatsappStepToken")}</li>
+        </ol>
       </div>
     </div>
   );

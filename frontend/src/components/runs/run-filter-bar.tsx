@@ -38,6 +38,7 @@ export const SURFACES = [
   "email",
 
   "discord",
+  "whatsapp",
   "schedule",
   "eval",
   "workflow",

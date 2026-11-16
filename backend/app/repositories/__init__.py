@@ -60,6 +60,7 @@ from app.repositories import api_key as api_key_repo
 from app.repositories import oauth as oauth_repo
 from app.repositories import artifact as artifact_repo
 from app.repositories import artifact_share_request as artifact_share_request_repo
+from app.repositories import channel_binding_request as channel_binding_request_repo
 from app.repositories import context as context_repo
 from app.repositories import context_proposal as context_proposal_repo
 from app.repositories import case_score as case_score_repo
@@ -102,6 +103,8 @@ from app.repositories import organization_secret as organization_secret_repo
 from app.repositories import notification as notification_repo
 from app.repositories import voice_call as voice_call_repo
 from app.repositories import generated_media as generated_media_repo
+from app.repositories import customer_erasure as customer_erasure_repo
+from app.repositories import whatsapp_customer as whatsapp_customer_repo
 
 __all__ = [
     "onboarding_repo",
@@ -170,6 +173,8 @@ __all__ = [
     "oauth_repo",
     "artifact_repo",
     "context_proposal_repo",
+    "artifact_share_request_repo",
+    "channel_binding_request_repo",
     "context_repo",
     "case_score_repo",
     "dataset_repo",
@@ -183,7 +188,6 @@ __all__ = [
     "skill_improvement_repo",
     "skill_check_repo",
     "skill_merge_repo",
-    "artifact_share_request_repo",
     "virtual_table_repo",
     "table_view_repo",
     "memory_repo",
@@ -193,6 +197,8 @@ __all__ = [
     "notification_repo",
     "voice_call_repo",
     "generated_media_repo",
+    "customer_erasure_repo",
+    "whatsapp_customer_repo",
 ]
 
 from app.repositories import onboarding as onboarding_repo

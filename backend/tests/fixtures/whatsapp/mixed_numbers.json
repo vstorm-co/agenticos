@@ -1,0 +1,107 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "WABA1",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550001111",
+              "phone_number_id": "PNID1"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Ada"
+                },
+                "user_id": "US.111"
+              }
+            ],
+            "messages": [
+              {
+                "from_user_id": "US.111",
+                "id": "wamid.MINE",
+                "timestamp": "1790000000",
+                "type": "text",
+                "text": {
+                  "body": "mine"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "WABA1",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550001111",
+              "phone_number_id": "PNID9"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Ada"
+                },
+                "user_id": "US.111"
+              }
+            ],
+            "messages": [
+              {
+                "from_user_id": "US.111",
+                "id": "wamid.OTHERNUM",
+                "timestamp": "1790000000",
+                "type": "text",
+                "text": {
+                  "body": "x"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "WABA9",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550001111",
+              "phone_number_id": "PNID1"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Ada"
+                },
+                "user_id": "US.111"
+              }
+            ],
+            "messages": [
+              {
+                "from_user_id": "US.111",
+                "id": "wamid.OTHERACC",
+                "timestamp": "1790000000",
+                "type": "text",
+                "text": {
+                  "body": "y"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

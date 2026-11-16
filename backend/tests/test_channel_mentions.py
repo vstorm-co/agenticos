@@ -21,6 +21,7 @@ import pytest
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus, RunSurface
+from app.services.access import publisher_context
 from app.services.channels.base import (
     ROOM_HANDLES,
     channel_key,
@@ -166,6 +167,56 @@ class TestWhatTheBotSaysAboutWhatItCost:
         )
 
         assert answered.startswith("here you go")
+        assert "1,200 tokens" in answered
+
+    @pytest.mark.security
+    async def test_an_agent_run_never_speaks_its_cost(self):
+        """The line is still measured and recorded; a stranger is never shown it."""
+        from app.services.access import agent_context
+
+        router = ChannelAgentRouter(MagicMock())
+        for_run = AsyncMock(
+            return_value=UsageReport(input_tokens=1000, output_tokens=200, cost_usd=Decimal("0.02"))
+        )
+        router.usage = MagicMock(for_run=for_run)
+        router.runner = MagicMock(monthly_spend=AsyncMock(return_value=None))
+        router._budget = AsyncMock(return_value=None)
+
+        answered = await router._with_usage(
+            agent_context(organization_id=uuid.uuid4(), agent_id=uuid.uuid4()),
+            "here you go",
+            MagicMock(id=uuid.uuid4()),
+            usage_reporting={"mode": "always"},
+            turn=1,
+        )
+
+        assert answered == "here you go"
+        for_run.assert_awaited_once()
+
+    @pytest.mark.parametrize("fallback", [False, True])
+    async def test_a_member_run_still_hears_its_cost(self, fallback: bool):
+        """Linked, or an unlinked room sender under the publisher's standing."""
+        from dataclasses import replace
+
+        router = ChannelAgentRouter(MagicMock())
+        router.usage = MagicMock(
+            for_run=AsyncMock(
+                return_value=UsageReport(
+                    input_tokens=1000, output_tokens=200, cost_usd=Decimal("0.02")
+                )
+            )
+        )
+        router.runner = MagicMock(monthly_spend=AsyncMock(return_value=None))
+        router._budget = AsyncMock(return_value=None)
+
+        answered = await router._with_usage(
+            replace(_ctx(), subject_is_publisher_fallback=fallback),
+            "here you go",
+            MagicMock(id=uuid.uuid4()),
+            usage_reporting={"mode": "always"},
+            turn=1,
+        )
+
         assert "1,200 tokens" in answered
 
     async def test_off_records_it_and_says_nothing(self):
@@ -624,6 +675,96 @@ class TestAnswer:
         assert answer.parked_run_id == (run.id if parked else None)
 
 
+class TestTheTurnSaysWhoItActedAs:
+    @pytest.mark.parametrize(
+        ("who", "acts_as_agent"), [("agent", True), ("member", False), ("publisher", False)]
+    )
+    @pytest.mark.parametrize("mentioned", [True, False])
+    async def test_the_turn_says_whether_it_acted_as_the_agent(
+        self, who: str, acts_as_agent: bool, mentioned: bool
+    ):
+        """An unlinked sender in a room runs under the publisher's standing and is
+        not the agent: only a context that *is* the agent speaks plainly."""
+        from dataclasses import replace
+
+        from app.services.access import agent_context
+
+        org, agent = uuid.uuid4(), MagicMock(id=uuid.uuid4(), slug="support")
+        member = AuthContext(user_id=uuid.uuid4(), organization_id=org, role=OrgRoleName.MEMBER)
+        ctx = {
+            "agent": agent_context(organization_id=org, agent_id=agent.id),
+            "member": member,
+            "publisher": replace(member, subject_is_publisher_fallback=True),
+        }[who]
+        with (
+            patch.object(ChannelAgentRouter, "_membership_context", AsyncMock(return_value=ctx)),
+            patch("app.services.channels.mentions.agent_repo") as agents,
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            agents.get_by_slug = AsyncMock(return_value=agent)
+            exposures.get_for_bot = _bound()
+            exposures.list_active_for_bot = AsyncMock(return_value=[(MagicMock(), agent)])
+            runner_cls.return_value.execute = AsyncMock(
+                return_value=("ok", MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED))
+            )
+            router = ChannelAgentRouter(MagicMock())
+            router._with_usage = AsyncMock(return_value="ok")
+            method = router.answer if mentioned else router.answer_default
+            answered = await method(
+                "@support hello" if mentioned else "hello",
+                platform="whatsapp",
+                organization_id=org,
+                bot_id=_BOT_ID,
+                user_id=None,
+            )
+
+        assert answered.acts_as_agent is acts_as_agent
+
+
+class TestTheDeliveryNoticesOfATurn:
+    @pytest.mark.security
+    @pytest.mark.parametrize("as_agent", [True, False])
+    @pytest.mark.parametrize("mentioned", [True, False])
+    async def test_a_failed_picture_names_the_console_only_to_a_member(
+        self, as_agent: bool, mentioned: bool
+    ):
+        from app.services.access import agent_context
+        from tests.test_channel_generated_images import receipt
+
+        org, agent = uuid.uuid4(), MagicMock(id=uuid.uuid4(), slug="support")
+        member = AuthContext(user_id=uuid.uuid4(), organization_id=org, role=OrgRoleName.MEMBER)
+        ctx = agent_context(organization_id=org, agent_id=agent.id) if as_agent else member
+
+        async def execute(*_args, tool_calls, **_kwargs):
+            tool_calls.append(receipt(None))
+            return "ok", MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED)
+
+        with (
+            patch.object(ChannelAgentRouter, "_membership_context", AsyncMock(return_value=ctx)),
+            patch("app.services.channels.mentions.agent_repo") as agents,
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            agents.get_by_slug = AsyncMock(return_value=agent)
+            exposures.get_for_bot = _bound()
+            exposures.list_active_for_bot = AsyncMock(return_value=[(MagicMock(), agent)])
+            runner_cls.return_value.execute = execute
+            router = ChannelAgentRouter(MagicMock())
+            router._with_usage = AsyncMock(return_value="ok")
+            method = router.answer if mentioned else router.answer_default
+            answered = await method(
+                "@support hello" if mentioned else "hello",
+                platform="whatsapp",
+                organization_id=org,
+                bot_id=_BOT_ID,
+                user_id=None,
+            )
+
+        [notice] = answered.delivery_notices
+        assert ("AgenticOS" not in notice) is as_agent
+
+
 def _serving(*slugs: str) -> AsyncMock:
     """An exposure listing that says these agents actively answer on the bot."""
     return AsyncMock(
@@ -992,6 +1133,195 @@ class TestWhatARoomRunsAs:
         assert execute.call_args.args[0].user_id == creator
 
 
+class TestAStrangerInAPrivateChatRunsAsTheAgent:
+    """A line that answers customers with no account runs their turn as the agent.
+
+    Not as the binding's creator, and not as anybody with a role: the context
+    holds the agent's own grants and nothing a member holds. The caller decides
+    that this is such a turn, so everything here is `as_agent=True` against a
+    sender the platform cannot name.
+    """
+
+    @staticmethod
+    def _exposure() -> MagicMock:
+        return MagicMock(
+            created_by_user_id=uuid.uuid4(), organization_id=uuid.uuid4(), agent_id=uuid.uuid4()
+        )
+
+    async def _answered(self, exposure: MagicMock, *, standing=None, **kwargs):
+        """What the runner was given for an `answer_default` turn, and `publisher_context`."""
+        agent = MagicMock(id=exposure.agent_id, slug="support")
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+            patch(
+                "app.services.channels.mentions.publisher_context",
+                new=AsyncMock(
+                    side_effect=AssertionError("a stranger's turn is not the publisher's")
+                ),
+            ) as publisher,
+        ):
+            members.get_active = AsyncMock(side_effect=standing or _standing({}))
+            exposures.list_active_for_bot = AsyncMock(return_value=[(exposure, agent)])
+            execute = AsyncMock(return_value=("hello", MagicMock()))
+            runner_cls.return_value.execute = execute
+
+            turn = await ChannelAgentRouter(MagicMock()).answer_default(
+                "what is the refund window",
+                platform="whatsapp",
+                organization_id=exposure.organization_id,
+                bot_id=_BOT_ID,
+                admit_unlinked=True,
+                **kwargs,
+            )
+
+        return execute.call_args, publisher, turn
+
+    @pytest.mark.security
+    async def test_an_unlinked_customer_in_a_private_chat_runs_as_the_agent(self):
+        exposure, identity_id = self._exposure(), uuid.uuid4()
+
+        call, publisher, turn = await self._answered(
+            exposure, user_id=None, channel_identity_id=identity_id, as_agent=True
+        )
+
+        ctx = call.args[0]
+        assert ctx.principal_agent_id == exposure.agent_id
+        assert ctx.user_id is None
+        assert ctx.channel_identity_id == identity_id
+        assert ctx.organization_id == exposure.organization_id
+        assert turn.acts_as_agent is True
+        publisher.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_departed_member_in_a_private_chat_runs_as_the_agent_too(self):
+        exposure, departed = self._exposure(), uuid.uuid4()
+
+        call, publisher, _turn = await self._answered(
+            exposure,
+            user_id=departed,
+            channel_identity_id=uuid.uuid4(),
+            as_agent=True,
+            standing=_standing({departed: None}),
+        )
+
+        ctx = call.args[0]
+        assert ctx.principal_agent_id == exposure.agent_id
+        assert ctx.user_id is None
+        publisher.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_linked_member_on_a_public_line_runs_as_themselves(self):
+        exposure, member = self._exposure(), uuid.uuid4()
+
+        call, publisher, turn = await self._answered(
+            exposure,
+            user_id=member,
+            as_agent=True,
+            standing=_standing({member: MagicMock(role=OrgRoleName.OPERATOR)}),
+        )
+
+        ctx = call.args[0]
+        assert ctx.user_id == member
+        assert ctx.role == OrgRoleName.OPERATOR
+        assert ctx.principal_agent_id is None
+        assert turn.acts_as_agent is False
+        assert call.kwargs["acts_for_sender"] is True
+        publisher.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_stranger_is_asked_no_parked_question(self):
+        call, _publisher, _turn = await self._answered(
+            self._exposure(), user_id=None, as_agent=True
+        )
+
+        assert call.kwargs["parks_questions"] is False
+        assert call.kwargs["acts_for_sender"] is False
+
+    @pytest.mark.security
+    async def test_an_unlinked_room_sender_still_runs_under_the_binding(self):
+        """Another way into the same turn: a room admits its unlinked senders under
+        the binding, and nothing about a public line changes that."""
+        creator = uuid.uuid4()
+        exposure = MagicMock(
+            created_by_user_id=creator, organization_id=uuid.uuid4(), agent_id=uuid.uuid4()
+        )
+        agent = MagicMock(id=exposure.agent_id, slug="support")
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+            patch(
+                "app.services.channels.mentions.publisher_context",
+                new=AsyncMock(wraps=publisher_context),
+            ) as publisher,
+        ):
+            members.get_active = AsyncMock(
+                side_effect=_standing({creator: MagicMock(role=OrgRoleName.BUILDER)})
+            )
+            exposures.list_active_for_bot = AsyncMock(return_value=[(exposure, agent)])
+            execute = AsyncMock(return_value=("hello", MagicMock()))
+            runner_cls.return_value.execute = execute
+
+            turn = await ChannelAgentRouter(MagicMock()).answer_default(
+                "what is the refund window",
+                platform="slack",
+                organization_id=exposure.organization_id,
+                bot_id=_BOT_ID,
+                admit_unlinked=True,
+                user_id=None,
+                as_agent=False,
+            )
+
+        publisher.assert_awaited_once()
+        ctx = execute.call_args.args[0]
+        assert ctx.user_id == creator
+        assert ctx.principal_agent_id is None
+        assert turn.acts_as_agent is False
+
+    @pytest.mark.security
+    async def test_a_mention_from_a_stranger_runs_as_the_agent_too(self):
+        exposure = self._exposure()
+        agent = MagicMock(id=exposure.agent_id, slug="support")
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.access.member_repo", new=members),
+            patch("app.services.channels.mentions.agent_repo") as agents,
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+            patch(
+                "app.services.channels.mentions.publisher_context",
+                new=AsyncMock(
+                    side_effect=AssertionError("a stranger's turn is not the publisher's")
+                ),
+            ),
+        ):
+            members.get_active = AsyncMock(return_value=None)
+            agents.get_by_slug = AsyncMock(return_value=agent)
+            exposures.get_for_bot = AsyncMock(return_value=exposure)
+            execute = AsyncMock(return_value=("hello", MagicMock()))
+            runner_cls.return_value.execute = execute
+
+            turn = await ChannelAgentRouter(MagicMock()).answer(
+                "@support hello",
+                platform="whatsapp",
+                organization_id=exposure.organization_id,
+                bot_id=_BOT_ID,
+                user_id=None,
+                admit_unlinked=True,
+                as_agent=True,
+            )
+
+        ctx = execute.call_args.args[0]
+        assert ctx.principal_agent_id == exposure.agent_id
+        assert ctx.user_id is None
+        assert execute.call_args.kwargs["parks_questions"] is False
+        assert turn.acts_as_agent is True
+
+
 class TestTheThreadAConversationIsKeyedOn:
     """`thread_key` - the one place that decides, since #1339.
 
@@ -1219,7 +1549,7 @@ async def test_each_turn_keeps_author_context_separate_from_persisted_text_after
             assert recorded == "announce this"
             assert f'"username": "{author}"' in context
             assert f'"user_id": "{author}-id"' in context
-            assert f'"message_id": "{author}-post"' in context
+            assert "message_id" not in context
             assert prompt == "announce this"
             assert "@support" not in prompt
             assert router.runner.execute.await_args.args[0].user_id == person

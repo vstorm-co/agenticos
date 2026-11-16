@@ -37,7 +37,7 @@ class ChannelSession(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
-    platform_chat_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    platform_chat_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     chat_type: Mapped[str] = mapped_column(String(20), nullable=False, default="private")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -39,7 +39,7 @@ def directory():
     return found
 
 
-@pytest.mark.parametrize("platform", ["mattermost", "slack", "teams", "telegram"])
+@pytest.mark.parametrize("platform", ["mattermost", "slack", "teams", "telegram", "whatsapp"])
 @pytest.mark.parametrize("custom", [None, "Answer briefly."])
 async def test_existing_and_cleared_prompts_receive_channel_facts(platform, custom):
     bound = directory()
@@ -123,6 +123,7 @@ async def test_failed_context_is_unknown_without_leaking_provider_details(error)
         ("sms", "SMS (Twilio)"),
         ("email", "Email"),
         ("imessage", "iMessage"),
+        ("whatsapp", "WhatsApp"),
     ],
 )
 @pytest.mark.parametrize("linked", [True, False])
@@ -139,6 +140,28 @@ def test_runtime_facts_identify_the_surface_deployment_and_sender(platform, expe
     assert ("No linked sender identity" in context) is (not linked)
     assert "Organization MCP connections may work" in CHANNEL_BEHAVIOR
     assert "without a slash" in CHANNEL_BEHAVIOR
+
+
+def test_a_stranger_is_not_given_the_console_address_or_told_of_linking():
+    context = runtime_context(
+        "whatsapp", console_url="https://console.example/", linked_sender=False, stranger=True
+    )
+
+    assert "WhatsApp" in context
+    assert "console.example" not in context
+    assert "link" not in context.lower()
+
+
+def test_the_strangers_guidance_keeps_the_rest_of_the_channel_guidance():
+    from app.services.channels.formatting import MCP_APPROVAL_GUIDANCE, STRANGER_CHANNEL_BEHAVIOR
+
+    assert STRANGER_CHANNEL_BEHAVIOR.startswith("Channel conversation guidance:")
+    assert "Answer the current sender's request" in STRANGER_CHANNEL_BEHAVIOR
+    assert "send_channel_file" in STRANGER_CHANNEL_BEHAVIOR
+    assert "link" not in STRANGER_CHANNEL_BEHAVIOR.lower()
+    assert MCP_APPROVAL_GUIDANCE not in STRANGER_CHANNEL_BEHAVIOR
+    assert "Personal services" not in STRANGER_CHANNEL_BEHAVIOR
+    assert len(STRANGER_CHANNEL_BEHAVIOR) < len(CHANNEL_BEHAVIOR)
 
 
 def test_other_surfaces_receive_no_channel_claims():
@@ -196,7 +219,7 @@ async def test_untrusted_metadata_never_reaches_system_instructions_through_cust
     assert "{channel_name}" in result.instructions
 
 
-@pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram"])
+@pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram", "whatsapp"])
 @pytest.mark.security
 def test_linked_channel_mcp_preserves_the_authored_policy(surface):
     from app.db.models.agent_run import RunSurface
@@ -292,7 +315,7 @@ def test_file_delivery_requires_approval_only_when_granted(granted):
     assert spec.capabilities == []
 
 
-@pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram"])
+@pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram", "whatsapp"])
 def test_explicit_all_policy_is_preserved_in_channels(surface: str) -> None:
     from app.db.models.agent_run import RunSurface
     from app.services.agent_runner import _with_channel_service_approval
@@ -349,7 +372,29 @@ def test_author_labels_are_quoted_as_data_and_missing_names_are_unknown() -> Non
     assert authored_prompt("hi", None) == "hi"
 
 
-@pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram"])
+@pytest.mark.security
+def test_author_context_never_carries_the_message_id() -> None:
+    """A WhatsApp message id embeds the customer's number; none of it may reach the model."""
+    from app.services.channels.base import IncomingMessage
+    from app.services.channels.formatting import authored_prompt
+
+    wamid = "wamid.HBgLMTY1MDUwNzY1MjAVAgARGBI5QTNDQTVCM0Q0Q0Q2RTY3RTcA"
+    incoming = IncomingMessage(
+        platform="whatsapp",
+        bot_id="bot",
+        platform_user_id="US.13491208655302741918",
+        platform_chat_id="US.13491208655302741918",
+        chat_type="private",
+        text="hi",
+        message_id=wamid,
+    )
+    result = authored_prompt("hi", incoming)
+    assert wamid not in result
+    assert "16505076520" not in result
+    assert "message_id" not in result
+
+
+@pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram", "whatsapp"])
 @pytest.mark.security
 def test_unlinked_channel_senders_still_need_approval_for_mcp_reads(surface: str) -> None:
     from uuid import uuid4
@@ -517,3 +562,10 @@ def test_runtime_marks_only_test_deployments_and_does_not_pretend_connected_serv
     )
     assert ("local test deployment" in context) is testing
     assert ("external effects can still be real" in context) is testing
+
+
+def test_whatsapp_house_style_describes_what_it_renders() -> None:
+    style = house_style("whatsapp")
+    assert "`**like this**`" in style and "converted" in style and "no headings" in style
+    assert "*one asterisk*" not in style
+    assert CHANNEL_BEHAVIOR in style

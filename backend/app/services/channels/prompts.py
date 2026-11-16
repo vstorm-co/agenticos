@@ -19,6 +19,7 @@ import logging
 import re
 from collections.abc import Sequence
 from dataclasses import replace
+from datetime import datetime
 from functools import cache
 from uuid import UUID
 
@@ -52,7 +53,13 @@ from app.services.channels.base import (
     press_value,
     read_press,
 )
-from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, PICTURE_DELIVERY_UNCONFIRMED
+from app.services.channels.formatting import (
+    LINK_ACCOUNT_INSTRUCTION,
+    PICTURE_DELIVERY_UNCONFIRMED,
+    PICTURE_DELIVERY_UNCONFIRMED_STRANGER,
+    WAITS_FOR_A_PERSON,
+)
+from app.services.channels.handback import for_the_run, notice_key
 from app.services.channels.live_reply import with_preview_links
 from app.services.channels.mentions import drawn_picture
 from app.services.channels.next_steps import offer_after_resume
@@ -184,23 +191,40 @@ class ChannelPrompts:
         self.runner = AgentRunnerService(db)
 
     async def offer(
-        self, bot: ChannelBot, *, platform: str, platform_chat_id: str, run_id: UUID
-    ) -> None:
+        self,
+        bot: ChannelBot,
+        *,
+        platform: str,
+        platform_chat_id: str,
+        run_id: UUID,
+        resend: bool = False,
+    ) -> bool:
         """Put what the run is waiting on in front of the chat, one message each.
 
-        Never raises: the answer the turn produced is already posted, and a
-        prompt that could not be sent leaves the run where the console and the
-        approvals queue still reach it.
+        Idempotent: what the run waits on has at most one row each, so offering it
+        again creates none. A row still open is sent again only with `resend`, for a
+        caller that knows the first message never arrived (a platform that held it);
+        otherwise it is left as it is.
+
+        Never raises; `False` when something could not be offered. The answer the
+        turn produced is already posted, and a prompt that could not be sent leaves
+        the run where the console and the approvals queue still reach it.
         """
         try:
             await self._offer(
-                bot, platform=platform, platform_chat_id=platform_chat_id, run_id=run_id
+                bot,
+                platform=platform,
+                platform_chat_id=platform_chat_id,
+                run_id=run_id,
+                resend=resend,
             )
         except Exception:
             logger.exception("Could not offer run %s's prompts on %s", run_id, platform)
+            return False
+        return True
 
     async def _offer(
-        self, bot: ChannelBot, *, platform: str, platform_chat_id: str, run_id: UUID
+        self, bot: ChannelBot, *, platform: str, platform_chat_id: str, run_id: UUID, resend: bool
     ) -> None:
         run = await agent_run_repo.get_run(self.db, run_id, organization_id=bot.organization_id)
         if run is None:
@@ -215,17 +239,31 @@ class ChannelPrompts:
         )
         adapter = get_adapter(platform)
         token = unseal_bot_token(bot)
-        for call in await self.runner.parked_calls(reader, run):
-            prompt = await channel_prompt_repo.create(
-                self.db,
-                organization_id=bot.organization_id,
-                bot_id=bot.id,
-                run_id=run.id,
-                platform_chat_id=platform_chat_id,
-                kind=APPROVAL,
-                approval_id=call.id,
-                choices=[APPROVE, REJECT],
-            )
+        # A call is answered once all its rows are, so a second set of rows for the
+        # same approval or question would leave the run waiting on answers nobody can give.
+        existing = await channel_prompt_repo.for_run(self.db, run_id=run.id, bot_id=bot.id)
+        approvals = {row.approval_id: row for row in existing if row.kind == APPROVAL}
+        questions = {
+            (row.tool_call_id, row.question_index): row for row in existing if row.kind == QUESTION
+        }
+        # A run acting as its agent is decided by a person at the company, in the
+        # console: the customer is offered no choice and no description of the call.
+        calls = [] if run.runs_as_agent else await self.runner.parked_calls(reader, run)
+        for call in calls:
+            prompt = approvals.get(call.id)
+            if prompt is None:
+                prompt = await channel_prompt_repo.create(
+                    self.db,
+                    organization_id=bot.organization_id,
+                    bot_id=bot.id,
+                    run_id=run.id,
+                    platform_chat_id=platform_chat_id,
+                    kind=APPROVAL,
+                    approval_id=call.id,
+                    choices=[APPROVE, REJECT],
+                )
+            elif prompt.answered_at is not None or not resend:
+                continue
             await adapter.send_prompt(
                 token,
                 self._message(
@@ -239,20 +277,24 @@ class ChannelPrompts:
             offered: list[ChannelPrompt] = []
             try:
                 for index, question in enumerate(parked.questions):
-                    prompt = await channel_prompt_repo.create(
-                        self.db,
-                        organization_id=bot.organization_id,
-                        bot_id=bot.id,
-                        run_id=run.id,
-                        platform_chat_id=platform_chat_id,
-                        kind=QUESTION,
-                        tool_call_id=parked.tool_call_id,
-                        question_index=index,
-                        choices=[option.label for option in question.options],
-                        multi_select=question.multi_select,
-                        # A question with no options can only be answered in words.
-                        allow_custom=question.allow_custom or not question.options,
-                    )
+                    prompt = questions.get((parked.tool_call_id, index))
+                    if prompt is None:
+                        prompt = await channel_prompt_repo.create(
+                            self.db,
+                            organization_id=bot.organization_id,
+                            bot_id=bot.id,
+                            run_id=run.id,
+                            platform_chat_id=platform_chat_id,
+                            kind=QUESTION,
+                            tool_call_id=parked.tool_call_id,
+                            question_index=index,
+                            choices=[option.label for option in question.options],
+                            multi_select=question.multi_select,
+                            # A question with no options can only be answered in words.
+                            allow_custom=question.allow_custom or not question.options,
+                        )
+                    elif prompt.answered_at is not None or not resend:
+                        continue
                     offered.append(prompt)
                     heading = f"*{question.header}* - " if question.header else ""
                     typed = f"\n{TYPE_IT}" if prompt.allow_custom else ""
@@ -291,6 +333,7 @@ class ChannelPrompts:
             choices=choices,
             bot_id=str(bot.id),
             api_base_url=bot.api_base_url,
+            run_id=str(prompt.run_id),  # a platform with a send window can hold the run
         )
 
     async def press(self, press: IncomingPress) -> None:
@@ -312,6 +355,9 @@ class ChannelPrompts:
         if prompt is None or prompt.kind == FOLLOW_UP:
             return
         adapter = get_adapter(press.platform)
+        if not adapter.press_matches_chat(press, prompt.platform_chat_id):
+            logger.warning("channel_press_from_another_chat", extra={"bot_id": str(bot.id)})
+            return
         token = unseal_bot_token(bot)
         await adapter.acknowledge(token, press)
 
@@ -334,7 +380,13 @@ class ChannelPrompts:
         try:
             if prompt.multi_select and choice is not None and choice < len(prompt.choices):
                 picked = await self._toggle(ctx, prompt, choice)
-                await say(_picked_so_far(picked))
+                if adapter.buttons_outlive_a_press:
+                    await say(_picked_so_far(picked))
+                else:
+                    await adapter.send_prompt(
+                        token,
+                        self._message(bot, prompt, _picked_so_far(picked), skippable=True),
+                    )
                 return
             segment = await self._settle(ctx, prompt, choice)
         except AppException as exc:
@@ -360,6 +412,7 @@ class ChannelPrompts:
         platform_chat_id: str,
         platform_user_id: str,
         text: str,
+        sent_at: datetime | None = None,
     ) -> bool:
         """Answer, with a message, the question this chat put to its sender.
 
@@ -367,12 +420,17 @@ class ChannelPrompts:
         its buttons and a line saying they may type instead; this is the typing.
         The oldest such question for them in the chat takes the message whole.
         `False` when there is none, and the message is a turn like any other.
+        A question offered after `sent_at` is not one: the message was typed before it.
         """
         ctx = await linked_member(self.db, bot, platform, platform_user_id)
         if ctx is None or ctx.user_id is None or not text.strip():
             return False
         prompt = await channel_prompt_repo.claim_typed(
-            self.db, bot_id=bot.id, platform_chat_id=platform_chat_id, user_id=ctx.user_id
+            self.db,
+            bot_id=bot.id,
+            platform_chat_id=platform_chat_id,
+            user_id=ctx.user_id,
+            sent_before=sent_at,
         )
         if prompt is None:
             return False
@@ -429,16 +487,30 @@ class ChannelPrompts:
             conversation_id=segment.run.conversation_id,
             notices=notices,
             generated_files=segment.generated_files,
+            stranger=segment.run.runs_as_agent,
         )
         adapter = get_adapter(platform)
         token = unseal_bot_token(bot)
+        # The console's stop sentence is not an answer: a platform that must hold it
+        # holds the sentence, not the run's previous answer.
+        is_stop_notice = (
+            segment.run.status == RunStatus.CANCELLED.value and picture is None and not notices
+        )
+        said = for_the_run(segment.run, segment.output)
         message = OutgoingMessage(
             platform_chat_id=platform_chat_id,
             text="\n\n".join(
-                [await with_preview_links(segment.output or "Done.", segment.run.id), *notices]
+                [
+                    await with_preview_links(
+                        said or self._empty_segment(segment.run), segment.run.id
+                    ),
+                    *notices,
+                ]
             ),
             image_png=picture,
             api_base_url=bot.api_base_url,
+            run_id=str(segment.run.id),  # kept by the `replace` below
+            notice=notice_key(said) if is_stop_notice else None,
         )
         try:
             await adapter.send_message(token, message)
@@ -447,12 +519,32 @@ class ChannelPrompts:
                 raise
             logger.exception("Could not confirm resumed channel picture delivery: bot=%s", bot.id)
             await adapter.send_message(
-                token, replace(message, text=PICTURE_DELIVERY_UNCONFIRMED, image_png=None)
+                token,
+                replace(
+                    message,
+                    text=(
+                        PICTURE_DELIVERY_UNCONFIRMED_STRANGER
+                        if segment.run.runs_as_agent
+                        else PICTURE_DELIVERY_UNCONFIRMED
+                    ),
+                    image_png=None,
+                ),
             )
+
+    @staticmethod
+    def _empty_segment(run: AgentRun) -> str:
+        """What a continuation with no words says: a customer's run that parked again says who decides."""
+        if run.runs_as_agent and run.status == RunStatus.AWAITING_APPROVAL.value:
+            return WAITS_FOR_A_PERSON
+        return "Done."
 
     def _follow_ups(self, bot: ChannelBot, segment: RunSegment, platform_chat_id: str) -> None:
         run = segment.run
-        if run.status != RunStatus.COMPLETED.value or run.channel_identity_id is None:
+        if (
+            run.status != RunStatus.COMPLETED.value
+            or run.channel_identity_id is None
+            or run.runs_as_agent
+        ):
             return
         spawn_after_commit(
             self.db,

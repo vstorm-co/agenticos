@@ -300,3 +300,12 @@ async def test_outbound_mms_refuses_unsupported_or_excessive_files_before_stagin
         store.assert_not_called()
     finally:
         await adapter.aclose()
+
+
+async def test_download_honors_a_smaller_caller_byte_limit() -> None:
+    adapter = await _adapter(lambda _: httpx.Response(200, content=b"file"))
+    try:
+        with pytest.raises(ValueError, match="upload size limit"):
+            await adapter.download_attachment(TOKEN, _attachment(), max_bytes=2)
+    finally:
+        await adapter.aclose()

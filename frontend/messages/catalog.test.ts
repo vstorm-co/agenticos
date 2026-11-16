@@ -361,3 +361,20 @@ it.each([en, pl, de])("names every selectable private notification platform", (c
     expect(messages.get(`notificationRoutes.${channel}`), channel).toBeTruthy();
   }
 });
+
+describe.each([
+  ["en", en],
+  ["pl", pl],
+  ["de", de],
+  ["tr", tr],
+])("%s native Odoo node descriptions", (_locale, catalog) => {
+  it("renders payload field names as literal copy without ICU arguments", () => {
+    const descriptions = Object.entries(catalog.workflowNodes.node)
+      .filter(([key]) => key.startsWith("integration_odoo_"))
+      .map(([, entry]) => entry.description);
+    expect(descriptions.length).toBeGreaterThan(0);
+    for (const description of descriptions) {
+      expect(icuContract(description).arguments).toEqual([]);
+    }
+  });
+});

@@ -1140,7 +1140,19 @@
     "observationRequired": "Wählen Sie das Modell für die Teilnahmeentscheidung.",
     "observationSaveFailed": "Speichern fehlgeschlagen. Ihre Änderungen bleiben im Formular erhalten.",
     "observationSave": "Teilnahmeeinstellungen speichern",
-    "enableIntegrationTool": "{tool} aktivieren"
+    "enableIntegrationTool": "{tool} aktivieren",
+    "contextFilesDetail": "Ständiger Kontext, den dieser Agent liest – ein Glossar oder eine Richtlinie, in seinen Prompt eingefügt, oder Dateien, die er bei Bedarf liest.",
+    "tablesGrantsLabel": "Tabellen, die dieser Agent nutzen darf",
+    "tablesGrantsDetail": "Haken Sie eine Tabelle an und wählen Sie, was der Agent darin tun darf. Lesen ist immer an. Ein Agent erreicht nie eine Tabelle, die hier nicht angehakt ist, und jeder Aufruf wird weiterhin als das Mitglied geprüft, für das er handelt.",
+    "tablesOperationsLabel": "Was der Agent in {name} tun darf",
+    "publicLineBinding": "Dieser Bot antwortet Kunden ohne verknüpftes Konto, hier sprechen also Personen außerhalb der Organisation mit diesem Agent.",
+    "publicLineReview": "Leitung prüfen",
+    "bindingRequested": "Anfrage gesendet - ein Administrator muss sie freigeben",
+    "askAnAdministrator": "Administrator fragen",
+    "waitingForAdministrator": "Wartet auf einen Administrator: {bot}",
+    "noteForAdministrator": "Hinweis für den Administrator",
+    "noteForAdministratorPlaceholder": "Warum {bot} Kunden mit diesem Agent antworten soll",
+    "sendRequest": "Anfrage senden"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -2746,7 +2758,7 @@
         "description": "Runs, die bei einem Tool-Aufruf angehalten haben und auf eine Entscheidung warten.",
         "someAgent": "Ein Agent",
         "forPerson": "für {email} · wartet {ago}",
-        "forChatAccount": "für {name} (nicht verifiziert) · wartet {ago}"
+        "forChatAccount": "für {name} (nicht verifiziert{hasHandle, select, yes {, {handle}} other {}}) · wartet {ago}"
       },
       "budget-headroom": {
         "empty": {
@@ -3078,7 +3090,8 @@
           "telegram": "Telegram",
           "web": "Web-Chat",
           "workflow": "Workflow",
-          "proactive": "Proaktiv"
+          "proactive": "Proaktiv",
+          "whatsapp": "WhatsApp"
         },
         "title": "Woher die Runs kommen",
         "description": "Woher Runs kommen - Web-Chat, API, Kanäle.",
@@ -3160,7 +3173,8 @@
         "platforms": {
           "telegram": "Telegram",
           "slack": "Slack",
-          "mattermost": "Mattermost"
+          "mattermost": "Mattermost",
+          "whatsapp": "WhatsApp"
         },
         "webhook": "hört zu",
         "polling": "fragt ab",
@@ -3168,7 +3182,10 @@
         "empty": {
           "title": "Noch keine Kanäle",
           "description": "Registrieren Sie einen Bot, und seine Agents werden aus Slack, Telegram oder Mattermost erreichbar."
-        }
+        },
+        "publicLine": "öffentliche Leitung",
+        "publicLinePill": "{mode} · {flag}",
+        "bindingRequests": "{count, plural, one {# Bindungsanfrage} other {# Bindungsanfragen}}"
       },
       "knowledge": {
         "title": "Wissen",
@@ -3292,7 +3309,8 @@
         "waiting": "Wartet auf Sie",
         "nothingWaiting": "Nichts wartet",
         "spent": "Ausgegeben",
-        "spentLabel": "{amount} ausgegeben"
+        "spentLabel": "{amount} ausgegeben",
+        "review": "Ansehen"
       },
       "eval-runs": {
         "title": "Eval-Runs",
@@ -3622,7 +3640,7 @@
         "agent": "Der Architect baut ihn mit Ihnen.",
         "publish": "Damit andere ihn im Chat und in Kanälen nutzen können.",
         "knowledge": "Die Dokumente, aus denen er antwortet.",
-        "channel": "Slack, Teams, Telegram, Mattermost oder Discord."
+        "channel": "Slack, Teams, Telegram, Mattermost, Discord oder WhatsApp."
       },
       "left": "{count, plural, =1 {Noch 1 Schritt} other {Noch # Schritte}}",
       "start": "Loslegen",
@@ -3712,7 +3730,7 @@
         },
         "channels": {
           "title": "Dort sein, wo das Team schreibt",
-          "body": "Bringen Sie einen Agent in Slack, Telegram oder Mattermost, und Ihr Team fragt ihn direkt im Thread.",
+          "body": "Bringen Sie einen Agent in Slack, Teams, Telegram, Mattermost, Discord oder WhatsApp, und Ihr Team fragt ihn direkt im Thread.",
           "cta": "Chat-App hinzufügen"
         },
         "browser": {
@@ -4791,7 +4809,7 @@
       },
       "channels-new": {
         "title": "Agents dort erreichen, wo die Menschen sind",
-        "body": "Registrieren Sie eine Chat-Plattform - Slack, Telegram, Mattermost - und jeder Agent kann gebunden werden, um dort zu antworten. Das Token des Bots wird im Vault versiegelt. Fügen Sie hier eine hinzu."
+        "body": "Registrieren Sie eine Chat-Plattform - Slack, Telegram, Mattermost, Teams, Discord, WhatsApp - und jeder Agent kann gebunden werden, um dort zu antworten. Das Token des Bots wird im Vault versiegelt. Fügen Sie hier eine hinzu."
       },
       "chat-agent-picker": {
         "title": "Wählen Sie, wer antwortet",
@@ -5973,6 +5991,14 @@
       "personal-integration-accounts": {
         "title": "Ihre verbundenen Konten",
         "body": "Hier können Sie Ihre Konten hinzufügen, erneut verbinden oder trennen. Mehrere Konten desselben Dienstes sind möglich."
+      },
+      "channels-binding-requests": {
+        "title": "Entscheiden, wer Kunden erreicht",
+        "body": "Möchte jemand, der Agents baut, einen Agent auf eine öffentliche Leitung legen, wartet die Anfrage hier mit seinem Hinweis. Genehmigen setzt sie um, Ablehnen benachrichtigt die Person."
+      },
+      "channels-customers": {
+        "title": "Die Leute, die schreiben",
+        "body": "Sehen Sie, wer einer WhatsApp-Leitung ohne Konto geschrieben hat, suchen Sie nach Nummer und lassen Sie einen Kunden auf Wunsch bei allen Bots der Organisation vergessen."
       }
     },
     "chooseLanguage": "Sprache",
@@ -6488,7 +6514,11 @@
       "runsWithYourPermissions": "Der Agent antwortet als Sie – Ihre Berechtigungen, Ihr Budget, Ihr Name im Audit-Trail.",
       "seeConnectedAccounts": "Ihre verbundenen Konten ansehen",
       "thatAccount": "Dieses Chat-Konto",
-      "theAgentWillRunAsYou": "Der Bot muss wissen, wer Sie sind, bevor er Ihnen antwortet."
+      "theAgentWillRunAsYou": "Der Bot muss wissen, wer Sie sind, bevor er Ihnen antwortet.",
+      "finishInTheChat": "Im Chat abschließen",
+      "nameNotVerified": "(Name nicht verifiziert)",
+      "notConnectedYet": "Ihr Konto ist erst verbunden, wenn der Chat den Code erhalten hat.",
+      "sendThisCode": "Senden Sie diesen Code aus Ihrem {platform}-Chat, um den Vorgang abzuschließen. Geben Sie ihn niemals weiter."
     },
     "channels": {
       "respondToBroadcasts": "Auf Gruppen-Erwähnungen antworten",
@@ -6600,7 +6630,7 @@
       "transcriptionInheritsFromOrg": "{pair}, von der Organisation",
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
-      "transcriptionMistralFormat": "{platform, select, slack {Die Desktop-App von Slack nimmt Audioclips als WebM auf} discord {Discord sendet Sprachnachrichten als Ogg/Opus} other {Telegram sendet Sprachnachrichten als Ogg/Opus}}, und Mistral führt dieses Format nicht als unterstützt auf. Die Transkription kann fehlschlagen; wählen Sie in diesem Fall einen anderen Provider für diesen Bot.",
+      "transcriptionMistralFormat": "{platform, select, slack {Die Desktop-App von Slack nimmt Audioclips als WebM auf} discord {Discord sendet Sprachnachrichten als Ogg/Opus} whatsapp {WhatsApp sendet Sprachnachrichten als Ogg/Opus} other {Telegram sendet Sprachnachrichten als Ogg/Opus}}, und Mistral führt dieses Format nicht als unterstützt auf. Die Transkription kann fehlschlagen; wählen Sie in diesem Fall einen anderen Provider für diesen Bot.",
       "transcriptionProviderNoKey": "{name} (kein geeigneter Schlüssel)",
       "transcriptionInheritedNoKey": "Wo dieses Paar festgelegt ist, ist kein Schlüssel gewählt, daher werden Sprachnachrichten erst transkribiert, wenn einer gewählt wird.",
       "discordGuilds": "Genehmigte Discord-Server-IDs",
@@ -6623,7 +6653,100 @@
       "imessageWebhookRegistered": "iMessage-Webhook registriert",
       "imessageReactionHint": "Optional. iMessage-Tapbacks benötigen die BlueBubbles Private API; bei reinem AppleScript-Betrieb ausgeschaltet lassen.",
       "mapDiscordRoles": "Discord-Rollen für {bot}",
-      "emailAddress": "E-Mail-Adresse"
+      "emailAddress": "E-Mail-Adresse",
+      "botTokenHintWhatsapp": "Das Zugriffstoken des Systembenutzers aus den Meta-Business-Einstellungen. Nehmen Sie ein dauerhaftes Token: Ein temporäres funktioniert nur etwa einen Tag.",
+      "whatsappPhoneNumberId": "Telefonnummern-ID",
+      "whatsappPhoneNumberIdHint": "In der Meta-App unter WhatsApp, API-Einrichtung. Das ist die ID der Nummer, nicht die Telefonnummer selbst.",
+      "whatsappAccountId": "WhatsApp-Business-Konto-ID",
+      "whatsappAccountIdHint": "Das Konto, dem die Nummer gehört; es steht in der API-Einrichtung neben der Nummer.",
+      "whatsappAppSecret": "App-Geheimnis",
+      "whatsappAppSecretHint": "In der Meta-App unter App-Einstellungen, Allgemein. Jede eingehende Nachricht wird damit geprüft.",
+      "whatsappVerifyToken": "Verifizierungstoken",
+      "whatsappVerifyTokenHint": "Eine Zeichenfolge Ihrer Wahl, mindestens 8 Zeichen. Meta verlangt sie beim Abonnieren des Webhooks. Sie wird versiegelt gespeichert und nicht mehr angezeigt.",
+      "whatsappCallback": "Callback-URL",
+      "whatsappCallbackHint": "Meta ruft diese Adresse auf. Das Verifizierungstoken ist das, das Sie bei der Registrierung des Bots gewählt haben; es wird hier nie angezeigt.",
+      "whatsappSetupSteps": "In Ihrer Meta-App:",
+      "whatsappStepCallback": "Unter WhatsApp, Konfiguration, die Callback-URL und das Verifizierungstoken einfügen.",
+      "whatsappStepSubscribe": "Das Feld messages abonnieren.",
+      "whatsappStepLive": "Die App in den Live-Modus schalten.",
+      "whatsappSendDown": "Antworten können nicht gesendet werden",
+      "whatsappStepToken": "Ein dauerhaftes Zugriffstoken des Systembenutzers verwenden.",
+      "whatsappLateTemplate": "Vorlage für späte Antworten",
+      "whatsappLateTemplateHint": "Wird verwendet, wenn eine Antwort erst nach Ablauf des 24-Stunden-Fensters des Kunden fertig ist. Jede späte Antwort wird als Vorlagennachricht gesendet, die Meta in Rechnung stellt.",
+      "whatsappLateTemplateNone": "Keine",
+      "whatsappLateTemplateLoading": "Vorlagen werden geladen…",
+      "whatsappLateTemplateEmpty": "Meta listet für dieses Konto keine genehmigte Utility-Vorlage mit genau einer Variablen im Text und höchstens einer Schnellantwort-Schaltfläche auf.",
+      "whatsappLateTemplateFailed": "Die Vorlagen konnten nicht von Meta geladen werden. In einem Moment erneut versuchen und bei weiteren Fehlern das Zugriffstoken des Bots prüfen.",
+      "whatsappLateTemplateOption": "{name} · {language}",
+      "whatsappLateTemplateUnlisted": "{name} · {language} (Meta listet sie nicht mehr als nutzbar auf)",
+      "whatsappNoLateTemplate": "Keine Vorlage für späte Antworten",
+      "whatsappNoLateTemplateHint": "Es ist keine Vorlage für späte Antworten gesetzt. Eine Antwort, die nach Ablauf des 24-Stunden-Fensters fertig wird, wird zurückgehalten, bis der Kunde wieder schreibt.",
+      "registeredCount": "{count, plural, =1 {1 Kanal registriert} other {# Kanäle registriert}}",
+      "publicLineSwitch": "Personen ohne Konto antworten",
+      "publicLineHint": "Kunden, die kein Konto verknüpft haben, bekommen Antworten vom Agent selbst und nicht als Kollege. Nur private WhatsApp-Chats.",
+      "publicLineNoLimit": "Für diese Leitung braucht es zuerst ein Ausgabenlimit: Geben Sie dem Agent ein Monatsbudget oder der Organisation ein Monatslimit.",
+      "publicLineNoAgent": "Dieser Bot bedient noch keinen Agent. Binden Sie einen, bevor Sie die Leitung öffnen.",
+      "publicLineServes": "Bedient {agent}, Version {version}",
+      "publicLineReaches": "Ein Kunde kann erreichen:",
+      "publicLineReachKnowledge": "Wissen: {names}",
+      "publicLineReachContext": "Kontextdateien: {names}",
+      "publicLineReachSkills": "Skills: {names}",
+      "publicLineReachTables": "Tabellen: {names}",
+      "publicLineReachWeb": "Das Web: {names}",
+      "publicLineReachCode": "Code und Workspaces: {names}",
+      "publicLineReachGeneration": "Erzeugte Medien: {names}",
+      "publicLineReachDelegates": "Andere Agents: {names}",
+      "publicLineReachMcp": "MCP-Server: {names}",
+      "publicLineReachFiles": "Dateien, die sie senden",
+      "publicLineOutsideLedger": "nicht auf das Ausgabenlimit angerechnet",
+      "publicLineTableGrant": "{name}: {operations}",
+      "publicLineMayCreate": "darf Tabellen anlegen",
+      "customersLoadMore": "Mehr laden",
+      "customersTotal": "{shown} von {total} Kunden",
+      "publicLineAgentBudget": "Monatsbudget des Agents: {amount}",
+      "publicLineOrgCap": "Monatslimit der Organisation: {amount}",
+      "publicLineRate": "Jeder Kunde ist auf {count, plural, one {# Nachricht pro Minute} other {# Nachrichten pro Minute}} begrenzt",
+      "publicLineApprovalExpiry": "Eine Freigabe, die niemand entscheidet, verfällt nach {hours, plural, one {# Stunde} other {# Stunden}}",
+      "publicLineFileCap": "Dateien bis {mb} MB",
+      "publicLineVoiceCap": "Sprachnachrichten bis {mb} MB werden transkribiert",
+      "publicLineVoiceNeedsCap": "Sprachnachrichten brauchen ein Limit der Organisation und werden abgewiesen, bis eines gesetzt ist",
+      "publicLineRefused": "Ein Kunde kann nie erreichen: {list}",
+      "publicLineRefusedMemory": "Gedächtnis",
+      "publicLineRefusedConversationSearch": "Konversationssuche",
+      "publicLineRefusedArtifacts": "Seiten veröffentlichen",
+      "publicLineRefusedWorkflows": "Workflows",
+      "publicLineRefusedBackgroundTasks": "Hintergrundaufgaben",
+      "publicLineRefusedPlatformMcp": "den eigenen MCP-Server der Plattform",
+      "publicLineFiles": "Dateien von Kunden annehmen",
+      "publicLineFilesHint": "Werden unter der Person gespeichert, die den Agent gebunden hat. Ist es aus, wird eine Datei höflich abgelehnt.",
+      "publicLineBadge": "Öffentliche Leitung",
+      "bindingApproved": "Anfrage genehmigt",
+      "bindingDeclined": "Anfrage abgelehnt",
+      "bindingRequests": "Bindungsanfragen",
+      "bindingRequestsHint": "Wer Agents baut, fragt hier an, bevor ein Agent auf einer öffentlichen Leitung Kunden antwortet. Mit der Genehmigung wird die Änderung in Ihrem Namen vorgenommen.",
+      "bindingRequestLine": "{requester} möchte {kind, select, bind {{agent} an {bot} binden} environment {die Umgebung von {agent} auf {bot} ändern} resume {{agent} auf {bot} fortsetzen} other {{agent} auf {bot} ändern}}",
+      "someone": "Jemand",
+      "bindingRequestNote": "Hinweis: {note}",
+      "approve": "Genehmigen",
+      "decline": "Ablehnen",
+      "customersOf": "Kunden von {bot}",
+      "customersTitle": "Kunden von {bot}",
+      "customerSearch": "Nach Telefonnummer suchen",
+      "customerSearchButton": "Suchen",
+      "customerShowAll": "Alle anzeigen",
+      "customersNone": "Noch keine Kunden",
+      "customerNoMatch": "Kein Kunde hat diese Nummer",
+      "customerUnverifiedName": "{name} (nicht verifiziert)",
+      "customerLastMessage": "Letzte Nachricht {when}",
+      "customerNoMessages": "Noch keine Nachrichten",
+      "customerLinked": "Verknüpft",
+      "customerLinkedWhy": "Dieser Kunde hat ein Konto verknüpft, ist also Mitglied und kann nicht vergessen werden.",
+      "customerForget": "{name} vergessen",
+      "customerForgetTitle": "{name} vergessen?",
+      "customerForgetBody": "Das löscht den Kunden bei allen WhatsApp-Bots der Organisation: Nummer, Name und Nachrichten sowie die Dateien und Freigaben aus seinen Chats. Seine Runs bleiben als Buchhaltung erhalten, ohne das Gesagte. Das lässt sich nicht rückgängig machen.",
+      "customerForgetConfirm": "Kunden vergessen",
+      "customerForgotten": "Kunde vergessen",
+      "publicLineReachIntegrations": "Verbundene Organisationskonten: {names}"
     },
     "invitations": {
       "acceptInvitation": "Einladung annehmen",
@@ -7179,8 +7302,8 @@
       "surfaceEmail": "E-Mail",
       "systemRoleBriefing": "Tägliches Briefing (System)",
       "systemRoleMaintenance": "Gedächtnispflege (System)",
-      "askedInChat": "Angefragt in {platform} von {name} (nicht verifiziert)",
-      "askedInChatThrough": "Angefragt in {platform} von {name} (nicht verifiziert), über {bot}",
+      "askedInChat": "Angefragt in {platform} von {name} (nicht verifiziert{hasHandle, select, yes {, {handle}} other {}})",
+      "askedInChatThrough": "Angefragt in {platform} von {name} (nicht verifiziert{hasHandle, select, yes {, {handle}} other {}}), über {bot}",
       "decisionApprovedInChat": "Freigegeben. Sobald nichts anderes mehr wartet, macht der Agent in dem Chat weiter, in dem gefragt wurde.",
       "decisionRejectedInChat": "Abgelehnt. Sobald nichts anderes mehr wartet, antwortet der Agent in dem Chat, in dem gefragt wurde.",
       "runResumedInChat": "Run fortgesetzt – die Antwort geht auch in den Chat, in dem gefragt wurde.",
@@ -7223,7 +7346,11 @@
       "inputTokenCacheRead": "Cache gelesen",
       "inputTokenCacheWrite": "Cache geschrieben",
       "inputTokenHint": "Summe der erfassten Modellanfragen. Cache-Token sind im Input enthalten und werden nicht zusätzlich gezählt.",
-      "systemRoleChannelDecision": "Entscheidung zur Kanalteilnahme (System)"
+      "systemRoleChannelDecision": "Entscheidung zur Kanalteilnahme (System)",
+      "undeliveredWindowNoTemplate": "Nicht zugestellt: außerhalb des 24-Stunden-Fensters von WhatsApp und keine Vorlage für späte Antworten gesetzt.",
+      "undeliveredWindowTemplateFailed": "Nicht zugestellt: außerhalb des 24-Stunden-Fensters von WhatsApp, und die Vorlage für späte Antworten konnte nicht gesendet werden.",
+      "undeliveredOther": "Diese Antwort wurde nicht zugestellt.",
+      "surfaceWhatsapp": "WhatsApp"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
@@ -7259,7 +7386,7 @@
       "chatAccountNoAgentsHere": "Kein Agent, den Sie sehen können, antwortet auf diesem Bot.",
       "chatAccountNotUsedYet": "Noch nirgends verwendet. Schreiben Sie einem der Bots Ihrer Organisation eine Nachricht.",
       "chatAccounts": "Chat-Konten",
-      "chatAccountsDescription": "Slack-, Microsoft-Teams-, Telegram-, Mattermost- und Discord-Konten, die mit Ihnen verbunden sind. Ein Agent, der über eines davon erreicht wird, antwortet als Sie, mit Ihren Berechtigungen und Ihrem Budget.",
+      "chatAccountsDescription": "Slack-, Microsoft-Teams-, Telegram-, Mattermost-, Discord- und WhatsApp-Konten, die mit Ihnen verbunden sind. Ein Agent, der über eines davon erreicht wird, antwortet als Sie, mit Ihren Berechtigungen und Ihrem Budget.",
       "confirmNewPassword": "Neues Passwort bestätigen",
       "currentPassword": "Aktuelles Passwort",
       "deleteAccount": "Konto löschen",
@@ -7462,7 +7589,11 @@
       "notificationClearSearch": "Suche zurücksetzen",
       "notificationEventCount": "{count, plural, =1 {1 Ereignis} other {# Ereignisse}}",
       "mobileAccountHint": "AgenticOS auf dem Handy mit demselben Konto nutzen.",
-      "openMobileApp": "Mobile App einrichten"
+      "openMobileApp": "Mobile App einrichten",
+      "prefChannelBindingRequested": "Bindungsanfragen",
+      "prefChannelBindingRequestedTrigger": "Jemand möchte einen Agent an eine öffentliche WhatsApp-Leitung binden, dessen Umgebung ändern oder die Pause aufheben. Geht an alle, die Kanäle verwalten.",
+      "prefChannelBindingDecided": "Entscheidungen zu Bindungen",
+      "prefChannelBindingDecidedTrigger": "Ein Administrator hat Ihre Anfrage zu einer öffentlichen Leitung genehmigt oder abgelehnt."
     },
     "skills": {
       "allCategories": "Alle Kategorien",
@@ -9517,7 +9648,8 @@
       "hiddenAgents": "{count, plural, one {# weiterer Agent} other {# weitere Agenten}}",
       "testOptionalShort": "Test (optional)",
       "compareShort": "Änderungen"
-    }
+    },
+    "savingReachesEveryAgent": "Das Speichern erreicht jeden an diesen Skill gebundenen Agent beim nächsten Run. Es gibt keinen Entwurf und keinen Veröffentlichungsschritt."
   },
   "states": {
     "loading": "Wird geladen"
@@ -10673,7 +10805,8 @@
       "opening": "Arbeitsbereich wird geöffnet…",
       "permissionNoteMac": "Die Prüfung erfasst weder Bildschirm noch Audio oder Zwischenablage. Berechtigungen sind optional und erfordern einen Klick. Nach Änderungen an der Bildschirmaufnahme kann macOS einen App-Neustart verlangen.",
       "screenCaptureDeniedElsewhere": "Ihr System gewährt dieser App keinen Bildschirmzugriff. Erlauben Sie ihn in den Datenschutzeinstellungen des Systems und aktualisieren Sie dann den Status.",
-      "link": "Verknüpfen"
+      "link": "Verknüpfen",
+      "connect": "Verbinden"
     },
     "notificationSettings": {
       "title": "Desktop-Mitteilungen",
@@ -12835,7 +12968,18 @@
       }
     },
     "setup": {
-      "bubble": "Ich bin noch mit keinem Modell verbunden und kann deshalb nicht denken. Soll ich Ihnen zeigen, wie Sie eins verbinden?"
+      "bubble": "Ich bin noch mit keinem Modell verbunden und kann deshalb nicht denken. Soll ich Ihnen zeigen, wie Sie eins verbinden?",
+      "title": "Ein Modell verbinden",
+      "typing": "{name} schreibt…",
+      "openBuilder": "Meine Modelleinstellungen öffnen",
+      "steps": {
+        "intro": "Hallo, ich bin {name}. Ich helfe beim Bauen von Agents und beim Zurechtfinden auf der Plattform – aber zum Denken brauche ich ein Sprachmodell, und noch ist keins verbunden. So verbinden Sie eins. Es dauert etwa zwei Minuten.",
+        "key": "<b>Schritt 1: einen API-Schlüssel besorgen.</b> Melden Sie sich bei einem Modell-Provider an – Anthropic, OpenAI, Google oder einem anderen – und erstellen Sie in dessen Konsole einen API-Schlüssel. Das ist eine lange Zeichenfolge, oft beginnend mit „sk-“. Betreibt Ihr Unternehmen ein eigenes Modell, etwa auf Ollama oder vLLM, genügt dessen Adresse.",
+        "settings": "<b>Schritt 2: mich im Agent Builder öffnen.</b> Wählen Sie unter Modell den Provider und fügen Sie den Schlüssel ein. Er wandert verschlüsselt direkt in den Vault – niemand sieht ihn je wieder vollständig, ich auch nicht.",
+        "model": "<b>Schritt 3: ein Modell wählen und veröffentlichen.</b> Ein leistungsfähiges Modell mittlerer Preisklasse ist ein guter Start, und Sie können es jederzeit wechseln.",
+        "done": "<b>Das war's.</b> Kommen Sie hierher zurück, und ich begrüße Sie. Dieses Modell steht auch allen anderen Agents Ihrer Organisation zur Verfügung.",
+        "askAdmin": "<b>Wer das kann:</b> Nur ein Administrator Ihrer Organisation kann ein Modell verbinden. Bitten Sie ihn, diese Schritte zu befolgen – das dauert etwa zwei Minuten, danach bin ich für alle da."
+      }
     },
     "screenshot": "Diese Seite zeigen",
     "screenshotFailed": "Der Screenshot konnte nicht erstellt werden. Fügen Sie stattdessen selbst einen in die Unterhaltung ein.",
@@ -13343,6 +13487,21 @@
       "example2": "Eine Änderung vorbereiten und eine Genehmigung anfordern",
       "needs": "Ein in Vault verbundenes Odoo-19+-Konto, installierte Geschäftsmodule und passende Odoo-Zugriffsrechte.",
       "never": "Liest niemals das Konto einer anderen Person; Schreibzugriffe erfordern eine Genehmigung."
+    },
+    "memory_mem0": {
+      "name": "Gedächtnis (mem0)",
+      "does": "Der Agent merkt sich Fakten und findet sie nach ihrer Bedeutung wieder, gespeichert in einem mem0-Dienst.",
+      "example1": "Sich merken, dass ein Kunde E-Mail statt Anrufen bevorzugt",
+      "needs": "Ein mem0-Konto, in der Cloud oder selbst gehostet, und sein API-Schlüssel im Vault.",
+      "never": "Zeigt die Erinnerungen einer Person nie einer anderen. In einem Gruppenchat gehören sie dem Chat."
+    },
+    "virtual_tables": {
+      "name": "Tabellen",
+      "does": "Der Agent kann die ihm freigegebenen typisierten Tabellen auflisten, lesen und beschreiben - einen Datensatz anlegen, ändern, nachschlagen.",
+      "example1": "Jede neue Support-Anfrage als Zeile erfassen",
+      "example2": "Vor einer Antwort den Tarif eines Kunden in einer Tabelle prüfen",
+      "needs": "Mindestens eine freigegebene Tabelle oder die Erlaubnis, Tabellen anzulegen.",
+      "never": "Fasst nie eine nicht freigegebene Tabelle an und löscht nie eine Tabelle; ein gelöschter Datensatz behält seinen Verlauf."
     }
   },
   "capabilityCategories": {
@@ -14503,6 +14662,26 @@
       "connection_ids": {
         "title": "Organisationskonten",
         "description": "Die Organisationskonten, die diese Capability verwenden darf. Bei mehreren Konten fragt der Agent nach, wenn die Anfrage kein eindeutiges Konto nennt."
+      }
+    },
+    "memory_mem0": {
+      "base_url": {
+        "title": "URL eines eigenen mem0",
+        "description": "Basis-URL eines selbst gehosteten mem0; für die mem0-Cloud weglassen."
+      },
+      "allow_personal": {
+        "title": "Private Erinnerungen pro Person",
+        "description": "Ob der Agent private Erinnerungen zu jeder Person führt, mit der er spricht, lesbar nur, wenn er mit ihr allein ist. Aus entfernt diesen Speicher, aus Compliance- oder Datenschutzgründen; das Gedächtnis aus Gruppenchats bleibt."
+      }
+    },
+    "virtual_tables": {
+      "tables": {
+        "title": "Tabellen, die er nutzen darf",
+        "description": "Die Tabellen, auf die der Agent zugreifen darf, und was er in jeder tun darf."
+      },
+      "allow_create": {
+        "title": "Tabellen anlegen",
+        "description": "Erlaubt dem Agenten, neue Tabellen anzulegen. Das Mitglied, in dessen Namen er handelt, braucht weiterhin die Berechtigung tables:create."
       }
     }
   },
@@ -18969,11 +19148,11 @@
       },
       "integration_odoo_contacts_search_contacts": {
         "name": "Odoo Contacts: Suchen (Kontakte)",
-        "description": "res.partner: Sucht mit body {domain, fields, limit (1-100), offset, order}."
+        "description": "res.partner: Sucht mit body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_contacts_read_contacts": {
         "name": "Odoo Contacts: Lesen (Kontakte)",
-        "description": "res.partner: Liest body {ids, fields}; höchstens 100 Datensätze."
+        "description": "res.partner: Liest body (ids, fields); höchstens 100 Datensätze."
       },
       "integration_odoo_contacts_fields_contacts": {
         "name": "Odoo Contacts: Felder und Typen (Kontakte)",
@@ -18981,19 +19160,19 @@
       },
       "integration_odoo_contacts_create_contacts": {
         "name": "Odoo Contacts: Erstellen (Kontakte)",
-        "description": "res.partner: Erstellt einen Datensatz mit body {values}. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
+        "description": "res.partner: Erstellt einen Datensatz mit body (values). Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
       },
       "integration_odoo_contacts_update_contacts": {
         "name": "Odoo Contacts: Aktualisieren (Kontakte)",
-        "description": "res.partner: Aktualisiert body {ids, values}; höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
+        "description": "res.partner: Aktualisiert body (ids, values); höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
       },
       "integration_odoo_crm_search_leads": {
         "name": "Odoo CRM: Suchen (Verkaufschancen)",
-        "description": "crm.lead: Sucht mit body {domain, fields, limit (1-100), offset, order}."
+        "description": "crm.lead: Sucht mit body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_crm_read_leads": {
         "name": "Odoo CRM: Lesen (Verkaufschancen)",
-        "description": "crm.lead: Liest body {ids, fields}; höchstens 100 Datensätze."
+        "description": "crm.lead: Liest body (ids, fields); höchstens 100 Datensätze."
       },
       "integration_odoo_crm_fields_leads": {
         "name": "Odoo CRM: Felder und Typen (Verkaufschancen)",
@@ -19001,19 +19180,19 @@
       },
       "integration_odoo_crm_create_leads": {
         "name": "Odoo CRM: Erstellen (Verkaufschancen)",
-        "description": "crm.lead: Erstellt einen Datensatz mit body {values}. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
+        "description": "crm.lead: Erstellt einen Datensatz mit body (values). Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
       },
       "integration_odoo_crm_update_leads": {
         "name": "Odoo CRM: Aktualisieren (Verkaufschancen)",
-        "description": "crm.lead: Aktualisiert body {ids, values}; höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
+        "description": "crm.lead: Aktualisiert body (ids, values); höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
       },
       "integration_odoo_sales_search_orders": {
         "name": "Odoo Sales: Suchen (Aufträge)",
-        "description": "sale.order: Sucht mit body {domain, fields, limit (1-100), offset, order}."
+        "description": "sale.order: Sucht mit body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_sales_read_orders": {
         "name": "Odoo Sales: Lesen (Aufträge)",
-        "description": "sale.order: Liest body {ids, fields}; höchstens 100 Datensätze."
+        "description": "sale.order: Liest body (ids, fields); höchstens 100 Datensätze."
       },
       "integration_odoo_sales_fields_orders": {
         "name": "Odoo Sales: Felder und Typen (Aufträge)",
@@ -19021,19 +19200,19 @@
       },
       "integration_odoo_sales_create_orders": {
         "name": "Odoo Sales: Erstellen (Aufträge)",
-        "description": "sale.order: Erstellt einen Datensatz mit body {values}. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
+        "description": "sale.order: Erstellt einen Datensatz mit body (values). Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
       },
       "integration_odoo_sales_update_orders": {
         "name": "Odoo Sales: Aktualisieren (Aufträge)",
-        "description": "sale.order: Aktualisiert body {ids, values}; höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
+        "description": "sale.order: Aktualisiert body (ids, values); höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
       },
       "integration_odoo_sales_search_order_lines": {
         "name": "Odoo Sales: Suchen (Auftragspositionen)",
-        "description": "sale.order.line: Sucht mit body {domain, fields, limit (1-100), offset, order}."
+        "description": "sale.order.line: Sucht mit body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_sales_read_order_lines": {
         "name": "Odoo Sales: Lesen (Auftragspositionen)",
-        "description": "sale.order.line: Liest body {ids, fields}; höchstens 100 Datensätze."
+        "description": "sale.order.line: Liest body (ids, fields); höchstens 100 Datensätze."
       },
       "integration_odoo_sales_fields_order_lines": {
         "name": "Odoo Sales: Felder und Typen (Auftragspositionen)",
@@ -19041,23 +19220,23 @@
       },
       "integration_odoo_sales_create_order_lines": {
         "name": "Odoo Sales: Erstellen (Auftragspositionen)",
-        "description": "sale.order.line: Erstellt einen Datensatz mit body {values}. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
+        "description": "sale.order.line: Erstellt einen Datensatz mit body (values). Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
       },
       "integration_odoo_sales_update_order_lines": {
         "name": "Odoo Sales: Aktualisieren (Auftragspositionen)",
-        "description": "sale.order.line: Aktualisiert body {ids, values}; höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
+        "description": "sale.order.line: Aktualisiert body (ids, values); höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
       },
       "integration_odoo_sales_confirm_orders": {
         "name": "Odoo Sales: Bestätigen (Aufträge)",
-        "description": "Bestätigt vorbereitete Angebote im Odoo-Geschäftsprozess. Body: {ids}, höchstens 100 Datensätze. Datensätze danach lesen, um den Zustand zu bestätigen; ein zurückgegebener Assistent beweist keinen Abschluss."
+        "description": "Bestätigt vorbereitete Angebote im Odoo-Geschäftsprozess. Body: (ids), höchstens 100 Datensätze. Datensätze danach lesen, um den Zustand zu bestätigen; ein zurückgegebener Assistent beweist keinen Abschluss."
       },
       "integration_odoo_accounting_search_invoices": {
         "name": "Odoo Invoicing: Suchen (Rechnungen)",
-        "description": "account.move: Sucht mit body {domain, fields, limit (1-100), offset, order}."
+        "description": "account.move: Sucht mit body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_accounting_read_invoices": {
         "name": "Odoo Invoicing: Lesen (Rechnungen)",
-        "description": "account.move: Liest body {ids, fields}; höchstens 100 Datensätze."
+        "description": "account.move: Liest body (ids, fields); höchstens 100 Datensätze."
       },
       "integration_odoo_accounting_fields_invoices": {
         "name": "Odoo Invoicing: Felder und Typen (Rechnungen)",
@@ -19065,19 +19244,19 @@
       },
       "integration_odoo_accounting_create_invoices": {
         "name": "Odoo Invoicing: Erstellen (Rechnungen)",
-        "description": "account.move: Erstellt einen Datensatz mit body {values}. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
+        "description": "account.move: Erstellt einen Datensatz mit body (values). Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
       },
       "integration_odoo_accounting_update_invoices": {
         "name": "Odoo Invoicing: Aktualisieren (Rechnungen)",
-        "description": "account.move: Aktualisiert body {ids, values}; höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
+        "description": "account.move: Aktualisiert body (ids, values); höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
       },
       "integration_odoo_accounting_search_invoice_lines": {
         "name": "Odoo Invoicing: Suchen (Rechnungspositionen)",
-        "description": "account.move.line: Sucht mit body {domain, fields, limit (1-100), offset, order}."
+        "description": "account.move.line: Sucht mit body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_accounting_read_invoice_lines": {
         "name": "Odoo Invoicing: Lesen (Rechnungspositionen)",
-        "description": "account.move.line: Liest body {ids, fields}; höchstens 100 Datensätze."
+        "description": "account.move.line: Liest body (ids, fields); höchstens 100 Datensätze."
       },
       "integration_odoo_accounting_fields_invoice_lines": {
         "name": "Odoo Invoicing: Felder und Typen (Rechnungspositionen)",
@@ -19085,23 +19264,23 @@
       },
       "integration_odoo_accounting_create_invoice_lines": {
         "name": "Odoo Invoicing: Erstellen (Rechnungspositionen)",
-        "description": "account.move.line: Erstellt einen Datensatz mit body {values}. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
+        "description": "account.move.line: Erstellt einen Datensatz mit body (values). Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
       },
       "integration_odoo_accounting_update_invoice_lines": {
         "name": "Odoo Invoicing: Aktualisieren (Rechnungspositionen)",
-        "description": "account.move.line: Aktualisiert body {ids, values}; höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
+        "description": "account.move.line: Aktualisiert body (ids, values); höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
       },
       "integration_odoo_accounting_post_invoices": {
         "name": "Odoo Invoicing: Buchen (Rechnungen)",
-        "description": "Bucht vorbereitete Rechnungen mit Odoo-Buchhaltungsprüfung. Body: {ids}, höchstens 100 Datensätze. Datensätze danach lesen, um den Zustand zu bestätigen; ein zurückgegebener Assistent beweist keinen Abschluss."
+        "description": "Bucht vorbereitete Rechnungen mit Odoo-Buchhaltungsprüfung. Body: (ids), höchstens 100 Datensätze. Datensätze danach lesen, um den Zustand zu bestätigen; ein zurückgegebener Assistent beweist keinen Abschluss."
       },
       "integration_odoo_inventory_search_products": {
         "name": "Odoo Inventory: Suchen (Produkte)",
-        "description": "product.product: Sucht mit body {domain, fields, limit (1-100), offset, order}."
+        "description": "product.product: Sucht mit body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_inventory_read_products": {
         "name": "Odoo Inventory: Lesen (Produkte)",
-        "description": "product.product: Liest body {ids, fields}; höchstens 100 Datensätze."
+        "description": "product.product: Liest body (ids, fields); höchstens 100 Datensätze."
       },
       "integration_odoo_inventory_fields_products": {
         "name": "Odoo Inventory: Felder und Typen (Produkte)",
@@ -19109,19 +19288,19 @@
       },
       "integration_odoo_inventory_create_products": {
         "name": "Odoo Inventory: Erstellen (Produkte)",
-        "description": "product.product: Erstellt einen Datensatz mit body {values}. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
+        "description": "product.product: Erstellt einen Datensatz mit body (values). Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
       },
       "integration_odoo_inventory_update_products": {
         "name": "Odoo Inventory: Aktualisieren (Produkte)",
-        "description": "product.product: Aktualisiert body {ids, values}; höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
+        "description": "product.product: Aktualisiert body (ids, values); höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
       },
       "integration_odoo_inventory_search_transfers": {
         "name": "Odoo Inventory: Suchen (Lagertransfers)",
-        "description": "stock.picking: Sucht mit body {domain, fields, limit (1-100), offset, order}."
+        "description": "stock.picking: Sucht mit body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_inventory_read_transfers": {
         "name": "Odoo Inventory: Lesen (Lagertransfers)",
-        "description": "stock.picking: Liest body {ids, fields}; höchstens 100 Datensätze."
+        "description": "stock.picking: Liest body (ids, fields); höchstens 100 Datensätze."
       },
       "integration_odoo_inventory_fields_transfers": {
         "name": "Odoo Inventory: Felder und Typen (Lagertransfers)",
@@ -19129,19 +19308,19 @@
       },
       "integration_odoo_inventory_create_transfers": {
         "name": "Odoo Inventory: Erstellen (Lagertransfers)",
-        "description": "stock.picking: Erstellt einen Datensatz mit body {values}. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
+        "description": "stock.picking: Erstellt einen Datensatz mit body (values). Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
       },
       "integration_odoo_inventory_update_transfers": {
         "name": "Odoo Inventory: Aktualisieren (Lagertransfers)",
-        "description": "stock.picking: Aktualisiert body {ids, values}; höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
+        "description": "stock.picking: Aktualisiert body (ids, values); höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
       },
       "integration_odoo_inventory_search_moves": {
         "name": "Odoo Inventory: Suchen (Lagerbewegungen)",
-        "description": "stock.move: Sucht mit body {domain, fields, limit (1-100), offset, order}."
+        "description": "stock.move: Sucht mit body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_inventory_read_moves": {
         "name": "Odoo Inventory: Lesen (Lagerbewegungen)",
-        "description": "stock.move: Liest body {ids, fields}; höchstens 100 Datensätze."
+        "description": "stock.move: Liest body (ids, fields); höchstens 100 Datensätze."
       },
       "integration_odoo_inventory_fields_moves": {
         "name": "Odoo Inventory: Felder und Typen (Lagerbewegungen)",
@@ -19149,19 +19328,19 @@
       },
       "integration_odoo_inventory_create_moves": {
         "name": "Odoo Inventory: Erstellen (Lagerbewegungen)",
-        "description": "stock.move: Erstellt einen Datensatz mit body {values}. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
+        "description": "stock.move: Erstellt einen Datensatz mit body (values). Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
       },
       "integration_odoo_inventory_update_moves": {
         "name": "Odoo Inventory: Aktualisieren (Lagerbewegungen)",
-        "description": "stock.move: Aktualisiert body {ids, values}; höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
+        "description": "stock.move: Aktualisiert body (ids, values); höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
       },
       "integration_odoo_inventory_search_stock_levels": {
         "name": "Odoo Inventory: Suchen (Lagerbestände)",
-        "description": "stock.quant: Sucht mit body {domain, fields, limit (1-100), offset, order}."
+        "description": "stock.quant: Sucht mit body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_inventory_read_stock_levels": {
         "name": "Odoo Inventory: Lesen (Lagerbestände)",
-        "description": "stock.quant: Liest body {ids, fields}; höchstens 100 Datensätze."
+        "description": "stock.quant: Liest body (ids, fields); höchstens 100 Datensätze."
       },
       "integration_odoo_inventory_fields_stock_levels": {
         "name": "Odoo Inventory: Felder und Typen (Lagerbestände)",
@@ -19169,23 +19348,23 @@
       },
       "integration_odoo_inventory_confirm_transfers": {
         "name": "Odoo Inventory: Bestätigen (Lagertransfers)",
-        "description": "Bestätigt vorbereitete Lagertransfers. Body: {ids}, höchstens 100 Datensätze. Datensätze danach lesen, um den Zustand zu bestätigen; ein zurückgegebener Assistent beweist keinen Abschluss."
+        "description": "Bestätigt vorbereitete Lagertransfers. Body: (ids), höchstens 100 Datensätze. Datensätze danach lesen, um den Zustand zu bestätigen; ein zurückgegebener Assistent beweist keinen Abschluss."
       },
       "integration_odoo_inventory_reserve_transfers": {
         "name": "Odoo Inventory: Reservieren (Lagertransfers)",
-        "description": "Reserviert verfügbaren Bestand für vorbereitete Transfers. Body: {ids}, höchstens 100 Datensätze. Datensätze danach lesen, um den Zustand zu bestätigen; ein zurückgegebener Assistent beweist keinen Abschluss."
+        "description": "Reserviert verfügbaren Bestand für vorbereitete Transfers. Body: (ids), höchstens 100 Datensätze. Datensätze danach lesen, um den Zustand zu bestätigen; ein zurückgegebener Assistent beweist keinen Abschluss."
       },
       "integration_odoo_inventory_validate_transfers": {
         "name": "Odoo Inventory: Validieren (Lagertransfers)",
-        "description": "Validiert Transfers; Odoo kann einen Rückstands- oder anderen Assistenten erfordern. Body: {ids}, höchstens 100 Datensätze. Datensätze danach lesen, um den Zustand zu bestätigen; ein zurückgegebener Assistent beweist keinen Abschluss."
+        "description": "Validiert Transfers; Odoo kann einen Rückstands- oder anderen Assistenten erfordern. Body: (ids), höchstens 100 Datensätze. Datensätze danach lesen, um den Zustand zu bestätigen; ein zurückgegebener Assistent beweist keinen Abschluss."
       },
       "integration_odoo_projects_search_projects": {
         "name": "Odoo Projects: Suchen (Projekte)",
-        "description": "project.project: Sucht mit body {domain, fields, limit (1-100), offset, order}."
+        "description": "project.project: Sucht mit body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_projects_read_projects": {
         "name": "Odoo Projects: Lesen (Projekte)",
-        "description": "project.project: Liest body {ids, fields}; höchstens 100 Datensätze."
+        "description": "project.project: Liest body (ids, fields); höchstens 100 Datensätze."
       },
       "integration_odoo_projects_fields_projects": {
         "name": "Odoo Projects: Felder und Typen (Projekte)",
@@ -19193,19 +19372,19 @@
       },
       "integration_odoo_projects_create_projects": {
         "name": "Odoo Projects: Erstellen (Projekte)",
-        "description": "project.project: Erstellt einen Datensatz mit body {values}. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
+        "description": "project.project: Erstellt einen Datensatz mit body (values). Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
       },
       "integration_odoo_projects_update_projects": {
         "name": "Odoo Projects: Aktualisieren (Projekte)",
-        "description": "project.project: Aktualisiert body {ids, values}; höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
+        "description": "project.project: Aktualisiert body (ids, values); höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
       },
       "integration_odoo_projects_search_tasks": {
         "name": "Odoo Projects: Suchen (Aufgaben)",
-        "description": "project.task: Sucht mit body {domain, fields, limit (1-100), offset, order}."
+        "description": "project.task: Sucht mit body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_projects_read_tasks": {
         "name": "Odoo Projects: Lesen (Aufgaben)",
-        "description": "project.task: Liest body {ids, fields}; höchstens 100 Datensätze."
+        "description": "project.task: Liest body (ids, fields); höchstens 100 Datensätze."
       },
       "integration_odoo_projects_fields_tasks": {
         "name": "Odoo Projects: Felder und Typen (Aufgaben)",
@@ -19213,11 +19392,11 @@
       },
       "integration_odoo_projects_create_tasks": {
         "name": "Odoo Projects: Erstellen (Aufgaben)",
-        "description": "project.task: Erstellt einen Datensatz mit body {values}. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
+        "description": "project.task: Erstellt einen Datensatz mit body (values). Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen erstellen."
       },
       "integration_odoo_projects_update_tasks": {
         "name": "Odoo Projects: Aktualisieren (Aufgaben)",
-        "description": "project.task: Aktualisiert body {ids, values}; höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
+        "description": "project.task: Aktualisiert body (ids, values); höchstens 100 Datensätze. Werte sind Skalare oder link/set/clear-Beziehungs-IDs. Verknüpfte Datensätze mit eigenen Werkzeugen aktualisieren."
       }
     },
     "port": {

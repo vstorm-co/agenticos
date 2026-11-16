@@ -1,11 +1,11 @@
 ---
-source_sha: "3d76e4884645"
+source_sha: "8414da1d7d95"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
 
 Agent, który odpowiada wyłącznie w tym dashboardzie, to demo. Ten sam
-opublikowany agent odpowiada w ośmiu miejscach, a każde z nich uruchamia *tę samą
+opublikowany agent odpowiada w dziewięciu miejscach, a każde z nich uruchamia *tę samą
 zamrożoną wersję* przez ten sam budżet, tę samą bramkę zatwierdzania i te same
 kontrole tenanta — zmienia się powierzchnia, nie agent.
 
@@ -19,6 +19,7 @@ kontrole tenanta — zmienia się powierzchnia, nie agent.
 | **Slack** | token bota | konto Slacka, opcjonalnie powiązane z członkiem |
 | **Telegram** | token bota | konto Telegrama, opcjonalnie powiązane |
 | **Mattermost** | token bota i URL twojego serwera | konto Mattermosta, opcjonalnie powiązane |
+| **WhatsApp** | aplikacja Mety, numer firmowy i token dostępu | konto WhatsApp, powiązane kodem wysłanym z czatu |
 
 Dashboard otwiera się też jako [aplikacja desktopowa](desktop.md): okno wokół tej
 samej konsoli, ładowanej z tego samego serwera, bez niczego w paczce.
@@ -31,7 +32,7 @@ samej konsoli, ładowanej z tego samego serwera, bez niczego w paczce.
       tokeny zostały wydane, zanim się zepsuł, a budżet, który to ignoruje, nie
       jest budżetem.
 
-!!! info "Trzy z tych ośmiu to jedna tabela, a jej wiersze różnią się polem `kind`"
+!!! info "Trzy z tych dziewięciu to jedna tabela, a jej wiersze różnią się polem `kind`"
 
     Widget, surowy socket i hostowana strona to każde z osobna *embed* — a kind
     jest ustalany przy tworzeniu, bo wklejony już tag, napisany już klient
@@ -396,6 +397,8 @@ Teraz mówi. Każde „nie” poniżej ma powód, a powód to albo „tutaj był
 albo „to jeszcze nie jest zbudowane” — nigdy milczenie.
 
 Ostatnia kolumna to Teams (#1985), reprezentujący stojące obok platformy czatu.
+WhatsApp (#2076) czyta i wysyła pliki oraz wiadomości głosowe, odpowiada jedną
+wiadomością, a zatwierdzenia i pytania pokazuje jako przyciski: zobacz [WhatsApp](#whatsapp).
 
 | | `/chat` (dashboard) | Surowy WebSocket | Publiczne API | Teams |
 |---|---|---|---|---|
@@ -1392,7 +1395,7 @@ wklej i ten, bo inaczej bot zachowa dostęp, który miał.
 Działa na kanałach i w DM-ach. Wiadomość z powiązanego konta wykonuje się jako ta
 osoba — nigdy jako bot; wiadomość z konta, którego nikt nie powiązał, wykonuje
 się pod powiązaniem i tylko na kanale. Wiadomość bezpośrednia prosi najpierw
-o konto.
+o konto, z wyjątkiem [publicznej linii WhatsApp](#whatsapp-public-line).
 
 Powiązane konto, którego członek opuścił organizację albo którego konto zostało
 dezaktywowane, jest traktowane jak niepowiązane: odrzucone w wiadomości
@@ -1758,6 +1761,265 @@ Discordzie.
 Gdy obie ścieżki dają członkostwo, przy logowaniu pierwszeństwo ma katalog.
 Po utracie dostępu z katalogu aktywna rola Discorda przejmuje ten sam wiersz bez
 cofania kluczy. Zobacz [przekazywanie członkostwa](directory.md#what-the-sync-never-touches).
+
+## WhatsApp { #whatsapp }
+
+Zweryfikowane wiadomości i statusy zamkniętego okna trafiają do trwałych zadań PostgreSQL w transakcji webhooka. Uruchom pule workerów `agent` i `system`. Worker sprawdza, czy bot nadal jest aktywny w tej samej organizacji. Kolejka szereguje paczki klienta i ponawia błędy; przetwarzanie jest co najmniej jednokrotne, bez gwarancji pojedynczego wysłania do zewnętrznej usługi. Ładunek zawiera tekst i metadane nadawcy lokalnie, nigdy w AgenticOS Bridge. Obowiązuje retencja zadań; zapomnienie klienta usuwa zadania, które nie są wykonywane, a trwające mogą się zakończyć.
+
+Bot WhatsApp to numer firmowy w **WhatsApp Business Cloud API** Mety, a agent
+odpowiada **wyłącznie w czatach bezpośrednich** (#2076). Bot czyta **tekst**,
+**obrazy**, **dokumenty** i **wiadomości głosowe**, a udostępniona **lokalizacja**
+przychodzi jako tekst. Wiadomość głosowa jest transkrybowana kluczem
+speech-to-text organizacji, na tych samych zasadach co na innych platformach
+([co dzielą wszystkie kanały](#what-every-channel-shares)). **Wideo**, **naklejka**
+i **kontakt** są odrzucane z nazwy, więc klient dowiaduje się, czego bot nie czyta.
+Każda wiadomość przechodzi te same kontrole dostępu, duplikatów i limitów co każda
+inna.
+
+1. W [Meta for Developers](https://developers.facebook.com) utwórz aplikację z
+   przypadkiem użycia **WhatsApp** i podłącz ją do konta WhatsApp Business.
+2. Wybierz numer: **numer testowy** Mety nic nie kosztuje i nie wymaga metody
+   płatności; możesz też dodać własny. Zanotuj jego **phone number ID** i
+   **WhatsApp Business account ID**.
+3. W ustawieniach Meta Business utwórz **System User**, przyznaj mu aplikację i
+   konto i wygeneruj **stały token** z uprawnieniami `whatsapp_business_messaging`
+   i `whatsapp_business_management`. Tymczasowy token ze strony startowej
+   aplikacji wygasa w ciągu kilku godzin i bot przestanie działać.
+4. Skopiuj **app secret** aplikacji (*App settings → Basic*). Wybierz **verify
+   token**: dowolny ciąg znany tylko tobie i Mecie.
+5. Zarejestruj go: **Channels → Add channel**, platforma `whatsapp`, z tokenem
+   dostępu, obydwoma ID, app secretem i verify tokenem. CLI przyjmuje to samo
+   (`channel-add-bot --platform whatsapp --whatsapp-phone-number-id ...
+   --whatsapp-account-id ... --whatsapp-verify-token ... --webhook-secret <app secret>`;
+   zobacz [Polecenia](commands.md)). API nazywa app secret `webhook_secret`.
+6. Wklej **callback URL**, który pokazuje bot (`/api/v1/whatsapp/{bot_id}/webhook`
+   pod twoim publicznym adresem bazowym), oraz verify token do *WhatsApp →
+   Configuration* w aplikacji i zweryfikuj go.
+7. **Zasubskrybuj** pole `messages`.
+8. Przełącz aplikację Mety w tryb **Live**. Meta nie wysyła wszystkich webhooków
+   do aplikacji w trybie Development, więc bot może wyglądać na podłączonego i
+   milczeć.
+
+**Kilka numerów w jednej aplikacji Mety.** Aplikacja Mety ma jeden callback URL,
+niezależnie od tego, ile numerów obsługuje. Zarejestruj bota dla każdego numeru,
+każdego z app secret tej aplikacji, i wklej do aplikacji callback URL dowolnego z
+nich. Każda wiadomość trafia do bota zarejestrowanego dla jej numeru, i tylko wtedy,
+gdy app secret tego bota potwierdza podpis dostawy. Bot, którego URL wkleiłeś, musi
+pozostać aktywny: dostawa do wyłączonego bota jest odrzucana. Jeśli zapisanie
+klientów jednego bota się nie uda, nie udaje się cała dostawa i Meta ponawia ją dla
+wszystkich numerów. Aby dać numerowi własny URL, użyj nadpisania callbacku dla
+numeru w Mecie.
+
+**Każdy POST jest sprawdzany, zanim ktokolwiek go przeczyta.** Meta podpisuje
+każde dostarczenie; podpis jest porównywany z app secretem na surowych bajtach,
+zanim cokolwiek zostanie sparsowane lub zapisane, a żądanie, które go nie
+przejdzie, dostaje 401. Bot bez app secretu odrzuca każdy POST, więc nigdy nie
+odpowie na niepodpisane żądanie.
+
+**Kto mówi**, to **business-scoped user ID** nadawcy w WhatsAppie, a nie jego numer
+telefonu. AgenticOS zapisuje to ID, nazwę profilu wybraną przez nadawcę oraz, jako
+etykietę nadawcy, nazwę użytkownika WhatsApp, jeśli ją ma, a w przeciwnym razie numer
+telefonu zamaskowany jako `•••• 1234`; w logach nigdy nie ma ID wiadomości ani
+numeru telefonu.
+
+### Powiązanie kodem { #linking-with-a-code }
+
+WhatsApp nie ma sesji przeglądarki, którą można by współdzielić, więc powiązanie
+potwierdza się z czatu. Ktoś, kogo bot nie zna, pisze do niego i dostaje link;
+otwiera go i potwierdza w przeglądarce, będąc zalogowanym. Strona pokazuje wtedy
+**6-cyfrowy kod**, który trzeba **wysłać z tego czatu WhatsApp w ciągu 5 minut**.
+Tekst wysłany przed kodem dostaje przypomnienie, co zrobić. Inna 6-cyfrowa
+wiadomość anuluje prośbę, więc zgadywanie kosztuje nowe potwierdzenie.
+
+Strona potwierdzenia pokazuje nazwę profilu nadawcy oznaczoną jako **niezweryfikowana** —
+wybiera ją sam człowiek, więc niczego nie dowodzi — oraz zamaskowany numer, żeby
+członek widział, który czat łączy. Kod dotyczy tylko WhatsAppa; pozostałe
+platformy łączą się jak dotąd.
+
+Ponieważ operator nie widzi business-scoped ID nadawcy, polityka dostępu
+**`whitelist`** jest tu niepraktyczna. Użyj `jwt_linked` i pozwól ludziom się
+powiązać.
+
+### Jak wyglądają odpowiedzi { #how-answers-look }
+
+WhatsApp nie pozwala edytować wiadomości, więc odpowiedź przychodzi jako **jedna
+wiadomość**, gdy jest gotowa, a dłuższa niż 4096 znaków jest dzielona na tym
+limicie, bez przecinania emoji. Markdown jest zamieniany na własne formatowanie
+WhatsAppa: blok kodu zostaje blokiem kodu, tabela staje się blokiem
+monospace, a adres URL zostaje nietknięty. Wiadomość, którą wysłałeś, jest
+oznaczana jako **przeczytana**, a **wskaźnik pisania** świeci, gdy agent pracuje.
+
+**Wykresy i pliki są wysyłane** jako multimedia WhatsAppa. Krótka odpowiedź, do 1024
+znaków, staje się podpisem pierwszego pliku; dłuższa idzie najpierw jako tekst, a
+pliki za nią. Obraz większy niż 5 MB i każdy plik, który nie jest obrazem JPEG ani
+PNG, idzie jako dokument. Plik `text/*` lub JSON jest wysyłany jako zwykły tekst i
+zachowuje swoją nazwę. Gdy Meta odrzuci plik, odpowiedź zawiera krótką notatkę, że
+pliku nie udało się wysłać, więc klient nie zostaje w niepewności.
+
+**Zatwierdzenia i pytania to przyciski.** Zatwierdzenie pokazuje **Approve** i
+**Reject**. Pytanie z maksymalnie 3 krótkimi odpowiedziami pokazuje przyciski;
+dłuższa odpowiedź albo ich więcej zamienia się w listę do 10 wierszy. Tekst dłuższy,
+niż mieści wiadomość z przyciskami, idzie najpierw jako zwykłe wiadomości. Kolejne
+kroki, które sugeruje agent, przychodzą tak samo, jako przyciski albo lista.
+
+WhatsApp nie pozwala edytować wiadomości, więc dotknięcie przycisku dostaje krótką
+odpowiedź, która cytuje pytanie. Pytanie z wielokrotnym wyborem jest pokazywane
+ponownie po każdym wyborze. Dotknięcie z innego czatu jest ignorowane, a dotknięcie,
+które Meta dostarczy dwa razy, działa raz.
+
+### Odpowiedzi po 24 godzinach { #whatsapp-late-answers }
+
+Meta pozwala firmie wysyłać wiadomości w dowolnej formie tylko w ciągu 24 godzin od
+ostatniej wiadomości klienta. Odpowiedź gotowa później, na przykład dlatego, że
+zatwierdzenie zapadło następnego dnia, nie może pójść jako zwykły tekst. AgenticOS
+zapamiętuje, kiedy każdy klient pisał ostatnio, według czasu z wiadomości od Meta, i
+uznaje okno za zamknięte pięć minut wcześniej, żeby powolna wysyłka nie trafiła po
+terminie Meta. Do klienta, o którym nie ma zapisu, wysyła jak dotąd, a odmowę Meta z
+powodu okna uznaje za rozstrzygającą.
+
+**Wybierz szablon późnej odpowiedzi.** W WhatsApp Manager utwórz szablon kategorii
+**utility**, którego treść ma dokładnie jedną zmienną, ze stałym tekstem przed nią i
+po niej, na przykład `Oto odpowiedź na Twoją wcześniejszą wiadomość: {{1}} Napisz tu,
+jeśli potrzebujesz czegoś jeszcze.` Poczekaj na zatwierdzenie przez Meta, a potem
+wybierz go w polu **Late-answer template** (szablon późnej odpowiedzi), edytując
+bota. Konsola pokazuje tylko szablony, które się nadają: zatwierdzone, utility, z
+jedną zmienną w treści, bez niczego innego, co się zmienia, i z co najwyżej jednym
+przyciskiem szybkiej odpowiedzi. Kliknięcie go po nadejściu odpowiedzi nie jest
+traktowane jako nowa wiadomość.
+
+**Co robi późna odpowiedź:**
+
+- Krótka odpowiedź wychodzi od razu w szablonie, w jednym wierszu.
+- Dłuższa odpowiedź albo taka, która miała wykres lub plik, wychodzi jako zapowiedź:
+  początek odpowiedzi i zaproszenie do odpowiedzi. Pełna odpowiedź dochodzi, gdy
+  klient napisze następnym razem, przed odpowiedzią na jego nową wiadomość.
+- Kilka późnych odpowiedzi dla jednego klienta czeka razem i wychodzi od
+  najstarszej.
+- Zatwierdzenie albo pytanie też czeka na klienta. Wraca po odpowiedzi na jego
+  następną wiadomość i do tego czasu można o nim zdecydować w konsoli.
+- Komunikat, że prośba wygasła, została zatrzymana albo nie mogła być kontynuowana,
+  też wychodzi w szablonie. Bez szablonu czeka i wychodzi, gdy klient napisze.
+
+**Bez szablonu albo z szablonem odrzuconym przez Meta** nic nie jest wysyłane. Run
+nadal czeka na następną wiadomość klienta, strona runa pisze „Not delivered” i
+dlaczego, a lista botów ostrzega, że bot nie ma szablonu późnej odpowiedzi.
+
+**Zanim okno się zamknie.** Gdy run klienta nadal czeka na zatwierdzenie 20 godzin
+po jego ostatniej wiadomości, bot wysyła mu jedną krótką wiadomość, że odpowiedź
+potrwa trochę dłużej, z przyciskiem **Keep me posted**. Kliknięcie albo dowolna
+odpowiedź ponownie otwiera okno, więc odpowiedź może przyjść jako zwykła wiadomość.
+Na kliknięcie bot odpowiada krótkim podziękowaniem i nie przekazuje go agentowi.
+Jedno okno dostaje co najwyżej jedną taką wiadomość.
+
+### Ile to kosztuje { #what-it-costs }
+
+Wiadomości wysyłane przez klienta są bezpłatne. Każdy numer firmowy dostaje
+**1000 bezpłatnych wiadomości serwisowych miesięcznie**; za kolejne Meta pobiera
+opłatę. **Każda późna odpowiedź to jedna wiadomość szablonowa**, za którą Meta pobiera opłatę
+na prawdziwym numerze. Numer testowy nie wymaga metody płatności.
+
+### Ograniczenia { #limits }
+
+- **Tylko czaty bezpośrednie**; grup nie ma.
+- **Wykres ani plik nie mogą dojść po późnej odpowiedzi.** Dostarczona odpowiedź
+  mówi o tym.
+- **Meta ogranicza, ilu klientów nowy numer może zagadnąć poza oknem**: na początku
+  około 250 różnych klientów na 24 godziny.
+- **Pliki ogranicza `CHAT_MAX_UPLOAD_SIZE_MB`**, ten sam limit co na innych
+  platformach, a **wiadomości głosowe 25 MB**. Plik ponad limit jest odrzucany z
+  podaniem powodu.
+- **Multimedia pochodzą tylko z `lookaside.fbsbx.com`**, hosta, z którego serwuje je
+  Meta. Plik z innego adresu albo za przekierowaniem jest odrzucany, a klient
+  dowiaduje się, że nie udało się go pobrać.
+- **Długa odpowiedź przychodzi jako kilka wiadomości, które mogą dotrzeć w złej
+  kolejności**: Meta nie gwarantuje kolejności wiadomości wysłanych jedna po drugiej.
+- Restart między potwierdzeniem odbioru Mecie a przetworzeniem wiadomości gubi
+  tę wiadomość, jak na każdym kanale. Ponowienia i duplikaty od Mety są
+  rozpoznawane przez 15 minut.
+- **Gdy Meta odrzuca token dostępu** (wygasły lub odwołany), bot jest pokazany
+  jako **niedziałający** wraz z tym, co zrobić, a następna wysłana wiadomość to
+  czyści. Status wygasa po 15 minutach bez ruchu.
+
+### Linia publiczna { #whatsapp-public-line }
+
+Domyślnie klient, który nie powiązał konta, jest proszony o jego powiązanie.
+Numer firmowy obsługujący publiczność nie może o to prosić, więc bot WhatsApp ma
+przełącznik **Odpowiadaj osobom bez powiązanego konta** (`answer_unlinked_direct`
+w polityce dostępu; z CLI `channel-public-line --bot-id ... --on`). Jest wyłączony,
+dopóki ktoś go nie włączy, i dotyczy tylko botów WhatsApp. Nowy bot nie może
+wystartować z włączonym przełącznikiem, bo okno dodawania go nie pokazuje: nowy bot
+nie ma jeszcze agenta, więc najpierw go powiąż. `mode=group_only` jest odrzucany,
+gdy przełącznik jest włączony.
+
+**Ten kompromis jest sednem sprawy.** Przy włączonym przełączniku każdy, kto zna
+numer, może napisać do bota, a bot odpowiada tym, do czego sięga specyfikacja
+powiązanego agenta: jego instrukcjami, wiedzą, narzędziami i budżetem. Zdecyduj to
+przed powiązaniem agenta i powiąż agenta napisanego z myślą o obcych.
+
+- **Run obcego działa jako agent, bez roli członka.** Korzysta tylko z opublikowanych uprawnień i jawnie podpiętych połączeń organizacji. Konta osobiste i platformowy serwer MCP są niedostępne, więc również operacje na tabelach platformy. Publikowanie strony jest odrzucane. Przed otwarciem linii sprawdź włączone capabilities i narzędzia MCP organizacji.
+- **Wymagany jest limit wydatków.** Linia potrzebuje miesięcznego budżetu
+  powiązanego agenta albo miesięcznego limitu organizacji. Bez niego odrzucane są:
+  włączenie przełącznika, powiązanie agenta, zmiana jego środowiska, wznowienie
+  wstrzymanego powiązania, ponowna aktywacja bota i usunięcie środowiska, po którym
+  powiązanie zostałoby bez limitu. Odrzucana jest też publikacja, wycofanie lub
+  promocja, po której powiązanie odpowiadające obcym zostałoby bez limitu.
+  Usunięcie limitu organizacji nie jest odrzucane. Zamiast tego bot przestaje
+  odpowiadać obcym, dopóki limitu nie ma, a ostrzeżenie przy bocie to pokazuje.
+- **Odmowa to dla klienta jedno neutralne zdanie.** Klient, którego wiadomość
+  odrzucono albo którego tura się nie powiodła, dostaje jedną zwykłą linijkę, np.
+  „Sorry, I could not answer that. Please try again later.”, a nie powód, limit
+  ani nazwę czegokolwiek ze skonfigurowanych rzeczy.
+- **Akceptacje przychodzą jako zwykły tekst i zapadają w konsoli.** Klient
+  dowiaduje się, że prośba czeka, i nie może jej zatwierdzić. Osoby decydujące widzą
+  zamaskowany numer albo nazwę użytkownika obok nazwy profilu, oznaczonej jako
+  niezweryfikowana.
+- **Pytania są odrzucane.** Gdy agent chciałby zadać klientowi pytanie
+  strukturalne, pytanie jest odrzucane, a przyciski kolejnych kroków nie są
+  oferowane.
+- **Powiązanie tylko na prośbę.** Klient nie jest proszony o powiązanie konta.
+  Jeśli chce, sam o to prosi i działa zwykły przepływ z [kodem](#linking-with-a-code).
+  Odpowiedzi nie mają stopki zużycia ani adresu konsoli.
+- **Powiązanie wymaga `channels:manage` albo wniosku.** O powiązaniu agenta z botem
+  odpowiadającym obcym, zmianie środowiska powiązania i wznowieniu wstrzymanego
+  powiązania decyduje posiadacz `channels:manage`. Kto inny, kto może edytować
+  powiązanie, składa wniosek z notatką do 500 znaków. Trasa odpowiada `202`
+  z `request_id`, a posiadacze uprawnienia dostają powiadomienie. Zatwierdzenie
+  stosuje zmianę jako zatwierdzający. Nowy wniosek tej samej osoby zastępuje jej
+  oczekujący, a wniosek zamyka się, gdy linia przestaje odpowiadać obcym albo bota
+  przejmuje inny agent. Wstrzymanie i odpięcie nie wymagają wniosku.
+- **Pliki od klientów są domyślnie wyłączone.** **Przyjmuj pliki od klientów**
+  (`accept_customer_files`) pozwala obcemu wysyłać obrazy i dokumenty, do
+  `EMBED_MAX_UPLOAD_SIZE_MB` (domyślnie 5). Pliki należą do członka, który utworzył
+  powiązanie. Przy wyłączonym ustawieniu albo powiązaniu bez twórcy plik jest
+  odrzucany neutralnym zdaniem.
+- **Wiadomości głosowe wymagają limitu organizacji.** Wiadomość głosowa od obcego
+  jest sprawdzana przed pobraniem czegokolwiek: linia musi mieć limit, organizacja
+  miesięczny limit, który nie może być wyczerpany, a nagranie może mieć najwyżej
+  2 MB. Transkrypcja nie wlicza się do własnych wydatków agenta, więc sam budżet
+  agenta nie wystarcza. Odrzucone nagranie, także przy wyłączonej transkrypcji, dostaje
+  odpowiedź „This line does not accept voice messages.”
+
+#### Widok klientów i zapominanie klienta { #the-customer-view-and-forgetting-a-customer }
+
+**Kanały → bot → Klienci** wymienia osoby, które pisały na linię publiczną.
+Posiadacze `channels:manage` widzą pełny numer telefonu i mogą po nim szukać.
+Numer jest zapisywany tylko dla nadawcy, którego bot przyjął jako obcego, i znika,
+gdy nadawca powiąże konto.
+
+**Zapomnij tego klienta** usuwa jednego klienta we wszystkich botach WhatsApp
+organizacji (z CLI `channel-forget-customer --bot-id ... --by bsuid|phone`, które
+wypisuje dopasowania i prosi o potwierdzenie). Odmawia, gdy klient powiązał konto.
+Anuluje jego zaparkowane runy, zamazuje argumenty, kontekst i notatki jego
+akceptacji, usuwa manifesty jego runów i powiadomienia o akceptacjach, usuwa
+zadania zwrotne, które nie są uruchomione, i usuwa jego piaskownice. Jeden wpis
+audytu zapisuje liczby. To, czego nie obejmuje, opisuje
+[Ochrona danych](data-protection.md#whatsapp-customers).
+
+!!! warning "Wyłączenie linii nie wysyła wiadomości o zaparkowanym runie"
+
+    Run obcego, który czeka na decyzję w chwili wyłączenia linii, zostaje
+    zaparkowany, a klient nie dostaje o nim żadnej wiadomości. Rozstrzygnij go albo
+    anuluj w konsoli.
 
 ## Bot, który nie może wystartować, zatrzymuje się, zamiast ponawiać { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
@@ -2184,6 +2446,10 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
 
     **Wiadomość bezpośrednia prosi o konto.** To rozmowa z jedną osobą, więc
     niepowiązane konto czatowe jest odrzucane, dopóki konta nie wskaże.
+
+    Wyjątkiem jest bot WhatsApp z włączoną [linią publiczną](#whatsapp-public-line):
+    tam niepowiązany nadawca dostaje odpowiedź od samego agenta, z samymi
+    uprawnieniami jego opublikowanej specyfikacji.
 
     **Kanał odpowiada każdemu, kto na nim jest.** Kto mógł zaprosić bota, ten
     wybrał publiczność, więc nadawca bez powiązanego konta nie jest odrzucany:
@@ -2982,7 +3248,7 @@ przyszła wiadomość. Zobacz [Z wiadomości na kanale](workflows.md#from-a-chan
 flowchart TD
     A{a site of your own?} -->|no| L{a link will do?}
     L -->|yes| H[a hosted page]
-    L -->|no| T[Slack, Teams, Telegram or Mattermost]
+    L -->|no| T[Slack, Teams, Telegram, Mattermost, Discord or WhatsApp]
     A -->|yes| U{your own interface?}
     U -->|yes| WS[the raw WebSocket]
     U -->|no| P{visitors signed in to your product?}
@@ -2995,7 +3261,7 @@ flowchart TD
 - Wewnątrz twojego produktu, per użytkownik → **widget, tryb `jwt`**.
 - Całkowicie własny interfejs → **WebSocket**.
 - Brak własnej strony, a link wystarczy → **hostowana strona**.
-- Tam, gdzie zespół już rozmawia → **Slack, Teams, Telegram albo Mattermost**.
+- Tam, gdzie zespół już rozmawia → **Slack, Teams, Telegram, Mattermost, Discord albo WhatsApp**.
 - Zupełnie inny system → REST API (`POST /api/v1/agents/{id}/run`).
 
 !!! success "Pierwsze cztery to jeden obiekt"
@@ -3008,7 +3274,7 @@ flowchart TD
 ## Podsumowanie { #recap }
 
 - **Jeden runner za każdą powierzchnią.** Czat webowy, hostowana strona, widget,
-  API, Slack, Teams, Telegram i Mattermost docierają do tego samego kodu, więc
+  API, Slack, Teams, Telegram, Mattermost, Discord i WhatsApp docierają do tego samego kodu, więc
   governance nie jest czymś, co wywołujący może objechać.
 - Bot odpowiada jako **jeden agent**, a wzmianka wykonuje się jako **nadawca** —
   nigdy jako bot.

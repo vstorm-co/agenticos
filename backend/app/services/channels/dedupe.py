@@ -14,14 +14,19 @@ The claim is one atomic `SET NX` against the deployment's shared Redis, so
 it holds across API workers and covers the pollers as well as the webhook
 routes - the router's chat lock is per-process on purpose, serialising the
 turns one worker runs in one chat, and is no model to follow here. The router
-takes the claim at the top of `route`, the one point all six inbound paths
-cross, and gives it back if the run under it does not finish.
+takes a message's claim at the top of `route`, the one point all six inbound
+paths cross, and gives it back if the run under it does not finish. A button
+press that a platform may deliver twice is claimed by `process_channel_press`
+and, a press being a quick decision, never given back, in a namespace of its own
+(`pressed`). A next-step tap is then routed as a message under the same id; the
+other taps are not.
 """
 
+import hashlib
 import logging
 
 from app.clients.redis import RedisClient
-from app.services.channels.base import IncomingMessage
+from app.services.channels.base import IncomingMessage, IncomingPress
 
 logger = logging.getLogger(__name__)
 
@@ -49,17 +54,23 @@ def configure(redis: RedisClient | None) -> None:
     _redis = redis
 
 
-def _key(incoming: IncomingMessage) -> str:
+def _key(
+    incoming: IncomingMessage | IncomingPress, delivery_id: str | None, prefix: str = "seen"
+) -> str:
     """The claim's address: what the *platform* calls the message.
 
     The chat id is part of it because a message id is only unique inside its
     chat on some platforms - Telegram numbers messages per chat and Slack's
     `ts` is per channel - so a bot-wide key would let one chat's message
     silently swallow another's.
+
+    `prefix` is the claim's namespace. A press is claimed as `pressed` and then
+    may be routed as a message under the same id; sharing a namespace would make
+    the router drop it as a duplicate of its own press.
     """
     return (
-        f"channel:seen:{incoming.bot_id}:{incoming.platform}"
-        f":{incoming.platform_chat_id}:{incoming.message_id}"
+        f"channel:{prefix}:{incoming.bot_id}:{incoming.platform}"
+        f":{incoming.platform_chat_id}:{delivery_id}"
     )
 
 
@@ -77,9 +88,21 @@ async def remember_unaddressed(incoming: IncomingMessage) -> None:
     ):
         return
     try:
-        await _redis.set(_key(incoming), "ignored", ttl=SEEN_TTL_SECONDS)
+        await _redis.set(_key(incoming, incoming.message_id), "ignored", ttl=SEEN_TTL_SECONDS)
     except Exception:
         logger.warning("channel_edit_candidate_unavailable", exc_info=True)
+
+
+def delivery_ref(message_id: str | None) -> str | None:
+    """A short, stable, non-reversible stand-in for a platform message id, for log lines.
+
+    A message id is the platform's to define: WhatsApp's is base64 of ids that
+    include the customer's phone number. So no line formats one; it logs this, which
+    still lets an operator match a redelivery's lines to each other.
+    """
+    if message_id is None:
+        return None
+    return hashlib.sha256(message_id.encode()).hexdigest()[:12]
 
 
 async def claim_delivery(incoming: IncomingMessage) -> bool:
@@ -103,9 +126,11 @@ async def claim_delivery(incoming: IncomingMessage) -> bool:
         if incoming.message_id is None or _redis is None:
             return False
         try:
-            if await _redis.get(_key(incoming)) != "ignored":
+            if await _redis.get(_key(incoming, incoming.message_id)) != "ignored":
                 return False
-            return await _redis.set(f"{_key(incoming)}:edit", "1", ttl=SEEN_TTL_SECONDS, nx=True)
+            return await _redis.set(
+                f"{_key(incoming, incoming.message_id)}:edit", "1", ttl=SEEN_TTL_SECONDS, nx=True
+            )
         except Exception:
             logger.warning("channel_edited_delivery_unavailable", exc_info=True)
             return False
@@ -117,22 +142,52 @@ async def claim_delivery(incoming: IncomingMessage) -> bool:
             incoming.platform,
         )
         return True
+    admitted, claimed = await _claim(
+        _key(incoming, incoming.message_id),
+        bot_id=incoming.bot_id,
+        platform=incoming.platform,
+        ref=incoming.message_id,
+    )
+    incoming.dedupe_claimed = claimed
+    return admitted
+
+
+async def claim_press(press: IncomingPress) -> bool:
+    """Claim this press's delivery, on the terms of `claim_delivery`.
+
+    Only a platform that may deliver one press twice gives it a `delivery_id`
+    (a tap's own message id); a press without one is always ours. The claim is per chat for the
+    same reason a message's is.
+    """
+    if press.delivery_id is None:
+        return True
+    admitted, _ = await _claim(
+        _key(press, press.delivery_id, "pressed"),
+        bot_id=press.bot_id,
+        platform=press.platform,
+        ref=press.delivery_id,
+    )
+    return admitted
+
+
+async def _claim(key: str, *, bot_id: str, platform: str, ref: str) -> tuple[bool, bool]:
+    """Return admission and receipt separately; an unavailable store grants no receipt."""
     if _redis is None:
         logger.warning(
             "Channel dedupe not configured - delivery processed without a claim: "
             "bot=%s platform=%s message=%s",
-            incoming.bot_id,
-            incoming.platform,
-            incoming.message_id,
+            bot_id,
+            platform,
+            delivery_ref(ref),
         )
-        return True
+        return True, False
     try:
-        claimed = await _redis.set(_key(incoming), "1", ttl=SEEN_TTL_SECONDS, nx=True)
+        claimed = await _redis.set(key, "1", ttl=SEEN_TTL_SECONDS, nx=True)
     except Exception:
         logger.warning("channel_dedupe_redis_unavailable", exc_info=True)
-        return True
-    incoming.dedupe_claimed = claimed
-    return claimed
+        return True, False
+    else:
+        return claimed, claimed
 
 
 async def release_delivery(incoming: IncomingMessage) -> None:
@@ -155,7 +210,21 @@ async def release_delivery(incoming: IncomingMessage) -> None:
     if incoming.message_id is None or _redis is None:
         return
     try:
-        key = f"{_key(incoming)}:edit" if _is_edited_mention(incoming) else _key(incoming)
+        key = (
+            f"{_key(incoming, incoming.message_id)}:edit"
+            if _is_edited_mention(incoming)
+            else _key(incoming, incoming.message_id)
+        )
         await _redis.delete(key)
     except Exception:
         logger.warning("channel_dedupe_release_failed", exc_info=True)
+
+
+async def release_press(press: IncomingPress) -> None:
+    """Permit a durable worker to retry a decision that did not finish."""
+    if press.delivery_id is None or _redis is None:
+        return
+    try:
+        await _redis.delete(_key(press, press.delivery_id, "pressed"))
+    except Exception:
+        logger.warning("channel_press_release_failed", exc_info=True)

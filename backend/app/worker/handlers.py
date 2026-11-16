@@ -82,6 +82,10 @@ def production() -> Handlers:
             *ingest().values(),
             Handler(jobs.PROCESS_CHANNEL_DELIVERY, channel_tasks.process_channel_delivery),
             Handler(jobs.PROCESS_EMAIL_DELIVERY, channel_tasks.process_email_delivery),
+            Handler(jobs.PROCESS_WHATSAPP_DELIVERY, channel_tasks.process_whatsapp_delivery),
+            Handler(
+                jobs.PROCESS_WHATSAPP_WINDOW_REFUSAL, channel_tasks.process_whatsapp_window_refusal
+            ),
             Handler(jobs.DELIVER_CHANNEL_HANDBACK, channel_tasks.deliver_handback),
             Handler(jobs.FIRE_TRIGGER, trigger_tasks.fire_trigger),
             Handler(jobs.WAKE_TASK, task_tasks.wake_task),
@@ -128,6 +132,7 @@ def production() -> Handlers:
             Handler(jobs.SWEEP_MCP_CONNECTIONS, _each_tick(mcp_tasks.sweep_mcp_connections)),
             Handler(jobs.SYNC_DISCORD_ROLES, _each_tick(channel_tasks.sync_discord_roles)),
             Handler(jobs.EXPIRE_APPROVALS, _each_tick(approval_tasks.expire_approvals)),
+            Handler(jobs.WHATSAPP_NUDGES, _each_tick(channel_tasks.send_whatsapp_nudges)),
             Handler(jobs.EXPIRE_INVITATIONS, _each_tick(invitation_tasks.expire_invitations)),
             Handler(jobs.REAP_STALE_RUNS, _each_tick(run_tasks.reap_stale_runs)),
             Handler(

@@ -2510,7 +2510,11 @@
       "runsWithYourPermissions": "Agent odpowiada jako Ty - Twoje uprawnienia, Twój budget, Twoje nazwisko w śladzie audytu.",
       "seeConnectedAccounts": "Zobacz połączone konta",
       "thatAccount": "To konto czatu",
-      "theAgentWillRunAsYou": "Bot musi wiedzieć, kim jesteś, zanim Ci odpowie."
+      "theAgentWillRunAsYou": "Bot musi wiedzieć, kim jesteś, zanim Ci odpowie.",
+      "finishInTheChat": "Dokończ na czacie",
+      "nameNotVerified": "(nazwa niezweryfikowana)",
+      "notConnectedYet": "Twoje konto nie jest połączone, dopóki czat nie otrzyma kodu.",
+      "sendThisCode": "Wyślij ten kod ze swojego czatu {platform}, aby dokończyć. Nikomu go nie podawaj."
     },
     "channels": {
       "respondToBroadcasts": "Reaguj na wzmianki grupowe",
@@ -2625,7 +2629,7 @@
       "transcriptionInheritsFromOrg": "{pair}, od organizacji",
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
-      "transcriptionMistralFormat": "{platform, select, slack {Aplikacja desktopowa Slacka nagrywa klipy audio jako WebM} discord {Discord wysyła wiadomości głosowe jako Ogg/Opus} other {Telegram wysyła wiadomości głosowe jako Ogg/Opus}}, a Mistral nie wymienia tego formatu wśród akceptowanych. Transkrypcja może się nie udać; jeśli tak się stanie, wybierz dla tego bota innego providera.",
+      "transcriptionMistralFormat": "{platform, select, slack {Aplikacja desktopowa Slacka nagrywa klipy audio jako WebM} discord {Discord wysyła wiadomości głosowe jako Ogg/Opus} whatsapp {WhatsApp wysyła wiadomości głosowe jako Ogg/Opus} other {Telegram wysyła wiadomości głosowe jako Ogg/Opus}}, a Mistral nie wymienia tego formatu wśród akceptowanych. Transkrypcja może się nie udać; jeśli tak się stanie, wybierz dla tego bota innego providera.",
       "transcriptionProviderNoKey": "{name} (brak pasującego klucza)",
       "transcriptionInheritedNoKey": "Na poziomie, z którego pochodzi ta para, nie wybrano klucza, więc wiadomości głosowe nie są transkrybowane, dopóki ktoś go nie wybierze.",
       "botTokenHintEmail": "Adres, z którego bot odpowiada, na przykład agent@mail.example.com. Odpowiedzi wychodzą przez dostawcę poczty tej instalacji.",
@@ -2646,7 +2650,100 @@
       "discordGuilds": "Zatwierdzone ID serwerów Discorda",
       "discordGuildsHint": "Włącz tryb deweloperski Discorda i skopiuj ID każdego zatwierdzonego serwera. Oddziel ID przecinkami lub spacjami. Pusta lista pozwala tylko na wiadomości prywatne; wiadomości z serwerów pozostają zablokowane.",
       "discordGuildsInvalid": "Wpisz liczbowe ID serwerów, oddzielone przecinkami lub spacjami (maksymalnie 2500 serwerów).",
-      "emailAddress": "Adres e-mail"
+      "emailAddress": "Adres e-mail",
+      "botTokenHintWhatsapp": "Token dostępu użytkownika systemowego z ustawień Meta Business. Użyj tokenu stałego: tymczasowy przestaje działać po jednym dniu.",
+      "whatsappPhoneNumberId": "Identyfikator numeru telefonu",
+      "whatsappPhoneNumberIdHint": "W aplikacji Meta, w sekcji WhatsApp, Konfiguracja API. To identyfikator numeru, a nie sam numer telefonu.",
+      "whatsappAccountId": "Identyfikator konta WhatsApp Business",
+      "whatsappAccountIdHint": "Konto, do którego należy numer; widać je obok numeru w konfiguracji API.",
+      "whatsappAppSecret": "Sekret aplikacji",
+      "whatsappAppSecretHint": "W aplikacji Meta, w Ustawieniach aplikacji, Podstawowe. Nim weryfikowana jest każda przychodząca wiadomość.",
+      "whatsappVerifyToken": "Token weryfikacyjny",
+      "whatsappVerifyTokenHint": "Ciąg znaków, który wybierasz sam, co najmniej 8 znaków. Meta prosi o niego przy subskrypcji webhooka. Jest zapisany w postaci zaszyfrowanej i nie jest już wyświetlany.",
+      "whatsappCallback": "Adres zwrotny (callback URL)",
+      "whatsappCallbackHint": "Meta wywołuje ten adres. Token weryfikacyjny to ten, który wybrano przy rejestracji bota; nigdy nie jest tu pokazywany.",
+      "whatsappSetupSteps": "W aplikacji Meta:",
+      "whatsappStepCallback": "W sekcji WhatsApp, Konfiguracja, wklej adres zwrotny i token weryfikacyjny.",
+      "whatsappStepSubscribe": "Zasubskrybuj pole messages.",
+      "whatsappStepLive": "Przełącz aplikację w tryb Live.",
+      "whatsappSendDown": "Nie można wysyłać odpowiedzi",
+      "whatsappStepToken": "Użyj stałego tokenu dostępu użytkownika systemowego.",
+      "whatsappLateTemplate": "Szablon późnej odpowiedzi",
+      "whatsappLateTemplateHint": "Używany, gdy odpowiedź jest gotowa po zamknięciu 24-godzinnego okna klienta. Każda taka późna odpowiedź jest wysyłana jako wiadomość z szablonu, za którą Meta pobiera opłatę.",
+      "whatsappLateTemplateNone": "Brak",
+      "whatsappLateTemplateLoading": "Wczytywanie szablonów…",
+      "whatsappLateTemplateEmpty": "Meta nie pokazuje na tym koncie żadnego zatwierdzonego szablonu Utility z jedną zmienną w treści i co najwyżej jednym przyciskiem szybkiej odpowiedzi.",
+      "whatsappLateTemplateFailed": "Nie udało się wczytać szablonów z Mety. Spróbuj za chwilę, a jeśli błąd się powtarza, sprawdź token dostępu bota.",
+      "whatsappLateTemplateOption": "{name} · {language}",
+      "whatsappLateTemplateUnlisted": "{name} · {language} (Meta nie pokazuje go już jako możliwego do użycia)",
+      "whatsappNoLateTemplate": "Brak szablonu późnej odpowiedzi",
+      "whatsappNoLateTemplateHint": "Nie ustawiono szablonu późnej odpowiedzi. Odpowiedź gotowa po zamknięciu 24-godzinnego okna klienta czeka, aż klient napisze ponownie.",
+      "registeredCount": "{count, plural, one {1 zarejestrowany kanał} few {# zarejestrowane kanały} many {# zarejestrowanych kanałów} other {# zarejestrowanego kanału}}",
+      "publicLineSwitch": "Odpowiadaj osobom bez konta",
+      "publicLineHint": "Klienci, którzy nie powiązali konta, dostają odpowiedzi od samego agenta, a nie jako współpracownik. Tylko prywatne czaty WhatsApp.",
+      "publicLineNoLimit": "Ta linia potrzebuje najpierw limitu wydatków: nadaj agentowi miesięczny budżet albo organizacji miesięczny limit.",
+      "publicLineNoAgent": "Ten bot nie obsługuje jeszcze żadnego agenta. Powiąż go, zanim otworzysz linię.",
+      "publicLineServes": "Obsługuje agenta {agent}, wersja {version}",
+      "publicLineReaches": "Klient może dotrzeć do:",
+      "publicLineReachKnowledge": "Wiedza: {names}",
+      "publicLineReachContext": "Pliki kontekstu: {names}",
+      "publicLineReachSkills": "Skille: {names}",
+      "publicLineReachTables": "Tabele: {names}",
+      "publicLineReachWeb": "Sieć: {names}",
+      "publicLineReachCode": "Kod i workspace'y: {names}",
+      "publicLineReachGeneration": "Generowane media: {names}",
+      "publicLineReachDelegates": "Inni agenci: {names}",
+      "publicLineReachMcp": "Serwery MCP: {names}",
+      "publicLineReachFiles": "Pliki, które wysyła",
+      "publicLineOutsideLedger": "nie wlicza się do limitu wydatków",
+      "publicLineTableGrant": "{name}: {operations}",
+      "publicLineMayCreate": "może tworzyć tabele",
+      "customersLoadMore": "Wczytaj więcej",
+      "customersTotal": "{shown} z {total} klientów",
+      "publicLineAgentBudget": "Miesięczny budżet agenta: {amount}",
+      "publicLineOrgCap": "Miesięczny limit organizacji: {amount}",
+      "publicLineRate": "Każdy klient ma limit {count, plural, one {# wiadomości na minutę} few {# wiadomości na minutę} many {# wiadomości na minutę} other {# wiadomości na minutę}}",
+      "publicLineApprovalExpiry": "Zatwierdzenie, którego nikt nie rozstrzygnie, wygasa po {hours, plural, one {# godzinie} few {# godzinach} many {# godzinach} other {# godzin}}",
+      "publicLineFileCap": "Pliki do {mb} MB",
+      "publicLineVoiceCap": "Wiadomości głosowe do {mb} MB są transkrybowane",
+      "publicLineVoiceNeedsCap": "Wiadomości głosowe wymagają limitu organizacji i są odrzucane, dopóki go nie ustawisz",
+      "publicLineRefused": "Klient nigdy nie dotrze do: {list}",
+      "publicLineRefusedMemory": "pamięci",
+      "publicLineRefusedConversationSearch": "wyszukiwania w rozmowach",
+      "publicLineRefusedArtifacts": "publikowania stron",
+      "publicLineRefusedWorkflows": "workflow",
+      "publicLineRefusedBackgroundTasks": "zadań w tle",
+      "publicLineRefusedPlatformMcp": "własnego serwera MCP platformy",
+      "publicLineFiles": "Przyjmuj pliki od klientów",
+      "publicLineFilesHint": "Zapisywane na koncie osoby, która powiązała agenta. Gdy wyłączone, plik jest grzecznie odrzucany.",
+      "publicLineBadge": "Linia publiczna",
+      "bindingApproved": "Prośba zatwierdzona",
+      "bindingDeclined": "Prośba odrzucona",
+      "bindingRequests": "Prośby o powiązanie",
+      "bindingRequestsHint": "Osoby budujące agentów pytają tu, zanim agent zacznie odpowiadać klientom na linii publicznej. Zatwierdzenie wprowadza zmianę w Twoim imieniu.",
+      "bindingRequestLine": "{requester} prosi o {kind, select, bind {powiązanie agenta {agent} z botem {bot}} environment {zmianę środowiska agenta {agent} na bocie {bot}} resume {wznowienie agenta {agent} na bocie {bot}} other {zmianę agenta {agent} na bocie {bot}}}",
+      "someone": "Ktoś",
+      "bindingRequestNote": "Uwaga: {note}",
+      "approve": "Zatwierdź",
+      "decline": "Odrzuć",
+      "customersOf": "Klienci bota {bot}",
+      "customersTitle": "Klienci bota {bot}",
+      "customerSearch": "Szukaj po numerze telefonu",
+      "customerSearchButton": "Szukaj",
+      "customerShowAll": "Pokaż wszystkich",
+      "customersNone": "Nie ma jeszcze klientów",
+      "customerNoMatch": "Żaden klient nie ma tego numeru",
+      "customerUnverifiedName": "{name} (niezweryfikowane)",
+      "customerLastMessage": "Ostatnia wiadomość: {when}",
+      "customerNoMessages": "Brak wiadomości",
+      "customerLinked": "Powiązany",
+      "customerLinkedWhy": "Ten klient powiązał konto, więc jest członkiem organizacji i nie można go zapomnieć.",
+      "customerForget": "Zapomnij: {name}",
+      "customerForgetTitle": "Zapomnieć: {name}?",
+      "customerForgetBody": "To usuwa klienta ze wszystkich botów WhatsApp organizacji: jego numer, imię i wiadomości oraz pliki i zatwierdzenia z jego czatów. Jego runy zostają jako ewidencja, bez tego, co napisał. Tej operacji nie można cofnąć.",
+      "customerForgetConfirm": "Zapomnij klienta",
+      "customerForgotten": "Klient zapomniany",
+      "publicLineReachIntegrations": "Podłączone konta organizacji: {names}"
     },
     "invitations": {
       "acceptInvitation": "Przyjmij zaproszenie",
@@ -3201,8 +3298,8 @@
       "surfaceEmail": "E-mail",
       "systemRoleBriefing": "Codzienny briefing (system)",
       "systemRoleMaintenance": "Utrzymanie pamięci (system)",
-      "askedInChat": "{platform}: {name} (konto niezweryfikowane)",
-      "askedInChatThrough": "{platform}: {name} (konto niezweryfikowane), przez bota {bot}",
+      "askedInChat": "{platform}: {name} (konto niezweryfikowane{hasHandle, select, yes {, {handle}} other {}})",
+      "askedInChatThrough": "{platform}: {name} (konto niezweryfikowane{hasHandle, select, yes {, {handle}} other {}}), przez bota {bot}",
       "decisionApprovedInChat": "Zatwierdzono. Gdy nic innego nie czeka, agent kontynuuje w czacie, w którym o to poproszono.",
       "decisionRejectedInChat": "Odrzucono. Gdy nic innego nie czeka, agent odpowie w czacie, w którym o to poproszono.",
       "runResumedInChat": "Run wznowiony. Odpowiedź trafi też do czatu, w którym o to poproszono.",
@@ -3245,7 +3342,11 @@
       "inputTokenCacheRead": "Odczyt cache",
       "inputTokenCacheWrite": "Zapis cache",
       "inputTokenHint": "Suma zapisanych zapytań modelu. Tokeny cache są częścią wejścia, a nie dodatkową pozycją.",
-      "systemRoleChannelDecision": "Decyzja o dołączeniu do kanału (system)"
+      "systemRoleChannelDecision": "Decyzja o dołączeniu do kanału (system)",
+      "undeliveredWindowNoTemplate": "Nie dostarczono: poza 24-godzinnym oknem WhatsAppa i nie ustawiono szablonu późnej odpowiedzi.",
+      "undeliveredWindowTemplateFailed": "Nie dostarczono: poza 24-godzinnym oknem WhatsAppa, a szablonu późnej odpowiedzi nie udało się wysłać.",
+      "undeliveredOther": "Ta odpowiedź nie została dostarczona.",
+      "surfaceWhatsapp": "WhatsApp"
     },
     "sandboxes": {
       "addConnection": "Dodaj połączenie",
@@ -3289,7 +3390,7 @@
       "chatAccountNoAgentsHere": "Żaden agent, którego widzisz, nie odpowiada na tym bocie.",
       "chatAccountNotUsedYet": "Jeszcze nigdzie nieużywane. Napisz do jednego z botów organizacji.",
       "chatAccounts": "Konta czatu",
-      "chatAccountsDescription": "Konta Slack, Microsoft Teams, Telegram, Mattermost i Discord połączone z Tobą. Agent, do którego dotrzesz przez jedno z nich, odpowiada jako Ty, z Twoimi uprawnieniami i Twoim budgetem.",
+      "chatAccountsDescription": "Konta Slack, Microsoft Teams, Telegram, Mattermost, Discord i WhatsApp połączone z Tobą. Agent, do którego dotrzesz przez jedno z nich, odpowiada jako Ty, z Twoimi uprawnieniami i Twoim budgetem.",
       "confirmNewPassword": "Potwierdź nowe hasło",
       "currentPassword": "Obecne hasło",
       "deleteAccount": "Usuń konto",
@@ -3484,7 +3585,11 @@
       "notificationClearSearch": "Wyczyść wyszukiwanie",
       "notificationEventCount": "{count, plural, one {# zdarzenie} few {# zdarzenia} many {# zdarzeń} other {# zdarzenia}}",
       "mobileAccountHint": "Korzystaj z AgenticOS na telefonie z tym samym kontem.",
-      "openMobileApp": "Skonfiguruj aplikację mobilną"
+      "openMobileApp": "Skonfiguruj aplikację mobilną",
+      "prefChannelBindingRequested": "Prośby o powiązanie",
+      "prefChannelBindingRequestedTrigger": "Ktoś prosi o powiązanie agenta z publiczną linią WhatsApp, zmianę jego środowiska albo zdjęcie wstrzymania. Trafia do osób zarządzających kanałami.",
+      "prefChannelBindingDecided": "Decyzje o powiązaniach",
+      "prefChannelBindingDecidedTrigger": "Administrator zatwierdził lub odrzucił Twoją prośbę dotyczącą linii publicznej."
     },
     "tables": {
       "title": "Tabele",
@@ -4862,7 +4967,7 @@
         "description": "Uruchomienia wstrzymane na wywołaniu narzędzia, czekające na decyzję.",
         "someAgent": "Agent",
         "forPerson": "dla {email} · czeka {ago}",
-        "forChatAccount": "dla {name} (konto niezweryfikowane) · czeka {ago}"
+        "forChatAccount": "dla {name} (konto niezweryfikowane{hasHandle, select, yes {, {handle}} other {}}) · czeka {ago}"
       },
       "budget-headroom": {
         "title": "Zapas budżetu",
@@ -5190,7 +5295,8 @@
           "schedule": "Harmonogram",
           "workflow": "Workflow",
           "follow_ups": "Następne kroki",
-          "proactive": "Proaktywność"
+          "proactive": "Proaktywność",
+          "whatsapp": "WhatsApp"
         },
         "empty": {
           "title": "Brak uruchomień w tym okresie",
@@ -5275,7 +5381,8 @@
         "platforms": {
           "telegram": "Telegram",
           "slack": "Slack",
-          "mattermost": "Mattermost"
+          "mattermost": "Mattermost",
+          "whatsapp": "WhatsApp"
         },
         "webhook": "nasłuchuje",
         "polling": "odpytuje",
@@ -5283,7 +5390,10 @@
         "empty": {
           "title": "Brak kanałów",
           "description": "Zarejestruj bota, a jego agenci staną się dostępni ze Slacka, Telegrama albo Mattermosta."
-        }
+        },
+        "publicLine": "linia publiczna",
+        "publicLinePill": "{mode} · {flag}",
+        "bindingRequests": "{count, plural, one {# prośba o powiązanie} few {# prośby o powiązanie} many {# próśb o powiązanie} other {# prośby o powiązanie}}"
       },
       "knowledge": {
         "title": "Wiedza",
@@ -5407,7 +5517,8 @@
         "waiting": "Czeka na Ciebie",
         "nothingWaiting": "Nic nie czeka",
         "spent": "Wydane",
-        "spentLabel": "wydano {amount}"
+        "spentLabel": "wydano {amount}",
+        "review": "Przejrzyj"
       },
       "eval-runs": {
         "title": "Runy ewaluacji",
@@ -5737,7 +5848,7 @@
         "agent": "Architect zbuduje go razem z tobą.",
         "publish": "Żeby ludzie mogli z niego korzystać w czacie i w kanałach.",
         "knowledge": "Dokumenty, z których odpowiada.",
-        "channel": "Slack, Teams, Telegram, Mattermost albo Discord."
+        "channel": "Slack, Teams, Telegram, Mattermost, Discord albo WhatsApp."
       },
       "left": "{count, plural, =1 {Został 1 krok} few {Zostały # kroki} many {Zostało # kroków} other {Zostało # kroków}}",
       "start": "Zacznij",
@@ -5827,7 +5938,7 @@
         },
         "channels": {
           "title": "Bądź tam, gdzie pisze zespół",
-          "body": "Wstaw agenta do Slacka, Telegrama albo Mattermosta, a ludzie zapytają go w wątku, w którym już są.",
+          "body": "Wstaw agenta do Slacka, Teams, Telegrama, Mattermosta, Discorda albo WhatsAppa, a ludzie zapytają go w wątku, w którym już są.",
           "cta": "Dodaj komunikator"
         },
         "browser": {
@@ -6607,7 +6718,7 @@
       },
       "channels-new": {
         "title": "Docieraj tam, gdzie są ludzie",
-        "body": "Zarejestruj platformę czatu - Slack, Telegram, Mattermost - i każdy agent może odpowiadać w niej. Token bota jest zapieczętowany w vault. Dodaj kanał tutaj."
+        "body": "Zarejestruj platformę czatu - Slack, Telegram, Mattermost, Teams, Discord, WhatsApp - i każdy agent może odpowiadać w niej. Token bota jest zapieczętowany w vault. Dodaj kanał tutaj."
       },
       "chat-agent-picker": {
         "title": "Wybierz, kto odpowiada",
@@ -7789,6 +7900,14 @@
       "personal-integration-accounts": {
         "title": "Twoje podłączone konta",
         "body": "Tutaj dodajesz, ponownie łączysz i odłączasz własne konta. Możesz podłączyć kilka kont tej samej usługi."
+      },
+      "channels-binding-requests": {
+        "title": "Zdecyduj, kto trafia do klientów",
+        "body": "Gdy osoba budująca agentów prosi o umieszczenie agenta na linii publicznej, prośba czeka tutaj razem z jej uwagą. Zatwierdzenie ją wprowadza, odrzucenie informuje autora."
+      },
+      "channels-customers": {
+        "title": "Osoby, które piszą",
+        "body": "Zobacz, kto napisał na linię WhatsApp bez konta, szukaj po numerze i na prośbę zapomnij klienta we wszystkich botach organizacji."
       }
     },
     "chooseLanguage": "Język",
@@ -8532,7 +8651,8 @@
       "hiddenAgents": "{count, plural, one {# inny agent} few {# innych agentów} many {# innych agentów} other {# innego agenta}}",
       "testOptionalShort": "Test (opcjonalnie)",
       "compareShort": "Zmiany"
-    }
+    },
+    "savingReachesEveryAgent": "Zapis dosięga każdego związanego z tym skillem agenta przy jego następnym runie. Nie ma wersji roboczej ani kroku publikacji."
   },
   "settings": {
     "builtCommands": "Wbudowane polecenia",
@@ -10296,7 +10416,19 @@
     "observationRequired": "Wybierz model podejmujący decyzję o dołączeniu do rozmowy.",
     "observationSaveFailed": "Nie udało się zapisać. Zmiany pozostały w formularzu; spróbuj ponownie.",
     "observationSave": "Zapisz ustawienia uczestnictwa",
-    "enableIntegrationTool": "Włącz {tool}"
+    "enableIntegrationTool": "Włącz {tool}",
+    "contextFilesDetail": "Stały kontekst, który czyta ten agent - słowniczek lub polityka wstrzyknięta do jego promptu, albo pliki, które czyta na żądanie.",
+    "tablesGrantsLabel": "Tabele, których ten agent może używać",
+    "tablesGrantsDetail": "Zaznacz tabelę, a potem wybierz, co agent może w niej robić. Odczyt jest zawsze włączony. Agent nigdy nie sięga do tabeli, której tu nie zaznaczono, a każde wywołanie jest nadal sprawdzane jako członek, w którego imieniu działa.",
+    "tablesOperationsLabel": "Co agent może robić w {name}",
+    "publicLineBinding": "Ten bot odpowiada klientom bez powiązanego konta, więc z tym agentem rozmawiają tu osoby spoza organizacji.",
+    "publicLineReview": "Sprawdź linię",
+    "bindingRequested": "Prośba wysłana - musi ją zatwierdzić administrator",
+    "askAnAdministrator": "Poproś administratora",
+    "waitingForAdministrator": "Czeka na administratora: {bot}",
+    "noteForAdministrator": "Uwaga dla administratora",
+    "noteForAdministratorPlaceholder": "Dlaczego {bot} ma odpowiadać klientom tym agentem",
+    "sendRequest": "Wyślij prośbę"
   },
   "steps": {
     "skills-gallery": {
@@ -11437,6 +11569,26 @@
       "connection_ids": {
         "title": "Konta organizacji",
         "description": "Konta organizacji dostępne dla tej capability. Przy wielu kontach agent dopyta, którego użyć, jeśli nie wynika to z prośby."
+      }
+    },
+    "memory_mem0": {
+      "base_url": {
+        "title": "URL własnego mem0",
+        "description": "Bazowy URL samodzielnie hostowanego mem0; pomiń dla chmury mem0."
+      },
+      "allow_personal": {
+        "title": "Prywatna pamięć dla każdej osoby",
+        "description": "Czy agent zapamiętuje prywatnie rzeczy o każdej osobie, z którą rozmawia, czytelne tylko w rozmowie sam na sam z nią. Wyłączone usuwa ten magazyn, ze względów zgodności lub prywatności; pamięć czatów grupowych zostaje."
+      }
+    },
+    "virtual_tables": {
+      "tables": {
+        "title": "Tabele, których może używać",
+        "description": "Tabele, do których agent ma dostęp, i to, co może w każdej z nich robić."
+      },
+      "allow_create": {
+        "title": "Tworzenie tabel",
+        "description": "Pozwala agentowi tworzyć nowe tabele. Członek, w imieniu którego działa, nadal potrzebuje uprawnienia tables:create."
       }
     }
   },
@@ -13864,7 +14016,18 @@
       }
     },
     "setup": {
-      "bubble": "Nie mam jeszcze podpiętego modelu, więc nie potrafię myśleć. Pokazać Ci, jak go podpiąć?"
+      "bubble": "Nie mam jeszcze podpiętego modelu, więc nie potrafię myśleć. Pokazać Ci, jak go podpiąć?",
+      "title": "Podpinanie modelu",
+      "typing": "{name} pisze…",
+      "openBuilder": "Otwórz ustawienia mojego modelu",
+      "steps": {
+        "intro": "Cześć, jestem {name}. Pomagam budować agentów i odnaleźć się na platformie - ale żeby myśleć, potrzebuję modelu językowego, a żaden nie jest jeszcze podpięty. Pokażę Ci, jak to zrobić. To zajmie około dwóch minut.",
+        "key": "<b>Krok 1: zdobądź klucz API.</b> Zaloguj się u dostawcy modeli - Anthropic, OpenAI, Google lub innego - i utwórz klucz API w jego konsoli. To długi ciąg znaków, często zaczynający się od „sk-”. Jeśli Twoja firma ma własny model, np. na Ollamie albo vLLM, wystarczy jego adres.",
+        "settings": "<b>Krok 2: otwórz mnie w Agent Builderze.</b> W sekcji Model wybierz dostawcę i wklej klucz. Trafi prosto do vaulta, zaszyfrowany - nikt już nie zobaczy go w całości, ja też nie.",
+        "model": "<b>Krok 3: wybierz model i opublikuj.</b> Na start dobry jest mocny model ze średniej półki cenowej - zmienisz go w każdej chwili.",
+        "done": "<b>To wszystko.</b> Wróć tutaj, a od razu się przywitam. Z tego modelu mogą korzystać też wszyscy inni agenci w Twojej organizacji.",
+        "askAdmin": "<b>Kto może to zrobić:</b> model podpina tylko administrator Twojej organizacji. Poproś go o te kroki - zajmą mu około dwóch minut, a potem będę tu dla wszystkich."
+      }
     },
     "screenshot": "Pokaż mu tę stronę",
     "screenshotFailed": "Nie udało się zrobić zrzutu ekranu. Wklej go do rozmowy samodzielnie.",
@@ -14372,6 +14535,21 @@
       "example2": "Przygotuj zmianę i poproś o zatwierdzenie",
       "needs": "Konto Odoo 19+ połączone w Vault, zainstalowane moduły biznesowe i odpowiednie uprawnienia w Odoo.",
       "never": "Nie odczytuje kont innych osób; zapis wymaga zatwierdzenia."
+    },
+    "memory_mem0": {
+      "name": "Pamięć (mem0)",
+      "does": "Agent zapamiętuje fakty i odnajduje je po znaczeniu; są przechowywane w usłudze mem0.",
+      "example1": "Zapamiętać, że klient woli e-mail od telefonu",
+      "needs": "Konto mem0, w chmurze lub własne, i jego klucz API w vault.",
+      "never": "Nigdy nie pokazuje wspomnień jednej osoby drugiej. W czacie grupowym należą do czatu."
+    },
+    "virtual_tables": {
+      "name": "Tabele",
+      "does": "Agent może wyświetlać, czytać i zapisywać typowane tabele, do których ma dostęp - dodać rekord, zmienić go, znaleźć.",
+      "example1": "Zapisać każde nowe zgłoszenie do wsparcia jako wiersz",
+      "example2": "Sprawdzić plan klienta w tabeli przed odpowiedzią",
+      "needs": "Co najmniej jedna udostępniona tabela albo uprawnienie do tworzenia tabel.",
+      "never": "Nigdy nie rusza tabeli, do której nie ma dostępu, i nie usuwa tabel; usunięty rekord zachowuje swoją historię."
     }
   },
   "capabilityCategories": {
@@ -14961,7 +15139,8 @@
       "done": {
         "title": "Wszystko gotowe",
         "body": "Wszystko to znajdziesz w Ustawieniach, kiedy zechcesz coś zmienić."
-      }
+      },
+      "onlyInApp": "To powitanie należy do aplikacji desktopowej AgenticOS."
     },
     "readiness": {
       "title": "Gotowość aplikacji",
@@ -15003,7 +15182,8 @@
       "opening": "Otwieranie przestrzeni roboczej…",
       "permissionNoteMac": "Sprawdzenie nie przechwytuje ekranu, dźwięku ani schowka. Uprawnienia są opcjonalne i wymagają kliknięcia. Po zmianie Nagrywania ekranu macOS może wymagać restartu aplikacji.",
       "screenCaptureDeniedElsewhere": "System nie udostępnia ekranu tej aplikacji. Zezwól na to w ustawieniach prywatności systemu, a następnie odśwież status.",
-      "link": "Połącz"
+      "link": "Połącz",
+      "connect": "Połącz"
     },
     "notificationSettings": {
       "title": "Powiadomienia desktopowe",
@@ -19056,11 +19236,11 @@
       },
       "integration_odoo_contacts_search_contacts": {
         "name": "Odoo Contacts: Wyszukiwanie (kontakty)",
-        "description": "res.partner: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+        "description": "res.partner: Wyszukuje z body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_contacts_read_contacts": {
         "name": "Odoo Contacts: Odczyt (kontakty)",
-        "description": "res.partner: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+        "description": "res.partner: Odczytuje body (ids, fields); najwyżej 100 rekordów."
       },
       "integration_odoo_contacts_fields_contacts": {
         "name": "Odoo Contacts: Pola i typy (kontakty)",
@@ -19068,19 +19248,19 @@
       },
       "integration_odoo_contacts_create_contacts": {
         "name": "Odoo Contacts: Tworzenie (kontakty)",
-        "description": "res.partner: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+        "description": "res.partner: Tworzy rekord z body (values). Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
       },
       "integration_odoo_contacts_update_contacts": {
         "name": "Odoo Contacts: Aktualizacja (kontakty)",
-        "description": "res.partner: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+        "description": "res.partner: Aktualizuje body (ids, values); najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
       },
       "integration_odoo_crm_search_leads": {
         "name": "Odoo CRM: Wyszukiwanie (szanse sprzedaży)",
-        "description": "crm.lead: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+        "description": "crm.lead: Wyszukuje z body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_crm_read_leads": {
         "name": "Odoo CRM: Odczyt (szanse sprzedaży)",
-        "description": "crm.lead: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+        "description": "crm.lead: Odczytuje body (ids, fields); najwyżej 100 rekordów."
       },
       "integration_odoo_crm_fields_leads": {
         "name": "Odoo CRM: Pola i typy (szanse sprzedaży)",
@@ -19088,19 +19268,19 @@
       },
       "integration_odoo_crm_create_leads": {
         "name": "Odoo CRM: Tworzenie (szanse sprzedaży)",
-        "description": "crm.lead: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+        "description": "crm.lead: Tworzy rekord z body (values). Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
       },
       "integration_odoo_crm_update_leads": {
         "name": "Odoo CRM: Aktualizacja (szanse sprzedaży)",
-        "description": "crm.lead: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+        "description": "crm.lead: Aktualizuje body (ids, values); najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
       },
       "integration_odoo_sales_search_orders": {
         "name": "Odoo Sales: Wyszukiwanie (zamówienia)",
-        "description": "sale.order: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+        "description": "sale.order: Wyszukuje z body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_sales_read_orders": {
         "name": "Odoo Sales: Odczyt (zamówienia)",
-        "description": "sale.order: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+        "description": "sale.order: Odczytuje body (ids, fields); najwyżej 100 rekordów."
       },
       "integration_odoo_sales_fields_orders": {
         "name": "Odoo Sales: Pola i typy (zamówienia)",
@@ -19108,19 +19288,19 @@
       },
       "integration_odoo_sales_create_orders": {
         "name": "Odoo Sales: Tworzenie (zamówienia)",
-        "description": "sale.order: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+        "description": "sale.order: Tworzy rekord z body (values). Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
       },
       "integration_odoo_sales_update_orders": {
         "name": "Odoo Sales: Aktualizacja (zamówienia)",
-        "description": "sale.order: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+        "description": "sale.order: Aktualizuje body (ids, values); najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
       },
       "integration_odoo_sales_search_order_lines": {
         "name": "Odoo Sales: Wyszukiwanie (pozycje zamówień)",
-        "description": "sale.order.line: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+        "description": "sale.order.line: Wyszukuje z body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_sales_read_order_lines": {
         "name": "Odoo Sales: Odczyt (pozycje zamówień)",
-        "description": "sale.order.line: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+        "description": "sale.order.line: Odczytuje body (ids, fields); najwyżej 100 rekordów."
       },
       "integration_odoo_sales_fields_order_lines": {
         "name": "Odoo Sales: Pola i typy (pozycje zamówień)",
@@ -19128,23 +19308,23 @@
       },
       "integration_odoo_sales_create_order_lines": {
         "name": "Odoo Sales: Tworzenie (pozycje zamówień)",
-        "description": "sale.order.line: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+        "description": "sale.order.line: Tworzy rekord z body (values). Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
       },
       "integration_odoo_sales_update_order_lines": {
         "name": "Odoo Sales: Aktualizacja (pozycje zamówień)",
-        "description": "sale.order.line: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+        "description": "sale.order.line: Aktualizuje body (ids, values); najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
       },
       "integration_odoo_sales_confirm_orders": {
         "name": "Odoo Sales: Potwierdzanie (zamówienia)",
-        "description": "Potwierdza przygotowane oferty w procesie biznesowym Odoo. Body: {ids}, najwyżej 100 rekordów. Odczytaj rekordy po operacji, aby potwierdzić stan; zwrócony kreator nie dowodzi zakończenia."
+        "description": "Potwierdza przygotowane oferty w procesie biznesowym Odoo. Body: (ids), najwyżej 100 rekordów. Odczytaj rekordy po operacji, aby potwierdzić stan; zwrócony kreator nie dowodzi zakończenia."
       },
       "integration_odoo_accounting_search_invoices": {
         "name": "Odoo Invoicing: Wyszukiwanie (faktury)",
-        "description": "account.move: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+        "description": "account.move: Wyszukuje z body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_accounting_read_invoices": {
         "name": "Odoo Invoicing: Odczyt (faktury)",
-        "description": "account.move: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+        "description": "account.move: Odczytuje body (ids, fields); najwyżej 100 rekordów."
       },
       "integration_odoo_accounting_fields_invoices": {
         "name": "Odoo Invoicing: Pola i typy (faktury)",
@@ -19152,19 +19332,19 @@
       },
       "integration_odoo_accounting_create_invoices": {
         "name": "Odoo Invoicing: Tworzenie (faktury)",
-        "description": "account.move: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+        "description": "account.move: Tworzy rekord z body (values). Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
       },
       "integration_odoo_accounting_update_invoices": {
         "name": "Odoo Invoicing: Aktualizacja (faktury)",
-        "description": "account.move: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+        "description": "account.move: Aktualizuje body (ids, values); najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
       },
       "integration_odoo_accounting_search_invoice_lines": {
         "name": "Odoo Invoicing: Wyszukiwanie (pozycje faktur)",
-        "description": "account.move.line: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+        "description": "account.move.line: Wyszukuje z body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_accounting_read_invoice_lines": {
         "name": "Odoo Invoicing: Odczyt (pozycje faktur)",
-        "description": "account.move.line: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+        "description": "account.move.line: Odczytuje body (ids, fields); najwyżej 100 rekordów."
       },
       "integration_odoo_accounting_fields_invoice_lines": {
         "name": "Odoo Invoicing: Pola i typy (pozycje faktur)",
@@ -19172,23 +19352,23 @@
       },
       "integration_odoo_accounting_create_invoice_lines": {
         "name": "Odoo Invoicing: Tworzenie (pozycje faktur)",
-        "description": "account.move.line: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+        "description": "account.move.line: Tworzy rekord z body (values). Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
       },
       "integration_odoo_accounting_update_invoice_lines": {
         "name": "Odoo Invoicing: Aktualizacja (pozycje faktur)",
-        "description": "account.move.line: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+        "description": "account.move.line: Aktualizuje body (ids, values); najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
       },
       "integration_odoo_accounting_post_invoices": {
         "name": "Odoo Invoicing: Księgowanie (faktury)",
-        "description": "Księguje przygotowane faktury z walidacją księgową Odoo. Body: {ids}, najwyżej 100 rekordów. Odczytaj rekordy po operacji, aby potwierdzić stan; zwrócony kreator nie dowodzi zakończenia."
+        "description": "Księguje przygotowane faktury z walidacją księgową Odoo. Body: (ids), najwyżej 100 rekordów. Odczytaj rekordy po operacji, aby potwierdzić stan; zwrócony kreator nie dowodzi zakończenia."
       },
       "integration_odoo_inventory_search_products": {
         "name": "Odoo Inventory: Wyszukiwanie (produkty)",
-        "description": "product.product: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+        "description": "product.product: Wyszukuje z body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_inventory_read_products": {
         "name": "Odoo Inventory: Odczyt (produkty)",
-        "description": "product.product: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+        "description": "product.product: Odczytuje body (ids, fields); najwyżej 100 rekordów."
       },
       "integration_odoo_inventory_fields_products": {
         "name": "Odoo Inventory: Pola i typy (produkty)",
@@ -19196,19 +19376,19 @@
       },
       "integration_odoo_inventory_create_products": {
         "name": "Odoo Inventory: Tworzenie (produkty)",
-        "description": "product.product: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+        "description": "product.product: Tworzy rekord z body (values). Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
       },
       "integration_odoo_inventory_update_products": {
         "name": "Odoo Inventory: Aktualizacja (produkty)",
-        "description": "product.product: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+        "description": "product.product: Aktualizuje body (ids, values); najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
       },
       "integration_odoo_inventory_search_transfers": {
         "name": "Odoo Inventory: Wyszukiwanie (przesunięcia magazynowe)",
-        "description": "stock.picking: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+        "description": "stock.picking: Wyszukuje z body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_inventory_read_transfers": {
         "name": "Odoo Inventory: Odczyt (przesunięcia magazynowe)",
-        "description": "stock.picking: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+        "description": "stock.picking: Odczytuje body (ids, fields); najwyżej 100 rekordów."
       },
       "integration_odoo_inventory_fields_transfers": {
         "name": "Odoo Inventory: Pola i typy (przesunięcia magazynowe)",
@@ -19216,19 +19396,19 @@
       },
       "integration_odoo_inventory_create_transfers": {
         "name": "Odoo Inventory: Tworzenie (przesunięcia magazynowe)",
-        "description": "stock.picking: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+        "description": "stock.picking: Tworzy rekord z body (values). Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
       },
       "integration_odoo_inventory_update_transfers": {
         "name": "Odoo Inventory: Aktualizacja (przesunięcia magazynowe)",
-        "description": "stock.picking: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+        "description": "stock.picking: Aktualizuje body (ids, values); najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
       },
       "integration_odoo_inventory_search_moves": {
         "name": "Odoo Inventory: Wyszukiwanie (ruchy magazynowe)",
-        "description": "stock.move: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+        "description": "stock.move: Wyszukuje z body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_inventory_read_moves": {
         "name": "Odoo Inventory: Odczyt (ruchy magazynowe)",
-        "description": "stock.move: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+        "description": "stock.move: Odczytuje body (ids, fields); najwyżej 100 rekordów."
       },
       "integration_odoo_inventory_fields_moves": {
         "name": "Odoo Inventory: Pola i typy (ruchy magazynowe)",
@@ -19236,19 +19416,19 @@
       },
       "integration_odoo_inventory_create_moves": {
         "name": "Odoo Inventory: Tworzenie (ruchy magazynowe)",
-        "description": "stock.move: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+        "description": "stock.move: Tworzy rekord z body (values). Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
       },
       "integration_odoo_inventory_update_moves": {
         "name": "Odoo Inventory: Aktualizacja (ruchy magazynowe)",
-        "description": "stock.move: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+        "description": "stock.move: Aktualizuje body (ids, values); najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
       },
       "integration_odoo_inventory_search_stock_levels": {
         "name": "Odoo Inventory: Wyszukiwanie (stany magazynowe)",
-        "description": "stock.quant: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+        "description": "stock.quant: Wyszukuje z body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_inventory_read_stock_levels": {
         "name": "Odoo Inventory: Odczyt (stany magazynowe)",
-        "description": "stock.quant: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+        "description": "stock.quant: Odczytuje body (ids, fields); najwyżej 100 rekordów."
       },
       "integration_odoo_inventory_fields_stock_levels": {
         "name": "Odoo Inventory: Pola i typy (stany magazynowe)",
@@ -19256,23 +19436,23 @@
       },
       "integration_odoo_inventory_confirm_transfers": {
         "name": "Odoo Inventory: Potwierdzanie (przesunięcia magazynowe)",
-        "description": "Potwierdza przygotowane przesunięcia magazynowe. Body: {ids}, najwyżej 100 rekordów. Odczytaj rekordy po operacji, aby potwierdzić stan; zwrócony kreator nie dowodzi zakończenia."
+        "description": "Potwierdza przygotowane przesunięcia magazynowe. Body: (ids), najwyżej 100 rekordów. Odczytaj rekordy po operacji, aby potwierdzić stan; zwrócony kreator nie dowodzi zakończenia."
       },
       "integration_odoo_inventory_reserve_transfers": {
         "name": "Odoo Inventory: Rezerwacja (przesunięcia magazynowe)",
-        "description": "Rezerwuje dostępny towar dla przygotowanych przesunięć. Body: {ids}, najwyżej 100 rekordów. Odczytaj rekordy po operacji, aby potwierdzić stan; zwrócony kreator nie dowodzi zakończenia."
+        "description": "Rezerwuje dostępny towar dla przygotowanych przesunięć. Body: (ids), najwyżej 100 rekordów. Odczytaj rekordy po operacji, aby potwierdzić stan; zwrócony kreator nie dowodzi zakończenia."
       },
       "integration_odoo_inventory_validate_transfers": {
         "name": "Odoo Inventory: Zatwierdzanie (przesunięcia magazynowe)",
-        "description": "Zatwierdza przesunięcia; Odoo może wymagać kreatora zamówienia zaległego lub innego działania. Body: {ids}, najwyżej 100 rekordów. Odczytaj rekordy po operacji, aby potwierdzić stan; zwrócony kreator nie dowodzi zakończenia."
+        "description": "Zatwierdza przesunięcia; Odoo może wymagać kreatora zamówienia zaległego lub innego działania. Body: (ids), najwyżej 100 rekordów. Odczytaj rekordy po operacji, aby potwierdzić stan; zwrócony kreator nie dowodzi zakończenia."
       },
       "integration_odoo_projects_search_projects": {
         "name": "Odoo Projects: Wyszukiwanie (projekty)",
-        "description": "project.project: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+        "description": "project.project: Wyszukuje z body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_projects_read_projects": {
         "name": "Odoo Projects: Odczyt (projekty)",
-        "description": "project.project: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+        "description": "project.project: Odczytuje body (ids, fields); najwyżej 100 rekordów."
       },
       "integration_odoo_projects_fields_projects": {
         "name": "Odoo Projects: Pola i typy (projekty)",
@@ -19280,19 +19460,19 @@
       },
       "integration_odoo_projects_create_projects": {
         "name": "Odoo Projects: Tworzenie (projekty)",
-        "description": "project.project: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+        "description": "project.project: Tworzy rekord z body (values). Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
       },
       "integration_odoo_projects_update_projects": {
         "name": "Odoo Projects: Aktualizacja (projekty)",
-        "description": "project.project: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+        "description": "project.project: Aktualizuje body (ids, values); najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
       },
       "integration_odoo_projects_search_tasks": {
         "name": "Odoo Projects: Wyszukiwanie (zadania)",
-        "description": "project.task: Wyszukuje z body {domain, fields, limit (1-100), offset, order}."
+        "description": "project.task: Wyszukuje z body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_projects_read_tasks": {
         "name": "Odoo Projects: Odczyt (zadania)",
-        "description": "project.task: Odczytuje body {ids, fields}; najwyżej 100 rekordów."
+        "description": "project.task: Odczytuje body (ids, fields); najwyżej 100 rekordów."
       },
       "integration_odoo_projects_fields_tasks": {
         "name": "Odoo Projects: Pola i typy (zadania)",
@@ -19300,11 +19480,11 @@
       },
       "integration_odoo_projects_create_tasks": {
         "name": "Odoo Projects: Tworzenie (zadania)",
-        "description": "project.task: Tworzy rekord z body {values}. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
+        "description": "project.task: Tworzy rekord z body (values). Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy twórz osobnymi narzędziami."
       },
       "integration_odoo_projects_update_tasks": {
         "name": "Odoo Projects: Aktualizacja (zadania)",
-        "description": "project.task: Aktualizuje body {ids, values}; najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
+        "description": "project.task: Aktualizuje body (ids, values); najwyżej 100 rekordów. Wartości są skalarami lub identyfikatorami relacji link/set/clear. Powiązane rekordy aktualizuj osobnymi narzędziami."
       }
     },
     "port": {

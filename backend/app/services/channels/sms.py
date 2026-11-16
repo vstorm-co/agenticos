@@ -168,7 +168,9 @@ class SmsAdapter(ChannelAdapter):
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
+    async def download_attachment(
+        self, bot_token: str, attachment: IncomingAttachment, *, max_bytes: int | None = None
+    ) -> bytes:
         """Download only a Twilio media resource belonging to this bot's account.
 
         Credentials never accompany a webhook-supplied host, another account,
@@ -181,6 +183,8 @@ class SmsAdapter(ChannelAdapter):
         if match is None or match["account"] != sid:
             raise ValueError("The attachment is not media for this Twilio account.")
         limit = settings.CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        if max_bytes is not None:
+            limit = min(limit, max_bytes)
         async with asyncio.timeout(30):
             async with self._client.stream(
                 "GET", f"{self._api}{match['path']}", auth=(sid, auth_token), follow_redirects=False

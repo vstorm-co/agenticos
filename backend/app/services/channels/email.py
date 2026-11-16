@@ -211,12 +211,17 @@ class EmailAdapter(ChannelAdapter):
             press.bot_id, press.platform_chat_id.lower(), press.value, platform=PLATFORM
         )
 
-    async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
+    async def download_attachment(
+        self, bot_token: str, attachment: IncomingAttachment, *, max_bytes: int | None = None
+    ) -> bytes:
         """The file the relay sent inline, which waits briefly under its handle."""
         encoded = await email_state.take_attachment(attachment.handle)
         if encoded is None:
             raise ValueError("The attachment is no longer available; ask for it to be sent again.")
-        return base64.b64decode(encoded)
+        content = base64.b64decode(encoded)
+        if max_bytes is not None and len(content) > max_bytes:
+            raise ValueError("The attachment exceeds the upload limit")
+        return content
 
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """Mail arrives only through the relay's webhook; there is nothing to poll."""

@@ -1,7 +1,7 @@
 # Putting an agent where people already are
 
 An agent that only answers inside this dashboard is a demo. The same published
-agent answers in eight places, and every one of them runs the *same frozen
+agent answers in nine places, and every one of them runs the *same frozen
 version* through the same budget, the same approval gate and the same tenant
 checks — the surface changes, the agent does not.
 
@@ -15,6 +15,7 @@ checks — the surface changes, the agent does not.
 | **Slack** | a bot token | a Slack account, optionally linked to a member |
 | **Telegram** | a bot token | a Telegram account, optionally linked |
 | **Mattermost** | a bot token and your server URL | a Mattermost account, optionally linked |
+| **WhatsApp** | a Meta app, a business number and an access token | a WhatsApp account, linked by a code sent from the chat |
 
 The dashboard also opens as a [desktop app](desktop.md): a window around the same
 console, loaded from the same server, with nothing bundled.
@@ -26,7 +27,7 @@ console, loaded from the same server, with nothing bundled.
     - **A run that failed is still in history with what it spent** — the tokens
       were spent before it broke, and a budget that ignores that is not a budget.
 
-!!! info "Three of those eight are one table, and its rows differ by a `kind`"
+!!! info "Three of those nine are one table, and its rows differ by a `kind`"
 
     A widget, a raw socket and a hosted page are each an *embed* — and a kind is
     fixed at creation, because a tag already pasted, a client already written and
@@ -388,6 +389,8 @@ They are now. Every "no" below has a reason, and a reason is either "this would
 be wrong here" or "this is not built yet" — never silence.
 
 The last column is Teams (#1985), standing for the chat platforms beside them.
+WhatsApp (#2076) reads and sends files and voice notes, answers in one message and
+offers approvals and questions as buttons: see [WhatsApp](#whatsapp).
 
 | | `/chat` (dashboard) | Raw WebSocket | The public API | Teams |
 |---|---|---|---|---|
@@ -1355,7 +1358,8 @@ that one in too, or the bot keeps the access it had.
 
 Works in channels and in DMs. A message from a linked account runs as that
 person — never as the bot; one from an account nobody has linked runs under the
-binding, and only in a channel. A direct message asks for the account first.
+binding, and only in a channel. A direct message asks for the account first, except on a
+[WhatsApp public line](#whatsapp-public-line).
 
 A linked account whose member has left the organization, or whose account has
 been deactivated, is treated as unlinked: refused in a direct message, run under
@@ -1712,6 +1716,254 @@ and search tools are not offered on Discord.
 Directory access takes priority when both sources grant membership. At sign-in,
 a directory grant takes over the Discord-managed row; when it ends, a remaining
 Discord grant takes over without revoking credentials. See [membership handover](directory.md#what-the-sync-never-touches).
+
+## WhatsApp { #whatsapp }
+
+Verified inbound messages and closed-window delivery statuses are admitted to durable PostgreSQL jobs in the webhook transaction. Run the `agent` and `system` worker pools. A worker checks that the bot is still active in the same organization before processing. Jobs serialize each customer’s batches and retry failures; this is at-least-once processing, not an exactly-once guarantee for external sends. Queued payloads contain message text and sender metadata in the local deployment, never in AgenticOS Bridge. Job retention applies; Forget this customer removes non-running delivery jobs, while running work may finish.
+
+A WhatsApp bot is a business number on Meta's **WhatsApp Business Cloud API**, and
+the agent answers **direct chats only** (#2076). The bot reads **text**, **images**,
+**documents** and **voice notes**, and a shared **location** arrives as text. A voice
+note is transcribed with the organization's speech-to-text key, under the same
+rules as on the other platforms ([what every channel shares](#what-every-channel-shares)).
+A **video**, a **sticker** or a **contact** is refused by name, so the customer is
+told what the bot cannot read. Every message goes through the same access,
+duplicate and rate-limit checks as any other.
+
+1. In [Meta for Developers](https://developers.facebook.com), create an app with
+   the **WhatsApp** use case, and attach it to a WhatsApp Business account.
+2. Choose the number: Meta's **test number** costs nothing and needs no payment
+   method, or add your own. Note its **phone number ID** and the **WhatsApp Business
+   account ID**.
+3. In Meta Business settings, create a **System User**, give it the app and the
+   account, and generate a **permanent token** with `whatsapp_business_messaging`
+   and `whatsapp_business_management`. The temporary token on the app's start page
+   expires within hours and will stop the bot.
+4. Copy the app's **app secret** (*App settings → Basic*). Choose a **verify
+   token**: any string, which only you and Meta know.
+5. Register it: **Channels → Add channel**, platform `whatsapp`, with the access
+   token, the two IDs, the app secret and the verify token. The CLI takes the same
+   (`channel-add-bot --platform whatsapp --whatsapp-phone-number-id ...
+   --whatsapp-account-id ... --whatsapp-verify-token ... --webhook-secret <app secret>`;
+   see [Commands](commands.md)). The API calls the app secret `webhook_secret`.
+6. Paste the **callback URL** the bot shows (`/api/v1/whatsapp/{bot_id}/webhook`,
+   under your public base URL) and the verify token into the app's *WhatsApp →
+   Configuration*, and verify it.
+7. **Subscribe** the `messages` field.
+8. Put the Meta app in **Live** mode. Meta does not send every webhook to an app in
+   Development mode, so a bot can look connected and stay silent.
+
+**Several numbers on one Meta app.** A Meta app has one callback URL however many
+numbers it serves. Register a bot for each number, each with the app's secret, and
+paste any one of their callback URLs into the app. Each message reaches the bot
+registered for its number, and only when that bot's own app secret verifies the
+delivery. Keep the bot whose URL you pasted active: a delivery to a disabled bot is
+dropped. If recording one bot's customers fails, the whole delivery fails and Meta
+retries it for every number. To give a number a URL of its own, use Meta's
+per-number callback override.
+
+**Every POST is checked before it is read.** Meta signs each delivery; the
+signature is compared against the app secret over the raw bytes before anything
+is parsed or stored, and a request that fails is a 401. A bot with no app secret
+refuses every POST, so it never answers an unsigned request.
+
+**Who is speaking** is the sender's WhatsApp **business-scoped user ID**, not their
+phone number. AgenticOS stores that ID, the profile name the sender chose and, as
+the label shown for them, the WhatsApp username when they have one and otherwise the
+phone number masked as `•••• 1234`; it never logs a message ID or a phone number.
+
+### Linking with a code
+
+WhatsApp has no browser session to share, so a link is confirmed from the chat.
+Anybody the bot does not know sends it a message and receives a link; they open it
+and confirm in the browser while signed in. The page then shows a **6-digit code**
+which they **send from that WhatsApp chat within 5 minutes**. Text sent before the
+code gets a reminder of what to do. A different 6-digit message cancels the
+request, so a guess costs a fresh confirmation.
+
+The confirmation page shows the
+sender's profile name marked **not verified** — a person chooses it, so it proves
+nothing — and the masked number, so the member can see which chat they are
+connecting. The code applies to WhatsApp only; the other platforms link as before.
+
+Because an operator cannot see a sender's business-scoped ID, the **`whitelist`**
+access policy is impractical here. Use `jwt_linked` and let people link.
+
+### How answers look
+
+WhatsApp cannot edit a message, so the answer arrives as **one message** when it is
+done, and one longer than 4096 characters is split at that limit without cutting
+through an emoji. Markdown is converted to WhatsApp's own formatting: a code block
+stays a code block, a table becomes a monospace block and a URL is left alone. The
+message you sent is marked **read** and a **typing indicator** shows while the agent
+works.
+
+**Charts and files are sent** as WhatsApp media. A short answer, up to 1024
+characters, becomes the first file's caption; a longer one goes first as text and
+the files follow. An image over 5 MB and any file that is not a JPEG or PNG image
+goes as a document. A `text/*` or JSON file is uploaded as plain text and keeps its
+name. When Meta refuses a file, the answer carries a short note that a file could
+not be sent, so the customer is never left guessing.
+
+**Approvals and questions are buttons.** An approval shows **Approve** and **Reject**.
+A question with up to 3 short choices shows buttons; a longer choice or more of them
+becomes a list of up to 10 rows. A text longer than a button message holds goes first
+as ordinary messages. Next steps the agent suggests arrive the same way, as buttons
+or a list.
+
+WhatsApp cannot edit a message, so a tap is answered with a short follow-up that
+quotes the question. A multi-select question is offered again after each pick. A tap
+from another chat is ignored, and a tap Meta delivers twice acts once.
+
+### Answers after 24 hours { #whatsapp-late-answers }
+
+Meta lets a business send free-form messages only within 24 hours of the customer's
+last message. An answer that is ready later, because an approval was decided the next
+day, say, cannot go out as ordinary text. AgenticOS keeps when each customer last
+wrote, using the time on Meta's own message, and treats the window as closed five
+minutes early so a slow send does not land after Meta's cutoff. A customer it has no
+record of is sent to as before, and Meta's refusal of a message as outside the window
+is taken as the final word.
+
+**Choose a late-answer template.** In WhatsApp Manager, create a **utility** template
+whose body has exactly one variable, with fixed text before and after it, for example
+`Here is the answer to your earlier message: {{1}} Reply here if you need anything
+else.` Wait for Meta to approve it, then pick it under **Late-answer template** when
+you edit the bot. The console lists only templates that qualify: approved, utility,
+one variable in the body with nothing else that varies, and at most one quick-reply
+button. A tap on that button after its answer has arrived is not taken as a new
+message.
+
+**What a late answer does:**
+
+- A short answer goes out at once inside the template, on one line.
+- A longer answer, or one that came with a chart or file, goes as a preview: the start
+  of the answer and an invitation to reply. The full answer follows when the customer
+  next writes, before the reply to their new message.
+- Several late answers for one customer all wait, and go out oldest first.
+- An approval or a question waits for the customer too. It is offered again after
+  their next message has been answered, and stays decidable in the console meanwhile.
+- A notice that a request expired, was stopped or could not continue goes in the
+  template too. Without one, it waits and goes out when the customer next writes.
+
+**With no template, or one Meta refuses,** nothing is sent. The run still waits for
+the customer's next message, the run page says "Not delivered" and why, and the
+bots list warns that the bot has no late-answer template.
+
+**Before the window closes.** When a customer's run is still waiting for an approval
+20 hours after their last message, the bot sends them one short message saying the
+answer is taking a little longer, with a **Keep me posted** button. A tap, or any
+reply, reopens the window, so the answer can arrive as an ordinary message. The tap
+is answered with a short thanks and is not passed to the agent. A window gets at
+most one such message.
+
+### What it costs
+
+Messages a customer sends are free. Each business number gets **1,000 free service
+messages a month**; Meta charges for the ones after that. **Each late answer is one
+template message**, which Meta charges for on a real number. The test number needs no
+payment method.
+
+### Limits
+
+- **Direct chats only**; there are no groups.
+- **A chart or file cannot follow a late answer.** The answer that is delivered says
+  so.
+- **Meta limits how many customers a new number can reach outside the window**, about
+  250 different customers per 24 hours at first.
+- **Files are capped by `CHAT_MAX_UPLOAD_SIZE_MB`**, the same limit as on the other
+  platforms, and **voice notes by 25 MB**. A file over the cap is refused with a
+  reason.
+- **Media comes only from `lookaside.fbsbx.com`**, the host Meta serves it from. A
+  file at any other address, or behind a redirect, is refused and the customer is
+  told it could not be downloaded.
+- **A long answer arrives as several messages, and they may arrive out of order**:
+  Meta does not guarantee the order of messages sent in quick succession.
+- A restart between the moment AgenticOS acknowledges Meta and the moment it
+  processes a message loses that message, as on every channel. Meta's retries and
+  duplicates are recognised for 15 minutes.
+- **When Meta refuses the access token** (an expired or revoked token), the bot is
+  shown as **down** with what to do, and the next message that sends clears it. The
+  status lapses after 15 minutes without traffic.
+
+### A public line { #whatsapp-public-line }
+
+By default a customer who has not linked an account is asked to link one. A
+business number that serves the public cannot ask that, so a WhatsApp bot has a
+switch, **Answer people who are not linked** (`answer_unlinked_direct` on the access
+policy; `channel-public-line --bot-id ... --on` from the CLI). It is off until
+somebody turns it on and it is offered on WhatsApp bots only. A new bot cannot start
+with it on, because the add dialog does not show it: a new bot has no agent yet, so
+bind one first. `mode=group_only` is refused while it is on.
+
+**The trade-off is the point.** With the switch on, anyone who has the number can
+message the bot, and the bot answers with whatever the bound agent's spec reaches:
+its instructions, its knowledge, its tools and its budget. Decide that before you
+bind the agent, and bind an agent written for strangers.
+
+- **A stranger’s run acts as the agent, without a member’s role.** It can use only the published grants and explicitly bound organization connections. Personal accounts and the platform MCP server are unavailable, so platform table operations are unavailable too. Publishing a page is refused. Review the native capabilities and organization MCP tools offered to this agent before opening the line.
+- **A spending ceiling is required.** The line needs a monthly budget on the bound
+  agent or the organization's monthly cap. Without one, these are refused: turning
+  the switch on, binding an agent, changing its environment, resuming a paused
+  binding, reactivating the bot, and deleting an environment that would leave the
+  binding without one. A publish, rollback or promotion that would leave a binding
+  that answers strangers without a ceiling is refused too. Removing the
+  organization's cap is not refused. Instead the bot stops answering strangers while
+  no ceiling exists, and the bot's warning says so.
+- **A refusal is one neutral sentence to the customer.** A customer whose message is
+  refused, or whose turn fails, gets one plain line such as "Sorry, I could not
+  answer that. Please try again later." and never the reason, the limit or the name
+  of anything configured.
+- **Approvals arrive as plain text and are decided in the console.** The customer is
+  told the request is waiting and cannot approve it. The people who decide see the
+  chat's masked number or username beside the profile name, which is marked not
+  verified.
+- **Questions are declined.** When the agent would ask the customer a structured
+  question, the question is declined, and next-step buttons are not offered.
+- **Linking happens only on request.** The customer is not asked to link. If they
+  want to, they ask, and the usual [code](#linking-with-a-code) flow applies. Answers
+  carry no usage footer and no console address.
+- **Binding needs `channels:manage`, or a request.** Binding an agent to a bot
+  that answers strangers, changing the binding's environment and resuming a paused
+  binding are decided by a holder of `channels:manage`. Anyone else who may edit the
+  binding files a request instead, with a note of up to 500 characters. The route
+  answers `202` with a `request_id`, and holders are notified. Approving applies the
+  change as the approver. A new request from the same person replaces their pending
+  one, and a request is closed when the line stops answering strangers or another
+  agent takes the bot. Pausing and unbinding need no request.
+- **Customer files are off by default.** **Accept files from customers**
+  (`accept_customer_files`) lets a stranger send images and documents, up to
+  `EMBED_MAX_UPLOAD_SIZE_MB` (5 by default). The files belong to the member who
+  created the binding. With the setting off, or a binding with no creator, a file is
+  refused with a neutral sentence.
+- **Voice notes need an organization cap.** A voice note from a stranger is checked
+  before anything is downloaded: the line must have a ceiling, the organization must
+  have a monthly cap, the cap must not be reached, and the note may be at most 2 MB.
+  Transcription is not counted in an agent's own spend, so a budget on the agent
+  alone is not enough. A refused note, or one sent while transcription is off, gets "This line does
+  not accept voice messages."
+
+#### The customer view, and forgetting a customer { #the-customer-view-and-forgetting-a-customer }
+
+**Channels → the bot → Customers** lists the people who have written to a public
+line. Holders of `channels:manage` see the full phone number and can search by it.
+The number is stored only for a sender the bot admitted as a stranger, and it is
+cleared when the sender links an account.
+
+**Forget this customer** erases one customer across all of the organization's
+WhatsApp bots (`channel-forget-customer --bot-id ... --by bsuid|phone` from the CLI,
+which lists the matches and asks you to confirm). It refuses a customer who has
+linked an account. It cancels their parked runs, redacts the arguments, context and
+notes of their approvals, deletes their runs' manifests and approval notifications,
+deletes hand-back jobs that are not running and removes their sandboxes. One audit
+entry records the counts. What it does not reach is listed in
+[Data protection](data-protection.md#whatsapp-customers).
+
+!!! warning "Switching the line off does not message a parked run"
+
+    A stranger's run that is waiting for a decision when you switch the line off
+    stays parked, and the customer receives no message about it. Decide or cancel it
+    from the console.
 
 ## A bot that cannot start stops, rather than retrying
 
@@ -2122,6 +2374,9 @@ surface, so a difference between the console and Mattermost remains visible.
 
     **A direct message asks for an account.** It is a conversation with one
     person, so an unlinked chat account is refused until it names one.
+    The exception is a WhatsApp bot with its
+    [public line](#whatsapp-public-line) switched on: there an unlinked sender is
+    answered as the agent itself, with only the grants of its published spec.
 
     **A channel answers anybody in it.** Whoever could invite the bot chose the
     audience, so a sender with no linked account is not refused: the turn runs
@@ -2869,7 +3124,7 @@ the message came from. See
 flowchart TD
     A{a site of your own?} -->|no| L{a link will do?}
     L -->|yes| H[a hosted page]
-    L -->|no| T[Slack, Teams, Telegram or Mattermost]
+    L -->|no| T[Slack, Teams, Telegram, Mattermost, Discord or WhatsApp]
     A -->|yes| U{your own interface?}
     U -->|yes| WS[the raw WebSocket]
     U -->|no| P{visitors signed in to your product?}
@@ -2882,7 +3137,7 @@ flowchart TD
 - Inside your product, per-user → **widget, `jwt` mode**.
 - Your own interface entirely → **WebSocket**.
 - No site of your own, and a link will do → **a hosted page**.
-- Where the team already talks → **Slack, Teams, Telegram or Mattermost**.
+- Where the team already talks → **Slack, Teams, Telegram, Mattermost, Discord or WhatsApp**.
 - Another system entirely → the REST API (`POST /api/v1/agents/{id}/run`).
 
 !!! success "The first four are one object"
@@ -2895,7 +3150,7 @@ flowchart TD
 ## Recap
 
 - **One runner behind every surface.** Web chat, a hosted page, a widget, the API,
-  Slack, Teams, Telegram and Mattermost all reach the same code, so governance is
+  Slack, Teams, Telegram, Mattermost, Discord and WhatsApp all reach the same code, so governance is
   not something a caller can route around.
 - A bot answers as **one agent**, and a mention runs as **the sender** — never as
   the bot.

@@ -13,8 +13,11 @@ from app.core.exceptions import AuthorizationError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.services.access import (
+    AGENT,
     COLLECTION,
+    TABLE,
     accessible_ids,
+    agent_context,
     member_context,
     publisher_context,
     resolve_access,
@@ -720,3 +723,174 @@ async def test_member_context_reads_the_current_role_and_refuses_a_deactivated_m
     assert active.await_args.kwargs == {"organization_id": organization, "user_id": person}
     assert (deactivated, gone) == (None, None)
     unread.assert_not_awaited()
+
+
+class TestAnAgentPrincipal:
+    """A run that is the agent itself holds its grants and nothing else."""
+
+    @pytest.mark.anyio
+    async def test_it_runs_its_own_agent(self):
+        org = uuid.uuid4()
+        agent = _resource(org)
+        ctx = agent_context(organization_id=org, agent_id=agent.id)
+
+        assert await resolve_access(MagicMock(), ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT)
+        assert await resolve_access(MagicMock(), ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT)
+        assert not await resolve_access(
+            MagicMock(), ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT
+        )
+
+    @pytest.mark.anyio
+    async def test_another_agent_is_not_reached(self):
+        org = uuid.uuid4()
+        ctx = agent_context(organization_id=org, agent_id=uuid.uuid4())
+
+        assert not await resolve_access(
+            MagicMock(), ctx, _resource(org), Perm.AGENTS_RUN, resource_type=AGENT
+        )
+
+    @pytest.mark.anyio
+    async def test_a_granted_table_is_read_and_never_edited(self):
+        org = uuid.uuid4()
+        table = _resource(org)
+        ctx = agent_context(
+            organization_id=org,
+            agent_id=uuid.uuid4(),
+            grants=[(TABLE, table.id, GrantLevel.READ)],
+        )
+
+        assert await resolve_access(MagicMock(), ctx, table, Perm.TABLES_VIEW, resource_type=TABLE)
+        assert not await resolve_access(
+            MagicMock(), ctx, table, Perm.TABLES_EDIT, resource_type=TABLE
+        )
+
+    @pytest.mark.anyio
+    async def test_a_grant_of_one_type_does_not_reach_another_type(self):
+        org = uuid.uuid4()
+        shared_id = uuid.uuid4()
+        agent = _resource(org)
+        agent.id = shared_id
+        ctx = AuthContext(
+            user_id=None,
+            organization_id=org,
+            role="anonymous",
+            principal_agent_id=uuid.uuid4(),
+            agent_grants=frozenset({("table", shared_id, "edit")}),
+        )
+
+        assert not await resolve_access(
+            MagicMock(), ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT
+        )
+        assert (
+            await accessible_ids(MagicMock(), ctx, [agent], Perm.AGENTS_VIEW, resource_type=AGENT)
+            == set()
+        )
+
+    @pytest.mark.anyio
+    async def test_nothing_crosses_an_organization(self):
+        org = uuid.uuid4()
+        agent = _resource(uuid.uuid4())
+        ctx = agent_context(organization_id=org, agent_id=agent.id)
+
+        assert not await resolve_access(
+            MagicMock(), ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT
+        )
+        assert (
+            await accessible_ids(MagicMock(), ctx, [agent], Perm.AGENTS_RUN, resource_type=AGENT)
+            == set()
+        )
+
+    def test_it_holds_no_role(self):
+        ctx = agent_context(organization_id=uuid.uuid4(), agent_id=uuid.uuid4())
+
+        assert ctx.acts_as_agent is True
+        assert ctx.is_anonymous is True
+        assert ctx.role == AuthContext.anonymous(ctx.organization_id).role
+        assert ctx.role not in ROLE_PERMS
+        assert ctx.permissions == {}
+        assert ctx.has(Perm.CHANNELS_MANAGE) is False
+        assert ctx.subject_is_publisher_fallback is True
+        with pytest.raises(AuthorizationError):
+            _ = ctx.subject_id
+
+    @pytest.mark.anyio
+    async def test_a_subject_less_context_without_a_principal_still_reaches_nothing(self):
+        org = uuid.uuid4()
+        agent = _resource(org)
+        ctx = AuthContext(
+            user_id=None,
+            organization_id=org,
+            role="owner",
+            agent_grants=frozenset({("agent", agent.id, "use")}),
+        )
+
+        assert ctx.acts_as_agent is False
+        assert not await resolve_access(
+            MagicMock(), ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT
+        )
+        assert (
+            await accessible_ids(MagicMock(), ctx, [agent], Perm.AGENTS_RUN, resource_type=AGENT)
+            == set()
+        )
+
+    @pytest.mark.anyio
+    async def test_the_batch_check_answers_the_same(self):
+        org = uuid.uuid4()
+        own = _resource(org)
+        read_table = _resource(org)
+        other_org_table = _resource(uuid.uuid4())
+        ungranted = _resource(org)
+        ctx = agent_context(
+            organization_id=org,
+            agent_id=own.id,
+            grants=[
+                (TABLE, read_table.id, GrantLevel.READ),
+                (TABLE, other_org_table.id, GrantLevel.EDIT),
+            ],
+        )
+        tables = [read_table, other_org_table, ungranted]
+
+        assert await accessible_ids(
+            MagicMock(), ctx, tables, Perm.TABLES_VIEW, resource_type=TABLE
+        ) == {read_table.id}
+        assert (
+            await accessible_ids(MagicMock(), ctx, tables, Perm.TABLES_EDIT, resource_type=TABLE)
+            == set()
+        )
+        assert await accessible_ids(
+            MagicMock(), ctx, [own, ungranted], Perm.AGENTS_RUN, resource_type=AGENT
+        ) == {own.id}
+
+    @pytest.mark.anyio
+    async def test_it_lists_nothing(self):
+        ctx = agent_context(organization_id=uuid.uuid4(), agent_id=uuid.uuid4())
+
+        assert (
+            await visible_resource_ids(MagicMock(), ctx, resource_type=AGENT, perm=Perm.AGENTS_VIEW)
+            == []
+        )
+
+    @pytest.mark.anyio
+    async def test_it_never_asks_the_grant_table(self):
+        org = uuid.uuid4()
+        agent = _resource(org)
+        ctx = agent_context(organization_id=org, agent_id=agent.id)
+        lookup = AsyncMock(return_value=GrantLevel.EDIT_DATA)
+
+        with patch("app.services.access.resource_grant_repo.get_level", new=lookup):
+            allowed = await resolve_access(
+                MagicMock(), ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT
+            )
+
+        assert allowed is False
+        lookup.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_permission_no_grant_satisfies_is_refused(self):
+        org = uuid.uuid4()
+        agent = _resource(org)
+        ctx = agent_context(organization_id=org, agent_id=agent.id)
+
+        assert not await resolve_access(
+            MagicMock(), ctx, agent, Perm.CHANNELS_MANAGE, resource_type=AGENT
+        )

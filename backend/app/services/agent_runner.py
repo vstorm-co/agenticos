@@ -283,6 +283,7 @@ from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
     ModelCallFailedError,
+    NoSpendingLimitError,
     NotFoundError,
     RunExecutionError,
     RunFailedError,
@@ -371,12 +372,21 @@ from app.services.channels.directory import restore_directory
 from app.services.channels.formatting import (
     CHANNEL_BEHAVIOR,
     LINK_ACCOUNT_INSTRUCTION,
+    STRANGER_CHANNEL_BEHAVIOR,
     ChannelReference,
     channel_author_references,
+    for_stranger,
     house_style,
     runtime_context,
 )
-from app.services.channels.handback import STOPPED_NOTICE, ChatNotice, chat_destination
+from app.services.channels.handback import (
+    STOPPED_NOTICE,
+    ChatNotice,
+    chat_destination,
+)
+from app.services.channels.handback import (
+    for_the_run as notice_for_the_run,
+)
 from app.services.channels.handback_jobs import queue_notices
 from app.services.channels.prompt_variables import CHANNEL_CONTEXT
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
@@ -1050,6 +1060,16 @@ class AdmittedAs(BaseModel):
             "approver's context cannot tell it (#1469): `agent_runs.user_id` is the "
             "publisher either way. Defaults false, so a run parked before this was "
             "recorded resumes as it always did."
+        ),
+    )
+    runs_as_agent: bool = Field(
+        default=False,
+        exclude_if=lambda flag: not flag,
+        description=(
+            "Whether the run acts as its agent with only its spec's grants and as no "
+            "member. Kept so a resume approved by a member does not lend the run that "
+            "member's id, role or credentials: the run row records no member either "
+            "way. A run parked before this existed resumes as it always did."
         ),
     )
     public_origin: bool = Field(
@@ -2230,8 +2250,16 @@ def _without_computer_tools(spec: AgentSpec, *, sandbox_missing: bool) -> AgentS
     return spec.model_copy(update={"capabilities": bindings})
 
 
-def _with_execution_environment(spec: AgentSpec, local: LocalTarget | None) -> AgentSpec:
-    """Describe the selected environment after its device and service grants resolve."""
+def _with_execution_environment(
+    spec: AgentSpec, local: LocalTarget | None, *, stranger: bool = False
+) -> AgentSpec:
+    """Describe the selected environment after its device and service grants resolve.
+
+    A `stranger` - a customer the run answers as the agent itself - is told
+    nothing of the console, Desktop or Mobile: it has no use for them.
+    """
+    if stranger:
+        return spec
     from app.services.agent_templates import APP_ENVIRONMENT_GUIDANCE
 
     briefing = APP_ENVIRONMENT_GUIDANCE
@@ -2625,6 +2653,7 @@ def _with_personal_service_gaps(
     surface: RunSurface,
     *,
     sender_present: bool = False,
+    stranger: bool = False,
 ) -> AgentSpec:
     """The spec told which of its bound servers this turn cannot reach, and why.
 
@@ -2638,7 +2667,8 @@ def _with_personal_service_gaps(
     if not gaps:
         return spec
     added = "\n\n".join(
-        _binding_gap_briefing(gap, surface, sender_present=sender_present) for gap in gaps
+        _binding_gap_briefing(gap, surface, sender_present=sender_present, stranger=stranger)
+        for gap in gaps
     )
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
@@ -2715,7 +2745,7 @@ def _connect_on_use(
 
 
 def _binding_gap_briefing(
-    gap: UnavailableBinding, surface: RunSurface, *, sender_present: bool
+    gap: UnavailableBinding, surface: RunSurface, *, sender_present: bool, stranger: bool = False
 ) -> str:
     """One paragraph for a binding this turn could not honour, model-facing."""
     if isinstance(gap, UnavailablePlatformServer):
@@ -2748,7 +2778,9 @@ def _binding_gap_briefing(
         )
     if isinstance(gap, UnavailableUnreachableServer):
         return unreachable_briefing(gap.server, binding=gap.binding, held_by=gap.held_by)
-    return _personal_gap_briefing(personal_service_gap(gap), surface, sender_present=sender_present)
+    return _personal_gap_briefing(
+        personal_service_gap(gap), surface, sender_present=sender_present, stranger=stranger
+    )
 
 
 def _servers_pointer(surface: RunSurface, *, connect_key: str | None = None) -> str:
@@ -2766,9 +2798,17 @@ def _servers_pointer(surface: RunSurface, *, connect_key: str | None = None) -> 
 
 
 def _personal_gap_briefing(
-    gap: PersonalServiceGap, surface: RunSurface, *, sender_present: bool
+    gap: PersonalServiceGap, surface: RunSurface, *, sender_present: bool, stranger: bool = False
 ) -> str:
     bound = f"{gap.name} is bound to the account of whoever is talking to you"
+    if stranger:
+        # Somebody with no account here cannot be sent to link one or to connect a
+        # service: the tools are simply not available to them.
+        return (
+            f"{bound}, and the person writing has no account here, so the {gap.name} tools "
+            f"are not available. If asked for anything in {gap.name}, say so plainly rather "
+            "than attempting a workaround."
+        )
     if gap.gap == "nobody_to_speak_as":
         if surface in _CHANNEL_SURFACES:
             return (
@@ -2987,6 +3027,10 @@ class _Delegation:
     user_id: str | None
     user_name: str | None
 
+    runs_as_agent: bool
+    """Whether the run acts as its agent and as no member: no delegate of it mints a
+    platform credential, however the run's context is filled."""
+
     personal_mcp_user_id: UUID | None
     """Whose own MCP connections a personal binding speaks through.
 
@@ -3175,7 +3219,7 @@ def _delegate_builder(
         if any(_computer_requirements(spec)):
             own_resources.update(delegation.computer_resources)
         built = build_agent(
-            _with_execution_environment(effective, None),
+            _with_execution_environment(effective, None, stranger=delegation.runs_as_agent),
             model,
             organization_id=delegation.ctx.organization_id,
             agent_id=agent_id,
@@ -3576,6 +3620,7 @@ class AgentRunnerService:
         ctx: AuthContext,
         existing_run: AgentRun | None = None,
         *,
+        runs_as_agent: bool,
         agent_id: UUID | None = None,
         conversation_id: UUID | None = None,
     ) -> str | None:
@@ -3583,8 +3628,11 @@ class AgentRunnerService:
 
         Minted from the authority of the person the run is for, so the agent can do
         what they can do - and an agent that does not bind the server mints
-        nothing. `None` where nobody is behind the run.
+        nothing. `None` where nobody is behind the run, and for a run that is its
+        agent: `_run_owner_context` would hand a resumed one to whoever decided it.
         """
+        if runs_as_agent:
+            return None
         if not any(isinstance(ref, PlatformMcpServerRef) for ref in spec.mcp_servers):
             return None
         owner = await self._run_owner_context(ctx, existing_run)
@@ -4026,6 +4074,7 @@ class AgentRunnerService:
         memory_room_key: str | None = None,
         restored_audience: RunAudience | None = None,
         restored_publisher_fallback: bool | None = None,
+        restored_runs_as_agent: bool | None = None,
         extra_toolsets: list[AbstractToolset[Any]] | None,
         exposure: AgentExposure | None,
         decided: dict[str, ApprovalDecision],
@@ -4192,6 +4241,24 @@ class AgentRunnerService:
         # which is what keeps the cap and the spend it is measured against - the
         # `period_spend` below - reading the same organization.
         organization = await self.organizations.get_by_id(ctx.organization_id)
+
+        # Whether the run is its agent and no member. Never derived from
+        # `subject_is_publisher_fallback`, which a group's unlinked sender and a schedule
+        # also set while running as a real member. Read from the parked terms on a
+        # resume, where the context is the decider's and says nothing about the run.
+        runs_as_agent = (
+            restored_runs_as_agent if restored_runs_as_agent is not None else ctx.acts_as_agent
+        )
+        # A run with no member behind it spends under a ceiling or not at all: with
+        # neither an agent budget nor an organization cap nothing stops its spend, so it
+        # is refused before a run row is opened or a model reached. Here rather than on
+        # the surface so a continuation is held to it too, whoever decided it.
+        if (
+            runs_as_agent
+            and organization.monthly_budget_usd is None
+            and (spec.budget is None or spec.budget.monthly_usd is None)
+        ):
+            raise NoSpendingLimitError(details={"agent_id": str(agent.id)})
 
         rendering = await self._variable_renderer(
             # Who the run is about: on a resume `ctx` is the approver's, and the
@@ -4423,6 +4490,7 @@ class AgentRunnerService:
                 spec,
                 ctx,
                 existing_run,
+                runs_as_agent=runs_as_agent,
                 agent_id=agent.id,
                 conversation_id=_routine_source(
                     ctx,
@@ -4478,13 +4546,25 @@ class AgentRunnerService:
             console_url=settings.FRONTEND_URL,
             linked_sender=personal_mcp_user_id is not None,
             test_environment=settings.ENVIRONMENT in {"local", "development"},
+            stranger=runs_as_agent,
         )
+        if runs_as_agent:
+            # The binding's house style, already in the instructions, carries the
+            # member guidance: prepare and resume both reach this point with the
+            # run's own flag.
+            spec = spec.model_copy(update={"instructions": for_stranger(spec.instructions)})
         if context:
-            guidance = "" if CHANNEL_BEHAVIOR in spec.instructions else "\n\n" + CHANNEL_BEHAVIOR
+            behavior = STRANGER_CHANNEL_BEHAVIOR if runs_as_agent else CHANNEL_BEHAVIOR
+            present = CHANNEL_BEHAVIOR in spec.instructions or (
+                STRANGER_CHANNEL_BEHAVIOR in spec.instructions
+            )
+            guidance = "" if present else "\n\n" + behavior
             spec = spec.model_copy(
                 update={"instructions": f"{spec.instructions}\n\n{context}{guidance}"}
             )
-        spec = _with_personal_service_gaps(spec, briefed, surface, sender_present=sender_present)
+        spec = _with_personal_service_gaps(
+            spec, briefed, surface, sender_present=sender_present, stranger=runs_as_agent
+        )
         spec = _with_account_notes(spec, resolved.accounts)
         if routine is not None and routine.routine_kind == "trigger":
             assert routine.source_policy is not None
@@ -4560,6 +4640,7 @@ class AgentRunnerService:
                 if watch_receipt is None
                 else watch_receipt.activation_at,
                 initiated_by_publisher_fallback=initiated_by_publisher_fallback,
+                runs_as_agent=runs_as_agent,
                 key_scopes=(
                     None
                     if ctx.key_scopes is None
@@ -4713,6 +4794,8 @@ class AgentRunnerService:
             scope_override=(
                 "run"
                 if isolation is not None
+                else "conversation"
+                if runs_as_agent
                 else "project"
                 if project is not None
                 else cast("SessionScope | None", exposure.session_scope)
@@ -4791,7 +4874,7 @@ class AgentRunnerService:
 
         # What a call's realtime model is told: the briefings below describe a
         # workspace and skill files only its text twin can reach.
-        spec = _with_execution_environment(spec, local)
+        spec = _with_execution_environment(spec, local, stranger=runs_as_agent)
         spoken_spec = spec
         materialised: MaterialisedSkills | None = None
         started_with: set[str] | None = None
@@ -4993,6 +5076,9 @@ class AgentRunnerService:
             started=already_started,
             to_register={} if specialists is None else {k: list(v) for k, v in specialists.items()},
         )
+        # Who the run is about, for its deps and its delegates'. A run that is its agent
+        # names nobody: a decider resuming it is a member, and `ctx` is theirs.
+        audience_user_id = None if runs_as_agent else owner_user_id or ctx.user_id
         runtime = await self._delegation_runtime(
             ctx,
             request_computer_access=request_computer_access,
@@ -5002,6 +5088,8 @@ class AgentRunnerService:
             run=run,
             surface=surface,
             user_name=user_name,
+            audience_user_id=audience_user_id,
+            runs_as_agent=runs_as_agent,
             personal_mcp_user_id=personal_mcp_user_id,
             sender_present=sender_present,
             resources=resources,
@@ -5034,7 +5122,6 @@ class AgentRunnerService:
         # whether the subject was a publisher stand-in, whether the chat account was
         # linked, whether the chat was a room - are all gone with the request that
         # carried them.
-        audience_user_id = owner_user_id or ctx.user_id
         audience = restored_audience or derive_audience(
             user_id=audience_user_id,
             subject_is_publisher_fallback=ctx.subject_is_publisher_fallback,
@@ -5124,6 +5211,7 @@ class AgentRunnerService:
                     audience=audience,
                     run_person=run_person,
                     impersonated=impersonated,
+                    acts_as_agent=runs_as_agent,
                     granted_scopes=DEFAULT_GRANTED_SCOPES,
                     resources=resources,
                     secrets=secrets,
@@ -5197,6 +5285,7 @@ class AgentRunnerService:
             audience=audience,
             run_person=run_person,
             impersonated=impersonated,
+            acts_as_agent=runs_as_agent,
             granted_scopes=DEFAULT_GRANTED_SCOPES,
             resources=resources,
             secrets=secrets,
@@ -5300,6 +5389,7 @@ class AgentRunnerService:
                 audience_searches_conversations=audience.searches_conversations,
                 audience_browses_signed_in=audience.browses_signed_in,
                 subject_is_publisher_fallback=subject_is_publisher_fallback,
+                runs_as_agent=runs_as_agent,
                 public_origin=public_origin,
                 impersonated=impersonated,
             ),
@@ -5333,6 +5423,8 @@ class AgentRunnerService:
         run: AgentRun,
         surface: RunSurface,
         user_name: str | None,
+        audience_user_id: UUID | None,
+        runs_as_agent: bool,
         personal_mcp_user_id: UUID | None,
         sender_present: bool,
         resources: dict[str, Any],
@@ -5405,11 +5497,13 @@ class AgentRunnerService:
             run=run,
             surface=surface,
             agent_id=agent.id,
-            # Not `str(ctx.user_id)`: a context with no subject would stringify to
-            # the literal "None" and hand it to every delegate's tools as the
-            # caller's id, for the reason `_assemble` says at greater length.
-            user_id=None if ctx.user_id is None else str(ctx.user_id),
+            # The run's own person, as its deps name them - not `ctx.user_id`, which on a
+            # resume is the decider's. Never `str(None)`: that would hand every
+            # delegate's tools the literal "None" as the caller's id, for the reason
+            # `_assemble` says at greater length.
+            user_id=None if audience_user_id is None else str(audience_user_id),
             user_name=user_name,
+            runs_as_agent=runs_as_agent,
             personal_mcp_user_id=personal_mcp_user_id,
             sender_present=sender_present,
             approvals=approvals,
@@ -5993,7 +6087,9 @@ class AgentRunnerService:
             taken_names=taken_tool_names(runnable),
             # The run's own person, as for the parent: on a resume `ctx` is the
             # approver's, and a delegate must not carry their authority either.
-            platform_credential=await self._platform_credential(runnable, ctx, delegation.run),
+            platform_credential=await self._platform_credential(
+                runnable, ctx, delegation.run, runs_as_agent=delegation.runs_as_agent
+            ),
         )
         toolsets = resolved.toolsets
         # Briefed like the parent: a delegate may bind a service the parent does
@@ -6004,6 +6100,7 @@ class AgentRunnerService:
             resolved.unavailable,
             delegation.surface,
             sender_present=delegation.sender_present,
+            stranger=delegation.runs_as_agent,
         )
         runnable = _with_account_notes(runnable, resolved.accounts)
         secrets = await self.secrets.resolve_for_bindings(ctx, _secret_ids(runnable))
@@ -6023,7 +6120,7 @@ class AgentRunnerService:
                 secrets=secrets,
                 extra_toolsets=toolsets,
                 test_bindings=test_bindings,
-                reviewer_models=await self._reviewer_models(ctx, runnable),
+                reviewer_models=await self._reviewer_models(delegation.models_ctx, runnable),
             ),
             max_steps=runnable.max_steps,
             preferred_mode=ref.preferred_mode,
@@ -6367,6 +6464,7 @@ class AgentRunnerService:
                         # sender is theirs as much as the run that made it, and
                         # without these it read as the publisher's own.
                         initiated_by_publisher_fallback=parent.initiated_by_publisher_fallback,
+                        runs_as_agent=parent.runs_as_agent,
                         channel_identity_id=parent.channel_identity_id,
                         conversation_id=parent.conversation_id,
                         # The binding that admitted the run admitted this too, so "what
@@ -6671,7 +6769,14 @@ class AgentRunnerService:
         """
         workspace = prepared.workspace
         state = prepared.materialised_skills
-        if workspace is None or state is None or prepared.ctx is None or _untouched(workspace):
+        # A proposal is recorded as a member, and a run that is its agent has none.
+        if (
+            prepared.admitted_as.runs_as_agent
+            or workspace is None
+            or state is None
+            or prepared.ctx is None
+            or _untouched(workspace)
+        ):
             return
         run_id = str(prepared.run.id)
         agent_id = prepared.agent.id
@@ -7716,6 +7821,7 @@ class AgentRunnerService:
             # a publisher stand-in is gone with the request that carried it, so a
             # resume would otherwise lend the publisher's MCP to a guest (#1469).
             restored_publisher_fallback=state.admitted_as.subject_is_publisher_fallback,
+            restored_runs_as_agent=state.admitted_as.runs_as_agent,
             # Who supplied the input is gone with the request too; without it a
             # member approving an outsider's parked run would become its person.
             # A schedule-surface row parked before the key existed cannot say
@@ -7952,7 +8058,15 @@ class AgentRunnerService:
             )
         if destination is not None and not told:
             await queue_notices(
-                self.db, [ChatNotice(run.organization_id, run.id, destination, STOPPED_NOTICE)]
+                self.db,
+                [
+                    ChatNotice(
+                        run.organization_id,
+                        run.id,
+                        destination,
+                        notice_for_the_run(run, STOPPED_NOTICE),
+                    )
+                ],
             )
         return result
 
@@ -8100,6 +8214,7 @@ class AgentRunnerService:
                 subagent_task_id=frame.task_id,
                 user_id=run.user_id,
                 initiated_by_publisher_fallback=run.initiated_by_publisher_fallback,
+                runs_as_agent=run.runs_as_agent,
                 channel_identity_id=run.channel_identity_id,
                 conversation_id=run.conversation_id,
                 exposure_id=run.exposure_id,
@@ -8299,7 +8414,9 @@ class AgentRunnerService:
                 # replayed. Answering it again would repeat the side effect.
                 continue
             decided[tool_call_id] = (
-                ApprovalGranted(tool_args=approval.tool_args)
+                ApprovalGranted(
+                    tool_args=approval.tool_args, decided_by=approval.decided_by_user_id
+                )
                 if approval.status == ApprovalStatus.APPROVED.value
                 else ApprovalRejected(note=approval.note)
             )

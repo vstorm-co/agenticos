@@ -145,3 +145,104 @@ async def test_numbered_channel_choices_reach_their_original_feedback_or_next_st
     await channel_tasks._route_inbound(incoming, db)
     assert rated.await_count == int(kind == "feedback")
     assert routed.await_count == int(kind == "next")
+
+
+@pytest.mark.parametrize("change", ["missing", "inactive", "tenant", "platform"])
+@pytest.mark.parametrize("kind", ["delivery", "refusal"])
+async def test_whatsapp_worker_rechecks_bot_authority(worker, monkeypatch, change, kind):
+    from app.repositories import channel_bot_repo
+    from app.services.channels import whatsapp_inbound
+    from app.worker.jobs import WhatsAppDelivery, WhatsAppWindowRefusal
+
+    bot, _ = worker
+    org = bot.organization_id
+    bot.platform = "whatsapp"
+    if change == "missing":
+        channel_bot_repo.get_for_inbound.return_value = None
+    elif change == "inactive":
+        bot.is_active = False
+    elif change == "tenant":
+        bot.organization_id = uuid4()
+    else:
+        bot.platform = "sms"
+    handle, reclaim = AsyncMock(), AsyncMock()
+    monkeypatch.setattr(whatsapp_inbound, "handle_customer", handle)
+    monkeypatch.setattr(whatsapp_inbound, "reclaim_after_refusal", reclaim)
+    if kind == "delivery":
+        await channel_tasks.process_whatsapp_delivery(
+            WhatsAppDelivery(
+                organization_id=org, bot_id=bot.id, chat_id="customer", messages_json="[]"
+            )
+        )
+    else:
+        await channel_tasks.process_whatsapp_window_refusal(
+            WhatsAppWindowRefusal(
+                organization_id=org, bot_id=bot.id, chat_id="customer", run_id=uuid4()
+            )
+        )
+    handle.assert_not_awaited()
+    reclaim.assert_not_awaited()
+
+
+@pytest.mark.parametrize("invalid", [None, "empty", "other_customer", "malformed"])
+async def test_whatsapp_worker_restores_validated_messages_after_restart(
+    worker, monkeypatch, invalid
+):
+    from datetime import UTC, datetime
+
+    from pydantic import TypeAdapter, ValidationError
+
+    from app.services.channels import whatsapp_inbound
+    from app.services.channels.whatsapp_payload import WhatsAppMessage
+    from app.worker.jobs import WhatsAppDelivery
+
+    bot, _ = worker
+    bot.platform = "whatsapp"
+    message = WhatsAppMessage(
+        wamid="wamid.1",
+        bsuid="customer",
+        kind="text",
+        text="Hello",
+        sent_at=datetime.now(UTC),
+        profile_name=None,
+        username=None,
+        phone=None,
+        media_id=None,
+        mime_type=None,
+        filename=None,
+    )
+    payload = TypeAdapter(list[WhatsAppMessage]).dump_json([message]).decode()
+    if invalid == "empty":
+        payload = "[]"
+    elif invalid == "malformed":
+        payload = "{}"
+    handle = AsyncMock()
+    monkeypatch.setattr(whatsapp_inbound, "handle_customer", handle)
+    job = WhatsAppDelivery(
+        organization_id=bot.organization_id,
+        bot_id=bot.id,
+        chat_id="other" if invalid == "other_customer" else "customer",
+        messages_json=payload,
+    )
+    if invalid:
+        with pytest.raises(ValidationError if invalid == "malformed" else ValueError):
+            await channel_tasks.process_whatsapp_delivery(job)
+        handle.assert_not_awaited()
+    else:
+        await channel_tasks.process_whatsapp_delivery(job)
+        handle.assert_awaited_once_with(str(bot.id), bot.organization_id, "customer", [message])
+
+
+async def test_whatsapp_window_refusal_reaches_the_named_run(worker, monkeypatch):
+    from app.services.channels import whatsapp_inbound
+    from app.worker.jobs import WhatsAppWindowRefusal
+
+    bot, _ = worker
+    bot.platform = "whatsapp"
+    job = WhatsAppWindowRefusal(
+        organization_id=bot.organization_id, bot_id=bot.id, chat_id="customer", run_id=uuid4()
+    )
+    reclaim = AsyncMock()
+    monkeypatch.setattr(whatsapp_inbound, "reclaim_after_refusal", reclaim)
+    await channel_tasks.process_whatsapp_window_refusal(job)
+    reclaim.assert_awaited_once_with(str(bot.id), bot.organization_id, "customer", job.run_id, None)

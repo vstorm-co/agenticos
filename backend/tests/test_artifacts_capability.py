@@ -431,6 +431,18 @@ class TestRefusals:
         publish.assert_not_awaited()
         assert "no saved agent" in result
 
+    @pytest.mark.security
+    async def test_an_agent_run_does_not_publish_a_page(self) -> None:
+        with patch(PUBLISH, new=AsyncMock()) as publish:
+            result = await _tool()(
+                _ctx(_deps(user_id=None, acts_as_agent=True)),
+                name="r",
+                title="R",
+                content="<p>x</p>",
+            )
+        publish.assert_not_awaited()
+        assert result == "Pages cannot be published from this conversation."
+
     async def test_a_refused_read_is_a_result_not_a_retry(self) -> None:
         workspace = _workspace(PermissionError("secrets/ is not readable"))
         with patch(PUBLISH, new=AsyncMock()) as publish:

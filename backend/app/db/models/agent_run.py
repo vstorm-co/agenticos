@@ -119,6 +119,7 @@ class RunSurface(enum.StrEnum):
     EMAIL = "email"
     IMESSAGE = "imessage"
 
+    WHATSAPP = "whatsapp"
     DISCORD = "discord"
     # A run nobody typed into: the agent-triggers heartbeat fired it on a
     # schedule. The one member here assigned by a machine rather than a surface a
@@ -149,6 +150,7 @@ CHANNEL_SURFACES = frozenset(
         RunSurface.SMS,
         RunSurface.EMAIL,
         RunSurface.IMESSAGE,
+        RunSurface.WHATSAPP,
     }
 )
 
@@ -251,6 +253,10 @@ class AgentRun(Base, TimestampMixin):
     # which is how #1598's run-finished notifications ended up emailing a
     # public embed's publisher after every anonymous visitor's run.
     initiated_by_publisher_fallback: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
+    # The run acted as its agent with only its spec's grants; `user_id` is NULL.
+    runs_as_agent: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false"), nullable=False
     )
     # The scopes of the API key that started the run, null for a session. A run
@@ -462,6 +468,12 @@ class AgentRun(Base, TimestampMixin):
     # from a slow one in minutes rather than hours. A raw UPDATE, not the ORM,
     # so it leaves `updated_at` - the run's last transition - alone.
     heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Why a run's answer has not reached its chat, when the platform refused it
+    # for a reason the run page can explain (WhatsApp's 24-hour window:
+    # `window_no_template`, `window_template_failed`). Set only while nothing of
+    # the answer was delivered, together with a held run; cleared when it is. A
+    # raw UPDATE (`agent_run_repo.mark_undelivered`), so `updated_at` is left alone.
+    undelivered_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     # Set when the chat was told this park could not continue, so the safety net
     # does not tell it a second time; cleared when the run leaves the queue. A

@@ -6,6 +6,8 @@ Commands:
     channel-webhook-register  - Register a bot's webhook URL with its platform
     channel-webhook-delete    - Remove webhook for a bot (switches to polling)
     channel-test-message      - Send a test message through a bot
+    channel-forget-customer   - Erase a WhatsApp customer and what is kept of them
+    channel-public-line       - Show what a WhatsApp line reaches; switch it on or off
 
 Every command acts through the bot's own platform, read from its row. They used
 to name Telegram, which is what a channels CLI written when there was one
@@ -23,20 +25,28 @@ pointed at it.
 """
 
 import asyncio
+import sys
 from contextlib import asynccontextmanager
+from dataclasses import asdict
 from typing import Any, Literal
 from uuid import UUID
 
 import click
 
 from app.commands import command, error, info, success
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AppException, NotFoundError
 from app.db.session import get_db_context
 from app.repositories import organization_repo
-from app.schemas.channel_bot import AccessPolicy, ChannelBotCreate
+from app.schemas.channel_bot import (
+    AccessPolicy,
+    ChannelBotCreate,
+    ChannelBotUpdate,
+    PublicLineRead,
+)
 from app.services.channel_bot import ChannelBotService, unseal_webhook_secret
 from app.services.channels import INBOUND_PATHS, get_adapter, inbound_webhook_url
 from app.services.channels.base import OutgoingMessage
+from app.services.channels.whatsapp_erasure import CustomerErasure
 
 
 @asynccontextmanager
@@ -132,7 +142,17 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
     "--platform",
     required=True,
     type=click.Choice(
-        ["telegram", "slack", "mattermost", "teams", "discord", "sms", "email", "imessage"]
+        [
+            "telegram",
+            "slack",
+            "mattermost",
+            "teams",
+            "discord",
+            "sms",
+            "email",
+            "imessage",
+            "whatsapp",
+        ]
     ),
     help="Platform name",
 )
@@ -160,7 +180,8 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
     default=None,
     help=(
         "The token the platform generated for its outgoing webhook. Mattermost "
-        "shows it when the integration is created; Telegram needs none here."
+        "shows it when the integration is created; Telegram needs none here. "
+        "WhatsApp: the Meta app secret."
     ),
 )
 @click.option(
@@ -172,6 +193,21 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
     "--teams-tenant-id",
     default=None,
     help="The Entra tenant the single-tenant Azure Bot is registered in. Teams only.",
+)
+@click.option(
+    "--whatsapp-phone-number-id",
+    default=None,
+    help="The WhatsApp Business phone number's id. WhatsApp only; --token is its access token.",
+)
+@click.option(
+    "--whatsapp-account-id",
+    default=None,
+    help="The WhatsApp Business Account id the number belongs to. WhatsApp only.",
+)
+@click.option(
+    "--whatsapp-verify-token",
+    default=None,
+    help="The token Meta's webhook handshake presents; you choose it. WhatsApp only.",
 )
 @_org_option
 def channel_add_bot(
@@ -185,6 +221,9 @@ def channel_add_bot(
     webhook_secret: str | None,
     teams_app_id: str | None,
     teams_tenant_id: str | None,
+    whatsapp_phone_number_id: str | None,
+    whatsapp_account_id: str | None,
+    whatsapp_verify_token: str | None,
 ) -> None:
     """Encrypt the bot token and register the bot in the database.
 
@@ -205,9 +244,12 @@ def channel_add_bot(
             webhook_mode=webhook_secret is not None,
             teams_app_id=teams_app_id,
             teams_tenant_id=teams_tenant_id,
+            whatsapp_phone_number_id=whatsapp_phone_number_id,
+            whatsapp_account_id=whatsapp_account_id,
+            whatsapp_verify_token=whatsapp_verify_token,
         )
         async with _channel_service(org_id) as svc:
-            bot = await svc.create(data)
+            bot = await svc.create(data, actor_user_id=None)
 
         success(f"Bot registered successfully! ID: {bot.id}")
         info(f"  Platform : {platform}")
@@ -215,7 +257,7 @@ def channel_add_bot(
         info(f"  Mode     : {mode}")
         if api_base_url:
             info(f"  Server   : {api_base_url}")
-        if webhook_secret or platform == "teams":
+        if webhook_secret or platform in ("teams", "whatsapp"):
             info(f"  Webhook  : {inbound_webhook_url(platform, bot.id)}")
 
     asyncio.run(_run())
@@ -323,5 +365,180 @@ def channel_test_message(bot_id: str, chat_id: str, text: str, org_id: str | Non
             success("Message sent successfully.")
         except Exception as exc:
             error(f"Failed to send message: {exc}")
+
+    asyncio.run(_run())
+
+
+def _read_hidden(label: str) -> str:
+    """A value that must not reach argv or the shell history: a hidden prompt, or stdin when piped."""
+    raw = click.prompt(label, hide_input=True) if _stdin_is_terminal() else sys.stdin.readline()
+    return raw.strip()
+
+
+def _stdin_is_terminal() -> bool:
+    return sys.stdin.isatty()
+
+
+@command(
+    "channel-forget-customer",
+    help="Erase a WhatsApp customer, named by business-scoped id or phone, and what is kept of them",
+)
+@click.option(
+    "--bot-id", required=True, help="Bot UUID. A phone search covers the customers of this bot only"
+)
+@click.option(
+    "--by",
+    "by",
+    required=True,
+    type=click.Choice(["bsuid", "phone"]),
+    help="What the value read from the prompt or stdin is. It is never an option.",
+)
+@click.option("--yes", is_flag=True, help="Erase without asking for confirmation")
+@_org_option
+def channel_forget_customer(bot_id: str, by: str, yes: bool, org_id: str | None) -> None:
+    """Erase a customer from every store of the organization's WhatsApp bots.
+
+    The id or number is read from a hidden prompt, or from standard input when it is
+    piped, so it is never on the command line. A customer found by phone is listed,
+    masked, before anything is erased. A customer who linked a member account is
+    refused.
+    """
+    value = _read_hidden("Phone number" if by == "phone" else "Business-scoped ID")
+    if not value:
+        error("Nothing was entered.")
+        raise SystemExit(1)
+
+    erased: list[CustomerErasure] = []
+
+    async def _run() -> None:
+        async with _channel_service(org_id) as svc:
+            try:
+                uuid = _coerce_bot_id(bot_id)
+                bot = await svc.get(uuid)
+            except NotFoundError:
+                error(f"Bot not found: {bot_id}")
+                raise SystemExit(1) from None
+            if bot.platform != "whatsapp":
+                error(f"Bot {bot_id} is not a WhatsApp bot.")
+                raise SystemExit(1)
+            if by == "phone":
+                found = (await svc.find_whatsapp_customers(uuid, value)).items
+                if not found:
+                    info("No customer on this bot has that number.")
+                    return
+                for match in found:
+                    last = match.last_message_at.isoformat() if match.last_message_at else "-"
+                    masked = f"•••• {(match.phone or '')[-4:]}"
+                    info(
+                        f"  {masked}  {match.profile_name or '-'} (profile name unverified)"
+                        f"  last message {last}"
+                    )
+                linked = [match for match in found if match.linked]
+                if linked:
+                    error(
+                        f"{len(linked)} match(es) are linked to a member account. "
+                        "Unlink the account, or delete it, to erase them. Nothing was erased."
+                    )
+                    raise SystemExit(1)
+                targets = [match.bsuid for match in found]
+            else:
+                targets = [value]
+            if not yes and not click.confirm(
+                f"Erase {len(targets)} customer(s) and everything kept about them?"
+            ):
+                info("Nothing was erased.")
+                return
+            for bsuid in targets:
+                try:
+                    counts = await svc.forget_whatsapp_bsuid(
+                        uuid, bsuid=bsuid, named_by=by, actor_user_id=None, via="cli"
+                    )
+                except AppException as exc:
+                    error(exc.message)
+                    raise SystemExit(1) from None
+                erased.append(counts)
+
+    async def _report() -> None:
+        await _run()
+        # Only now: the session committed when `_run` left it, so nothing printed here was rolled back.
+        for counts in erased:
+            success("Erased: " + ", ".join(f"{k}={v}" for k, v in asdict(counts).items()))
+
+    asyncio.run(_report())
+
+
+def _print_public_line(read: PublicLineRead) -> None:
+    """The warning a line shows before it answers people with no account, as plain lines."""
+    state = "answering people with no account" if read.answers_unlinked else "not answering them"
+    info(f"Line is {state}.")
+    if read.agent_name is None:
+        info("Serves no agent yet.")
+    else:
+        info(f"Serves: {read.agent_name} (version {read.agent_version})")
+    if not read.can_turn_on:
+        info("No spending limit: give the agent a monthly budget or the organization a cap.")
+    if read.agent_monthly_usd is not None:
+        info(f"Agent monthly budget: {read.agent_monthly_usd}")
+    if read.organization_monthly_usd is not None:
+        info(f"Organization monthly cap: {read.organization_monthly_usd}")
+    info(f"Per-customer rate: {read.rate_limit_rpm} messages a minute")
+    info(f"Approvals expire after {read.approval_expiry_hours} hours")
+    info(
+        f"Files: {'accepted, up to ' + str(read.file_max_mb) + ' MB' if read.accept_customer_files else 'not accepted'}"
+    )
+    voice = {
+        "off": "off",
+        "refused_no_org_cap": "refused until the organization has a monthly spending cap",
+        "on": f"transcribed, up to {read.recording_max_mb} MB",
+    }[read.voice]
+    info(f"Voice notes: {voice}")
+    info("Customers can reach:")
+    for reach in read.reaches:
+        names = f" - {', '.join(reach.names)}" if reach.names else ""
+        notes = [f"{grant.name}: {', '.join(grant.operations)}" for grant in reach.grants]
+        if reach.may_create:
+            notes.append("may create tables")
+        if reach.detail == "outside_ledger":
+            notes.append("not counted in the spending limit")
+        note = f" ({'; '.join(notes)})" if notes else ""
+        info(f"  {reach.kind}{names}{note}")
+    info("Customers can never reach: " + ", ".join(read.refused))
+
+
+@command("channel-public-line", help="Show what a WhatsApp line reaches; switch it on or off")
+@click.option("--bot-id", required=True, help="Bot UUID")
+@click.option(
+    "--on/--off",
+    "switch",
+    default=None,
+    help="Answer people with no account (--on), or ask them to link (--off). Omit to only show.",
+)
+@_org_option
+def channel_public_line(bot_id: str, switch: bool | None, org_id: str | None) -> None:
+    """Print the public-line warning, then switch the line when asked.
+
+    The switch goes through the same service call as the console, so it refuses
+    exactly the same way: a line cannot be opened without a spending limit.
+    """
+
+    async def _run() -> None:
+        async with _channel_service(org_id) as svc:
+            try:
+                uid = _coerce_bot_id(bot_id)
+                _print_public_line(await svc.public_line(uid))
+                if switch is None:
+                    return
+                bot = await svc.get(uid)
+                policy = AccessPolicy.model_validate(
+                    {**bot.access_policy, "answer_unlinked_direct": switch}
+                )
+                await svc.update(uid, ChannelBotUpdate(access_policy=policy), actor_user_id=None)
+            except NotFoundError:
+                error(f"Bot not found: {bot_id}")
+                raise SystemExit(1) from None
+            except AppException as exc:
+                error(exc.message)
+                raise SystemExit(1) from None
+        success(f"The line {'answers' if switch else 'no longer answers'} people with no account.")
 
     asyncio.run(_run())

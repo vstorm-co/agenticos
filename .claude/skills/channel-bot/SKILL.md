@@ -1,9 +1,9 @@
 ---
 name: channel-bot
-description: Work with messaging-channel bots — Telegram, Slack, Mattermost, Microsoft Teams or Discord. Register a bot, route inbound messages through an agent, choose webhook vs polling, handle an @slug mention, or add a new channel adapter. Use when wiring chat into a messaging platform or debugging bot delivery, identity linking or "the bot answered as itself".
+description: Work with messaging-channel bots — Telegram, Slack, Mattermost, Microsoft Teams, Discord or WhatsApp. Register a bot, route inbound messages through an agent, choose webhook vs polling, handle an @slug mention, or add a new channel adapter. Use when wiring chat into a messaging platform or debugging bot delivery, identity linking or "the bot answered as itself".
 ---
 
-# Channels — Telegram, Slack, Mattermost, Teams, Discord
+# Channels — Telegram, Slack, Mattermost, Teams, Discord, WhatsApp
 
 **Read `docs/channels.md`.** Code: `app/services/channels/` — a thick service with
 per-platform adapters plus a router that funnels inbound messages into the **same**
@@ -18,6 +18,7 @@ agent pipeline as the web chat.
 | `imessage.py`, `imessage_transport.py` | Company BlueBubbles Mac: bounded HTTP, separately authenticated webhook, text/files, optional tapbacks and numbered prompts; no polling |
 | `teams.py`, `teams_auth.py` | Microsoft Teams over the Bot Connector's HTTP protocol (#1985): JWT-verified activities, Adaptive Cards, conversation references in `teams_conversations` |
 | `discord.py`, `discord_protocol.py` | Discord over its Gateway and REST API, no library (#2079); the protocol module holds the pure payloads, chunking and the channel-visibility arithmetic |
+| `whatsapp.py`, `whatsapp_payload.py`, `whatsapp_format.py`, `whatsapp_graph.py`, `whatsapp_window.py`, `whatsapp_templates.py`, `whatsapp_customers.py`, `whatsapp_inbound.py`, `whatsapp_nudge.py` | WhatsApp over Meta's Cloud API (#2076): HMAC-verified webhook batches queued durably in the webhook transaction and grouped per customer, Markdown converted and split to 4096 UTF-16 units, the Graph client (a refused token marks the bot down in the console list); the 24-hour window: the customer record the webhook keeps, late answers and fixed chat notices in the bot's utility template or held until the customer writes, and a one-button nudge before the window closes on a run awaiting approval |
 | `router.py` | Inbound platform message → conversation/session → agent run → reply |
 | `mentions.py` | `@slug` resolution, and the identity rules below |
 
@@ -71,7 +72,10 @@ These are the ones worth testing and the ones easiest to break:
   carry whatever permissions it was registered with, which is how a channel becomes a
   privilege-escalation path.
 - **An unlinked identity is refused, not run with no role.** "No role" is not a safe
-  default; it is an unauthenticated run.
+  default; it is an unauthenticated run. The one exception is a direct chat on a
+  WhatsApp bot whose public line is on (`answer_unlinked_direct`): it runs *as the
+  agent*, with only the spec's grants, and needs a spending ceiling. See
+  `docs/channels.md#whatsapp-public-line`.
 
 `tests/test_channel_mentions.py` and `tests/test_channel_bot_org_scope.py` pin these.
 
@@ -84,6 +88,8 @@ uv run agenticos cmd channel-list-bots [--platform telegram]
 uv run agenticos cmd channel-test-message --bot-id <uuid> --chat-id <chat> --text ping
 uv run agenticos cmd channel-webhook-register --bot-id <uuid>
 uv run agenticos cmd channel-webhook-delete --bot-id <uuid>   # back to polling
+uv run agenticos cmd channel-public-line --bot-id <uuid> [--on|--off]   # WhatsApp public line
+uv run agenticos cmd channel-forget-customer --bot-id <uuid> --by bsuid|phone
 ```
 
 There is no `cmd channel` group — the commands are flat, hyphenated names.
@@ -106,6 +112,12 @@ makes the *other* modes refuse in a channel too (#639).
   the service and `channel-webhook-register` refuse a webhook for it. An
   interaction must be acknowledged within three seconds, so the adapter defers
   first and does the work after.
+- **WhatsApp is push only too** - Meta's `X-Hub-Signature-256` is checked over the raw body
+  with the app secret (`verify_signature`), never skipped for a bot without one. A
+  customer is a business-scoped user id, never a phone number, and the number is
+  never logged. One Meta app has one callback URL for all its numbers, so
+  `WhatsAppInbound.route_others` hands a change for another number to the active
+  bot registered for it, and only when that bot's own app secret verifies the body.
 
 ## Adding an adapter
 

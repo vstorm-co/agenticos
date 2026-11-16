@@ -13,6 +13,7 @@ carry is named in it.
 import contextlib
 import uuid
 from collections.abc import Iterator, Sequence
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -27,6 +28,7 @@ from pydantic_ai.workspaces import (
 )
 from pydantic_ai_backends import StateBackend
 
+from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.db.models.chat_file import ChatFile
 from app.services.channels.attachments import (
@@ -40,9 +42,12 @@ from app.services.channels.attachments import (
 from app.services.channels.base import IncomingAttachment, IncomingMessage
 from app.services.channels.mentions import AnsweredTurn, UnaddressedMessage
 from app.services.channels.router import ChannelMessageRouter
+from app.services.channels.whatsapp import WhatsAppAdapter
+from app.services.channels.whatsapp_graph import MediaInfo, WhatsAppCredentials, WhatsAppGraphError
 from app.services.file_storage import LocalFileStorage
 from app.services.file_upload import FileUploadService
 from app.services.workflow_execution.exceptions import WorkflowAdmissionQuotaError
+from tests.whatsapp_fakes import OpenWindow
 from tests.workspaces import document_workspace
 
 pytestmark = pytest.mark.anyio
@@ -78,6 +83,22 @@ def _adapter(*, downloads: Any = b"month,total") -> MagicMock:
         return_value=downloads if not isinstance(downloads, Exception) else None,
     )
     return adapter
+
+
+WA_TOKEN = WhatsAppCredentials(bot_id="b", access_token="t", phone_number_id="1").encode()
+
+
+def _whatsapp_graph(*, file_size: int) -> MagicMock:
+    """A Graph that states `file_size` for any media id and serves a small CSV."""
+    return MagicMock(
+        media_info=AsyncMock(
+            return_value=MediaInfo(
+                url="https://lookaside.fbsbx.com/m", mime_type=None, file_size=file_size
+            )
+        ),
+        download_media=AsyncMock(return_value=b"month,total"),
+        aclose=AsyncMock(),
+    )
 
 
 def _service(*, uploads: Any = None) -> ChannelAttachmentService:
@@ -146,7 +167,13 @@ def _channel(agent_router: Any, rows: list[Any]) -> Iterator[None]:
             self.db = db
 
         async def receive(
-            self, adapter: Any, token: str, attachments: list[Any], *, user_id: uuid.UUID
+            self,
+            adapter: Any,
+            token: str,
+            attachments: list[Any],
+            *,
+            user_id: uuid.UUID,
+            max_bytes: int | None = None,
         ) -> tuple[list[Any], list[str]]:
             stored = [
                 SimpleNamespace(id=uuid.uuid4(), filename=one.filename) for one in attachments
@@ -176,6 +203,8 @@ def _channel(agent_router: Any, rows: list[Any]) -> Iterator[None]:
         patch(
             f"{router}.channel_session_repo.get_by_bot_and_chat", AsyncMock(return_value=session)
         ),
+        # Nothing is waiting on a link code: the router asks before anything else.
+        patch(f"{router}.ChannelLinkService.complete_with_code", AsyncMock(return_value="none")),
         patch(f"{router}.channel_session_repo.touch", AsyncMock(return_value=session)),
         # The chat's conversation belongs to the sender, so the session is not rotated.
         patch(
@@ -364,6 +393,74 @@ class TestReceivingWhatSomebodySent:
 
         assert stored == []
         assert "cannot fetch files" in refused[0]
+        assert "from Slack yet" in refused[0]
+
+    async def test_the_refusal_names_the_platform_the_way_people_do(self):
+        service = _service()
+        adapter = _adapter(downloads=NotImplementedError("no"))
+        adapter.platform = "teams"
+
+        _, refused = await service.receive(adapter, "t", [_attachment()], user_id=uuid.uuid4())
+
+        assert "from Microsoft Teams yet" in refused[0]
+
+    async def test_an_oversized_whatsapp_file_is_refused_before_download(self):
+        """The size Meta states, filled in by the real `describe_attachments`, feeds the
+        same size gate every platform has: the file is refused without being fetched."""
+        graph = _whatsapp_graph(file_size=200 * 1024 * 1024)
+        adapter = WhatsAppAdapter(graph, window=OpenWindow())
+        found = [_attachment(handle="123")]
+
+        described = await adapter.describe_attachments(WA_TOKEN, found)
+        stored, refused = await _service().receive(
+            adapter, WA_TOKEN, described, user_id=uuid.uuid4()
+        )
+
+        assert stored == []
+        assert "report.csv" in refused[0]
+        assert "File too large" in refused[0]
+        graph.download_media.assert_not_awaited()
+        await adapter.aclose()
+
+    async def test_a_whatsapp_download_failure_names_the_file(self):
+        graph = _whatsapp_graph(file_size=10)
+        graph.download_media.side_effect = WhatsAppGraphError(code=None)
+        adapter = WhatsAppAdapter(graph, window=OpenWindow())
+        described = await adapter.describe_attachments(WA_TOKEN, [_attachment(handle="123")])
+
+        stored, refused = await _service().receive(
+            adapter, WA_TOKEN, described, user_id=uuid.uuid4()
+        )
+
+        assert stored == []
+        assert refused == ["report.csv: could not be downloaded."]
+        await adapter.aclose()
+
+    async def test_a_whatsapp_file_is_fetched_and_stored(self):
+        graph = _whatsapp_graph(file_size=11)
+        adapter = WhatsAppAdapter(graph, window=OpenWindow())
+        described = await adapter.describe_attachments(WA_TOKEN, [_attachment(handle="123")])
+        service = _service()
+
+        stored, refused = await service.receive(adapter, WA_TOKEN, described, user_id=uuid.uuid4())
+
+        assert len(stored) == 1 and refused == []
+        assert service.uploads.upload.await_args.kwargs["file_data"] == b"month,total"
+        await adapter.aclose()
+
+    async def test_a_whatsapp_video_is_refused_without_download(self):
+        service = _service()
+        graph = _whatsapp_graph(file_size=10)
+        adapter = WhatsAppAdapter(graph, window=OpenWindow())
+        video = _attachment(filename="video.mp4", mime_type="video/mp4", handle="123")
+
+        described = await adapter.describe_attachments(WA_TOKEN, [video])
+        stored, refused = await service.receive(adapter, WA_TOKEN, described, user_id=uuid.uuid4())
+
+        assert stored == []
+        assert refused == ["video.mp4: I cannot watch videos - type it out, or send a file."]
+        graph.download_media.assert_not_awaited()
+        await adapter.aclose()
 
     async def test_a_download_that_failed_is_reported_not_raised(self):
         service = _service()
@@ -797,6 +894,8 @@ async def _route_one_file(text: str) -> tuple[MagicMock, MagicMock, AsyncMock]:
         patch(
             f"{router}.channel_session_repo.get_by_bot_and_chat", AsyncMock(return_value=session)
         ),
+        # Nothing is waiting on a link code: the router asks before anything else.
+        patch(f"{router}.ChannelLinkService.complete_with_code", AsyncMock(return_value="none")),
         patch(f"{router}.channel_session_repo.touch", AsyncMock(return_value=session)),
         # The chat's conversation belongs to the sender, so the session is not rotated.
         patch(
@@ -1118,10 +1217,41 @@ class TestATypedAnswerIsNotATurn:
             "platform_chat_id": "C1",
             "platform_user_id": "U1",
             "text": "Kraków, please",
+            "sent_at": None,
         }
         router._receive_files.assert_not_awaited()
         router._answer_mention.assert_not_awaited()
         assert rows == []
+
+    async def test_the_time_a_message_was_sent_reaches_the_typed_answer_claim(self):
+        router, _replies, rows = _router()
+        router._receive_files = AsyncMock()  # type: ignore[method-assign]
+        router._answer_mention = AsyncMock()  # type: ignore[method-assign]
+        sent = datetime(2026, 11, 4, 10, tzinfo=UTC)
+        incoming = IncomingMessage(
+            platform="whatsapp",
+            bot_id=str(uuid.uuid4()),
+            platform_user_id="O:US.1",
+            platform_chat_id="US.1",
+            chat_type="private",
+            text="Kraków, please",
+            sent_at=sent,
+        )
+
+        with (
+            _channel(_agent_router(), rows),
+            patch(
+                "app.services.channels.router.member_repo.get_active",
+                AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                "app.services.channels.router.ChannelPrompts.reply",
+                AsyncMock(return_value=True),
+            ) as reply,
+        ):
+            await router._route_inner(incoming, MagicMock())
+
+        assert reply.await_args.kwargs["sent_at"] == sent
 
 
 class TestAWorkflowListeningToTheBot:
@@ -1371,3 +1501,174 @@ def ordinary_channel_histories(monkeypatch):
         "app.services.channels.router.primary_conversation_repo.agent_for_conversation",
         AsyncMock(return_value=None),
     )
+
+
+_CREATOR = uuid.uuid4()
+
+
+def _public_line_bot(*, accept: bool) -> Any:
+    return MagicMock(
+        id=uuid.uuid4(),
+        organization_id=uuid.uuid4(),
+        platform="whatsapp",
+        access_policy={"answer_unlinked_direct": True, "accept_customer_files": accept},
+    )
+
+
+@contextlib.contextmanager
+def _binding(creator: uuid.UUID | None) -> Iterator[ChannelAttachmentService]:
+    """The binding a bot has, and the attachment service its files would go through."""
+    service = _service()
+    adapter = _adapter()
+    router = "app.services.channels.router"
+    with (
+        patch(
+            f"{router}.agent_exposure_repo.bound_to_bot",
+            AsyncMock(return_value=SimpleNamespace(created_by_user_id=creator)),
+        ),
+        patch(f"{router}.ChannelAttachmentService", return_value=service),
+        patch(f"{router}.get_adapter", return_value=adapter),
+        patch(f"{router}.unseal_bot_token", return_value="tok"),
+    ):
+        service.adapter = adapter  # type: ignore[attr-defined]
+        yield service
+
+
+async def _customer_sends(
+    bot: Any, *, attachment: IncomingAttachment | None = None, as_agent: bool = True
+) -> tuple[list[Any], list[str]]:
+    incoming = _incoming("here")
+    incoming.attachments = [attachment or _attachment()]
+    identity = MagicMock(user_id=None)
+    return await ChannelMessageRouter()._receive_files(
+        MagicMock(), bot, incoming, identity, as_agent=as_agent
+    )
+
+
+class TestACustomersFiles:
+    @pytest.mark.security
+    async def test_a_customers_file_is_refused_while_the_line_takes_none(self):
+        with _binding(_CREATOR) as service:
+            stored, refused = await _customer_sends(_public_line_bot(accept=False))
+
+        assert stored == []
+        assert refused == ["This line does not accept files."]
+        service.adapter.download_attachment.assert_not_called()
+        service.uploads.upload.assert_not_called()
+
+    async def test_a_public_line_customers_image_is_stored_under_the_binding_creator(self):
+        image = _attachment(filename="photo.png", mime_type="image/png")
+        service_data = b"\x89PNG\r\n\x1a\n" + bytes(32)
+        with _binding(_CREATOR) as service:
+            service.adapter.download_attachment.return_value = service_data
+            stored, refused = await _customer_sends(_public_line_bot(accept=True), attachment=image)
+
+        assert refused == []
+        assert len(stored) == 1
+        assert service.uploads.upload.await_args.kwargs["user_id"] == _CREATOR
+
+    async def test_a_customers_file_over_the_public_cap_is_refused_by_name(self):
+        cap = settings.EMBED_MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        claimed = _attachment(filename="big.csv", size=cap + 1)
+        with _binding(_CREATOR) as service:
+            stored, refused = await _customer_sends(
+                _public_line_bot(accept=True), attachment=claimed
+            )
+            assert stored == []
+            assert refused[0].startswith("big.csv: ")
+            assert "too large" in refused[0].lower()
+            service.adapter.download_attachment.assert_not_called()
+
+            service.adapter.download_attachment.return_value = b"x" * (cap + 1)
+            stored, refused = await _customer_sends(
+                _public_line_bot(accept=True), attachment=_attachment(filename="lie.csv", size=10)
+            )
+
+        assert stored == []
+        assert refused[0].startswith("lie.csv: ")
+        service.uploads.upload.assert_not_called()
+
+    @pytest.mark.security
+    async def test_a_binding_with_no_creator_takes_no_files(self):
+        with _binding(None) as service:
+            stored, refused = await _customer_sends(_public_line_bot(accept=True))
+
+        assert stored == []
+        assert refused == ["This line does not accept files."]
+        service.adapter.download_attachment.assert_not_called()
+
+    async def test_an_unlinked_room_sender_keeps_todays_refusal(self):
+        with _binding(_CREATOR) as service:
+            stored, refused = await _customer_sends(_public_line_bot(accept=True), as_agent=False)
+
+        assert stored == []
+        assert refused[0].startswith("To read your files, connect your account first.")
+        service.adapter.download_attachment.assert_not_called()
+
+
+class TestAStrangersDownloadStopsAtTheirLimit:
+    @pytest.mark.security
+    async def test_a_size_nobody_could_state_does_not_pull_a_members_file(self):
+        """The lookup failed, so the claim reads 0 and passes every pre-download
+        check: the fetch itself has to stop at the public cap."""
+        graph = _whatsapp_graph(file_size=0)
+        adapter = WhatsAppAdapter(graph, window=OpenWindow())
+        cap = settings.EMBED_MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        service = _service()
+        service.uploads.validate_bytes = lambda *_a: (True, None)
+
+        await service.receive(
+            adapter,
+            WA_TOKEN,
+            [_attachment(size=0, handle="12345")],
+            user_id=_CREATOR,
+            max_bytes=cap,
+        )
+
+        assert graph.download_media.await_args.kwargs["limit"] == cap
+        assert cap < settings.CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        await adapter.aclose()
+
+    async def test_a_member_is_fetched_under_the_usual_limit(self):
+        graph = _whatsapp_graph(file_size=0)
+        adapter = WhatsAppAdapter(graph, window=OpenWindow())
+
+        await adapter.download_attachment(WA_TOKEN, _attachment(handle="12345"))
+
+        assert (
+            graph.download_media.await_args.kwargs["limit"]
+            == settings.CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        )
+        await adapter.aclose()
+
+
+class TestTheRouteTreatsADepartedMemberAsAStranger:
+    async def test_files_and_voice_reach_the_stranger_paths_with_no_person_behind_them(self):
+        router, _replies, rows = _router()
+        router._receive_files = AsyncMock(return_value=([], []))  # type: ignore[method-assign]
+        router._transcribe = AsyncMock(return_value=([], []))  # type: ignore[method-assign]
+        router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
+        router._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router._deliver = AsyncMock()  # type: ignore[method-assign]
+        incoming = IncomingMessage(
+            platform="whatsapp",
+            bot_id=str(uuid.uuid4()),
+            platform_user_id="U1",
+            platform_chat_id="C1",
+            chat_type="private",
+            text="please handle this",
+            attachments=[_attachment(mime_type="audio/ogg", filename="voice.ogg")],
+        )
+
+        with (
+            _channel(_agent_router(answer_default=None), rows),
+            patch("app.services.channels.router.bot_answers_unlinked_direct", return_value=True),
+            patch(
+                "app.services.channels.router.member_repo.get_active", AsyncMock(return_value=None)
+            ),
+        ):
+            await router._route_inner(incoming, MagicMock())
+
+        assert router._receive_files.await_args.kwargs["as_agent"] is True
+        assert router._transcribe.await_args.kwargs["as_agent"] is True
+        assert router._transcribe.await_args.kwargs["requested_by"] is None

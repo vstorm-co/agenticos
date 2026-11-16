@@ -906,19 +906,19 @@ for _product_id, _models in ODOO_MODELS.items():
             (
                 "search",
                 "search_read",
-                "Search with body {domain, fields, limit (1-100), offset, order}.",
+                "Search with body (domain, fields, limit (1-100), offset, order).",
             ),
-            ("read", "read", "Read body {ids, fields}; at most 100 records."),
+            ("read", "read", "Read body (ids, fields); at most 100 records."),
             ("fields", "fields_get", "Inspect available field names and types before writing."),
             (
                 "create",
                 "create",
-                "Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools.",
+                "Create one record with body (values). Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools.",
             ),
             (
                 "update",
                 "write",
-                "Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools.",
+                "Update body (ids, values); at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools.",
             ),
         ):
             if _noun == "stock_levels" and _action in {"create", "update"}:
@@ -944,7 +944,7 @@ for _product_id, _models in ODOO_MODELS.items():
             Operation(
                 _id,
                 _description
-                + " Body: {ids}, at most 100 records. Read the records afterward to confirm their state; a returned wizard action is not proof of completion.",
+                + " Body: (ids), at most 100 records. Read the records afterward to confirm their state; a returned wizard action is not proof of completion.",
                 "POST",
                 f"odoo://{_model}/{_method}",
                 ("odoo:write",),

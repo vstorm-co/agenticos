@@ -1140,7 +1140,19 @@
     "observationRequired": "Select the model that decides whether the agent should join.",
     "observationSaveFailed": "Could not save. Your edits remain in this form; try again.",
     "observationSave": "Save participation settings",
-    "enableIntegrationTool": "Enable {tool}"
+    "enableIntegrationTool": "Enable {tool}",
+    "contextFilesDetail": "Standing context this agent reads - a glossary or policy injected into its prompt, or files it reads on demand.",
+    "tablesGrantsLabel": "Tables this agent may use",
+    "tablesGrantsDetail": "Tick a table, then choose what the agent may do in it. Reading is always on. An agent never reaches a table that is not ticked here, and every call is still checked as the member it acts for.",
+    "tablesOperationsLabel": "What the agent may do in {name}",
+    "publicLineBinding": "This bot answers customers who have not linked an account, so people outside the organization talk to this agent here.",
+    "publicLineReview": "Review the line",
+    "bindingRequested": "Request sent - an administrator has to approve it",
+    "askAnAdministrator": "Ask an administrator",
+    "waitingForAdministrator": "Waiting for an administrator: {bot}",
+    "noteForAdministrator": "Note for the administrator",
+    "noteForAdministratorPlaceholder": "Why {bot} should answer customers with this agent",
+    "sendRequest": "Send request"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -2746,7 +2758,7 @@
         "description": "Runs paused on a tool call, waiting for a decision.",
         "someAgent": "An agent",
         "forPerson": "for {email} · waiting {ago}",
-        "forChatAccount": "for {name} (unverified) · waiting {ago}"
+        "forChatAccount": "for {name} (unverified{hasHandle, select, yes {, {handle}} other {}}) · waiting {ago}"
       },
       "budget-headroom": {
         "empty": {
@@ -3078,7 +3090,8 @@
           "telegram": "Telegram",
           "web": "Web chat",
           "workflow": "Workflow",
-          "proactive": "Proactive"
+          "proactive": "Proactive",
+          "whatsapp": "WhatsApp"
         },
         "title": "Where runs come from",
         "description": "Where runs come from - web chat, API, channels.",
@@ -3160,7 +3173,8 @@
         "platforms": {
           "telegram": "Telegram",
           "slack": "Slack",
-          "mattermost": "Mattermost"
+          "mattermost": "Mattermost",
+          "whatsapp": "WhatsApp"
         },
         "webhook": "listening",
         "polling": "polling",
@@ -3168,7 +3182,10 @@
         "empty": {
           "title": "No channels yet",
           "description": "Register a bot and its agents become reachable from Slack, Telegram or Mattermost."
-        }
+        },
+        "publicLine": "public line",
+        "publicLinePill": "{mode} · {flag}",
+        "bindingRequests": "{count, plural, one {# binding request} other {# binding requests}}"
       },
       "knowledge": {
         "title": "Knowledge",
@@ -3292,7 +3309,8 @@
         "waiting": "Waiting on you",
         "nothingWaiting": "Nothing waiting",
         "spent": "Spent",
-        "spentLabel": "{amount} spent"
+        "spentLabel": "{amount} spent",
+        "review": "Review them"
       },
       "eval-runs": {
         "title": "Eval runs",
@@ -3622,7 +3640,7 @@
         "agent": "The Architect builds one with you.",
         "publish": "So people can use it in chat and in channels.",
         "knowledge": "The documents it answers from.",
-        "channel": "Slack, Teams, Telegram, Mattermost or Discord."
+        "channel": "Slack, Teams, Telegram, Mattermost, Discord or WhatsApp."
       },
       "left": "{count, plural, =1 {1 step left} other {# steps left}}",
       "start": "Start",
@@ -3712,7 +3730,7 @@
         },
         "channels": {
           "title": "Meet your team where it chats",
-          "body": "Put an agent in Slack, Telegram or Mattermost, and people ask it right in the thread they are already in.",
+          "body": "Put an agent in Slack, Teams, Telegram, Mattermost, Discord or WhatsApp, and people ask it right in the thread they are already in.",
           "cta": "Add a chat app"
         },
         "browser": {
@@ -4912,7 +4930,7 @@
       },
       "channels-new": {
         "title": "Reach agents where people are",
-        "body": "Register a chat platform - Slack, Telegram, Mattermost - and any agent can be bound to answer there. The bot's token is sealed in the vault. Add one here."
+        "body": "Register a chat platform - Slack, Telegram, Mattermost, Teams, Discord, WhatsApp - and any agent can be bound to answer there. The bot's token is sealed in the vault. Add one here."
       },
       "chat-agent-picker": {
         "title": "Choose who answers",
@@ -6094,6 +6112,14 @@
       "personal-integration-accounts": {
         "title": "Your connected accounts",
         "body": "Add, reconnect or disconnect your accounts here. You can connect several accounts for the same service."
+      },
+      "channels-binding-requests": {
+        "title": "Decide who reaches customers",
+        "body": "When someone who builds agents asks to put an agent on a public line, the request waits here with their note. Approving applies it; declining tells them."
+      },
+      "channels-customers": {
+        "title": "The people who write in",
+        "body": "See who has written to a WhatsApp line without an account, search by number, and forget a customer across the organization's bots when asked to."
       }
     },
     "chooseLanguage": "Language",
@@ -7215,7 +7241,11 @@
       "runsWithYourPermissions": "The agent answers as you - your permissions, your budget, your name on the audit trail.",
       "seeConnectedAccounts": "See your connected accounts",
       "thatAccount": "That chat account",
-      "theAgentWillRunAsYou": "The bot needs to know who you are before it will answer you."
+      "theAgentWillRunAsYou": "The bot needs to know who you are before it will answer you.",
+      "finishInTheChat": "Finish in the chat",
+      "nameNotVerified": "(name not verified)",
+      "notConnectedYet": "Your account is not connected until the chat has the code.",
+      "sendThisCode": "Send this code from your {platform} chat to finish. Never give it to anyone."
     },
     "channels": {
       "respondToBroadcasts": "Respond to group mentions",
@@ -7329,7 +7359,7 @@
       "transcriptionInheritsFromOrg": "{pair}, from the organization",
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
-      "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} discord {Discord sends voice messages as Ogg/Opus} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
+      "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} discord {Discord sends voice messages as Ogg/Opus} whatsapp {WhatsApp sends voice notes as Ogg/Opus} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
       "transcriptionProviderNoKey": "{name} (no usable key)",
       "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is.",
       "botTokenHintEmail": "The address the bot answers from, for example agent@mail.example.com. Replies go out through this deployment's e-mail provider.",
@@ -7350,7 +7380,100 @@
       "discordGuilds": "Approved Discord server IDs",
       "discordGuildsHint": "Enable Developer Mode in Discord and copy each approved server ID. Separate IDs with commas or spaces. An empty list permits DMs only; server messages stay blocked.",
       "discordGuildsInvalid": "Enter decimal server IDs, separated by commas or spaces (up to 2,500 servers).",
-      "emailAddress": "Email address"
+      "emailAddress": "Email address",
+      "botTokenHintWhatsapp": "The System User access token from Meta Business settings. Use a permanent token: a temporary one stops working within a day.",
+      "whatsappPhoneNumberId": "Phone number ID",
+      "whatsappPhoneNumberIdHint": "In the Meta app, under WhatsApp, API setup. This is the number's ID, not the phone number itself.",
+      "whatsappAccountId": "WhatsApp Business account ID",
+      "whatsappAccountIdHint": "The account that owns the number, shown beside it under API setup.",
+      "whatsappAppSecret": "App secret",
+      "whatsappAppSecretHint": "In the Meta app, under App settings, Basic. Every incoming message is checked against it.",
+      "whatsappVerifyToken": "Verify token",
+      "whatsappVerifyTokenHint": "A string you choose, at least 8 characters. Meta asks for it when you subscribe the webhook. It is stored sealed and never shown again.",
+      "whatsappCallback": "Callback URL",
+      "whatsappCallbackHint": "Meta calls this address. The verify token is the one you chose when registering the bot; it is never shown here.",
+      "whatsappSetupSteps": "In your Meta app:",
+      "whatsappStepCallback": "Under WhatsApp, Configuration, paste the callback URL and the verify token.",
+      "whatsappStepSubscribe": "Subscribe the messages field.",
+      "whatsappStepLive": "Put the app in Live mode.",
+      "whatsappSendDown": "Can't send replies",
+      "whatsappStepToken": "Use a permanent System User access token.",
+      "whatsappLateTemplate": "Late-answer template",
+      "whatsappLateTemplateHint": "Used when an answer is ready after the customer's 24-hour window has closed. Each late answer is sent as a template message, which Meta charges for.",
+      "whatsappLateTemplateNone": "None",
+      "whatsappLateTemplateLoading": "Loading templates…",
+      "whatsappLateTemplateEmpty": "Meta lists no approved utility template with one variable in its body and at most one quick-reply button on this account.",
+      "whatsappLateTemplateFailed": "Could not load the templates from Meta. Try again in a moment, and check the bot's access token if it keeps failing.",
+      "whatsappLateTemplateOption": "{name} · {language}",
+      "whatsappLateTemplateUnlisted": "{name} · {language} (Meta no longer lists it as usable)",
+      "whatsappNoLateTemplate": "No late-answer template",
+      "whatsappNoLateTemplateHint": "No late-answer template is set. An answer that is ready after the customer's 24-hour window has closed is held until they write again.",
+      "registeredCount": "{count, plural, =1 {1 channel registered} other {# channels registered}}",
+      "publicLineSwitch": "Answer people with no account",
+      "publicLineHint": "Customers who have not linked an account get answers from the agent itself, not as a colleague. WhatsApp private chats only.",
+      "publicLineNoLimit": "This line needs a spending limit first: give the agent a monthly budget or the organization a monthly cap.",
+      "publicLineNoAgent": "This bot serves no agent yet. Bind one before opening the line.",
+      "publicLineServes": "Serves {agent}, version {version}",
+      "publicLineReaches": "A customer can reach:",
+      "publicLineReachKnowledge": "Knowledge: {names}",
+      "publicLineReachContext": "Context files: {names}",
+      "publicLineReachSkills": "Skills: {names}",
+      "publicLineReachTables": "Tables: {names}",
+      "publicLineReachWeb": "The web: {names}",
+      "publicLineReachCode": "Code and workspaces: {names}",
+      "publicLineReachGeneration": "Generated media: {names}",
+      "publicLineReachDelegates": "Other agents: {names}",
+      "publicLineReachMcp": "MCP servers: {names}",
+      "publicLineReachFiles": "Files they send",
+      "publicLineOutsideLedger": "not counted in the spending limit",
+      "publicLineTableGrant": "{name}: {operations}",
+      "publicLineMayCreate": "may create tables",
+      "customersLoadMore": "Load more",
+      "customersTotal": "{shown} of {total} customers",
+      "publicLineAgentBudget": "Agent monthly budget: {amount}",
+      "publicLineOrgCap": "Organization monthly cap: {amount}",
+      "publicLineRate": "Each customer is held to {count, plural, one {# message a minute} other {# messages a minute}}",
+      "publicLineApprovalExpiry": "An approval nobody decides expires after {hours, plural, one {# hour} other {# hours}}",
+      "publicLineFileCap": "Files up to {mb} MB",
+      "publicLineVoiceCap": "Voice notes up to {mb} MB are transcribed",
+      "publicLineVoiceNeedsCap": "Voice notes need an organization cap and are turned away until one is set",
+      "publicLineRefused": "A customer can never reach: {list}",
+      "publicLineRefusedMemory": "memory",
+      "publicLineRefusedConversationSearch": "conversation search",
+      "publicLineRefusedArtifacts": "publishing pages",
+      "publicLineRefusedWorkflows": "workflows",
+      "publicLineRefusedBackgroundTasks": "background tasks",
+      "publicLineRefusedPlatformMcp": "the platform's own MCP server",
+      "publicLineFiles": "Accept files from customers",
+      "publicLineFilesHint": "Stored under the person who bound the agent. Off, a file is declined politely.",
+      "publicLineBadge": "Public line",
+      "bindingApproved": "Request approved",
+      "bindingDeclined": "Request declined",
+      "bindingRequests": "Binding requests",
+      "bindingRequestsHint": "People who build agents ask here before an agent answers customers on a public line. Approving applies the change as you.",
+      "bindingRequestLine": "{requester} asks to {kind, select, bind {bind {agent} to {bot}} environment {change the environment of {agent} on {bot}} resume {resume {agent} on {bot}} other {change {agent} on {bot}}}",
+      "someone": "Someone",
+      "bindingRequestNote": "Note: {note}",
+      "approve": "Approve",
+      "decline": "Decline",
+      "customersOf": "Customers of {bot}",
+      "customersTitle": "Customers of {bot}",
+      "customerSearch": "Search by phone number",
+      "customerSearchButton": "Search",
+      "customerShowAll": "Show all",
+      "customersNone": "No customers yet",
+      "customerNoMatch": "No customer has that number",
+      "customerUnverifiedName": "{name} (unverified)",
+      "customerLastMessage": "Last message {when}",
+      "customerNoMessages": "No messages yet",
+      "customerLinked": "Linked",
+      "customerLinkedWhy": "They have linked an account, so they are a member and not a customer to forget.",
+      "customerForget": "Forget {name}",
+      "customerForgetTitle": "Forget {name}?",
+      "customerForgetBody": "This erases the customer across all of the organization's WhatsApp bots: their number, name and messages, and the files and approvals from their chats. Their runs stay as accounting, without what they said. This cannot be undone.",
+      "customerForgetConfirm": "Forget customer",
+      "customerForgotten": "Customer forgotten",
+      "publicLineReachIntegrations": "Connected organization accounts: {names}"
     },
     "invitations": {
       "acceptInvitation": "Accept invitation",
@@ -7906,8 +8029,8 @@
       "surfaceEmail": "Email",
       "systemRoleBriefing": "Daily briefing (system)",
       "systemRoleMaintenance": "Memory maintenance (system)",
-      "askedInChat": "Asked in {platform} by {name} (unverified)",
-      "askedInChatThrough": "Asked in {platform} by {name} (unverified), through {bot}",
+      "askedInChat": "Asked in {platform} by {name} (unverified{hasHandle, select, yes {, {handle}} other {}})",
+      "askedInChatThrough": "Asked in {platform} by {name} (unverified{hasHandle, select, yes {, {handle}} other {}}), through {bot}",
       "decisionApprovedInChat": "Approved. Once nothing else is waiting, the agent goes on in the chat it was asked in.",
       "decisionRejectedInChat": "Rejected. Once nothing else is waiting, the agent answers in the chat it was asked in.",
       "runResumedInChat": "Run resumed. Its answer is also sent to the chat it was asked in.",
@@ -7950,7 +8073,11 @@
       "inputTokenCacheRead": "Cache read",
       "inputTokenCacheWrite": "Cache write",
       "inputTokenHint": "Totals across recorded model requests. Cache tokens are included in input, not added on top.",
-      "systemRoleChannelDecision": "Channel participation decision (system)"
+      "systemRoleChannelDecision": "Channel participation decision (system)",
+      "undeliveredWindowNoTemplate": "Not delivered: outside WhatsApp's 24-hour window and no late-answer template is set.",
+      "undeliveredWindowTemplateFailed": "Not delivered: outside WhatsApp's 24-hour window and the late-answer template could not be sent.",
+      "undeliveredOther": "This answer was not delivered.",
+      "surfaceWhatsapp": "WhatsApp"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -7986,7 +8113,7 @@
       "chatAccountNoAgentsHere": "No agent you can see answers on this bot.",
       "chatAccountNotUsedYet": "Not used anywhere yet. Send one of your organization's bots a message.",
       "chatAccounts": "Chat accounts",
-      "chatAccountsDescription": "Slack, Microsoft Teams, Telegram, Mattermost and Discord accounts connected to you. An agent reached from one of these answers as you, with your permissions and your budget.",
+      "chatAccountsDescription": "Slack, Microsoft Teams, Telegram, Mattermost, Discord and WhatsApp accounts connected to you. An agent reached from one of these answers as you, with your permissions and your budget.",
       "confirmNewPassword": "Confirm new password",
       "currentPassword": "Current password",
       "deleteAccount": "Delete account",
@@ -8189,7 +8316,11 @@
       "notificationClearSearch": "Clear search",
       "notificationEventCount": "{count, plural, =1 {1 event} other {# events}}",
       "mobileAccountHint": "Use AgenticOS on your phone with the same account.",
-      "openMobileApp": "Set up mobile app"
+      "openMobileApp": "Set up mobile app",
+      "prefChannelBindingRequested": "Binding requests",
+      "prefChannelBindingRequestedTrigger": "Someone asks to bind an agent to a public WhatsApp line, change its environment or lift its pause. Sent to people who manage channels.",
+      "prefChannelBindingDecided": "Binding decisions",
+      "prefChannelBindingDecidedTrigger": "An administrator approved or declined your request about a public line."
     },
     "skills": {
       "allCategories": "All categories",
@@ -9638,7 +9769,8 @@
       "hiddenAgents": "{count, plural, one {# other agent} other {# other agents}}",
       "testOptionalShort": "Test (optional)",
       "compareShort": "Changes"
-    }
+    },
+    "savingReachesEveryAgent": "Saving reaches every agent bound to this skill on its next run. There is no draft and no publish step."
   },
   "states": {
     "loading": "Loading"
@@ -10865,7 +10997,8 @@
       "done": {
         "title": "You're all set",
         "body": "Everything here is in Settings when you want to change it."
-      }
+      },
+      "onlyInApp": "This welcome belongs to the AgenticOS desktop app."
     },
     "readiness": {
       "title": "App readiness",
@@ -10907,7 +11040,8 @@
       "opening": "Opening your workspace…",
       "permissionNoteMac": "These checks capture no screen, audio or clipboard. Permissions are optional and requested only when you click. macOS may require restarting the app after a Screen Recording change.",
       "screenCaptureDeniedElsewhere": "Your system has not granted screen access to this app. Allow it in the system's privacy settings, then refresh.",
-      "link": "Link"
+      "link": "Link",
+      "connect": "Connect"
     },
     "notificationSettings": {
       "title": "Desktop notifications",
@@ -13149,7 +13283,18 @@
       }
     },
     "setup": {
-      "bubble": "I'm not connected to a model yet, so I can't think. Want me to show you how to connect one?"
+      "bubble": "I'm not connected to a model yet, so I can't think. Want me to show you how to connect one?",
+      "title": "Connecting a model",
+      "typing": "{name} is typing…",
+      "openBuilder": "Open my model settings",
+      "steps": {
+        "intro": "Hi, I'm {name}. I help build agents and find your way around the platform - but to think I need a language model, and none is connected yet. Here's how to connect one. It takes about two minutes.",
+        "key": "<b>Step 1: get an API key.</b> Sign in to a model provider - Anthropic, OpenAI, Google or another - and create an API key in its console. It's a long string, often starting with \"sk-\". If your company runs its own model, for example on Ollama or vLLM, its address is enough.",
+        "settings": "<b>Step 2: open me in the Agent Builder.</b> Under Model, choose the provider and paste the key. It goes straight into the vault, encrypted - nobody sees it whole again, me included.",
+        "model": "<b>Step 3: choose a model and publish.</b> A capable mid-priced model is a good start, and you can change it any time.",
+        "done": "<b>That's it.</b> Come back here and I'll say hello. Every other agent in your organization can use that model too.",
+        "askAdmin": "<b>Who can do it:</b> only an administrator of your organization can connect a model. Ask one to follow these steps - it takes about two minutes, and then I'm here for everyone."
+      }
     },
     "screenshot": "Show it this page",
     "screenshotFailed": "The screenshot could not be taken. Paste one into the conversation instead.",
@@ -13657,6 +13802,21 @@
       "example2": "Prepare a change and request approval",
       "needs": "An Odoo 19+ account connected in Vault, installed business modules and matching Odoo access rights.",
       "never": "Never reads another person’s account; writes require approval."
+    },
+    "memory_mem0": {
+      "name": "Memory (mem0)",
+      "does": "Lets the agent remember facts and recall them by meaning, stored in a mem0 service.",
+      "example1": "Remember that a customer prefers email to phone calls",
+      "needs": "A mem0 account, cloud or self-hosted, and its API key in the vault.",
+      "never": "Never shows one person's memories to another. In a group chat they belong to the chat."
+    },
+    "virtual_tables": {
+      "name": "Tables",
+      "does": "Lets the agent list, read and write the typed tables it is granted - add a record, update one, look one up.",
+      "example1": "Log each new support request as a row",
+      "example2": "Check a customer's plan in a table before answering",
+      "needs": "At least one table granted, or permission to create tables.",
+      "never": "Never touches a table it was not granted, and never deletes a table; a deleted record keeps its history."
     }
   },
   "capabilityCategories": {
@@ -14817,6 +14977,26 @@
       "connection_ids": {
         "title": "Organization accounts",
         "description": "The organization accounts this capability may use. With several accounts, the agent asks which one to use when the request is ambiguous."
+      }
+    },
+    "memory_mem0": {
+      "base_url": {
+        "title": "Self-hosted mem0 URL",
+        "description": "Base URL of a self-hosted mem0; omit for mem0's managed cloud."
+      },
+      "allow_personal": {
+        "title": "Keep private memories per person",
+        "description": "Whether the agent keeps private memories for each person it talks to, readable only when it is alone with them. Off drops that store, for compliance or privacy; group-chat memory stays."
+      }
+    },
+    "virtual_tables": {
+      "tables": {
+        "title": "Tables it may use",
+        "description": "The tables the agent may reach, and what it may do in each."
+      },
+      "allow_create": {
+        "title": "Create tables",
+        "description": "Let the agent create new tables. The member it acts for still needs the tables:create permission."
       }
     }
   },
@@ -19283,11 +19463,11 @@
       },
       "integration_odoo_contacts_search_contacts": {
         "name": "Odoo Contacts: search contacts",
-        "description": "res.partner: Search with body {domain, fields, limit (1-100), offset, order}."
+        "description": "res.partner: Search with body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_contacts_read_contacts": {
         "name": "Odoo Contacts: read contacts",
-        "description": "res.partner: Read body {ids, fields}; at most 100 records."
+        "description": "res.partner: Read body (ids, fields); at most 100 records."
       },
       "integration_odoo_contacts_fields_contacts": {
         "name": "Odoo Contacts: fields contacts",
@@ -19295,19 +19475,19 @@
       },
       "integration_odoo_contacts_create_contacts": {
         "name": "Odoo Contacts: create contacts",
-        "description": "res.partner: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+        "description": "res.partner: Create one record with body (values). Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
       },
       "integration_odoo_contacts_update_contacts": {
         "name": "Odoo Contacts: update contacts",
-        "description": "res.partner: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+        "description": "res.partner: Update body (ids, values); at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
       },
       "integration_odoo_crm_search_leads": {
         "name": "Odoo CRM: search leads",
-        "description": "crm.lead: Search with body {domain, fields, limit (1-100), offset, order}."
+        "description": "crm.lead: Search with body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_crm_read_leads": {
         "name": "Odoo CRM: read leads",
-        "description": "crm.lead: Read body {ids, fields}; at most 100 records."
+        "description": "crm.lead: Read body (ids, fields); at most 100 records."
       },
       "integration_odoo_crm_fields_leads": {
         "name": "Odoo CRM: fields leads",
@@ -19315,19 +19495,19 @@
       },
       "integration_odoo_crm_create_leads": {
         "name": "Odoo CRM: create leads",
-        "description": "crm.lead: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+        "description": "crm.lead: Create one record with body (values). Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
       },
       "integration_odoo_crm_update_leads": {
         "name": "Odoo CRM: update leads",
-        "description": "crm.lead: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+        "description": "crm.lead: Update body (ids, values); at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
       },
       "integration_odoo_sales_search_orders": {
         "name": "Odoo Sales: search orders",
-        "description": "sale.order: Search with body {domain, fields, limit (1-100), offset, order}."
+        "description": "sale.order: Search with body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_sales_read_orders": {
         "name": "Odoo Sales: read orders",
-        "description": "sale.order: Read body {ids, fields}; at most 100 records."
+        "description": "sale.order: Read body (ids, fields); at most 100 records."
       },
       "integration_odoo_sales_fields_orders": {
         "name": "Odoo Sales: fields orders",
@@ -19335,19 +19515,19 @@
       },
       "integration_odoo_sales_create_orders": {
         "name": "Odoo Sales: create orders",
-        "description": "sale.order: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+        "description": "sale.order: Create one record with body (values). Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
       },
       "integration_odoo_sales_update_orders": {
         "name": "Odoo Sales: update orders",
-        "description": "sale.order: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+        "description": "sale.order: Update body (ids, values); at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
       },
       "integration_odoo_sales_search_order_lines": {
         "name": "Odoo Sales: search order lines",
-        "description": "sale.order.line: Search with body {domain, fields, limit (1-100), offset, order}."
+        "description": "sale.order.line: Search with body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_sales_read_order_lines": {
         "name": "Odoo Sales: read order lines",
-        "description": "sale.order.line: Read body {ids, fields}; at most 100 records."
+        "description": "sale.order.line: Read body (ids, fields); at most 100 records."
       },
       "integration_odoo_sales_fields_order_lines": {
         "name": "Odoo Sales: fields order lines",
@@ -19355,23 +19535,23 @@
       },
       "integration_odoo_sales_create_order_lines": {
         "name": "Odoo Sales: create order lines",
-        "description": "sale.order.line: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+        "description": "sale.order.line: Create one record with body (values). Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
       },
       "integration_odoo_sales_update_order_lines": {
         "name": "Odoo Sales: update order lines",
-        "description": "sale.order.line: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+        "description": "sale.order.line: Update body (ids, values); at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
       },
       "integration_odoo_sales_confirm_orders": {
         "name": "Odoo Sales: confirm orders",
-        "description": "Confirm prepared quotations using Odoo's business workflow. Body: {ids}, at most 100 records. Read the records afterward to confirm their state; a returned wizard action is not proof of completion."
+        "description": "Confirm prepared quotations using Odoo's business workflow. Body: (ids), at most 100 records. Read the records afterward to confirm their state; a returned wizard action is not proof of completion."
       },
       "integration_odoo_accounting_search_invoices": {
         "name": "Odoo Invoicing: search invoices",
-        "description": "account.move: Search with body {domain, fields, limit (1-100), offset, order}."
+        "description": "account.move: Search with body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_accounting_read_invoices": {
         "name": "Odoo Invoicing: read invoices",
-        "description": "account.move: Read body {ids, fields}; at most 100 records."
+        "description": "account.move: Read body (ids, fields); at most 100 records."
       },
       "integration_odoo_accounting_fields_invoices": {
         "name": "Odoo Invoicing: fields invoices",
@@ -19379,19 +19559,19 @@
       },
       "integration_odoo_accounting_create_invoices": {
         "name": "Odoo Invoicing: create invoices",
-        "description": "account.move: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools. Set values.move_type to out_invoice/in_invoice or the corresponding out_refund/in_refund/out_receipt/in_receipt kind; a journal entry is not an invoice."
+        "description": "account.move: Create one record with body (values). Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools. Set values.move_type to out_invoice/in_invoice or the corresponding out_refund/in_refund/out_receipt/in_receipt kind; a journal entry is not an invoice."
       },
       "integration_odoo_accounting_update_invoices": {
         "name": "Odoo Invoicing: update invoices",
-        "description": "account.move: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+        "description": "account.move: Update body (ids, values); at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
       },
       "integration_odoo_accounting_search_invoice_lines": {
         "name": "Odoo Invoicing: search invoice lines",
-        "description": "account.move.line: Search with body {domain, fields, limit (1-100), offset, order}."
+        "description": "account.move.line: Search with body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_accounting_read_invoice_lines": {
         "name": "Odoo Invoicing: read invoice lines",
-        "description": "account.move.line: Read body {ids, fields}; at most 100 records."
+        "description": "account.move.line: Read body (ids, fields); at most 100 records."
       },
       "integration_odoo_accounting_fields_invoice_lines": {
         "name": "Odoo Invoicing: fields invoice lines",
@@ -19399,23 +19579,23 @@
       },
       "integration_odoo_accounting_create_invoice_lines": {
         "name": "Odoo Invoicing: create invoice lines",
-        "description": "account.move.line: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+        "description": "account.move.line: Create one record with body (values). Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
       },
       "integration_odoo_accounting_update_invoice_lines": {
         "name": "Odoo Invoicing: update invoice lines",
-        "description": "account.move.line: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+        "description": "account.move.line: Update body (ids, values); at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
       },
       "integration_odoo_accounting_post_invoices": {
         "name": "Odoo Invoicing: post invoices",
-        "description": "Post prepared invoices using Odoo's accounting validation. Body: {ids}, at most 100 records. Read the records afterward to confirm their state; a returned wizard action is not proof of completion."
+        "description": "Post prepared invoices using Odoo's accounting validation. Body: (ids), at most 100 records. Read the records afterward to confirm their state; a returned wizard action is not proof of completion."
       },
       "integration_odoo_inventory_search_products": {
         "name": "Odoo Inventory: search products",
-        "description": "product.product: Search with body {domain, fields, limit (1-100), offset, order}."
+        "description": "product.product: Search with body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_inventory_read_products": {
         "name": "Odoo Inventory: read products",
-        "description": "product.product: Read body {ids, fields}; at most 100 records."
+        "description": "product.product: Read body (ids, fields); at most 100 records."
       },
       "integration_odoo_inventory_fields_products": {
         "name": "Odoo Inventory: fields products",
@@ -19423,19 +19603,19 @@
       },
       "integration_odoo_inventory_create_products": {
         "name": "Odoo Inventory: create products",
-        "description": "product.product: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+        "description": "product.product: Create one record with body (values). Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
       },
       "integration_odoo_inventory_update_products": {
         "name": "Odoo Inventory: update products",
-        "description": "product.product: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+        "description": "product.product: Update body (ids, values); at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
       },
       "integration_odoo_inventory_search_transfers": {
         "name": "Odoo Inventory: search transfers",
-        "description": "stock.picking: Search with body {domain, fields, limit (1-100), offset, order}."
+        "description": "stock.picking: Search with body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_inventory_read_transfers": {
         "name": "Odoo Inventory: read transfers",
-        "description": "stock.picking: Read body {ids, fields}; at most 100 records."
+        "description": "stock.picking: Read body (ids, fields); at most 100 records."
       },
       "integration_odoo_inventory_fields_transfers": {
         "name": "Odoo Inventory: fields transfers",
@@ -19443,19 +19623,19 @@
       },
       "integration_odoo_inventory_create_transfers": {
         "name": "Odoo Inventory: create transfers",
-        "description": "stock.picking: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+        "description": "stock.picking: Create one record with body (values). Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
       },
       "integration_odoo_inventory_update_transfers": {
         "name": "Odoo Inventory: update transfers",
-        "description": "stock.picking: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+        "description": "stock.picking: Update body (ids, values); at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
       },
       "integration_odoo_inventory_search_moves": {
         "name": "Odoo Inventory: search moves",
-        "description": "stock.move: Search with body {domain, fields, limit (1-100), offset, order}."
+        "description": "stock.move: Search with body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_inventory_read_moves": {
         "name": "Odoo Inventory: read moves",
-        "description": "stock.move: Read body {ids, fields}; at most 100 records."
+        "description": "stock.move: Read body (ids, fields); at most 100 records."
       },
       "integration_odoo_inventory_fields_moves": {
         "name": "Odoo Inventory: fields moves",
@@ -19463,19 +19643,19 @@
       },
       "integration_odoo_inventory_create_moves": {
         "name": "Odoo Inventory: create moves",
-        "description": "stock.move: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+        "description": "stock.move: Create one record with body (values). Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
       },
       "integration_odoo_inventory_update_moves": {
         "name": "Odoo Inventory: update moves",
-        "description": "stock.move: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+        "description": "stock.move: Update body (ids, values); at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
       },
       "integration_odoo_inventory_search_stock_levels": {
         "name": "Odoo Inventory: search stock levels",
-        "description": "stock.quant: Search with body {domain, fields, limit (1-100), offset, order}."
+        "description": "stock.quant: Search with body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_inventory_read_stock_levels": {
         "name": "Odoo Inventory: read stock levels",
-        "description": "stock.quant: Read body {ids, fields}; at most 100 records."
+        "description": "stock.quant: Read body (ids, fields); at most 100 records."
       },
       "integration_odoo_inventory_fields_stock_levels": {
         "name": "Odoo Inventory: fields stock levels",
@@ -19483,23 +19663,23 @@
       },
       "integration_odoo_inventory_confirm_transfers": {
         "name": "Odoo Inventory: confirm transfers",
-        "description": "Confirm prepared stock transfers. Body: {ids}, at most 100 records. Read the records afterward to confirm their state; a returned wizard action is not proof of completion."
+        "description": "Confirm prepared stock transfers. Body: (ids), at most 100 records. Read the records afterward to confirm their state; a returned wizard action is not proof of completion."
       },
       "integration_odoo_inventory_reserve_transfers": {
         "name": "Odoo Inventory: reserve transfers",
-        "description": "Reserve available stock for prepared transfers. Body: {ids}, at most 100 records. Read the records afterward to confirm their state; a returned wizard action is not proof of completion."
+        "description": "Reserve available stock for prepared transfers. Body: (ids), at most 100 records. Read the records afterward to confirm their state; a returned wizard action is not proof of completion."
       },
       "integration_odoo_inventory_validate_transfers": {
         "name": "Odoo Inventory: validate transfers",
-        "description": "Validate prepared transfers; Odoo may require a backorder or other wizard. Body: {ids}, at most 100 records. Read the records afterward to confirm their state; a returned wizard action is not proof of completion."
+        "description": "Validate prepared transfers; Odoo may require a backorder or other wizard. Body: (ids), at most 100 records. Read the records afterward to confirm their state; a returned wizard action is not proof of completion."
       },
       "integration_odoo_projects_search_projects": {
         "name": "Odoo Projects: search projects",
-        "description": "project.project: Search with body {domain, fields, limit (1-100), offset, order}."
+        "description": "project.project: Search with body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_projects_read_projects": {
         "name": "Odoo Projects: read projects",
-        "description": "project.project: Read body {ids, fields}; at most 100 records."
+        "description": "project.project: Read body (ids, fields); at most 100 records."
       },
       "integration_odoo_projects_fields_projects": {
         "name": "Odoo Projects: fields projects",
@@ -19507,19 +19687,19 @@
       },
       "integration_odoo_projects_create_projects": {
         "name": "Odoo Projects: create projects",
-        "description": "project.project: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+        "description": "project.project: Create one record with body (values). Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
       },
       "integration_odoo_projects_update_projects": {
         "name": "Odoo Projects: update projects",
-        "description": "project.project: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+        "description": "project.project: Update body (ids, values); at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
       },
       "integration_odoo_projects_search_tasks": {
         "name": "Odoo Projects: search tasks",
-        "description": "project.task: Search with body {domain, fields, limit (1-100), offset, order}."
+        "description": "project.task: Search with body (domain, fields, limit (1-100), offset, order)."
       },
       "integration_odoo_projects_read_tasks": {
         "name": "Odoo Projects: read tasks",
-        "description": "project.task: Read body {ids, fields}; at most 100 records."
+        "description": "project.task: Read body (ids, fields); at most 100 records."
       },
       "integration_odoo_projects_fields_tasks": {
         "name": "Odoo Projects: fields tasks",
@@ -19527,11 +19707,11 @@
       },
       "integration_odoo_projects_create_tasks": {
         "name": "Odoo Projects: create tasks",
-        "description": "project.task: Create one record with body {values}. Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
+        "description": "project.task: Create one record with body (values). Values are scalar fields or link/set/clear relation IDs. Create related records with their own tools."
       },
       "integration_odoo_projects_update_tasks": {
         "name": "Odoo Projects: update tasks",
-        "description": "project.task: Update body {ids, values}; at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
+        "description": "project.task: Update body (ids, values); at most 100 records. Values are scalar fields or link/set/clear relation IDs. Update related records with their own tools."
       }
     },
     "port": {

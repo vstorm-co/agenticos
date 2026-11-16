@@ -331,3 +331,18 @@ async def test_replacing_the_mac_also_revokes_its_old_callback_credential(
         key_version=token.key_version,
     )
     assert replacement != "callback-secret" and len(replacement) >= 32
+
+
+async def test_download_honors_a_smaller_caller_byte_limit() -> None:
+    adapter = ImessageAdapter(httpx.MockTransport(lambda _: httpx.Response(200, content=b"file")))
+    try:
+        with pytest.raises(ExternalServiceError, match="size limit"):
+            await adapter.download_attachment(
+                credential().encode(),
+                IncomingAttachment(
+                    filename="file.txt", mime_type="text/plain", size=0, handle="guid"
+                ),
+                max_bytes=2,
+            )
+    finally:
+        await adapter.aclose()

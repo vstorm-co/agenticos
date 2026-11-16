@@ -1,5 +1,5 @@
 ---
-source_sha: "cc979d116092"
+source_sha: "30ace1be26e8"
 ---
 
 # Seguridad { #security }
@@ -45,6 +45,13 @@ resuelto por recurso. Dos llamantes con el mismo rol pueden alcanzar filas
 distintas, porque un grant sobre un recurso amplía lo que el rol permite sin
 ascender al miembro.
 
+Un bot de WhatsApp puede responder a cualquiera que escriba a su [línea pública](channels.md#whatsapp-public-line). El desconocido actúa como agente con sus permisos publicados y conexiones de organización vinculadas explícitamente. No usa cuentas personales, operaciones de tablas del MCP de plataforma ni publicación de páginas.
+
+Abrir, vincular, cambiar el entorno o reanudar la línea requiere un límite de gasto. Los clientes reciben una negativa neutra sin detalles de configuración. Revisa cada capability activada y herramienta MCP de organización antes de abrirla.
+
+Solo se pueden conservar teléfonos de clientes de la línea pública; el número completo requiere `channels:manage` y no aparece en las trazas de petición. Véase [Protección de datos](data-protection.md#whatsapp-customers).
+
+
 ## Qué sale del deployment { #what-leaves-the-deployment }
 
 Aparte del [diagnóstico del deployment](configuration.md#diagnostics), que está
@@ -54,7 +61,7 @@ cada una es una frontera por la que preguntará la revisión de un cliente.
 | Hacia | Qué | Cuándo |
 |---|---|---|
 | El proveedor de modelos configurado | El prompt, la salida del modelo, los argumentos y resultados de las herramientas | Cada run — salvo que el modelo corra en la infraestructura del propio operador, en cuyo caso no sale nada |
-| El canal configurado (Slack, Teams, Telegram, Mattermost) | Las respuestas generadas por el agent — texto, imágenes y adjuntos | Siempre que un agent esté expuesto por ese canal; cada `send_message` publica en el proveedor (`app/services/channels/`) |
+| El canal configurado (Slack, Teams, Telegram, Mattermost, Discord, WhatsApp) | Las respuestas generadas por el agent — texto, imágenes y adjuntos; las de WhatsApp van a `graph.facebook.com`, y AgenticOS guarda de un remitente solo el ID business-scoped, el nombre de perfil y el número enmascarado, nunca un ID de mensaje ni un número de teléfono en un log | Siempre que un agent esté expuesto por ese canal; cada `send_message` publica en el proveedor (`app/services/channels/`) |
 | Logfire | Trazas, que llevan prompts y salidas salvo que el agent diga otra cosa | Dos caminos independientes. Un token de observabilidad por agent traza ese agent, y su modo `content` decide cuánto lleva el span - `none` lo reduce a tiempo, tokens, coste y nombres de herramienta (#1413). Un `LOGFIRE_TOKEN` a nivel de deployment instrumenta **todos** los runs, tanto en la API como en el worker (`app/core/logfire_setup.py`), así que con él puesto sale el contenido de todo agent que no haya pedido `none`; el que sí lo pidió queda fijado a una instrumentación sin contenido también en ese tracer (`suppress_content`), de modo que el modo se sostiene en ambos caminos, y un especialista de ese agent lo hereda - escrito inline o inventado a mitad del run. Un hueco que no cubre: una fijación que falla, que se registra y se deja. Ninguno de los dos caminos está activo por defecto. No hay término medio filtrado a propósito - una exportación parcialmente depurada es una garantía que nadie puede auditar ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)) |
 | Servidores MCP | Llamadas a herramientas y sus argumentos | Solo para las herramientas a las que el agent está ligado |
 | Un proveedor de búsqueda web (Tavily, DuckDuckGo) | La consulta de búsqueda | Solo cuando se concede la capability de búsqueda |
@@ -294,6 +301,7 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
 | Las rutas por recurso autorizan en el servicio, no en la ruta | Una ruta que actúa sobre un agent, un skill o una colección no lleva gate `require()` — un gate de rol rechazaría al portador de un grant antes de que el grant se aplicara — y en su lugar llama a `resolve_access` (`app/services/access.py`) | `test_platform_routes.py::TestEveryPlatformRouteIsGuarded` (toda ruta está gateada o la decide el servicio) |
 | Un grant amplía el acceso sin ascender al miembro | El `resolve_access` por recurso toma `max(alcance del rol, grant)` (`app/services/access.py`) | `test_resource_access.py::TestGrantsWidenAccess`, `::TestPermissionsGrantsCannotWiden` |
 | Una página inicia un workflow solo como la persona que lo confirma | La lista permitida de la publicación (`app/services/artifact_actions.py`), la lista propia del lector, las comprobaciones de origen y nonce de la consola y su diálogo de confirmación (`frontend/src/hooks/use-artifact-actions.ts`), la claim `acts` que solo lleva la dirección del lector (`app/core/security.py`), y una ruta de inicio que ejecuta el workflow como el llamante y rechaza otra versión o una sesión suplantada. Consulta [una página que inicia workflows](#a-page-that-starts-workflows) | `tests/integration/test_artifact_actions.py`, `tests/integration/test_artifact_action_runs.py`, `src/components/artifacts/artifact-actions.test.tsx` |
+| Un desconocido en una línea pública actúa como el agente, solo con sus permisos publicados | El contexto lleva los permisos del agente y ningún rol; publicar una página y el servidor MCP de la plataforma se rechazan, y el límite de gasto se comprueba al abrir, vincular, cambiar de entorno, reanudar, reactivar, publicar y en tiempo de ejecución (`app/services/channels/public_line.py`) | `test_public_line.py` |
 | Una mención en un canal se ejecuta como el remitente, no como el bot | Se usa el `AuthContext` propio de un remitente vinculado y activo (`app/services/channels/mentions.py`) | `test_channel_mentions.py::TestAnswer::test_the_run_carries_the_senders_own_role` |
 
 ### Autenticación · HIPAA §164.312(d) · SOC 2 CC6 { #authentication-hipaa-164312d-soc-2-cc6 }
@@ -346,7 +354,7 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
 | Control | Mecanismo | Sostenido por |
 |---|---|---|
 | Ningún secreto en claro en una respuesta de la API ni en una entrada de auditoría | `SealedStr`/`CredentialStr` enmascaran cada repr; las pistas son solo los últimos 4 caracteres (`app/core/secret_kinds.py`, `app/core/vault.py`) | `test_no_secret_escapes.py` (barre toda la superficie de OpenAPI), `test_capability_secrets.py::TestInjection` |
-| Los logs no forman parte de esa garantía | Una respuesta de token MCP OAuth mal formada llega a los logs a través de un `ValidationError` de Pydantic que repite su entrada — un hueco conocido, [#1626](https://github.com/vstorm-co/agenticos/issues/1626) | `test_mcp_connections.py::test_an_unreadable_token_response_does_not_echo_its_input` (documenta que el token acaba en `caplog`) |
+| Los logs no forman parte de esa garantía | Una respuesta de token MCP OAuth mal formada llega a los logs a través de un `ValidationError` de Pydantic que repite su entrada — un hueco conocido, [#1626](https://github.com/vstorm-co/agenticos/issues/1626). Con `LOGFIRE_TOKEN` configurado, Logfire guarda tal cual el mensaje de la excepción y la traza de pila de una consulta fallida, así que la línea `DETAIL` de un error de restricción, con los valores que la incumplen, llega a Logfire; también es una carencia conocida | `test_mcp_connections.py::test_an_unreadable_token_response_does_not_echo_its_input` (documenta que el token acaba en `caplog`) |
 | Enlaces firmados en los logs de acceso | La aplicación redacta las rutas y los parámetros que contienen credenciales, también en los logs de acceso y errores de uvicorn. Las configuraciones incluidas de Nginx y Traefik omiten la ruta, la consulta y Referer en los logs de acceso. Los operadores de otros proxies deben configurar una protección equivalente. | `test_logging.py::test_a_signed_link_in_the_access_log_is_redacted` |
 | Ninguna credencial del proveedor llega al navegador de una llamada de voz | El servidor responde a la oferta SDP y mantiene el sideband; una oferta con canal de datos se rechaza; los client secrets nunca se emiten; la clave se desella para una llamada, y para colgar solo a través de `OrganizationSecretService.voice_call_key`, cuyo texto en claro va al endpoint de colgado del proveedor y a ningún otro sitio (`app/services/voice/transport.py`, `app/services/voice/hangup.py`) | `test_voice_session.py::test_no_frame_carries_the_provider_key`, `test_voice_transport.py::test_an_offer_with_a_data_channel_is_refused` |
 | Una credencial está ligada a su organización en reposo | Sobre HKDF por propietario (`app/core/vault.py`); el alcance son las credenciales de conectores y de API — para los tokens bearer que no cubre, ver «Qué se cifra y dónde» | `test_secret_tenant_isolation.py`, `test_vault.py` |

@@ -1,5 +1,5 @@
 ---
-source_sha: "107659f9bab3"
+source_sha: "83febbc993f8"
 ---
 
 # Permisos { #permissions }
@@ -385,6 +385,13 @@ cuenta que no puede iniciar sesión, gastando aún el budget de la organización
 una única lectura unida (`member_repo.get_active`) en vez de dos, porque se
 responde en cada turno que toma una superficie pública.
 
+Un bot de WhatsApp con su [línea pública](channels.md#whatsapp-public-line) activada
+es la excepción a «un run necesita el rol de un miembro». Un desconocido allí se
+ejecuta **como el agente**: el run no tiene ningún rol, y lo que alcanza son los
+permisos que lleva la especificación publicada del agente, nada de lo que tiene un
+miembro. El respaldo del publicador sigue registrado en el run, y el run queda
+marcado como que actúa como el agente, así que se distingue después.
+
 Quién **preguntó** se lleva aparte — `channel_identity_id`, la cuenta de chat que
 habló. Fundir las dos haría que un run de canal reclamara la autoridad de quien
 envía, que es exactamente lo que no tiene alguien sin vincular.
@@ -658,6 +665,16 @@ reescribir como qué se ejecutaron. Mira
 
 Lo que un run así puede hacer viene de la **exposición** que lo admitió, creada
 por alguien que sí tenía un rol.
+
+Un run que actúa como su agente es el único caso en que no se lee el rol de ningún
+miembro:
+
+- Solo tiene los permisos publicados del agente y las conexiones de organización vinculadas explícitamente. No usa cuentas personales ni el servidor MCP de la plataforma, incluidas sus operaciones de tablas. Quien decide una aprobación debe seguir siendo miembro activo.
+- Vincular un agente a un bot de línea pública exige `channels:manage` o una
+  solicitud que aprueba quien lo tiene. Un Builder que publica una versión más
+  amplia de un agente ya vinculado a una línea pública no necesita
+  `channels:manage`; la publicación se rechaza igualmente si dejaría la línea sin
+  límite de gasto.
 
 ## Lo que lee el frontend { #what-the-frontend-reads }
 

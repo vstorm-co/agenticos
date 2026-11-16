@@ -13,6 +13,7 @@ import { WidgetFrame } from "../widget-frame";
 import { ShieldCheck } from "lucide-react";
 
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
+import { visibleHandle } from "@/lib/asked-in-chat";
 import type { DashboardWidgetProps } from "./types";
 
 /**
@@ -64,6 +65,8 @@ export function ApprovalsWidget({ title, hint, seeAll, options }: DashboardWidge
                       {approval.asked_in_chat
                         ? t("forChatAccount", {
                             name: approval.asked_in_chat.name,
+                            hasHandle: visibleHandle(approval.asked_in_chat) ? "yes" : "no",
+                            handle: visibleHandle(approval.asked_in_chat) ?? "",
                             ago: timeAgo(approval.created_at, tTime, locale),
                           })
                         : approval.triggered_by_email

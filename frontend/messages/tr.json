@@ -2394,7 +2394,6 @@
       "older": "Daha eski",
       "title": "Belleğiniz",
       "description": "Buradaki agentların sizin hakkınızda not ettikleri ve bu notlarla ilgili yapabilecekleriniz.",
-      "externalStores": "Bu agentlar ayrıca bu sayfanın okuyamadığı bir dış hizmette bellek tutuyor: {agents}.",
       "writtenBy": "{agent} tarafından yazıldı · {when}",
       "anAgent": "bir agent",
       "suppressed": "Kullanım dışı",
@@ -3125,7 +3124,7 @@
       "transcriptionInheritsFromOrg": "{pair}, kuruluştan",
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
-      "transcriptionMistralFormat": "{platform, select, slack {Slack’in masaüstü uygulaması ses kliplerini WebM olarak kaydeder} discord {Discord sesli mesajları Ogg/Opus olarak gönderir} other {Telegram sesli mesajları Ogg/Opus olarak gönderir}}; Mistral bu biçimleri desteklediği biçimler arasında saymıyor. Transkripsiyon başarısız olabilir; böyle bir durumda bu bot için başka bir provider seçin.",
+      "transcriptionMistralFormat": "{platform, select, slack {Slack’in masaüstü uygulaması ses kliplerini WebM olarak kaydeder} discord {Discord sesli mesajları Ogg/Opus olarak gönderir} whatsapp {WhatsApp sesli notları Ogg/Opus olarak gönderir} other {Telegram sesli mesajları Ogg/Opus olarak gönderir}}; Mistral bu biçimleri desteklediği biçimler arasında saymıyor. Transkripsiyon başarısız olabilir; böyle bir durumda bu bot için başka bir provider seçin.",
       "transcriptionProviderNoKey": "{name} (kullanılabilir anahtar yok)",
       "transcriptionInheritedNoKey": "Bu ayar çiftinin devralındığı yerde anahtar seçilmemiş. Anahtar seçilene kadar sesli mesajlar yazıya çevrilmez.",
       "discordGuilds": "İzin verilen Discord sunucu ID’leri",
@@ -3263,7 +3262,6 @@
       "testPanelOpen": "Test et",
       "testPanelShortcut": "Builder yanında test et (T)",
       "firstPublishNext": "Agent artık sohbette ve API üzerinden kullanılabilir. Sonra kullanıcıların başka nerelerden erişeceğini seçin: web sitesi widgetı, barındırılan sayfa, Slack veya Telegram.",
-      "openAvailability": "Kullanılabilirliği aç",
       "inCategoryUse": "Kullanımdaki kategoriler",
       "inTagUse": "Kullanımdaki etiketler",
       "mcpToolLoad": "Bu MCP sunucuları her istekte modele {count} araç sunar; kullanıcı yazmaya başlamadan önce yaklaşık {tokens, number} token ve modelin iyi seçemeyeceği kadar çok araç anlamına gelir. Tool search, agent arayana kadar bu araçları görünümden kaldırır.",
@@ -3659,7 +3657,6 @@
       "vectorCount": "{count, plural, =1 {1 vektör} other {# vektör}}"
     },
     "skills": {
-      "agentsBoundSkillWill": "Bu skill’e bağlanan agentlar, bir sonraki runlarından itibaren skillsiz çalışır. Bu işlem geri alınamaz.",
       "allCategories": "Tüm kategoriler",
       "askAdministratorAccessSkills": "Skill erişimi için yöneticiden izin isteyin.",
       "categoryCount": "{count, plural, =1 {1 kategori} other {# kategori}}",
@@ -4593,7 +4590,6 @@
       "runDetail": "Run ayrıntıları",
       "runHistory2": "Run geçmişi",
       "runHistoryCouldNot": "Run geçmişi okunamadı",
-      "runHistoryDescription": "Her run, çalıştırdığı agentın <em>sürümünü</em> kaydeder; böylece agent yeniden yazılsa bile geçen hafta ne olduğu açıklanabilir.",
       "runResumed": "Run sürdürüldü; agent kaldığı yerden devam etti.",
       "runs": "Runlar",
       "runs2": "Runlar",
@@ -13055,7 +13051,6 @@
   "memory": {
     "clearAction": "Belleği temizle",
     "clearBody": "Bu agentın her kişi ve katıldığı her grup sohbeti için yazdığı tüm notları siler. Geri getirilemez.",
-    "clearBodyWithMem0": "Bu agentın her kişi ve katıldığı her grup sohbeti için yazdığı tüm notları siler. mem0 içindeki anılarını etkilemez; bunlar kişi bazında tutulur ve o kişi unutulduğunda kaldırılır.",
     "clearConfirm": "Bu agent yazdığı her şeyi kaybedecek. Konuşmaları değişmez.",
     "clearTitle": "Bu agentın belleğini temizle",
     "clearedToast": "{count, plural, =0 {Temizlenecek bir şey yoktu} =1 {1 not silindi} other {# not silindi}}",
@@ -14998,11 +14993,11 @@
       },
       "integration_odoo_contacts_search_contacts": {
         "name": "Odoo Contacts: Ara (kişiler)",
-        "description": "res.partner: body {domain, fields, limit (1-100), offset, order} ile arar."
+        "description": "res.partner: body (domain, fields, limit (1-100), offset, order) ile arar."
       },
       "integration_odoo_contacts_read_contacts": {
         "name": "Odoo Contacts: Oku (kişiler)",
-        "description": "res.partner: body {ids, fields} okur; en fazla 100 kayıt."
+        "description": "res.partner: body (ids, fields) okur; en fazla 100 kayıt."
       },
       "integration_odoo_contacts_fields_contacts": {
         "name": "Odoo Contacts: Alanlar ve türler (kişiler)",
@@ -15010,19 +15005,19 @@
       },
       "integration_odoo_contacts_create_contacts": {
         "name": "Odoo Contacts: Oluştur (kişiler)",
-        "description": "res.partner: body {values} ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
+        "description": "res.partner: body (values) ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
       },
       "integration_odoo_contacts_update_contacts": {
         "name": "Odoo Contacts: Güncelle (kişiler)",
-        "description": "res.partner: body {ids, values} ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
+        "description": "res.partner: body (ids, values) ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
       },
       "integration_odoo_crm_search_leads": {
         "name": "Odoo CRM: Ara (satış fırsatları)",
-        "description": "crm.lead: body {domain, fields, limit (1-100), offset, order} ile arar."
+        "description": "crm.lead: body (domain, fields, limit (1-100), offset, order) ile arar."
       },
       "integration_odoo_crm_read_leads": {
         "name": "Odoo CRM: Oku (satış fırsatları)",
-        "description": "crm.lead: body {ids, fields} okur; en fazla 100 kayıt."
+        "description": "crm.lead: body (ids, fields) okur; en fazla 100 kayıt."
       },
       "integration_odoo_crm_fields_leads": {
         "name": "Odoo CRM: Alanlar ve türler (satış fırsatları)",
@@ -15030,19 +15025,19 @@
       },
       "integration_odoo_crm_create_leads": {
         "name": "Odoo CRM: Oluştur (satış fırsatları)",
-        "description": "crm.lead: body {values} ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
+        "description": "crm.lead: body (values) ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
       },
       "integration_odoo_crm_update_leads": {
         "name": "Odoo CRM: Güncelle (satış fırsatları)",
-        "description": "crm.lead: body {ids, values} ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
+        "description": "crm.lead: body (ids, values) ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
       },
       "integration_odoo_sales_search_orders": {
         "name": "Odoo Sales: Ara (siparişler)",
-        "description": "sale.order: body {domain, fields, limit (1-100), offset, order} ile arar."
+        "description": "sale.order: body (domain, fields, limit (1-100), offset, order) ile arar."
       },
       "integration_odoo_sales_read_orders": {
         "name": "Odoo Sales: Oku (siparişler)",
-        "description": "sale.order: body {ids, fields} okur; en fazla 100 kayıt."
+        "description": "sale.order: body (ids, fields) okur; en fazla 100 kayıt."
       },
       "integration_odoo_sales_fields_orders": {
         "name": "Odoo Sales: Alanlar ve türler (siparişler)",
@@ -15050,19 +15045,19 @@
       },
       "integration_odoo_sales_create_orders": {
         "name": "Odoo Sales: Oluştur (siparişler)",
-        "description": "sale.order: body {values} ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
+        "description": "sale.order: body (values) ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
       },
       "integration_odoo_sales_update_orders": {
         "name": "Odoo Sales: Güncelle (siparişler)",
-        "description": "sale.order: body {ids, values} ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
+        "description": "sale.order: body (ids, values) ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
       },
       "integration_odoo_sales_search_order_lines": {
         "name": "Odoo Sales: Ara (sipariş kalemleri)",
-        "description": "sale.order.line: body {domain, fields, limit (1-100), offset, order} ile arar."
+        "description": "sale.order.line: body (domain, fields, limit (1-100), offset, order) ile arar."
       },
       "integration_odoo_sales_read_order_lines": {
         "name": "Odoo Sales: Oku (sipariş kalemleri)",
-        "description": "sale.order.line: body {ids, fields} okur; en fazla 100 kayıt."
+        "description": "sale.order.line: body (ids, fields) okur; en fazla 100 kayıt."
       },
       "integration_odoo_sales_fields_order_lines": {
         "name": "Odoo Sales: Alanlar ve türler (sipariş kalemleri)",
@@ -15070,23 +15065,23 @@
       },
       "integration_odoo_sales_create_order_lines": {
         "name": "Odoo Sales: Oluştur (sipariş kalemleri)",
-        "description": "sale.order.line: body {values} ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
+        "description": "sale.order.line: body (values) ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
       },
       "integration_odoo_sales_update_order_lines": {
         "name": "Odoo Sales: Güncelle (sipariş kalemleri)",
-        "description": "sale.order.line: body {ids, values} ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
+        "description": "sale.order.line: body (ids, values) ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
       },
       "integration_odoo_sales_confirm_orders": {
         "name": "Odoo Sales: Onayla (siparişler)",
-        "description": "Hazırlanan teklifleri Odoo iş akışıyla onaylar. Body: {ids}, en fazla 100 kayıt. Durumu doğrulamak için kayıtları sonradan okuyun; dönen sihirbaz tamamlandığını kanıtlamaz."
+        "description": "Hazırlanan teklifleri Odoo iş akışıyla onaylar. Body: (ids), en fazla 100 kayıt. Durumu doğrulamak için kayıtları sonradan okuyun; dönen sihirbaz tamamlandığını kanıtlamaz."
       },
       "integration_odoo_accounting_search_invoices": {
         "name": "Odoo Invoicing: Ara (faturalar)",
-        "description": "account.move: body {domain, fields, limit (1-100), offset, order} ile arar."
+        "description": "account.move: body (domain, fields, limit (1-100), offset, order) ile arar."
       },
       "integration_odoo_accounting_read_invoices": {
         "name": "Odoo Invoicing: Oku (faturalar)",
-        "description": "account.move: body {ids, fields} okur; en fazla 100 kayıt."
+        "description": "account.move: body (ids, fields) okur; en fazla 100 kayıt."
       },
       "integration_odoo_accounting_fields_invoices": {
         "name": "Odoo Invoicing: Alanlar ve türler (faturalar)",
@@ -15094,19 +15089,19 @@
       },
       "integration_odoo_accounting_create_invoices": {
         "name": "Odoo Invoicing: Oluştur (faturalar)",
-        "description": "account.move: body {values} ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
+        "description": "account.move: body (values) ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
       },
       "integration_odoo_accounting_update_invoices": {
         "name": "Odoo Invoicing: Güncelle (faturalar)",
-        "description": "account.move: body {ids, values} ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
+        "description": "account.move: body (ids, values) ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
       },
       "integration_odoo_accounting_search_invoice_lines": {
         "name": "Odoo Invoicing: Ara (fatura kalemleri)",
-        "description": "account.move.line: body {domain, fields, limit (1-100), offset, order} ile arar."
+        "description": "account.move.line: body (domain, fields, limit (1-100), offset, order) ile arar."
       },
       "integration_odoo_accounting_read_invoice_lines": {
         "name": "Odoo Invoicing: Oku (fatura kalemleri)",
-        "description": "account.move.line: body {ids, fields} okur; en fazla 100 kayıt."
+        "description": "account.move.line: body (ids, fields) okur; en fazla 100 kayıt."
       },
       "integration_odoo_accounting_fields_invoice_lines": {
         "name": "Odoo Invoicing: Alanlar ve türler (fatura kalemleri)",
@@ -15114,23 +15109,23 @@
       },
       "integration_odoo_accounting_create_invoice_lines": {
         "name": "Odoo Invoicing: Oluştur (fatura kalemleri)",
-        "description": "account.move.line: body {values} ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
+        "description": "account.move.line: body (values) ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
       },
       "integration_odoo_accounting_update_invoice_lines": {
         "name": "Odoo Invoicing: Güncelle (fatura kalemleri)",
-        "description": "account.move.line: body {ids, values} ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
+        "description": "account.move.line: body (ids, values) ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
       },
       "integration_odoo_accounting_post_invoices": {
         "name": "Odoo Invoicing: Kaydet (faturalar)",
-        "description": "Hazırlanan faturaları Odoo muhasebe doğrulamasıyla kaydeder. Body: {ids}, en fazla 100 kayıt. Durumu doğrulamak için kayıtları sonradan okuyun; dönen sihirbaz tamamlandığını kanıtlamaz."
+        "description": "Hazırlanan faturaları Odoo muhasebe doğrulamasıyla kaydeder. Body: (ids), en fazla 100 kayıt. Durumu doğrulamak için kayıtları sonradan okuyun; dönen sihirbaz tamamlandığını kanıtlamaz."
       },
       "integration_odoo_inventory_search_products": {
         "name": "Odoo Inventory: Ara (ürünler)",
-        "description": "product.product: body {domain, fields, limit (1-100), offset, order} ile arar."
+        "description": "product.product: body (domain, fields, limit (1-100), offset, order) ile arar."
       },
       "integration_odoo_inventory_read_products": {
         "name": "Odoo Inventory: Oku (ürünler)",
-        "description": "product.product: body {ids, fields} okur; en fazla 100 kayıt."
+        "description": "product.product: body (ids, fields) okur; en fazla 100 kayıt."
       },
       "integration_odoo_inventory_fields_products": {
         "name": "Odoo Inventory: Alanlar ve türler (ürünler)",
@@ -15138,19 +15133,19 @@
       },
       "integration_odoo_inventory_create_products": {
         "name": "Odoo Inventory: Oluştur (ürünler)",
-        "description": "product.product: body {values} ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
+        "description": "product.product: body (values) ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
       },
       "integration_odoo_inventory_update_products": {
         "name": "Odoo Inventory: Güncelle (ürünler)",
-        "description": "product.product: body {ids, values} ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
+        "description": "product.product: body (ids, values) ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
       },
       "integration_odoo_inventory_search_transfers": {
         "name": "Odoo Inventory: Ara (stok transferleri)",
-        "description": "stock.picking: body {domain, fields, limit (1-100), offset, order} ile arar."
+        "description": "stock.picking: body (domain, fields, limit (1-100), offset, order) ile arar."
       },
       "integration_odoo_inventory_read_transfers": {
         "name": "Odoo Inventory: Oku (stok transferleri)",
-        "description": "stock.picking: body {ids, fields} okur; en fazla 100 kayıt."
+        "description": "stock.picking: body (ids, fields) okur; en fazla 100 kayıt."
       },
       "integration_odoo_inventory_fields_transfers": {
         "name": "Odoo Inventory: Alanlar ve türler (stok transferleri)",
@@ -15158,19 +15153,19 @@
       },
       "integration_odoo_inventory_create_transfers": {
         "name": "Odoo Inventory: Oluştur (stok transferleri)",
-        "description": "stock.picking: body {values} ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
+        "description": "stock.picking: body (values) ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
       },
       "integration_odoo_inventory_update_transfers": {
         "name": "Odoo Inventory: Güncelle (stok transferleri)",
-        "description": "stock.picking: body {ids, values} ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
+        "description": "stock.picking: body (ids, values) ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
       },
       "integration_odoo_inventory_search_moves": {
         "name": "Odoo Inventory: Ara (stok hareketleri)",
-        "description": "stock.move: body {domain, fields, limit (1-100), offset, order} ile arar."
+        "description": "stock.move: body (domain, fields, limit (1-100), offset, order) ile arar."
       },
       "integration_odoo_inventory_read_moves": {
         "name": "Odoo Inventory: Oku (stok hareketleri)",
-        "description": "stock.move: body {ids, fields} okur; en fazla 100 kayıt."
+        "description": "stock.move: body (ids, fields) okur; en fazla 100 kayıt."
       },
       "integration_odoo_inventory_fields_moves": {
         "name": "Odoo Inventory: Alanlar ve türler (stok hareketleri)",
@@ -15178,19 +15173,19 @@
       },
       "integration_odoo_inventory_create_moves": {
         "name": "Odoo Inventory: Oluştur (stok hareketleri)",
-        "description": "stock.move: body {values} ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
+        "description": "stock.move: body (values) ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
       },
       "integration_odoo_inventory_update_moves": {
         "name": "Odoo Inventory: Güncelle (stok hareketleri)",
-        "description": "stock.move: body {ids, values} ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
+        "description": "stock.move: body (ids, values) ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
       },
       "integration_odoo_inventory_search_stock_levels": {
         "name": "Odoo Inventory: Ara (stok seviyeleri)",
-        "description": "stock.quant: body {domain, fields, limit (1-100), offset, order} ile arar."
+        "description": "stock.quant: body (domain, fields, limit (1-100), offset, order) ile arar."
       },
       "integration_odoo_inventory_read_stock_levels": {
         "name": "Odoo Inventory: Oku (stok seviyeleri)",
-        "description": "stock.quant: body {ids, fields} okur; en fazla 100 kayıt."
+        "description": "stock.quant: body (ids, fields) okur; en fazla 100 kayıt."
       },
       "integration_odoo_inventory_fields_stock_levels": {
         "name": "Odoo Inventory: Alanlar ve türler (stok seviyeleri)",
@@ -15198,23 +15193,23 @@
       },
       "integration_odoo_inventory_confirm_transfers": {
         "name": "Odoo Inventory: Onayla (stok transferleri)",
-        "description": "Hazırlanan stok transferlerini onaylar. Body: {ids}, en fazla 100 kayıt. Durumu doğrulamak için kayıtları sonradan okuyun; dönen sihirbaz tamamlandığını kanıtlamaz."
+        "description": "Hazırlanan stok transferlerini onaylar. Body: (ids), en fazla 100 kayıt. Durumu doğrulamak için kayıtları sonradan okuyun; dönen sihirbaz tamamlandığını kanıtlamaz."
       },
       "integration_odoo_inventory_reserve_transfers": {
         "name": "Odoo Inventory: Rezerve et (stok transferleri)",
-        "description": "Hazırlanan transferler için mevcut stoğu rezerve eder. Body: {ids}, en fazla 100 kayıt. Durumu doğrulamak için kayıtları sonradan okuyun; dönen sihirbaz tamamlandığını kanıtlamaz."
+        "description": "Hazırlanan transferler için mevcut stoğu rezerve eder. Body: (ids), en fazla 100 kayıt. Durumu doğrulamak için kayıtları sonradan okuyun; dönen sihirbaz tamamlandığını kanıtlamaz."
       },
       "integration_odoo_inventory_validate_transfers": {
         "name": "Odoo Inventory: Doğrula (stok transferleri)",
-        "description": "Transferleri doğrular; Odoo bir bekleyen sipariş veya başka sihirbaz gerektirebilir. Body: {ids}, en fazla 100 kayıt. Durumu doğrulamak için kayıtları sonradan okuyun; dönen sihirbaz tamamlandığını kanıtlamaz."
+        "description": "Transferleri doğrular; Odoo bir bekleyen sipariş veya başka sihirbaz gerektirebilir. Body: (ids), en fazla 100 kayıt. Durumu doğrulamak için kayıtları sonradan okuyun; dönen sihirbaz tamamlandığını kanıtlamaz."
       },
       "integration_odoo_projects_search_projects": {
         "name": "Odoo Projects: Ara (projeler)",
-        "description": "project.project: body {domain, fields, limit (1-100), offset, order} ile arar."
+        "description": "project.project: body (domain, fields, limit (1-100), offset, order) ile arar."
       },
       "integration_odoo_projects_read_projects": {
         "name": "Odoo Projects: Oku (projeler)",
-        "description": "project.project: body {ids, fields} okur; en fazla 100 kayıt."
+        "description": "project.project: body (ids, fields) okur; en fazla 100 kayıt."
       },
       "integration_odoo_projects_fields_projects": {
         "name": "Odoo Projects: Alanlar ve türler (projeler)",
@@ -15222,19 +15217,19 @@
       },
       "integration_odoo_projects_create_projects": {
         "name": "Odoo Projects: Oluştur (projeler)",
-        "description": "project.project: body {values} ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
+        "description": "project.project: body (values) ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
       },
       "integration_odoo_projects_update_projects": {
         "name": "Odoo Projects: Güncelle (projeler)",
-        "description": "project.project: body {ids, values} ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
+        "description": "project.project: body (ids, values) ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
       },
       "integration_odoo_projects_search_tasks": {
         "name": "Odoo Projects: Ara (görevler)",
-        "description": "project.task: body {domain, fields, limit (1-100), offset, order} ile arar."
+        "description": "project.task: body (domain, fields, limit (1-100), offset, order) ile arar."
       },
       "integration_odoo_projects_read_tasks": {
         "name": "Odoo Projects: Oku (görevler)",
-        "description": "project.task: body {ids, fields} okur; en fazla 100 kayıt."
+        "description": "project.task: body (ids, fields) okur; en fazla 100 kayıt."
       },
       "integration_odoo_projects_fields_tasks": {
         "name": "Odoo Projects: Alanlar ve türler (görevler)",
@@ -15242,11 +15237,11 @@
       },
       "integration_odoo_projects_create_tasks": {
         "name": "Odoo Projects: Oluştur (görevler)",
-        "description": "project.task: body {values} ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
+        "description": "project.task: body (values) ile kayıt oluşturur. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla oluşturun."
       },
       "integration_odoo_projects_update_tasks": {
         "name": "Odoo Projects: Güncelle (görevler)",
-        "description": "project.task: body {ids, values} ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
+        "description": "project.task: body (ids, values) ile günceller; en fazla 100 kayıt. Değerler skaler veya link/set/clear ilişki kimlikleridir. İlişkili kayıtları kendi araçlarıyla güncelleyin."
       }
     },
     "port": {

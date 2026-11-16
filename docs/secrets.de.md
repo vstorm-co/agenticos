@@ -1,5 +1,5 @@
 ---
-source_sha: "f0b3009ed75d"
+source_sha: "b74c832caa01"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -264,7 +264,7 @@ des Bots unter einer gemeinsamen `key_version`: das Bot-Token, das Signing Secre
 und das App-Token einer Slack-App sowie das gemeinsame Secret, gegen das ein
 eingehender Webhook authentifiziert wird — Telegrams
 `X-Telegram-Bot-Api-Secret-Token`, das Token eines ausgehenden
-Mattermost-Webhooks. Siehe [Channels](channels.md).
+Mattermost-Webhooks, sowie das App Secret und das Verify Token eines WhatsApp-Bots. Siehe [Channels](channels.md).
 
 **Event-Trigger.** Das Secret, gegen das der eingehende Webhook eines
 Event-Triggers verifiziert wird - GitHubs HMAC-Key oder das Signing Secret, das

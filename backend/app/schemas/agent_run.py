@@ -12,22 +12,6 @@ from app.schemas.conversation import MessageRead
 from app.schemas.eval_run import EvalCaseLinkRead
 
 
-class ChatAskerRead(BaseSchema):
-    """The chat account that asked, for a run that ran as the binding's publisher.
-
-    Unverified: the name is what the account's owner typed on the platform.
-    """
-
-    platform: str
-    name: str = Field(
-        description="The display name, else the handle with an `@`, else the platform's user id"
-    )
-    bot_name: str | None = Field(
-        default=None,
-        description="The bot the chat reached the agent through; null once its binding is gone",
-    )
-
-
 class VoiceChainRead(BaseSchema):
     """One call as Activity shows it: every connection of it, summed (#54)."""
 
@@ -218,6 +202,16 @@ class AgentRunRead(BaseSchema):
         ),
     )
     error: str | None = None
+    undelivered_reason: str | None = Field(
+        default=None,
+        description=(
+            "Why the run's answer did not reach the person, when it did not: "
+            "`window_no_template` (a WhatsApp customer's 24-hour window had closed and the "
+            "bot has no late-answer template) or `window_template_failed` (the template "
+            "could not be sent). A plain string, so a value added later never breaks an "
+            "older reader. Null once delivered, and for every run delivered at once"
+        ),
+    )
     conversation_id: UUID | None = Field(
         default=None,
         description=(
@@ -366,6 +360,26 @@ class RunTranscript(BaseSchema):
     )
     items: list[RunTranscriptMessage]
     total: int
+
+
+class ChatAskerRead(BaseSchema):
+    """The chat account that asked, for a run that ran as the binding's publisher.
+
+    Unverified: the name is what the account's owner typed on the platform.
+    """
+
+    platform: str
+    name: str = Field(
+        description="The display name, else the handle with an `@`, else the platform's user id"
+    )
+    bot_name: str | None = Field(
+        default=None,
+        description="The bot the chat reached the agent through; null once its binding is gone",
+    )
+    handle: str | None = Field(
+        default=None,
+        description="The account's handle, or a WhatsApp customer's masked number",
+    )
 
 
 class ApprovalRead(BaseSchema):

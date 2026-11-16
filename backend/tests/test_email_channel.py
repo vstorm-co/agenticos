@@ -396,6 +396,9 @@ class TestPromptsAndFiles:
         item = IncomingAttachment(filename="a", mime_type="text/plain", size=5, handle=handle)
 
         assert await EmailAdapter().download_attachment(BOT_ADDRESS, item) == b"hello"
+        await email_state.stash_attachments("bot", {handle: base64.b64encode(b"hello").decode()})
+        with pytest.raises(ValueError, match="upload limit"):
+            await EmailAdapter().download_attachment(BOT_ADDRESS, item, max_bytes=2)
         assert f"channel:email:attachments:bot:file:{handle}" not in redis.data
         with pytest.raises(ValueError, match="no longer available"):
             await EmailAdapter().download_attachment(BOT_ADDRESS, item)

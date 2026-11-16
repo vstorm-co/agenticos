@@ -16,7 +16,7 @@ import pytest
 
 from app.clients.redis import RedisClient
 from app.services.channels import dedupe
-from app.services.channels.base import IncomingMessage
+from app.services.channels.base import IncomingAttachment, IncomingMessage, IncomingPress
 from app.services.channels.router import ChannelMessageRouter
 from app.worker.background.channel import process_channel_event
 
@@ -150,8 +150,10 @@ async def test_a_redis_error_processes_rather_than_drops(
 ) -> None:
     dedupe.configure(cast(RedisClient, _BrokenRedis()))
 
+    incoming = _message()
     with caplog.at_level("WARNING"):
-        assert await dedupe.claim_delivery(_message()) is True
+        assert await dedupe.claim_delivery(incoming) is True
+    assert incoming.dedupe_claimed is False
 
     assert "channel_dedupe_redis_unavailable" in caplog.text
 
@@ -306,3 +308,103 @@ async def test_a_fail_open_original_cannot_become_an_edit_candidate() -> None:
         await dedupe.claim_delivery(_message(platform="mattermost", raw={"event": "post_edited"}))
         is False
     )
+
+
+WAMID = "wamid.HBgLMTY1MDUwNzY1MjAVAgARGBI5QTNDQTVCM0Q0Q0Q2RTY3RTcA"
+PHONE_INSIDE = "16505076520"
+
+
+def test_a_delivery_reference_is_short_stable_and_not_the_id() -> None:
+    reference = dedupe.delivery_ref(WAMID)
+
+    assert reference == dedupe.delivery_ref(WAMID)
+    assert reference is not None and len(reference) == 12
+    assert WAMID not in reference and reference != dedupe.delivery_ref(WAMID + "x")
+    assert dedupe.delivery_ref(None) is None
+
+
+async def test_no_log_line_about_a_delivery_carries_the_platforms_message_id(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A WhatsApp message id is base64 of ids that include the customer's phone number."""
+    incoming = _message(platform="whatsapp", message_id=WAMID, chat_type="private")
+    audio = IncomingAttachment("voice.ogg", "audio/ogg", 0, "media")
+    incoming.attachments = [audio]
+
+    with caplog.at_level("DEBUG"):
+        dedupe.configure(None)
+        await dedupe.claim_delivery(incoming)  # not configured: logs the id's reference
+        dedupe.configure(cast(RedisClient, _FakeRedis()))
+        ChannelMessageRouter._split_recordings(incoming)
+        inner = AsyncMock()
+        with patch.object(ChannelMessageRouter, "_route_inner", inner):
+            await ChannelMessageRouter().route(incoming, AsyncMock())
+            await ChannelMessageRouter().route(incoming, AsyncMock())  # the redelivery
+
+    logged = "\n".join(f"{r.getMessage()} {r.__dict__}" for r in caplog.records)
+    assert "Duplicate channel delivery ignored" in logged
+    assert "Voice message routed" in logged and "not configured" in logged
+    assert WAMID not in logged and WAMID.removeprefix("wamid.") not in logged
+    assert PHONE_INSIDE not in logged
+    assert str(dedupe.delivery_ref(WAMID)) in logged
+
+
+def _press(**overrides: Any) -> IncomingPress:
+    defaults: dict[str, Any] = {
+        "platform": "whatsapp",
+        "bot_id": "bot-1",
+        "platform_user_id": "U1",
+        "platform_chat_id": "C1",
+        "value": "aos:p:0",
+        "delivery_id": "wamid.TAP",
+    }
+    defaults.update(overrides)
+    return IncomingPress(**defaults)
+
+
+async def test_a_press_without_a_delivery_id_is_always_claimed(fake_redis: _FakeRedis) -> None:
+    press = _press(delivery_id=None)
+
+    assert await dedupe.claim_press(press) is True
+    assert await dedupe.claim_press(press) is True
+    assert fake_redis.store == {}
+
+
+async def test_a_press_is_claimed_once(fake_redis: _FakeRedis) -> None:
+    press = _press()
+
+    assert await dedupe.claim_press(press) is True
+    assert await dedupe.claim_press(press) is False
+
+    assert list(fake_redis.store) == ["channel:pressed:bot-1:whatsapp:C1:wamid.TAP"]
+    assert list(fake_redis.ttls.values()) == [dedupe.SEEN_TTL_SECONDS]
+    assert await dedupe.claim_press(_press(delivery_id="wamid.OTHER")) is True
+
+
+async def test_a_press_claim_fails_open_without_logging_the_id(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    press = _press()
+    with caplog.at_level("WARNING"):
+        assert await dedupe.claim_press(press) is True  # not configured
+        dedupe.configure(cast(RedisClient, _BrokenRedis()))
+        assert await dedupe.claim_press(press) is True  # unreachable
+
+    assert "wamid.TAP" not in caplog.text
+    assert dedupe.delivery_ref("wamid.TAP") in caplog.text
+    assert "channel_dedupe_redis_unavailable" in caplog.text
+
+
+async def test_failed_durable_press_can_be_claimed_again(fake_redis: _FakeRedis) -> None:
+    press = _press()
+    assert await dedupe.claim_press(press)
+    await dedupe.release_press(press)
+    assert await dedupe.claim_press(press)
+
+
+@pytest.mark.parametrize("configured", [True, False])
+async def test_release_of_an_unavailable_press_receipt_is_best_effort(configured, caplog) -> None:
+    dedupe.configure(cast(RedisClient, _BrokenRedis()) if configured else None)
+    await dedupe.release_press(_press(delivery_id=None))
+    await dedupe.release_press(_press())
+    assert ("channel_press_release_failed" in caplog.text) == configured

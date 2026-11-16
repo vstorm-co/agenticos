@@ -1,5 +1,5 @@
 ---
-source_sha: "107659f9bab3"
+source_sha: "83febbc993f8"
 ---
 
 # Uprawnienia { #permissions }
@@ -371,6 +371,13 @@ zalogować, a wciąż wydaje budżet organizacji. To jeden złączony odczyt
 (`member_repo.get_active`), a nie dwa, ponieważ odpowiada się na to w każdej
 turze, którą bierze publiczna powierzchnia.
 
+Bot WhatsApp z włączoną [linią publiczną](channels.md#whatsapp-public-line) jest
+wyjątkiem od zasady „run potrzebuje roli członka”. Obcy działa tam **jako agent**:
+run nie ma żadnej roli, a to, do czego sięga, to uprawnienia niesione przez
+opublikowaną specyfikację agenta, nic z tego, co ma członek. Zastępstwo
+publikującego jest nadal zapisane w runie, a run jest oznaczony jako działający
+jako agent, więc później da się go odróżnić.
+
 To, kto **zapytał**, niesione jest osobno — `channel_identity_id`, konto czatowe,
 które się odezwało. Zlanie obu w jedno sprawiłoby, że run z kanału rościłby sobie
 władzę nadawcy, a właśnie tego niepowiązany nadawca nie ma.
@@ -641,6 +648,15 @@ człowiekowi bez przepisywania tego, jako kto zostały uruchomione. Zobacz
 
 To, co takiemu runowi wolno zrobić, wynika z **ekspozycji** (exposure), która go
 wpuściła, stworzonej przez kogoś, kto rolę jednak miał.
+
+Run działający jako agent to jedyny przypadek, w którym nie czyta się roli żadnego
+członka:
+
+- Ma tylko opublikowane uprawnienia agenta i jawnie podpięte połączenia organizacji. Nie korzysta z kont osobistych ani platformowego serwera MCP, w tym jego operacji na tabelach. Osoba zatwierdzająca wywołanie musi nadal być aktywnym członkiem.
+- Powiązanie agenta z botem linii publicznej wymaga `channels:manage` albo wniosku,
+  który zatwierdza posiadacz. Builder publikujący szerszą wersję agenta już
+  powiązanego z linią publiczną nie potrzebuje `channels:manage`; publikacja jest
+  nadal odrzucana, gdy zostawiłaby linię bez limitu wydatków.
 
 ## Co czyta frontend { #what-the-frontend-reads }
 

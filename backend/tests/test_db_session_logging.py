@@ -8,14 +8,18 @@ a real 500 was buried among them. `_managed_session` now rolls a domain refusal
 back and re-raises it without a traceback, and keeps ERROR for the unexpected.
 """
 
+import ast
 import asyncio
 import logging
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.core import background
 from app.core.exceptions import ExternalServiceError, NotFoundError
+from app.db import session as session_module
 from app.db.session import _managed_session
 
 pytestmark = pytest.mark.anyio
@@ -138,3 +142,68 @@ class TestWhatARollbackUndoes:
         await background.drain(timeout=5.0)
 
         assert released == ["released"]
+
+
+_ENGINE_FACTORIES = {
+    "create_async_engine",
+    "create_engine",
+    "engine_from_config",
+    "async_engine_from_config",
+}
+# Five in app/db/session.py, one each in the ingestion and teardown tasks, and
+# the migration environment. A new engine changes this number on purpose.
+_ENGINE_SITES = 8
+
+
+def _engine_calls() -> tuple[list[tuple[str, int, ast.Call]], list[str]]:
+    """Every engine-building call under `app/` and the migration environment, and any
+    factory imported under another name, which the name match would miss."""
+    backend = Path(__file__).resolve().parent.parent
+    files = [*sorted((backend / "app").rglob("*.py")), backend / "alembic" / "env.py"]
+    found: list[tuple[str, int, ast.Call]] = []
+    aliased: list[str] = []
+    for path in files:
+        relative = path.relative_to(backend).as_posix()
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.ImportFrom | ast.Import):
+                aliased += [
+                    f"{relative}:{node.lineno}"
+                    for alias in node.names
+                    if alias.asname and alias.name.rpartition(".")[2] in _ENGINE_FACTORIES
+                ]
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+            if name in _ENGINE_FACTORIES:
+                found.append((relative, node.lineno, node))
+    return found, aliased
+
+
+@pytest.mark.security
+def test_every_engine_hides_statement_parameters() -> None:
+    """A failed statement's values can be personal data and must not reach a log."""
+    calls, aliased = _engine_calls()
+    assert aliased == [], "an engine factory imported under another name"
+    sites = [f"{path}:{line}" for path, line, _ in calls]
+    assert len(calls) == _ENGINE_SITES, sites
+    unhidden = [
+        f"{path}:{line}"
+        for path, line, call in calls
+        if not any(
+            kw.arg == "hide_parameters"
+            and isinstance(kw.value, ast.Constant)
+            and kw.value.value is True
+            for kw in call.keywords
+        )
+    ]
+    assert unhidden == []
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "engine",
+    [session_module.engine, session_module.vector_engine, session_module.agent_vector_engine],
+)
+def test_the_process_engines_hide_statement_parameters(engine: AsyncEngine) -> None:
+    assert engine.sync_engine.hide_parameters is True

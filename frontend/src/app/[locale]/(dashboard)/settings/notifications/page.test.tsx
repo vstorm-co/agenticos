@@ -153,7 +153,12 @@ describe("the notifications settings page", () => {
     ]) {
       expect(available.has(`${event} - Push`)).toBe(true);
     }
-    expect(available.size).toBe(104);
+    for (const event of ["Binding requests", "Binding decisions"]) {
+      for (const channel of ["In-app", "Email", "Push"]) {
+        expect(available.has(`${event} - ${channel}`)).toBe(true);
+      }
+    }
+    expect(available.size).toBe(110);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {

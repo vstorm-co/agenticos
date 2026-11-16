@@ -1,5 +1,5 @@
 ---
-source_sha: "107659f9bab3"
+source_sha: "83febbc993f8"
 ---
 
 # Berechtigungen { #permissions }
@@ -393,6 +393,13 @@ ein Konto, das sich nicht anmelden kann und trotzdem das Budget der Organisation
 ausgibt. Es ist ein verbundener Lesezugriff (`member_repo.get_active`) statt
 zweier, denn er wird bei jedem Zug einer öffentlichen Oberfläche beantwortet.
 
+Ein WhatsApp-Bot mit eingeschalteter [öffentlicher Leitung](channels.md#whatsapp-public-line)
+ist die Ausnahme von „ein Run braucht die Rolle eines Mitglieds“. Ein Fremder läuft
+dort **als der Agent**: Der Run hat gar keine Rolle, und was er erreicht, sind die
+Berechtigungen, die die veröffentlichte Spezifikation des Agenten trägt, nichts von
+dem, was ein Mitglied hat. Der Publisher-Fallback wird weiterhin am Run erfasst, und
+der Run ist als „läuft als Agent“ markiert, bleibt also später unterscheidbar.
+
 Wer **gefragt** hat, wird getrennt mitgeführt — `channel_identity_id`, das
 Chat-Konto, das gesprochen hat. Die beiden zu verschmelzen würde einen
 Channel-Run die Befugnis des Absenders beanspruchen lassen, und genau die hat ein
@@ -693,6 +700,16 @@ rechnet jene Runs einer Person zu, ohne umzuschreiben, als was sie liefen. Siehe
 
 Was ein solcher Run tun darf, kommt von der **Exposure**, die ihn eingelassen
 hat, angelegt von jemandem, der sehr wohl eine Rolle hatte.
+
+Ein Run, der als sein Agent läuft, ist der einzige Fall, in dem keine Mitgliedsrolle
+gelesen wird:
+
+- Er besitzt nur veröffentlichte Agentenberechtigungen und ausdrücklich gebundene Organisationsverbindungen. Persönliche Konten und der Plattform-MCP-Server einschließlich Tabellenoperationen sind nicht verfügbar. Wer eine Genehmigung entscheidet, muss weiterhin aktives Mitglied sein.
+- Das Binden eines Agenten an einen Bot mit öffentlicher Leitung braucht
+  `channels:manage` oder eine Anfrage, die ein Berechtigter genehmigt. Ein Builder,
+  der eine breitere Version eines bereits an eine öffentliche Leitung gebundenen
+  Agenten veröffentlicht, braucht kein `channels:manage`; die Veröffentlichung wird
+  trotzdem abgelehnt, wenn sie die Leitung ohne Ausgabenlimit ließe.
 
 ## Was das Frontend liest { #what-the-frontend-reads }
 

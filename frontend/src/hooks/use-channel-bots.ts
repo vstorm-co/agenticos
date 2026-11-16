@@ -13,7 +13,9 @@ import type {
   ChannelBotCreate,
   ChannelBotList,
   ChannelBotUpdate,
+  PublicLine,
   TeamsConversation,
+  WhatsAppTemplate,
 } from "@/types/channels";
 
 /**
@@ -131,6 +133,41 @@ export function useRegisterChannelWebhook() {
       toast.success(t("imessageWebhookRegistered"));
     },
     onError: (error) => toast.error(getErrorMessage(error, errors)),
+  });
+}
+
+/**
+ * The templates Meta lists for a WhatsApp bot's account, as a late answer can use them.
+ *
+ * Each fetch is a Graph management call (200 an hour per account), so a list is
+ * kept for five minutes and a window focus does not ask again.
+ */
+export function useWhatsAppTemplates(botId: string | null) {
+  return useQuery({
+    queryKey: qk.channelBots.whatsappTemplates(botId ?? ""),
+    queryFn: async () =>
+      (
+        await apiClient.get<{ items: WhatsAppTemplate[] }>(
+          `/channels/bots/${botId}/whatsapp-templates`,
+        )
+      ).items,
+    enabled: botId !== null,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * What a WhatsApp bot would answer people with no account with, and what bounds it.
+ *
+ * Computed by the server from the agent the bot serves, so the warning beside the
+ * switch is the spec's own and never a list kept in the console.
+ */
+export function usePublicLine(botId: string | null) {
+  return useQuery({
+    queryKey: qk.channelBots.publicLine(botId ?? ""),
+    queryFn: () => apiClient.get<PublicLine>(`/channels/bots/${botId}/public-line`),
+    enabled: botId !== null,
   });
 }
 

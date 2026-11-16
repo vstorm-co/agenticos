@@ -19,6 +19,7 @@ every channel refused every message with "Link your account first" (#10).
 
 import secrets
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -37,12 +38,14 @@ from app.repositories import (
     member_repo,
     message_rating_repo,
     user_repo,
+    whatsapp_customer_repo,
 )
 from app.schemas.channel_bot import LinkedAgent, LinkedPlace
 from app.services.access import AGENT, resolve_access
 from app.services.channels.base import IncomingMessage
 from app.services.channels.discord_roles import PLATFORM as DISCORD_PLATFORM
 from app.services.channels.discord_roles import DiscordRoleSync
+from app.services.channels.webhooks import CODE_CONFIRMED_PLATFORMS
 from app.services.impersonation import refuse_binding_while_impersonating
 
 REQUEST_TTL = timedelta(minutes=15)
@@ -52,6 +55,14 @@ It is a bearer credential: whoever opens it claims that chat account. Fifteen
 minutes is long enough to switch to a browser and sign in if you were signed out,
 and short enough that a URL left in a chat history is not a way in.
 """
+
+CODE_TTL = timedelta(minutes=5)
+"""How long a code issued by a browser confirmation can be sent back from the chat."""
+
+LINK_CONFIRMED = "Your chat account is connected. Send your question."
+AWAITING_CODE = "Send the code shown on the link page to finish connecting your account."
+
+_CODE_LENGTH = 6
 
 
 def mcp_servers_link(catalog_key: str | None = None) -> str:
@@ -131,23 +142,38 @@ class ChannelLinkService:
                 raise
         return f"{settings.FRONTEND_URL.rstrip('/')}/link/{request.token}"
 
-    async def pending(self, token: str) -> ChannelLinkRequest | None:
+    async def pending(self, token: str, user_id: UUID) -> ChannelLinkRequest | None:
         """The request behind a URL, for the page to say which account it is.
 
         A confirmation page that shows only "connect your account" asks somebody
         to trust a URL. Naming the chat account is what makes the answer theirs
         to give.
+
+        A request somebody else already confirmed reads as gone: it is waiting
+        for their code, and neither its page nor its code are anyone else's.
         """
-        return await channel_link_request_repo.get_valid(
+        request = await channel_link_request_repo.get_valid(
             self.db, token=token, now=datetime.now(UTC)
         )
+        if request is not None and request.confirmed_user_id not in (None, user_id):
+            return None
+        return request
 
     async def confirm(self, token: str, user_id: UUID) -> ChannelLinkRequest | None:
         """Attach the chat account behind `token` to `user_id`.
 
-        Returns the request that was spent, or None if the token is unknown or
-        expired - the two answer the same way, because the difference is not
-        something the person clicking can act on differently.
+        Returns the request that was spent, or None when there is nothing for
+        this person to confirm: the token is unknown or expired (the two answer
+        the same way, because the difference is not something the person
+        clicking can act on differently), somebody else already confirmed it, or
+        another person won the claim at the same moment. When the same person
+        won it, in another tab, this call gets that request and its code.
+
+        For a `CODE_CONFIRMED_PLATFORMS` request nothing is linked here: the
+        request records who confirmed and a fresh code, and is returned unspent.
+        The link completes when the chat sends that code (`complete_with_code`).
+        Confirming again as the same person - a second tab, a retried POST -
+        returns the request unchanged, with the same code and expiry.
 
         Raises:
             AuthorizationError: When the request runs under an impersonation. The
@@ -155,9 +181,33 @@ class ChannelLinkService:
                 target's (#1438); refused, not audited.
         """
         refuse_binding_while_impersonating("Linking a chat account")
-        request = await self.pending(token)
+        request = await self.pending(token, user_id)
         if request is None:
             return None
+
+        if request.platform in CODE_CONFIRMED_PLATFORMS:
+            if request.confirmed_user_id == user_id:
+                return request
+            claimed = await channel_link_request_repo.claim_for_code(
+                self.db,
+                request_id=request.id,
+                user_id=user_id,
+                code=f"{secrets.randbelow(10**_CODE_LENGTH):0{_CODE_LENGTH}d}",
+                expires_at=datetime.now(UTC) + CODE_TTL,
+            )
+            if claimed:
+                await self.db.refresh(request)
+                return request
+            # Lost to another confirmer. Read the row again: the winner's commit is
+            # not in this session's copy, and the chat side may have deleted the
+            # request meanwhile. The same person's other tab won it: its code is theirs too.
+            self.db.expire(request)
+            current = await channel_link_request_repo.get_valid(
+                self.db, token=token, now=datetime.now(UTC)
+            )
+            if current is None or current.confirmed_user_id != user_id:
+                return None
+            return current
 
         # Claim the single-use request before relinking. Two authenticated users
         # confirming the same token both read it as valid, so consuming it first
@@ -166,6 +216,51 @@ class ChannelLinkService:
         if not await channel_link_request_repo.delete_by_id(self.db, request.id):
             return None
 
+        await self._link(request, user_id)
+        return request
+
+    async def complete_with_code(
+        self, incoming: IncomingMessage
+    ) -> Literal["linked", "awaiting", "none"]:
+        """Finish a two-way link when the chat sends back the code its page showed.
+
+        Keyed on the request's state, not on a platform: only a request somebody
+        confirmed in the browser and that has not expired is waiting for a code,
+        and the request is keyed on this chat account, so the same digits sent
+        from any other chat find nothing.
+
+        `"linked"` - the text was the code. `"awaiting"` - something else, and
+        the request stays. A wrong six-digit text cancels the request and answers
+        `"none"`: a guess costs a fresh browser confirmation, so six digits are
+        not a space to search. `"none"` - nothing was waiting.
+        """
+        request = await channel_link_request_repo.get_for_identity(
+            self.db, platform=incoming.platform, platform_user_id=incoming.platform_user_id
+        )
+        if (
+            request is None
+            or request.confirmed_user_id is None
+            or request.confirm_code is None
+            or request.expires_at <= datetime.now(UTC)
+        ):
+            return "none"
+
+        text = incoming.text.strip()
+        # Bytes, not str: `compare_digest` raises on a non-ASCII str.
+        if secrets.compare_digest(text.encode(), request.confirm_code.encode()):
+            if not await channel_link_request_repo.delete_by_id(self.db, request.id):
+                return "none"
+            await self._link(request, request.confirmed_user_id)
+            return "linked"
+        if len(text) == _CODE_LENGTH and text.isascii() and text.isdigit():
+            await channel_link_request_repo.delete_for_identity(
+                self.db, platform=request.platform, platform_user_id=request.platform_user_id
+            )
+            return "none"
+        return "awaiting"
+
+    async def _link(self, request: ChannelLinkRequest, user_id: UUID) -> None:
+        """Attach the request's chat account to `user_id`, once it is spent."""
         # get_or_create, not get-then-create: a concurrent inbound message could
         # otherwise collide on the identity's unique key and 500 the confirm (#1113).
         # The upsert leaves an existing user_id alone, so the link is the update below.
@@ -190,7 +285,16 @@ class ChannelLinkService:
         await message_rating_repo.adopt_channel_ratings(
             self.db, identity_id=identity.id, user_id=user_id
         )
-        return request
+        await self._drop_number(identity)
+
+    async def _drop_number(self, identity: ChannelIdentity) -> None:
+        """A number is kept only for people with no account: drop it once the account is linked."""
+        if identity.platform != "whatsapp":
+            return
+        organization, _, bsuid = identity.platform_user_id.partition(":")
+        await whatsapp_customer_repo.clear_phone(
+            self.db, organization_id=UUID(organization), bsuid=bsuid
+        )
 
     async def link_vouched(self, identity: ChannelIdentity, email: str) -> bool:
         """Link a chat account to the member its platform's directory names, if one signed in so.
@@ -211,6 +315,7 @@ class ChannelLinkService:
         await message_rating_repo.adopt_channel_ratings(
             self.db, identity_id=identity.id, user_id=user.id
         )
+        await self._drop_number(identity)
         return True
 
     async def linked(self, user_id: UUID) -> list[ChannelIdentity]:

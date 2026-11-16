@@ -8,19 +8,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
 from app.db.models.agent_exposure import AgentExposure
+from app.db.models.channel_bot import ChannelBot
 
 
 async def get(
-    db: AsyncSession, exposure_id: UUID, *, organization_id: UUID, fresh: bool = False
+    db: AsyncSession,
+    exposure_id: UUID,
+    *,
+    organization_id: UUID,
+    fresh: bool = False,
+    for_update: bool = False,
 ) -> AgentExposure | None:
-    result = await db.execute(
-        select(AgentExposure)
-        .where(
-            AgentExposure.id == exposure_id,
-            AgentExposure.organization_id == organization_id,
-        )
-        .execution_options(populate_existing=fresh)
+    """`for_update` locks the row and reads its columns again. The lock is the weaker
+    `FOR NO KEY UPDATE`, so a new run row on the binding is not held up."""
+    statement = select(AgentExposure).where(
+        AgentExposure.id == exposure_id,
+        AgentExposure.organization_id == organization_id,
     )
+    statement = statement.execution_options(populate_existing=fresh or for_update)
+    if for_update:
+        statement = statement.with_for_update(key_share=True).execution_options(
+            populate_existing=True
+        )
+    result = await db.execute(statement)
     return result.scalar_one_or_none()
 
 
@@ -36,6 +46,26 @@ async def list_for_agent(
         .order_by(AgentExposure.created_at.asc())
     )
     return list(result.scalars().all())
+
+
+async def list_with_bot_for_agent(
+    db: AsyncSession, *, agent_id: UUID, organization_id: UUID
+) -> list[tuple[AgentExposure, ChannelBot]]:
+    """Every binding of this agent, active or paused, with the bot it is on."""
+    result = await db.execute(
+        select(AgentExposure, ChannelBot)
+        .join(
+            ChannelBot,
+            (ChannelBot.id == AgentExposure.channel_bot_id)
+            & (ChannelBot.organization_id == organization_id),
+        )
+        .where(
+            AgentExposure.agent_id == agent_id,
+            AgentExposure.organization_id == organization_id,
+        )
+        .order_by(AgentExposure.created_at.asc())
+    )
+    return [(exposure, bot) for exposure, bot in result.all()]
 
 
 async def active_surfaces_for_agents(

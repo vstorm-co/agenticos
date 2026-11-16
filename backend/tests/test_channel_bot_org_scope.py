@@ -59,6 +59,54 @@ class TestChannelBotServiceScope:
             await service.get(uuid.uuid4())
 
     @pytest.mark.anyio
+    async def test_sessions_of_a_bot_outside_the_organization_read_as_missing(self):
+        with (
+            patch(
+                "app.services.channel_bot.channel_bot_repo.get_for_org",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.channel_bot.channel_session_repo.list_by_bot", new=AsyncMock()
+            ) as listing,
+            patch(
+                "app.services.channel_bot.channel_session_repo.count_by_bot", new=AsyncMock()
+            ) as counting,
+            pytest.raises(NotFoundError),
+        ):
+            service = ChannelBotService(MagicMock(), organization_id=uuid.uuid4())
+            await service.list_sessions(uuid.uuid4())
+
+        listing.assert_not_awaited()
+        counting.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_sessions_are_listed_for_the_bot_the_lookup_returned(self):
+        org_id = uuid.uuid4()
+        bot = _bot(org_id)
+
+        with (
+            patch(
+                "app.services.channel_bot.channel_bot_repo.get_for_org",
+                new=AsyncMock(return_value=bot),
+            ) as lookup,
+            patch(
+                "app.services.channel_bot.channel_session_repo.list_by_bot",
+                new=AsyncMock(return_value=["s"]),
+            ) as listing,
+            patch(
+                "app.services.channel_bot.channel_session_repo.count_by_bot",
+                new=AsyncMock(return_value=1),
+            ) as counting,
+        ):
+            service = ChannelBotService(MagicMock(), organization_id=org_id)
+            items, total = await service.list_sessions(uuid.uuid4())
+
+        assert (items, total) == (["s"], 1)
+        assert lookup.call_args.kwargs["organization_id"] == org_id
+        assert listing.call_args.args[1] == bot.id
+        assert counting.call_args.args[1] == bot.id
+
+    @pytest.mark.anyio
     async def test_create_stamps_org(self):
         org_id = uuid.uuid4()
         data = ChannelBotCreate(
@@ -73,7 +121,7 @@ class TestChannelBotServiceScope:
             new=AsyncMock(return_value=_bot(org_id)),
         ) as repo_create:
             service = ChannelBotService(MagicMock(), organization_id=org_id)
-            await service.create(data)
+            await service.create(data, actor_user_id=None)
 
         stored = repo_create.call_args.kwargs
         assert stored["organization_id"] == org_id
@@ -109,7 +157,9 @@ class TestChannelBotServiceScope:
             "app.services.channel_bot.channel_bot_repo.create",
             new=AsyncMock(return_value=_bot(org_id)),
         ) as repo_create:
-            await ChannelBotService(MagicMock(), organization_id=org_id).create(data)
+            await ChannelBotService(MagicMock(), organization_id=org_id).create(
+                data, actor_user_id=None
+            )
 
         stolen = _bot(uuid.uuid4())
         stolen.token_encrypted = repo_create.call_args.kwargs["token_encrypted"]
@@ -192,7 +242,9 @@ class TestSlackAppCredentials:
             "app.services.channel_bot.channel_bot_repo.create",
             new=AsyncMock(return_value=_bot(org_id)),
         ) as repo_create:
-            await ChannelBotService(MagicMock(), organization_id=org_id).create(data)
+            await ChannelBotService(MagicMock(), organization_id=org_id).create(
+                data, actor_user_id=None
+            )
 
         stored = repo_create.call_args.kwargs
         assert "shhh-signing" not in stored["slack_signing_secret_encrypted"]
@@ -219,7 +271,9 @@ class TestSlackAppCredentials:
         )
 
         with pytest.raises(BadRequestError, match="Slack"):
-            await ChannelBotService(MagicMock(), organization_id=uuid.uuid4()).create(data)
+            await ChannelBotService(MagicMock(), organization_id=uuid.uuid4()).create(
+                data, actor_user_id=None
+            )
 
     @pytest.mark.anyio
     async def test_an_explicit_null_clears_a_stored_credential(self):
@@ -293,6 +347,47 @@ class TestChannelConversationOrg:
             await ChannelMessageRouter()._resolve_session(incoming, bot, identity, MagicMock())
 
         assert create_conv.call_args.kwargs["organization_id"] == bot.organization_id
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("platform", "title"),
+        [
+            ("slack", "Slack Chat"),
+            ("telegram", "Telegram Chat"),
+            ("teams", "Microsoft Teams Chat"),
+            ("whatsapp", "WhatsApp Chat"),
+        ],
+    )
+    async def test_a_new_conversation_is_titled_with_the_platforms_own_name(self, platform, title):
+        from app.services.channels.base import IncomingMessage
+        from app.services.channels.router import ChannelMessageRouter
+
+        bot = _bot()
+        identity = MagicMock(id=uuid.uuid4(), user_id=uuid.uuid4())
+        incoming = IncomingMessage(
+            platform=platform,
+            bot_id=str(bot.id),
+            platform_user_id="U123",
+            platform_chat_id="C123",
+            chat_type="private",
+            text="hi",
+        )
+
+        router = "app.services.channels.router"
+        with (
+            patch(
+                f"{router}.channel_session_repo.get_by_bot_and_chat", AsyncMock(return_value=None)
+            ),
+            patch(
+                f"{router}.conversation_repo.create_conversation",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create_conv,
+            patch(f"{router}.channel_session_repo.create", AsyncMock(return_value=MagicMock())),
+            patch(f"{router}.channel_session_repo.touch", AsyncMock(return_value=MagicMock())),
+        ):
+            await ChannelMessageRouter()._resolve_session(incoming, bot, identity, MagicMock())
+
+        assert create_conv.call_args.kwargs["title"] == title
 
 
 class TestWhoAnswersOnEachBot:
@@ -465,7 +560,8 @@ class TestAStreamThatOpensWithoutARestart:
                     name="Acme Support",
                     token="a-long-enough-token",
                     api_base_url="https://mattermost.acme.com",
-                )
+                ),
+                actor_user_id=None,
             )
 
         # Handed over, and not started: `spawn_after_commit` creates the task

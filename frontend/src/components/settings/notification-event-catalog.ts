@@ -10,6 +10,7 @@ import {
   ShieldAlert,
   Lightbulb,
   Megaphone,
+  MessageSquareShare,
   PieChart,
   Radar,
   ServerCrash,
@@ -49,6 +50,19 @@ export const CHANNEL_LABEL: Record<NotificationChannel, string> = {
 };
 
 export const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
+  {
+    eventType: "channel_binding_requested",
+    words: "prefChannelBindingRequested",
+    icon: MessageSquareShare,
+    channels: ["in_app", "email", "push"],
+  },
+  {
+    eventType: "channel_binding_decided",
+    words: "prefChannelBindingDecided",
+    icon: MessageSquareShare,
+    channels: ["in_app", "email", "push"],
+  },
+
   {
     eventType: "run_completed",
     words: "prefRunCompleted",

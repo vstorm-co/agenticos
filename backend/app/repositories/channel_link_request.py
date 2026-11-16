@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.channel_link_request import ChannelLinkRequest
@@ -68,20 +68,24 @@ async def get_for_identity(
     return result.scalar_one_or_none()
 
 
-async def delete_for_identity(db: AsyncSession, *, platform: str, platform_user_id: str) -> None:
+async def delete_for_identity(db: AsyncSession, *, platform: str, platform_user_id: str) -> int:
     """Drop every outstanding request for one chat account.
 
     Called before minting one and again once a request is spent. That is what
     makes a link single-use, and what keeps the unique constraint true without
-    an upsert: somebody who asks twice must not leave the first URL live.
+    an upsert: somebody who asks twice must not leave the first URL live. Returns how
+    many it dropped.
     """
-    await db.execute(
-        delete(ChannelLinkRequest).where(
+    result = await db.execute(
+        delete(ChannelLinkRequest)
+        .where(
             ChannelLinkRequest.platform == platform,
             ChannelLinkRequest.platform_user_id == platform_user_id,
         )
+        .returning(ChannelLinkRequest.id)
     )
     await db.flush()
+    return len(result.all())
 
 
 async def delete_by_id(db: AsyncSession, request_id: UUID) -> bool:
@@ -94,3 +98,29 @@ async def delete_by_id(db: AsyncSession, request_id: UUID) -> bool:
     result = await db.execute(delete(ChannelLinkRequest).where(ChannelLinkRequest.id == request_id))
     await db.flush()
     return (result.rowcount or 0) > 0  # ty: ignore[missing-attribute]
+
+
+async def claim_for_code(
+    db: AsyncSession, *, request_id: UUID, user_id: UUID, code: str, expires_at: datetime
+) -> bool:
+    """Record who confirmed in the browser and the code they must send, once.
+
+    One statement, so when two people confirm the same URL the row lock lets
+    exactly one match `confirmed_user_id IS NULL`; the loser re-checks the
+    predicate after the winner commits and gets False (#1132 for the two-way
+    flow). The expiry is replaced with the code's own, shorter one.
+    """
+    result = await db.execute(
+        update(ChannelLinkRequest)
+        .where(
+            ChannelLinkRequest.id == request_id,
+            ChannelLinkRequest.confirmed_user_id.is_(None),
+            ChannelLinkRequest.expires_at > func.now(),
+        )
+        .values(confirmed_user_id=user_id, confirm_code=code, expires_at=expires_at)
+        .returning(ChannelLinkRequest.id)
+        .execution_options(synchronize_session=False)
+    )
+    claimed = result.scalar_one_or_none() is not None
+    await db.flush()
+    return claimed

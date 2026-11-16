@@ -21,6 +21,50 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **WhatsApp as a channel** (#2076). A published agent answers on a WhatsApp Business
+  number through Meta's Cloud API, in direct chats. It reads images, documents and
+  voice notes (transcribed like voice on the other platforms) and sends charts and
+  files back; videos, stickers and contacts are refused by name. Linked members
+  answer approvals, questions and suggested next steps by tapping WhatsApp buttons
+  or a list. Register the bot from **Channels** or
+  `channel-add-bot --platform whatsapp`, then paste the callback URL it shows into
+  the Meta app. Every webhook POST is checked against Meta's signature with the app
+  secret before it is read. An unlinked sender confirms the link in the browser and
+  sends the 6-digit code it shows from the chat within 5 minutes. Answers are split
+  at 4096 characters and converted to WhatsApp formatting, with a read receipt and a
+  typing indicator. A bot whose access token Meta refuses is shown as down. The
+  `whitelist` policy is impractical on WhatsApp, because a sender is identified by a
+  business-scoped id an operator cannot see: use linking. Outbound traffic goes to
+  `graph.facebook.com`, and media is fetched only from `lookaside.fbsbx.com`.
+  An answer that comes more than 24 hours after the customer's last message (an
+  approval decided later, say) goes out inside an approved utility template chosen
+  on the bot. One that does not fit goes as a short preview, and the full answer
+  follows when the customer writes again. Without a template nothing is sent, and
+  the run page says why. Each late answer is a charged template message on a real
+  number. A late-answer template may carry at most one quick-reply button, so
+  templates with more are no longer offered. A notice that a run expired, was
+  stopped or could not continue waits the same way. When a customer's run is still
+  waiting for an approval 20 hours after their last message, the bot sends one
+  "Keep me posted" message whose tap reopens the window. Several numbers on one Meta
+  app can share its callback URL: each message reaches the bot registered for its
+  number, and only when that bot's own app secret verifies the delivery.
+  A WhatsApp bot can answer anyone who messages it, with the new **Answer people who
+  are not linked** switch (a public line). A stranger's run acts as the agent, with
+  only its published grants, and needs a monthly budget on the bound agent or an
+  organization cap. **Accept files from customers** (`accept_customer_files`, off by
+  default) lets a stranger send files; voice notes need an organization cap. A
+  customer view lists who has written, with the phone number shown to
+  `channels:manage`, and **Forget this customer** (`channel-forget-customer`)
+  erases one across the organization's WhatsApp bots. `channel-public-line` shows
+  the switch's warning and toggles it. Switching the line off leaves a parked
+  stranger's run without a message.
+- WhatsApp webhook messages and window-refusal statuses use durable worker jobs, committed with customer timestamps. The worker rechecks current bot authority, serializes each customer's batches and retains failed work for inspection. Customer erasure also removes non-running inbound payloads. Public-line warnings list connected organization accounts; personal accounts and platform MCP table tools remain unavailable to anonymous customers.
+- **Binding requests.** A member who may edit a binding but not manage channels can
+  ask for an agent to be bound to, moved to another environment on, or resumed on a
+  public-line WhatsApp bot, with a note of up to 500 characters. Holders of
+  `channels:manage` are notified (`channel_binding_requested`), and the requester
+  hears the decision (`channel_binding_decided`).
+
 - Native account consent can use an API-only AgenticOS Bridge or the organization's own OAuth app. Managed tokens stay in the deployment's Vault, with PKCE handoff and token-bound refresh receipts. Disabled and hidden by default; reviewed deployments configure `OAUTH_BRIDGE_URL` and a console-issued `OAUTH_BRIDGE_ACCESS_KEY` requested from dev@vstorm.co. Provider app readiness is checked before consent.
 
 ## [1.78.0] - 2026-11-16
@@ -1953,6 +1997,11 @@ environment without a person's decision.
 
 ### Changed
 
+- **Binding, rebinding or resuming an agent on a public-line WhatsApp bot needs `channels:manage` or an approved request.** The exposure routes answer `202` with a `request_id` for a request, and take `request_note`.
+- **A public line refuses to open, bind, change environment, resume, reactivate or delete an environment without a spending ceiling,** and a publish, rollback or promotion that would leave a stranger-answering binding without one.
+- Schema: `agent_runs.runs_as_agent`, `whatsapp_customers.phone` and a new `channel_binding_requests` table; two notification types. No backfill.
+- A conversation a Microsoft Teams bot starts is now titled "Microsoft Teams Chat"
+  instead of "Teams Chat". Existing conversations keep their title.
 - **A session API client that decides a chat run no longer resumes it.** Read `continues_in_chat` and skip `POST /runs/{id}/resume` when it is true; a late resume answers 400 with the run's status. (#2656)
 - Chat runs whose approvals were all decided but never continued are now ended about an hour after the last decision. (#2656)
 - On the first sweep after upgrading, such runs decided more than 7 days ago are ended without a chat message. (#2656)
@@ -1965,6 +2014,7 @@ environment without a person's decision.
 - A chat button pressed at the moment the request is decided elsewhere is now closed instead of staying open. (#2656)
 - The question sweep no longer overwrites an answer pressed at the last moment. (#2656)
 - The approvals queue, the dashboard widget, the CSV export, the approval email and the in-app approval notification name the chat account instead of the publisher for an unlinked asker, and filtering the queue by the publisher no longer lists those calls. Who receives the email is unchanged. (#2656)
+- Moving a channel binding to a named environment no longer fails with a server error.
 
 ## [1.43.0] - 2026-11-04
 

@@ -241,11 +241,15 @@ class ImessageAdapter(ChannelAdapter):
                 details={"bridge_code": response.data.error},
             )
 
-    async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
+    async def download_attachment(
+        self, bot_token: str, attachment: IncomingAttachment, *, max_bytes: int | None = None
+    ) -> bytes:
         credentials = self._credentials(bot_token)
         if not attachment.handle or len(attachment.handle) > 512:
             raise ValueError("An iMessage attachment GUID is required")
         limit = settings.CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        if max_bytes is not None:
+            limit = min(limit, max_bytes)
         if attachment.size > limit:
             raise ValueError("The iMessage attachment exceeds the upload limit")
         return await self._bridge.download(

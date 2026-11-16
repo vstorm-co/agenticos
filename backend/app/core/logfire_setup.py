@@ -1,11 +1,13 @@
 """Logfire observability configuration."""
 
-from typing import Any
+from collections.abc import Mapping
+from typing import Any, Final
 
 import logfire
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
 from opentelemetry.trace import Span
+from pydantic import BaseModel
 from starlette.requests import HTTPConnection
 
 from app import __version__
@@ -143,7 +145,9 @@ def redact_secret_arguments(request: HTTPConnection, attributes: dict[str, Any])
     marker; one it left, such as the `workflow_id` before `/webhook-test/<token>` or
     the `run_id` before a resume token, is kept. A query parameter is replaced when
     its name is one of `SECRET_QUERY_PARAMS`, and every other one - `client`, `q`,
-    `limit` - is kept. The mapping it was handed is copied, not changed, as Logfire
+    `limit` - is kept. A request body field named in `SECRET_BODY_FIELDS`, a customer's
+    `phone`, is replaced at any depth, and so is the `input` of its validation error.
+    The mapping it was handed is copied, not changed, as Logfire
     requires.
     """
     secret = {name for name in request.query_params if name in SECRET_QUERY_PARAMS}
@@ -152,23 +156,65 @@ def redact_secret_arguments(request: HTTPConnection, attributes: dict[str, Any])
     if redacted != path:
         kept = set(redacted.split("/"))
         secret.update(name for name, value in request.path_params.items() if str(value) not in kept)
-    if not secret:
+    values: dict[str, Any] = {}
+    changed = False
+    for name, value in attributes["values"].items():
+        if name in secret:
+            values[name], hit = SECRET_PATH_MARKER, True
+        else:
+            values[name], hit = _scrub_body(value)
+        changed = changed or hit
+    errors = attributes.get("errors")
+    # A credential that failed validation - a `visitor` too long, say, or a number
+    # that is not one - reaches the span as the error's `input` instead of as a value.
+    scrubbed_errors = [
+        {**error, "input": SECRET_PATH_MARKER}
+        if isinstance(error, dict)
+        and error.get("loc")
+        and (error["loc"][-1] in secret or error["loc"][-1] in SECRET_BODY_FIELDS)
+        else error
+        for error in errors or []
+    ]
+    if not changed and not secret and scrubbed_errors == (errors or []):
         return attributes
-    values = {
-        name: SECRET_PATH_MARKER if name in secret else value
-        for name, value in attributes["values"].items()
-    }
     redacted_attributes = {**attributes, "values": values}
-    if attributes.get("errors"):
-        # A credential that failed validation - a `visitor` too long, say - reaches
-        # the span as the error's `input` instead of as a value.
-        redacted_attributes["errors"] = [
-            {**error, "input": SECRET_PATH_MARKER}
-            if isinstance(error, dict) and error.get("loc") and error["loc"][-1] in secret
-            else error
-            for error in attributes["errors"]
-        ]
+    if errors:
+        redacted_attributes["errors"] = scrubbed_errors
     return redacted_attributes
+
+
+SECRET_BODY_FIELDS: Final = frozenset({"phone"})
+"""Request body fields whose value never reaches a trace: a customer's phone number."""
+
+
+def _scrub_body(value: Any) -> tuple[Any, bool]:
+    """`value` with every `SECRET_BODY_FIELDS` entry replaced, and whether any was.
+
+    Reads mappings, lists and Pydantic models (dumped first) at any depth; what holds
+    none is returned as it came.
+    """
+    if isinstance(value, BaseModel):
+        names = set(type(value).model_fields) | set(value.model_extra or {})
+        carries = bool(SECRET_BODY_FIELDS & names) or any(
+            _scrub_body(getattr(value, name))[1] for name in type(value).model_fields
+        )
+        if not carries:
+            return value, False
+        dumped, hit = _scrub_body(value.model_dump())
+        return (dumped, True) if hit else (value, False)
+    if isinstance(value, Mapping):
+        scrubbed = {
+            key: (SECRET_PATH_MARKER, True) if key in SECRET_BODY_FIELDS else _scrub_body(item)
+            for key, item in value.items()
+        }
+        if any(hit for _, hit in scrubbed.values()):
+            return {key: item for key, (item, _) in scrubbed.items()}, True
+        return value, False
+    if isinstance(value, list | tuple):
+        scrubbed_items = [_scrub_body(item) for item in value]
+        if any(hit for _, hit in scrubbed_items):
+            return [item for item, _ in scrubbed_items], True
+    return value, False
 
 
 def instrument_asyncpg() -> None:

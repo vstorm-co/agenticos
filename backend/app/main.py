@@ -178,6 +178,7 @@ async def _start_channel_polling(*platforms: str, bot_ids: Sequence[str] | None 
         )
 
 
+# Teams and WhatsApp are push-only: Meta and the Bot Connector post to the bot's endpoint.
 _POLLING_PLATFORMS = ("telegram", "mattermost", "slack", "discord")
 
 _DISCOVER_BOTS_EVERY_SECONDS = 60.0
@@ -324,6 +325,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     from app.services.channels import teams as channel_teams
     from app.services.channels.teams import TeamsAdapter
     from app.services.channels.telegram import TelegramAdapter
+    from app.services.channels.whatsapp import WhatsAppAdapter
 
     # A previous lifespan in this process (a test, a reload) may have declined
     # intake on its way down; this one is serving, so permit it again (#1119).
@@ -361,6 +363,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
 
     _imessage_adapter = ImessageAdapter()
     register_adapter(_imessage_adapter)
+    # WhatsApp likewise: Meta posts to the bot's endpoint and nothing is polled (#2076).
+    _whatsapp_adapter = WhatsAppAdapter()
+    register_adapter(_whatsapp_adapter)
 
     _slack_adapter = SlackAdapter()
     register_adapter(_slack_adapter)
@@ -432,6 +437,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
         _email_adapter,
         _imessage_adapter,
         _discord_adapter,
+        _whatsapp_adapter,
     ):
         await _adapter.aclose()
     # The shared outbound clients web search and the model-catalog listings reuse,

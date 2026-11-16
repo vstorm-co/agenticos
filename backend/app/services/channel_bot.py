@@ -10,6 +10,7 @@ organization, so that was a tenant boundary with nothing behind it.
 import hashlib
 import logging
 import secrets
+from dataclasses import replace
 from typing import Any
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
@@ -18,8 +19,15 @@ from pydantic import JsonValue, SecretStr
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
-from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
+from app.core.exceptions import (
+    AuthorizationError,
+    BadRequestError,
+    ConflictError,
+    ExternalServiceError,
+    NotFoundError,
+)
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm, assignable_roles
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
@@ -31,7 +39,9 @@ from app.repositories import (
     channel_bot_repo,
     channel_session_repo,
     discord_role_mapping_repo,
+    member_repo,
     teams_conversation_repo,
+    whatsapp_customer_repo,
 )
 from app.schemas.channel_bot import (
     AccessPolicy,
@@ -40,6 +50,10 @@ from app.schemas.channel_bot import (
     ChannelBotRead,
     ChannelBotUpdate,
     InheritedSpeechToTextRead,
+    PublicLineRead,
+    WhatsAppCustomerList,
+    WhatsAppCustomerRead,
+    WhatsAppLateTemplateChoice,
 )
 from app.services.channels import (
     INBOUND_PATHS,
@@ -54,12 +68,35 @@ from app.services.channels.email import is_address
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.imessage import TAPBACK_REACTIONS
 from app.services.channels.imessage_transport import BridgeCredentials
+from app.services.channels.public_line import (
+    PLATFORMS_THAT_ANSWER_STRANGERS,
+    answers_unlinked_on,
+    bot_answers_unlinked_direct,
+    bot_served_spec,
+    reach_of,
+    refuse_without_ceiling,
+)
 from app.services.channels.slack_manifest import slack_manifest
 from app.services.channels.sms import split_credentials
 from app.services.channels.supervisor import close_inbound_stream, open_inbound_stream
 from app.services.channels.teams import ConversationRef
 from app.services.channels.teams_auth import TeamsCredentials
 from app.services.channels.teams_package import teams_app_package
+from app.services.channels.webhooks import SEND_HEALTH_PLATFORMS
+from app.services.channels.whatsapp_erasure import (
+    CustomerErasure,
+    NamedBy,
+    Via,
+    WhatsAppErasureService,
+)
+from app.services.channels.whatsapp_graph import (
+    TOKEN_REFUSED,
+    WhatsAppCredentials,
+    WhatsAppGraph,
+    WhatsAppGraphError,
+    WhatsAppTokenRefused,
+)
+from app.services.channels.whatsapp_templates import LateTemplate, to_stored, usable_templates
 from app.services.speech_to_text import is_offered as stt_is_offered
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import TranscriptionService
@@ -82,7 +119,8 @@ def unseal_bot_token(bot: ChannelBot) -> str:
 
     A Teams bot's token is its client secret, and signing in needs the app and
     tenant beside it; the three travel as one string, so every adapter call
-    still takes one token (#1985).
+    still takes one token (#1985). A WhatsApp bot's is its access token with the
+    number it sends from, composed the same way (#2076).
     """
     token = unseal(
         bot.token_encrypted,
@@ -103,6 +141,12 @@ def unseal_bot_token(bot: ChannelBot) -> str:
             password=SecretStr(token),
             webhook_secret=SecretStr(secret) if secret is not None else None,
         ).encode()
+    if bot.platform == "whatsapp":
+        return WhatsAppCredentials(
+            bot_id=str(bot.id),
+            access_token=token,
+            phone_number_id=bot.whatsapp_phone_number_id or "",
+        ).encode()
     return token
 
 
@@ -120,6 +164,17 @@ def unseal_webhook_secret(bot: ChannelBot) -> str | None:
         return None
     return unseal(
         bot.webhook_secret_encrypted,
+        scope=VaultScope.organization(bot.organization_id),
+        key_version=bot.secret_key_version,
+    )
+
+
+def unseal_whatsapp_verify_token(bot: ChannelBot) -> str | None:
+    """The token Meta's subscription handshake is checked against, or None if unset."""
+    if bot.whatsapp_verify_token_encrypted is None:
+        return None
+    return unseal(
+        bot.whatsapp_verify_token_encrypted,
         scope=VaultScope.organization(bot.organization_id),
         key_version=bot.secret_key_version,
     )
@@ -303,7 +358,9 @@ class ChannelBotService:
                 return
             raise
 
-    async def create(self, data: ChannelBotCreate) -> ChannelBot:
+    async def create(
+        self, data: ChannelBotCreate, *, actor_user_id: UUID | None = None
+    ) -> ChannelBot:
         """Create a new channel bot with its credentials sealed, and open its stream.
 
         A polling bot is reached over a connection this process holds, and only
@@ -315,10 +372,20 @@ class ChannelBotService:
                 not a Slack bot - accepting them would store secrets nothing
                 will ever read - or a transcription pair arrives with
                 transcription off, refused as an update refuses it rather than
-                stored as a pair that can never run.
+                stored as a pair that can never run. Also a policy that opens
+                the line to strangers on a bot that cannot take it, or with no
+                spending limit to bound it.
         """
         self._check_slack_fields(data.platform, data.slack_signing_secret, data.slack_app_token)
         self._check_discord_policy(data.platform, data.access_policy)
+        self._check_public_line(data.platform, data.access_policy)
+        opens_the_line = answers_unlinked_on(data.platform, data.access_policy.model_dump())
+        if opens_the_line:
+            # No binding yet - a bot is bound after it exists - so only the
+            # organization's cap can bound it.
+            await refuse_without_ceiling(
+                self.db, organization_id=self._org_id, spec=None, channel_bot_id=None
+            )
         if data.speech_to_text_provider is not None:
             # The schema has already made the pair whole, and refused a key
             # without one, so the provider stands for all three.
@@ -357,6 +424,11 @@ class ChannelBotService:
             transcribe_voice_notes=data.transcribe_voice_notes,
             teams_app_id=data.teams_app_id,
             teams_tenant_id=data.teams_tenant_id,
+            whatsapp_phone_number_id=data.whatsapp_phone_number_id,
+            whatsapp_account_id=data.whatsapp_account_id,
+            whatsapp_verify_token_encrypted=self._seal_at(
+                data.whatsapp_verify_token, key_version=sealed.key_version
+            ),
             speech_to_text_provider=data.speech_to_text_provider,
             speech_to_text_model=data.speech_to_text_model,
             speech_to_text_secret_id=data.speech_to_text_secret_id,
@@ -365,6 +437,8 @@ class ChannelBotService:
             step_display=data.step_display,
             rate_answers=data.rate_answers,
         )
+        if opens_the_line:
+            await self._audit_public_line(bot, answers=True, actor_user_id=actor_user_id)
         self._reopen_stream(bot)
         return bot
 
@@ -581,6 +655,43 @@ class ChannelBotService:
             )
 
     @staticmethod
+    def _check_whatsapp_update(bot: ChannelBot, data: ChannelBotUpdate) -> None:
+        """What a WhatsApp bot may not lose, and what only it may carry.
+
+        A null, or webhooks switched off, would leave a bot that is saved and
+        cannot send, cannot be believed or cannot be subscribed - refused with the
+        field named rather than dropped as `writable` drops a null on a NOT NULL
+        column, because these columns are nullable and a null would be kept.
+        """
+        if bot.platform != "whatsapp":
+            for field in (
+                "whatsapp_phone_number_id",
+                "whatsapp_account_id",
+                "whatsapp_verify_token",
+            ):
+                if field in data.model_fields_set:
+                    raise refused_field(
+                        field, "Only a WhatsApp bot has a phone number, account or verify token"
+                    )
+            if "whatsapp_late_template" in data.model_fields_set:
+                raise refused_field(
+                    "whatsapp_late_template", "Only a WhatsApp bot has a late-answer template"
+                )
+            return
+        for field in (
+            "whatsapp_phone_number_id",
+            "whatsapp_account_id",
+            "whatsapp_verify_token",
+            "webhook_secret",
+        ):
+            if cleared(data, field):
+                raise refused_field(
+                    field, "A WhatsApp bot needs it - send a new value to replace it"
+                )
+        if data.webhook_mode is False:
+            raise refused_field("webhook_mode", "A WhatsApp bot is reached by webhook only")
+
+    @staticmethod
     def _check_slack_fields(
         platform: str, signing_secret: str | None, app_token: str | None
     ) -> None:
@@ -598,6 +709,45 @@ class ChannelBotService:
                 "access_policy.discord_guild_ids", "Only Discord bots use Discord server approvals"
             )
 
+    @staticmethod
+    def _check_public_line(platform: str, policy: AccessPolicy) -> None:
+        """What only a WhatsApp bot may carry, and what the open line may not combine with.
+
+        The keys that open a line to people with no account are WhatsApp's: they
+        are refused elsewhere rather than stored as a setting that does nothing,
+        since a stored `true` reads as a promise. A line that answers strangers
+        also admits no room restriction - `group_only` would name rooms a customer's
+        private chat is not in.
+        """
+        for key in ("answer_unlinked_direct", "accept_customer_files"):
+            if platform not in PLATFORMS_THAT_ANSWER_STRANGERS and getattr(policy, key):
+                raise refused_field(
+                    f"access_policy.{key}", "Only a WhatsApp bot can answer people with no account"
+                )
+        if policy.answer_unlinked_direct and policy.mode == "group_only":
+            raise refused_field(
+                "access_policy.mode",
+                "A line that answers people with no account is not limited to groups",
+            )
+
+    async def _audit_public_line(
+        self, bot: ChannelBot, *, answers: bool, actor_user_id: UUID | None
+    ) -> None:
+        """Record that the bot started or stopped answering people with no account.
+
+        The state alone, and none of the rest of the policy: a whitelist is a list
+        of numbers.
+        """
+        await record_audit(
+            self.db,
+            actor_user_id=actor_user_id,
+            organization_id=bot.organization_id,
+            action="channel.bot.public_line_changed",
+            target_type="channel_bot",
+            target_id=str(bot.id),
+            details={"answers_unlinked": answers},
+        )
+
     async def get(self, bot_id: UUID, *, for_update: bool = False) -> ChannelBot:
         """Get one of this organization's bots; raises NotFoundError if not found.
 
@@ -613,6 +763,10 @@ class ChannelBotService:
                 details={"bot_id": str(bot_id)},
             )
         return bot
+
+    async def public_line(self, bot_id: UUID) -> PublicLineRead:
+        """What this bot would answer people with no account with, and what bounds it."""
+        return await reach_of(self.db, await self.get(bot_id))
 
     async def read(self, bot_id: UUID) -> ChannelBotRead:
         """One bot as its form reads it, with what "inherit" would transcribe on.
@@ -644,6 +798,114 @@ class ChannelBotService:
         )
         return ChannelBotRead.model_validate(bot).model_copy(
             update={"inherited_speech_to_text": inherited}
+        )
+
+    async def _whatsapp_bot(self, bot_id: UUID) -> ChannelBot:
+        bot = await self.get(bot_id)
+        if bot.platform != "whatsapp":
+            raise refused_field("bot_id", "Only a WhatsApp bot has customers", bot_id=str(bot_id))
+        return bot
+
+    async def _customers(
+        self, rows: list[whatsapp_customer_repo.CustomerRow], total: int
+    ) -> WhatsAppCustomerList:
+        """Rows as the manager's view reads them; a linked member's number is never shown."""
+        user_ids = [r.identity.user_id for r in rows if r.identity and r.identity.user_id]
+        active = await member_repo.get_active_ids(
+            self.db, organization_id=self._org_id, user_ids=user_ids
+        )
+        items = []
+        for row in rows:
+            identity = row.identity
+            linked = identity is not None and identity.user_id in active
+            items.append(
+                WhatsAppCustomerRead(
+                    id=row.customer.id,
+                    bsuid=row.customer.bsuid,
+                    phone=None if linked else row.customer.phone,
+                    profile_name=identity.platform_display_name if identity else None,
+                    username=identity.platform_username if identity else None,
+                    last_message_at=row.customer.last_inbound_at,
+                    linked=linked,
+                )
+            )
+        return WhatsAppCustomerList(items=items, total=total)
+
+    async def whatsapp_customers(
+        self, bot_id: UUID, *, skip: int, limit: int
+    ) -> WhatsAppCustomerList:
+        """A WhatsApp bot's customers, newest message first, with their full numbers.
+
+        Only a caller holding `channels:manage` reaches this; the route gates it.
+
+        Raises:
+            NotFoundError: If the bot is not this organization's.
+            BadRequestError: If it is not a WhatsApp bot.
+        """
+        bot = await self._whatsapp_bot(bot_id)
+        rows, total = await whatsapp_customer_repo.list_for_bot(
+            self.db, organization_id=self._org_id, bot_id=bot.id, skip=skip, limit=limit
+        )
+        return await self._customers(rows, total)
+
+    async def find_whatsapp_customers(self, bot_id: UUID, phone: str) -> WhatsAppCustomerList:
+        """The bot's customers with this number, however it was typed.
+
+        Raises:
+            NotFoundError: If the bot is not this organization's.
+            BadRequestError: If it is not a WhatsApp bot.
+        """
+        bot = await self._whatsapp_bot(bot_id)
+        digits = "".join(ch for ch in phone if ch.isdigit())
+        if not 1 <= len(digits) <= 15:
+            return WhatsAppCustomerList(items=[], total=0)
+        rows = await whatsapp_customer_repo.find_by_phone(
+            self.db, organization_id=self._org_id, bot_id=bot.id, phone=digits
+        )
+        return await self._customers(rows, len(rows))
+
+    async def forget_whatsapp_customer(
+        self, bot_id: UUID, customer_id: UUID, *, actor_user_id: UUID | None
+    ) -> CustomerErasure:
+        """Erase one customer of a WhatsApp bot from every store of the organization.
+
+        The customer is found by id inside this bot, so an id from another bot or
+        another organization is not found.
+
+        Raises:
+            NotFoundError: If the bot or the customer in it is not this organization's.
+            BadRequestError: If it is not a WhatsApp bot.
+            ConflictError: If the customer is linked to a member account.
+        """
+        bot = await self._whatsapp_bot(bot_id)
+        customer = await whatsapp_customer_repo.get_in_bot(
+            self.db, organization_id=self._org_id, bot_id=bot.id, customer_id=customer_id
+        )
+        if customer is None:
+            raise NotFoundError(
+                message="Customer not found", details={"customer_id": str(customer_id)}
+            )
+        return await self.forget_whatsapp_bsuid(
+            bot_id,
+            bsuid=customer.bsuid,
+            named_by="bsuid",
+            actor_user_id=actor_user_id,
+            via="console",
+        )
+
+    async def forget_whatsapp_bsuid(
+        self, bot_id: UUID, *, bsuid: str, named_by: NamedBy, actor_user_id: UUID | None, via: Via
+    ) -> CustomerErasure:
+        """Erase the customer with this business-scoped id from the organization's WhatsApp bots.
+
+        Raises:
+            NotFoundError: If the bot is not this organization's.
+            BadRequestError: If it is not a WhatsApp bot.
+            ConflictError: If the customer is linked to a member account.
+        """
+        bot = await self._whatsapp_bot(bot_id)
+        return await WhatsAppErasureService(self.db).forget(
+            bot, bsuid=bsuid, named_by=named_by, actor_user_id=actor_user_id, via=via
         )
 
     async def teams_app_package(self, bot_id: UUID) -> bytes:
@@ -698,6 +960,61 @@ class ChannelBotService:
             )
         return slack_manifest(bot)
 
+    async def _chosen_template(
+        self, bot: ChannelBot, choice: WhatsAppLateTemplateChoice, changes: ChannelBotUpdate
+    ) -> dict[str, str]:
+        """The stored form of the template a WhatsApp bot was told to use, as Meta lists it now.
+
+        Listed with the access token and account the same save sets, if it sets
+        them. The stored body is Meta's, never the caller's, because the send path
+        sizes its parameter against it.
+        """
+        for template in await self._list_templates(bot, changes):
+            if (template.name, template.language) == (choice.name, choice.language):
+                return to_stored(template)
+        raise refused_field(
+            "whatsapp_late_template",
+            "Meta lists no approved utility template with that name and language, "
+            "one variable in its body and at most one quick-reply button",
+        )
+
+    async def whatsapp_templates(self, bot_id: UUID) -> list[LateTemplate]:
+        """The templates on this WhatsApp bot's account that can carry a late answer (#2076).
+
+        Raises:
+            NotFoundError: If the bot is not this organization's.
+            BadRequestError: If it is not a WhatsApp bot with an account id.
+            ExternalServiceError: If Meta refuses the token or the listing. Only
+                Graph's numeric code is carried, never what it said.
+        """
+        return await self._list_templates(await self.get(bot_id), None)
+
+    async def _list_templates(
+        self, bot: ChannelBot, changes: ChannelBotUpdate | None
+    ) -> list[LateTemplate]:
+        account_id = (changes.whatsapp_account_id if changes else None) or bot.whatsapp_account_id
+        if bot.platform != "whatsapp" or not account_id:
+            raise refused_field("bot_id", "Only a WhatsApp bot has message templates")
+        creds = WhatsAppCredentials.decode(unseal_bot_token(bot))
+        if changes:
+            creds = replace(
+                creds,
+                access_token=changes.token or creds.access_token,
+                phone_number_id=changes.whatsapp_phone_number_id or creds.phone_number_id,
+            )
+        graph = WhatsAppGraph()
+        try:
+            listing = await graph.message_templates(creds, account_id=account_id)
+        except WhatsAppTokenRefused as exc:
+            raise ExternalServiceError(message=TOKEN_REFUSED, details=exc.details) from None
+        except WhatsAppGraphError as exc:
+            raise ExternalServiceError(
+                message="Meta did not list this bot's message templates", details=exc.details
+            ) from None
+        finally:
+            await graph.aclose()
+        return usable_templates(listing)
+
     async def find_active(self, bot_id: UUID) -> ChannelBot | None:
         """Return an active bot by ID, or None (inbound webhook / poller path)."""
         bot = await channel_bot_repo.get_for_inbound(self.db, bot_id)
@@ -724,9 +1041,11 @@ class ChannelBotService:
         # holding the socket is usually in another process, so this cannot be
         # asked of the adapter here. A webhook bot is not asked at all: it holds
         # no connection, and a `down` beside one would be a fault reported about
-        # a design (#1351).
+        # a design (#1351) - except where `down` means a refused send.
         connections = {
-            bot.id: await connection_state.read(bot.id) for bot in bots if not bot.webhook_mode
+            bot.id: await connection_state.read(bot.id)
+            for bot in bots
+            if not bot.webhook_mode or bot.platform in SEND_HEALTH_PLATFORMS
         }
         return [
             ChannelBotRead.model_validate(bot).model_copy(
@@ -755,6 +1074,7 @@ class ChannelBotService:
         return await channel_bot_repo.list_for_org(self.db, organization_id=self._org_id)
 
     async def update(self, bot_id: UUID, data: ChannelBotUpdate, ctx: AuthContext) -> ChannelBot:
+        actor_user_id = ctx.subject_id
         """Update a channel bot. Only the fields the caller sent are applied;
         an explicit null clears a Slack credential, an omission leaves it.
 
@@ -783,9 +1103,32 @@ class ChannelBotService:
         # recorded key version, and a rotation committing between an unlocked
         # read and this write would tag the new envelopes with a version they
         # were not sealed under.
+        #
+        # A template is checked with Meta first, on an unlocked read: a call that
+        # can take a minute must not hold the bot's row, which every new customer,
+        # chat and prompt of the bot takes a key-share lock on.
+        chosen: dict[str, str] | None = None
+        if data.whatsapp_late_template is not None:
+            unlocked = await self.get(bot_id)
+            self._check_whatsapp_update(unlocked, data)
+            chosen = await self._chosen_template(unlocked, data.whatsapp_late_template, data)
         bot = await self.get(bot_id, for_update=True)
+        answered_before = bot_answers_unlinked_direct(bot)
+        answers_now = answered_before
         if data.access_policy is not None:
             self._check_discord_policy(bot.platform, data.access_policy)
+            self._check_public_line(bot.platform, data.access_policy)
+            answers_now = answers_unlinked_on(bot.platform, data.access_policy.model_dump())
+        # Turning the bot back on is the same way in as `activate`, and an update can
+        # send `is_active` as well.
+        comes_back = data.is_active is True and not bot.is_active
+        if answers_now and (not answered_before or comes_back):
+            await refuse_without_ceiling(
+                self.db,
+                organization_id=self._org_id,
+                spec=await bot_served_spec(self.db, bot.id),
+                channel_bot_id=bot.id,
+            )
         # Before `writable`, which would drop it as a NOT NULL column's sentinel:
         # a null here is somebody asking for a third state that no longer
         # exists - it used to be the pair that went null for "off" - and they are
@@ -795,6 +1138,7 @@ class ChannelBotService:
                 "transcribe_voice_notes",
                 "Say true or false - a null pair is what inherits now",
             )
+        self._check_whatsapp_update(bot, data)
         update_data = writable(data, over=ChannelBot)
         if "ack_reaction" in update_data:
             self._check_imessage_reaction(bot.platform, update_data["ack_reaction"])
@@ -826,6 +1170,8 @@ class ChannelBotService:
         if "api_base_url" in update_data:
             self._check_server_url(bot.platform, update_data["api_base_url"])
         await self._check_transcription(bot, update_data)
+        if "whatsapp_late_template" in update_data:
+            update_data["whatsapp_late_template"] = chosen
         if "slack_signing_secret" in update_data or "slack_app_token" in update_data:
             self._check_slack_fields(
                 bot.platform,
@@ -840,6 +1186,10 @@ class ChannelBotService:
             self._check_command_token(bot.platform, update_data["command_token"])
             update_data["command_token_encrypted"] = self._seal_at(
                 update_data.pop("command_token"), key_version=bot.secret_key_version
+            )
+        if "whatsapp_verify_token" in update_data:
+            update_data["whatsapp_verify_token_encrypted"] = self._seal_at(
+                update_data.pop("whatsapp_verify_token"), key_version=bot.secret_key_version
             )
         if "slack_app_token" in update_data:
             update_data["slack_app_token_encrypted"] = self._seal_at(
@@ -895,6 +1245,13 @@ class ChannelBotService:
             if value is not None and hasattr(value, "model_dump"):
                 update_data[field] = value.model_dump()
         updated = await channel_bot_repo.update(self.db, db_bot=bot, update_data=update_data)
+        if answers_now != answered_before:
+            await self._audit_public_line(updated, answers=answers_now, actor_user_id=actor_user_id)
+        if answered_before and not answers_now:
+            # Imported here: that module reaches the agent registry, which reaches this one.
+            from app.services.channel_binding_requests import void_for_closed_line
+
+            await void_for_closed_line(self.db, organization_id=self._org_id, channel_bot_id=bot.id)
         self._reopen_stream(updated)
         return updated
 
@@ -939,6 +1296,8 @@ class ChannelBotService:
         `roles:manage` and a role the caller's own strictly outranks - what
         `DiscordRoleMappingService.delete` asks of each mapping (#2569).
         """
+        if bot.platform != "discord":
+            return
         for mapping in await discord_role_mapping_repo.list_for_bot(self.db, channel_bot_id=bot.id):
             if not ctx.has(Perm.MEMBERS_MANAGE) or (
                 mapping.role is not None
@@ -955,8 +1314,20 @@ class ChannelBotService:
                 )
 
     async def activate(self, bot_id: UUID) -> ChannelBot:
-        """Set is_active = True, and open the stream it is reached over."""
+        """Set is_active = True, and open the stream it is reached over.
+
+        A line that answers people with no account needs its spending ceiling again
+        on the way back: the agent's budget or the organization's cap may have gone
+        while it was off.
+        """
         bot = await self.get(bot_id)
+        if bot_answers_unlinked_direct(bot):
+            await refuse_without_ceiling(
+                self.db,
+                organization_id=self._org_id,
+                spec=await bot_served_spec(self.db, bot.id),
+                channel_bot_id=bot.id,
+            )
         activated = await channel_bot_repo.update(
             self.db, db_bot=bot, update_data={"is_active": True}
         )
@@ -1004,9 +1375,10 @@ class ChannelBotService:
     async def list_sessions(
         self, bot_id: UUID, *, skip: int = 0, limit: int = 50
     ) -> tuple[list, int]:
-        """List channel sessions for this bot."""
-        items = await channel_session_repo.list_by_bot(self.db, bot_id, skip=skip, limit=limit)
-        total = await channel_session_repo.count_by_bot(self.db, bot_id)
+        """List this organization's bot's sessions; another organization's bot reads as missing."""
+        bot = await self.get(bot_id)
+        items = await channel_session_repo.list_by_bot(self.db, bot.id, skip=skip, limit=limit)
+        total = await channel_session_repo.count_by_bot(self.db, bot.id)
         return items, total
 
     async def register_webhook(self, bot_id: UUID) -> dict[str, Any]:

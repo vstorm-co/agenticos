@@ -28,8 +28,10 @@ class TestTheCredential:
         unbound = AgentSpec(name="Support")
 
         with patch("app.services.agent_runner.mint_for_run", new=mint):
-            assert await runner._platform_credential(bound, CTX) == "aos_minted"
-            assert await runner._platform_credential(unbound, CTX) is None
+            assert (
+                await runner._platform_credential(bound, CTX, runs_as_agent=False) == "aos_minted"
+            )
+            assert await runner._platform_credential(unbound, CTX, runs_as_agent=False) is None
 
         mint.assert_awaited_once_with(CTX, agent_id=None, conversation_id=None)
 
@@ -40,7 +42,12 @@ class TestTheCredential:
         with patch(
             "app.services.agent_runner.mint_for_run", new=AsyncMock(return_value="aos_minted")
         ) as mint:
-            assert await runner._platform_credential(bound, CTX, agent_id=agent_id) == "aos_minted"
+            assert (
+                await runner._platform_credential(
+                    bound, CTX, agent_id=agent_id, runs_as_agent=False
+                )
+                == "aos_minted"
+            )
         mint.assert_awaited_once_with(CTX, agent_id=agent_id, conversation_id=None)
 
     async def test_existing_agent_identity_travels_with_its_platform_credential(self) -> None:
@@ -53,7 +60,10 @@ class TestTheCredential:
                 "app.services.agent_runner.mint_for_run", new=AsyncMock(return_value="aos_minted")
             ) as mint,
         ):
-            assert await runner._platform_credential(bound, CTX, run) == "aos_minted"
+            assert (
+                await runner._platform_credential(bound, CTX, run, runs_as_agent=False)
+                == "aos_minted"
+            )
         mint.assert_awaited_once_with(CTX, agent_id=run.agent_id, conversation_id=None)
 
     async def test_a_run_resumed_by_somebody_else_keeps_its_owner_s_authority(self) -> None:
@@ -82,7 +92,7 @@ class TestTheCredential:
             patch("app.services.agent_runner.mint_for_run", new=AsyncMock()) as mint,
         ):
             assert await runner._run_owner_context(CTX, run) is None
-            assert await runner._platform_credential(bound, CTX, run) is None
+            assert await runner._platform_credential(bound, CTX, run, runs_as_agent=False) is None
         mint.assert_not_awaited()
 
         assert await runner._run_owner_context(CTX, None) is CTX

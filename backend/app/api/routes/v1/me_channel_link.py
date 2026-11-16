@@ -18,6 +18,7 @@ from app.schemas.channel_bot import (
     ChannelIdentityRead,
     ChannelLinkRequestRead,
 )
+from app.services.impersonation import current_impersonation
 
 router = APIRouter()
 
@@ -27,10 +28,12 @@ _GONE = "This link is not valid any more. Send the bot a message to get a new on
 @router.get("/{token}", response_model=ChannelLinkRequestRead)
 async def read_link_request(token: str, service: ChannelLinkSvc, user: CurrentUser) -> Any:
     """Which chat account this URL is about, so the page can name it."""
-    request = await service.pending(token)
+    request = await service.pending(token, user.id)
     if request is None:
         raise NotFoundError(message=_GONE)
-    return request
+    return ChannelLinkRequestRead.for_user(
+        request, user.id, reveal_code=current_impersonation() is None
+    )
 
 
 @router.post("/{token}", response_model=ChannelLinkRequestRead)
@@ -43,7 +46,9 @@ async def confirm_link_request(token: str, service: ChannelLinkSvc, user: Curren
     request = await service.confirm(token, user.id)
     if request is None:
         raise NotFoundError(message=_GONE)
-    return request
+    return ChannelLinkRequestRead.for_user(
+        request, user.id, reveal_code=current_impersonation() is None
+    )
 
 
 @router.get("", response_model=ChannelIdentityList)

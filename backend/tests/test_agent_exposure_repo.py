@@ -233,6 +233,23 @@ class TestReading:
         assert found is paused
 
 
+class TestTheBindingsOfAnAgentWithTheirBots:
+    async def test_both_the_binding_and_the_bot_are_read_inside_the_organization(self):
+        """A mis-scoped row must not bring another organization's bot into a decision."""
+        agent_id, organization_id = uuid.uuid4(), uuid.uuid4()
+        session = _RecordingSession(_rows([]))
+
+        await agent_exposure_repo.list_with_bot_for_agent(
+            session, agent_id=agent_id, organization_id=organization_id
+        )
+
+        compiled = session.statements[-1].compile(dialect=postgresql.dialect())
+        assert set(compiled.params.values()) >= {agent_id, organization_id}
+        sql = str(compiled)
+        assert "agent_exposures.organization_id =" in sql
+        assert "channel_bots.organization_id =" in sql
+
+
 class TestWriting:
     async def test_a_new_binding_carries_everything_the_row_needs(self):
         organization_id, agent_id, bot_id, author = (uuid.uuid4() for _ in range(4))

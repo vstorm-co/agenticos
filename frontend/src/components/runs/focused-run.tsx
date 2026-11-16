@@ -46,6 +46,15 @@ import { Perm } from "@/types/permissions";
 import type { AgentRun, EvalCaseLink, RunSkillUse } from "@/types/runs";
 import { RunTable } from "./run-table";
 
+/** What `undelivered_reason` says; a reason this build does not know reads `undeliveredOther`. */
+const UNDELIVERED_KEY: Record<
+  string,
+  "undeliveredWindowNoTemplate" | "undeliveredWindowTemplateFailed" | undefined
+> = {
+  window_no_template: "undeliveredWindowNoTemplate",
+  window_template_failed: "undeliveredWindowTemplateFailed",
+};
+
 /**
  * One run as a trace: what went in, what the agent did, what it cost, and the
  * way to its neighbours - where a link from elsewhere lands.
@@ -322,6 +331,12 @@ export function FocusedRun({
           <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
             <Wrench className="size-3.5 shrink-0" aria-hidden />
             {t("toolArgsRepaired", { count: run.tool_args_repaired })}
+          </p>
+        )}
+
+        {run.undelivered_reason && (
+          <p role="status" className="text-warning text-xs">
+            {t(UNDELIVERED_KEY[run.undelivered_reason] ?? "undeliveredOther")}
           </p>
         )}
 

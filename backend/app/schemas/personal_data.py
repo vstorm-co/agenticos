@@ -284,7 +284,7 @@ class PersonalDataExport(BaseModel):
         )
     )
     channel_identities: list[dict[str, Any]] = Field(
-        description="The Slack, Telegram and Mattermost accounts they linked."
+        description="The Slack, Telegram, Mattermost, Teams, Discord and WhatsApp accounts they linked."
     )
     slash_commands: list[dict[str, Any]] = Field(description="Shortcuts they saved.")
     dashboard_layouts: list[dict[str, Any]] = Field(description="How they arranged their console.")
