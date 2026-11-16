@@ -104,7 +104,7 @@ function InlineBrowser({
   const expand = useBrowserPanelStore((state) => state.open);
   const choice = useBrowserPanelStore((state) => state.surface);
   const callId = useBrowserPanelStore((state) => state.openCallId);
-  const selected = choice === "files" ? null : choice;
+  const selected = choice === "browser" || choice === "computer" ? choice : null;
   const expanded =
     selectedWorkspaceBrowse(browses, surfaces, selected, callId)?.callId === streamed.callId;
   const running = isRunning(streamed);

@@ -10,7 +10,7 @@ Hay dos maneras de que eso nos llegue, y cuál usa una fuente es asunto de la
 fuente y no tuyo:
 
 - **Por envío (push).** Un provider hace POST de una carga firmada: **GitHub**,
-  **HubSpot**, **Zendesk**, o cualquier cosa que pueda enviar JSON firmado (la
+  **HubSpot**, **Zendesk**, **Linear**, o cualquier cosa que pueda enviar JSON firmado (la
   fuente **API**).
 - **Por sondeo (polling).** La plataforma lee una cuenta conectada con una
   cadencia: los buzones (**Gmail**, **Outlook**), los archivos (**Google Drive**,

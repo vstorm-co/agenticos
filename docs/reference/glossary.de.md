@@ -128,7 +128,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Entwürfe | `drafts` |
 | Webbrowser | `browser_use` |
 | Infos zum Chat-Kanal | `channel_tools` |
-| Verbundene Chat-Apps (Connected chat apps) | `channel_actions` |
+| Verbundene Chat-Apps | `channel_actions` |
 | Telefonanrufe | `phone_calls` |
 | Diagramme | `charts` |
 | Datum und Uhrzeit | `clock` |
@@ -171,3 +171,5 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Websuche | `web_research` |
 | Tabellen | AgenticOS MCP: `list_virtual_tables`, `query_virtual_table` |
 | Workflows | `workflows` |
+
+Die englische Konsolenbezeichnung für **Verbundene Chat-Apps** lautet **Connected chat apps**.

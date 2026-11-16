@@ -3580,6 +3580,6 @@ Jawne uprawnienia bota do znajdowania kanałów, wyszukiwania wiadomości i dost
 | `list_chat_connections` | Identyfikatory botów, uprawnienia i bieżące miejsce rozmowy |
 | `find_chat_channels` | Metadane kanałów bota i stronicowanie |
 | `read_chat_messages` | Ograniczona historia z filtrami |
-| `send_chat_message` | Wiadomość lub raport w nowym wpisie albo istniejącym wątku |
+| `send_chat_message` | Wysłanie wiadomości lub raportu na żądanie, w nowym wpisie albo istniejącym wątku |
 
 Przy każdej operacji usługa ponownie sprawdza członkostwo w organizacji, dostęp do agenta, aktywne powiązanie i bota, a następnie członkostwo bota w kanale i przynależność wątku. Nie dołącza do kanałów ani nie pożycza botów innych agentów. Wyszukiwanie i historia zwracają ograniczone strony; puste dopasowanie nie kończy przeglądania, jeśli istnieje kursor. Błąd dostawcy jest odmową, nie pustym wynikiem. Wysyłanie podlega zasadom akceptacji; niepotwierdzoną wysyłkę trzeba sprawdzić przed ponowieniem. Pozostałe platformy zachowują dotychczasowe narzędzia rozmowy; akcje między kanałami są dostępne tylko tam, gdzie adapter weryfikuje członkostwo.

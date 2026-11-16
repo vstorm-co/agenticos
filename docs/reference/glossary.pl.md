@@ -127,7 +127,7 @@ w [Capabilities](capabilities.md).
 | Wersje robocze | `drafts` |
 | Przeglądarka | `browser_use` |
 | Informacje o kanale czatu | `channel_tools` |
-| Podłączone komunikatory (Connected chat apps) | `channel_actions` |
+| Podłączone komunikatory | `channel_actions` |
 | Połączenia telefoniczne | `phone_calls` |
 | Wykresy | `charts` |
 | Data i godzina | `clock` |
@@ -170,3 +170,5 @@ w [Capabilities](capabilities.md).
 | Wyszukiwanie w internecie | `web_research` |
 | Tabele | AgenticOS MCP: `list_virtual_tables`, `query_virtual_table` |
 | Workflowy | `workflows` |
+
+Angielska nazwa pozycji **Podłączone komunikatory** w konsoli to **Connected chat apps**.
