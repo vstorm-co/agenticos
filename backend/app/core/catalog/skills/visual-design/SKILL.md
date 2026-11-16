@@ -20,6 +20,7 @@ Read the relevant reference or example only:
 - `references/visual-composition.md`: medium selection, chart/diagram encoding, composition and asset guidance.
 - `references/interaction-and-verification.md`: parameter design, accessibility, deterministic behavior and rendered checks.
 - `references/maps-and-3d.md`: composed spatial scenes, readable geography, camera/lighting, themes and real render checks.
+- `templates/product-studio.html`: a composed procedural product with beveled shell, grain, coated optics, studio lighting, contact shadows, finish selection, exploded assembly and named views. Use it for product/design objects; use `scene.html` for a teaching model.
 - `templates/route-atlas.html`: a local, responsive route map with a visible stop list and purposeful palette.
 - `references/design-recipes.md`: existing chart, map, 3D and explainer helpers.
 - `templates/comparison-lab.html`: a transparent scenario comparison with controls, units and an explanatory chart.

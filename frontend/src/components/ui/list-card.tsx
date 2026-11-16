@@ -4,21 +4,14 @@ import { Search, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { HTMLAttributes, ReactNode } from "react";
 
-import { SectionGlyph } from "@/components/states/section-glyph";
+import { EmptyIllustration } from "@/components/illustrations/empty-illustration";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-/**
- * The resource-list page's frame, drawn whether or not there is anything in
- * it - one card instead of the five per-page copies it replaces (#282).
- *
- * Same header, same border, in every state: what changes is what is inside.
- * A card that only appears once rows exist reads as the panel disappearing
- * the moment you use it.
- */
+/** Table lists keep a shared frame; galleries place their cards directly on the page. */
 export function ListCard({
   title,
   counted,
@@ -72,13 +65,20 @@ export function ListCard({
   children: ReactNode;
 } & HTMLAttributes<HTMLDivElement>) {
   if (namedByPage) {
+    const gallery = layout === "grid";
+    const Frame = gallery ? "div" : Card;
     return (
-      <Card className={cn(fill && "flex min-h-0 flex-1 flex-col", className)} {...rest}>
+      <Frame
+        data-list-layout={layout}
+        className={cn("min-w-0", fill && "flex min-h-0 flex-1 flex-col", className)}
+        {...rest}
+      >
         <CardHeader
           hidden={empty || (counted === undefined && !controls)}
           data-tour={headerTour}
           className={cn(
-            "shrink-0 flex-col gap-3 space-y-0 border-b px-4 py-3 sm:min-h-14 sm:flex-row sm:items-center sm:justify-between sm:px-5",
+            "shrink-0 flex-col gap-3 space-y-0 py-3 sm:min-h-14 sm:flex-row sm:items-center sm:justify-between",
+            gallery ? "px-0" : "border-b px-4 sm:px-5",
           )}
         >
           <CardTitle className="sr-only">{title}</CardTitle>
@@ -95,15 +95,13 @@ export function ListCard({
         </CardHeader>
         <CardContent
           className={cn(
-            layout === "grid"
-              ? cn("p-4 sm:p-5", contentClassName)
-              : contentPadding(contentClassName),
+            layout === "grid" ? cn("p-0 pt-2", contentClassName) : contentPadding(contentClassName),
             fill && "flex min-h-0 flex-1 flex-col",
           )}
         >
           {children}
         </CardContent>
-      </Card>
+      </Frame>
     );
   }
   return (
@@ -230,11 +228,18 @@ export function ListCardEmpty({
   const t = useTranslations("ui");
   const action = onClearFilters ? { label: t("clearFilters"), onClick: onClearFilters } : cta;
   return (
-    <div className="flex min-h-56 shrink-0 flex-col items-center justify-center px-5 py-8 text-center">
-      <SectionGlyph icon={onClearFilters ? Search : Icon} className="mx-auto" />
-      <p className="text-foreground mt-4 text-sm font-medium">{title}</p>
+    <div
+      className={cn(
+        "flex min-h-56 shrink-0 flex-col items-center justify-center px-5 py-8 text-center",
+        !onClearFilters && "flex-1",
+      )}
+    >
+      <EmptyIllustration icon={onClearFilters ? Search : Icon} />
+      <p className="text-foreground mt-4 text-base font-semibold tracking-tight">{title}</p>
       {description && (
-        <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">{description}</p>
+        <p className="text-muted-foreground mx-auto mt-1.5 max-w-sm text-sm leading-relaxed">
+          {description}
+        </p>
       )}
       {action && (
         <Button variant="outline" size="sm" className="mt-5" onClick={action.onClick}>

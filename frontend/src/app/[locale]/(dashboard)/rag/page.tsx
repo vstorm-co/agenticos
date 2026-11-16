@@ -174,6 +174,7 @@ export default function RAGPage() {
 
         <TabsContent value="bases" className="flex-1 flex-col data-[state=active]:flex">
           <ListCard
+            layout="grid"
             fill
             namedByPage
             title={t("bases")}
@@ -186,7 +187,6 @@ export default function RAGPage() {
                 <GroupFilter value={groupId} onChange={setGroupId} />
               ) : undefined
             }
-            contentClassName="p-4"
           >
             {loading ? (
               // The same tiles the populated grid draws, as skeletons - a skeleton
@@ -301,11 +301,7 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
             <p className="text-muted-foreground mt-1.5 line-clamp-2 text-sm leading-relaxed">
               {kb.description}
             </p>
-          ) : (
-            <p className="text-muted-foreground mt-1.5 truncate font-mono text-xs">
-              {kb.collection_name}
-            </p>
-          )}
+          ) : null}
         </div>
 
         <AudienceChip
@@ -313,7 +309,7 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
           groups={kb.shared_groups}
           className="mt-4"
         />
-        <UsedBy agents={kb.used_by} className="mt-2" />
+        {(kb.used_by?.length ?? 0) > 0 && <UsedBy agents={kb.used_by} className="mt-2" />}
 
         <div className="text-muted-foreground mt-3 flex items-center justify-between gap-2 text-xs">
           <span className="inline-flex items-center gap-1.5 truncate">
@@ -326,7 +322,7 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
             <AddToAgent
               resource={{ kind: "collection", id: kb.id }}
               name={kb.name}
-              className="pointer-events-auto relative z-10 -my-1 h-8 text-xs"
+              className="pointer-events-auto relative z-10 -my-1 h-8 text-[13px]"
             />
           ) : (
             <ArrowUpRight className="h-4 w-4 shrink-0" />

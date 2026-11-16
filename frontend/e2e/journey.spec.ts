@@ -139,9 +139,9 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // The model is created here rather than on the vault page, because this is
   // where a model is chosen: provider, model id and which key, which is the
   // whole of the decision. The named profile is what falls out of it.
-  await page.locator("#add-model-provider").click();
+  await page.locator('[id$="-add-model-provider"]:visible').click();
   await page.getByRole("option", { name: PROVIDER_LABEL, exact: true }).click();
-  await page.locator("#add-model-id").click();
+  await page.locator('[id$="-add-model-id"]:visible').click();
   await page.getByPlaceholder("Search models…").fill(PROVIDER_MODEL);
   await page.getByRole("option", { name: new RegExp(`^(Use )?${PROVIDER_MODEL}\\b`) }).click();
 
@@ -150,7 +150,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // the one this run bills against. The picker only appears once a provider has
   // more than one key stored for it - with exactly one there is nothing to
   // decide, and the form says which it is using instead.
-  const keyPicker = page.locator("#add-model-key");
+  const keyPicker = page.locator('[id$="-add-model-key"]:visible');
   if (await keyPicker.isVisible()) {
     await keyPicker.click();
     await page.getByRole("option", { name: new RegExp(keyLabel) }).click();
@@ -160,10 +160,10 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // all. The field appears for every provider whose SDK names an endpoint
   // parameter, and OpenAI is one - which is also why an OpenAI-compatible stub
   // is a faithful stand-in rather than a special case.
-  await page.locator("#add-model-endpoint").fill(MODEL_ENDPOINT);
+  await page.locator('[id$="-add-model-endpoint"]:visible').fill(MODEL_ENDPOINT);
 
   await page.getByRole("button", { name: "Name it something else" }).click();
-  await page.locator("#add-model-label").fill(modelLabel);
+  await page.locator('[id$="-add-model-label"]:visible').fill(modelLabel);
   await page.getByRole("button", { name: "Add model" }).click();
 
   // Created and selected in one step. Asserted on the summary rather than on the
@@ -396,6 +396,8 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
     `a run billed against ${modelLabel} carrying a cost`,
   );
 
+  await page.getByRole("button", { name: "Columns", exact: true }).click();
+  await page.getByRole("menuitemcheckbox", { name: "Model", exact: true }).check();
   const row = page.getByRole("row").filter({ hasText: modelLabel }).first();
   await expect(
     row,

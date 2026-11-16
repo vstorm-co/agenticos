@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
+import { ContextHelp } from "@/components/ui/context-help";
 import { ChoiceGroup } from "@/components/settings/choice-group";
 import { LookPicker } from "@/components/settings/look-picker";
 import { SectionCard } from "@/components/settings/settings-section";
@@ -20,12 +21,25 @@ const MOTIONS: readonly MotionPreference[] = ["system", "reduce", "full"];
 const NODE_STYLES: readonly NodeStyle[] = ["colour", "simple"];
 
 /** One labelled choice in the card: a name, the group, and what it means. */
-function Setting({ id, label, children }: { id: string; label: string; children: ReactNode }) {
+function Setting({
+  id,
+  label,
+  hint,
+  children,
+}: {
+  id: string;
+  label: string;
+  hint?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <div>
-      <p id={id} className="text-foreground mb-2 text-sm font-medium">
-        {label}
-      </p>
+      <div className="mb-2 flex items-center gap-1">
+        <p id={id} className="text-foreground text-sm font-medium">
+          {label}
+        </p>
+        {hint && <ContextHelp>{hint}</ContextHelp>}
+      </div>
       {children}
     </div>
   );
@@ -70,16 +84,15 @@ export function AppearanceSettings() {
               onChange={setTheme}
             />
           </Setting>
-          <Setting id="appearance-look" label={t("look")}>
+          <Setting id="appearance-look" label={t("look")} hint={t("lookHint")}>
             <LookPicker
               labelledBy="appearance-look"
               value={mounted ? look : undefined}
               dark={resolved === "dark"}
               onChange={setLook}
             />
-            <p className="text-muted-foreground mt-1.5 text-xs">{t("lookHint")}</p>
           </Setting>
-          <Setting id="appearance-voice-glow" label={tGlow("title")}>
+          <Setting id="appearance-voice-glow" label={tGlow("title")} hint={t("voiceGlowHint")}>
             <ChoiceGroup
               labelledBy="appearance-voice-glow"
               value={mounted ? glow : undefined}
@@ -87,27 +100,29 @@ export function AppearanceSettings() {
               onChange={setStyle}
               disabled={reduced}
             />
-            <p className="text-muted-foreground mt-1.5 text-xs">
-              {reduced ? tGlow("reducedMotion") : t("voiceGlowHint")}
-            </p>
+            {reduced && (
+              <p className="text-muted-foreground mt-1.5 text-xs">{tGlow("reducedMotion")}</p>
+            )}
           </Setting>
-          <Setting id="appearance-motion" label={t("motion")}>
+          <Setting id="appearance-motion" label={t("motion")} hint={t("motionHint")}>
             <ChoiceGroup
               labelledBy="appearance-motion"
               value={mounted ? motion : undefined}
               options={MOTIONS.map((value) => ({ value, label: t(value) }))}
               onChange={setMotion}
             />
-            <p className="text-muted-foreground mt-1.5 text-xs">{t("motionHint")}</p>
           </Setting>
-          <Setting id="appearance-workflow-nodes" label={t("workflowNodes")}>
+          <Setting
+            id="appearance-workflow-nodes"
+            label={t("workflowNodes")}
+            hint={t("workflowNodesHint")}
+          >
             <ChoiceGroup
               labelledBy="appearance-workflow-nodes"
               value={mounted ? nodeStyle : undefined}
               options={NODE_STYLES.map((value) => ({ value, label: t(value) }))}
               onChange={setNodeStyle}
             />
-            <p className="text-muted-foreground mt-1.5 text-xs">{t("workflowNodesHint")}</p>
           </Setting>
         </div>
       </SectionCard>

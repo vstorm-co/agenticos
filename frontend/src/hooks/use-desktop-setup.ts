@@ -80,7 +80,10 @@ export function useDesktopSetup() {
               : assistant.assistant?.status === "ready"
                 ? "ready"
                 : "unsupported",
-      href: assistant.assistant?.can_configure ? "/settings/assistant" : undefined,
+      href:
+        assistant.assistant?.can_configure && tenant
+          ? `/orgs/${tenant}/members?tab=assistant`
+          : undefined,
     },
     ...SYSTEM_PERMISSIONS.map((key): SetupItem => ({
       key,

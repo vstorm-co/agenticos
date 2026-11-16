@@ -1209,16 +1209,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <MessageSquare className="h-4 w-4" />
                 {t("openChat")}
               </Button>
-              <Button
-                variant="outline"
-                onClick={continueConversation}
-                disabled={!isPublished}
-                title={isPublished ? undefined : t("publishAgentChatWith")}
-              >
-                <History className="h-4 w-4" />
-                {t("continueConversation")}
-              </Button>
-              {/* In the apps: the Dock's or tray's "New Chat With", or the home screen. */}
               <PinAgentButton
                 agent={{
                   id,
@@ -1229,131 +1219,121 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 }}
                 disabled={!isPublished}
               />
-              {/* Beside the chat button rather than in the overflow menu: the
-                map answers "what is this agent" and that question comes up
-                before publishing, not after somebody goes looking for it. */}
-              {
-                <Button variant="outline" onClick={() => setMapOpen(true)}>
-                  <Network className="h-4 w-4" />
-                  {t("visualMap")}
-                </Button>
-              }
-              {/* For whoever cannot open the overflow menu, which is where an
-                  editor finds the export - a header of six buttons asked for
-                  every decision at once. */}
-              {!canEdit && (
-                <Button variant="outline" asChild>
-                  <a href={`/api/agents/${id}/spec.yaml`} download>
-                    <Download className="h-4 w-4" />
-                    {t("exportYaml")}
-                  </a>
-                </Button>
-              )}
-              {!canEdit && canDuplicate && (
-                <Button variant="outline" onClick={duplicate} disabled={clone.isPending}>
-                  <Copy className="h-4 w-4" />
-                  {t("duplicate")}
-                </Button>
-              )}
-              {/* Who reaches this agent, the way a document is shared: one
-                  button, one dialog, instead of two cards at the foot of a tab. */}
-              <Button variant="outline" onClick={() => setShareOpen(true)} data-tour="agent-share">
-                <UserPlus className="h-4 w-4" />
-                {tSharing("share")}
-              </Button>
-
-              {canEdit && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" aria-label={t("moreActions")}>
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64">
-                    <DropdownMenuItem asChild className={DESCRIBED_ITEM}>
-                      <a href={`/api/agents/${id}/spec.yaml`} download>
-                        <Download className="h-4 w-4" />
-                        <DropdownMenuItemText
-                          label={t("exportYaml")}
-                          description={tMenu("menuExportHint")}
-                        />
-                      </a>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label={t("moreActions")}
+                    data-tour="agent-share"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuItem onSelect={continueConversation} disabled={!isPublished}>
+                    <History className="size-4" />
+                    {t("continueConversation")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setMapOpen(true)}>
+                    <Network className="size-4" />
+                    {t("visualMap")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setShareOpen(true)}>
+                    <UserPlus className="size-4" />
+                    {tSharing("share")}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild className={DESCRIBED_ITEM}>
+                    <a href={`/api/agents/${id}/spec.yaml`} download>
+                      <Download className="h-4 w-4" />
+                      <DropdownMenuItemText
+                        label={t("exportYaml")}
+                        description={tMenu("menuExportHint")}
+                      />
+                    </a>
+                  </DropdownMenuItem>
+                  {canDuplicate && (
+                    <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={duplicate}>
+                      <Copy className="h-4 w-4" />
+                      <DropdownMenuItemText
+                        label={t("duplicate")}
+                        description={tMenu("menuDuplicateHint")}
+                      />
                     </DropdownMenuItem>
-                    {canDuplicate && (
-                      <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={duplicate}>
-                        <Copy className="h-4 w-4" />
+                  )}
+                  {canEdit && (
+                    <>
+                      <DropdownMenuItem
+                        className={DESCRIBED_ITEM}
+                        onSelect={() => avatarInput.current?.click()}
+                      >
+                        <ImagePlus className="h-4 w-4" />
                         <DropdownMenuItemText
-                          label={t("duplicate")}
-                          description={tMenu("menuDuplicateHint")}
+                          label={agent.has_avatar ? t("replaceAvatar2") : t("uploadAvatar2")}
+                          description={tMenu("menuAvatarHint")}
                         />
                       </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem
-                      className={DESCRIBED_ITEM}
-                      onSelect={() => avatarInput.current?.click()}
-                    >
-                      <ImagePlus className="h-4 w-4" />
-                      <DropdownMenuItemText
-                        label={agent.has_avatar ? t("replaceAvatar2") : t("uploadAvatar2")}
-                        description={tMenu("menuAvatarHint")}
-                      />
-                    </DropdownMenuItem>
-                    <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
-                      {t("avatarColour")}
-                    </DropdownMenuLabel>
-                    {/* Not menu items: a swatch click picks a colour and leaves the
+                      <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
+                        {t("avatarColour")}
+                      </DropdownMenuLabel>
+                      {/* Not menu items: a swatch click picks a colour and leaves the
                       menu open, where selecting an item would close it. */}
-                    <div className="px-2 pb-1.5">
-                      <AvatarColorPicker
-                        value={agent.avatar_color ?? null}
-                        onChange={(slot) => setColor.mutate(slot)}
-                        disabled={setColor.isPending}
-                      />
-                    </div>
-                    {/* A seeded system agent is the platform's own: archiving or
+                      <div className="px-2 pb-1.5">
+                        <AvatarColorPicker
+                          value={agent.avatar_color ?? null}
+                          onChange={(slot) => setColor.mutate(slot)}
+                          disabled={setColor.isPending}
+                        />
+                      </div>
+                      {/* A seeded system agent is the platform's own: archiving or
                       deleting it is refused, whatever the caller holds. */}
-                    {!agent.system_key && (
-                      <>
-                        <DropdownMenuSeparator />
-                        {agent.status === "archived" ? (
+                      {!agent.system_key && (
+                        <>
+                          <DropdownMenuSeparator />
+                          {agent.status === "archived" ? (
+                            <DropdownMenuItem
+                              className={DESCRIBED_ITEM}
+                              onSelect={() => unarchive.mutate(id)}
+                            >
+                              <ArchiveRestore className="h-4 w-4" />
+                              <DropdownMenuItemText
+                                label={t("restore")}
+                                description={tMenu("menuRestoreHint")}
+                              />
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem
+                              className={DESCRIBED_ITEM}
+                              onSelect={() => setConfirming("archive")}
+                            >
+                              <Archive className="h-4 w-4" />
+                              <DropdownMenuItemText
+                                label={t("archive")}
+                                description={tMenu("menuArchiveHint")}
+                              />
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
-                            className={DESCRIBED_ITEM}
-                            onSelect={() => unarchive.mutate(id)}
+                            className={cn(
+                              DESCRIBED_ITEM,
+                              "text-destructive focus:text-destructive",
+                            )}
+                            onSelect={() => setConfirming("delete")}
                           >
-                            <ArchiveRestore className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" />
                             <DropdownMenuItemText
-                              label={t("restore")}
-                              description={tMenu("menuRestoreHint")}
+                              label={t("deletePermanently")}
+                              description={tMenu("menuDeleteHint")}
                             />
                           </DropdownMenuItem>
-                        ) : (
-                          <DropdownMenuItem
-                            className={DESCRIBED_ITEM}
-                            onSelect={() => setConfirming("archive")}
-                          >
-                            <Archive className="h-4 w-4" />
-                            <DropdownMenuItemText
-                              label={t("archive")}
-                              description={tMenu("menuArchiveHint")}
-                            />
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className={cn(DESCRIBED_ITEM, "text-destructive focus:text-destructive")}
-                          onSelect={() => setConfirming("delete")}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <DropdownMenuItemText
-                            label={t("deletePermanently")}
-                            description={tMenu("menuDeleteHint")}
-                          />
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+                        </>
+                      )}
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
               <input
                 ref={avatarInput}
                 type="file"
@@ -1728,7 +1708,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
             {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
-            <Card ref={attachModelCard} data-tour="agent-model" className="scroll-mt-4">
+            <Card
+              ref={attachModelCard}
+              data-tour="agent-model"
+              className="scroll-mt-4 rounded-none border-0 border-b bg-transparent [&>div]:px-0"
+            >
               <CardHeader>
                 <CardTitle>{t("model")}</CardTitle>
                 <CardDescription>{t("howAgentAsksIts")}</CardDescription>

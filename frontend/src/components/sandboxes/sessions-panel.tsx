@@ -339,7 +339,7 @@ export function SessionsPanel({ connections, loadingConnections = false }: Sessi
                   }}
                 >
                   <SelectTrigger
-                    className="h-9 w-full min-w-0 @sm/sessions:w-44"
+                    className="h-auto min-h-9 w-full max-w-full min-w-0 @sm/sessions:w-fit @sm/sessions:min-w-44 [&>span:first-of-type]:[overflow-wrap:anywhere] [&>span:first-of-type]:whitespace-normal"
                     aria-label={t("host")}
                   >
                     <SelectValue />

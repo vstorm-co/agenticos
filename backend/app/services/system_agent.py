@@ -154,12 +154,13 @@ class SystemAgentService:
         profile = await system_agent_repo.provision(
             self.db, organization_id=ctx.organization_id, role=MEMORY_MAINTENANCE
         )
+        label = await self._label(ctx, profile.model_profile_id)
         return SystemAgentRead(
             role=MEMORY_MAINTENANCE,
             unavailable=None,
-            enabled=profile.enabled,
+            enabled=profile.enabled and label is not None,
             model_profile_id=profile.model_profile_id,
-            model_label=await self._label(ctx, profile.model_profile_id),
+            model_label=label,
             monthly_budget_usd=profile.monthly_budget_usd,
             spent_this_month=await self._spent(ctx, MEMORY_MAINTENANCE),
             runs=await self._runs(ctx, MEMORY_MAINTENANCE),
@@ -168,12 +169,13 @@ class SystemAgentService:
     async def _briefing(self, ctx: AuthContext) -> SystemAgentRead:
         organization: Any = await organization_repo.get_by_id(self.db, ctx.organization_id)
         profile_id = organization.proactive_model_profile_id
+        label = await self._label(ctx, profile_id)
         return SystemAgentRead(
             role=DAILY_BRIEFING,
             unavailable=await self._unavailable(ctx),
-            enabled=organization.proactive_enabled,
+            enabled=organization.proactive_enabled and label is not None,
             model_profile_id=profile_id,
-            model_label=await self._label(ctx, profile_id),
+            model_label=label,
             monthly_budget_usd=None,
             spent_this_month=await self._spent(ctx, DAILY_BRIEFING),
             managed_in="proactivity",

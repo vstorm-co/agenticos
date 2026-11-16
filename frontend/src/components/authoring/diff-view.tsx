@@ -104,6 +104,7 @@ export function DiffView({
   trailing = "",
   emptyLabel,
   modes = true,
+  fill = false,
 }: {
   before: string;
   after: string;
@@ -115,6 +116,8 @@ export function DiffView({
   emptyLabel?: string;
   /** Offer unified and side by side; a text with nothing to compare reads in one. */
   modes?: boolean;
+  /** Let a containing workbench own the scroll height. */
+  fill?: boolean;
 }) {
   const t = useTranslations("authoring.diff");
   const wide = useWideScreen();
@@ -169,7 +172,7 @@ export function DiffView({
           ))}
         </div>
       )}
-      <div className="overflow-auto rounded-md border md:max-h-96">
+      <div className={cn("overflow-auto rounded-md border", !fill && "md:max-h-96")}>
         <table className="w-full table-fixed border-collapse font-mono text-xs leading-5">
           {/* A fixed table sizes its columns from the first row, which may be a fold. */}
           <colgroup>

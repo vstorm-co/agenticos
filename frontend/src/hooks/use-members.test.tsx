@@ -53,6 +53,26 @@ beforeEach(() => {
  * the filter runs over what was fetched (#1335).
  */
 describe("useMembers", () => {
+  it("retains the target's recorded activity after a role change", async () => {
+    const at = "2026-11-15T12:00:00Z";
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ ...member(0), last_action_at: at }],
+      total: 1,
+    });
+    vi.mocked(apiClient.patch).mockResolvedValue({
+      ...member(0),
+      role: "viewer",
+      last_action_at: null,
+    });
+    const { result } = renderHook(() => useMembers("org-1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    await act(async () => {
+      await result.current.changeRole("u-0", "viewer");
+    });
+    await waitFor(() => expect(result.current.members[0]?.role).toBe("viewer"));
+    expect(result.current.members[0]?.last_action_at).toBe(at);
+  });
+
   it("reports whether removal succeeded and retains a refused member", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [member(0)], total: 1 });
     vi.mocked(apiClient.delete)

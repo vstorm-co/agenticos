@@ -260,7 +260,7 @@ export function VoiceCard({ value, onChange, disabled, conversation }: VoiceCard
             <FormField
               label={t("voiceLanguage")}
               htmlFor="agent-voice-language"
-              description={t("voiceLanguageHint")}
+              help={t("voiceLanguageHint")}
             >
               <Select
                 value={language ?? INHERIT}
@@ -351,7 +351,7 @@ function PairFields({
       <FormField
         label={t("voiceProvider")}
         htmlFor="agent-voice-provider"
-        description={t("voiceProviderHint")}
+        help={t("voiceProviderHint")}
       >
         <Select
           value={provider ?? undefined}

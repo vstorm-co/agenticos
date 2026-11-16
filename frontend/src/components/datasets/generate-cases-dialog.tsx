@@ -33,6 +33,7 @@ import {
 } from "@/types/case-generation";
 import { Perm } from "@/types/permissions";
 import { GenerationEstimate } from "./generation-estimate";
+import { Label } from "@/components/ui/label";
 
 const FIELDS = ["agent_id", "sources", "count"] as const;
 const DEFAULT_SOURCES: CaseOrigin[] = ["agent", "red_team"];
@@ -166,7 +167,7 @@ export function GenerateCasesDialog({
               {CASE_ORIGINS.map((origin) => {
                 const locked = origin === "conversation" && !can(Perm.runsView);
                 return (
-                  <label
+                  <Label
                     key={origin}
                     htmlFor={`source-${origin}`}
                     className={cn(
@@ -194,7 +195,7 @@ export function GenerateCasesDialog({
                         {t(locked ? "sourceNeedsRunsView" : `sourceHint.${origin}`)}
                       </span>
                     </span>
-                  </label>
+                  </Label>
                 );
               })}
             </div>

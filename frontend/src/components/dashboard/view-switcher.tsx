@@ -3,7 +3,7 @@
 import { Building2, Server, User, UsersRound, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 
 import { GroupIcon } from "@/components/groups/group-icon";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
@@ -36,7 +36,9 @@ export function ViewSwitcher({
   groups,
   groupId,
   onGroupChange,
+  actions,
 }: {
+  actions?: ReactNode;
   views: readonly DashboardView[];
   view: DashboardView;
   onViewChange: (view: DashboardView) => void;
@@ -47,7 +49,8 @@ export function ViewSwitcher({
   const t = useTranslations("dashboard.views");
   const strip = useRef<HTMLDivElement>(null);
   useScrollFade(strip);
-  if (views.length < 2) return null;
+  if (views.length < 2)
+    return actions ? <div className="mb-5 flex justify-end">{actions}</div> : null;
 
   return (
     // Tabs, not a second pill control: which dashboard this is sits a level
@@ -82,23 +85,26 @@ export function ViewSwitcher({
           );
         })}
       </div>
-      {view === "group" && groupId !== null ? (
-        <Select value={groupId} onValueChange={onGroupChange}>
-          <SelectTrigger className="mb-1.5 h-8 w-auto min-w-44" aria-label={t("group.pick")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {groups.map((group) => (
-              <SelectItem key={group.id} value={group.id} textValue={group.name}>
-                <span className="flex items-center gap-2">
-                  <GroupIcon icon={group.icon} className="size-5 rounded-md [&_svg]:size-3" />
-                  {group.name}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ) : null}
+      <div className="ms-auto mb-1.5 flex flex-wrap items-center justify-end gap-2">
+        {view === "group" && groupId !== null ? (
+          <Select value={groupId} onValueChange={onGroupChange}>
+            <SelectTrigger className="h-8 w-auto min-w-44" aria-label={t("group.pick")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {groups.map((group) => (
+                <SelectItem key={group.id} value={group.id} textValue={group.name}>
+                  <span className="flex items-center gap-2">
+                    <GroupIcon icon={group.icon} className="size-5 rounded-md [&_svg]:size-3" />
+                    {group.name}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
+        {actions}
+      </div>
     </div>
   );
 }

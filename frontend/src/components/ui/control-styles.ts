@@ -1,10 +1,10 @@
 /** Shared surface and states for text fields, selects and multiline fields. */
 export const FORM_CONTROL =
-  "border-input bg-field text-foreground placeholder:text-muted-foreground hover:border-foreground/30 focus-visible:border-foreground/50 focus-visible:ring-foreground/15 aria-invalid:border-destructive aria-invalid:focus-visible:border-destructive aria-invalid:focus-visible:ring-destructive w-full min-w-0 rounded-lg border transition-colors duration-[var(--duration-fast)] focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50";
+  "border-input bg-field text-foreground placeholder:text-muted-foreground hover:border-foreground/60 focus-visible:border-foreground focus-visible:ring-foreground/25 aria-invalid:border-destructive aria-invalid:focus-visible:border-destructive aria-invalid:focus-visible:ring-destructive w-full min-w-0 rounded-lg border transition-[background-color,border-color,box-shadow,color] duration-[var(--duration-fast)] focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50";
 
 /** A visible secondary action surface on both the page and a card. */
 export const SECONDARY_CONTROL =
-  "border-input bg-field text-foreground hover:border-foreground/30 hover:bg-control-hover active:bg-control-active";
+  "border-border bg-card text-foreground hover:border-foreground/30 hover:bg-control-hover active:bg-control-active";
 
 /** Shared trigger for toolbar filters, whether single- or multi-select. */
 export const FILTER_CONTROL = `${SECONDARY_CONTROL} data-[state=open]:border-foreground/35 data-[state=open]:bg-control-active h-9 gap-1.5 rounded-lg px-2.5 py-1 text-[13px] font-normal focus-visible:border-foreground/50 focus-visible:ring-foreground/15 focus-visible:ring-[3px] focus-visible:outline-none`;

@@ -1,5 +1,5 @@
 ---
-source_sha: "d3f26132e044"
+source_sha: "4f3a31df37a1"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -140,7 +140,7 @@ Der Code-Modus erhält diese Stopps über die Sandbox-Grenze hinweg.
 | `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` | übergeben |
 | `computer_use` | Computer-Bedienung | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | für einen Daemon | übergeben |
 | `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — | unverändert |
-| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona | übergeben |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace` | `sandbox:execute` | für Daytona | übergeben |
 | `mirage` | Virtuelles Terminal | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | pro Ordner, über das Extra `mirage` | übergeben |
 | `charts` | Diagramme | analysis | `create_chart` | — | — | unverändert |
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | unverändert |
@@ -234,7 +234,7 @@ ein Eval anhält und aufzeichnet:
 | `image_generation` | `generate_image` |
 | `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
 | `memory_mem0` | `remember` |
-| `sandbox` | `write_file`, `edit_file`, `execute` |
+| `sandbox` | `write_file`, `edit_file`, `execute`, `select_project_workspace` |
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
 
 Jedes andere Tool oben liest nur. Delegieren zählt als Lesen: Die eigenen Tools
@@ -1275,6 +1275,8 @@ und Speicher die einzigen Grenzen, die zu setzen sich lohnt.
     sind gedeckelt statt offen.
 
 ## Sandbox { #files-shell }
+
+`select_project_workspace` wählt ein zugängliches Projekt für Datei- und Shell-Tools bis zum Ende des Runs. Ohne Projekt-ID wird der ursprüngliche Workspace wiederhergestellt. Eine Fortsetzung nach einer Freigabe behält die Auswahl; die nächste Gesprächsrunde beginnt im ursprünglichen Workspace. Der Gesprächsverlauf bleibt in seinem Thread. Jeder Zugriff wird erneut autorisiert; Routinen bleiben auf ihre geprüfte Projektquelle beschränkt. Isolierte Evaluationen können keine dauerhaften Projekte auswählen.
 
 `ls`, `read_file`, `glob`, `grep` — _Lesen._
 `write_file`, `edit_file`, `execute` — _Schreiben und Ausführen._

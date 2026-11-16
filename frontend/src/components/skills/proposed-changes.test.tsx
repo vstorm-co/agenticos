@@ -8,6 +8,7 @@ import type { SkillChangeRecord } from "@/lib/skill-changes-api";
 const state = vi.hoisted(() => ({
   runsView: true,
   changes: [] as SkillChangeRecord[],
+  baselineResources: [] as { name: string }[],
   error: null as string | null,
   apply: vi.fn(),
   discard: vi.fn(),
@@ -17,6 +18,19 @@ vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: () => state.runsView }),
 }));
 
+vi.mock("@/hooks/use-skill-proposal-baseline", () => ({
+  useSkillProposalBaseline: () => ({
+    data: {
+      id: "v1",
+      description: "Old description.",
+      content: "Original instructions.",
+      resources: state.baselineResources,
+    },
+    isLoading: false,
+    error: null,
+  }),
+  useSkillProposalFile: () => ({ data: undefined, isLoading: false, error: null }),
+}));
 vi.mock("./skill-check-dialog", () => ({
   SkillCheckDialog: ({
     change,
@@ -66,6 +80,7 @@ beforeEach(() => {
   state.runsView = true;
   state.changes = [change()];
   state.error = null;
+  state.baselineResources = [];
 });
 
 describe("ProposedChanges", () => {
@@ -104,10 +119,10 @@ describe("ProposedChanges", () => {
     expect(screen.getByText("refunds")).toBeVisible();
     expect(screen.getByText("Edit")).toBeVisible();
     expect(screen.getByText("New skill")).toBeVisible();
-    expect(screen.getByText(/2 changes are waiting/)).toBeVisible();
+    expect(screen.getByText(/2 updates ready to review/)).toBeVisible();
   });
 
-  it("says an edit reaches its agents through a check, and a new skill reaches nobody", () => {
+  it("says when the update reaches its agents without requiring evaluation", async () => {
     const reached = {
       id: "a-1",
       name: "Refund desk",
@@ -123,17 +138,19 @@ describe("ProposedChanges", () => {
     ];
     render(<ProposedChanges canEdit />);
 
-    expect(
-      screen.getByText("Goes live for Refund desk (production) once a check on them lets it."),
-    ).toBeVisible();
+    expect(screen.getByText("1 affected agent")).toBeVisible();
+    await userEvent.click(screen.getAllByRole("button", { name: /Show what changed/ })[0]!);
+    expect(screen.getByText("Used by Refund desk")).toBeVisible();
+    expect(document.querySelector('[data-agent-avatar="a-1"]')).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Side by side" })).toBeNull();
     expect(screen.queryByText(/Goes live now/)).toBeNull();
-    expect(screen.getByText(/No published agent reads it yet/)).toBeVisible();
+    expect(screen.getByText("0 affected agents")).toBeInTheDocument();
   });
 
   it("counts one change in the singular", () => {
     render(<ProposedChanges canEdit />);
 
-    expect(screen.getByText(/1 change is waiting/)).toBeVisible();
+    expect(screen.getByText(/1 update ready to review/)).toBeVisible();
   });
 
   it("keeps the body behind a click, and shows it on one", async () => {
@@ -144,7 +161,7 @@ describe("ProposedChanges", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Show what changed in refunds/ }));
 
-    expect(screen.getByText(/Ask for the receipt/)).toBeVisible();
+    expect(screen.getByRole("tabpanel")).toHaveTextContent("Ask for the receipt");
   });
 
   it("lists the files a change brings with it", async () => {
@@ -162,7 +179,7 @@ describe("ProposedChanges", () => {
     const toggle = screen.getByRole("button", { name: /Show what changed in refunds/ });
 
     await userEvent.click(toggle);
-    await userEvent.click(toggle);
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
 
     expect(screen.queryByText(/Ask for the receipt/)).toBeNull();
   });
@@ -232,28 +249,39 @@ describe("ProposedChanges", () => {
     expect(screen.queryByText("No evidence that could be checked.")).toBeNull();
   });
 
-  it("applies a new skill at once, and refuses a change through its own action", async () => {
-    state.changes = [change({ skill_id: null })];
-    render(<ProposedChanges canEdit />);
+  it.each([null, "s-1"])(
+    "applies a reviewed proposal for skill %s without evaluations",
+    async (skillId) => {
+      state.changes = [change({ skill_id: skillId })];
+      render(<ProposedChanges canEdit />);
+      await userEvent.click(screen.getByRole("button", { name: /Show what changed/ }));
+      await userEvent.click(screen.getByRole("button", { name: "Apply update" }));
+      expect(state.apply).toHaveBeenCalledWith(expect.objectContaining({ id: "p-1", revision: 1 }));
+      expect(screen.queryByText(/checking p-1/)).toBeNull();
+    },
+  );
 
-    await userEvent.click(screen.getByRole("button", { name: /Apply the change to refunds/ }));
-    expect(state.apply).toHaveBeenCalledWith(expect.objectContaining({ id: "p-1", revision: 1 }));
-
-    await userEvent.click(screen.getByRole("button", { name: /Discard the change to refunds/ }));
-    expect(state.discard).toHaveBeenCalledWith(expect.objectContaining({ id: "p-1", revision: 1 }));
-  });
-
-  it("sends a change to a skill agents use through a check on them, on its line", async () => {
-    // Applying it goes live for every agent that follows the line, so it is
-    // checked there first; there is no Apply that skips the check.
+  it("keeps testing available as an optional action on the proposal's line", async () => {
     state.changes = [change({ fork_id: "fork-1" })];
     render(<ProposedChanges canEdit />);
-
-    expect(screen.queryByRole("button", { name: /Apply the change to refunds/ })).toBeNull();
-    await userEvent.click(
-      screen.getByRole("button", { name: /Check the change to refunds on the agents/ }),
-    );
+    await userEvent.click(screen.getByRole("button", { name: /Show what changed/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Test before applying (optional)" }));
     expect(screen.getByText("checking p-1 on fork-1")).toBeInTheDocument();
+    expect(state.apply).not.toHaveBeenCalled();
+  });
+
+  it("keeps the review open when applying fails", async () => {
+    state.apply.mockRejectedValueOnce(new Error("Version changed"));
+    render(<ProposedChanges canEdit />);
+    await userEvent.click(screen.getByRole("button", { name: /Show what changed/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Apply update" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("discards a proposal through its own action", async () => {
+    render(<ProposedChanges canEdit />);
+    await userEvent.click(screen.getByRole("button", { name: /Discard the change/ }));
+    expect(state.discard).toHaveBeenCalledWith(expect.objectContaining({ id: "p-1", revision: 1 }));
   });
 });
 
@@ -262,4 +290,42 @@ it("hides cached proposal text after permission to read runs is removed", () => 
   state.changes = [change()];
   const { container } = render(<ProposedChanges canEdit />);
   expect(container).toBeEmptyDOMElement();
+});
+
+it("identifies library updates and keeps long audience lists in the review dialog", async () => {
+  state.changes = [
+    change({ source: "library", resources: { "examples/report.html": "<h1>Report</h1>" } }),
+  ];
+  render(<ProposedChanges canEdit />);
+  expect(screen.getByText("Library update")).toBeVisible();
+  expect(screen.getByText("1 reference file")).toBeVisible();
+  expect(screen.queryByRole("dialog")).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: /Show what changed/ }));
+  expect(screen.getByRole("dialog")).toHaveTextContent("Proposed instructions");
+  expect(screen.getByText("report.html", { exact: true })).toBeVisible();
+  await userEvent.click(screen.getByText("report.html", { exact: true }));
+  expect(screen.getByRole("tabpanel")).toHaveTextContent("<h1>Report</h1>");
+});
+
+it("offers the current instruction comparison without mixing it with the proposed preview", async () => {
+  render(<ProposedChanges canEdit />);
+  await userEvent.click(screen.getByRole("button", { name: /Show what changed/ }));
+  await userEvent.click(screen.getByRole("tab", { name: "Compare with current skill" }));
+  expect(screen.getByRole("tabpanel")).toHaveTextContent("Original instructions.");
+});
+
+it("keeps baseline files navigable and returns to instructions from desktop and mobile controls", async () => {
+  state.baselineResources = [{ name: "reference.md" }];
+  render(<ProposedChanges canEdit />);
+  await userEvent.click(screen.getByRole("button", { name: /Show what changed/ }));
+  await userEvent.click(screen.getByText("reference.md", { exact: true }));
+  expect(screen.getByRole("tabpanel")).not.toHaveTextContent("Original instructions.");
+  await userEvent.click(screen.getByRole("button", { name: "Proposed instructions" }));
+  expect(screen.getByRole("tabpanel")).toHaveTextContent("Original instructions.");
+  await userEvent.click(screen.getByRole("combobox"));
+  await userEvent.click(screen.getByRole("option", { name: "reference.md" }));
+  expect(screen.getByRole("tabpanel")).not.toHaveTextContent("Original instructions.");
+  await userEvent.click(screen.getByRole("combobox"));
+  await userEvent.click(screen.getByRole("option", { name: "Proposed instructions" }));
+  expect(screen.getByRole("tabpanel")).toHaveTextContent("Original instructions.");
 });

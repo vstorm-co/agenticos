@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SettingsSection } from "@/components/settings/settings-section";
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -145,20 +146,22 @@ function Organization() {
         <TabsTrigger value="members" data-tour="org-tab-members">
           Members
         </TabsTrigger>
-        <TabsTrigger value="proactivity" data-tour="org-tab-proactivity">
-          Proactivity
+        <TabsTrigger value="assistant" data-tour="org-tab-assistant">
+          AI & services
         </TabsTrigger>
       </TabsList>
       <TabsContent value="members" hidden={tab !== "members"} forceMount>
         <div data-tour="org-members">members</div>
       </TabsContent>
       <TabsContent
-        value="proactivity"
+        value="assistant"
         data-tour="org-proactivity"
-        hidden={tab !== "proactivity"}
+        hidden={tab !== "assistant"}
         forceMount
       >
-        <legend data-tour="org-proactivity-model">model</legend>
+        <SettingsSection title="Suggestions" collapsible toggleTour="org-proactivity-expand">
+          <div data-tour="org-proactivity-model">model</div>
+        </SettingsSection>
       </TabsContent>
     </Tabs>
   );
@@ -195,6 +198,13 @@ describe("pointAt", () => {
   /** Whether `pointing` has settled, and how - "waiting" while it still polls. */
   const settled = (pointing: Promise<boolean>) =>
     Promise.race([pointing, Promise.resolve("waiting" as const)]);
+
+  it("resolves a step id to the visible workspace edit button", async () => {
+    window.history.replaceState(null, "", "/orgs/o/members");
+    document.body.innerHTML = '<button data-tour="org-tab-profile">Edit workspace</button>';
+    await expect(pointAt("org-profile", "/orgs/o/members")).resolves.toBe(true);
+    expect(ringed("org-tab-profile")).toBe(true);
+  });
 
   it("rings a control that is on the page, then lets it go", async () => {
     // The router may have prefixed the locale; the page is the same page.
@@ -366,11 +376,15 @@ describe("pointAt", () => {
     const { pointing } = await pointFor("org-proactivity-model", "/orgs/o/members");
 
     await expect(settled(pointing)).resolves.toBe(true);
-    expect(document.querySelector('[data-tour="org-tab-proactivity"]')).toHaveAttribute(
+    expect(document.querySelector('[data-tour="org-tab-assistant"]')).toHaveAttribute(
       "data-state",
       "active",
     );
     expect(document.querySelector('[data-tour="org-proactivity"]')).not.toHaveAttribute("hidden");
+    expect(document.querySelector('[data-tour="org-proactivity-expand"]')).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
     expect(ringed("org-proactivity-model")).toBe(true);
   });
 

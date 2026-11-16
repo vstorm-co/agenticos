@@ -333,6 +333,9 @@ export interface ContextChangeList {
 export interface ReachedAgent {
   id: string;
   name: string;
+  slug?: string | null;
+  has_avatar?: boolean;
+  avatar_color?: number | null;
   /** Where it goes live for the agent. */
   environments: string[];
   /** The eval suites applying it queues. */

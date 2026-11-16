@@ -19,3 +19,66 @@
   width: 100%;
   max-width: 440px;
 }
+
+.overview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 28px;
+}
+.overview > section {
+  border-bottom: 0;
+}
+@media (width < 64rem) {
+  .overview {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+}
+
+.overview > section {
+  padding: 0 4px;
+}
+.overview > section > header h2 {
+  font-size: 16px;
+  font-weight: 500;
+}
+.overview input:not([type="file"]),
+.overview textarea,
+.overview button[role="combobox"] {
+  border-color: transparent;
+  border-radius: 12px;
+  background-color: color-mix(in srgb, currentColor 4%, transparent);
+  box-shadow: none;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+.overview input:hover,
+.overview textarea:hover,
+.overview button[role="combobox"]:hover {
+  border-color: var(--border);
+}
+.overview input:focus-visible,
+.overview textarea:focus-visible,
+.overview button[role="combobox"]:focus-visible {
+  border-color: var(--ring);
+}
+@media (prefers-reduced-motion: reduce) {
+  .overview input,
+  .overview textarea,
+  .overview button[role="combobox"] {
+    transition: none;
+  }
+}
+
+.overview input:not([type="file"]),
+.overview button[role="combobox"] {
+  min-block-size: 2.5rem;
+}
+@media (any-pointer: coarse) {
+  .overview input:not([type="file"]),
+  .overview button[role="combobox"] {
+    min-block-size: 2.75rem;
+  }
+}

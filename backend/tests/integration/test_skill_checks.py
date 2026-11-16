@@ -1416,7 +1416,7 @@ class TestDeciding:
         assert await _statuses(db, evals) == [EvalRunStatus.CANCELLED.value] * len(evals.runs)
 
 
-class TestAProposalGoesLiveOnlyThroughItsCheck:
+class TestProposalDecisions:
     async def _proposal(self, db, lab: Lab):
         return await skill_proposal_repo.create(
             db,
@@ -1433,14 +1433,19 @@ class TestAProposalGoesLiveOnlyThroughItsCheck:
             fork_id=None,
         )
 
-    async def test_applying_without_a_check_is_refused(self, db, monkeypatch):
+    async def test_applying_without_a_check_updates_the_skill(self, db, monkeypatch):
         lab = await _lab(db)
         proposal = await self._proposal(db, lab)
 
-        with pytest.raises(BadRequestError, match="Check this change"):
-            await SkillProposalService(db).apply(
-                lab.ctx, proposal.id, ProposalDecision(revision=proposal.revision)
-            )
+        previous_version = lab.skill.version
+        decided = await SkillProposalService(db).apply(
+            lab.ctx, proposal.id, ProposalDecision(revision=proposal.revision)
+        )
+
+        await db.refresh(lab.skill)
+        assert decided.status == "applied"
+        assert lab.skill.content == "An order number counts as a receipt."
+        assert lab.skill.version == previous_version + 1
 
     async def test_a_passed_check_applies_the_proposal(self, db, monkeypatch):
         lab = await _lab(db)

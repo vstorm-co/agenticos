@@ -59,6 +59,8 @@ interface ConversationFiltersProps {
   onViewChange: (view: "active" | "archived") => void;
   /** Open beside the button rather than under it - from the collapsed rail. */
   beside?: boolean;
+  /** Icon trigger in a toolbar, independently of where its panel opens. */
+  compact?: boolean;
 }
 
 /**
@@ -90,7 +92,9 @@ export function ConversationFilters({
   view,
   onViewChange,
   beside = false,
+  compact = false,
 }: ConversationFiltersProps) {
+  const iconOnly = compact || beside;
   const t = useTranslations("chat.sidebar");
   const { agents } = useAgents({ includeArchived: true });
   const narrowed = agentId !== null || !hideApi || sort !== DEFAULT_SORT || view === "archived";
@@ -105,25 +109,26 @@ export function ConversationFilters({
           aria-label={t("filters")}
           title={t("filters")}
           className={
-            beside
+            iconOnly
               ? "size-8 p-0"
               : "text-muted-foreground hover:text-foreground h-8 w-full justify-start gap-2 rounded-lg text-xs"
           }
         >
           <ListFilter className="size-3.5" aria-hidden />
-          {!beside && <span className="min-w-0 flex-1 truncate text-left">{t("filters")}</span>}
+          {!iconOnly && <span className="min-w-0 flex-1 truncate text-left">{t("filters")}</span>}
           {narrowed && (
             <span aria-hidden className="bg-foreground size-1.5 shrink-0 rounded-full" />
           )}
-          {!beside && <ChevronDown className="text-muted-foreground size-3.5" aria-hidden />}
+          {!iconOnly && <ChevronDown className="text-muted-foreground size-3.5" aria-hidden />}
         </Button>
       </PopoverTrigger>
       <PopoverContent
         side={beside ? "right" : "bottom"}
         align="start"
         sideOffset={8}
+        collisionPadding={12}
         aria-label={t("filters")}
-        className="w-80 space-y-5 p-4"
+        className="w-80 max-w-[calc(100vw-1.5rem)] space-y-5 p-4"
       >
         <div className="flex gap-5 border-b" role="group" aria-label={t("show")}>
           {(["active", "archived"] as const).map((option) => (
