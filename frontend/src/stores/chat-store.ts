@@ -75,6 +75,31 @@ function persistedAliases(local: ChatMessage[], history: ChatMessage[]): Map<str
   return aliases;
 }
 
+/** Keep recovery without a save acknowledgement limited to plain text.
+ * Rich outcomes and paused controls may still address the local message ID. */
+function plainTextAnswer(message: ChatMessage): boolean {
+  if (
+    message.isLocalContinuation ||
+    message.runWaitingFor ||
+    message.runFailed ||
+    message.runError ||
+    message.wasStopped ||
+    message.interrupted ||
+    message.thinking ||
+    message.toolCalls?.length ||
+    message.files?.length ||
+    message.fileIds?.length ||
+    message.mentions?.length ||
+    message.replyTo
+  )
+    return false;
+  const parts = message.parts ?? [];
+  return (
+    parts.length === 0 ||
+    (parts.length === 1 && parts[0]!.type === "text" && parts[0]!.content === message.content)
+  );
+}
+
 export interface ChatState {
   messages: ChatMessage[];
   /** Set atomically with the converted transcript, before its socket may attach. */
@@ -273,8 +298,8 @@ const chatState: StateCreator<ChatState> = (set) => ({
         if (persisted) {
           nextPersisted = id;
           const previous = state.messages[index - 1];
-          // Keep details missing from an early history read until message_saved
-          // arrives. A fully saved answer can adopt its real id without that frame.
+          // An exact plain-text snapshot can recover a missed save acknowledgement.
+          // Rich and parked outcomes retain their local details and control pointers.
           const awaitingSave =
             message.role === "assistant" &&
             message.isTemporaryId &&
@@ -283,9 +308,9 @@ const chatState: StateCreator<ChatState> = (set) => ({
             !previous.isTemporaryId &&
             incoming.has(previous.id) &&
             (message.content !== persisted.content ||
-              (message.toolCalls ?? []).some(
-                (call) => !persisted.toolCalls?.some((saved) => saved.id === call.id),
-              ));
+              message.usage !== undefined ||
+              !plainTextAnswer(message) ||
+              !plainTextAnswer(persisted));
           incoming.set(
             id,
             message.isStreaming || awaitingSave

@@ -10431,16 +10431,26 @@ async def test_a_background_tasks_budget_stop_retains_its_own_outcome() -> None:
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("ending", ["answer", "failure", "cancel"])
+@pytest.mark.parametrize("ending", ["answer", "park", "failure", "cancel"])
+@pytest.mark.parametrize("saved", [False, True], ids=["unsaved", "saved"])
 async def test_required_segment_handback_is_persisted_before_the_terminal_commit(
     ending: str,
+    saved: bool,
 ) -> None:
     db = _db()
     service = AgentRunnerService(db)
     prepared = _prepared()
+    message_id = uuid.uuid4() if saved else None
     if ending == "answer":
         prepared.built.agent.run = AsyncMock(
             return_value=MagicMock(output="Saved", new_messages=list)
+        )
+    elif ending == "park":
+        prepared.approvals.parked = {"approval-1": "call-1"}
+        prepared.built.agent.run = AsyncMock(
+            return_value=MagicMock(
+                output=DeferredToolRequests(), new_messages=list, all_messages=list
+            )
         )
     else:
         prepared.built.agent.run = AsyncMock(
@@ -10457,10 +10467,12 @@ async def test_required_segment_handback_is_persisted_before_the_terminal_commit
 
     with (
         patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
-        patch.object(service.transcript, "record", new=AsyncMock()) as record,
+        patch.object(
+            service.transcript, "record", new=AsyncMock(return_value=message_id)
+        ) as record,
     ):
-        if ending == "answer":
-            await service._run(
+        if ending in {"answer", "park"}:
+            returned = await service._run(
                 prepared,
                 user_prompt=None,
                 said=None,
@@ -10468,6 +10480,7 @@ async def test_required_segment_handback_is_persisted_before_the_terminal_commit
                 deferred_tool_results=None,
                 on_segment=persist,
             )
+            assert returned.message_id == message_id
         else:
             with pytest.raises(RuntimeError if ending == "failure" else asyncio.CancelledError):
                 await service._run(
@@ -10479,6 +10492,7 @@ async def test_required_segment_handback_is_persisted_before_the_terminal_commit
                     on_segment=persist,
                 )
     assert len(seen) == 1
+    assert seen[0].message_id == message_id
     assert db.commit.await_count == 2
     assert "provider secret" not in seen[0].output
     if ending == "answer":

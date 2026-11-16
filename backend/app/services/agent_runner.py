@@ -9292,6 +9292,7 @@ class AgentRunnerService:
                             structured=structured,
                             delegations=tuple(prepared.delegations),
                             generated_files=frozenset(prepared.built.deps.generated_files),
+                            message_id=message_id,
                         )
                     )
                 await self.db.commit()
