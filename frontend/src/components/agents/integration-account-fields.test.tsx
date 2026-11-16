@@ -140,3 +140,26 @@ it("keeps a legacy organization account selected when another one is added", asy
     connection_ids: ["one", "two"],
   });
 });
+
+it("removes only the unchecked organization account and shows an unlabeled account by email", async () => {
+  accounts.mockReturnValue({
+    accounts: [{ id: "one", email: "one@example.com", label: null }],
+    isLoading: false,
+    error: null,
+  });
+  const change = vi.fn();
+  render(
+    <IntegrationAccountFields
+      productId="gmail"
+      provider="google"
+      config={{ account: "organization", connection_ids: ["one", "two"] }}
+      onChange={change}
+    />,
+  );
+  await userEvent.click(screen.getByRole("checkbox", { name: "one@example.com" }));
+  expect(change).toHaveBeenCalledWith({
+    account: "organization",
+    connection_id: null,
+    connection_ids: ["two"],
+  });
+});
