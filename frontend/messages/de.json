@@ -7544,6 +7544,7 @@
           "connectDirect": "Konto verbinden",
           "adminTitle": "Integrationen der Organisation",
           "adminDescription": "Ein Administrator registriert jeden Anbieter einmal. Danach verbinden Mitglieder ihre eigenen Konten oder ein Administrator verbindet gemeinsame Organisationskonten.",
+          "configure": "Konfigurieren",
           "configureProvider": "{provider} konfigurieren",
           "clientStatus": {
             "missing": "Einrichtung erforderlich",

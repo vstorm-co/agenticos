@@ -3720,6 +3720,7 @@
           "connectDirect": "Hesabı bağla",
           "adminTitle": "Kuruluş entegrasyonları",
           "adminDescription": "Bir yönetici her sağlayıcıyı bir kez kaydeder. Ardından üyeler kendi hesaplarını, bir yönetici de ortak kuruluş hesaplarını bağlayabilir.",
+          "configure": "Yapılandır",
           "configureProvider": "{provider} yapılandır",
           "clientStatus": {
             "missing": "Kurulum gerekli",

@@ -88,8 +88,14 @@ function ProviderSetupRow({
           <Badge variant="outline">{t(`clientStatus.${setup.data.oauth_client_status}`)}</Badge>
         )}
         {can("secrets:edit") && (
-          <Button size="sm" variant="outline" onClick={onConfigure} disabled={!setup.data}>
-            {t("configureProvider", { provider: t(`provider.${provider}`) })}
+          <Button
+            size="sm"
+            variant="outline"
+            aria-label={t("configureProvider", { provider: t(`provider.${provider}`) })}
+            onClick={onConfigure}
+            disabled={!setup.data}
+          >
+            {t("configure")}
           </Button>
         )}
       </div>

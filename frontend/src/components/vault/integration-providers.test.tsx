@@ -64,6 +64,9 @@ it("opens organization setup for an authorized administrator", async () => {
   state.canEdit = true;
   render(<IntegrationProviders />);
   await userEvent.click(screen.getByRole("button", { name: "Integrations" }));
+  const configureButtons = screen.getAllByRole("button", { name: /^Configure / });
+  expect(configureButtons).toHaveLength(3);
+  for (const button of configureButtons) expect(button).toHaveTextContent(/^Configure$/);
   await userEvent.click(screen.getByRole("button", { name: "Configure Google" }));
   expect(screen.getByText("https://console.example/callback")).toBeInTheDocument();
   expect(screen.getByText(/openid\s+read\s+write/)).toBeInTheDocument();

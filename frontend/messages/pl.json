@@ -4423,6 +4423,7 @@
           "connectDirect": "Połącz konto",
           "adminTitle": "Integracje organizacji",
           "adminDescription": "Administrator rejestruje każdą usługę jeden raz. Potem użytkownicy podłączają własne konta, a administrator może podłączyć wspólne konta organizacji.",
+          "configure": "Skonfiguruj",
           "configureProvider": "Skonfiguruj {provider}",
           "clientStatus": {
             "missing": "Wymaga konfiguracji",

@@ -8271,6 +8271,7 @@
           "connectDirect": "Connect account",
           "adminTitle": "Organization integrations",
           "adminDescription": "An administrator registers each provider once. Members can then connect their own accounts, or an administrator can connect shared organization accounts.",
+          "configure": "Configure",
           "configureProvider": "Configure {provider}",
           "clientStatus": {
             "missing": "Setup required",
