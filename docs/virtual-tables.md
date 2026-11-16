@@ -158,7 +158,11 @@ is read, like a lookup, and is never stored, written, filtered or sorted by.
 Decimals are written with a dot, `{Price} * 1.23`, in every language: a comma
 separates a function's arguments, so `{Price} * 1,23` is refused with that hint
 rather than read as a number, and so is a call it gives one value too many, as in
-`IF({Price} > 0,5, "yes", "no")`. A refusal names a stable `details.formula.reason`,
+`IF({Price} > 0,5, "yes", "no")`.
+
+Both rules apply to a formula when it is saved: one
+saved before them keeps working, and the table's other columns can still be changed,
+until someone edits that formula. A refusal names a stable `details.formula.reason`,
 such as `decimal_comma` or `not_a_column`, which the console uses to say it in
 the reader's language. The console shows numbers, a formula's included, with the
 reader's decimal separator - `12,177` in Polish - and leaves a four-digit number

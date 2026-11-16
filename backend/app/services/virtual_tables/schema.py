@@ -292,9 +292,9 @@ def _check_formulas(
     columns: list[ColumnDef], renamed: Mapping[str, str], previous: Sequence[ColumnDef]
 ) -> list[ColumnDef]:
     """`columns` with every formula reading renamed columns by their new labels, each
-    checked: it parses, and names live columns of the table that hold values. How many
-    values each call takes is checked only on a formula this change writes; one carried
-    over as it was saved keeps working."""
+    checked: it parses, and names live columns of the table that hold values. A decimal
+    comma and a call's count of values are refused only in a formula this change writes;
+    one carried over as it was saved keeps working."""
     stored = {
         column.id: rename_references(column.formula, renamed)
         for column in previous
@@ -312,7 +312,7 @@ def _check_formulas(
                         column.formula or "",
                         column,
                         columns,
-                        counted=stored.get(column.id) != column.formula,
+                        strict=stored.get(column.id) != column.formula,
                     )
                 except FormulaProblem as problem:
                     raise InvalidSchemaError(

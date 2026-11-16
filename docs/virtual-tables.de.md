@@ -1,5 +1,5 @@
 ---
-source_sha: "6e9571c539e5"
+source_sha: "b05cdd9a6fe1"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -174,7 +174,11 @@ sortiert.
 Dezimalzahlen werden in jeder Sprache mit Punkt geschrieben, `{Price} * 1.23`: Ein
 Komma trennt die Argumente einer Funktion, deshalb wird `{Price} * 1,23` mit diesem
 Hinweis abgelehnt, statt als Zahl gelesen zu werden; ebenso ein Aufruf, dem das Komma einen Wert zu viel
-gibt, etwa `IF({Price} > 0,5, "yes", "no")`. Eine Ablehnung nennt einen
+gibt, etwa `IF({Price} > 0,5, "yes", "no")`.
+
+Beide Regeln gelten, wenn eine Formel
+gespeichert wird: Eine früher gespeicherte funktioniert weiter, und die übrigen Spalten der
+Tabelle lassen sich ändern, bis jemand diese Formel bearbeitet. Eine Ablehnung nennt einen
 festen Grund in `details.formula.reason`, etwa `decimal_comma` oder `not_a_column`,
 mit dem die Konsole ihn in der Sprache der lesenden Person sagt. Die Konsole zeigt
 Zahlen, auch das Ergebnis einer Formel, mit dem Dezimaltrennzeichen der lesenden
