@@ -188,16 +188,13 @@ async def erasure_marks(db: AsyncSession) -> dict[str, str]:
             )
         )
     ).one()
-    marks = {ERASURE_FINISHED: str(finished)}
-    if transaction is not None:
-        marks[ERASURE_TRANSACTION] = str(transaction)
-    return marks
+    return {ERASURE_FINISHED: str(finished), ERASURE_TRANSACTION: str(transaction)}
 
 
-async def current_snapshot(db: AsyncSession) -> str | None:
+async def current_snapshot(db: AsyncSession) -> str:
     """The transactions committed now, as a run records them when its row is inserted."""
     snapshot = (await db.execute(select(func.agenticos_memory_snapshot()))).scalar_one()
-    return None if snapshot is None else str(snapshot)
+    return str(snapshot)
 
 
 def _memory_erasures(user_id: UUID | None, agent_id: UUID | None) -> list:
@@ -238,7 +235,7 @@ async def memory_erased_since(
     An erasure's entry is dated when its transaction began, so one still committing when
     the reader began is dated before `since` although the reader saw what it removed.
     `snapshot`, the transactions committed when the reader began, catches it: an
-    erasure whose transaction is not in it counts as later, whatever its date. An
+    erasure whose transaction is not in it counts as later, whatever its date. A
     snapshot from a previous database boot cannot authorize a memory write. Legacy
     runs without snapshots are fenced by any relevant erasure, regardless of date.
     """
