@@ -35,6 +35,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Resolve Telegram addressing before same-sender steering, keep slashless help as a command, preserve admitted Mattermost edits across queue delays, and target recovered replies at their original message. Readiness blocks disabled assistants and Telegram webhooks missing their required secret. Compact terminal reply snapshots across success, failure, cancellation and lost-worker recovery; pending replies share retained message quotas.
+
 - Bound retained channel job counts and payload bytes, including terminal jobs, independently of active queue capacity. Completed work cannot reset its storage quota before cleanup.
 
 - Bound channel admission before enqueueing, encrypt attachment handles through the vault, keep `/btw` tool-free across workers, and preserve rendered answers and native delivery receipts. Stale workers cannot persist terminal replies; delayed turns do not import future thread messages. Publication diagnostics no longer require the channel manager to run the agent.

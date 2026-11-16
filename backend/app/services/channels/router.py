@@ -448,7 +448,7 @@ class ChannelMessageRouter:
         # block and rejects the preceding assistant answer as a prefill.
         if not incoming.text.strip() and not incoming.attachments:
             return
-        if not await claim_delivery(incoming):
+        if not incoming.edit_admitted and not await claim_delivery(incoming):
             logger.info(
                 "Duplicate channel delivery ignored: bot=%s platform=%s message=%s",
                 incoming.bot_id,
@@ -461,6 +461,16 @@ class ChannelMessageRouter:
             await self._route_inner(incoming, db)
             return
         running = _in_flight.get(key)
+        if (
+            running is not None
+            and incoming.platform == "telegram"
+            and incoming.chat_type != "private"
+            and incoming.addressed is None
+        ):
+            bot = await channel_bot_repo.get_for_inbound(db, UUID(incoming.bot_id))
+            if bot is None or not bot.is_active:
+                return
+            await self.resolve_addressing(bot, incoming)
         question = aside_question(incoming.text)
         if question is not None:
             # The command is a gesture, not part of what is asked.
@@ -478,7 +488,7 @@ class ChannelMessageRouter:
                 if running is not None
                 and running.sender == incoming.platform_user_id
                 and incoming.text.strip()
-                and not incoming.text.lstrip().startswith("/")
+                and not _as_command(incoming.text).startswith("/")
                 # A remark to a colleague in the thread is not to the bot; a
                 # second after the turn it would be ignored, and it is now too.
                 and not self._is_overheard(incoming)
@@ -554,6 +564,18 @@ class ChannelMessageRouter:
             return await self._invite_to_link(incoming, db)
         return None
 
+    async def resolve_addressing(self, bot: ChannelBot, incoming: IncomingMessage) -> None:
+        """Resolve native mentions before considering a message as run steering."""
+        if (
+            incoming.platform == "telegram"
+            and incoming.chat_type != "private"
+            and incoming.addressed is None
+        ):
+            incoming.addressed = await get_adapter(incoming.platform).resolve_addressing(
+                unseal_bot_token(bot), incoming
+            )
+        self._apply_broadcast_policy(incoming, bot)
+
     async def _route_inner(self, incoming: IncomingMessage, db: AsyncSession) -> None:
         """Process an incoming channel message end-to-end.
 
@@ -576,11 +598,7 @@ class ChannelMessageRouter:
             logger.debug("Bot %s not found or inactive - ignoring", incoming.bot_id)
             return
 
-        if incoming.platform == "telegram" and incoming.chat_type != "private":
-            incoming.addressed = await get_adapter(incoming.platform).resolve_addressing(
-                unseal_bot_token(bot), incoming
-            )
-        self._apply_broadcast_policy(incoming, bot)
+        await self.resolve_addressing(bot, incoming)
 
         # Passive collection is silent when the bot's admission policy refuses it.
         # It must not create identities or post refusals for overheard bystanders.

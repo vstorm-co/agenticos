@@ -1,5 +1,5 @@
 ---
-source_sha: "b4526b73f389"
+source_sha: "26b175343dc7"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1963,6 +1963,8 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
     Przed zapisem zadania sprawdzane są polityka dostępu bota i osobny limit nadawcy zgodny ze skonfigurowanym RPM. Transakcje serializują limity aktywnych zadań: 100 wiadomości / 2 MiB na bota i 1000 / 16 MiB na organizację; polecenia sterujące mają osobne limity 8 / 32 KiB oraz 64 / 256 KiB. Nadmiarowe i zbyt duże wiadomości są potwierdzane i odrzucane bez zapisywania zadania. Wejście mieści do 64 KiB tekstu, dziesięciu plików i 128 KiB znormalizowanego payloadu. Uchwyty załączników są szyfrowane vaultem dla organizacji i obsługiwane przez `vault-rotate`.
 
     Do czasu cleanupu liczą się też zachowane zadania, w tym zakończone sukcesem, błędem lub anulowaniem. Retencja wiadomości jest ograniczona do 10 000 zadań / 32 MiB na bota i 100 000 / 256 MiB na organizację; poleceń sterujących do 1000 / 2 MiB oraz 10 000 / 16 MiB. Zakończenie zadania zwalnia miejsce w aktywnej kolejce, lecz nie limit zapisanych danych. Zwykły cleanup po 14 dniach zwalnia zachowane liczniki i bajty.
+
+    Limity retencji wiadomości obejmują oczekujące odpowiedzi i kompaktowe potwierdzenia zakończenia. Zakończone zadania odpowiedzi usuwają kopię treści, argumentów i wyników narzędzi oraz listy wygenerowanych plików; zapis wykonania pozostaje w uruchomieniu i transkrypcji. Edycja Mattermosta musi kwalifikować się, gdy istnieje jeszcze potwierdzenie zignorowania oryginału, a zapisane przyjęcie pozostaje ważne po dłuższym oczekiwaniu w kolejce. Różne edycje tego samego posta mają jeden trwały klucz idempotencji.
 
 - **Nadawca może dopisać kontekst podczas pracy.** Przed następnym wywołaniem modelu worker pobiera do ośmiu oczekujących dopisków tekstowych tej samej osoby w tym samym wątku. Ponownie sprawdza dostęp i guardrails wejścia. Wiadomość innej osoby, plik, inne polecenie lub spóźniony dopisek pozostają w kolejce na własną turę. Pobierane są tylko wiadomości skierowane do bota. Działa to także między workerami. `/status` i `/stop` (także samo `status` i `stop`) dotyczą wyłącznie ostatniego głównego runa nadawcy w tym wątku. Stop działa przed kolejnym wywołaniem modelu; rozpoczęta akcja może się zakończyć. `/btw` korzysta z niezależnego zadania i zawsze działa bez narzędzi, także gdy główny run wykonuje inny worker.
 

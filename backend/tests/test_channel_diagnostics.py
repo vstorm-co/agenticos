@@ -13,11 +13,17 @@ from app.repositories import (
     channel_bot_repo,
     channel_identity_repo,
     mcp_connection_repo,
+    organization_assistant_repo,
 )
 from app.services.channel_bot import ChannelBotService
 from app.services.channels import connection_state
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def assistant_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(organization_assistant_repo, "for_agent", AsyncMock(return_value=None))
 
 
 @pytest.mark.parametrize(
@@ -88,6 +94,9 @@ async def test_a_foreign_bot_is_missing_before_reading_any_diagnostics(monkeypat
         ("mattermost", True, False, None, "blocked"),
         ("mattermost", True, True, None, "unknown"),
         ("mattermost", False, True, "up", "ok"),
+        ("telegram", True, False, None, "blocked"),
+        ("telegram", True, True, None, "unknown"),
+        ("telegram", False, False, "up", "ok"),
     ],
 )
 async def test_transport_health_never_claims_an_unobserved_webhook_is_ready(
@@ -129,7 +138,13 @@ async def test_transport_health_never_claims_an_unobserved_webhook_is_ready(
 
 
 async def test_nonpersonal_bindings_and_api_keys_do_not_borrow_a_persons_account(monkeypatch):
-    bot = SimpleNamespace(id=uuid4(), platform="telegram", is_active=True, webhook_mode=True)
+    bot = SimpleNamespace(
+        id=uuid4(),
+        platform="telegram",
+        is_active=True,
+        webhook_mode=True,
+        webhook_secret_encrypted="sealed",
+    )
     monkeypatch.setattr(channel_bot_repo, "get_for_org", AsyncMock(return_value=bot))
     monkeypatch.setattr(
         agent_exposure_repo,
@@ -158,6 +173,8 @@ async def test_nonpersonal_bindings_and_api_keys_do_not_borrow_a_persons_account
     "state",
     [
         "published",
+        "assistant_off",
+        "assistant_on",
         "missing",
         "archived",
         "draft",
@@ -182,6 +199,12 @@ async def test_publication_inspection_uses_organization_scope_and_no_run_authori
     )
     lookup = AsyncMock(return_value=None if state == "missing" else agent)
     monkeypatch.setattr(agent_repo, "get", lookup)
+    if state in {"assistant_off", "assistant_on"}:
+        monkeypatch.setattr(
+            organization_assistant_repo,
+            "for_agent",
+            AsyncMock(return_value=SimpleNamespace(enabled=state == "assistant_on")),
+        )
     binding = SimpleNamespace(
         agent_id=agent_id,
         environment_id=uuid4() if state in {"environment", "foreign_environment"} else None,
@@ -204,7 +227,7 @@ async def test_publication_inspection_uses_organization_scope_and_no_run_authori
     run_check = AsyncMock(side_effect=AssertionError("Diagnostic must not require agents:run"))
     monkeypatch.setattr(AgentRegistryService, "get_runnable_spec", run_check)
     result = await ChannelBotService(MagicMock(), org)._diagnostic_spec(binding)
-    assert (result is not None) is (state in {"published", "environment"})
+    assert (result is not None) is (state in {"published", "environment", "assistant_on"})
     assert lookup.await_args.kwargs["organization_id"] == org
     if result is not None:
         assert version_lookup.await_args.args[1] == (

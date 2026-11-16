@@ -232,6 +232,9 @@ async def test_same_sender_additions_are_recorded_before_the_queue_receipt_is_co
         "command",
         "no_source",
         "no_identity",
+        "help",
+        "telegram_unaddressed",
+        "telegram_addressed",
     ],
 )
 async def test_queued_additions_respect_ownership_liveness_and_message_shape(monkeypatch, scenario):
@@ -271,6 +274,17 @@ async def test_queued_additions_respect_ownership_liveness_and_message_shape(mon
         queued = queued.model_copy(update={"addressed": False})
     if scenario == "command":
         queued = queued.model_copy(update={"text": "/new"})
+    if scenario == "help":
+        queued = queued.model_copy(update={"text": "help"})
+    if scenario in {"telegram_unaddressed", "telegram_addressed"}:
+        from app.services.channels import router
+
+        queued = queued.model_copy(update={"platform": "telegram", "addressed": None})
+        adapter = SimpleNamespace(
+            resolve_addressing=AsyncMock(return_value=scenario == "telegram_addressed")
+        )
+        monkeypatch.setattr(router, "get_adapter", lambda platform: adapter)
+        monkeypatch.setattr(router, "unseal_bot_token", lambda bot: "test-token")
     if scenario == "no_source":
         queued = queued.model_copy(update={"message_id": None})
 
@@ -313,9 +327,9 @@ async def test_queued_additions_respect_ownership_liveness_and_message_shape(mon
             await ingress.collect_steering(receipt_id, incoming, deps)
     else:
         assert await ingress.collect_steering(receipt_id, incoming, deps) == (
-            [incoming.text] if scenario == "no_identity" else []
+            [incoming.text] if scenario in {"no_identity", "telegram_addressed"} else []
         )
-    assert consume.await_count == int(scenario == "no_identity")
+    assert consume.await_count == int(scenario in {"no_identity", "telegram_addressed"})
 
 
 async def test_controls_have_their_own_lane_and_edits_their_own_receipt(monkeypatch):
@@ -331,10 +345,26 @@ async def test_controls_have_their_own_lane_and_edits_their_own_receipt(monkeypa
     await ingress.queue_message(db, owner, replace(message(owner), text="stop"))
     assert enqueue.await_args.args[1] is PROCESS_CHANNEL_CONTROL
     assert enqueue.await_args.kwargs["concurrency_key"] is None
+    monkeypatch.setattr(ingress, "edited_delivery_is_eligible", AsyncMock(return_value=True))
     await ingress.queue_message(db, owner, message(owner, raw={"event": "post_edited"}))
     edit_key = enqueue.await_args.kwargs["idempotency_key"]
     await ingress.queue_message(db, owner, message(owner))
     assert enqueue.await_args.kwargs["idempotency_key"] != edit_key
+
+
+@pytest.mark.parametrize("eligible", [False, True])
+async def test_a_first_edit_needs_a_current_ignored_original_at_admission(monkeypatch, eligible):
+    db, owner = MagicMock(), bot()
+    db.begin_nested.return_value.__aenter__ = AsyncMock()
+    db.begin_nested.return_value.__aexit__ = AsyncMock(return_value=False)
+    monkeypatch.setattr(ingress.job_repo, "get_by_idempotency_key", AsyncMock(return_value=None))
+    monkeypatch.setattr(ingress, "edited_delivery_is_eligible", AsyncMock(return_value=eligible))
+    enqueue = AsyncMock()
+    monkeypatch.setattr(ingress, "enqueue", enqueue)
+    await ingress.queue_message(db, owner, message(owner, raw={"event": "post_edited"}))
+    assert enqueue.await_count == int(eligible)
+    if eligible:
+        assert enqueue.await_args.args[2].edit_admitted
 
 
 @pytest.mark.parametrize(

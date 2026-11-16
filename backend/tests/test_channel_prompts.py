@@ -1201,6 +1201,9 @@ async def test_a_resumed_reaction_keeps_the_text_reply_instead_of_deleting_progr
     )
     db = AsyncMock()
     await ChannelPrompts(db)._send_segment(bot, "slack", "C1:1.0", segment)
+    assert adapter.send_message.await_args.args[1].reply_to_message_id == (
+        None if case == "legacy" else "original"
+    )
     assert adapter.send_message.await_count == 1
     if case == "receipt":
         bind.assert_awaited_once_with(db, run_id=RUN, role="assistant", source_id="native-answer")

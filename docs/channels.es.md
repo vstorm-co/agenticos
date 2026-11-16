@@ -1,5 +1,5 @@
 ---
-source_sha: "b4526b73f389"
+source_sha: "26b175343dc7"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2014,6 +2014,8 @@ para mostrar diferencias entre la consola y Mattermost.
     Antes de encolar se comprueban la política de acceso del bot y un límite separado por remitente con el RPM configurado. Las transacciones serializan los límites de trabajos activos: 100 mensajes / 2 MiB por bot y 1000 / 16 MiB por organización; los controles tienen límites separados de 8 / 32 KiB y 64 / 256 KiB. Los mensajes excesivos o demasiado grandes se confirman y descartan sin guardar otro trabajo. La entrada admite hasta 64 KiB de texto, diez archivos y 128 KiB normalizados. Las referencias de adjuntos se cifran con el vault de la organización y participan en `vault-rotate`.
 
     Los trabajos retenidos siguen contando hasta la limpieza, incluidos los completados, fallidos y cancelados. La retención de mensajes tiene un límite de 10 000 trabajos / 32 MiB por bot y 100 000 / 256 MiB por organización; los controles, de 1000 / 2 MiB y 10 000 / 16 MiB. Terminar un trabajo libera capacidad activa, pero no almacenamiento retenido. La limpieza habitual a los 14 días libera estos contadores y bytes.
+
+    Los límites de retención incluyen las respuestas pendientes y los recibos terminales compactos. Los trabajos de respuesta terminados eliminan las copias del texto, argumentos y resultados de herramientas y listas de archivos; la ejecución y su transcripción conservan el registro. Una edición de Mattermost debe admitirse mientras exista el recibo del original ignorado. Esa admisión duradera sobrevive a una espera más larga. Distintas ediciones del mismo mensaje comparten una clave de idempotencia duradera.
 
 - **El remitente puede añadir contexto durante el run.** Antes de la siguiente petición al modelo, el worker consume hasta ocho añadidos de texto pendientes de la misma persona en el mismo hilo. Vuelve a comprobar acceso y guardrails de entrada. Los mensajes de otra persona, archivos, otros comandos y añadidos tardíos esperan su propio turno. Solo se incorporan mensajes dirigidos al bot; también funciona entre workers. `/status` y `/stop` (o `status` y `stop`) afectan únicamente al último run principal del remitente en ese hilo. Stop actúa antes de la siguiente petición al modelo; una acción en curso puede terminar. `/btw` utiliza un trabajo independiente y siempre se ejecuta sin herramientas, incluso cuando otro worker ejecuta el turno principal.
 

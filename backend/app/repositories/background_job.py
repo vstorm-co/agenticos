@@ -30,6 +30,7 @@ from sqlalchemy import (
     func,
     select,
     text,
+    true,
     tuple_,
     update,
 )
@@ -241,6 +242,17 @@ async def extend_leases(
     return len(rows.all())
 
 
+def _finished_reply_payload(terminal: ColumnElement[bool]) -> ColumnElement[dict[str, JsonValue]]:
+    """Keep delivery identity/fences, not duplicate answer bodies after settlement."""
+    return case(
+        (
+            (BackgroundJob.kind == "deliver-channel-reply") & terminal,
+            BackgroundJob.payload.op("||")({"output": "", "tool_calls": [], "generated_files": []}),
+        ),
+        else_=BackgroundJob.payload,
+    )
+
+
 async def complete(
     db: AsyncSession, job_id: UUID, *, fence: int, result: dict[str, JsonValue] | None = None
 ) -> bool:
@@ -253,6 +265,7 @@ async def complete(
             BackgroundJob.attempts == fence,
         )
         .values(
+            payload=_finished_reply_payload(true()),
             status="succeeded",
             finished_at=func.now(),
             lease_until=None,
@@ -277,6 +290,7 @@ async def fail(
                 BackgroundJob.attempts == fence,
             )
             .values(
+                payload=_finished_reply_payload(_after_attempt() != "queued"),
                 status=_after_attempt(),
                 run_after=func.now() + retry_in,
                 finished_at=_finished_unless_queued(),
@@ -308,6 +322,7 @@ async def bury(db: AsyncSession, job_id: UUID, *, fence: int, error: str) -> boo
             BackgroundJob.attempts == fence,
         )
         .values(
+            payload=_finished_reply_payload(true()),
             status="dead",
             finished_at=func.now(),
             lease_until=None,
@@ -362,6 +377,7 @@ async def release(db: AsyncSession, job_id: UUID, *, fence: int) -> JobStatus | 
             BackgroundJob.attempts == fence,
         )
         .values(
+            payload=_finished_reply_payload(_after_attempt() != "queued"),
             status=_after_attempt(),
             finished_at=_finished_unless_queued(),
             last_error=(
@@ -406,7 +422,15 @@ _RESCUE = text(
             || ' (attempt ' || attempts || ' of ' || max_attempts || ')',
         lease_until = NULL,
         worker_id = NULL,
-        updated_at = now()
+        updated_at = now(),
+        payload = CASE WHEN kind = 'deliver-channel-reply' AND (
+            attempts >= max_attempts OR EXISTS (
+                SELECT 1 FROM background_jobs newer
+                WHERE newer.dedupe_key = background_jobs.dedupe_key
+                  AND newer.status = 'queued' AND newer.id <> background_jobs.id
+            )
+        ) THEN payload || '{"output":"","tool_calls":[],"generated_files":[]}'::jsonb
+        ELSE payload END
     WHERE id IN (
         SELECT id FROM background_jobs
         WHERE status = 'running' AND lease_until < now()
@@ -756,7 +780,7 @@ async def cancel_queued(db: AsyncSession, job_id: UUID) -> bool:
     result = await db.execute(
         update(BackgroundJob)
         .where(BackgroundJob.id == job_id, BackgroundJob.status == "queued")
-        .values(status="cancelled", finished_at=func.now())
+        .values(payload=_finished_reply_payload(true()), status="cancelled", finished_at=func.now())
         .returning(BackgroundJob.id)
     )
     return result.scalar_one_or_none() is not None
@@ -780,7 +804,12 @@ async def cancel_queued_for_payload(
             BackgroundJob.status == "queued",
             BackgroundJob.payload[payload_key].astext == str(payload_value),
         )
-        .values(status="cancelled", finished_at=func.now(), settled_at=func.now())
+        .values(
+            payload=_finished_reply_payload(true()),
+            status="cancelled",
+            finished_at=func.now(),
+            settled_at=func.now(),
+        )
         .returning(BackgroundJob.id)
     )
     return len(result.scalars().all())
@@ -1008,6 +1037,7 @@ async def settle_channel_reply(db: AsyncSession, *, job_id: UUID, delivered: boo
             BackgroundJob.payload["submission_started"].astext == "true",
         )
         .values(
+            payload=_finished_reply_payload(true()),
             status="succeeded" if delivered else "dead",
             finished_at=func.now(),
             result={"delivery": "delivered" if delivered else "unconfirmed"},
@@ -1037,9 +1067,15 @@ async def channel_queue_has_room(
 ) -> bool:
     """Serialize active and retained channel quotas in the enqueue transaction."""
     await db.execute(select(func.pg_advisory_xact_lock(7319, func.hashtext(str(organization_id)))))
-    kinds = ("process-channel-control",) if control else ("process-channel-message",)
+    kinds = (
+        ("process-channel-control",)
+        if control
+        else ("process-channel-message", "deliver-channel-reply")
+    )
     bot = BackgroundJob.payload["bot_id"].astext == str(bot_id)
-    active = BackgroundJob.status.in_(ACTIVE_STATUSES)
+    active = BackgroundJob.status.in_(ACTIVE_STATUSES) & (
+        BackgroundJob.kind != "deliver-channel-reply"
+    )
     payload_size = func.octet_length(cast(BackgroundJob.payload, String))
     result = await db.execute(
         select(

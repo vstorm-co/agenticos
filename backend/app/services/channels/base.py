@@ -310,6 +310,9 @@ class IncomingMessage:
     discord_roles_checked_for: tuple[str, str, str] | None = None
     """Trusted preflight metadata: bot, linked user and identity; never read from raw payloads."""
 
+    edit_admitted: bool = False
+    """A durable queue receipt authorized this edit while its ignored-original receipt existed."""
+
 
 @dataclass
 class OutgoingMessage:

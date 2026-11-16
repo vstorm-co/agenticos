@@ -605,6 +605,191 @@ async def test_terminal_channel_payloads_keep_their_quota_until_cleanup(
     )
 
 
+@pytest.mark.parametrize(
+    "ending",
+    [
+        "complete",
+        "fail",
+        "bury",
+        "release",
+        "cancel",
+        "cancel_payload",
+        "rescue",
+        "live_ok",
+        "live_failed",
+    ],
+)
+async def test_finished_reply_jobs_discard_duplicate_answer_bodies(
+    db: AsyncSession, ending: str
+) -> None:
+    run_id, org = uuid4(), uuid4()
+    row = BackgroundJob(
+        kind="deliver-channel-reply",
+        organization_id=org,
+        pool="system",
+        status="queued"
+        if ending in {"cancel", "cancel_payload", "live_ok", "live_failed"}
+        else "running",
+        attempts=1,
+        max_attempts=1,
+        lease_until=datetime.now(UTC) - timedelta(seconds=1),
+        payload={
+            "run_id": str(run_id),
+            "submission_started": True,
+            "output": "Duplicate answer body",
+            "tool_calls": [{"args": {"query": "Large tool input"}, "result": "Large tool result"}],
+            "generated_files": ["report.pdf"],
+        },
+    )
+    db.add(row)
+    await db.flush()
+    match ending:
+        case "complete":
+            assert await jobs.complete(db, row.id, fence=1)
+        case "fail":
+            assert (
+                await jobs.fail(db, row.id, fence=1, error="failed", retry_in=timedelta())
+                == jobs.FailOutcome.DEAD
+            )
+        case "bury":
+            assert await jobs.bury(db, row.id, fence=1, error="invalid")
+        case "release":
+            assert await jobs.release(db, row.id, fence=1) == "dead"
+        case "cancel":
+            assert await jobs.cancel_queued(db, row.id)
+        case "cancel_payload":
+            assert (
+                await jobs.cancel_queued_for_payload(
+                    db,
+                    kind=row.kind,
+                    organization_id=org,
+                    payload_key="run_id",
+                    payload_value=run_id,
+                )
+                == 1
+            )
+        case "rescue":
+            rescued = await jobs.rescue_expired(db, retry_in=timedelta())
+            assert any(job.id == row.id for job in rescued)
+        case _:
+            await jobs.settle_channel_reply(db, job_id=row.id, delivered=ending == "live_ok")
+    await db.refresh(row)
+
+    assert row.status in {"succeeded", "dead", "cancelled"}
+    assert row.payload == {
+        "run_id": str(run_id),
+        "submission_started": True,
+        "output": "",
+        "tool_calls": [],
+        "generated_files": [],
+    }
+
+
+async def test_unfinished_or_unowned_reply_attempts_keep_the_recovery_snapshot(
+    db: AsyncSession,
+) -> None:
+    payload = {
+        "output": "Pending answer",
+        "tool_calls": [{"result": "Evidence"}],
+        "generated_files": [],
+    }
+    row = BackgroundJob(
+        kind="deliver-channel-reply",
+        pool="system",
+        status="running",
+        attempts=1,
+        max_attempts=2,
+        payload=payload,
+    )
+    db.add(row)
+    await db.flush()
+    assert not await jobs.complete(db, row.id, fence=2)
+    assert (
+        await jobs.fail(db, row.id, fence=1, error="temporary", retry_in=timedelta())
+        == jobs.FailOutcome.RETRYING
+    )
+    await db.refresh(row)
+    assert row.status == "queued" and row.payload == payload
+
+
+async def test_pending_reply_bodies_count_until_terminal_settlement(db: AsyncSession) -> None:
+    org, bot = uuid4(), uuid4()
+    row = BackgroundJob(
+        kind="deliver-channel-reply",
+        pool="system",
+        organization_id=org,
+        status="running",
+        attempts=1,
+        max_attempts=1,
+        payload={"bot_id": str(bot), "output": "x" * (32 * 1024 * 1024)},
+    )
+    db.add(row)
+    await db.flush()
+    assert not await jobs.channel_queue_has_room(
+        db, organization_id=org, bot_id=bot, control=False, size=1
+    )
+    assert await jobs.complete(db, row.id, fence=1)
+    assert await jobs.channel_queue_has_room(
+        db, organization_id=org, bot_id=bot, control=False, size=1
+    )
+
+
+async def test_an_admitted_edit_survives_receipt_expiry_and_queues_only_once(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dataclasses import replace
+    from unittest.mock import AsyncMock
+
+    from sqlalchemy import select
+
+    from app.db.models.channel_bot import ChannelBot
+    from app.services.channels import ingress, router
+    from app.services.channels.base import IncomingMessage
+
+    bot = ChannelBot(
+        id=uuid4(),
+        organization_id=uuid4(),
+        authorization_generation=uuid4(),
+        is_active=True,
+        access_policy={},
+    )
+    incoming = IncomingMessage(
+        platform="mattermost",
+        bot_id=str(bot.id),
+        platform_user_id="alice",
+        platform_chat_id="room:thread",
+        chat_type="group",
+        text="@bot help",
+        message_id="original",
+        addressed=True,
+        raw={"event": "post_edited"},
+    )
+    eligible = AsyncMock(return_value=True)
+    monkeypatch.setattr(ingress, "edited_delivery_is_eligible", eligible)
+    monkeypatch.setattr(router.ChannelMessageRouter, "_check_rate_limit", AsyncMock())
+    await ingress.queue_message(db, bot, incoming)
+    eligible.return_value = False
+    await ingress.queue_message(db, bot, replace(incoming, text="@bot changed again"))
+    rows = (
+        await db.scalars(
+            select(BackgroundJob).where(BackgroundJob.organization_id == bot.organization_id)
+        )
+    ).all()
+    assert len(rows) == 1
+    admitted = ingress.restore(ChannelMessage.model_validate(rows[0].payload))
+    assert admitted.edit_admitted
+
+    claim = AsyncMock(
+        side_effect=AssertionError("The durable edit no longer needs its expired Redis receipt")
+    )
+    deliver = AsyncMock()
+    monkeypatch.setattr(router, "claim_delivery", claim)
+    monkeypatch.setattr(router.ChannelMessageRouter, "_route_inner", deliver)
+    await router.ChannelMessageRouter().route(admitted, db)
+    deliver.assert_awaited_once()
+    claim.assert_not_awaited()
+
+
 async def test_recovered_reply_leaves_terminal_transition_to_the_fenced_worker(
     db: AsyncSession, monkeypatch
 ):

@@ -36,6 +36,7 @@ from app.repositories import (
     channel_bot_repo,
     channel_session_repo,
     discord_role_mapping_repo,
+    organization_assistant_repo,
     teams_conversation_repo,
 )
 from app.schemas.channel_bot import (
@@ -636,6 +637,9 @@ class ChannelBotService:
             or agent.current_version_id is None
         ):
             return None
+        assistant = await organization_assistant_repo.for_agent(self.db, agent.id)
+        if assistant is not None and not assistant.enabled:
+            return None
         version_id = agent.current_version_id
         if binding.environment_id is not None:
             environment = await agent_environment_repo.get(
@@ -666,7 +670,7 @@ class ChannelBotService:
                 and not bot.slack_signing_secret_encrypted
             )
             or (
-                bot.platform == "mattermost"
+                bot.platform in {"mattermost", "telegram"}
                 and bot.webhook_mode
                 and not bot.webhook_secret_encrypted
             )

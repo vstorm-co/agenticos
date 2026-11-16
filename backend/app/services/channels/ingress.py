@@ -19,6 +19,7 @@ from app.repositories import agent_run_repo, channel_bot_repo, conversation_repo
 from app.repositories import background_job as job_repo
 from app.services.background_jobs import enqueue
 from app.services.channels.base import IncomingAttachment, IncomingMessage, is_run_control
+from app.services.channels.dedupe import edited_delivery_is_eligible
 from app.worker.jobs import (
     PROCESS_CHANNEL_CONTROL,
     PROCESS_CHANNEL_MESSAGE,
@@ -114,6 +115,7 @@ def restore(message: ChannelMessage) -> IncomingMessage:
                 "platform_team_id",
             )
         },
+        edit_admitted=message.edit_admitted,
         bot_id=str(message.bot_id),
         raw=dict(message.metadata),
         attachments=[
@@ -140,8 +142,9 @@ async def queue_message(db: AsyncSession, bot: ChannelBot, incoming: IncomingMes
     # Edits have their own admission, but the router's observed-original receipt
     # still decides whether an edit may start a run. Persist no arbitrary raw envelope.
     native = incoming.message_id
-    if native is not None and incoming.raw.get("event") == "post_edited":
-        native += ":edit:" + hashlib.sha256(incoming.text.encode()).hexdigest()
+    edited = incoming.platform == "mattermost" and incoming.raw.get("event") == "post_edited"
+    if native is not None and edited:
+        native += ":edit"
     key = (
         None
         if native is None
@@ -175,6 +178,10 @@ async def queue_message(db: AsyncSession, bot: ChannelBot, incoming: IncomingMes
     ):
         logger.warning("channel_admission_queue_full", extra={"bot_id": str(bot.id)})
         return
+    if edited:
+        if not await edited_delivery_is_eligible(incoming):
+            return
+        message = message.model_copy(update={"edit_admitted": True})
     try:
         async with db.begin_nested():
             await enqueue(
@@ -208,7 +215,7 @@ async def collect_steering(
     incoming: IncomingMessage,
     deps: AgentDeps,
 ) -> list[str]:
-    from app.services.channels.router import ChannelMessageRouter
+    from app.services.channels.router import ChannelMessageRouter, _as_command
 
     if deps.run_id is None or deps.conversation_id is None or deps.organization_id is None:
         return []
@@ -239,14 +246,14 @@ async def collect_steering(
             ):
                 continue
             next_message = restore(message)
-            if (
-                next_message.attachments
-                or not next_message.text.strip()
-                or next_message.addressed is False
-            ):
+            if next_message.attachments or not next_message.text.strip():
                 continue
-            command = next_message.text.strip().casefold()
+            command = _as_command(next_message.text).casefold()
             if command.startswith("/") and command != "/stop":
+                continue
+            router = ChannelMessageRouter()
+            await router.resolve_addressing(bot, next_message)
+            if router._is_overheard(next_message):
                 continue
             if command in {"stop", "/stop"}:
                 await job_repo.finish_channel_addition(db, job_id=job.id, run_id=run.id)

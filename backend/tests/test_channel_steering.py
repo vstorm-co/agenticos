@@ -21,7 +21,7 @@ pytestmark = pytest.mark.anyio
 def _message(text: str, *, user: str = "U1") -> IncomingMessage:
     return IncomingMessage(
         platform="slack",
-        bot_id="bot-1",
+        bot_id="00000000-0000-0000-0000-000000000001",
         platform_user_id=user,
         platform_chat_id="C1",
         chat_type="channel",
@@ -71,14 +71,18 @@ async def _wait(event: asyncio.Event) -> None:
         await event.wait()
 
 
-async def _route_two(second: IncomingMessage, *, asks_again: bool = True) -> _Turns:
+async def _route_two(
+    second: IncomingMessage, *, asks_again: bool = True, first: IncomingMessage | None = None
+) -> _Turns:
     turns = _Turns(asks_again=asks_again)
     router = ChannelMessageRouter()
     with (
         patch("app.services.channels.router.claim_delivery", new=AsyncMock(return_value=True)),
         patch.object(ChannelMessageRouter, "_route_inner", turns),
     ):
-        first = asyncio.create_task(router.route(_message("draft the report"), MagicMock()))
+        first = asyncio.create_task(
+            router.route(first or _message("draft the report"), MagicMock())
+        )
         await _wait(turns.running)
         second_task = asyncio.create_task(router.route(second, MagicMock()))
         await asyncio.sleep(0)
@@ -195,3 +199,40 @@ async def test_a_durable_turn_registers_a_worker_independent_steering_reader(mon
     monkeypatch.setattr(router, "_route_inner", inner)
     with queued_turn(uuid4()):
         await router.route(_message("read it"), MagicMock())
+
+
+async def test_slashless_help_is_a_command_instead_of_a_correction():
+    from dataclasses import replace
+
+    turns = await _route_two(replace(_message("help"), platform="mattermost"))
+    assert [text for text, _, _ in turns.seen] == ["draft the report", "help"]
+
+
+@pytest.mark.parametrize("addressed", [False, True])
+@pytest.mark.parametrize("bot_state", ["active", "inactive", "missing"])
+async def test_telegram_addressing_is_resolved_before_in_process_steering(
+    monkeypatch, addressed, bot_state
+):
+    from dataclasses import replace
+    from types import SimpleNamespace
+
+    from app.services.channels import router as module
+
+    bot = SimpleNamespace(is_active=bot_state == "active", access_policy={})
+    resolve = AsyncMock(return_value=addressed)
+    monkeypatch.setattr(
+        module.channel_bot_repo,
+        "get_for_inbound",
+        AsyncMock(return_value=None if bot_state == "missing" else bot),
+    )
+    monkeypatch.setattr(
+        module, "get_adapter", lambda platform: SimpleNamespace(resolve_addressing=resolve)
+    )
+    monkeypatch.setattr(module, "unseal_bot_token", lambda bot: "test-token")
+    first = replace(
+        _message("draft the report"), platform="telegram", chat_type="group", addressed=True
+    )
+    second = replace(_message("use the EU numbers"), platform="telegram", chat_type="group")
+    turns = await _route_two(second, first=first)
+    assert len(turns.seen) == (1 if addressed or bot_state != "active" else 2)
+    assert resolve.await_count == int(bot_state == "active")

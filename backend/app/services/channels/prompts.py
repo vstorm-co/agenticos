@@ -406,7 +406,12 @@ class ChannelPrompts:
         return True
 
     async def deliver(
-        self, bot: ChannelBot, *, platform: str, platform_chat_id: str, segment: RunSegment
+        self,
+        bot: ChannelBot,
+        *,
+        platform: str,
+        platform_chat_id: str,
+        segment: RunSegment,
     ) -> bool:
         """Post a continued run's answer, then what it is waiting on, then its next steps.
 
@@ -421,7 +426,11 @@ class ChannelPrompts:
         return delivered
 
     async def _send_segment(
-        self, bot: ChannelBot, platform: str, platform_chat_id: str, segment: RunSegment
+        self,
+        bot: ChannelBot,
+        platform: str,
+        platform_chat_id: str,
+        segment: RunSegment,
     ) -> bool:
         """A resumed answer carries its new picture just like the initial turn."""
         notices: list[str] = []
@@ -441,6 +450,9 @@ class ChannelPrompts:
             ),
             image_png=picture,
             api_base_url=bot.api_base_url,
+            reply_to_message_id=None
+            if segment.channel_destination is None
+            else segment.channel_destination.message_id,
         )
         try:
             native_id = await adapter.send_message(token, message)

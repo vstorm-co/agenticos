@@ -2162,6 +2162,8 @@ def test_routine_activation_index_round_trip_preserves_legacy_policy() -> None:
     from app.db.models.agent_run import AgentRun
     from app.db.models.organization import Organization
 
+    result = _alembic("downgrade", "base")
+    assert result.returncode == 0, result.stderr
     result = _alembic("upgrade", "0331_routine_overlap_attempt")
     assert result.returncode == 0, result.stderr
     engine = create_engine(_url(MIGRATION_DATABASE))
@@ -2181,18 +2183,14 @@ def test_routine_activation_index_round_trip_preserves_legacy_policy() -> None:
             )
             db.add(agent)
             db.flush()
-            db.add(
-                AgentRun(
-                    id=run_id,
-                    organization_id=org.id,
-                    agent_id=agent.id,
-                    surface="schedule",
-                    status="completed",
-                    input_tokens=0,
-                    output_tokens=0,
-                    cost_usd=0,
-                    routine_policy={"acts_as_creator": True},
-                )
+            db.execute(
+                text(
+                    "INSERT INTO agent_runs (id, organization_id, agent_id, surface, status, "
+                    "input_tokens, output_tokens, cost_usd, cost_is_partial, routine_policy) "
+                    "VALUES (:id, :org, :agent, 'schedule', 'completed', 0, 0, 0, false, "
+                    "'{\"acts_as_creator\": true}'::jsonb)"
+                ),
+                {"id": run_id, "org": org.id, "agent": agent.id},
             )
             db.commit()
         result = _alembic("upgrade", "head")
@@ -2208,8 +2206,9 @@ def test_routine_activation_index_round_trip_preserves_legacy_policy() -> None:
             index["name"] for index in inspect(engine).get_indexes("agent_runs")
         }
         with DatabaseSession(engine) as db:
-            run = db.get(AgentRun, run_id)
-            assert run is not None and run.routine_policy == {"acts_as_creator": True}
+            # Later revisions may add run columns absent at this downgraded schema.
+            policy = db.scalar(select(AgentRun.routine_policy).where(AgentRun.id == run_id))
+            assert policy == {"acts_as_creator": True}
         result = _alembic("upgrade", "head")
         assert result.returncode == 0, result.stderr
     finally:

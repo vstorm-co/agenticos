@@ -119,6 +119,7 @@ class ChannelMessage(Payload):
     message_id: str | None = None
     broadcast_mention: bool = False
     addressed: bool | None = None
+    edit_admitted: bool = False
     platform_team_id: str | None = None
     attachments: list[ChannelMessageFile] = Field(default_factory=list)
     metadata: dict[str, JsonValue] = Field(default_factory=dict)
