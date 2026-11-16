@@ -128,7 +128,7 @@ export default function DashboardPage() {
   if (isLoading || layoutLoading || (viewParam === "group" && groupsLoading)) {
     return (
       <div className="space-y-4">
-        <PageHeader title={t("title")} />
+        {personal ? <MeHeader period={period} canRun={false} /> : <PageHeader title={t("title")} />}
         <div className="flex min-h-56 items-center justify-center">
           <div role="status" aria-busy="true" aria-label={t("states.loading")}>
             <Spinner className="text-muted-foreground size-5" aria-hidden />

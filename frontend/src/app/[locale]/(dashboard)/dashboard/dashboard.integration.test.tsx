@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import DashboardPage from "./page";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore, useOrgStore } from "@/stores";
+import { useOnboardingStore } from "@/stores/onboarding-store";
 import type { Permission } from "@/types/permissions";
 
 /**
@@ -392,6 +393,7 @@ beforeEach(() => {
   auth.role = "owner";
   auth.isAppAdmin = false;
   auth.isLoading = false;
+  useOnboardingStore.setState({ isOpen: false, mode: "tour", index: 0 });
 });
 
 describe("the steward's dashboard", () => {
@@ -1043,6 +1045,29 @@ describe("dashboard links while the page stays mounted", () => {
     page.rerender(<DashboardPage />);
     expect(await screen.findByRole("heading", { name: /dashboard\.greeting/ })).toBeInTheDocument();
   });
+});
+
+it("keeps opened page help usable when the personal dashboard finishes loading", async () => {
+  const pending = Promise.withResolvers<null>();
+  const previous = vi.mocked(apiClient.get).getMockImplementation()!;
+  vi.mocked(apiClient.get).mockImplementation((path, options) =>
+    path === "/me/dashboard-layout" ? pending.promise : previous(path, options),
+  );
+  render(<DashboardPage />, { wrapper });
+  await waitFor(() => expect(callsTo("/me/dashboard-layout")).toHaveLength(1));
+  await userEvent.click(screen.getByRole("button", { name: "common.moreInformation" }));
+  const tips = screen.getByRole("button", { name: "onboarding.pageHelp" });
+  expect(tips).toBeVisible();
+
+  pending.resolve(null);
+  await waitFor(() =>
+    expect(document.querySelector('[data-tour="dashboard-filters"]')).not.toBeNull(),
+  );
+  expect(screen.getByRole("button", { name: "onboarding.pageHelp" })).toBe(tips);
+  expect(tips).toBeVisible();
+  await userEvent.click(tips);
+  expect(useOnboardingStore.getState()).toMatchObject({ isOpen: true, mode: "page" });
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 
 it("waits for a saved arrangement before mounting and fetching default widgets", async () => {
