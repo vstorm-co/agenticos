@@ -25,6 +25,10 @@ vi.mock("@/hooks/use-projects", () => ({
 }));
 const waiting = vi.fn<() => { id: string }[]>(() => []);
 vi.mock("@/hooks/use-suggestions", () => ({ useSuggestions: () => ({ suggestions: waiting() }) }));
+const approvals = vi.fn<() => number>(() => 0);
+vi.mock("@/hooks/use-pending-approvals", () => ({
+  usePendingApprovals: () => ({ count: approvals() }),
+}));
 const sidebar = {
   openGroups: [] as string[],
   closedGroups: [] as string[],
@@ -37,6 +41,7 @@ vi.mock("@/stores", () => ({
 
 beforeEach(() => {
   sidebar.closedGroups = [];
+  approvals.mockReturnValue(0);
 });
 
 function renderNav() {
@@ -368,6 +373,19 @@ describe("the inbox count (#2301)", () => {
 
     render(<SidebarNav collapsed />);
     expect(screen.getByLabelText("inboxCount")).toBeEmptyDOMElement();
+  });
+
+  it("counts the approvals waiting on the reader with everything else", () => {
+    can.mockReturnValue(true);
+    waiting.mockReturnValue([{ id: "s1" }]);
+    approvals.mockReturnValue(2);
+    const { unmount } = render(<SidebarNav />);
+    expect(screen.getByLabelText("inboxCount")).toHaveTextContent("3");
+    unmount();
+
+    waiting.mockReturnValue([]);
+    render(<SidebarNav collapsed />);
+    expect(screen.getByLabelText("inboxCount")).toBeInTheDocument();
   });
 
   it("shows nothing when nothing waits", () => {
