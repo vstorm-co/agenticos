@@ -54,6 +54,16 @@ export function owningScopeByNode(graph: WorkflowGraph): Map<Uuid, Uuid | null> 
   return owners;
 }
 
+/** The loops to enter, outermost first, for `nodeId` to be in view - `[]` at the top level. */
+export function scopePathTo(graph: WorkflowGraph, nodeId: Uuid): Uuid[] {
+  const owners = owningScopeByNode(graph);
+  const path: Uuid[] = [];
+  for (let scope = owners.get(nodeId) ?? null; scope !== null; scope = owners.get(scope) ?? null) {
+    path.unshift(scope);
+  }
+  return path;
+}
+
 /**
  * The ids of the nodes visible in the scope named by `scopePath` — every node
  * whose innermost owning scope is the current one. At the root (empty path) this

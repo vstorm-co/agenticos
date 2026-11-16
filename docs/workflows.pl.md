@@ -1,5 +1,5 @@
 ---
-source_sha: "3dcf65276140"
+source_sha: "37be6df188e7"
 ---
 
 # Workflows { #workflows }
@@ -149,7 +149,10 @@ robi, albo po grupie. Krok dodajesz na cztery sposoby:
   otwiera wybór. Krok trafia za zaznaczony krok albo na koniec widocznego przepływu i
   łączy się z nim, gdy porty pasują. Krok startowy trafia zamiast tego przed obecny
   start i staje się nim.
-- **+** przy wyjściu kroku otwiera wybór kroku, który idzie po tym wyjściu.
+- **+** przy wyjściu kroku otwiera wybór kroku, który idzie po tym wyjściu. Gdy
+  wyjście prowadzi już do kroku, wybór pyta, gdzie trafi nowy: **Insert before** wstawia
+  go w to połączenie, a **Add a parallel branch** zostawia połączenie i uruchamia nowy
+  krok obok. Wyjście, które prowadzi już do kilku kroków, przyjmie tylko kolejną gałąź.
 - **Prawy przycisk** na kanwie: ten sam wybór kroków otwiera się tam, gdzie kliknąłeś,
   i tam trafia krok. Pod nim **Dodaj notatkę** (Add a note) oraz, gdy coś skopiowano, **Wklej** (Paste).
 - **Przeciągnij** krok z wyboru, żeby położyć go tam, gdzie go upuścisz, bez połączeń.
@@ -285,7 +288,9 @@ i porównanie pokazują zapisany rozmiar bez uchwytów.
 ## Konfigurowanie węzła { #configuring-a-node }
 
 Co robi każdy węzeł, czym się go konfiguruje i co znaczą jego błędy, opisuje
-[referencja węzłów](reference/workflow-nodes.md).
+[referencja węzłów](reference/workflow-nodes.md). Konsola nazywa każdy krok, jego porty i
+ustawienia w języku czytelnika; referencja, API i wyeksportowany workflow zachowują
+angielskie nazwy.
 
 Kliknięcie zaznacza krok, a dwuklik otwiera go nad kanwą. W opublikowanej wersji lub w trybie **View only** wystarczy jedno kliknięcie. Nagłówek pokazuje nazwę kroku i jedno rozwijane podsumowanie brakującej konfiguracji. Rozwiń je, aby zobaczyć braki; wybranie pola przenosi do jego inputu. Po próbie testu lub publikacji szczegóły walidacji rozwijają się automatycznie.
 
@@ -684,6 +689,11 @@ nie jest zmieniana po utworzeniu. Okno publikowania mówi, którą wersję utwor
 wersji, mówi to najpierw. Jeśli graf wciąż ma problemy, publikowanie jest
 zablokowane z **Fix the problems below before publishing**, więc wersja, która by nie
 przeszła walidacji, nigdy nie powstaje.
+
+Niektóre rzeczy warto sprawdzić, choć nie są błędem, i oznacza je bursztynowy znak na
+kroku: wynik **Ask for approval**, który nigdzie nie prowadzi, albo krok wybierający
+między wyjściami, z których żadne nigdzie nie prowadzi. Run po prostu się tam kończy.
+Okno publikacji też je wymienia, ale nigdy nie blokują testu ani publikacji.
 
 Publikowanie nie kończy Twojej edycji. Draft istnieje dalej niezależnie od każdej
 opublikowanej wersji, więc edytujesz go od razu dalej. **Versions** pod **More** w nagłówku edytora

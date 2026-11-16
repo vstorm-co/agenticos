@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { NodeInstance, ScopeBoundary, WorkflowGraph } from "@/lib/workflows/types";
 
-import { currentScopeId, owningScopeByNode, scopedGraph, visibleNodeIds } from "./scope-view";
+import {
+  currentScopeId,
+  owningScopeByNode,
+  scopedGraph,
+  scopePathTo,
+  visibleNodeIds,
+} from "./scope-view";
 
 function node(id: string): NodeInstance {
   return { id, definition_id: "act", definition_version: 1, config: {}, layout: { x: 0, y: 0 } };
@@ -53,6 +59,14 @@ describe("scope-view", () => {
     expect(currentScopeId([])).toBeNull();
     expect(currentScopeId(["F1"])).toBe("F1");
     expect(currentScopeId(["F1", "F2"])).toBe("F2");
+  });
+
+  it("names the loops to enter, outermost first, to bring a step into view", () => {
+    const g = nestedGraph();
+    expect(scopePathTo(g, "root1")).toEqual([]);
+    expect(scopePathTo(g, "b1")).toEqual(["F1"]);
+    expect(scopePathTo(g, "c2")).toEqual(["F1", "F2"]);
+    expect(scopePathTo(g, "gone")).toEqual([]);
   });
 
   it("maps each node to its innermost owning scope, root nodes to null", () => {

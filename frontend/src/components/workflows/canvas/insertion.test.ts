@@ -440,6 +440,22 @@ describe("a step put into a connection", () => {
     expect(plan(g, END, { between: g.edges[0] }).split?.tail).toBeNull();
   });
 
+  it("leaves the connection whole and branches when asked to keep it going and it cannot", () => {
+    const g = line();
+    const END = def("end", [port("in", "input")]);
+    const planned = plan(g, END, {
+      between: g.edges[0],
+      keepOnward: true,
+      from: { nodeId: "a", portId: "out" },
+    });
+    expect(planned.split).toBeUndefined();
+    expect(planned.edge).toMatchObject({ source_node_id: "a", source_port: "out" });
+    // One that can carry it on is still put into the connection.
+    expect(plan(g, STEP, { between: g.edges[0], keepOnward: true }).split?.tail).toMatchObject({
+      target_node_id: "b",
+    });
+  });
+
   it("is added the ordinary way when the connection cannot feed it", () => {
     const g = line();
     expect(plan(g, SINK, { between: g.edges[0] }).split).toBeUndefined();

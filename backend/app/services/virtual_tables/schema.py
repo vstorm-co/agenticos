@@ -288,9 +288,18 @@ def _renamed(columns: Sequence[ColumnDef], previous: Sequence[ColumnDef]) -> dic
     }
 
 
-def _check_formulas(columns: list[ColumnDef], renamed: Mapping[str, str]) -> list[ColumnDef]:
+def _check_formulas(
+    columns: list[ColumnDef], renamed: Mapping[str, str], previous: Sequence[ColumnDef]
+) -> list[ColumnDef]:
     """`columns` with every formula reading renamed columns by their new labels, each
-    checked: it parses, and names live columns of the table that hold values."""
+    checked: it parses, and names live columns of the table that hold values. A call's
+    count of values is checked only in a formula this change writes; one carried over as
+    it was saved keeps working."""
+    stored = {
+        column.id: rename_references(column.formula, renamed)
+        for column in previous
+        if column.formula is not None
+    }
     checked: list[ColumnDef] = []
     for index, column in enumerate(columns):
         if column.type == "formula" and column.formula is not None:
@@ -299,9 +308,18 @@ def _check_formulas(columns: list[ColumnDef], renamed: Mapping[str, str]) -> lis
             )
             if not column.archived:
                 try:
-                    check_formula(column.formula or "", column, columns)
+                    check_formula(
+                        column.formula or "",
+                        column,
+                        columns,
+                        strict=stored.get(column.id) != column.formula,
+                    )
                 except FormulaProblem as problem:
-                    raise InvalidSchemaError(f"columns.{index}.formula", str(problem)) from None
+                    raise InvalidSchemaError(
+                        f"columns.{index}.formula",
+                        str(problem),
+                        formula={"reason": problem.reason, "params": problem.params},
+                    ) from None
         checked.append(column)
     return checked
 
@@ -410,7 +428,7 @@ def build_columns(
         raise InvalidSchemaError("columns", "Two live columns have the same label")
     _check_links(columns)
     # Revised after the formulas are renamed, so each reads its columns by their new labels.
-    checked = _check_formulas(columns, _renamed(columns, previous))
+    checked = _check_formulas(columns, _renamed(columns, previous), previous)
     before, after = _live_ids(previous), _live_ids(checked)
     return [
         _revised(column, known.get(column.id), before=before, after=after) for column in checked

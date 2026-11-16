@@ -37,6 +37,10 @@ Two things are versioned separately from this file and worth knowing about:
 - **Dictation says why it failed.** With the browser's own speech recognition, a blocked microphone, a page that may not ask for one, a missing microphone, a refusing or unreachable speech service and silence each get the step that fixes them, in the console and on hosted chat pages.
 - **One Polish name per concept, and actions in empty lists.** Polish calls a run a run throughout, the skills gallery and the Apps capability read as the product names them, and the Apps filter says apps in every locale. Empty Workflows and Routines lists offer their create action, and a table made from a workflow template takes the workflow's name, with a number when the name is taken, instead of an id suffix.
 
+- Let the "+" on a workflow output that already leads to a step insert the new step before it or add a parallel branch, keeping the connection when the step cannot carry it on, and mark an approval outcome or a deciding step that leads nowhere with a non-blocking warning.
+- Explain a decimal comma in a Virtual Table formula with a translated error that shows the dot, translate every formula refusal by a stable `details.formula.reason`, and show numbers in tables with the reader's decimal separator. A function given the wrong number of values is refused when its formula is saved; one saved before keeps working until it is edited.
+- Translate workflow step settings - labels, help text and placeholders, including fields inside lists - into the console's language, checked against the registry by a guard.
+
 ### Added
 
 - Select an organization knowledge base explicitly with `rag-source-add --knowledge-base <id>` when several bases share a collection name. Sync source responses include `knowledge_base_id`.
