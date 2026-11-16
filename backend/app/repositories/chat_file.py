@@ -276,7 +276,7 @@ async def link_to_message(
     await db.flush()
     # `execute` is typed to return `Result`, which has no `rowcount`; a DML
     # statement actually returns `CursorResult`, which does (see resource_grant).
-    return result.rowcount  # ty: ignore[unresolved-attribute]
+    return result.rowcount  # ty: ignore[missing-attribute]
 
 
 async def unlinked_ids(db: AsyncSession, file_ids: Iterable[UUID]) -> set[UUID]:

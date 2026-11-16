@@ -46,12 +46,12 @@ SKILL_LOAD_KIND = ToolKind(
 class ReadSkillCallPart(LoadCapabilityCallPart, kind=SKILL_LOAD_KIND):
     # The SDK narrows this presentation field to a literal. Its native load
     # protocol depends on isinstance and capability_id, not on that spelling.
-    tool_name: str = READ_SKILL  # ty: ignore[invalid-attribute-override]
+    tool_name: str = READ_SKILL  # ty: ignore[incompatible-attribute-override]
 
 
 class ReadSkillReturnPart(LoadCapabilityReturnPart, kind=SKILL_LOAD_KIND):
     # The same SDK literal-name constraint applies to the matching return part.
-    tool_name: str = READ_SKILL  # ty: ignore[invalid-attribute-override]
+    tool_name: str = READ_SKILL  # ty: ignore[incompatible-attribute-override]
 
 
 def _skill_message(message: str, skill_id: str) -> str:
