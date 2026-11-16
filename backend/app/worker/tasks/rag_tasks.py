@@ -1336,6 +1336,27 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
         source_svc = SyncSourceService(db)
 
         source = await source_svc.get_source(source_id)
+        queued_log = (
+            None if sync_log_id is None else await sync_log_repo.get_by_id(db, UUID(sync_log_id))
+        )
+        if sync_log_id is not None and queued_log is None:
+            return {"status": "skipped", "message": "This sync request no longer exists."}
+        if queued_log is not None and (
+            queued_log.collection_name != source.collection_name
+            or (
+                queued_log.organization_id is not None
+                and queued_log.organization_id != source.organization_id
+            )
+        ):
+            message = "Source collection changed before this sync started. Run it again."
+            await _notify_sync_start_failure(
+                db,
+                source=source,
+                sync_log_id=sync_log_id,
+                started_at=datetime.now(UTC),
+                message=message,
+            )
+            return {"status": "error", "message": message}
         assigned_collection = source.collection_name
         if assigned_collection is not None:
             # Deletion detaches sources under this lock. Refresh after waiting
@@ -1459,6 +1480,20 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             else IngestionConfig.model_validate(knowledge_base.ingestion_config)
         )
         knowledge_base_id = None if knowledge_base is None else knowledge_base.id
+        if (
+            queued_log is not None
+            and queued_log.knowledge_base_id is not None
+            and queued_log.knowledge_base_id != knowledge_base_id
+        ):
+            message = "The sync target changed before this request started. Review the source and run it again."
+            await _notify_sync_start_failure(
+                db,
+                source=source,
+                sync_log_id=sync_log_id,
+                started_at=attempt_started_at,
+                message=message,
+            )
+            return {"status": "error", "message": message}
         # The collection's scope, read off the base while its row is loaded (the
         # property only touches already-loaded columns): the base and its tenant -
         # its organization for an org base, None for an app-scoped one or a
@@ -1886,7 +1921,8 @@ async def apply_retention() -> None:
 
 
 def _stopped(reason: str) -> str:
-    return f"Stopped before it finished: {reason}"
+    logger.warning("Sync worker stopped before completion: %s", reason)
+    return "The sync stopped before completion. Review the worker log and source configuration before retrying."
 
 
 async def settle_lost_ingest(job: IngestDocument, reason: str) -> None:

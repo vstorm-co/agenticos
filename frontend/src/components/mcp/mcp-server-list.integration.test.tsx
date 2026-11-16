@@ -1313,7 +1313,7 @@ describe("connected servers across catalog pages", () => {
     const last = catalogEntries[50]!;
     const card = await screen.findByRole("group", { name: last.name });
     expect(screen.getAllByRole("group")).toHaveLength(1);
-    expect(screen.getByText("51 servers")).toBeVisible();
+    expect(screen.getByText("2 / 2")).toBeVisible();
     expect(screen.getByRole("button", { name: "Previous page" })).toBeEnabled();
 
     await userEvent.click(

@@ -251,6 +251,32 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     expect(dialog.getByText(/Create a Zendesk webhook pointing at this URL/)).toBeInTheDocument();
   });
 
+  it("uses Linear's secret and shows the URL to paste into Linear", async () => {
+    const user = userEvent.setup();
+    const url = "https://api.example.com/api/v1/webhooks/triggers/linear/t1";
+    vi.mocked(apiClient.post).mockResolvedValue(
+      trigger({ event_source: "linear", webhook_url: url }),
+    );
+    const dialog = await openEvent();
+
+    await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
+    await user.click(await screen.findByRole("option", { name: "A Linear webhook" }));
+    expect(dialog.queryByRole("button", { name: "Generate" })).toBeNull();
+    await user.type(dialog.getByLabelText("Signing secret"), "linear-signing-secret");
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.type(dialog.getByLabelText("Message"), "Triage the issue");
+    await user.click(dialog.getByRole("button", { name: "Create" }));
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      `/agents/${AGENT_ID}/triggers`,
+      expect.objectContaining({ event_source: "linear", event_secret: "linear-signing-secret" }),
+    );
+    const createdDialog = within(await screen.findByRole("dialog", { name: "One more step" }));
+    expect(createdDialog.getByLabelText<HTMLInputElement>("Webhook URL").value).toBe(url);
+    expect(createdDialog.getByText(/Paste this URL into Linear/)).toBeInTheDocument();
+  });
+
   it("does not offer Gmail at all, because this form is the signed-POST one", async () => {
     // Gmail is read from a connected mailbox: no inbound door, no per-trigger
     // secret. Offering it here would put a Signing secret field on a source that

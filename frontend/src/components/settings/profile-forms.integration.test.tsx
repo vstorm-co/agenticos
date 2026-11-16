@@ -116,3 +116,21 @@ it("unlocks a refused portrait upload and accepts retrying the same file", async
   await waitFor(() => expect(useAuthStore.getState().user?.avatar_url).toBe("avatars/test.png"));
   expect(apiClient.upload).toHaveBeenCalledTimes(2);
 });
+
+it("saves identity and agent context in one request from the profile tab", async () => {
+  vi.mocked(apiClient.patch).mockResolvedValue({
+    ...USER,
+    full_name: "Alex draft",
+    job_title: "Engineer",
+  });
+  render(<ProfileIdentitySettings unifiedSave />);
+  expect(screen.getAllByRole("button", { name: /Save/ })).toHaveLength(1);
+  await userEvent.type(screen.getByLabelText("Display name"), " draft");
+  await userEvent.type(screen.getByLabelText("Your role"), "Engineer");
+  await userEvent.click(screen.getByRole("button", { name: /Save/ }));
+  await waitFor(() => expect(apiClient.patch).toHaveBeenCalledOnce());
+  expect(apiClient.patch).toHaveBeenCalledWith(
+    "/users/me",
+    expect.objectContaining({ full_name: "Alex draft", job_title: "Engineer" }),
+  );
+});

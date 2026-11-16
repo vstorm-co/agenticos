@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, Activity } from "lucide-react";
 
+import { ContextHelp } from "@/components/ui/context-help";
 import { ActivityLog } from "@/components/sandboxes/activity-log";
 import {
   Badge,
@@ -27,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
+  Skeleton,
   type Column,
 } from "@/components/ui";
 import { useAgents, useSandboxPolicy, useSandboxSessions } from "@/hooks";
@@ -41,6 +43,7 @@ import { DIALOG_WINDOW } from "@/lib/dialog-sizes";
 interface SessionsPanelProps {
   /** The active container connections — the hosts that can be asked at all. */
   connections: SandboxConnectionRecord[];
+  loadingConnections?: boolean;
 }
 
 /** Seconds since something happened, as a person reads them. */
@@ -100,8 +103,9 @@ function belongsTo(session: SandboxSession, t: (key: string) => string): string 
  * individually for them: a page that shows twenty should not pay twenty daemon
  * round trips to load.
  */
-export function SessionsPanel({ connections }: SessionsPanelProps) {
+export function SessionsPanel({ connections, loadingConnections = false }: SessionsPanelProps) {
   const t = useTranslations("sandboxes.sessions");
+  const states = useTranslations("states");
   const [usage, setUsage] = useState(false);
   const [watching, setWatching] = useState<string | null>(null);
   const [chosenId, setChosenId] = useState<string | null>(null);
@@ -113,7 +117,11 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
   const connection =
     connections.find((entry) => entry.id === chosenId) ?? primaryConnection(connections);
 
-  const { listing, isLoading, error } = useSandboxSessions(connection?.id ?? null, usage);
+  const {
+    listing,
+    isLoading: sessionsLoading,
+    error,
+  } = useSandboxSessions(connection?.id ?? null, usage);
   // Asked for the same reason the runtimes are: the ceilings in force are what
   // turn `29m` into `reaped in 1m`. One request per host, on a page an operator
   // opened to ask exactly that.
@@ -137,11 +145,11 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
     const needle = query.trim().toLowerCase();
     if (!needle) return sessions;
     return sessions.filter((session) =>
-      [session.session_id, session.runtime, session.state].some((field) =>
+      [session.session_id, session.runtime, session.state, nameOf(session) ?? ""].some((field) =>
         field.toLowerCase().includes(needle),
       ),
     );
-  }, [listing, query]);
+  }, [listing, query, nameOf]);
 
   const columns = useMemo<Column<SandboxSession>[]>(
     () => [
@@ -221,7 +229,10 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
               <span className="text-muted-foreground text-xs">{idle(session.idle_seconds)}</span>
               {left !== null && (
                 <span
-                  className={cn("text-xs", left < 120 ? "text-amber-600" : "text-muted-foreground")}
+                  className={cn(
+                    "text-xs",
+                    left < 120 ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground",
+                  )}
                 >
                   {t("reapedIn", { time: idle(left) })}
                 </span>
@@ -239,7 +250,7 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
       },
       {
         key: "activity",
-        className: "pr-5",
+        className: "pr-5 @max-md/table:text-left",
         header: t("activity"),
         align: "right",
         cell: (session) => (
@@ -260,7 +271,9 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
     [t, nameOf, policy],
   );
 
-  if (connection === null)
+  const isLoading = loadingConnections || sessionsLoading;
+
+  if (connection === null && !loadingConnections)
     return (
       <Card className="flex flex-1 flex-col">
         <CardContent className="flex flex-1 flex-col p-0">
@@ -276,66 +289,95 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
   const sessions = listing?.sessions ?? [];
 
   return (
-    <Card className="flex flex-1 flex-col">
-      <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
-        <div className="space-y-1">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Activity className="h-4 w-4" aria-hidden />
-            {t("runningOn", { name: connection.name })}
-          </CardTitle>
-          <CardDescription className="text-xs">
-            {listing?.tenant_limit
-              ? t("sessionsOfLimit", { count: sessions.length, limit: listing.tenant_limit })
-              : t("sessionsCount", { count: sessions.length })}
-          </CardDescription>
-        </div>
-        <div className="flex items-center gap-4">
-          {connections.length > 1 && (
-            <Select
-              value={connection.id}
-              // A session id names a sandbox on one host, so an activity log
-              // left open would ask the new host for the old host's session.
-              onValueChange={(id) => {
-                setChosenId(id);
-                setWatching(null);
-              }}
-            >
-              <SelectTrigger className="h-8 w-44" aria-label={t("host")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {connections.map((entry) => (
-                  <SelectItem key={entry.id} value={entry.id}>
-                    {entry.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          <label className="flex items-center gap-2 text-xs">
-            <span className="text-muted-foreground">{t("sampleMemory")}</span>
-            <Switch
-              checked={usage}
-              onCheckedChange={setUsage}
-              aria-label={t("sampleMemoryAndCpu")}
-            />
-          </label>
-        </div>
+    <Card
+      className="@container/sessions flex min-w-0 flex-1 flex-col"
+      role={loadingConnections ? "status" : undefined}
+      aria-label={loadingConnections ? states("loading") : undefined}
+      aria-busy={loadingConnections || undefined}
+    >
+      <CardHeader className="flex-col gap-3 space-y-0 border-b px-4 py-4 sm:px-5 @3xl/sessions:flex-row @3xl/sessions:items-center @3xl/sessions:justify-between">
+        {loadingConnections ? (
+          <div
+            className="flex w-full flex-col gap-3 @3xl/sessions:flex-row @3xl/sessions:items-center @3xl/sessions:justify-between"
+            aria-hidden="true"
+          >
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-3 w-48 max-w-full" />
+            </div>
+            <Skeleton className="h-8 w-32 max-w-full" />
+          </div>
+        ) : (
+          <>
+            <div className="min-w-0 space-y-1">
+              <CardTitle className="flex min-w-0 items-center gap-2 text-sm">
+                <Activity className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                <span className="min-w-0 break-words">
+                  {t("runningOn", { name: connection?.name ?? "" })}
+                </span>
+                <ContextHelp>{t("whatSessionsAre")}</ContextHelp>
+              </CardTitle>
+              <CardDescription className="text-xs">
+                {listing === null ? (
+                  <Skeleton className="h-4 w-48 max-w-full" />
+                ) : listing.tenant_limit ? (
+                  t("sessionsOfLimit", { count: sessions.length, limit: listing.tenant_limit })
+                ) : (
+                  t("sessionsCount", { count: sessions.length })
+                )}
+              </CardDescription>
+            </div>
+            <div className="flex min-w-0 flex-wrap items-center gap-3 @3xl/sessions:shrink-0">
+              {connections.length > 1 && (
+                <Select
+                  value={connection?.id}
+                  // A session id names a sandbox on one host, so an activity log
+                  // left open would ask the new host for the old host's session.
+                  onValueChange={(id) => {
+                    setChosenId(id);
+                    setWatching(null);
+                  }}
+                >
+                  <SelectTrigger
+                    className="h-9 w-full min-w-0 @sm/sessions:w-44"
+                    aria-label={t("host")}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {connections.map((entry) => (
+                      <SelectItem key={entry.id} value={entry.id}>
+                        {entry.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <label className="flex items-center gap-2 text-xs">
+                <span className="text-muted-foreground">{t("sampleMemory")}</span>
+                <Switch
+                  checked={usage}
+                  onCheckedChange={setUsage}
+                  aria-label={t("sampleMemoryAndCpu")}
+                />
+              </label>
+            </div>
+          </>
+        )}
       </CardHeader>
       <CardContent className="flex flex-1 flex-col p-0">
         <ListCardControlsRow>
-          <SearchInput value={query} onChange={setQuery} placeholder={t("searchSessions")} />
+          {loadingConnections ? (
+            <Skeleton aria-hidden="true" className="h-9 w-64 max-w-full" />
+          ) : (
+            <SearchInput value={query} onChange={setQuery} placeholder={t("searchSessions")} />
+          )}
         </ListCardControlsRow>
-        {/* What this table is, once, where somebody who opened the tab is looking.
-            "Nothing running" and "nothing configured" are the same empty grid, and
-            a session opening on the first tool call rather than when a chat starts
-            is the part nobody guesses (#1039). */}
-        <p className="text-muted-foreground border-border border-t px-5 py-2 text-xs">
-          {t("whatSessionsAre")}
-        </p>
         <DataTable<SandboxSession>
           columns={columns}
           rows={visible}
+          stackOnNarrow
+          fillHeight
           getRowKey={(session) => session.session_id}
           loading={isLoading}
           error={
@@ -346,7 +388,15 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
               </span>
             )
           }
-          empty={sessions.length === 0 ? t("nothingRunningSandboxOpens") : t("noSessionMatches")}
+          empty={
+            <ListCardEmpty
+              icon={Activity}
+              title={
+                sessions.length === 0 ? t("nothingRunningSandboxOpens") : t("noSessionMatches")
+              }
+              onClearFilters={sessions.length > 0 ? () => setQuery("") : undefined}
+            />
+          }
           className="rounded-none border-0 bg-transparent"
         />
 
@@ -383,4 +433,9 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
       </CardContent>
     </Card>
   );
+}
+
+/** Keep the same column definitions and table frame while the host list loads. */
+export function SessionsPanelLoading() {
+  return <SessionsPanel connections={[]} loadingConnections />;
 }

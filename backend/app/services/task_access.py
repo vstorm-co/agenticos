@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.task_board import TaskBoard
-from app.repositories import group_repo, project_repo, resource_grant_repo
+from app.repositories import agent_repo, group_repo, project_repo, resource_grant_repo
 from app.repositories import task as task_repo
 
 
@@ -31,6 +31,21 @@ async def scope_allows(
         ):
             return False
         return not edit or await _may_edit_table(db, ctx, kind, scope_id)
+    if kind == "agent":
+        from app.services.access import AGENT, resolve_access
+
+        agent = await agent_repo.get(db, scope_id, organization_id=ctx.organization_id)
+        return (
+            agent is not None
+            and (not edit or await _may_edit_table(db, ctx, kind, scope_id))
+            and await resolve_access(
+                db,
+                ctx,
+                agent,
+                Perm.AGENTS_RUN if edit else Perm.AGENTS_VIEW,
+                resource_type=AGENT,
+            )
+        )
     if kind == "project":
         from app.services.access import PROJECT, resolve_access
 
@@ -88,6 +103,13 @@ async def board_manages(db: AsyncSession, ctx: AuthContext, board: TaskBoard) ->
     if board.scope_kind == "group":
         member = await group_repo.get_member(db, group_id=board.scope_id, user_id=ctx.user_id)
         return member is not None and member.is_lead
+    if board.scope_kind == "agent":
+        from app.services.access import AGENT, resolve_access
+
+        agent = await agent_repo.get(db, board.scope_id, organization_id=ctx.organization_id)
+        return agent is not None and await resolve_access(
+            db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT
+        )
     if board.scope_kind == "project":
         project = await project_repo.get(db, board.scope_id, organization_id=ctx.organization_id)
         return project is not None and project.owner_user_id == ctx.user_id

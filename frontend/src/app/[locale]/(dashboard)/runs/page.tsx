@@ -37,21 +37,6 @@ import { Perm } from "@/types/permissions";
 import { useLocale, useTranslations } from "next-intl";
 
 /**
- * Pinned beside the other column, from `lg`, to the window less 8px a side.
- *
- * The offset cancels `main`'s top padding - a sticky top is measured from the
- * scroll container's padding edge, so a plain `top-4` sat 48px down the window -
- * and adds 8px back. A definite height rather than a cap, because the run panel
- * is `h-full` over one scrolling column: with only a `max-height` the chain
- * grows past it and clips instead of scrolling.
- */
-const PINNED_COLUMN = "lg:sticky lg:top-[calc(0.5rem-2rem)] lg:h-[calc(100dvh-1rem)] lg:self-start";
-
-/** The list as the master beside an open run: pinned with it, scrolling itself. */
-// i18n-exempt: Tailwind classes, not copy.
-const LIST_BESIDE_RUN = `${PINNED_COLUMN} lg:overflow-y-auto lg:rounded-xl lg:pb-0 scrollbar-thin`;
-
-/**
  * What the agents did: three figures, and the tabs that each answer separately -
  * the run history, the approvals queue when the caller may decide one, and spend.
  *
@@ -176,13 +161,12 @@ export default function RunsPage() {
   const spent = (spend?.by_agent ?? []).reduce((sum, row) => sum + Number(row.cost_usd), 0);
 
   return (
-    // An ordinary page that scrolls, not a full-height column with panes that
-    // scroll apart. That arrangement bought sticky column headers and cost the
-    // table its rows: the figures and the period control took about 380px, so a
-    // 900px viewport left a run history three rows deep inside its own scroll
-    // box - a second scrollbar to reach what the page had room for all along.
-    <div className="flex flex-1 flex-col">
-      <PageHeader className="mb-4" title={t("activity2")} description={t("whatYourAgentsDid2")} />
+    <div className={cn("flex min-h-0 flex-1 flex-col", PAGE_CLEARANCE)}>
+      <PageHeader
+        className="mb-4 shrink-0"
+        title={t("activity2")}
+        description={t("whatYourAgentsDid2")}
+      />
 
       {/* Not until the permission set has answered. The strip's *shape* depends
           on this permission - whether there is an Approvals tab at all - so
@@ -234,43 +218,13 @@ export default function RunsPage() {
               </TabsTrigger>
             </TabsList>
 
-            {/* Two columns above `lg`: the tab's own panel narrows and the run
-                detail takes the right-hand side. Inside the tabs rather than
-                around them, and the row owns the gap under the strip while each
-                panel gives up the `mt-2` `TabsContent` applies - otherwise the
-                card starts eight pixels below the panel beside it. Below `lg`
-                there is room for one column, so the focused run replaces the
-                list rather than squeezing beside it.
-
-                `items-start`, so the shorter of the two columns is its own
-                height rather than stretched to match the other: a run detail
-                beside a three-row table used to be a card of white space. */}
-            <div className="mt-2 flex flex-1 items-start gap-4">
+            {/* Both panes fill the available viewport. Rows keep their natural
+                height while the table's scroll region absorbs spare space. */}
+            <div className="mt-2 flex min-h-0 flex-1 items-stretch gap-4">
               <div
                 className={cn(
-                  // `overflow-hidden` is load-bearing: the run table carries a
-                  // minimum width of its own, and without a clip here it ran on
-                  // underneath the detail panel rather than scrolling inside its
-                  // own column.
-                  "flex min-w-0 flex-1 flex-col overflow-hidden",
-                  focusedRunId === null && "self-stretch",
-                  // The room under this page, declared here rather than by
-                  // `PageTransition` - which is where every other page gets it.
-                  // Padding on the box *around* this row shortens what the
-                  // sticky panel beside it may pin in, because a sticky box is
-                  // clamped to its containing block: 64px of it put the panel's
-                  // top at -48px at maximum scroll, cutting its own header off
-                  // by 56px. Inside the column it lands under the last row and
-                  // the row still ends at the viewport (#1206).
-                  PAGE_CLEARANCE,
-                  focusedRunId !== null && "hidden lg:block",
-                  // With a run open the two columns are one master-detail
-                  // pair: pinned at the same top, the same height, each
-                  // scrolling inside itself. Before, the panel pinned while the
-                  // list slid under the window's edge, so a moment's scroll left
-                  // the two out of line - a card floating beside rows cut off
-                  // mid-table.
-                  focusedRunId !== null && LIST_BESIDE_RUN,
+                  "flex min-h-0 min-w-0 flex-1 scrollbar-thin flex-col overflow-auto",
+                  focusedRunId !== null && "hidden lg:flex",
                 )}
                 ref={listColumn}
               >
@@ -294,7 +248,7 @@ export default function RunsPage() {
                 <TabsContent
                   value="runs"
                   data-tour="activity-runs"
-                  className="mt-0 flex-1 flex-col data-[state=active]:flex"
+                  className="mt-0 min-h-0 flex-1 flex-col data-[state=active]:flex"
                 >
                   {/* The export lives on the tab's control row, beside the
                       filters it exports the result of - see RunHistoryTab. */}
@@ -320,50 +274,7 @@ export default function RunsPage() {
                   and an approval row are both doors to the same view. `?run=`
                   still deep-links here - the page opens with it already out. */}
               {focusedRunId !== null && (
-                // Sticky *and* bounded to the scrollport, from `lg` only - which
-                // is where there is a second column for it to stay beside. Below
-                // `lg` the list is `hidden` and this is the only column, so
-                // sticky buys nothing and a viewport-height box costs: what is
-                // *not* the scrollport there is the mobile tab bar (`fixed
-                // bottom-0`, 56px plus the safe-area inset) and `MobileHeader`
-                // (`h-14`, in normal flow above `main`), and subtracting both
-                // still left the panel's last 8px behind the bar - measured at
-                // 390x780. So below `lg` it is an ordinary block that scrolls
-                // with the page, carrying the page's own clearance, and there is
-                // no `dvh` arithmetic to get wrong.
-                //
-                // From `lg`: a definite height rather than a cap, because
-                // `RunDetailPanel` is `h-full` over `FocusedRun`'s one scrolling
-                // column - with only a `max-height` the percentage resolves
-                // against auto, the chain grows past the cap and
-                // `overflow-hidden` clips the timeline instead of scrolling it.
-                // `dvh` so browser chrome is not counted twice. A sticky element
-                // taller than the viewport pins at its top edge and no more,
-                // which is what keeps its own header - the agent, the status,
-                // the cost - readable at maximum scroll.
-                //
-                // The offset is negative, and the arithmetic is the point: a
-                // sticky top is measured from the scroll container's *padding*
-                // edge, and `main` carries `pt-4 sm:pt-8`. So a plain `top-4`
-                // pinned the panel 48px down the window while the table's rows
-                // scrolled past above it. Cancelling that padding and adding 8px
-                // back puts its top edge 8px from the window.
-                //
-                // `-mr-4` is the same trick sideways, and only where there are two
-                // columns: `main`'s `sm:px-6` plus its scrollbar left about forty
-                // pixels of nothing to the right of the panel while the table ran
-                // flush to the left edge. Sixteen of those are given back, which
-                // matches the eight above and below.
-                <div
-                  className={cn(
-                    PAGE_CLEARANCE,
-                    // The only column below `lg`, so it takes the row's width: a
-                    // flex item with no width of its own shrank to its content,
-                    // and the panel's content is clipped by `overflow-hidden` -
-                    // it collapsed to its 2px border and a phone saw a blank page.
-                    `w-full lg:-mr-4 lg:w-auto lg:pb-0 ${PINNED_COLUMN}`,
-                  )}
-                >
+                <div className="h-full min-h-0 w-full shrink-0 lg:w-auto">
                   <RunDetailPanel runId={focusedRunId} onFocusRun={focusRun} />
                 </div>
               )}

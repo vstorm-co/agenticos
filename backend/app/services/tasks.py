@@ -12,6 +12,7 @@ from app.db.locks import LockScope, hold_subject
 from app.db.models.task_board import TaskBoard, TaskLink
 from app.db.models.virtual_table import VirtualTableRecord
 from app.repositories import (
+    agent_repo,
     conversation_repo,
     group_repo,
     member_repo,
@@ -105,6 +106,14 @@ class TaskService:
             await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, scope_id)
             if await user_repo.get_by_id(self.db, scope_id) is None:
                 raise NotFoundError(message="Task scope not found")
+        # Match deletion's agent -> board lock order and hold the scope alive.
+        if data.scope == "agent" and (
+            await agent_repo.get(
+                self.db, scope_id, organization_id=ctx.organization_id, for_update=True
+            )
+            is None
+        ):
+            raise NotFoundError(message="Task scope not found")
         # The binding, not a person's idempotency receipt: two project members
         # opening Tasks together must get the same board.
         await hold_subject(
@@ -274,6 +283,9 @@ class TaskService:
         )
 
     async def _scope_name(self, ctx: AuthContext, kind: str, scope_id: UUID) -> str | None:
+        if kind == "agent":
+            agent = await agent_repo.get(self.db, scope_id, organization_id=ctx.organization_id)
+            return agent.name if agent else None
         if kind == "project":
             project = await project_repo.get(self.db, scope_id, organization_id=ctx.organization_id)
             return project.name if project else None

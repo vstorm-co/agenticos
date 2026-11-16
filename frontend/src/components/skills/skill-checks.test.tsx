@@ -123,12 +123,12 @@ describe("SkillChecks", () => {
     };
     render(<SkillChecks skillId="s-1" forkId={null} canDecide onEdit={vi.fn()} />);
 
-    expect(screen.getByText("45 checks · page 1 of 3")).toBeInTheDocument();
+    expect(screen.getByText("1 / 3")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: "Next page" }));
 
     expect(held.pages.at(-1)).toBe(1);
-    expect(screen.getByText("45 checks · page 2 of 3")).toBeInTheDocument();
+    expect(screen.getByText("2 / 3")).toBeInTheDocument();
   });
 
   it("shows no pager while one page holds every check", () => {

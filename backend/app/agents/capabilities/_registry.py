@@ -829,6 +829,7 @@ def load_builtins() -> None:
         background_tasks,
         background_tools,
         browser_use,
+        channel_actions,
         channel_tools,
         charts,
         clock,

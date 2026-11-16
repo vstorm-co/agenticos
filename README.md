@@ -259,6 +259,13 @@ For manual Docker Compose setup, pinned versions and troubleshooting, follow the
 
 </details>
 
+## ☁️ One-click deploy
+
+<a href="https://repocloud.io/details/Agenticos/"><img src="https://d16t0pc4846x52.cloudfront.net/deploylobe.svg" alt="Deploy on RepoCloud" height="42"></a>
+<a href="https://railway.com/deploy/agenticos"><img src="https://railway.com/button.svg" alt="Deploy on Railway" height="42"></a>
+
+Review the provider's instructions, image versions and included services before deploying. These hosting templates are maintained separately from this repository. The Railway template currently pins an older AgenticOS release and does not include the local code sandbox.
+
 ## Run on your server. Open it anywhere.
 
 The server holds the workspace. The browser, desktop app and phone connect to that deployment with its accounts, agents and access controls.

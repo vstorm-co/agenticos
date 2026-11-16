@@ -590,6 +590,15 @@ class TestRagDropGoesThroughTheTeardown:
         monkeypatch.setattr(rag_document_repo, "delete_by_collection", repos["by_name"])
         monkeypatch.setattr(rag_document_repo, "delete_by_knowledge_base", repos["by_base"])
         monkeypatch.setattr(
+            rag_document_repo, "stored_vector_ids_at_clear", AsyncMock(return_value=[])
+        )
+        monkeypatch.setattr(
+            rag_document_repo, "delete_by_knowledge_base_with_vectors", repos["by_base"]
+        )
+        repos["by_base"].return_value = rag_document_repo.DeletedDocuments(
+            storage_paths=[], vector_document_ids=[]
+        )
+        monkeypatch.setattr(
             rag_document_repo,
             "delete_unfiled_with_vectors",
             AsyncMock(

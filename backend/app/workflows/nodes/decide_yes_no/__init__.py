@@ -13,7 +13,7 @@ register(
         version=1,
         name="Yes or no",
         category="decide",
-        description="Ask Jev a yes-or-no question about a text, and branch on the answer.",
+        description="Ask the decision model a yes-or-no question about a text, and branch on the answer.",
         kind="control",
         config_schema=DecisionConfig,
         input_schema=DecisionInput,

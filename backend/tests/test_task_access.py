@@ -200,3 +200,36 @@ async def test_only_a_task_board_answers_whether_it_may_be_changed(
     assert await access.manages_table(MagicMock(), owner, uuid4()) is None
     lookup.return_value = _board("organization", owner.organization_id)
     assert await access.manages_table(MagicMock(), owner, uuid4()) is True
+
+
+@pytest.mark.parametrize("present,editable", [(False, False), (True, False), (True, True)])
+async def test_agent_board_management_requires_a_live_agent_and_current_edit_access(
+    monkeypatch: pytest.MonkeyPatch, present: bool, editable: bool
+) -> None:
+    member = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="member")
+    monkeypatch.setattr(access, "board_allows", AsyncMock(return_value=True))
+    monkeypatch.setattr(
+        access.agent_repo, "get", AsyncMock(return_value=MagicMock() if present else None)
+    )
+    grant = AsyncMock(return_value=editable)
+    monkeypatch.setattr("app.services.access.resolve_access", grant)
+    assert await access.board_manages(MagicMock(), member, _board("agent", uuid4())) is (
+        present and editable
+    )
+    assert grant.await_count == int(present)
+
+
+async def test_an_agent_deleted_after_scope_admission_cannot_gain_a_task_board(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core.exceptions import NotFoundError
+    from app.schemas.task import BoardEnsure
+    from app.services import tasks
+
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
+    monkeypatch.setattr(tasks, "scope_allows", AsyncMock(return_value=True))
+    monkeypatch.setattr(tasks.agent_repo, "get", AsyncMock(return_value=None))
+    with pytest.raises(NotFoundError, match="Task scope not found"):
+        await tasks.TaskService(MagicMock()).ensure_board(
+            ctx, BoardEnsure(scope="agent", scope_id=uuid4())
+        )

@@ -21,6 +21,18 @@ class SyncLog(TimestampMixin, Base):
     sync_source_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("sync_sources.id", ondelete="SET NULL"), nullable=True
     )
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    knowledge_base_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("knowledge_bases.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="running")
     mode: Mapped[str] = mapped_column(String(20), nullable=False, default="full")
     total_files: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

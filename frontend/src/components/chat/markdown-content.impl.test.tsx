@@ -501,3 +501,20 @@ it("does not fetch unknown-site favicons in an inert shared transcript", () => {
     "https://independent.example/post",
   );
 });
+
+it("highlights prompt variables only when requested and preserves code and URLs", () => {
+  const content =
+    "Hello {{agent_name}} and **{{ user_name }}**. `{{literal}}` [source](https://example.com/{{path}})";
+  const { container, rerender } = render(<MarkdownContent content={content} highlightVariables />);
+  expect(Array.from(container.querySelectorAll("mark"), (node) => node.textContent)).toEqual([
+    "{{agent_name}}",
+    "{{ user_name }}",
+  ]);
+  expect(container.querySelector("code")?.textContent).toBe("{{literal}}");
+  expect(screen.getByRole("link", { name: /source/ })).toHaveAttribute(
+    "href",
+    "https://example.com/%7B%7Bpath%7D%7D",
+  );
+  rerender(<MarkdownContent content={content} />);
+  expect(container.querySelector("mark")).toBeNull();
+});

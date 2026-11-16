@@ -1384,3 +1384,11 @@ under `artifacts/<organization>/<artifact>/`.
 - Archiving keeps a page and serves nothing of it, the public link off, until
   someone who may edit it restores it.
 - A retention class of its own, measured from the last publication.
+
+## Preview loading and sharing { #preview-loading-and-sharing }
+
+Chat previews reserve their space while the visual renderer or App thumbnail loads. They fade in only when rendering or image decoding finishes; reduced-motion preferences disable the animation. App listings use cached, version-specific static thumbnails rather than executing every App again when returning to the list.
+
+The Apps skill includes interactive HTML slide decks, print styles for PDF and reusable component examples. PDF export needs the configured renderer; a validation-only preview does not prove that a script executed successfully. Use the actual rendered preview to verify charts, tables and interactive content. PowerPoint export is not included.
+
+The platform MCP tool `create_app_public_link` requires edit access and explicit confirmation that the App may be shared publicly. It reuses an existing link and preserves its password, expiry and pinned version. Live data requires separate owner consent. A call is successful only when the API confirms the public URL.
