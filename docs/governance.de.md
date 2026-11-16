@@ -1,5 +1,5 @@
 ---
-source_sha: "580be673475a"
+source_sha: "827cfb585e78"
 ---
 
 # Governance { #governance }
@@ -47,6 +47,24 @@ ein Alert, die niemals aufhören.
 Ein Event-Trigger fügt an seinem Rand eine weitere Ablehnung hinzu: ein Webhook,
 dessen Signatur sich nicht gegen das eigene Secret des Triggers verifizieren
 lässt, ist ein 403, der den Runner überhaupt nie erreicht.
+
+GitHub-Routinen zeigen beim Erstellen und Bearbeiten von Issue-, Pull-Request-
+und Kommentar-Triggern einen Autorenfilter. **Repository-Mitglieder (Standard)**
+lässt `OWNER`, `MEMBER` und `COLLABORATOR` zu; **Mitglieder und Beitragende**
+zusätzlich `CONTRIBUTOR`. **Alle** umfasst erstmalig Beitragende und andere
+Meldende. Dies sind GitHub-Autorenzuordnungen, keine AgenticOS-Organisationsrollen.
+Bots und ein ausdrücklich ausgeschlossener verbundener Login bleiben bei jeder
+Option gesperrt. Der Autorenfilter gilt nicht für Pushes, Workflow-Runs oder
+Releases. Bestehende Routinen behalten ihre Richtlinie; fehlt `authors` in der
+Konfiguration, gilt weiterhin `members`.
+
+Im Verlauf der Routine sieht ihr angemeldeter Eigentümer das **Zuletzt gefilterte
+GitHub-Ereignis**: Zeitpunkt und Grund der Filterablehnung eines verifizierten
+Webhooks sowie die Autorenrichtlinie beim Empfang. Sowohl Routinen-Webhooks als
+auch GitHub-App-Zustellungen erfassen diese Diagnose. Nur die letzte Ablehnung
+wird gespeichert, ohne Payload, Autorentext oder Secret und ohne einen Run zu
+erstellen. Keine Diagnose bedeutet lediglich, dass keine Ablehnung erfasst wurde;
+sie bestätigt keinen Webhook-Eingang. Öffentliche Webhook-Antworten bleiben unverändert.
 
 ## Zustellung von Routinen { #routine-delivery }
 

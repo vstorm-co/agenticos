@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Expose GitHub routine author filters, including a members-and-contributors option, while preserving existing defaults. Routine owners can inspect the latest verified event rejected by a filter without storing webhook content or creating a run (#3072).
+
+### Upgrading
+
+- Apply migration `0337_github_filter_diagnostic.py` for the routine's bounded filter diagnostic. Existing author policies are unchanged; old configurations without `authors` remain member-only.
+
 ## [1.80.0] - 2026-11-16
 
 ### Fixed

@@ -1,5 +1,5 @@
 ---
-source_sha: "580be673475a"
+source_sha: "827cfb585e78"
 ---
 
 # Governance { #governance }
@@ -45,6 +45,24 @@ alerta, que no para nunca.
 
 Un trigger de evento añade un rechazo más en su borde: un webhook cuya firma no se
 verifica contra el secreto propio del trigger es un 403 que nunca llega al runner.
+
+Las rutinas de GitHub muestran un filtro de autores al crear o editar triggers
+de issues, pull requests y comentarios. **Repository members (default)** admite
+`OWNER`, `MEMBER` y `COLLABORATOR`; **Members and contributors** añade
+`CONTRIBUTOR`. **Anyone** incluye a quienes contribuyen por primera vez y a otros
+usuarios que reportan problemas. Son asociaciones de autores de GitHub, no roles
+de organización de AgenticOS. Los bots y el login conectado excluido explícitamente
+siguen bloqueados con cualquier opción. El filtro no se aplica a pushes, runs de
+workflow ni releases. Las rutinas existentes conservan su política; una
+configuración sin `authors` sigue significando `members`.
+
+En el historial de la rutina, su propietario autenticado puede ver **Latest filtered
+GitHub event**: cuándo un webhook verificado fue rechazado por un filtro, el motivo
+y la política de autores al recibirlo. Tanto los webhooks individuales como las
+entregas de GitHub App registran este diagnóstico. Solo se conserva el último
+rechazo, sin payload, texto del autor ni secretos, y no se crea ningún run. La
+ausencia de diagnóstico indica que no se ha registrado un rechazo; no confirma la
+entrega de un webhook. Las respuestas públicas de los webhooks no cambian.
 
 ## Entrega de rutinas { #routine-delivery }
 

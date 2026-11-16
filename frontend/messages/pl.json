@@ -9105,7 +9105,24 @@
     "noRoutineMatchesHint": "Spróbuj nazwy agenta, tytułu rutyny lub słów z jej wiadomości.",
     "setupRequired": "Wymaga konfiguracji",
     "setupRequiredHint": "Zapisano i wstrzymano. Napraw źródła, sprawdź dostęp, a następnie włącz rutynę.",
-    "setupOwnerRequired": "Zapisana i wstrzymana. Jej twórca musi naprawić i sprawdzić źródła."
+    "setupOwnerRequired": "Zapisana i wstrzymana. Jej twórca musi naprawić i sprawdzić źródła.",
+    "filteredEventTitle": "Ostatnie odfiltrowane zdarzenie GitHub",
+    "filteredEventHint": "Zachowujemy tylko ostatnie zweryfikowane zdarzenie odrzucone przez filtr. Nie uruchomiło runa. Treść payloadu nie jest zapisywana.",
+    "filteredEventEmpty": "Nie zapisano jeszcze odfiltrowanego zdarzenia. Nie potwierdza to otrzymania webhooka.",
+    "filteredEventError": "Nie udało się odczytać diagnostyki filtrowania",
+    "filteredEventPolicy": "Filtr autorów przy odbiorze: {policy}",
+    "filteredEventReason": {
+      "event": "Typ zdarzenia nie pasował.",
+      "action": "Akcja zdarzenia nie pasowała.",
+      "bot": "Nadawcą był bot.",
+      "ignored_login": "Nadawca odpowiadał wykluczonemu podłączonemu kontu.",
+      "author": "Powiązanie autora zostało wykluczone przez filtr autorów.",
+      "draft": "Pull request został otwarty jako draft.",
+      "branch": "Gałąź nie pasowała.",
+      "mention": "Komentarz nie zawierał wymaganej wzmianki.",
+      "conclusion": "Wynik workflow nie pasował.",
+      "not_branch": "Push usuwał gałąź lub nie dotyczył gałęzi."
+    }
   },
   "portals": {
     "backToServices": "Wróć do usług",
@@ -9187,7 +9204,18 @@
     "installationIdLabel": "ID instalacji",
     "mailLabelFilter": "ID etykiety Gmail",
     "mailFolderFilter": "Folder skrzynki",
-    "sharedMailboxFilter": "Skrzynka współdzielona"
+    "sharedMailboxFilter": "Skrzynka współdzielona",
+    "githubAuthorsLabel": "Czyje zdarzenia mogą uruchomić rutynę",
+    "githubAuthors": {
+      "members": "Członkowie repozytorium (domyślnie)",
+      "contributors": "Członkowie i contributorzy",
+      "anyone": "Każdy"
+    },
+    "githubAuthorsHint": {
+      "members": "OWNER, MEMBER i COLLABORATOR. Zewnętrzni contributorzy są wykluczeni. Boty i podłączone konto nadal są wykluczone.",
+      "contributors": "OWNER, MEMBER, COLLABORATOR i CONTRIBUTOR. Osoby wnoszące pierwszy wkład są wykluczone. Boty i podłączone konto nadal są wykluczone.",
+      "anyone": "Wszystkie powiązania autorów, także osoby wnoszące pierwszy wkład i bez wcześniejszego wkładu. Boty i podłączone konto nadal są wykluczone."
+    }
   },
   "agents": {
     "accentColour": "Kolor akcentu",
