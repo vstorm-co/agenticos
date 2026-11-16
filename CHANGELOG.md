@@ -293,6 +293,8 @@ Two things are versioned separately from this file and worth knowing about:
 - **Favicons for ordinary web links.** Unknown HTTP(S) sites use a hostname-only, credential-free icon proxy even without an MCP connection, with a globe if unavailable. Model-supplied links never make the reader’s browser contact the target site to load an icon. Inert transcript views make no remote icon requests, and a missing icon on one site does not suppress another site's icon.
 - Unify Vault keys and personal/organization connected accounts in one table,
   preserving per-entry authority and removing separate empty cards/count strips.
+- Show Google and Microsoft services separately in the account picker, with each
+  product's logo and only that product preselected for consent.
 - Restore wheel scrolling in resource-sharing member/group pickers inside modals,
   bound the list to the available viewport and correct project access descriptions.
 - Keep the Skill editor frame mounted across skeleton, metadata and module loading

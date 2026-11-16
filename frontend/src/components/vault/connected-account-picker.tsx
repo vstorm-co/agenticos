@@ -15,10 +15,33 @@ import {
   type AccountOwner,
   type IntegrationProvider,
 } from "@/hooks/use-connected-accounts";
-import { DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import type { BrandName } from "@/components/icons/brand-icon";
+import type { AccountSetupTarget } from "./connected-account-setup";
 import { ProviderIcon } from "./provider-icon";
 
-/** Choose ownership once, then a provider, rather than duplicating every service. */
+const PRODUCT_CHOICES: Readonly<
+  Partial<Record<IntegrationProvider, readonly { id: string; brand: BrandName }[]>>
+> = {
+  google: [
+    { id: "gmail", brand: "gmail" },
+    { id: "google_calendar", brand: "googlecalendar" },
+    { id: "google_drive", brand: "gdrive" },
+    { id: "google_docs", brand: "gdocs" },
+    { id: "google_sheets", brand: "gsheets" },
+    { id: "google_slides", brand: "gslides" },
+  ],
+  microsoft: [
+    { id: "outlook_mail", brand: "outlook" },
+    { id: "outlook_calendar", brand: "outlookcalendar" },
+    { id: "microsoft_files", brand: "onedrive" },
+    { id: "excel", brand: "excel" },
+    { id: "word", brand: "word" },
+    { id: "teams", brand: "microsoftteams" },
+  ],
+};
+
+/** Start with the service people recognize, then request its provider's consent. */
 export function ConnectedAccountPicker({
   allowOrganization = false,
   initialOwner = "personal",
@@ -27,15 +50,16 @@ export function ConnectedAccountPicker({
 }: {
   allowOrganization?: boolean;
   initialOwner?: AccountOwner;
-  onSelect: (target: { owner: AccountOwner; provider: IntegrationProvider }) => void;
+  onSelect: (target: Pick<AccountSetupTarget, "owner" | "provider" | "products">) => void;
   onClose: () => void;
 }) {
   const t = useTranslations("pages.vault.connectedAccounts");
+  const productName = useTranslations("capabilityGuide");
   const id = useId();
   const [owner, setOwner] = useState<AccountOwner>(allowOrganization ? initialOwner : "personal");
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className={DIALOG_FORM}>
+      <DialogContent className={`${DIALOG_FORM} ${DIALOG_COLUMN}`}>
         <DialogHeader>
           <DialogTitle>{t("picker.title")}</DialogTitle>
           <DialogDescription>{t("picker.description")}</DialogDescription>
@@ -59,29 +83,59 @@ export function ConnectedAccountPicker({
             ))}
           </fieldset>
         )}
-        <div className="grid gap-2 sm:grid-cols-2">
-          {INTEGRATION_PROVIDERS.map((provider) => (
-            <button
-              type="button"
-              key={provider}
-              aria-label={t(`setup.provider.${provider}`)}
-              onClick={() => onSelect({ owner, provider })}
-              className="hover:bg-muted/50 focus-visible:ring-ring flex items-center gap-3 rounded-xl border p-4 text-left transition-colors outline-none focus-visible:ring-2"
-            >
-              {provider === "imap" ? (
-                <Mail className="size-6 shrink-0" aria-hidden />
-              ) : (
-                <ProviderIcon provider={provider} brand={provider} className="size-6 shrink-0" />
-              )}
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium">{t(`setup.provider.${provider}`)}</span>
-                <span className="text-muted-foreground mt-0.5 block text-xs">
-                  {t(`picker.products.${provider}`)}
-                </span>
-              </span>
-              <ChevronRight className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-            </button>
-          ))}
+        <div className={DIALOG_BODY}>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {INTEGRATION_PROVIDERS.flatMap((provider) =>
+              (PRODUCT_CHOICES[provider] ?? [{ id: null, brand: provider }]).map((product) => {
+                const name = product.id
+                  ? productName(`${product.id}.name`)
+                  : t(`setup.provider.${provider}`);
+                return (
+                  <button
+                    type="button"
+                    key={product.id ?? provider}
+                    aria-labelledby={`${id}-${product.id ?? provider}-name`}
+                    aria-describedby={`${id}-${product.id ?? provider}-hint`}
+                    onClick={() =>
+                      onSelect({
+                        owner,
+                        provider,
+                        ...(product.id ? { products: [product.id] } : {}),
+                      })
+                    }
+                    className="hover:bg-muted/50 focus-visible:outline-ring flex min-h-14 items-center gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+                  >
+                    {provider === "imap" ? (
+                      <Mail className="size-6 shrink-0" aria-hidden />
+                    ) : (
+                      <ProviderIcon
+                        provider={provider}
+                        brand={product.brand}
+                        className="size-6 shrink-0"
+                      />
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span
+                        id={`${id}-${product.id ?? provider}-name`}
+                        className="block text-sm font-medium"
+                      >
+                        {name}
+                      </span>
+                      <span
+                        id={`${id}-${product.id ?? provider}-hint`}
+                        className="text-muted-foreground mt-0.5 block text-xs"
+                      >
+                        {product.id
+                          ? t(`setup.provider.${provider}`)
+                          : t(`picker.products.${provider}`)}
+                      </span>
+                    </span>
+                    <ChevronRight className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+                  </button>
+                );
+              }),
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

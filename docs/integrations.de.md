@@ -1,5 +1,5 @@
 ---
-source_sha: "77665492a2d2"
+source_sha: "290558fad076"
 ---
 
 # Integrierte Integrationen { #built-in-integrations }
@@ -23,6 +23,8 @@ Ein Widerruf sperrt folgende Starts, Rückrufe, Codeaustausche und Erneuerungen,
 ## Ein Konto einrichten { #set-up-an-account }
 
 Bei eigenen Zugangsdaten öffnet zuerst ein Administrator **Vault → Integrationen**, registriert die Anbieter-App und speichert einen organisationsweit sichtbaren OAuth-Client. Hier stehen Callback-URL, Konsole und Berechtigungen. „OAuth-Client gespeichert“ bestätigt nur die gespeicherte Konfiguration; Zustimmung oder App-Freigabe durch den Anbieter kann weiterhin nötig sein. Fehlende oder mehrere Clients blockieren die Kontoanmeldung mit einem Hinweis an den Administrator. Mitglieder wählen danach Apps und melden sich im Chat oder Profil an, ohne die Anbieter-Konsole einzurichten. Lesezugriff ist Standard; Schreibrechte sind optional.
+
+Wählen Sie unter **Konto verbinden** einen bestimmten Dienst, etwa Gmail, Google Calendar, Outlook mail oder Excel. Google- und Microsoft-Dienste haben jeweils einen eigenen Eintrag mit Logo. Das Zustimmungsformular wählt nur diesen Dienst vor; vor der Anmeldung können Sie weitere hinzufügen. Die Auswahl gewährt noch keinen Zugriff: Dazu müssen Sie dem Anbieter zustimmen.
 
 Google: Cloud-Projekt anlegen, die aufgeführten APIs aktivieren (`gcloud services enable` steht im Assistenten), Zustimmungsbildschirm konfigurieren und einen OAuth-Client **Web application** erstellen. Callback exakt kopieren und `google_oauth_app` speichern. Internal gilt für die Workspace-Organisation des Projekts. Bei External/Testing können Refresh-Tokens nach sieben Tagen ablaufen. Der normale API-Zugriff braucht weder einen AI-powered-agent-Client noch gehostete MCP-APIs.
 

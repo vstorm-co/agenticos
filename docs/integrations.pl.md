@@ -1,5 +1,5 @@
 ---
-source_sha: "77665492a2d2"
+source_sha: "290558fad076"
 ---
 
 # Wbudowane integracje { #built-in-integrations }
@@ -23,6 +23,8 @@ Unieważnienie blokuje kolejne rozpoczęcia, callbacki, wymiany kodu i odśwież
 ## Konfiguracja konta { #set-up-an-account }
 
 Przy własnych credentials najpierw administrator otwiera **Vault → Integracje**, konfiguruje aplikację dostawcy i zapisuje jednego klienta OAuth widocznego dla organizacji. Ten etap pokazuje dokładny callback, konsolę i uprawnienia. „Zapisano klienta OAuth” potwierdza tylko zapis konfiguracji; dostawca może nadal wymagać zgody lub zatwierdzenia aplikacji. Brak klienta albo kilka klientów blokuje logowanie i wskazuje potrzebę działania administratora. Potem użytkownik wybiera aplikacje i loguje się z czatu lub profilu, bez konfigurowania konsoli dostawcy. Domyślny jest odczyt; zapis wymaga jawnego wyboru.
+
+W **Podłącz konto** wybierz konkretną usługę, np. Gmail, Google Calendar, Outlook mail lub Excel. Usługi Google i Microsoft mają osobne pozycje i logo. Formularz zgody zaznacza tylko wybraną usługę; przed logowaniem możesz dodać inne. Sam wybór usługi nie daje dostępu — wymaga on zatwierdzenia ekranu zgody dostawcy.
 
 Google: utwórz projekt Cloud, włącz wskazane API (kreator podaje polecenie `gcloud services enable`), skonfiguruj ekran zgody i klienta OAuth typu **Web application**. Skopiuj callback i zapisz `google_oauth_app`. Internal służy organizacji Workspace będącej właścicielem projektu. Tokeny odświeżania aplikacji External w trybie Testing mogą wygasać po siedmiu dniach. Zwykła integracja API nie wymaga klienta AI-powered-agent ani API hostowanego MCP.
 

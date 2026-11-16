@@ -1,5 +1,5 @@
 ---
-source_sha: "77665492a2d2"
+source_sha: "290558fad076"
 ---
 
 # Integraciones incorporadas { #built-in-integrations }
@@ -23,6 +23,8 @@ Revocarla bloquea los siguientes inicios, callbacks, intercambios y renovaciones
 ## Configurar una cuenta { #set-up-an-account }
 
 Al usar credenciales propias, primero un administrador abre **Vault → Integraciones**, registra la aplicación del proveedor y guarda un único cliente OAuth visible para la organización. Este paso muestra callback, consola y permisos. «Cliente OAuth guardado» solo confirma la configuración almacenada; el proveedor puede exigir consentimiento o aprobación. La ausencia o duplicación de clientes bloquea el inicio de sesión e indica que debe intervenir un administrador. Después, los miembros eligen aplicaciones e inician sesión desde el chat o su perfil, sin configurar la consola del proveedor. La lectura es el valor predeterminado; la escritura requiere una elección explícita.
+
+En **Conectar cuenta**, elija un servicio concreto, como Gmail, Google Calendar, Outlook mail o Excel. Los servicios de Google y Microsoft tienen entradas y logotipos independientes. El formulario selecciona solo ese servicio; puede añadir otros antes de iniciar sesión. Elegir un servicio no concede acceso hasta que acepte el consentimiento del proveedor.
 
 Google: cree un proyecto Cloud, active las API indicadas (el asistente proporciona `gcloud services enable`), configure el consentimiento y un cliente OAuth **Web application**. Copie el callback exactamente y guarde `google_oauth_app`. Internal corresponde a la organización Workspace propietaria del proyecto. En External/Testing, los refresh tokens pueden caducar a los siete días. El acceso normal no necesita un cliente AI-powered-agent ni las API MCP alojadas.
 

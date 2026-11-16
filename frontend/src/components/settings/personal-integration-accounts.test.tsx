@@ -27,9 +27,9 @@ vi.mock("@/components/vault/connected-account-setup", () => ({
   ConnectedAccountSetup: ({
     target,
   }: {
-    target: { owner: string; provider: string; account?: ConnectedAccount };
+    target: { owner: string; provider: string; products?: string[]; account?: ConnectedAccount };
   }) => (
-    <div role="dialog" aria-label="Connect account">
+    <div role="dialog" aria-label="Connect account" data-products={target.products?.join(",")}>
       {target.owner}:{target.provider}:{target.account?.id}
     </div>
   ),
@@ -54,9 +54,13 @@ it("connects a personal provider account from the profile", async () => {
   expect(state.hook).toHaveBeenCalledWith("personal", { provider: "all" });
   expect(screen.getByText("No accounts connected yet.")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Add account" }));
-  await userEvent.click(screen.getByRole("button", { name: "Google" }));
+  await userEvent.click(screen.getByRole("button", { name: "Gmail" }));
   expect(screen.getByRole("dialog", { name: "Connect account" })).toHaveTextContent(
     "personal:google:",
+  );
+  expect(screen.getByRole("dialog", { name: "Connect account" })).toHaveAttribute(
+    "data-products",
+    "gmail",
   );
 });
 it("lists several accounts and repairs exactly the chosen one", async () => {

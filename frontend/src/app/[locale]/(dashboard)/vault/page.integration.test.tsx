@@ -55,7 +55,7 @@ vi.mock("@/components/vault/connected-account-setup", () => ({
     target,
     onClose,
   }: {
-    target: { owner: string; provider: string; account?: ConnectedAccount };
+    target: { owner: string; provider: string; products?: string[]; account?: ConnectedAccount };
     onClose: () => void;
   }) => (
     <div
@@ -63,6 +63,7 @@ vi.mock("@/components/vault/connected-account-setup", () => ({
       aria-label="Account setup"
       data-owner={target.owner}
       data-provider={target.provider}
+      data-products={target.products?.join(",")}
       data-account={target.account?.id}
     >
       <button onClick={onClose}>Close setup</button>
@@ -136,7 +137,7 @@ describe("vault inventory", () => {
     render(<VaultPage />);
     await userEvent.click(screen.getByRole("button", { name: "Connect account" }));
     await userEvent.click(screen.getByRole("radio", { name: "My account" }));
-    await userEvent.click(screen.getByRole("button", { name: "Google" }));
+    await userEvent.click(screen.getByRole("button", { name: "Gmail" }));
     expect(screen.getByRole("dialog", { name: "Account setup" })).toHaveAttribute(
       "data-owner",
       "personal",
@@ -144,6 +145,10 @@ describe("vault inventory", () => {
     expect(screen.getByRole("dialog", { name: "Account setup" })).toHaveAttribute(
       "data-provider",
       "google",
+    );
+    expect(screen.getByRole("dialog", { name: "Account setup" })).toHaveAttribute(
+      "data-products",
+      "gmail",
     );
   });
   it("requires confirmation before disconnecting the selected account", async () => {
