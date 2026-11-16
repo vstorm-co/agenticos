@@ -55,6 +55,10 @@ _READ_ONLY = (
     "and what it carries came from outside, so nothing from it is saved as a note. "
     "Mention in your answer anything worth remembering instead."
 )
+_ERASED_DELETE = (
+    "Nothing was removed: this memory was erased after this conversation began, so a note "
+    "of that name was written since and is not the one this conversation knows."
+)
 _ERASED = (
     "Nothing was saved: this memory was erased after this conversation began, so what "
     "the conversation holds about it must not be written back. Do not try again."
@@ -279,9 +283,16 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         if isinstance(scope, str):
             return scope
         organization_id, agent_id, owner_key = scope
-        removed = await memory_store.delete_file(
-            organization_id=organization_id, agent_id=agent_id, owner_key=owner_key, name=name
-        )
+        try:
+            removed = await memory_store.delete_file(
+                organization_id=organization_id,
+                agent_id=agent_id,
+                owner_key=owner_key,
+                name=name,
+                run_id=ctx.deps.run_id,
+            )
+        except memory_store.ErasedDuringRun:
+            return _ERASED_DELETE
         if not removed:
             return f"No note named {name!r} to forget."
         return f"Forgot note {name!r}."

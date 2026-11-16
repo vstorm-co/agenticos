@@ -255,9 +255,19 @@ async def edit_file(
         return True
 
 
-async def delete_file(*, organization_id: UUID, agent_id: UUID, owner_key: str, name: str) -> bool:
-    """Remove a note. False when there is no such name."""
+async def delete_file(
+    *, organization_id: UUID, agent_id: UUID, owner_key: str, name: str, run_id: UUID | None
+) -> bool:
+    """Remove a note. False when there is no such name.
+
+    Raises:
+        ErasedDuringRun: The store was erased after `run_id` started, so a note of this
+            name is one written since, which the run never read.
+    """
     async with get_db_context() as db:
+        if not await person_still_exists(db, owner_key):
+            return False
+        await refuse_if_erased_during_run(db, owner_key=owner_key, agent_id=agent_id, run_id=run_id)
         row = await memory_repo.get_by_name(
             db,
             organization_id=organization_id,

@@ -559,3 +559,65 @@ async def test_a_lookup_rolled_back_is_asked_again_on_the_same_connection(
         await connection.rollback()
 
         assert await connection.scalar(snapshot) is not None
+
+
+async def test_a_deletion_after_forget_me_removes_nothing_and_says_why(db: AsyncSession) -> None:
+    user, org, agent, run = await _world(db)
+    await _forget(db, user, org)
+    await db.commit()
+    later = AgentRun(
+        organization_id=org.id,
+        agent_id=agent.id,
+        user_id=user.id,
+        started_at=datetime.now(UTC) + timedelta(minutes=1),
+    )
+    db.add(later)
+    await db.flush()
+    tools = MemoryToolset()
+    assert await tools.write_memory(_ctx(user, org, agent, later), "prefs", "New") == (
+        "Saved note 'prefs'."
+    )
+
+    said = await tools.delete_memory(_ctx(user, org, agent, run), "prefs")
+
+    assert "erased after this conversation began" in said
+    assert await _notes(db, person_owner_key(user.id)) == 1
+
+
+async def test_forget_me_clears_what_daily_briefings_kept(db: AsyncSession) -> None:
+    from app.db.models.suggestion import Suggestion, SuggestionKind
+
+    user, org, _, _ = await _world(db)
+    member = await db.scalar(
+        select(OrganizationMember).where(
+            OrganizationMember.organization_id == org.id, OrganizationMember.user_id == user.id
+        )
+    )
+    assert member is not None
+    member.personal_starters = ["Plan my week around the sick leave"]
+    member.personal_starters_at = datetime.now(UTC)
+    for kind in SuggestionKind:
+        db.add(
+            Suggestion(
+                organization_id=org.id,
+                user_id=user.id,
+                kind=kind.value,
+                title=f"About {kind.value}",
+                payload={"prompt": "Remind me about the clinic"},
+                dedupe_key=kind.value,
+            )
+        )
+    await db.flush()
+
+    await _forget(db, user, org)
+
+    await db.refresh(member)
+    assert member.personal_starters is None and member.personal_starters_at is None
+    kept = (
+        await db.scalars(
+            select(Suggestion.kind).where(
+                Suggestion.organization_id == org.id, Suggestion.user_id == user.id
+            )
+        )
+    ).all()
+    assert kept == [SuggestionKind.FINDING.value]
