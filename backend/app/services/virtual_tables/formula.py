@@ -237,12 +237,13 @@ def _takes(fewest: int, most: int | None) -> str:
     return f"{fewest} to {most} values"
 
 
-def _check(node: ast.AST, depth: int = 0) -> None:
-    """Refuse anything a formula may not contain."""
+def _check(node: ast.AST, depth: int = 0, *, counted: bool = True) -> None:
+    """Refuse anything a formula may not contain; with `counted`, a call given the wrong
+    number of values too."""
     if depth > MAX_DEPTH:
         raise FormulaProblem("The formula nests too deeply", "too_deep")
     if isinstance(node, ast.Expression):
-        _check(node.body, depth + 1)
+        _check(node.body, depth + 1, counted=counted)
     elif isinstance(node, ast.Constant):
         if not isinstance(node.value, int | float | str | bool):
             raise FormulaProblem("A formula holds numbers, text and true or false", "constant")
@@ -256,20 +257,20 @@ def _check(node: ast.AST, depth: int = 0) -> None:
     elif isinstance(node, ast.BinOp):
         if type(node.op) not in _ARITHMETIC:
             raise FormulaProblem("A formula calculates with + - * / and % only", "arithmetic")
-        _check(node.left, depth + 1)
-        _check(node.right, depth + 1)
+        _check(node.left, depth + 1, counted=counted)
+        _check(node.right, depth + 1, counted=counted)
     elif isinstance(node, ast.UnaryOp):
         if not isinstance(node.op, ast.USub | ast.UAdd | ast.Not):
             raise FormulaProblem("That operator is not one a formula uses", "operator")
-        _check(node.operand, depth + 1)
+        _check(node.operand, depth + 1, counted=counted)
     elif isinstance(node, ast.BoolOp):
         for value in node.values:
-            _check(value, depth + 1)
+            _check(value, depth + 1, counted=counted)
     elif isinstance(node, ast.Compare):
         if any(type(op) not in _COMPARISONS for op in node.ops):
             raise FormulaProblem("A formula compares with = <> < <= > >= only", "comparison")
         for part in (node.left, *node.comparators):
-            _check(part, depth + 1)
+            _check(part, depth + 1, counted=counted)
     elif isinstance(node, ast.Call):
         name = node.func.id.upper() if isinstance(node.func, ast.Name) else None
         if name is None or name not in FUNCTIONS or node.keywords:
@@ -278,7 +279,7 @@ def _check(node: ast.AST, depth: int = 0) -> None:
                 f"A formula calls only these functions: {known}", "function", functions=known
             )
         fewest, most = ARITY[name]
-        if len(node.args) < fewest or (most is not None and len(node.args) > most):
+        if counted and (len(node.args) < fewest or (most is not None and len(node.args) > most)):
             # A decimal comma inside a call reads as one more value - `IF({Price} > 0,5, ...)`
             # would otherwise save as a call nothing can work out.
             kind = "exact" if fewest == most else "range" if most is not None else "at_least"
@@ -292,7 +293,7 @@ def _check(node: ast.AST, depth: int = 0) -> None:
                 most=fewest if most is None else most,
             )
         for arg in node.args:
-            _check(arg, depth + 1)
+            _check(arg, depth + 1, counted=counted)
     elif isinstance(node, ast.Tuple):
         # `{Price} * 1,23` reads as two values: the comma separates a function's
         # arguments, so it cannot also be a decimal separator.
@@ -304,9 +305,15 @@ def _check(node: ast.AST, depth: int = 0) -> None:
         raise FormulaProblem("That is not something a formula can contain", "unsupported")
 
 
-def check_formula(formula: str, column: ColumnDef, columns: Sequence[ColumnDef]) -> None:
+def check_formula(
+    formula: str, column: ColumnDef, columns: Sequence[ColumnDef], *, counted: bool = True
+) -> None:
     """Whether `formula` is one `column` may hold: it parses, contains nothing it
     may not, and names live columns of the table other than formulas.
+
+    `counted` also refuses a call given the wrong number of values. A formula saved
+    before that rule was enforced may hold one, so a schema change checks it only on a
+    formula the change writes - one it carries over unchanged keeps working.
 
     Raises:
         FormulaProblem: Saying what is wrong, for the person writing it.
@@ -332,7 +339,7 @@ def check_formula(formula: str, column: ColumnDef, columns: Sequence[ColumnDef])
                 label=label,
                 type=target.type,
             )
-    _check(_parse(formula, named))
+    _check(_parse(formula, named), counted=counted)
 
 
 def _evaluate(node: ast.AST, values: Sequence[Value]) -> Value:
