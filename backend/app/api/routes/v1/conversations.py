@@ -57,6 +57,7 @@ from app.schemas.room_submission import (
     RoomAgentRequestRead,
     RoomMessageCreate,
     RoomMessageRead,
+    RoomThreadRead,
 )
 from app.schemas.visual import VisualPublish, VisualPublished
 from app.schemas.workspace import (
@@ -91,6 +92,31 @@ async def list_room_requests(
 ) -> Any:
     """The durable queue, and the current reader's right to post to this room."""
     return await service.list_for_room(ctx, conversation_id, skip=skip, limit=limit)
+
+
+@router.get("/{conversation_id}/room-threads/{root_message_id}", response_model=RoomThreadRead)
+async def read_room_thread(
+    conversation_id: UUID,
+    root_message_id: UUID,
+    service: RoomSubmissionSvc,
+    ctx: Auth,
+    limit: int = Query(50, ge=1, le=100),
+    latest: bool = True,
+    before: UUID | None = None,
+) -> Any:
+    """Read the root separately from replies, oldest first within the selected page.
+
+    `latest=true` reads the newest page. `before` names an earlier-page boundary
+    in this same thread. Opening a thread neither posts nor requests an agent.
+    """
+    return await service.thread(
+        ctx,
+        conversation_id,
+        root_message_id,
+        limit=limit,
+        latest=latest,
+        before=before,
+    )
 
 
 @router.post(
@@ -564,12 +590,20 @@ async def list_messages(
     limit: int = Query(100, ge=1, le=500),
     latest: bool = False,
     before: UUID | None = None,
+    top_level_only: bool = Query(
+        default=True,
+        description="Exclude project-room thread replies unless set to false",
+    ),
 ) -> Any:
     """List messages in a conversation, always scoped to the caller.
 
     `latest=true` selects the newest page, still returned chronologically.
     `before` selects messages older than this conversation's named message;
     combine both to page backwards without concurrent appends shifting offsets.
+
+    `top_level_only` defaults to true so thread replies stay out of a project's
+    main transcript. Set it to false to include them; thread panels use the
+    scoped `room-threads/{root_message_id}` read instead.
 
     Same reasoning as `get_conversation` above: cross-user reads belong to
     `/admin/conversations`, not to a column on the user row.
@@ -585,6 +619,7 @@ async def list_messages(
         limit=limit,
         latest=latest,
         before=before,
+        top_level_only=top_level_only,
         include_tool_calls=True,
         organization_id=active_org.id,
         user_id=current_user.id,

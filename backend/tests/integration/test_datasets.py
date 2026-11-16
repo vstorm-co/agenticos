@@ -20,9 +20,9 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, delete, func, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -111,7 +111,7 @@ async def _owner(db) -> AuthContext:
 
 
 async def _rated_down_turn(
-    db, ctx: AuthContext, *, comment: str | None = "Wrong refund window"
+    db, ctx: AuthContext, *, comment: str | None = "Wrong refund window", blank_parent: bool = False
 ) -> tuple[AgentRun, Message]:
     """A conversation with an earlier turn, then a question and an answer rated down."""
     agent = Agent(
@@ -147,6 +147,8 @@ async def _rated_down_turn(
         ("user", "How long do I have to return it?", run.id),
         ("assistant", "You have 90 days.", run.id),
     ]
+    if blank_parent:
+        turns.insert(2, ("assistant", " \t ", None))
     messages = []
     for role, content, run_id in turns:
         message = Message(
@@ -625,6 +627,219 @@ async def test_a_question_added_without_asking_for_its_history_keeps_none(db) ->
 
     assert (case.input, case.history) == ("How long do I have to return it?", [])
     assert (case.counter_example, case.source_run_id) == ("You have 90 days.", run.id)
+
+
+async def _case_turn(
+    db: AsyncSession,
+    conversation_id: uuid.UUID,
+    role: str,
+    content: str,
+    *,
+    root_id: uuid.UUID | None = None,
+    run_id: uuid.UUID | None = None,
+) -> Message:
+    message = Message(
+        id=uuid.uuid4(),
+        conversation_id=conversation_id,
+        role=role,
+        content=content,
+        thread_root_message_id=root_id,
+        run_id=run_id,
+    )
+    db.add(message)
+    await db.flush()
+    return message
+
+
+@pytest.mark.parametrize("root_role", [None, "user", "assistant"])
+@pytest.mark.parametrize("with_history", [False, True])
+async def test_a_dataset_case_keeps_its_discussion_when_room_turns_interleave(
+    db: AsyncSession, root_role: str | None, with_history: bool
+) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="scoped room cases"))
+    original_run, original_answer = await _rated_down_turn(db, ctx, blank_parent=True)
+    room = await db.get(Conversation, original_answer.conversation_id)
+    assert room is not None
+    project = await project_repo.create(
+        db,
+        organization_id=ctx.organization_id,
+        owner_user_id=ctx.user_id,
+        name="Room cases",
+        description="",
+        instructions="",
+        default_agent_id=None,
+        backend="state",
+        visibility="org",
+    )
+    room.project_id = project.id
+    original_question = await db.scalar(
+        select(Message).where(Message.run_id == original_run.id, Message.role == "user")
+    )
+    assert original_question is not None
+    root = original_question if root_role == "user" else original_answer
+    root_id = None if root_role is None else root.id
+    selected_run, sibling_run = [
+        AgentRun(
+            id=uuid.uuid4(),
+            organization_id=ctx.organization_id,
+            agent_id=original_run.agent_id,
+            user_id=ctx.user_id,
+            conversation_id=room.id,
+            status="completed",
+            started_at=_START,
+        )
+        for _ in range(2)
+    ]
+    db.add_all([selected_run, sibling_run])
+    await db.flush()
+    sibling = await _case_turn(db, room.id, "user", "Sibling anchor")
+    await _case_turn(db, room.id, "user", "Earlier selected question", root_id=root_id)
+    await _case_turn(db, room.id, "assistant", "Earlier selected answer", root_id=root_id)
+    await _case_turn(
+        db,
+        room.id,
+        "user",
+        "Question for this discussion?",
+        root_id=root_id,
+        run_id=selected_run.id,
+    )
+    await _case_turn(
+        db, room.id, "user", "Question for sibling?", root_id=sibling.id, run_id=sibling_run.id
+    )
+    if root_id is not None:
+        await _case_turn(db, room.id, "user", "Later main question", run_id=original_run.id)
+    first = await _case_turn(
+        db, room.id, "assistant", "First selected step.", root_id=root_id, run_id=selected_run.id
+    )
+    await _case_turn(
+        db, room.id, "assistant", "Sibling answer.", root_id=sibling.id, run_id=sibling_run.id
+    )
+    if root_id is not None:
+        await _case_turn(db, room.id, "assistant", "Later main answer.", run_id=original_run.id)
+    last = await _case_turn(
+        db, room.id, "assistant", "Final selected answer.", root_id=root_id, run_id=selected_run.id
+    )
+    await _case_turn(
+        db, room.id, "assistant", "Sibling tail.", root_id=sibling.id, run_id=sibling_run.id
+    )
+    if root_id is not None:
+        await _case_turn(db, room.id, "assistant", "Main tail.", run_id=original_run.id)
+    await _case_turn(db, room.id, "user", "Next selected question", root_id=root_id)
+
+    case = await service.add_from_message(
+        ctx,
+        dataset.id,
+        DatasetCaseFromMessage(
+            message_id=first.id, answer_as="reference_answer", with_history=with_history
+        ),
+    )
+
+    assert case.input == "Question for this discussion?"
+    assert case.reference_answer == "First selected step.\n\nFinal selected answer."
+    assert (case.source_run_id, case.source_conversation_id, case.source_message_id) == (
+        selected_run.id,
+        room.id,
+        last.id,
+    )
+    history = [
+        {"role": "user", "content": "Hi, I bought a kettle"},
+        {"role": "assistant", "content": "Hello! How can I help?"},
+        {"role": "user", "content": "How long do I have to return it?"},
+    ]
+    if root_role != "user":
+        history.append({"role": "assistant", "content": "You have 90 days."})
+    if root_id is None:
+        history.append({"role": "user", "content": "Sibling anchor"})
+    history.extend(
+        [
+            {"role": "user", "content": "Earlier selected question"},
+            {"role": "assistant", "content": "Earlier selected answer"},
+        ]
+    )
+    assert [turn.model_dump() for turn in case.history] == (history if with_history else [])
+
+
+async def test_a_long_thread_case_retains_its_root_within_the_history_bound(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(dataset_service, "MAX_HISTORY_TURNS", 3)
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="bounded thread case"))
+    _, root = await _rated_down_turn(db, ctx)
+    for role, content in [
+        ("user", "Old thread question"),
+        ("assistant", "Old thread answer"),
+        ("user", "Recent thread question"),
+        ("assistant", "Recent thread answer"),
+        ("user", "Current question"),
+    ]:
+        await _case_turn(db, root.conversation_id, role, content, root_id=root.id)
+    answer = await _case_turn(
+        db, root.conversation_id, "assistant", "Current answer", root_id=root.id
+    )
+
+    case = await service.add_from_message(
+        ctx, dataset.id, DatasetCaseFromMessage(message_id=answer.id, with_history=True)
+    )
+
+    assert case.input == "Current question"
+    assert [turn.model_dump() for turn in case.history] == [
+        {"role": "assistant", "content": "You have 90 days."},
+        {"role": "user", "content": "Recent thread question"},
+        {"role": "assistant", "content": "Recent thread answer"},
+    ]
+
+
+@pytest.mark.security
+async def test_a_thread_root_is_context_and_cannot_supply_a_missing_case_question(
+    db: AsyncSession,
+) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="no thread question"))
+    run, _ = await _rated_down_turn(db, ctx)
+    root = await db.scalar(select(Message).where(Message.run_id == run.id, Message.role == "user"))
+    assert root is not None
+    answer = await _case_turn(
+        db, root.conversation_id, "assistant", "No scoped question", root_id=root.id
+    )
+
+    with pytest.raises(BadRequestError, match="no question before it"):
+        await service.add_from_message(
+            ctx, dataset.id, DatasetCaseFromMessage(message_id=answer.id, with_history=True)
+        )
+
+
+@pytest.mark.security
+async def test_a_thread_case_refuses_a_root_deleted_after_its_answer_was_read(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="deleted thread"))
+    _, root = await _rated_down_turn(db, ctx)
+    await _case_turn(db, root.conversation_id, "user", "Thread question", root_id=root.id)
+    answer = await _case_turn(
+        db, root.conversation_id, "assistant", "Thread answer", root_id=root.id
+    )
+    read_message = dataset_service.conversation_repo.get_message_by_id
+
+    async def read_then_delete_root(session: AsyncSession, message_id: uuid.UUID) -> Message | None:
+        loaded = await read_message(session, message_id)
+        await session.execute(delete(Message).where(Message.id == root.id))
+        return loaded
+
+    monkeypatch.setattr(
+        dataset_service.conversation_repo, "get_message_by_id", read_then_delete_root
+    )
+    with pytest.raises(NotFoundError, match="Message not found"):
+        await service.add_from_message(
+            ctx, dataset.id, DatasetCaseFromMessage(message_id=answer.id, with_history=True)
+        )
+    assert (await service.list_cases(ctx, dataset.id)).items == []
 
 
 def _racing_on_the_lock(monkeypatch, service: DatasetService, ctx, dataset_id, message_id) -> None:

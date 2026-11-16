@@ -1,5 +1,5 @@
 ---
-source_sha: "3bce1ab7805a"
+source_sha: "c7784f62508b"
 ---
 
 # Skills { #skills }
@@ -241,21 +241,26 @@ propuesta fuera de estos límites se omite con una advertencia; sus archivos
 originales permanecen intactos. Un savepoint aísla la escritura para que una
 propuesta rechazada no impida guardar el estado y el coste del turno.
 
-### Skills aprendidos — una propuesta aprobada se convierte en un skill propio { #learned-skills-an-approved-proposal-becomes-a-skill-on-its-own }
+### Skills aprendidos — una propuesta aprobada actualiza el skill que nombra { #learned-skills-an-approved-proposal-becomes-a-skill-on-its-own }
 
-Aplicar una propuesta edita el skill que nombra. Cuando la propuesta aprobada
-*es* un skill nuevo — un error recurrente sin skill al que vincularlo — el
-aprendizaje automático de skills lo crea: `POST /v1/agents/{agent_id}/learned-skills`
-con el texto de la propuesta y su procedencia. El nuevo skill queda en la
-categoría `learned`, para que la lista muestre lo que el bucle enseñó a la
-organización, y la escritura se audita como `skill.learned` con la propuesta,
-la entrada del libro de registro y la clave del patrón que la motivaron.
+Aplicar una propuesta edita el skill que nombra. El aprendizaje automático de
+skills escribe después el texto aprobado en ese skill mediante
+`POST /v1/agents/{agent_id}/learned-skills`. La propuesta guardada aporta el
+skill destino, el texto y la procedencia. La petición sigue enviando `content`,
+que debe coincidir con el texto de la propuesta. El `name` y el `description`
+que envía quien llama están obsoletos y se ignoran.
 
-Aprender la misma propuesta dos veces no escribe nada la segunda vez, y un
-skill que alguien reescribió desde que se escribió la propuesta se rechaza en
-lugar de sobrescribirse. Un skill aprendido es a partir de ahí un skill
-ordinario: editable, versionado con el mismo incremento que cualquier edición,
-y deshecho con una edición nueva en lugar de una restauración.
+El aprendizaje solo actualiza un skill existente, así que la respuesta informa
+siempre `created` como `false`. Una propuesta sin skill destino, o que no está
+aplicada o fue revertida, devuelve 404. Un campo de la petición que no coincide
+con la propuesta guardada devuelve 409, igual que un skill que cambió desde que
+se escribió la propuesta. Ese skill se rechaza en lugar de sobrescribirse.
+
+Cada escritura se audita como `skill.learned` con la propuesta, la entrada del
+libro de registro y la clave del patrón que la motivaron. Aprender la misma
+propuesta dos veces no escribe nada la segunda vez. Un cambio aprendido es a
+partir de ahí una edición ordinaria: versionado con el mismo incremento que
+cualquier edición, y deshecho con una edición nueva en lugar de una restauración.
 
 Un cambio registra la versión del skill para la que se escribió: en un run, la
 versión que ese run recibió, y un turno posterior que reescribe el cambio

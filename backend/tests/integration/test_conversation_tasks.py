@@ -100,6 +100,14 @@ async def seed(db: AsyncSession) -> Seed:
         provider="test",
         started_at=datetime.now(UTC),
     )
+    await conversation_repo.create_message(
+        db,
+        conversation_id=topic.id,
+        role="user",
+        content="Work in the source conversation",
+        run_id=source.id,
+        author_user_id=user.id,
+    )
     return Seed(
         AuthContext(user_id=user.id, organization_id=org.id, role="owner"), source, topic, agent
     )
@@ -373,6 +381,8 @@ async def test_worker_keeps_source_free_and_delivers_the_result_once_with_fresh_
         conversation_task_id: UUID,
         result_only: bool,
         model_profile_id: UUID | None,
+        thread_root_message_id: UUID | None,
+        check_model_request: Callable[[AsyncSession], Awaitable[None]] | None,
     ) -> tuple[str, AgentRun]:
         assert said == "" and parks_questions and local is None
         run = await run_repo.create_run(
@@ -389,6 +399,8 @@ async def test_worker_keeps_source_free_and_delivers_the_result_once_with_fresh_
         )
         await on_run_open(run)
         await self.db.commit()
+        if check_model_request is not None:
+            await check_model_request(self.db)
         if result_only:
             assert ctx.fired_as_creator == "event" and not acts_for_sender
             assert "while the task works" in str(message_history)
@@ -406,6 +418,7 @@ async def test_worker_keeps_source_free_and_delivers_the_result_once_with_fresh_
             content=answer,
             agent_id=agent_id,
             run_id=run.id,
+            thread_root_message_id=thread_root_message_id,
         )
         run.status = "completed"
         run.cost_usd = Decimal("0.01")

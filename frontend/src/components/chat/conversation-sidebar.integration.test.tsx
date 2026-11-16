@@ -195,7 +195,7 @@ describe("a sidebar that leaves while refreshing", () => {
     let refuseFirst: (reason: unknown) => void = () => {};
     let messagesRead = 0;
     vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
-      if (path === "/conversations/c-reopen/messages?latest=true&limit=101") {
+      if (path === "/conversations/c-reopen/messages?latest=true&limit=101&top_level_only=true") {
         messagesRead += 1;
         if (messagesRead === 1)
           return new Promise((_, reject) => {
@@ -232,7 +232,8 @@ describe("a sidebar that leaves while refreshing", () => {
     });
     const ordinaryGet = vi.mocked(apiClient.get).getMockImplementation();
     vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
-      if (path === "/conversations/c-late/messages?latest=true&limit=101") return transcript;
+      if (path === "/conversations/c-late/messages?latest=true&limit=101&top_level_only=true")
+        return transcript;
       return ordinaryGet?.(path, options);
     });
     const invalidate = vi.spyOn(invalidation, "invalidateSoon").mockReturnValue(pending);
@@ -241,7 +242,7 @@ describe("a sidebar that leaves while refreshing", () => {
       await waitFor(() => expect(invalidate).toHaveBeenCalled());
       await waitFor(() =>
         expect(vi.mocked(apiClient.get).mock.calls.map(([path]) => path)).toContain(
-          "/conversations/c-late/messages?latest=true&limit=101",
+          "/conversations/c-late/messages?latest=true&limit=101&top_level_only=true",
         ),
       );
       unmount();

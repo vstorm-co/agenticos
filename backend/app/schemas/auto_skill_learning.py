@@ -1,11 +1,9 @@
 """Schemas for automatic skill learning (feature #9).
 
-The request carries one human-approved skill-target proposal from the
-failure-learning loop (#32) — the proposal's own fields, not a reference the
-server can resolve yet: #32's proposal table is not on `t3`, so until it
-lands the caller (the console, or #32's apply step once wired) supplies the
-approved text and its provenance. The service never mines failures and never
-proposes: it only materialises what a person already approved.
+The request identifies a proposal from the failure-learning loop (#32). The
+service resolves that row within the organization and agent, and verifies the
+submitted text and provenance against the applied proposal before learning.
+The service never mines failures or proposes changes.
 """
 
 from uuid import UUID
@@ -18,24 +16,31 @@ from app.schemas.base import BaseSchema
 class LearnSkillCreate(BaseSchema):
     """Learn one approved skill-target proposal into the skill catalog.
 
-    `skill_id` names the skill the proposal edits, or is absent for a
-    proposal that *is* a new skill — the case #32 cannot express, because its
-    create step requires a skill id for a skill target. `name` and
-    `description` are the new skill's catalog fields; when they are absent
-    the service derives them from `pattern_key` and `rationale` (see
-    `AutoSkillLearningService`), because a #32 proposal carries neither.
-    `base_content_sha256` is the SHA-256 #32 recorded when the proposal was
-    written; it is the guard that refuses to learn over a skill somebody has
-    since rewritten.
+    The proposal row supplies the target and audit provenance. Optional
+    caller-supplied provenance must match that row; omitted values are read
+    from it. `pattern_key` is resolved from the linked ledger entry. `name`
+    and `description` remain accepted for compatibility and do not affect
+    learning. `base_content_sha256` guards against overwriting a skill that
+    changed after the proposal was written.
     """
 
     proposal_id: UUID = Field(description="The #32 proposal this learning comes from")
     skill_id: UUID | None = Field(
         default=None,
-        description="The skill the proposal edits, or absent when the proposal is a new skill",
+        description="Optional expected target skill; must match the stored proposal when supplied",
     )
-    name: str | None = Field(default=None, max_length=64)
-    description: str | None = Field(default=None, max_length=500)
+    name: str | None = Field(
+        default=None,
+        max_length=64,
+        deprecated=True,
+        description="Deprecated: accepted and ignored. Learning never renames the target skill.",
+    )
+    description: str | None = Field(
+        default=None,
+        max_length=500,
+        deprecated=True,
+        description="Deprecated: accepted and ignored. Learning never changes the target skill's description.",
+    )
     content: str = Field(
         min_length=1,
         description="The learned text — the proposal's `new_text`, in full",
@@ -49,7 +54,7 @@ class LearnSkillCreate(BaseSchema):
     pattern_key: str | None = Field(
         default=None,
         max_length=120,
-        description="The mined pattern key, e.g. `failed:ModelHTTPError:400`",
+        description="Legacy input; audit provenance uses the linked ledger entry",
     )
     base_content_sha256: str | None = Field(
         default=None,
@@ -66,7 +71,9 @@ class LearnedSkillRead(BaseSchema):
     version: int = Field(description="The catalog version after learning — see `Skill.version`")
     content_sha256: str = Field(description="SHA-256 of the learned content, as stored")
     created: bool = Field(
-        description="True when learning created the skill rather than updating one"
+        ...,
+        deprecated=True,
+        description="Deprecated: always false. Learning updates an existing skill and never creates one.",
     )
     already_learned: bool = Field(
         description=(

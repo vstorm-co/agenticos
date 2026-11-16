@@ -23,7 +23,7 @@ from app.schemas.virtual_table import ColumnDef, RowPolicy, RowPolicyUpdate, Tab
 from app.services.virtual_tables import row_policy
 from app.services.virtual_tables._base import Operations
 from app.services.virtual_tables.deadline import ReadDeadline
-from app.services.virtual_tables.exceptions import DeadlineReached
+from app.services.virtual_tables.exceptions import DeadlineReached, InvalidRowPolicyError
 from app.services.virtual_tables.row_policy import (
     bypasses_policy,
     may_edit_row,
@@ -50,7 +50,9 @@ TABLE_ID = UUID("00000000-0000-4000-8000-000000000016")
 
 ASSIGNEE_COL = ColumnDef(id=ASSIGNEE, label="Assignee", type="user")
 ASSIGNEES_COL = ColumnDef(id=ASSIGNEE, label="Assignees", type="multi_user")
-LINK_COL = ColumnDef(id=PROJECT_LINK, label="Project", type="link", link_table_id=PROJECTS_TABLE)
+PROJECT_LINK_DEF = ColumnDef(
+    id=PROJECT_LINK, label="Project", type="link", link_table_id=PROJECTS_TABLE
+)
 MEMBERS_COL = ColumnDef(id=MEMBERS, label="Members", type="multi_user")
 TEXT_COL = ColumnDef(id=UUID("00000000-0000-4000-8000-000000000017"), label="Title", type="text")
 ARCHIVED_COL = ColumnDef(
@@ -137,9 +139,13 @@ def test_parse_policy_reads_none_as_no_policy_and_none_rule_as_no_policy():
     assert parse_policy(POLICY.model_dump(mode="json")) == POLICY
 
 
-def test_parse_policy_reads_an_unvalidatable_document_as_no_policy():
-    assert parse_policy({"rule": "assignee"}) is None
-    assert parse_policy({"rule": "grants", "view_column_id": str(ASSIGNEE)}) is None
+@pytest.mark.parametrize(
+    "document",
+    [{"rule": "assignee"}, {"rule": "unexpected"}, {"rule": "none", "view_column_id": "invalid"}],
+)
+def test_parse_policy_refuses_an_unvalidatable_document(document):
+    with pytest.raises(InvalidRowPolicyError):
+        parse_policy(document)
 
 
 # -- the bypass ---------------------------------------------------------------
@@ -242,7 +248,7 @@ def test_a_policy_naming_a_gone_or_archived_or_wrong_typed_column_matches_nobody
 
 
 def test_view_widens_to_project_members_while_edit_stays_assignee_only():
-    columns = [ASSIGNEE_COL, LINK_COL]
+    columns = [ASSIGNEE_COL, PROJECT_LINK_DEF]
     values = {str(PROJECT_LINK): [str(PROJECT_A)]}
     assert (
         row_matches(values, PROJECT_POLICY, columns, MEMBER, kind="view", project_ids=[PROJECT_A])
@@ -358,9 +364,10 @@ async def test_a_bounded_project_lookup_refreshes_the_timeout_and_stops_on_expir
         events.append(("schema", None))
         return SimpleNamespace(columns=[MEMBERS_COL.model_dump(mode="json")])
 
-    async def records(session, *, table_id, organization_id, filters):
+    async def records(session, *, table_id, organization_id, filters, extra):
         assert session is db and table_id == PROJECTS_TABLE and organization_id == ORG
         assert len(filters) == 1 and filters[0].value == str(MEMBER)
+        assert extra is None
         events.append(("records", None))
         return [PROJECT_A]
 
@@ -374,7 +381,7 @@ async def test_a_bounded_project_lookup_refreshes_the_timeout_and_stops_on_expir
             db,
             _ctx(MEMBER),
             _table(PROJECT_POLICY),
-            [ASSIGNEE_COL, LINK_COL],
+            [ASSIGNEE_COL, PROJECT_LINK_DEF],
             deadline=deadline,
         )
 
@@ -392,8 +399,14 @@ async def test_a_bounded_project_lookup_refreshes_the_timeout_and_stops_on_expir
     ]
 
 
-async def test_the_project_lookup_honours_the_projects_table_own_policy(monkeypatch):
-    own_policy = RowPolicy(rule="assignee", view_column_id=ASSIGNEE, edit_column_id=ASSIGNEE)
+@pytest.mark.security
+@pytest.mark.parametrize("rule", ["assignee", "grants"])
+async def test_the_project_lookup_honours_the_projects_table_own_policy(monkeypatch, rule):
+    own_policy = (
+        RowPolicy(rule="assignee", view_column_id=ASSIGNEE, edit_column_id=ASSIGNEE)
+        if rule == "assignee"
+        else RowPolicy(rule="grants")
+    )
     projects = SimpleNamespace(
         id=PROJECTS_TABLE,
         archived_at=None,
@@ -419,7 +432,15 @@ async def test_the_project_lookup_honours_the_projects_table_own_policy(monkeypa
 
     assert await visible_project_ids(SimpleNamespace(), _ctx(MEMBER), PROJECT_POLICY) == [PROJECT_A]
     filters = listed.await_args.kwargs["filters"]
-    assert [clause.column_id for clause in filters] == [MEMBERS, ASSIGNEE]
+    assert [clause.column_id for clause in filters] == [MEMBERS]
+    extra = listed.await_args.kwargs["extra"]
+    assert "resource_grants" in _sql(extra)
+    if rule == "assignee":
+        assert "->>" in _sql(extra)
+        assert str(ASSIGNEE) in extra.compile().params.values()
+    else:
+        assert "->>" not in _sql(extra)
+        assert str(ASSIGNEE) not in extra.compile().params.values()
 
 
 # -- one row, through the service helpers -------------------------------------
@@ -429,8 +450,13 @@ async def test_a_bypass_caller_and_a_table_without_a_policy_see_every_row():
     table = _table(None)
     assert await may_view_row(SimpleNamespace(), _ctx(MEMBER, "builder"), table, [], {}) is True
     assert (
-        await may_view_row(SimpleNamespace(), _ctx(OWNER, "member"), _table(POLICY), [], {}) is True
+        await may_view_row(
+            SimpleNamespace(), _ctx(OWNER, "member"), _table(POLICY), [ASSIGNEE_COL], {}
+        )
+        is True
     )
+    # Even an owner cannot bypass policy columns that can no longer be evaluated.
+    assert not await may_view_row(SimpleNamespace(), _ctx(OWNER), _table(POLICY), [], {})
     assert await may_edit_row(SimpleNamespace(), _ctx(MEMBER, "member"), table, [], {}) is True
 
 
@@ -510,12 +536,13 @@ async def test_a_multi_user_assignee_becomes_a_json_contains():
 async def test_the_project_half_is_an_or_over_the_callers_projects(monkeypatch):
     monkeypatch.setattr(row_policy, "visible_project_ids", AsyncMock(return_value=[PROJECT_A]))
     expression = await view_expression(
-        SimpleNamespace(), _ctx(MEMBER), _table(PROJECT_POLICY), [ASSIGNEE_COL, LINK_COL]
+        SimpleNamespace(), _ctx(MEMBER), _table(PROJECT_POLICY), [ASSIGNEE_COL, PROJECT_LINK_DEF]
     )
     assert expression is not None
     compiled = _sql(expression)
     assert " OR " in compiled
-    assert "?|" in compiled
+    assert "EXISTS" in compiled
+    assert "virtual_table_record_links" in compiled
     assert "@>" not in compiled
 
 
@@ -524,10 +551,46 @@ def test_policy_expression_builds_nothing_from_nothing():
     assert policy_expression(None, link_column_id=PROJECT_LINK, project_ids=[]) is None
 
 
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "link,value",
+    [
+        (PROJECT_LINK_DEF.model_copy(update={"link_limit": 1}), [str(PROJECT_A), str(PROJECT_A)]),
+        (PROJECT_LINK_DEF.model_copy(update={"archived": True}), [str(PROJECT_A)]),
+        (PROJECT_LINK_DEF.model_copy(update={"link_table_id": TABLE_ID}), [str(PROJECT_A)]),
+        (PROJECT_LINK_DEF.model_copy(update={"type": "text"}), [str(PROJECT_A)]),
+        (PROJECT_LINK_DEF, {"value": str(PROJECT_A)}),
+        (PROJECT_LINK_DEF, ["invalid", 3]),
+    ],
+)
+def test_quarantined_or_invalid_project_link_values_cannot_grant_read(link, value):
+    assert not row_matches(
+        {str(PROJECT_LINK): value},
+        PROJECT_POLICY,
+        [ASSIGNEE_COL, link],
+        MEMBER,
+        kind="view",
+        project_ids=[PROJECT_A],
+    )
+
+
+def test_project_membership_normalizes_uuid_spelling_like_the_backfill():
+    assert row_matches(
+        {str(PROJECT_LINK): ["invalid", PROJECT_A.hex]},
+        PROJECT_POLICY,
+        [ASSIGNEE_COL, PROJECT_LINK_DEF],
+        MEMBER,
+        kind="view",
+        project_ids=[PROJECT_A],
+    )
+
+
 def test_policy_expression_with_only_a_project_half_names_the_link():
     expression = policy_expression(None, link_column_id=PROJECT_LINK, project_ids=[PROJECT_A])
     assert expression is not None
-    assert "?|" in _sql(expression)
+    compiled = _sql(expression)
+    assert "EXISTS" in compiled
+    assert "virtual_table_record_links" in compiled
 
 
 @pytest.mark.security
@@ -581,7 +644,7 @@ from unittest.mock import MagicMock
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.schemas.virtual_table import (
     RecordBatchCreate,
     RecordCountQuery,
@@ -592,6 +655,7 @@ from app.schemas.virtual_table import (
     RecordUpdate,
     RecordUpsert,
 )
+from app.services.virtual_tables import record_access as record_access_module
 from app.services.virtual_tables import records as records_module
 from app.services.virtual_tables.exceptions import InvalidRecordError
 from app.services.virtual_tables.records import RecordOperations
@@ -608,6 +672,7 @@ LINK_COL = ColumnDef(
 def _row(values: dict, *, revision: int = 1, record_id: UUID | None = None):
     return SimpleNamespace(
         id=record_id or _uuid.uuid4(),
+        organization_id=ORG,
         table_id=TABLE_ID,
         external_id=None,
         schema_version=1,
@@ -636,7 +701,9 @@ def ops(monkeypatch):
     service = RecordOperations(db=MagicMock(spec=AsyncSession))
     ctx = _ctx(MEMBER, "member")
 
-    async def load(ctx, table_id, perm, *, lock=False, share=False, deadline=None):
+    async def load(
+        ctx, table_id, perm, *, lock=False, share=False, deadline=None, alternative_perm=None
+    ):
         return table
 
     async def columns(table):
@@ -651,11 +718,21 @@ def ops(monkeypatch):
     async def within_quota(*args, **kwargs):
         return None
 
+    async def canonical_baseline(db, *, record, column_ids):
+        return dict(record.values)
+
+    monkeypatch.setattr(records_module.relation_repo, "write_values", canonical_baseline)
+    monkeypatch.setattr(records_module.relation_repo, "definitions", AsyncMock(return_value=[]))
+    monkeypatch.setattr(records_module.relation_repo, "linked_ids", AsyncMock(return_value={}))
     monkeypatch.setattr(records_module, "source_for", source_for)
     monkeypatch.setattr(service, "_load_table", load)
     monkeypatch.setattr(service, "_columns", columns)
     monkeypatch.setattr(records_module, "run_once", passthrough)
     monkeypatch.setattr(records_module, "resolve_access", AsyncMock(return_value=True))
+    monkeypatch.setattr(record_access_module, "resolve_access", AsyncMock(return_value=True))
+    monkeypatch.setattr(
+        record_access_module.resource_grant_repo, "record_levels", AsyncMock(return_value={})
+    )
     monkeypatch.setattr(records_module, "principal_problems", AsyncMock(return_value=[]))
     monkeypatch.setattr(records_module.quotas, "enforce_record_size", within_quota)
     monkeypatch.setattr(records_module.quotas, "enforce_record_count", within_quota)
@@ -830,6 +907,36 @@ async def test_a_create_assigned_to_someone_else_is_refused(ops, monkeypatch):
     assert written.created is True
 
 
+@pytest.mark.security
+async def test_a_table_editor_without_a_row_grant_cannot_create_in_grants_mode(ops):
+    service, ctx, table = ops
+    table.row_policy = {"rule": "grants"}
+
+    with pytest.raises(AuthorizationError) as refused:
+        await service.create_record(ctx, table.id, RecordCreate(values={}))
+
+    assert refused.value.status_code == 403
+    assert refused.value.message == "You do not have permission to write this row"
+    assert refused.value.details == {"table_id": table.id}
+
+
+@pytest.mark.security
+async def test_a_grants_mode_batch_reports_the_table_editor_refusal(ops, monkeypatch):
+    service, ctx, table = ops
+    table.row_policy = {"rule": "grants"}
+    monkeypatch.setattr(
+        virtual_table_repo, "database_time", AsyncMock(return_value=datetime.now(UTC))
+    )
+
+    result = await service.create_records(
+        ctx, table.id, RecordBatchCreate(records=[RecordCreate(values={})])
+    )
+
+    assert result.created == 0
+    assert len(result.failed) == 1
+    assert result.failed[0].code == "AUTHORIZATION_ERROR"
+
+
 async def test_a_batch_reports_the_refused_row_and_writes_the_rest(ops, monkeypatch):
     service, ctx, table = ops
     monkeypatch.setattr(
@@ -908,8 +1015,10 @@ async def test_an_update_that_changes_nothing_on_a_visible_row_returns_it(ops, m
     assert written.created is False
 
 
+@pytest.mark.security
 async def test_an_upsert_refuses_both_branches_outside_visibility(ops, monkeypatch):
     service, ctx, table = ops
+    table.row_policy = {"rule": "grants"}
     monkeypatch.setattr(
         virtual_table_repo, "get_record_by_external_id", AsyncMock(return_value=None)
     )
@@ -996,7 +1105,7 @@ async def test_a_link_to_an_invisible_row_fails_like_a_missing_one(ops, monkeypa
         "fields": [
             {
                 "field": f"values.{LINK_COL.id}",
-                "message": f"No record {invisible_id} in the linked table",
+                "message": "No record is available in the linked table",
             }
         ]
     }
@@ -1093,6 +1202,21 @@ async def test_clearing_a_policy_stores_null(monkeypatch):
 
     stored = _tables.virtual_table_repo.update_table.await_args.kwargs["update_data"]
     assert stored == {"row_policy": None}
+
+
+async def test_an_authorized_editor_can_replace_an_invalid_stored_policy(monkeypatch):
+    damaged = _table(None)
+    damaged.row_policy = {"rule": "unexpected"}
+    ops = _table_ops(monkeypatch, table=damaged, columns=[ASSIGNEE_COL])
+
+    repaired = await ops.set_row_policy(
+        _ctx(OWNER),
+        TABLE_ID,
+        RowPolicyUpdate(rule="assignee", view_column_id=ASSIGNEE, edit_column_id=ASSIGNEE),
+    )
+
+    assert repaired.row_policy == POLICY
+    assert repaired.row_policy_valid is True
 
 
 async def test_setting_a_policy_on_a_board_table_is_refused(monkeypatch):

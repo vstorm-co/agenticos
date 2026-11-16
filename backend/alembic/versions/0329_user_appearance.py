@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0329_user_appearance"
-down_revision: str = "0325_merge_t3_rooms_v173"
+down_revision: str = "0328_tables_tenant_rls"
 branch_labels: None = None
 depends_on: None = None
 

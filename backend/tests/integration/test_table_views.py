@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import AlreadyExistsError, AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext
+from app.db.models.organization import OrganizationMember
 from app.db.models.resource_grant import GrantLevel
 from app.repositories import resource_grant_repo, table_view_repo
 from app.schemas.table_view import TableDisplay, TableViewConfig, TableViewCreate, TableViewUpdate
@@ -174,6 +175,8 @@ async def test_creating_a_view_needs_table_edit_not_merely_view(db):
     views, _tables, _ctx, _owner, org, table = await _setup(db)
     colleague = await make_user(db)
     viewer_ctx = ctx_for(colleague, org, "viewer")
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="viewer"))
+    await db.flush()
     await resource_grant_repo.upsert(
         db,
         organization_id=org.id,
@@ -191,6 +194,8 @@ async def test_a_private_view_is_invisible_to_a_colleague_and_a_shared_one_is_no
     views, _tables, ctx, owner, org, table = await _setup(db)
     colleague = await make_user(db)
     colleague_ctx = ctx_for(colleague, org, "member")
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="member"))
+    await db.flush()
     await resource_grant_repo.upsert(
         db,
         organization_id=org.id,
@@ -218,6 +223,8 @@ async def test_only_the_owner_or_an_all_scope_caller_may_change_or_delete_a_view
     views, _tables, ctx, owner, org, table = await _setup(db)
     colleague = await make_user(db)
     colleague_ctx = ctx_for(colleague, org, "member")
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="member"))
+    await db.flush()
     await resource_grant_repo.upsert(
         db,
         organization_id=org.id,
@@ -466,6 +473,13 @@ async def _builders_table_and_an_editing_member(db):
     builder_ctx = ctx_for(builder, org, "builder")
     table = await orders_table(tables, builder_ctx)
     member = await make_user(db)
+    db.add_all(
+        [
+            OrganizationMember(organization_id=org.id, user_id=builder.id, role="builder"),
+            OrganizationMember(organization_id=org.id, user_id=member.id, role="member"),
+        ]
+    )
+    await db.flush()
     await resource_grant_repo.upsert(
         db,
         organization_id=org.id,
@@ -658,6 +672,8 @@ async def test_listing_views_pages_them_and_counts_them_all(db):
 async def _a_colleague_with(db, org, table):
     """A member holding an edit grant on `table`."""
     colleague = await make_user(db)
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="member"))
+    await db.flush()
     await resource_grant_repo.upsert(
         db,
         organization_id=org.id,

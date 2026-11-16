@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.permissions import AuthContext
+from app.db.table_rls import bind_table_access
 from app.repositories import virtual_table_repo
 from app.schemas.virtual_table import RecordRead
 from app.services.virtual_tables.exceptions import IdempotencyKeyReuseError
@@ -77,6 +78,7 @@ async def run_once[Outcome: BaseModel](
     payload: dict[str, Any],
     outcome_type: type[Outcome],
     action: Callable[[], Awaitable[Outcome]],
+    legacy_payload: dict[str, Any] | None = None,
 ) -> tuple[Outcome, bool]:
     """Run `action` once per key, and say whether this call replayed a stored outcome.
 
@@ -84,9 +86,15 @@ async def run_once[Outcome: BaseModel](
     so a failure anywhere leaves no receipt behind even if the caller keeps the
     session. Without a key the action simply runs.
 
+    A caller may supply an older encoding of this same validated request when a
+    new optional field has an equivalent absent default. New receipts always
+    use `payload`; the older encoding only recognizes an existing receipt.
+
     Raises:
         IdempotencyKeyReuseError: The key was used before with a different request.
     """
+    # Bind the outer transaction: a rolled-back receipt must not erase its tenant.
+    await bind_table_access(db, ctx)
     async with db.begin_nested():
         if operation_key is None:
             return await action(), False
@@ -118,7 +126,10 @@ async def run_once[Outcome: BaseModel](
                 operation=operation,
                 operation_key=operation_key,
             )
-            if not secrets.compare_digest(stored.payload_hash, digest):
+            if not secrets.compare_digest(stored.payload_hash, digest) and (
+                legacy_payload is None
+                or not secrets.compare_digest(stored.payload_hash, payload_hash(legacy_payload))
+            ):
                 raise IdempotencyKeyReuseError(operation=operation)
             return outcome_type.model_validate(stored.outcome), True
         outcome = await action()

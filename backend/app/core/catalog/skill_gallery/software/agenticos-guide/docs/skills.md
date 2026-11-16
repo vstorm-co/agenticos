@@ -244,21 +244,27 @@ limits is skipped with a warning; its original workspace files stay intact.
 Proposal writes run in a savepoint, so a refused proposal cannot roll back the
 turn or prevent its status and spend from being recorded.
 
-### Learned skills — an approved proposal becomes a skill on its own
+### Learned skills — an approved proposal updates the skill it names { #learned-skills-an-approved-proposal-becomes-a-skill-on-its-own }
 
-Applying a proposal edits the skill it names. When the approved proposal *is*
-a new skill — a recurring mistake with no skill to attach it to — automatic
-skill learning creates it instead: `POST /v1/agents/{agent_id}/learned-skills`
-with the proposal's text and provenance. The new skill is filed under the
-`learned` category, so the listing can show what the loop taught the
-organization, and the write is audited as `skill.learned` with the proposal,
-the ledger entry and the pattern key that motivated it.
+Applying a proposal edits the skill it names. Learning then writes the
+proposal's approved text into that skill through
+`POST /v1/agents/{agent_id}/learned-skills`. The stored proposal supplies the
+target skill, the text and the provenance. The request still sends `content`,
+and it must match the proposal's text. A caller's `name` and `description` are
+deprecated and ignored.
 
-Learning the same proposal twice writes nothing the second time, and a skill
-somebody rewrote since the proposal was written is refused rather than
-overwritten. A learned skill is an ordinary skill from then on: editable,
+Learning only updates an existing skill, so the response always reports
+`created` as `false`. A proposal with no skill target, or one that is not
+applied or was reverted, returns 404. A request field that disagrees with the
+stored proposal returns 409, and so does a skill that changed since the proposal
+was written. That skill is refused rather than overwritten.
+
+Each write is audited as `skill.learned` with the proposal, the ledger entry
+and the pattern key that motivated it. Learning the same proposal twice writes
+nothing the second time. A learned change is an ordinary edit from then on:
 versioned by the same bump an edit always makes, and undone by a new edit
 rather than a restore.
+
 ## Checking a change on every agent { #checking-a-change-on-every-agent }
 
 A skill is shared, so a change is judged on every agent that would read it: on

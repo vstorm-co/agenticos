@@ -7,6 +7,8 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.exceptions import AlreadyExistsError, AppException
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.session import get_worker_db_context
@@ -25,11 +27,24 @@ from app.worker.jobs import ConversationTaskJob
 
 @asynccontextmanager
 async def _live(
-    conversation_id: UUID, user_id: UUID, agent_id: UUID, task_id: UUID, *, returning: bool
+    conversation_id: UUID,
+    user_id: UUID,
+    agent_id: UUID,
+    task_id: UUID,
+    *,
+    returning: bool,
+    thread_root_message_id: UUID | None = None,
 ) -> AsyncGenerator[RunFrames]:
     trace = await live_turn.begin(str(conversation_id))
 
     async def emit(kind: str, payload: dict[str, object]) -> None:
+        payload = {
+            **payload,
+            "conversation_id": str(conversation_id),
+            "thread_root_message_id": (
+                None if thread_root_message_id is None else str(thread_root_message_id)
+            ),
+        }
         if trace is not None:
             await live_turn.publish(trace, kind, payload)
 
@@ -104,7 +119,11 @@ async def _perform(job: ConversationTaskJob, *, returning: bool) -> None:
             ):
                 return
             try:
-                ctx = await service.authority(task)
+                if returning:
+                    ctx, thread_root_message_id = await service.return_context(task)
+                else:
+                    ctx = await service.authority(task)
+                    thread_root_message_id = None
             except AppException:
                 # Nothing is spent after a membership/project grant was revoked.
                 task.delivery = "withdrawn"
@@ -189,12 +208,30 @@ async def _perform(job: ConversationTaskJob, *, returning: bool) -> None:
                 await task_repo.save(db, current)
 
             history = (
-                await ConversationService(db).model_history(target_id, limit=60)
+                await ConversationService(db).model_history(
+                    target_id, limit=60, thread_root_message_id=thread_root_message_id
+                )
                 if returning
                 else []
             )
+
+            async def check_return_context(fresh: AsyncSession) -> None:
+                current = await task_repo.get(
+                    fresh, job.task_id, organization_id=job.organization_id
+                )
+                if current is None or current.delivery != "running":
+                    raise AlreadyExistsError(message="This task no longer owns its result turn")
+                _, current_root = await ConversationTaskService(fresh).return_context(current)
+                if current_root != thread_root_message_id:
+                    raise AlreadyExistsError(message="This task's source discussion changed")
+
             async with _live(
-                target_id, task.user_id, agent_id, task.id, returning=returning
+                target_id,
+                task.user_id,
+                agent_id,
+                task.id,
+                returning=returning,
+                thread_root_message_id=thread_root_message_id,
             ) as frames:
                 await AgentRunnerService(db).execute(
                     ctx,
@@ -203,12 +240,14 @@ async def _perform(job: ConversationTaskJob, *, returning: bool) -> None:
                     said="",
                     surface=RunSurface.WEB,
                     conversation_id=target_id,
+                    thread_root_message_id=thread_root_message_id,
                     version_id=version_id,
                     local=local,
                     message_history=history,
                     acts_for_sender=not returning,
                     parks_questions=True,
                     on_run_open=opened,
+                    check_model_request=check_return_context if returning else None,
                     stream=frames.drive,
                     conversation_task_id=task.id,
                     model_profile_id=task.source_model_profile_id

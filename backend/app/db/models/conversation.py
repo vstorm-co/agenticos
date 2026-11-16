@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    CheckConstraint,
     Computed,
     DateTime,
     ForeignKey,
@@ -232,7 +233,22 @@ class Message(Base, TimestampMixin):
 
     __tablename__ = "messages"
     __table_args__ = (
+        UniqueConstraint("conversation_id", "id", name="uq_messages_conversation_id_id"),
+        ForeignKeyConstraint(
+            ["conversation_id", "thread_root_message_id"],
+            ["messages.conversation_id", "messages.id"],
+            name="fk_messages_thread_root",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint("thread_root_message_id <> id", name="thread_root_not_self"),
         Index("messages_conversation_id_ordinal_idx", "conversation_id", "ordinal"),
+        Index(
+            "messages_thread_ordinal_idx",
+            "conversation_id",
+            "thread_root_message_id",
+            "ordinal",
+            postgresql_where=text("thread_root_message_id IS NOT NULL"),
+        ),
         Index("messages_search_vector_idx", "search_vector", postgresql_using="gin"),
         # A spoken turn lands once per conversation (#54). Partial: typed turns have
         # no `turn_id`, and the index would otherwise cover the whole table.
@@ -324,6 +340,12 @@ class Message(Base, TimestampMixin):
         nullable=True,
         # Every message deletion looks its replies up through this column.
         index=True,
+    )
+    # A side discussion belongs to a top-level message, independently of the
+    # quote above. Deleting its root deletes the discussion rather than silently
+    # promoting its replies into the room's main transcript.
+    thread_root_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
     )
     # Which frozen spec answered, not just which agent. An agent is rewritten;
     # what it said last Tuesday was said by one version of it, and "why did it

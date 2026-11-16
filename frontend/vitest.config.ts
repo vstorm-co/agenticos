@@ -169,6 +169,8 @@ export default defineConfig({
         "src/components/layout/notification-glyph.tsx",
         "src/components/chat/project-chip.tsx",
         "src/components/chat/chat-room-bar.tsx",
+        "src/components/chat/room-thread-button.tsx",
+        "src/components/chat/room-thread-panel.tsx",
         "src/components/chat/typing-indicator.tsx",
         "src/components/chat/reply-quote.tsx",
         // A thread's picture from the copy on the device, offline (#2097).
@@ -302,6 +304,9 @@ export default defineConfig({
         "src/components/chat/tool-approval-dialog.tsx",
         "src/components/chat/agent-draft-proposal.tsx",
         "src/components/chat/workspace-files.tsx",
+        "src/components/chat/workspace-panels.tsx",
+        "src/components/chat/workspace-rail.tsx",
+        "src/components/chat/workspace-empty.tsx",
         // `.ts` too: the grant-subject helpers the panel's rows share live beside it.
         "src/components/sharing/**/*.{ts,tsx}",
         // The directory (LDAP) sign-in form (#1773). The rest of `auth/` predates

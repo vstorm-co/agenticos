@@ -10,6 +10,14 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  roomThreads: {
+    detail: (
+      account: string | undefined,
+      tenant: string | null,
+      conversation: string | null,
+      root: string | null,
+    ) => ["room-threads", account, tenant, conversation, root] as const,
+  },
   roomRequests: {
     list: (account: string | undefined, tenant: string | null, conversation: string | null) =>
       ["room-requests", account, tenant, conversation] as const,
@@ -1096,6 +1104,8 @@ export const qk = {
       ["tables", tableId, "records", "count", query] as const,
     // One record, as "reload and reapply" refetches it after a conflict.
     record: (tableId: string, recordId: string) => ["tables", tableId, "record", recordId] as const,
+    recordAccess: (tableId: string, recordId: string) =>
+      ["tables", tableId, "record-access", recordId] as const,
     views: (tableId: string) => ["tables", tableId, "views"] as const,
     // One kind's views, as the picker for that tab reads them; under `views` so
     // one invalidation refreshes every kind.

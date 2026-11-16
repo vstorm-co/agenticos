@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.task_board import TaskBoard
+from app.db.table_rls import bind_table_access
 from app.repositories import group_repo, project_repo, resource_grant_repo
 from app.repositories import task as task_repo
 
@@ -125,6 +126,7 @@ async def execution_allows(db: AsyncSession, ctx: AuthContext, trigger_id: UUID)
     link = await task_repo.for_trigger(db, trigger_id)
     if link is None:
         return False
+    await bind_table_access(db, ctx)
     record = await task_repo.record(db, link.record_id, ctx.organization_id)
     if record is None:
         return False

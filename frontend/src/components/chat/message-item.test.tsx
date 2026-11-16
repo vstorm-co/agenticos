@@ -1797,6 +1797,34 @@ it("keeps a successful watch write visible as an authorized management reference
   expect(screen.getByText(`Manage watch ${id}`)).toBeInTheDocument();
 });
 
+describe("thread root preview", () => {
+  it("reuses sender and attachment rendering without a duplicate main-message anchor", async () => {
+    const quote = vi.fn();
+    const mainQuote = { messageId: "main-quote", role: "user" as const, excerpt: "Main quote" };
+    useChatStore.setState({ replyTo: mainQuote });
+    const sender = { user_id: "anna", name: "Anna", has_avatar: false, avatar_color: null };
+    const root = message({ role: "user", content: "Original topic", sender, files: [file()] });
+    const { container } = render(<MessageItem message={root} threadRootPreview onReply={quote} />);
+    expect(container.querySelector("[data-thread-root]")).toHaveAttribute(
+      "data-thread-root",
+      root.id,
+    );
+    expect(container.querySelector("[data-message-id]")).toBeNull();
+    expect(screen.getByText("Anna")).toBeInTheDocument();
+    expect(screen.getByText("invoice.pdf")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Reply" }));
+    expect(quote).toHaveBeenCalledWith(expect.objectContaining({ messageId: root.id, sender }));
+    expect(useChatStore.getState().replyTo).toEqual(mainQuote);
+  });
+
+  it("hides quote controls where a historical thread is read-only", () => {
+    render(
+      <MessageItem message={message({ role: "user" })} threadRootPreview allowReply={false} />,
+    );
+    expect(screen.queryByRole("button", { name: "Reply" })).not.toBeInTheDocument();
+  });
+});
+
 vi.mock("./model-setup-card", () => ({
   ModelSetupCard: ({ interactive = false }: { interactive?: boolean }) => (
     <div data-testid="model-setup" data-interactive={String(interactive)} />

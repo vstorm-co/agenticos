@@ -33,6 +33,7 @@ class RoomMessageCreate(BaseSchema):
     client_message_id: str = Field(min_length=1, max_length=128)
     content: str = Field(min_length=1, max_length=20_000)
     reply_to_message_id: UUID | None = None
+    thread_root_message_id: UUID | None = None
     agent_id: UUID | None = None
 
 
@@ -40,6 +41,7 @@ class RoomAgentRequestRead(BaseSchema):
     id: UUID
     message_id: UUID
     conversation_id: UUID
+    thread_root_message_id: UUID | None = None
     requester_id: UUID
     agent_id: UUID
     status: RoomRequestStatus
@@ -55,5 +57,14 @@ class RoomMessageRead(BaseSchema):
 
 class RoomAgentRequestList(BaseSchema):
     items: list[RoomAgentRequestRead]
+    total: int
+    can_post: bool
+
+
+class RoomThreadRead(BaseSchema):
+    """One authorized room subthread, with its root outside reply pagination."""
+
+    root: MessageRead
+    items: list[MessageRead]
     total: int
     can_post: bool

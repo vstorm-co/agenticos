@@ -271,11 +271,44 @@ posting has an uncertain result, retry the pending post to reuse its identity.
 An interrupted agent request is not restarted automatically; inspect the saved
 run before making a new request.
 
-This composer supports text and quoted replies. Upload reference files through
+This composer supports text, quoted replies and side threads. Upload reference files through
 the project's **Files** tab; room agents use that shared workspace. Local desktop
-agents, per-message attachments and separate side threads are outside this first
-room interface. Personal chats and the floating assistant keep their existing
+agents and per-message attachments are outside this room interface.
+Personal chats and the floating assistant keep their existing
 composers.
+
+### Side threads
+
+Choose **Reply in thread** on a saved room message to open its thread. The panel
+keeps the original message above the replies; the room shows a reply count that
+reopens the discussion. The address includes the room and thread, so a link or
+reload returns to the same discussion. On a narrow screen, the thread takes the
+available width. **Reply** still adds a quote within the current discussion.
+
+A thread has the same audience and posting permissions as its room. Opening it
+does not request an agent response. Keep **Team only** selected to talk with
+people, or choose **Ask @agent** explicitly. The answer, including a run resumed
+after a question or approval, belongs to that thread. The main room and its
+threads share one agent-request queue; a waiting run keeps later requests queued.
+
+An agent's conversation context prioritizes the original message and the thread's
+replies. Remaining history space can include main-room messages from before the
+original message. Replies from other threads and later main-room messages are
+excluded. Project instructions, shared files and project knowledge still apply.
+Quoted replies inside a thread refer to its original message or one of its replies.
+
+Plans and pending steps belong to each run. Resuming a run keeps them; a separate
+agent request in the thread starts a fresh plan.
+
+Each discussion keeps its own draft and pending retry while you move between
+threads in the current session. Return to the original discussion to retry an
+uncertain post with the same identity; selecting another thread does not redirect
+that pending post. Changing account or organization clears these drafts.
+
+If the chat is removed from its project, its existing threads remain readable by
+people who can still access that chat. Thread replies become read-only until the
+chat belongs to a project again; former project membership alone no longer grants
+access.
 
 ## Deleting a project
 
