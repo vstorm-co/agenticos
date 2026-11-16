@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Build Linux AppImages with the updated Tauri bundler to avoid bundled Wayland libraries crashing WebKitGTK on newer Mesa. Verify extracted AppImages in installer CI and before release uploads, rejecting bundled Wayland libraries (#3041).
+
 ## [1.80.0] - 2026-11-16
 
 ### Fixed

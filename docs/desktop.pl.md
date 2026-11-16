@@ -1,5 +1,5 @@
 ---
-source_sha: "cd9dbfb49b0b"
+source_sha: "232192c4da2d"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -628,6 +628,8 @@ nadal wymaga wyboru lokalnej przeglądarki.
 ## Instalatory i aktualizacje { #installers-and-updates }
 
 Workflow Apps buduje też instalatory deweloperskie i testuje instalację bez automatyzacji interfejsu: kopiowanie aplikacji Mac z DMG, cichą instalację i usunięcie na Windowsie, instalację i usunięcie pakietu Debian oraz rozpakowanie przenośnego AppImage. Sprawdza osadzony widget macOS i podpisy, izolację trwałej sesji oraz odrzucenie zmodyfikowanego pliku aktualizacji. Te kontrole używają buildów ad-hoc lub niepodpisanych i nie potwierdzają publicznej notaryzacji ani akceptacji sklepu.
+
+CI instalatorów i buildy wydań dla Linuksa sprawdzają też rozpakowany AppImage i odrzucają dołączone biblioteki Waylanda, które mogą kolidować z systemowym sterownikiem Mesa i powodować awarię WebKitGTK. Walidacja wydania odbywa się przed wysłaniem instalatorów i podpisów aktualizacji. Ta kontrola bibliotek nie potwierdza zgodności renderowania z każdym kompozytorem Waylanda ani GPU.
 
 Workflow **Apps** w GitHub Actions sprawdza natywne crate'y na macOS, Windows i
 Linuksie, buduje debug APK Androida i aplikację symulatora iOS. Pełne sprawdzenia

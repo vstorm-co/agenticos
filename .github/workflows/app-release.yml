@@ -211,6 +211,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: desktop
+          tauriScript: ${{ runner.os == 'Linux' && 'bash ../scripts/build_linux_desktop_release.sh' || '' }}
           releaseId: ${{ needs.resolve.outputs.id }}
           tagName: ${{ needs.resolve.outputs.tag }}
           args: --target ${{ matrix.target }} --config src-tauri/tauri.release.conf.json ${{ runner.os == 'Windows' && '--config src-tauri/tauri.windows.release.conf.json' || '' }} -- --locked
