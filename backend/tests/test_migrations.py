@@ -2421,3 +2421,45 @@ def test_routine_activation_index_round_trip_preserves_legacy_policy() -> None:
         assert result.returncode == 0, result.stderr
     finally:
         engine.dispose()
+
+
+def test_memory_snapshot_upgrade_preserves_legacy_runs_and_downgrades_cleanly() -> None:
+    """0336 records new-run visibility without inventing evidence for existing runs."""
+    from sqlalchemy import inspect
+
+    result = _alembic("upgrade", "0335_defer_run_conversation_fk")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    old_run, new_run = uuid4(), uuid4()
+    statement = text(
+        "INSERT INTO agent_runs (id, organization_id, agent_id, surface, status, "
+        "input_tokens, output_tokens, cost_usd, cost_is_partial) "
+        "VALUES (:id, :org, :agent, 'chat', 'completed', 0, 0, 0, false)"
+    )
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            connection.execute(statement, {"id": old_run, "org": uuid4(), "agent": uuid4()})
+        result = _alembic("upgrade", "0336_run_memory_snapshot")
+        assert result.returncode == 0, result.stderr
+        with engine.begin() as connection:
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            connection.execute(statement, {"id": new_run, "org": uuid4(), "agent": uuid4()})
+            rows = dict(
+                connection.execute(text("SELECT id, memory_snapshot FROM agent_runs")).all()
+            )
+            assert rows[old_run] is None
+            assert rows[new_run].startswith("boot:")
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
+        result = _alembic("downgrade", "0335_defer_run_conversation_fk")
+        assert result.returncode == 0, result.stderr
+        assert "memory_snapshot" not in {
+            column["name"] for column in inspect(engine).get_columns("agent_runs")
+        }
+        with engine.connect() as connection:
+            assert connection.scalar(text("SELECT count(*) FROM agent_runs")) == 2
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()

@@ -383,9 +383,9 @@ async def test_a_correction_holds_off_clearing_its_agents_memory(
     assert not await _agent_lock_free_elsewhere(engine, agent)
 
 
-@pytest.mark.parametrize("identifier_available", [True, False])
+@pytest.mark.parametrize("legacy_cached_refusal", [False, True])
 async def test_a_run_admitted_while_an_erasure_commits_is_still_refused(
-    db: AsyncSession, engine: AsyncEngine, identifier_available: bool
+    db: AsyncSession, engine: AsyncEngine, legacy_cached_refusal: bool
 ) -> None:
     user, org, agent, _ = await _world(db)
     await db.commit()
@@ -393,7 +393,7 @@ async def test_a_run_admitted_while_an_erasure_commits_is_still_refused(
     from sqlalchemy import text
 
     async with AsyncSession(engine) as erasing:
-        if not identifier_available:
+        if legacy_cached_refusal:
             await erasing.execute(text("SELECT set_config('agenticos.memory_cluster', '-', true)"))
         ctx = await member_context(erasing, organization_id=org.id, user_id=user.id)
         assert ctx is not None
@@ -401,7 +401,7 @@ async def test_a_run_admitted_while_an_erasure_commits_is_still_refused(
         # Admitted after the erasure's entry is dated but before it commits, so the run
         # reads memory the erasure has not removed yet.
         async with AsyncSession(engine) as admitting:
-            if not identifier_available:
+            if legacy_cached_refusal:
                 await admitting.execute(
                     text("SELECT set_config('agenticos.memory_cluster', '-', true)")
                 )
@@ -507,8 +507,6 @@ async def test_a_database_that_refuses_the_cluster_identifier_still_admits_runs(
     from app.repositories import audit_log_repo
 
     user, org, agent, _ = await _world(db)
-    # PL/pgSQL keeps an expression it has already run for the rest of the transaction,
-    # permission checked, so the refusal has to meet its first call in a new one.
     await db.commit()
     # A role that may not read the control data, as on a managed service; all of
     # it is rolled back with the test's transaction.
@@ -516,8 +514,6 @@ async def test_a_database_that_refuses_the_cluster_identifier_still_admits_runs(
     await db.execute(text("REVOKE EXECUTE ON FUNCTION pg_control_system() FROM PUBLIC"))
     await db.execute(text(f"CREATE ROLE {role}"))
     await db.execute(text(f"GRANT ALL ON ALL TABLES IN SCHEMA public TO {role}"))
-    # Forgets what this connection looked up, so the next call asks again.
-    await db.execute(text("SELECT set_config('agenticos.memory_cluster', '', false)"))
     await db.execute(text(f"SET LOCAL ROLE {role}"))
 
     snapshot = await audit_log_repo.current_snapshot(db)

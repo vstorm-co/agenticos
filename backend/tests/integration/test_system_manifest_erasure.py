@@ -246,5 +246,5 @@ async def test_a_look_admitted_while_an_erasure_commits_is_still_trimmed(
     assert look is not None and look.memory_snapshot is not None
     thinker = ProactiveThinker(db)
     assert await thinker._erased_during(look, since=look.started_at, snapshot=look.memory_snapshot)
-    # By time alone the erasure is dated before the run and would be read past.
-    assert not await thinker._erased_during(look, since=look.started_at, snapshot=None)
+    # Legacy runs without visibility evidence must also respect the erasure.
+    assert await thinker._erased_during(look, since=look.started_at, snapshot=None)
