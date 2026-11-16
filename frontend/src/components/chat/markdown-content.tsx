@@ -31,6 +31,8 @@ export interface MarkdownContentProps {
    * lands. Off once the turn ends, so a finished answer is plain markup.
    */
   streaming?: boolean;
+  /** Highlight unresolved template variables when inspecting recorded prompts. */
+  highlightVariables?: boolean;
 }
 
 /**
@@ -68,6 +70,7 @@ export const MarkdownContent = memo(function MarkdownContent({
   inertImages,
   documentMedia,
   streaming,
+  highlightVariables,
 }: MarkdownContentProps) {
   return (
     <PendingMarkdown.Provider value={content}>
@@ -78,6 +81,7 @@ export const MarkdownContent = memo(function MarkdownContent({
         inertImages={inertImages}
         documentMedia={documentMedia}
         streaming={streaming}
+        highlightVariables={highlightVariables}
       />
     </PendingMarkdown.Provider>
   );

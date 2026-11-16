@@ -18,7 +18,7 @@ import pytest
 from app.core.exceptions import ConcurrentChangeError
 from app.db.locks import LockScope, try_hold_name
 from app.services.organization import OrganizationService
-from app.worker.jobs import BasePurge, Restamp
+from app.worker.jobs import Restamp
 
 pytestmark = pytest.mark.anyio
 
@@ -67,7 +67,15 @@ def _patched(mocks: dict):
     # The media prefix removal is still handed off after the commit (#55); the
     # collection cleanup this file is about is a job queued on the purge's session.
     with (
-        patch.multiple(SERVICE, **mocks),
+        patch.multiple(
+            SERVICE,
+            **{
+                key: value
+                for key, value in mocks.items()
+                if key not in {"rag_document_repo", "collection_teardown_repo"}
+            },
+        ),
+        patch("app.services.knowledge_base.KnowledgeBaseService.purge", new=AsyncMock()) as purge,
         patch(
             "app.repositories.telephony.organization_has_unfinished_calls",
             AsyncMock(return_value=False),
@@ -76,6 +84,7 @@ def _patched(mocks: dict):
         patch(SERVICE_TEARDOWN, new=AsyncMock()) as queued,
     ):
         mocks["dispatch"] = queued
+        mocks["purge"] = purge
         yield mocks
 
 
@@ -95,10 +104,10 @@ class TestACollectionCreatedWhileThePurgeRuns:
         await _run(org, db, mocks)
 
         mocks["try_hold_name"].assert_awaited_once_with(db, LockScope.COLLECTION_TEARDOWN, "late")
-        reserved = {
-            call.args[1] for call in mocks["collection_teardown_repo"].reserve.await_args_list
+        assert {call.args[0].collection_name for call in mocks["purge"].await_args_list} == {
+            "seen",
+            "late",
         }
-        assert reserved == {"seen", "late"}
 
     async def test_a_name_the_snapshot_saw_is_not_locked_twice(self):
         org, db, mocks = _purge(snapshot=["seen"], authoritative=["seen"])
@@ -151,10 +160,8 @@ class TestACollectionAnotherOrganizationStillReferences:
 
         await _run(org, db, mocks)
 
-        _db, deleted_id = mocks["knowledge_base_repo"].delete.await_args.args
-        assert mocks["dispatch"].call_args.kwargs["base_purges"] == [
-            BasePurge(collection="shared", knowledge_base_id=deleted_id)
-        ]
+        assert mocks["purge"].await_args.args[0].collection_name == "shared"
+        assert mocks["purge"].await_args.kwargs == {"cleanup_vectors": True}
 
     async def test_a_dropped_collection_needs_no_purge(self):
         org, db, mocks = _purge(snapshot=["mine"], authoritative=["mine"])
@@ -162,7 +169,8 @@ class TestACollectionAnotherOrganizationStillReferences:
         await _run(org, db, mocks)
 
         _db, _paths, to_drop, _restamps = mocks["dispatch"].call_args.args
-        assert to_drop == ["mine"]
+        assert to_drop == []
+        assert mocks["purge"].await_args.args[0].collection_name == "mine"
         assert mocks["dispatch"].call_args.kwargs["base_purges"] == []
 
 
@@ -174,7 +182,8 @@ class TestWithNoVectorStoreWired:
         with _patched(mocks):
             await OrganizationService(db).purge(org)
 
-        mocks["hold_name"].assert_not_awaited()
+        mocks["hold_name"].assert_awaited_once_with(db, LockScope.COLLECTION_TEARDOWN, "seen")
+        assert mocks["purge"].await_args.kwargs == {"cleanup_vectors": False}
         mocks["try_hold_name"].assert_not_awaited()
         mocks["collection_teardown_repo"].reserve.assert_not_awaited()
         assert mocks["dispatch"].call_args.kwargs["base_purges"] == []

@@ -54,6 +54,7 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.resource_icons import ResourceIconName
 from app.db.models.resource_grant import Visibility
 from app.db.models.virtual_table import (
     VirtualTable,
@@ -268,12 +269,14 @@ async def create_table(
     name: str,
     description: str | None,
     visibility: str,
+    icon: ResourceIconName | None = None,
 ) -> VirtualTable:
     table = VirtualTable(
         organization_id=organization_id,
         owner_user_id=owner_user_id,
         name=name,
         description=description,
+        icon=icon,
         visibility=visibility,
         schema_version=1,
     )

@@ -1,8 +1,10 @@
 ---
-source_sha: "ec1de885016c"
+source_sha: "33c4b5347c7d"
 ---
 
 # Virtual Tables { #virtual-tables }
+
+Ikonę tabeli wybierasz obok jej nazwy w szczegółach. Karta katalogu i wiersz dashboardu używają tego samego symbolu. **Użyj domyślnej ikony** resetuje wybór; kolumny, rekordy i wersje schematu pozostają bez zmian. Kontrolka respektuje prawo zarządzania tabelą, także ograniczenia tablic zadań.
 
 **Virtual table** to typowana tabela rekordów, którą organizacja trzyma dla swoich
 agentów, [workflow](workflows.md) i integracji: zamówienia do uzgodnienia, pliki do przetworzenia,
@@ -329,7 +331,9 @@ nic nie zostaje zapisane, dopóki nie ma wszystkich wymaganych wartości.
 
 Każda edycja to jeden `PATCH` względem rewizji widocznej na ekranie, więc edycja, która
 przegrywa z nowszą zmianą, zostaje odrzucona, a nie zapisana na niej. Rekord otwiera się
-wtedy z odrzuconą wartością zachowaną obok **Reload and reapply**. Zaznaczenie wierszy
+wtedy z odrzuconą wartością zachowaną obok **Reload and reapply** i zostaje odczytany
+ponownie: pole mówi, co zawiera teraz, kto ostatnio zmienił rekord i kiedy, a tytuł
+panelu się odświeża. Zaznaczenie wierszy
 udostępnia **Delete** dla wszystkich naraz, każdy względem własnej rewizji: rekord,
 który ktoś w międzyczasie zmienił, zostaje, a konsola mówi, ile takich było. Panel
 rekordu usuwa pojedynczy rekord w ten sam sposób.
@@ -353,7 +357,11 @@ W **Columns** przełącznik **Required** sprawia, że kolumna wymaga wartości, 
 zarchiwizowana kolumna trafia do **Archived columns**, skąd **Restore** przywraca ją
 razem z jej wartościami.
 
+Odczyt porównania zachowuje niezapisane edycje innych pól i ich pierwotną rewizję. Kolejny konflikt odczytuje nowe porównanie; odpowiedź dla zamkniętego rekordu nie zamknie innego rekordu. Długie wartości mają skrócony podgląd.
+
 ### Import i eksport { #import-and-export }
+
+Podczas importu CSV przypisz każdą kolumnę tabeli, także **External id**, tylko raz. Powtórzone przypisania są oznaczone i blokują import do czasu wybrania innej kolumny docelowej lub pominięcia jednej z kolumn pliku.
 
 Eksport odczytuje najwyżej 4 MiB rozwiniętego JSON rekordów na stronę (albo jeden
 rekord), maksymalnie 500 rekordów naraz. Organizacja może przesyłać jeden eksport
@@ -477,6 +485,8 @@ column**.
 Właściciel widoku przełącza go między **Private** a **Shared** przyciskiem obok
 **Rename**. Ktoś, kto zarządza widokiem innego członka, na przykład administrator, nie
 dostaje tego przełącznika: o udostępnieniu czyichś filtrów decyduje ich autor.
+
+Na telefonie menu **Views** zapisanego widoku zawiera zapis nowego widoku, zmianę nazwy, udostępnianie i usuwanie, zgodnie z tymi samymi uprawnieniami co kontrolki na komputerze.
 
 `GET/POST /tables/{id}/views` oraz `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 listują, tworzą, czytają, aktualizują i usuwają je. Lista jest stronicowana przez
@@ -806,9 +816,11 @@ Przy tworzeniu pustej tabeli wymagane kolumny nie potrzebują wartości domyśln
 
 ## Trwałe zadania {#durable-tasks}
 
+**Agent** również może mieć współdzieloną tablicę zadań. Dostęp wynika z aktualnych uprawnień do agenta; edycja zadań wymaga dodatkowo edycji tabel oraz możliwości uruchamiania tego agenta. Właściciel lub edytor agenta może zarządzać tablicą. Przypisanie agenta do prywatnego zadania nie udostępnia tego zadania. W AgenticOS MCP `create_task` i `ensure_task_board` używają istniejącej tabeli zakresu lub tworzą ją przy pierwszym użyciu. Wybieraj zakres prywatny dla spraw osobistych, projekt dla wyników projektu, a agenta dla jawnie wskazanej kolejki agenta. Przy niejasnym zakresie dopytaj; nie udostępniaj prywatnych treści domyślnie.
+
 Zadanie projektowe można utworzyć z prywatnej rozmowy spoza projektu. Pozostaw rozmowę roboczą niewskazaną: zadanie otworzy własną rozmowę w projekcie, bez podpinania prywatnego transkryptu. Jawne wskazanie rozmowy z innego projektu zostanie odrzucone.
 
-**Praca w tle** (`/work`) pokazuje trwałe zobowiązania obok uruchomionych rozmów w tle. Zadanie jest rekordem Virtual Table z odnośnikiem do rozmowy roboczej i jedną sprawą w Inbox, gdy potrzebna jest reakcja. Tabela, Kanban i API używają tej samej rewizji; nie ma osobnej synchronizowanej listy TODO.
+Zadaniami zarządzasz w **Tables** (`/tables`). **Praca w tle** (`/work`) pokazuje uruchomione rozmowy w tle i ich historię. Zadanie jest rekordem Virtual Table z odnośnikiem do rozmowy roboczej i jedną sprawą w Inbox, gdy potrzebna jest reakcja. Tabela, Kanban i API używają tej samej rewizji; nie ma osobnej synchronizowanej listy TODO.
 
 Tabela zadań powstaje przy pierwszym użyciu dla **osoby**, **projektu**, **grupy** lub **organizacji** i jest używana ponownie. Projects i Groups mają akcję **Zadania**, a Tables otwiera prywatną tabelę. Instalacja ani nowe członkostwo nie tworzą pustych tabel. Pierwsze utworzenie wymaga `tables:create`. Dostęp projektowy i członkostwo grupowe są sprawdzane na bieżąco; prywatne zadania są ukryte również przed innym właścicielem organizacji. Dotyczy to także zwykłego API tabel, odnośników i zapisanych widoków. Istniejące własne tabele zadań i presety śledzenia projektu nie są automatycznie konwertowane.
 
@@ -821,7 +833,7 @@ AgenticOS MCP udostępnia `list_task_boards`, `ensure_task_board`, `list_tasks`,
 
 Członkostwo w grupie pozwala czytać jej tablicę zadań; zapis wymaga dodatkowo uprawnienia do edycji tabel lub jawnego grantu edycji. Gdy osoba przypisana do przypomnienia traci dostęp, zadanie zostaje zablokowane, a twórca otrzymuje sprawę w Inbox do przekazania pracy. Nowe rozmowy robocze zadań projektowych należą do tego projektu. Limit tabel może zablokować opcjonalne zadanie z wyniku routine, ale rozmowa robocza, sprawa Inbox i powiadomienie nadal są dostarczane.
 
-Zapis na projektowej tablicy zadań wymaga dostępu do projektu oraz uprawnienia edycji tabel lub jawnego grantu Edit do tabeli. Usunięcie projektu, grupy albo prywatnego właściciela anuluje zadania w kolejce, zamyka ich sprawy i usuwa zarządzaną tabelę tego zakresu wraz z rekordami, historią i mediami w tej samej transakcji. Pozostałe zakresy pozostają nienaruszone. Panel zadań wraca do dostępnej prywatnej tablicy, gdy wybrana tablica znika.
+Zapis na projektowej tablicy zadań wymaga dostępu do projektu oraz uprawnienia edycji tabel lub jawnego grantu Edit do tabeli. Usunięcie projektu, grupy albo prywatnego właściciela anuluje zadania w kolejce, zamyka ich sprawy i usuwa zarządzaną tabelę tego zakresu wraz z rekordami, historią i mediami w tej samej transakcji. Pozostałe zakresy pozostają nienaruszone.
 
 Zmiana samej tablicy zadań jest węższa niż praca na niej. Zmiana nazwy tablicy, jej
 kolumn albo domyślnego widoku oraz jej archiwizacja albo przywrócenie wymagają
@@ -833,13 +845,18 @@ bez tego kończy się odmową `AUTHORIZATION_ERROR` (403).
 
 ## Domyślny widok {#default-view}
 
-Edytor tabeli może wybrać **Ustaw jako domyślny** na pasku narzędzi. Bieżący układ, filtry i grupowanie zapisują się jako współdzielony widok. Otwiera się on przy wejściu bez jawnych parametrów `view` lub `viewId`. Nowe tabele zadań zaczynają od Kanbana. Domyślny widok musi należeć do tej tabeli i być współdzielony; przed ustawieniem go jako prywatny trzeba wybrać inny domyślny widok. Usunięcie przywraca zwykły układ tabeli. API używa `PATCH /tables/{id}` z `default_view_id`; null usuwa wybór.
+Edytor tabeli może wybrać **Ustaw jako domyślny** w **Ustawieniach widoku**. Bieżący układ, filtry i grupowanie zapisują się jako współdzielony widok. Otwiera się on przy wejściu bez jawnych parametrów `view` lub `viewId`. Nowe tabele zadań zaczynają od Kanbana. Domyślny widok musi należeć do tej tabeli i być współdzielony; przed ustawieniem go jako prywatny trzeba wybrać inny domyślny widok. Usunięcie przywraca zwykły układ tabeli. API używa `PATCH /tables/{id}` z `default_view_id`; null usuwa wybór.
 
 Notatki zadania są dokumentami rich text w Markdown, z edytorem i podglądem jak inne komórki dokumentowe. Osobne relacje **Osoba** i **Agent** mogą zachować człowieka odpowiedzialnego za zadanie i wykonującego je agenta. **Następny krok** wskazuje osobę albo agenta; po przygotowaniu wyniku wraca do osoby. Pracę agenta uruchamia odpowiedzialna osoba na własnym koncie. Przekazując zadanie, wybierz najpierw osobę jako następny krok i pozwól odbiorcy rozpocząć pracę na swoim koncie.
 
 
-**Group by** zapisuje się automatycznie, gdy edytor wybierze kolumnę. Zmiana aktualizuje zapisany widok Kanban, którym może zarządzać; bez takiego widoku tworzy i wybiera widok prywatny. Odmowa zapisu zachowuje poprzednie grupowanie. Czytelnik może zmienić grupowanie tymczasowo. **Set as default** na pasku narzędzi zapisuje bieżący format dla wszystkich; zwykłe tabele otwierają się jako Table, dopóki edytor nie wybierze innego widoku domyślnego.
+**Group by** zapisuje się automatycznie, gdy edytor wybierze kolumnę. Zmiana aktualizuje zapisany widok Kanban, którym może zarządzać; bez takiego widoku tworzy i wybiera widok prywatny. Odmowa zapisu zachowuje poprzednie grupowanie. Czytelnik może zmienić grupowanie tymczasowo. **Set as default** w **View settings** zapisuje bieżący format dla wszystkich; zwykłe tabele otwierają się jako Table, dopóki edytor nie wybierze innego widoku domyślnego.
 
 Nie można usunąć agenta, dopóki zarządzane zadanie zależy od jego zaplanowanego wykonania. Najpierw przepisz, ukończ lub anuluj te zadania; usunięcie agenta nie może po cichu porzucać ich wykonania.
 
 Przywrócenie zarchiwizowanej zarządzanej tablicy zadań ponownie kolejkuje zaplanowane przypomnienia dla osób, także te, których termin minął podczas archiwizacji. Dostarczenie nadal sprawdza aktualny dostęp pierwotnego autora i odbiorcy; przywrócenie tablicy nie upoważnia do nowej pracy agenta. Zarchiwizowana tablica nie przyjmuje też zapisów od swoich zadań: sprawa rozstrzygnięta w tym czasie w Inbox zostawia zadanie bez zmian, a przywrócenie tablicy przenosi je wtedy do stanu zrobione lub anulowane. Ponowne otwarcie sprawy, której zadanie leży na zarchiwizowanej tablicy, jest odrzucane kodem `TABLE_ARCHIVED`.
+
+
+Użytkownik z uprawnieniem tworzenia tabel dostaje brakującą prywatną tabelę zadań przy pierwszym wejściu do **Tables**. Istniejąca tabela jest używana ponownie. Nie powstają wtedy zaległości organizacji ani agenta. W projekcie przycisk **Task table** tworzy lub otwiera tabelę. Bez uprawnienia tworzenia dostępne tabele pozostają widoczne, bez próby niedozwolonego zapisu.
+
+Inbox pokazuje zadanie, gdy człowiek ma coś zrobić albo sprawdzić wynik; nie jest drugim magazynem zadań. Monitory, triggery pocztowe i rutyny mogą tworzyć sprawy Inbox bez rekordów zadań. Task zapisujemy dla konkretnego zobowiązania wymagającego dalszej pracy, a nie każdego zdarzenia. Uzgodnioną konwencję tabeli i sprawdzony identyfikator można zapamiętać; aktualny stan zadania pozostaje w tabeli.

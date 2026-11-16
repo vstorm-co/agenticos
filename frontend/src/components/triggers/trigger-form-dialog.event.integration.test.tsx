@@ -251,6 +251,32 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     expect(dialog.getByText(/Create a Zendesk webhook pointing at this URL/)).toBeInTheDocument();
   });
 
+  it("uses Linear's secret and shows the URL to paste into Linear", async () => {
+    const user = userEvent.setup();
+    const url = "https://api.example.com/api/v1/webhooks/triggers/linear/t1";
+    vi.mocked(apiClient.post).mockResolvedValue(
+      trigger({ event_source: "linear", webhook_url: url }),
+    );
+    const dialog = await openEvent();
+
+    await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
+    await user.click(await screen.findByRole("option", { name: "A Linear webhook" }));
+    expect(dialog.queryByRole("button", { name: "Generate" })).toBeNull();
+    await user.type(dialog.getByLabelText("Signing secret"), "linear-signing-secret");
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.type(dialog.getByLabelText("Message"), "Triage the issue");
+    await user.click(dialog.getByRole("button", { name: "Create" }));
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      `/agents/${AGENT_ID}/triggers`,
+      expect.objectContaining({ event_source: "linear", event_secret: "linear-signing-secret" }),
+    );
+    const createdDialog = within(await screen.findByRole("dialog", { name: "One more step" }));
+    expect(createdDialog.getByLabelText<HTMLInputElement>("Webhook URL").value).toBe(url);
+    expect(createdDialog.getByText(/Paste this URL into Linear/)).toBeInTheDocument();
+  });
+
   it("does not offer Gmail at all, because this form is the signed-POST one", async () => {
     // Gmail is read from a connected mailbox: no inbound door, no per-trigger
     // secret. Offering it here would put a Signing secret field on a source that
@@ -380,4 +406,36 @@ it("keeps a new schedule on configuration until its budget is valid", async () =
   });
   expect(dialog.getByRole("button", { name: "Continue" })).toBeDisabled();
   expect(apiClient.post).not.toHaveBeenCalled();
+});
+
+it("locks edited trigger fields and dismissal until a refused save restores the draft", async () => {
+  let reject!: (reason: Error) => void;
+  vi.mocked(apiClient.patch).mockImplementationOnce(
+    () =>
+      new Promise((_resolve, refuse) => {
+        reject = refuse;
+      }),
+  );
+  const onOpenChange = vi.fn();
+  render(
+    <TriggerFormDialog agentId={AGENT_ID} open trigger={trigger()} onOpenChange={onOpenChange} />,
+    { wrapper },
+  );
+  const dialog = within(await screen.findByRole("dialog"));
+  await userEvent.type(dialog.getByLabelText("Name"), "Customer review");
+  await userEvent.click(dialog.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+  expect(dialog.getByLabelText("Name")).toBeDisabled();
+  expect(dialog.getByRole("textbox", { name: "Message" })).toBeDisabled();
+  expect(dialog.getByRole("button", { name: "Preview" })).toBeDisabled();
+  expect(dialog.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  expect(dialog.getByRole("button", { name: "Close" })).toBeDisabled();
+  expect(dialog.getByRole("button", { name: "Run now" })).toBeDisabled();
+  await userEvent.keyboard("{Escape}");
+  expect(onOpenChange).not.toHaveBeenCalled();
+  reject(new Error("Controlled save refusal"));
+  await waitFor(() => expect(dialog.getByLabelText("Name")).toBeEnabled());
+  expect(dialog.getByLabelText("Name")).toHaveValue("Customer review");
+  expect(dialog.getByRole("textbox", { name: "Message" })).toHaveValue("Triage it");
+  expect(onOpenChange).not.toHaveBeenCalled();
 });

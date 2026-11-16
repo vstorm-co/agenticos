@@ -1,8 +1,10 @@
 ---
-source_sha: "ec1de885016c"
+source_sha: "33c4b5347c7d"
 ---
 
 # Virtual Tables { #virtual-tables }
+
+Das Tabellensymbol wählen Sie neben dem Namen in der Detailansicht. Katalogkarte und Dashboard-Zeile verwenden dasselbe Zeichen. **Standardsymbol verwenden** setzt es zurück; Spalten, Datensätze und Schemaversionen bleiben unverändert. Die Steuerung folgt dem Verwaltungsrecht der Tabelle, einschließlich der Einschränkungen von Aufgabenboards.
 
 Eine **Virtual Table** ist eine typisierte Tabelle mit Datensätzen, die eine
 Organisation für ihre Agents, [Workflows](workflows.md) und Integrationen führt: abzugleichende
@@ -353,7 +355,8 @@ Pflichtwerte da sind.
 Jede Bearbeitung ist ein `PATCH` gegen die angezeigte Revision, daher wird eine
 Bearbeitung, die gegen eine neuere Änderung verliert, abgelehnt statt darüber
 geschrieben. Der Datensatz öffnet sich dann mit dem abgelehnten Wert neben **Reload and
-reapply**. Markierte Zeilen bieten **Delete** für alle an, jede gegen ihre eigene
+reapply** und wird neu gelesen: Das Feld sagt, was es jetzt enthält, wer den Datensatz
+zuletzt geändert hat und wann, und der Titel des Panels zieht nach. Markierte Zeilen bieten **Delete** für alle an, jede gegen ihre eigene
 Revision: Ein zwischenzeitlich geänderter Datensatz bleibt erhalten, und die Konsole
 sagt, wie viele es waren. Das Datensatz-Panel löscht einen einzelnen Datensatz auf
 dieselbe Weise.
@@ -377,7 +380,11 @@ In **Columns** macht **Required** eine Spalte zur Pflicht, und eine archivierte 
 wandert unter **Archived columns**, wo **Restore** sie samt ihren Werten
 zurückbringt.
 
+Das Lesen des Vergleichs erhält ungespeicherte Änderungen anderer Felder und deren ursprüngliche Revision. Ein weiterer Konflikt liest einen neuen Vergleich; eine Antwort für einen geschlossenen Datensatz schließt keinen anderen. Lange Werte erscheinen als gekürzte Vorschau.
+
 ### Import und Export { #import-and-export }
+
+Ordne beim CSV-Import jede Tabellenspalte, einschließlich **External id**, nur einmal zu. Doppelte Ziele werden markiert und blockieren den Import, bis du ein anderes Ziel wählst oder eine Dateispalte überspringst.
 
 Exporte lesen höchstens 4 MiB des entpackten Datensatz-JSON pro Seite (oder
 einen Datensatz), mit maximal 500 Datensätzen pro Seite. Eine Organisation kann
@@ -513,6 +520,8 @@ Der Eigentümer einer Ansicht schaltet sie mit der Schaltfläche neben **Rename*
 zwischen **Private** und **Shared** um. Wer die Ansicht eines anderen Mitglieds
 verwaltet, etwa ein Admin, bekommt diesen Schalter nicht: Ob jemandes eigene Filter
 geteilt werden, entscheidet diese Person selbst.
+
+Auf dem Telefon enthält das Menü **Views** einer gespeicherten Ansicht das Speichern einer weiteren Ansicht, Umbenennen, Teilen und Löschen mit denselben Berechtigungen wie die Desktop-Steuerelemente.
 
 `GET/POST /tables/{id}/views` und `GET/PATCH/DELETE /tables/{id}/views/{view_id}`
 listen, erstellen, lesen, aktualisieren und löschen sie. Die Liste ist mit `skip`
@@ -861,9 +870,11 @@ Beim Erstellen einer leeren Tabelle benötigen Pflichtspalten keine Vorgaben: Je
 
 ## Dauerhafte Aufgaben {#durable-tasks}
 
+Ein **Agent** kann ebenfalls eine gemeinsame Aufgabentabelle besitzen. Der Zugriff folgt den aktuellen Agent-Berechtigungen; das Bearbeiten von Aufgaben erfordert zusätzlich Tabellenbearbeitung und die Berechtigung, den Agent auszuführen. Eigentümer oder Bearbeiter des Agents können die Tabelle verwalten. Die Zuweisung eines Agents gibt eine private Aufgabe nicht frei. AgenticOS MCP verwendet mit `create_task` und `ensure_task_board` die vorhandene Bereichstabelle oder erstellt sie bei der ersten Nutzung. Persönliche Aufgaben gehören in den privaten Bereich, Projektergebnisse zum Projekt und eine ausdrücklich gewünschte Agent-Warteschlange zum Agent. Bei unklarem Bereich nachfragen; persönliche Inhalte niemals stillschweigend teilen.
+
 Sie können Projektaufgaben aus privaten Unterhaltungen außerhalb des Projekts erstellen. Lassen Sie die Arbeitsunterhaltung offen: Die Aufgabe öffnet ihre eigene Unterhaltung im Projekt, ohne Ihr privates Transkript zu verknüpfen. Eine ausdrücklich verknüpfte Unterhaltung aus einem anderen Projekt wird abgelehnt.
 
-**Hintergrundarbeit** (`/work`) zeigt dauerhafte Aufgaben neben laufenden Hintergrundchats. Eine Aufgabe ist ein Virtual-Table-Datensatz mit Arbeitschat und einem Inbox-Fall, wenn Aufmerksamkeit nötig ist. Tabelle, Kanban und Aufgaben-API verwenden dieselbe Revision, ohne eine zweite synchronisierte TODO-Liste.
+Aufgaben werden in **Tables** (`/tables`) verwaltet. **Hintergrundarbeit** (`/work`) zeigt laufende Hintergrundchats und ihren Verlauf. Eine Aufgabe ist ein Virtual-Table-Datensatz mit Arbeitschat und einem Inbox-Fall, wenn Aufmerksamkeit nötig ist. Tabelle, Kanban und Aufgaben-API verwenden dieselbe Revision, ohne eine zweite synchronisierte TODO-Liste.
 
 Eine Aufgabentabelle entsteht bei der ersten Nutzung für eine **Person**, ein **Projekt**, eine **Gruppe** oder eine **Organisation** und wird wiederverwendet. Projects und Groups bieten **Aufgaben**; Tables öffnet die private Tabelle. Installation und neue Mitgliedschaften erzeugen keine leeren Tabellen. Die erste Erstellung erfordert `tables:create`. Aktuelle Projektberechtigungen und Gruppenmitgliedschaften gelten auch für Tabellen-API, Verknüpfungen und gespeicherte Ansichten. Private Aufgaben bleiben selbst vor einem anderen Organisationseigentümer verborgen. Eigene bestehende Aufgabentabellen und Projektverfolgungs-Presets werden nicht automatisch umgewandelt.
 
@@ -876,7 +887,7 @@ AgenticOS MCP bietet `list_task_boards`, `ensure_task_board`, `list_tasks`, `get
 
 Gruppenmitglieder dürfen das Aufgabenboard ihrer Gruppe lesen; Schreibzugriff erfordert zusätzlich Tabellen-Bearbeitungsrechte oder eine ausdrückliche Bearbeitungsfreigabe. Verliert die zugewiesene prüfende Person den Zugriff, wird die Erinnerung blockiert und ihr Ersteller erhält einen Inbox-Fall zur Übergabe. Neue Arbeitsunterhaltungen für Projektaufgaben gehören zum Projekt. Eine Tabellenquote kann die optionale Aufgabe eines Routine-Ergebnisses verhindern; Arbeitschat, Inbox-Fall und Benachrichtigung werden dennoch zugestellt.
 
-Schreiben auf Projekt-Aufgabentafeln erfordert Projektzugriff und Tabellenbearbeitungsrechte oder eine ausdrückliche Edit-Freigabe für die Tabelle. Das Entfernen eines Projekts, einer Gruppe oder eines privaten Eigentümers storniert wartende Aufgaben, schließt ihre Fälle und löscht die verwaltete Tabelle dieses Bereichs samt Datensätzen, Verlauf und Medien in derselben Transaktion. Andere Bereiche bleiben erhalten. Verschwindet die ausgewählte Tafel, wechselt das Aufgabenpanel zur verfügbaren privaten Tafel.
+Schreiben auf Projekt-Aufgabentafeln erfordert Projektzugriff und Tabellenbearbeitungsrechte oder eine ausdrückliche Edit-Freigabe für die Tabelle. Das Entfernen eines Projekts, einer Gruppe oder eines privaten Eigentümers storniert wartende Aufgaben, schließt ihre Fälle und löscht die verwaltete Tabelle dieses Bereichs samt Datensätzen, Verlauf und Medien in derselben Transaktion. Andere Bereiche bleiben erhalten.
 
 Ein Aufgabenboard selbst zu ändern ist enger gefasst, als darauf zu arbeiten. Das Board
 umzubenennen, seine Spalten oder Standardansicht zu ändern und es zu archivieren oder
@@ -889,13 +900,18 @@ Ein Versuch ohne es wird mit `AUTHORIZATION_ERROR` (403) abgelehnt.
 
 ## Standardansicht {#default-view}
 
-Tabelleneditoren können **Als Standard festlegen** in der Werkzeugleiste wählen. Layout, Filter und Gruppierung werden als geteilte Ansicht gespeichert und bei Besuchen ohne ausdrückliche URL-Parameter `view` oder `viewId` geöffnet. Neue Aufgabentabellen starten mit Kanban. Die Standardansicht muss geteilt sein und zur Tabelle gehören. Vor dem Privatmachen muss ein anderer Standard gewählt werden. Löschen stellt das einfache Tabellenlayout wieder her. Die API verwendet `PATCH /tables/{id}` mit `default_view_id`; null entfernt den Standard.
+Tabelleneditoren können **Als Standard festlegen** unter **Ansichtseinstellungen** wählen. Layout, Filter und Gruppierung werden als geteilte Ansicht gespeichert und bei Besuchen ohne ausdrückliche URL-Parameter `view` oder `viewId` geöffnet. Neue Aufgabentabellen starten mit Kanban. Die Standardansicht muss geteilt sein und zur Tabelle gehören. Vor dem Privatmachen muss ein anderer Standard gewählt werden. Löschen stellt das einfache Tabellenlayout wieder her. Die API verwendet `PATCH /tables/{id}` mit `default_view_id`; null entfernt den Standard.
 
 Aufgabennotizen sind Markdown-Dokumente mit demselben Rich-Text-Editor und derselben Vorschau wie andere Dokumentzellen. Separate Beziehungen **Person** und **Agent** behalten die verantwortliche Person und den ausführenden Agenten. **Nächster Schritt** wählt Person oder Agent und kehrt nach einem Ergebnis zur Person zurück. Die verantwortliche Person startet Agentenarbeit mit ihrem eigenen Konto. Für eine Übergabe zuerst die Person als nächsten Schritt wählen und den Empfänger selbst starten lassen.
 
 
-**Group by** wird automatisch gespeichert, wenn ein Bearbeiter eine Spalte auswählt. Ein verwaltbarer gespeicherter Kanban wird aktualisiert; andernfalls wird eine private Ansicht erstellt und ausgewählt. Bei abgelehntem Speichern bleibt die bisherige Gruppierung erhalten. Leser können die Gruppierung vorübergehend ändern. **Set as default** in der Werkzeugleiste speichert das aktuelle Format für alle; normale Tabellen öffnen sich als Table, bis ein Bearbeiter eine andere Standardansicht auswählt.
+**Group by** wird automatisch gespeichert, wenn ein Bearbeiter eine Spalte auswählt. Ein verwaltbarer gespeicherter Kanban wird aktualisiert; andernfalls wird eine private Ansicht erstellt und ausgewählt. Bei abgelehntem Speichern bleibt die bisherige Gruppierung erhalten. Leser können die Gruppierung vorübergehend ändern. **Set as default** unter **View settings** speichert das aktuelle Format für alle; normale Tabellen öffnen sich als Table, bis ein Bearbeiter eine andere Standardansicht auswählt.
 
 Ein Agent kann nicht gelöscht werden, solange eine verwaltete Aufgabe von seiner geplanten Ausführung abhängt. Weise diese Aufgaben zuerst neu zu, schließe sie ab oder brich sie ab; das Löschen darf ihre Ausführung nicht stillschweigend verwerfen.
 
 Beim Wiederherstellen einer archivierten verwalteten Aufgabentafel werden geplante Erinnerungen für Personen erneut eingereiht, auch wenn ihr Termin während der Archivierung verstrichen ist. Die Zustellung prüft weiterhin den aktuellen Zugriff des ursprünglichen Erstellers und Empfängers; die Wiederherstellung autorisiert keine neue Agentenarbeit. Auch die eigenen Aufgaben schreiben nicht in eine archivierte Tafel: Ein Fall, der in der Zwischenzeit in der Inbox erledigt wird, lässt seine Aufgabe unverändert, und erst die Wiederherstellung der Tafel setzt sie auf erledigt oder abgebrochen. Einen Fall wieder zu öffnen, dessen Aufgabe auf einer archivierten Tafel liegt, wird mit `TABLE_ARCHIVED` abgelehnt.
+
+
+Mitglieder mit Berechtigung zum Erstellen von Tabellen erhalten ihre fehlende private Aufgabentabelle beim ersten Besuch von **Tables**. Bestehende Tabellen werden wiederverwendet; dabei entstehen keine Organisations- oder Agent-Backlogs. Projekte bieten **Task table** zum Erstellen oder Öffnen ihrer Tabelle. Ohne Erstellungsrecht bleiben zugängliche Tabellen verfügbar, ohne einen verbotenen Schreibversuch.
+
+Inbox zeigt eine Aufgabe, wenn eine Person handeln oder ein Ergebnis prüfen muss; sie ist kein zweiter Aufgabenspeicher. Watches, Mail-Trigger und Routinen können Inbox-Fälle ohne Aufgabenrekord erzeugen. Aufgaben stehen für konkrete Verpflichtungen, nicht jedes Ereignis. Eine vereinbarte Tabellenkonvention darf mit geprüfter Tabellen-ID gespeichert werden; der aktuelle Aufgabenstatus bleibt in der Tabelle.

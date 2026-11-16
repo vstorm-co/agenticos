@@ -1,10 +1,10 @@
 ---
-source_sha: "ccdac29aa383"
+source_sha: "3976c337d664"
 ---
 
 # Skills { #skills }
 
-Ein Klick auf einen Skill im Katalog öffnet einen Dialog, ohne Suche, Filter oder Listenseite zu verlieren. **Vollständige Ansicht öffnen** öffnet denselben Tab und die ausgewählte Linie auf einer eigenen Seite. Der Versionsbaum wächst mit seinem Inhalt bis zu einer begrenzten Höhe; eine einzelne Version hinterlässt keine große leere Fläche. Eine einzelne Vergleichsvorschau nutzt die verfügbare Breite und zeigt Anweisungen als Markdown mit optionalem Quelltext. Mehrere Versionen teilen den Platz auf dem Desktop und lassen sich auf dem Smartphone innerhalb des Vergleichs horizontal verschieben.
+Ein Klick auf einen Skill im Katalog öffnet Anweisungen, Beschreibung und Dateien in einem Dialog, ohne Suche, Filter oder Listenseite zu verlieren. **Vollständige Ansicht öffnen**, neben **Teilen** in der Fußleiste des Dialogs, öffnet den Tab Inhalt auf einer eigenen Seite; Agenten und Verlauf bleiben dort erreichbar. Beim Verlassen ungespeicherter Änderungen wird nachgefragt. Ohne Feedback zeigt Improve den nächsten Schritt statt eines nicht ausführbaren Kostenformulars.
 
 
 Ein Skill ist Wissen, das einmal geschrieben und an viele Agents gebunden wird:
@@ -129,8 +129,13 @@ Kontextdateien und Wissensdatenbanken bieten dasselbe.
 
 **Der Name eines Skills ist die id, unter der ein Modell ihn lädt**, also hat
 er die Form, in der Modelle ids schreiben: Kleinbuchstaben und Ziffern, verbunden
-durch einzelne Bindestriche, etwa `refund-policy`. Ein Name mit Leerzeichen oder
-Großbuchstaben wird beim Anlegen des Skills abgelehnt. Einen Namen, den das Modell
+durch einzelne Bindestriche, etwa `refund-policy`. Die Konsole formatiert Großbuchstaben,
+Leerzeichen, Satzzeichen und lateinische Akzente beim Verlassen des Feldes oder Speichern
+automatisch: `Refund Policy` wird zu `refund-policy`. Die API verlangt weiterhin das
+kanonische Format. Vorhandene Namen und Capability-Namen werden abgelehnt, ohne den
+Entwurf zu verwerfen.
+
+Einen Namen, den das Modell
 exakt wiedergeben müsste, wie `Refund policy`, lud es stattdessen als
 `refund-policy`, und zwei falsche Vermutungen beenden die Runde
 ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)).
@@ -868,22 +873,6 @@ ein Fork, verworfen, abgelaufen - und was sie kostete. **Fortsetzen** öffnet ei
 Sitzung, die noch auf Sie wartet; **Öffnen** zeigt eine beendete. Eine Version, die
 eine Sitzung übernommen hat, verweist auf sie.
 
-**Versionsbaum** zeichnet main als Reihe von Feldern von links nach rechts, die bei
-der neuesten Version endet. Jeder Fork zweigt auf einer eigenen Spur von der Version
-ab, bei der er begann, und jeder Agent steht im Feld der Version, die er nutzt. Auf
-einer Linie mit acht oder mehr Versionen werden Abschnitte, die kein Agent nutzt, zu
-einem Feld zusammengefaltet. **Vergleichen** an einer Version legt sie in einen
-Vergleich unter dem Diagramm. Wählen Sie beliebig viele Versionen aus main und
-Forks, um ihre Beschreibungen, Anweisungen und Dateien nebeneinander zu sehen. Das
-Diagramm lässt sich ziehen und mit dem Mausrad oder den Schaltflächen zoomen, wie die
-Karte eines Agents.
-
-Die zuerst gewählte Version ist die **Referenz** und steht immer zuerst, hinter einer
-Trennlinie. Jede andere Spalte markiert, was
-sie anders sagt als diese, Wort für Wort wie die Diffs im Verlauf, und ihre Dateien
-als hinzugefügt, entfernt oder geändert. **Als Referenz setzen** macht eine andere
-Spalte zur Referenz, und **Nur Unterschiede** klappt die Teile zu, die dasselbe sagen.
-
 **Bearbeiten** speichert eine neue Version auf der angezeigten Linie. Auf main
 bekommen die Agents, die main folgen, sie sofort; festgesetzte Agents und Forks
 behalten ihre Version. Ein geänderter Text wird nicht beim ersten Klick gespeichert:
@@ -1077,3 +1066,15 @@ Der Assistent kann **Ein Skill wäre sinnvoll** vorschlagen, wenn ein wiederverw
 Ein Ablauf aus weniger als drei verschiedenen Antworten wird nicht als Vorschlag aufgenommen. Er steht mit vollständigem Text unter **weitere Ideen warten auf Ihre Entscheidung**. **Create skill** öffnet eine Vorschau: Name, Beschreibung und Inhalt lassen sich bearbeiten, und ein Hinweis nennt, auf wie vielen Antworten er beruht. **Create skill** in der Vorschau legt den Skill in der Bibliothek an und bindet ihn an den Entwurf des Agenten, nie an eine veröffentlichte Version. Dafür gelten dieselben Berechtigungen wie für Accept, und es gibt keinen Modellaufruf. Ein zweiter Klick liefert den bereits erstellten Skill.
 
 Die Kostenschätzung berücksichtigt den vollständigen vorgeschlagenen Inhalt für jede Kandidatenantwort und bestätigende Wiederholungen zusätzlich zum historischen Antwortpreis.
+
+## Designressourcen für Apps und Visuals { #design-resources }
+
+`artifact-pages` unterstützt wiederverwendbare Apps, belegte Berichte, Entscheidungshilfen und Browserpräsentationen. `visual-design` unterstützt interaktive Erklärungen, Vergleiche, Diagramme und eigenständige prozedurale Grafiken. Beide wählen Gestaltung und Interaktionen passend zu Schule, Spiel oder Arbeit statt für jedes Thema dasselbe Dashboard. Ausführliche Anleitungen und vollständige HTML-Beispiele werden nur bei Bedarf geladen.
+
+Die Beispiele enthalten einen Belegfilter, veränderbare Entscheidungskriterien, einen transparenten Kostenvergleich, reproduzierbare generative Kunst und eine per Tastatur bedienbare Präsentation mit Übersicht, vier visuellen Themen und vollständigem Drucklayout. Beispieldaten und Annahmen sind gekennzeichnet. Steuerelemente, Fehlerfälle, Zurücksetzen, Mobilansicht und reduzierte Bewegung gehören zur Prüfung.
+
+Apps exportiert veröffentlichte HTML-/Markdown-Seiten oder Browserpräsentationen über `export_artifact`. Der Betreiber konfiguriert `ARTIFACT_RENDER_CDP_URL` und installiert das Extra `browser`; der Agent benötigt einen Workspace für die echte PDF-Datei. Es gelten die Zugriffs- und Zielgruppenregeln der App-Vorschau; nicht verfügbare gebundene Daten verhindern den Export. Dateien sind auf 50 Seiten und 20 MB begrenzt und erhalten eindeutige Namen. PDF, Seitenumbrüche und vollständige Folien prüfen. Ein PowerPoint-Format wird nicht eingeführt.
+
+Chat kann interaktive Inhalte einbetten. Mattermost und andere Textkanäle erhalten einen berechtigten App-Link, ein gerendertes Bild soweit unterstützt oder eine angeforderte PDF-Datei; HTML läuft nicht in diesen Nachrichten. Ein Link gewährt keinen öffentlichen Zugriff. Bestehende Installationen nutzen die normale Bibliotheksaktualisierung: unveränderte Kopien werden aktualisiert, verwendete Skills warten auf ihre Prüfung, eigene Anpassungen bleiben geschützt.
+
+Mitgelieferte Plattform-Skills und die Skills des AI Architect können nach den normalen Ressourcenrechten gelesen und verwendet werden. Änderungen an Inhalt, Dateien, Versionen oder Forks, das Löschen und das Belegen eines reservierten Namens erfordern jedoch organisationsweite Agenten-Bearbeitungsrechte (Owner/Admin bei den eingebauten Rollen). Eine Bearbeitungsfreigabe für den Skill umgeht diesen Schutz nicht. Gewöhnliche Organisations-Skills behalten ihre bisherigen Eigentums- und Freigaberegeln.

@@ -298,6 +298,23 @@ const emailRow = () => within(screen.getByRole("group", { name: "Email" }));
 const trackerRow = () => within(screen.getByRole("group", { name: "Tracker" }));
 
 describe("PortalCatalog", () => {
+  it("keeps compact service choices short until expanded, with their connection actions intact", async () => {
+    serve([], "oauth_app_secret");
+    render(<PortalCatalog compact canRun canManageConnections />, { wrapper });
+    const entry = await screen.findByRole("group", { name: "GitHub" });
+    expect(
+      within(entry).queryByRole("button", { name: "Add credentials" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(within(entry).getByText("GitHub", { exact: true }));
+    expect(screen.queryByRole("group", { name: "Email" })).not.toBeInTheDocument();
+    expect(within(entry).getByRole("button", { name: "Add credentials" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Back to services" }));
+    expect(screen.getByRole("group", { name: "Email" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(within(entry).getByRole("button", { name: /GitHub/ })).toHaveFocus(),
+    );
+  });
+
   beforeEach(() => vi.clearAllMocks());
 
   it("draws a card per portal with its own brand mark", async () => {

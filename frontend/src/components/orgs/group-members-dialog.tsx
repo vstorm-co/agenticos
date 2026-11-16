@@ -45,8 +45,9 @@ export function GroupMembersDialog({ orgId, group, canManage, onClose }: GroupMe
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
   const { members, isLoading, error, add, remove, setLead } = useGroupMembers(orgId, group.id);
-  const { members: orgMembers } = useMembers(orgId);
+  const { members: orgMembers, isLoading: candidatesLoading } = useMembers(orgId);
   const me = useAuthStore((state) => state.user?.id);
+  const pending = add.isPending || remove.isPending || setLead.isPending;
   const leads = members.some((member) => member.user_id === me && member.is_lead);
   const canChangeMembers = canManage || leads;
   const inGroup = new Set(members.map((member) => member.user_id));
@@ -54,8 +55,13 @@ export function GroupMembersDialog({ orgId, group, canManage, onClose }: GroupMe
 
   return (
     // Mounted only while open, so the one change of openness it can report is closing.
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
+    <Dialog
+      open
+      onOpenChange={() => {
+        if (!pending) onClose();
+      }}
+    >
+      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)} dismissible={!pending}>
         <DialogHeader>
           <DialogTitle>{t("membersOf", { name: group.name })}</DialogTitle>
           <DialogDescription>{t("membersBody")}</DialogDescription>
@@ -64,13 +70,18 @@ export function GroupMembersDialog({ orgId, group, canManage, onClose }: GroupMe
           {error ? (
             <ErrorState description={getErrorMessage(error, tErrors)} />
           ) : isLoading ? (
-            <LoadingState variant="skeleton-panel" rows={3} />
+            <LoadingState variant="pending" />
           ) : members.length === 0 ? (
             <p className="text-muted-foreground py-6 text-center text-sm">{t("nobodyYet")}</p>
           ) : (
             members.map((member) => (
-              <div key={member.user_id} className="flex items-center gap-3 rounded-md border p-3">
-                <MemberIdentity member={member} className="flex-1" />
+              <div
+                key={member.user_id}
+                role="group"
+                aria-label={member.full_name || member.email}
+                className="flex flex-wrap items-center gap-2 rounded-xl border p-3"
+              >
+                <MemberIdentity member={member} className="flex-1 basis-full sm:basis-auto" />
                 {member.source === "directory" && (
                   <DirectoryBadge explanation={t("directoryMemberHint")} />
                 )}
@@ -83,46 +94,48 @@ export function GroupMembersDialog({ orgId, group, canManage, onClose }: GroupMe
                     {t("lead")}
                   </Badge>
                 )}
-                {canManage && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={setLead.isPending}
-                    onClick={() =>
-                      setLead.mutate({ userId: member.user_id, isLead: !member.is_lead })
-                    }
-                    aria-label={t(member.is_lead ? "unmakeLead" : "makeLead", {
-                      name: member.full_name || member.email,
-                    })}
-                    title={t(member.is_lead ? "unmakeLead" : "makeLead", {
-                      name: member.full_name || member.email,
-                    })}
-                    className="text-muted-foreground"
-                  >
-                    <Crown className="h-4 w-4" />
-                  </Button>
-                )}
-                {canChangeMembers && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-destructive"
-                    disabled={remove.isPending}
-                    onClick={() => remove.mutate(member.user_id)}
-                    aria-label={tc("removeNamed", { name: member.full_name || member.email })}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
+                <div className="ml-auto flex shrink-0 items-center gap-0.5">
+                  {canManage && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={pending}
+                      onClick={() =>
+                        setLead.mutate({ userId: member.user_id, isLead: !member.is_lead })
+                      }
+                      aria-label={t(member.is_lead ? "unmakeLead" : "makeLead", {
+                        name: member.full_name || member.email,
+                      })}
+                      title={t(member.is_lead ? "unmakeLead" : "makeLead", {
+                        name: member.full_name || member.email,
+                      })}
+                      className="text-muted-foreground"
+                    >
+                      <Crown className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {canChangeMembers && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:text-destructive"
+                      disabled={pending}
+                      onClick={() => remove.mutate(member.user_id)}
+                      aria-label={tc("removeNamed", { name: member.full_name || member.email })}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
             ))
           )}
         </div>
-        {canChangeMembers && (
+        {canChangeMembers && !candidatesLoading && (
           <GroupMemberAdd
             candidates={candidates}
-            pending={add.isPending}
-            onAdd={(userId) => add.mutate(userId)}
+            pending={pending}
+            onAdd={(userId, onAdded) => add.mutate(userId, { onSuccess: onAdded })}
           />
         )}
       </DialogContent>

@@ -148,6 +148,17 @@ async def _syncing(
         patch.object(rag_tasks, "assert_organization_within_budget", new=AsyncMock()),
         patch.object(rag_tasks, "SyncSourceService", return_value=sources),
         patch.object(
+            rag_tasks.sync_log_repo,
+            "get_by_id",
+            new=AsyncMock(
+                return_value=MagicMock(
+                    collection_name=source.collection_name,
+                    organization_id=source.organization_id,
+                    knowledge_base_id=None,
+                )
+            ),
+        ),
+        patch.object(
             rag_tasks,
             "_knowledge_base_for",
             new=AsyncMock(
@@ -642,6 +653,17 @@ class TestAListingTheStoreCannotAnswer:
             patch.object(rag_tasks, "assert_organization_within_budget", new=AsyncMock()),
             patch.object(rag_tasks, "SyncSourceService", return_value=sources),
             patch.object(
+                rag_tasks.sync_log_repo,
+                "get_by_id",
+                new=AsyncMock(
+                    return_value=MagicMock(
+                        collection_name=source.collection_name,
+                        organization_id=source.organization_id,
+                        knowledge_base_id=None,
+                    )
+                ),
+            ),
+            patch.object(
                 rag_tasks,
                 "_knowledge_base_for",
                 new=AsyncMock(return_value=MagicMock(id=KB_ID, ingestion_config={})),
@@ -938,6 +960,17 @@ class TestASyncLogPassedInIsNotLeftRunning:
         with (
             patch.object(rag_tasks, "get_worker_db_context", new=_db),
             patch.object(rag_tasks, "SyncSourceService", return_value=sources),
+            patch.object(
+                rag_tasks.sync_log_repo,
+                "get_by_id",
+                new=AsyncMock(
+                    return_value=MagicMock(
+                        collection_name=source.collection_name,
+                        organization_id=source.organization_id,
+                        knowledge_base_id=None,
+                    )
+                ),
+            ),
             patch("app.services.rag_sync.RAGSyncService", return_value=sync_svc),
             # This class is about `complete_sync`/`update_after_sync`, not the
             # whole-attempt notification write the same branch also makes

@@ -19,6 +19,249 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.76.1] - 2026-11-15
+
+### Documentation
+
+- README links to RepoCloud and Railway hosting templates in all four languages, with provider configuration and version limitations.
+
+## [1.76.0] - 2026-11-15
+
+### Added
+
+- Native Linear webhook triggers verify signed deliveries and start agent routines directly.
+
+## [1.75.0] - 2026-11-15
+
+### Added
+
+- Generic API webhook triggers can verify raw-body HMAC-SHA256 signatures in a configured header, with hex or base64 encoding.
+
+## [1.74.0] - 2026-11-14
+
+### Added
+
+- Opt-in automatic channel participation with a separate decision model, focus instructions, bounded message windows and configurable pre-/post-mention intervals. Automatic replies can use bound organization MCP accounts; private accounts and calls needing human approval require a direct mention.
+
+- Organization groups in workflow human/MCP approvals and agent notification audiences. Decisions use current eligible membership; empty or deleted configured groups never become unrestricted approval.
+
+
+- New chat bindings enable all supported tools by default, including agent-chosen emoji reactions on Mattermost, Slack, Discord, Telegram and iMessage, with explicit platform limits and text replies alongside reactions.
+
+- Apps exports published reports and browser presentations as real PDF files through the isolated renderer, with audience checks and explicit size/page limits.
+- Apps and Visuals include design playbooks, themed browser presentations, a native UI component studio and richer map/3D examples for school, play and work (#2989).
+- Platform MCP can create or reuse an App's public link after an explicit request, under the normal write approval and edit-access checks; live public-data consent remains separate.
+
+- Per-bot opt-in tools to find joined channels, search message history and send requested reports from web chat, linked channel conversations or routines.
+- Routines with unavailable sources are saved paused with setup guidance instead of discarding the requested schedule.
+
+- Channel history supports bounded text, author and time filters with destination-bound continuation cursors for Mattermost and Slack. Other platforms report unsupported paging explicitly.
+
+- Activity separates the runtime tool catalog from provider-resolved visibility, records Tool Search policy and per-request tool counts, and puts model settings and cache usage beside readable prompt/source views. Run history fills the available viewport even when it contains few records.
+
+### Fixed
+
+- Keep sandbox connection details and session controls readable on narrow screens, search sessions by agent name, and confirm channel-bot removal before disconnecting bound agents.
+
+- Align organization role, directory and retention views with shared list layouts: searchable permission matrices with sticky labels, responsive retention fields and matching loading states, disabled unchanged saves, and retryable directory deletion refusals.
+
+- Share pagination controls and loading/boundary states across catalogs, record tables and memory. Disable unchanged participation settings, organize background-service cards, and retain the full file-reader footprint while previews load.
+- Keep switches visible when wrapped in action tooltips; tooltip state no longer overrides checked-state styling.
+- Forward image-proxy requests from their URL and headers without rewrapping the runtime's Request object.
+
+- Match loading placeholders to the actual agent/group cards, stacked channel and sandbox tables, workflow canvas, workspace documents and record lists. Preserve page frames and toolbars while data loads, and keep placeholders visible on narrow screens in both themes.
+
+- Upgrade the OpenTelemetry API/SDK instrumentation family to 1.45.2/0.66b2 to fix trace-context parsing denial of service (CVE-2026-126360).
+
+- Preserve input redactions in a separate model-replay copy, including attachment briefings and forked conversations; keep the original human audit transcript.
+- Apply knowledge-base teardown ownership rules to account and organization purges, and track CLI connector ingestion against concurrent teardown.
+- Enforce base access on integration mutations and cloning, reserve unassigned RAG templates for connection managers, and retain sync-log tenant/target ownership after source deletion. Validate source edits before mutation locks and reject stale validated writes.
+- Native routine skill loading no longer inherits an unrelated write-approval requirement; explicit agent approval policy still applies. Approval decisions no longer leave continuation blocked by a stale cached queue.
+- Preserve bot text replies after emoji reactions, including approval continuations. Unlinked senders can request bot reactions on the admitted message or earlier messages actually read from that bound channel, without borrowing publisher account authority. Show editable deployment defaults directly in the channel instruction input; preserve legacy custom additions and restore live defaults when cleared. Smooth chat App/Visual previews with reserved skeletons, decode/render readiness and reduced-motion support.
+
+
+- Protect bundled platform and Architect skills from edits, resource/version/fork changes and deletion by callers without organization-wide agent edit authority, including explicit skill grants; reserve their names against unprivileged creation (#2882).
+
+- Routine skill loading no longer falls through to the unknown external-action approval rule; explicit agent approval gates remain enforced (#3019). Approval decisions check the server for remaining requests rather than trusting a stale queue page.
+- Email delivers generated chart images as attachments instead of dropping image-only answers. Email, iMessage and Twilio MMS offer explicit current-conversation file delivery.
+- Session-check errors offer a sign-in action that preserves the return destination alongside retrying the saved session.
+
+- Preserve expanded chat activity through tool approval and resumption, use neutral approval status styling, and remove acknowledged approval notices without a stale flash.
+- Keep real tool progress visible in messaging channels after interim text, with bounded elapsed-time and completed-step updates for long work.
+
+- Browser and computer previews reach channel progress through runtime events, and available authenticated links remain in final and resumed answers.
+- The shipped AgenticOS instructions open relevant sources proactively, discover MCP fetch operations and link to the correct tool/account setup when something is missing.
+- Mobile composer placeholders and text align with attachment and send actions.
+
+- Chat prompts only for genuinely pending approvals; standing and remembered consent keep their approved audit entries without showing an actionable approval card after the tool completes (#2994).
+
+
+- Read Mattermost thread history in creation-time order and honor result limits even when the platform returns an unordered or oversized thread. Use the thread endpoint's native paging parameters for both text and attachment backfill.
+- Discover both search and fetch tools from multi-query local tool search, including MCP tools with long descriptions.
+- Keep channel author metadata separate from user messages, without inserting an empty message marker. Ignore Mattermost system housekeeping posts before they can start paid agent runs.
+
+### Changed
+
+- The active chat permission mode stays visible beside the composer, with a direct selector that respects the organization waiver policy and the caller’s permissions (#2995).
+
+
+## [1.73.0] - 2026-11-13
+
+### Added
+
+- **Revert a coding task.** The task panel can restore a complete task's files in its original conversation workspace, with edit access and an audit entry. A durable job reserves the workspace and reconciles uncertain results without applying undo twice. Later changes to any affected file refuse the whole revert. Shared, older, truncated, redacted or linked-file snapshots cannot be reverted.
+
+### Fixed
+
+- **DNS parser security update (CVE-2026-128089).** Upgrade dnspython to 2.9.2
+  to reject out-of-range WKS service numbers before allocating their bitmaps.
+- Match workflow editor loading to its full-height workspace and remove the
+  redundant count strip and nested padding from the Versions sidebar.
+- Bound coding-task revert verification to 2 MiB per file and 16 MiB overall,
+  check snapshot eligibility before offering undo, meter requests per person
+  and organization, and serialize revert jobs within each organization.
+- **Trace context parser security update (CVE-2026-126360).** Upgrade the OpenTelemetry stack to 1.45.2/0.66b2 to bound malformed `traceparent` parsing from untrusted carriers, including JSON metadata.
+- Localize notification summaries and built-in workflow step names, including logs and standard error ports, while preserving custom names and precise budget amounts.
+- Keep concurrent table-edit conflicts tied to the latest conflict without overwriting other drafts or accepting stale comparisons.
+- Show approval decisions and their author when permitted, preserve them after later execution failures, and fit long workflows on phones with a separate minimap preference.
+- Hide operator-only upgrade instructions from the member-facing What's new panel.
+- Report why the sandbox host could not start a workflow script's sandbox, as `SANDBOX_START_FAILED` with a bounded, safe diagnosis that does not expose host paths or build output, instead of saying the host could not be reached. `make dev` now creates the sandbox workspace directory before Docker can create it as root, which on Linux and under Docker Desktop's WSL integration left every sandbox unable to start; an existing directory the service cannot write is reported with the command that fixes it.
+- **Coding task file counts.** The message footer and task panel use the stored change set, including shell edits. New reports normalize harness-only fallback paths relative to the workspace.
+- **Workflow step claims follow the database clock.** A worker's claim on a workflow step now measures its lease from the database's time, the clock every expiry check reads. Before, a worker host whose clock ran behind the database could take a claim that had already expired, so a second worker could run the same step; one whose clock ran ahead held a dead worker's step longer than `WORKFLOW_DISPATCH_LEASE_SECONDS`. The recovery sweeps read the database's time too.
+
+
+## [1.72.0] - 2026-11-13
+
+### Added
+
+- Choose and reset persistent table and workflow icons from their detail headers,
+  with matching neutral marks in catalogs and Dashboard table rows.
+
+### Fixed
+
+- **HTML selector security update (CVE-2026-126190).** Upgrade Soup Sieve to 4.1 while retaining process, time and memory limits. **Upgrade action:** `html.parse` document selectors and links exclude inert `<template>` contents and follow browser-aligned form selector rules. Review workflows relying on the old matching behavior. Selecting the `<template>` element itself still returns its HTML and text.
+- **Failed chat turns remain visibly failed.** A safe failure notice stays outside folded work and survives transcript reloads; partial answers remain separate from platform errors. Provider content-filter refusals get an explicit explanation without exposing raw provider payloads or unknown historical errors.
+- **Favicons for ordinary web links.** Unknown HTTP(S) sites use a hostname-only, credential-free icon proxy even without an MCP connection, with a globe if unavailable. Model-supplied links never make the reader’s browser contact the target site to load an icon. Inert transcript views make no remote icon requests, and a missing icon on one site does not suppress another site's icon.
+- Unify Vault keys and personal/organization connected accounts in one table,
+  preserving per-entry authority and removing separate empty cards/count strips.
+- Restore wheel scrolling in resource-sharing member/group pickers inside modals,
+  bound the list to the available viewport and correct project access descriptions.
+- Keep the Skill editor frame mounted across skeleton, metadata and module loading
+  to avoid a second opening animation; place full view beside Share in its footer.
+
+
+- Match skill/context editor loading to the real dialog and pane geometry on
+  desktop and phones. Keep dataset detail chrome and load Cases through its real
+  table columns; align catalog placeholders and remove invented panel/form grids.
+- Simplify the event-trigger service picker into compact branded disclosures,
+  with presets and connection requirements available after expansion.
+
+- Keep Briefing loading stable while onboarding and suggestion reads settle,
+  without blocking other Dashboard widgets or repeatedly retrying failed reads.
+- Align Datasets and skill/context improvement screens with the console's neutral
+  styling. Open skills in their instructions/files modal first, with an explicit
+  full Content view action; remove the Version tree while retaining History diffs.
+- Show the Agents status filter directly and reserve workspace fullscreen controls
+  for phones, restoring navigation and page scrolling on desktop resize.
+
+
+- The first chat message keeps its composer mounted when the server names the
+  new conversation, instead of briefly replacing it with an access-check notice.
+  Dashboard table rows now carry the table mark used by the catalog.
+
+- Profile identity and context forms keep their drafts after refused writes,
+  block overlapping changes and support keyboard submission. Portrait controls,
+  native colour choices and working hours fit phones. Notification events are
+  searchable and paginated with clear channel controls; unconnected platforms
+  stay folded. Failed preferences, destinations and chat-account reads offer
+  retry without inventing enabled switches or an empty account list.
+
+- API key settings put active credentials first and retain names, expiry and
+  usage details on phones. Keys and custom permissions are searchable. Creation supports keyboard submission,
+  locks fields and dismissal during writes, preserves refused drafts and clears
+  one-time state on close. Permission-catalog and revocation failures offer
+  retry. Clipboard refusals are reported without losing the copyable value;
+  MCP consent also freezes organization and scope choices during an answer.
+
+- Department cards keep descriptions and member counts visible on phones. Shared
+  resources lead the detail page; compact setup, membership and sharing forms
+  keep actions reachable, block conflicting writes and retain refused drafts.
+  Failed group reads and deletions offer retry without losing the current view.
+
+- Routine names wrap on phones, unmatched searches offer a reset action and
+  list failures can retry both data sources. Schedule and event editing keep
+  action footers visible in short windows. Routine and watch forms freeze
+  fields and dismissal during writes and preserve refused drafts. Wizard
+  navigation uses touch-sized controls and supports non-cancellable writes.
+
+- Context settings use compact file rows and a neutral injected-context note;
+  Availability identifies bot bindings with platform logos. App sharing puts
+  people and links first, with optional link settings collapsed, active
+  restrictions summarized and edits preserved when the options are closed.
+
+- Channel registration uses a compact platform selector on phones. Cancelling
+  channel and vault creation or key rotation clears entered credentials. These
+  forms freeze fields and dismissal while saving and preserve refused writes
+  for retry; channel editing and rotation keep their action footer reachable.
+
+- Project, context-file and dataset creation protect drafts before closing and
+  lock their fields while saving. Multi-file context imports keep their queue;
+  dataset details and cases retain refused writes and reachable save actions.
+  Phone context creation puts the editor before expandable description/access
+  details, with the effective audience kept visible.
+
+- Custom command controls fit touch phones, retain edited drafts on close and
+  failed saves, block conflicting writes and confirm removal in the console.
+  Command and MCP connection fields and dismissal stay locked during a save.
+  A refused MCP OAuth start keeps the connection draft available for retry.
+
+- Console skill names, environment names, MCP prefixes and custom slash commands
+  format human-entered titles automatically instead of rejecting capitals and
+  spaces. Typing stays intact until blur or submission; identifier fields turn
+  off mobile text correction, and name conflicts preserve the draft.
+
+- Keep document and member actions visible on phones, prevent organization
+  profile controls from overflowing, and align spending-limit saves. Retention
+  edits now guard navigation, validate periods and retain refused drafts.
+  Knowledge-base dialogs cannot disappear during writes, failed downloads show
+  an error, and member removal requires confirmation.
+
+- Align mobile table view controls, keep format and saved-view names readable,
+  and move the default-view action into View settings. Compact catalog filter
+  buttons leave more room for search without shrinking touch targets.
+
+- Center the public chat send control with its input on desktop and touch
+  screens, and keep populated table filters readable on narrow phones with
+  full-width fields and a reachable footer.
+
+- **Reliable CSV import, knowledge search and organization edits.** CSV imports
+  reject duplicate target columns instead of overwriting the first value.
+  Changing a knowledge-search question or scope cancels stale requests and
+  clears previous results. Leaving edited organization identity, spending
+  caps or voice defaults now asks before discarding the draft. Hosted chat
+  waits for its current WebSocket before enabling Send, so the first
+  question is not silently dropped during connection setup.
+- **Keep console edits when leaving or saving fails.** Project settings,
+  Skills and Context ask before discarding unsaved edits. Skill resources
+  retain a refused save and typing added while a save is in flight. Workflow
+  run status bars wrap on narrow screens so their actions remain reachable.
+- **Console navigation and accessibility.** Browser tabs identify the current
+  page and section, including after navigation, loading and a rename. Empty
+  catalog toolbars no longer leave invisible controls in the keyboard order.
+  Horizontal tab strips indicate content on either side and keep the selected
+  label outside the fade. Keyboard focus remains visible in Windows High
+  Contrast; organization tabs no longer expose extra hint buttons inside the
+  tablist, and the wide permission matrix can be scrolled with a keyboard.
+  The sidebar search shortcut also has sufficient contrast on its tinted badge.
+- **Small-screen and empty-state layout.** The agent Builder's loading state
+  fits a phone without horizontal page overflow. A standalone Briefing no
+  longer reserves space for a dismissed setup card, and an empty dataset
+  catalog omits its redundant count.
+- **Connected accounts in the Vault.** Listing and disconnecting personal and
+  organization accounts now reach the existing backend through the shared,
+  authenticated console proxy instead of returning a frontend 404.
+
+
 ## [1.71.2] - 2026-11-12
 
 ### Changed
@@ -21520,7 +21763,13 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.71.2...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.76.1...HEAD
+[1.76.1]: https://github.com/vstorm-co/agenticos/compare/v1.76.0...v1.76.1
+[1.76.0]: https://github.com/vstorm-co/agenticos/compare/v1.75.0...v1.76.0
+[1.75.0]: https://github.com/vstorm-co/agenticos/compare/v1.74.0...v1.75.0
+[1.74.0]: https://github.com/vstorm-co/agenticos/compare/v1.73.0...v1.74.0
+[1.73.0]: https://github.com/vstorm-co/agenticos/compare/v1.72.0...v1.73.0
+[1.72.0]: https://github.com/vstorm-co/agenticos/compare/v1.71.2...v1.72.0
 [1.71.2]: https://github.com/vstorm-co/agenticos/compare/v1.71.1...v1.71.2
 [1.71.1]: https://github.com/vstorm-co/agenticos/compare/v1.71.0...v1.71.1
 [1.71.0]: https://github.com/vstorm-co/agenticos/compare/v1.70.0...v1.71.0

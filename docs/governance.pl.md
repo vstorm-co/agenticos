@@ -1,5 +1,5 @@
 ---
-source_sha: "66ff628633d4"
+source_sha: "b677b4ad3aa4"
 ---
 
 # Governance { #governance }
@@ -2532,3 +2532,11 @@ rutyna. Narzędzia MCP do Inbox działają w zalogowanej sesji i przez zaufane
 poświadczenia prywatnej rozmowy; te ostatnie obejmują wyłącznie sprawy tej rozmowy.
 Zwykłe klucze API, uruchomienia w tle i zastępcza tożsamość publikującego nie mogą
 czytać ani zamykać prywatnych spraw.
+
+## Grupy akceptujące { #approval-groups }
+
+Kroki akceptacji i wywołań MCP w workflowach mogą wskazywać osoby, grupy organizacji lub oba zbiory. Decyzję podejmuje jedna uprawniona osoba, która niezależnie musi mieć `approvals:decide`. Bez wskazanych osób i grup obowiązuje dotychczasowa reguła oparta na tym uprawnieniu. Wskazana pusta lub usunięta grupa nigdy nie otwiera dostępu wszystkim.
+
+Członkostwo w grupie i aktywność konta są sprawdzane przy podejmowaniu decyzji. Powiadomienia trafiają do uprawnionych członków przy tworzeniu prośby; osoby wskazane kilkoma sposobami dostają je raz. Późniejsze dołączenie może dać prawo do decyzji bez nowego powiadomienia; wyjście lub utrata uprawnienia je odbiera.
+
+Alerty akceptacji, budżetu i zużycia agenta również obsługują grupy jako wybranych odbiorców. To wyłącznie adresaci powiadomień: wybór nie nadaje ani nie ogranicza prawa do decyzji. Osobiste preferencje powiadomień nadal obowiązują.

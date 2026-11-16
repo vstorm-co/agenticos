@@ -67,7 +67,7 @@ export function SkillImprovementPage({
   const tErrors = useTranslations("errors");
   const { skill, isLoading, error } = useSkill(skillId);
   const { can } = usePermissions();
-  if (isLoading) return <LoadingState variant="skeleton-cards" rows={3} />;
+  if (isLoading) return <LoadingState variant="pending" />;
   if (error || !skill) return <ErrorState description={getErrorMessage(error, tErrors)} />;
   const header = (
     <SkillImprovementHeader
@@ -81,7 +81,7 @@ export function SkillImprovementPage({
   // A session is read from the line agents' runs; starting one changes the skill too.
   if (!can(Perm.runsView) || (!skill.can_edit && sessionId === "new"))
     return (
-      <div className="mx-auto w-full max-w-5xl space-y-6 pb-16">
+      <div className="w-full space-y-6 pb-16">
         {header}
         <p role="alert">{t("permission")}</p>
         <Link className="text-sm underline underline-offset-4" href={ROUTES.SKILL_DETAIL(skillId)}>
@@ -90,7 +90,7 @@ export function SkillImprovementPage({
       </div>
     );
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 pb-16">
+    <div className="w-full space-y-6 pb-16">
       {sessionId === "new" && header}
       {sessionId === "new" && merge !== null && forkId !== null ? (
         <MergeStart skillId={skillId} forkId={forkId} kind={merge} />
@@ -145,7 +145,7 @@ function SkillSession({
     return (
       <>
         {unread}
-        <LoadingState variant="skeleton-cards" rows={3} />
+        <LoadingState variant="pending" />
       </>
     );
   if (actions.error || !session)

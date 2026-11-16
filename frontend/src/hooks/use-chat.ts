@@ -1,5 +1,7 @@
 "use client";
 
+import { clearApprovalNotice } from "@/lib/approval-cache";
+
 import { toolLookupName } from "@/lib/tool-identity";
 
 import type { Mentionable } from "@/types/mention";
@@ -194,6 +196,7 @@ export function useChat(options: UseChatOptions = {}) {
   const selectionApi = useAgentSelectionStore.useApi();
   const scoped = useInChatScope();
   const {
+    adoptCreatedConversation,
     setCurrentConversationId,
     setCurrentCost,
     currentConversationId: currentConversationIdFromStore,
@@ -331,6 +334,7 @@ export function useChat(options: UseChatOptions = {}) {
   const decidedApprovalIdsRef = useRef(new Set<string>());
   const terminalRunIdsRef = useRef(new Set<string>());
   const decidingApprovalRef = useRef<object | null>(null);
+  const [continuingApproval, setContinuingApproval] = useState(false);
   const [resumingDelegations, setResumingDelegations] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -698,6 +702,19 @@ export function useChat(options: UseChatOptions = {}) {
           }
           declinedRef.current = null;
           followingRef.current = conversation_id;
+          // Attachment replays the turn from its beginning. A local bubble left
+          // by the previous socket is that same unsaved stream, not another answer.
+          for (const message of chatApi.getState().messages) {
+            if (
+              message.conversationId === conversation_id &&
+              message.role === "assistant" &&
+              message.isTemporaryId &&
+              message.isStreaming &&
+              !message.isLocalContinuation
+            ) {
+              chatApi.getState().removeMessage(message.id);
+            }
+          }
           resumedRunIdRef.current = undefined;
           stoppedMessageIdRef.current = null;
           stopRequestedRef.current = false;
@@ -865,7 +882,11 @@ export function useChat(options: UseChatOptions = {}) {
           useWorkOnStore.getState().adopt(conversation_id);
           createdConversationIdRef.current = conversation_id;
           attachedRef.current = conversation_id;
-          setCurrentConversationId(conversation_id);
+          if (conversationApi.getState().currentConversationId === null) {
+            adoptCreatedConversation(conversation_id);
+          } else {
+            setCurrentConversationId(conversation_id);
+          }
           // Reflect the new ID in the URL so the page is refreshable + shareable.
           if (!scoped) setUrlParam("id", conversation_id);
           const { updateMessagesWhere } = chatApi.getState();
@@ -1288,14 +1309,13 @@ export function useChat(options: UseChatOptions = {}) {
             currentMessageIdRef.current ??
             (unanswered ? createNewMessage("") : null);
           if (id) {
-            // Into the timeline rather than onto `content` directly: the store's
-            // append keeps the two in step, and it starts a parts list for a
-            // message that has none - which is what a replayed turn looks like.
-            appendTextDelta(
-              id,
-              `\n\n${t("streamError", { message: message || t("unknownError") })}`,
-            );
-            updateMessage(id, (msg) => ({ ...msg, isStreaming: false }));
+            // A failure belongs to the run, not to the assistant's answer.
+            updateMessage(id, (msg) => ({
+              ...msg,
+              isStreaming: false,
+              runFailed: true,
+              runError: message || t("unknownError"),
+            }));
             abandonOpenCalls(id);
           }
           if (followingRef.current === null) setIsProcessing(false);
@@ -1605,6 +1625,7 @@ export function useChat(options: UseChatOptions = {}) {
       updateToolCallPart,
       abandonOpenCalls,
       offerParkedQuestion,
+      adoptCreatedConversation,
       setCurrentConversationId,
       setCurrentMessageId,
       onConversationCreated,
@@ -2273,6 +2294,8 @@ export function useChat(options: UseChatOptions = {}) {
     };
   }, [messages, pendingApproval, canDecide, activeConversationId]);
 
+  const queryClient = useQueryClient();
+
   /** Record one decision on the `approvals` row it belongs to. */
   const decideApproval = useCallback(
     (approvalId: string, approved: boolean, rememberScope?: Decision["remember_scope"]) =>
@@ -2535,7 +2558,6 @@ export function useChat(options: UseChatOptions = {}) {
   // Query owns retries and cancellation; deriving the control from the current
   // permission and transcript prevents late responses from reviving stale UI.
   const stopAccountId = useAuthStore((state) => state.user?.id ?? null);
-  const queryClient = useQueryClient();
   const stopCandidates = useMemo(() => {
     const candidates = new Map<string, { runId: string; messageId: string }>();
     if (!permissionsLoaded || isProcessing || pendingApproval !== null || pendingQuestions !== null)
@@ -2581,6 +2603,7 @@ export function useChat(options: UseChatOptions = {}) {
       // HTTP continuations can park again without a WebSocket approval frame.
       const decisionToken = {};
       decidingApprovalRef.current = decisionToken;
+      setContinuingApproval(true);
       offeredApprovalBatchesRef.current.add(
         JSON.stringify([
           parked.runId,
@@ -2618,6 +2641,12 @@ export function useChat(options: UseChatOptions = {}) {
               result: decision.type === "approve" ? undefined : "Refused",
             });
           }
+        }
+        if (
+          parked.actionRequests.every((request) => decidedApprovalIdsRef.current.has(request.id))
+        ) {
+          await clearApprovalNotice(queryClient, activeConversationId, parked.runId);
+          void queryClient.invalidateQueries({ queryKey: qk.runs.all() });
         }
         if (continuesInChat) {
           // Approval queues the continuation; it does not complete the tool.
@@ -2711,6 +2740,7 @@ export function useChat(options: UseChatOptions = {}) {
             updateMessage(parked.messageId, (message) => ({ ...message, isStreaming: false }));
           }
           decidingApprovalRef.current = null;
+          setContinuingApproval(false);
           setResumingDelegations(new Set());
           setDrainTick((tick) => tick + 1);
         }
@@ -2719,6 +2749,8 @@ export function useChat(options: UseChatOptions = {}) {
     [
       pendingApproval,
       delegations,
+      queryClient,
+      activeConversationId,
       updateToolCallPart,
       updateMessage,
       decideApproval,
@@ -3489,6 +3521,7 @@ export function useChat(options: UseChatOptions = {}) {
       approvalModeRef.current = mode;
     },
     pendingApproval,
+    continuingApproval,
     mayRememberApproval:
       canDecide &&
       controlOrgs?.find((org) => org.id === activeOrgId)?.chat_may_waive_approvals === true,

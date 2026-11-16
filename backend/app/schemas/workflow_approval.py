@@ -31,8 +31,16 @@ class WorkflowApprovalRead(BaseSchema):
     node_run_id: UUID
     title: str
     details: str | None
+    can_decide: bool = Field(
+        default=False,
+        description="Whether the current caller belongs to this request's approval audience. Decision authority is checked again on submission.",
+    )
     approver_user_ids: list[UUID] = Field(
-        description="Who may decide it. Empty means anyone holding approvals:decide."
+        description="Named approvers. Only when both user and group lists are empty is the audience unrestricted."
+    )
+    approver_group_ids: list[UUID] = Field(
+        default_factory=list,
+        description="Current members of these groups may decide, if they hold approvals:decide. Empty groups grant nobody access.",
     )
     status: WorkflowApprovalStatus
     expires_at: datetime | None

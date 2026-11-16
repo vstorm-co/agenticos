@@ -128,7 +128,9 @@ function render(ui: ReactElement) {
 class FakeSocket {
   static last: FakeSocket | null = null;
   static readonly OPEN = 1;
-  readyState = 1;
+  static autoOpen = true;
+  readyState = FakeSocket.autoOpen ? 1 : 0;
+  onopen: (() => void) | null = null;
   sent: string[] = [];
   onmessage: ((event: { data: string }) => void) | null = null;
   onclose: ((event: { code: number }) => void) | null = null;
@@ -136,6 +138,12 @@ class FakeSocket {
 
   constructor(readonly url: string) {
     FakeSocket.last = this;
+    if (FakeSocket.autoOpen) queueMicrotask(() => this.onopen?.());
+  }
+
+  open() {
+    this.readyState = 1;
+    this.onopen?.();
   }
 
   send(payload: string) {
@@ -181,6 +189,7 @@ beforeEach(() => {
     action.mockReset();
   }
   FakeSocket.last = null;
+  FakeSocket.autoOpen = true;
   vi.stubGlobal("WebSocket", FakeSocket);
   window.localStorage.clear();
 });
@@ -195,6 +204,19 @@ function socket(): FakeSocket {
 }
 
 describe("the hosted page", () => {
+  it("keeps Send disabled until the current socket opens without losing the draft", async () => {
+    FakeSocket.autoOpen = false;
+    render(<HostedChat config={config()} />);
+    const input = screen.getByRole("textbox", { name: "Ask a question…" });
+    await userEvent.type(input, "First question");
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+    expect(socket().sent).toHaveLength(0);
+    act(() => socket().open());
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(socket().sent).toHaveLength(1);
+    expect(input).toHaveValue("");
+  });
+
   it("names itself with the title the operator chose", () => {
     render(<HostedChat config={config()} />);
 

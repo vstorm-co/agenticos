@@ -871,25 +871,31 @@ test.describe("artifact live data", () => {
     }
   });
 
-  test("the list shows Live and the thumbnail gets no data", async ({ page }) => {
-    await watch(page);
+  test("the list shows Live without running the App or loading its data", async ({ page }) => {
     const reads: string[] = [];
+    const contentLoads: string[] = [];
     page.on("request", (request) => {
-      if (DATA_PATH.test(new URL(request.url()).pathname)) reads.push(request.url());
+      const pathname = new URL(request.url()).pathname;
+      if (DATA_PATH.test(pathname)) reads.push(request.url());
+      if (pathname.includes("/artifact-content/")) contentLoads.push(request.url());
     });
+    const thumbnailResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/apps/${fixture.artifactId}/thumbnail`,
+    );
     await page.goto("/apps");
-    // Searched to this one artifact, so the canary check reads only its thumbnail.
     await page.getByPlaceholder("Search apps…").fill(fixture.title);
-
-    // The card's link covers it and holds no text, so the card is the link's parent.
     const card = page.locator(`a[href$="/apps/${fixture.artifactId}"]`).locator("..");
     await expect(card).toContainText(fixture.title);
     await expect(card.getByText("Live", { exact: true })).toBeVisible();
-    const thumbnail = card.locator(`iframe[title="${fixture.title}"]`).contentFrame();
-    await expect(thumbnail.locator("#marker")).toHaveText("v2");
-    await expect(thumbnail.locator("#state")).toHaveText("unavailable");
-    await expect(thumbnail.locator("#rows")).toBeEmpty();
+    const response = await thumbnailResponse;
+    expect(response.ok()).toBe(true);
+    const preview = await response.json();
+    expect(["ready", "unavailable"]).toContain(preview.state);
+    expect(preview.version_id).toBe(new URL(response.url()).searchParams.get("version_id"));
+    await expect(card.locator("iframe")).toHaveCount(0);
     expect(reads, "the list read a page's live data").toEqual([]);
+    expect(contentLoads, "the list executed an App frame").toEqual([]);
   });
 
   test("an editor's republish that reads more waits for the owner's review", async ({

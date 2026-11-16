@@ -30,6 +30,7 @@ from app.agents.ask_user import parked_status
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import prefix_for, restore_stored_media
 from app.agents.capabilities.media._store import BoundedOrganizationMediaStore, MediaReadLimitError
+from app.agents.failures import stored_failure_summary
 from app.agents.model_context import ModelContextCheck
 from app.agents.steering import STEER_PREFIX
 from app.core.background import spawn_after_commit
@@ -176,7 +177,10 @@ def _as_history(
                 "content": (
                     REFUSED_TURN
                     if row.role == "user" and row.guardrail_refused
-                    else spoken.get(row.id, row.content) + (row.attachment_context or "")
+                    else spoken.get(
+                        row.id, row.model_content if row.model_content is not None else row.content
+                    )
+                    + ((row.attachment_context or "") if row.model_content is None else "")
                 ),
                 # The size of the request this answer came out of: the anchor the
                 # compaction estimator measures against, in place of counting
@@ -1902,6 +1906,11 @@ class ConversationService:
                 # complete one, and the reader believes the agent finished.
                 outcome = outcomes.get(msg.run_id) if msg.run_id else None
                 msg_schema.run_status = outcome.status if outcome else None
+                msg_schema.run_error = (
+                    stored_failure_summary(outcome.error)
+                    if outcome and outcome.status == "failed"
+                    else None
+                )
                 msg_schema.run_duration_ms = outcome.duration_ms if outcome else None
                 msg_schema.run_started_at = outcome.started_at if outcome else None
                 enriched.append(msg_schema)
@@ -2236,7 +2245,7 @@ def _said(message: Message) -> str:
     other way a refused prompt's words would reach it (#2578)."""
     if message.role == "user" and message.guardrail_refused:
         return REFUSED_TURN
-    return message.content
+    return message.model_content if message.model_content is not None else message.content
 
 
 def _whose(message: Message, people: dict[UUID, User]) -> str:

@@ -10,7 +10,7 @@ import { WorkingHoursField } from "@/components/settings/working-hours-field";
 import { Button, FormField, Input } from "@/components/ui";
 import { Textarea } from "@/components/ui/textarea";
 import { useChanged } from "@/hooks/use-changed";
-import { useSaveAgentContext } from "@/hooks/use-account-profile";
+import { useSaveAgentContext, type AgentContext } from "@/hooks/use-account-profile";
 import { getErrorMessage } from "@/lib/api-error";
 import type { User } from "@/types";
 import type { WorkingHours } from "@/types/auth";
@@ -26,12 +26,23 @@ export function AgentContextSettings({
   onSaved,
   saveLabel,
   secondaryAction,
+  disabled = false,
+  onSavingChange,
+  formId,
+  onSave,
+  identityChanged,
 }: {
   user: User;
+  /** Combined profile form: edits in either section enable Save. */
+  identityChanged?: boolean;
+  formId?: string;
+  onSave?: (changes: AgentContext) => Promise<User>;
   beforeSave?: () => Promise<boolean>;
   onSaved?: () => void;
   saveLabel?: string;
   secondaryAction?: ReactNode;
+  disabled?: boolean;
+  onSavingChange?: (saving: boolean) => void;
 }) {
   const t = useTranslations("pages.settings.agentContext");
   const tErrors = useTranslations("errors");
@@ -50,11 +61,20 @@ export function AgentContextSettings({
     setHours(user.working_hours ?? null);
   }
 
+  const contextChanged =
+    role.trim() !== (user.job_title ?? "") ||
+    about.trim() !== (user.about ?? "") ||
+    zone !== (user.time_zone ?? "") ||
+    JSON.stringify(hours) !== stored;
+  const unchanged = identityChanged !== undefined && !identityChanged && !contextChanged;
+
   const submit = async () => {
+    if (saving || disabled) return;
     setSaving(true);
+    onSavingChange?.(true);
     try {
       if (beforeSave && !(await beforeSave())) return;
-      await save({
+      await (onSave ?? save)({
         job_title: role.trim() || null,
         about: about.trim() || null,
         time_zone: zone || null,
@@ -66,67 +86,75 @@ export function AgentContextSettings({
       toast.error(getErrorMessage(error, tErrors));
     } finally {
       setSaving(false);
+      onSavingChange?.(false);
     }
   };
 
   return (
-    <SectionCard
-      title={t("title")}
-      description={t("description")}
-      action={
-        !onSaved && (
-          <Button onClick={submit} disabled={saving} size="sm">
-            {saveLabel ?? t("save")}
-          </Button>
-        )
-      }
-    >
-      <div className="space-y-4">
-        <FormField label={t("role")} htmlFor="agent-context-role">
-          <Input
-            id="agent-context-role"
-            data-guidance={(!!onSaved && !role.trim()) || undefined}
-            value={role}
-            maxLength={120}
-            placeholder={t("rolePlaceholder")}
-            onChange={(event) => setRole(event.target.value)}
-          />
-        </FormField>
-        <FormField label={t("about")} htmlFor="agent-context-about">
-          <Textarea
-            id="agent-context-about"
-            value={about}
-            maxLength={500}
-            rows={3}
-            placeholder={t("aboutPlaceholder")}
-            onChange={(event) => setAbout(event.target.value)}
-          />
-        </FormField>
-        <FormField label={t("timeZone")} htmlFor="agent-context-zone">
-          <TimeZonePicker
-            id="agent-context-zone"
-            data-guidance={(!!onSaved && !!role.trim() && !zone) || undefined}
-            value={zone}
-            onChange={setZone}
-            disabled={saving}
-          />
-        </FormField>
-        <FormField
-          label={t("workingHours")}
-          htmlFor="agent-context-hours"
-          description={t("workingHoursHint")}
-        >
-          <WorkingHoursField value={hours} onChange={setHours} />
-        </FormField>
-        {onSaved && (
-          <div data-profile-actions className="flex flex-wrap items-center gap-3">
-            <Button onClick={submit} disabled={saving}>
+    <SectionCard title={t("title")} description={t("description")}>
+      <form
+        id={formId}
+        aria-label={t("title")}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <fieldset disabled={saving || disabled} className="grid min-w-0 gap-5 sm:grid-cols-2">
+          <legend className="sr-only">{t("title")}</legend>
+          <FormField label={t("role")} htmlFor="agent-context-role">
+            <Input
+              id="agent-context-role"
+              data-guidance={(!!onSaved && !role.trim()) || undefined}
+              value={role}
+              maxLength={120}
+              placeholder={t("rolePlaceholder")}
+              onChange={(event) => setRole(event.target.value)}
+            />
+          </FormField>
+          <FormField label={t("timeZone")} htmlFor="agent-context-zone">
+            <TimeZonePicker
+              id="agent-context-zone"
+              data-guidance={(!!onSaved && !!role.trim() && !zone) || undefined}
+              value={zone}
+              onChange={setZone}
+              disabled={saving || disabled}
+            />
+          </FormField>
+          <FormField className="sm:col-span-2" label={t("about")} htmlFor="agent-context-about">
+            <Textarea
+              id="agent-context-about"
+              value={about}
+              maxLength={500}
+              rows={3}
+              placeholder={t("aboutPlaceholder")}
+              onChange={(event) => setAbout(event.target.value)}
+            />
+          </FormField>
+          <FormField
+            className="sm:col-span-2"
+            label={t("workingHours")}
+            htmlFor="agent-context-hours"
+            description={t("workingHoursHint")}
+          >
+            <WorkingHoursField value={hours} onChange={setHours} disabled={saving || disabled} />
+          </FormField>
+          <div
+            data-profile-actions
+            className="flex flex-wrap items-center justify-end gap-3 border-t pt-4 sm:col-span-2"
+          >
+            <Button
+              type="submit"
+              loading={saving}
+              disabled={saving || disabled || unchanged}
+              className="w-full sm:w-auto"
+            >
               {saveLabel ?? t("save")}
             </Button>
             {secondaryAction}
           </div>
-        )}
-      </div>
+        </fieldset>
+      </form>
     </SectionCard>
   );
 }

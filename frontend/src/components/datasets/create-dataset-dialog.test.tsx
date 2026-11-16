@@ -1,5 +1,6 @@
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -35,7 +36,46 @@ function mount() {
 describe("CreateDatasetDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+  });
+
+  it("freezes a pending creation and restores the draft after refusal", async () => {
+    let rejectWrite: (error: Error) => void = () => {
+      throw new Error("Not started");
+    };
+    vi.mocked(apiClient.post).mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectWrite = reject;
+        }),
+    );
+    const { onOpenChange } = mount();
+    await userEvent.type(screen.getByLabelText(/^Name/), "Mobile review");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(screen.getByLabelText(/^Name/)).toBeDisabled());
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalled();
+    const proceed = vi.fn();
+    act(() => useUnsavedChangesStore.getState().leave(proceed));
+    await act(() => useUnsavedChangesStore.getState().answer("save"));
+    expect(proceed).not.toHaveBeenCalled();
+    await act(async () => rejectWrite(new Error("Controlled refusal")));
+    await waitFor(() => expect(screen.getByLabelText(/^Name/)).toBeEnabled());
+    expect(screen.getByLabelText(/^Name/)).toHaveValue("Mobile review");
+  });
+
+  it("preserves a creation draft on Stay and resets it on Discard", async () => {
+    const { onOpenChange } = mount();
+    await userEvent.type(screen.getByLabelText(/^Name/), "Mobile review");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await act(() => useUnsavedChangesStore.getState().answer("stay"));
+    expect(screen.getByLabelText(/^Name/)).toHaveValue("Mobile review");
+    await userEvent.keyboard("{Escape}");
+    await act(() => useUnsavedChangesStore.getState().answer("discard"));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(screen.getByLabelText(/^Name/)).toHaveValue("");
   });
 
   it("creates a dataset, trimming what was typed, and opens it", async () => {

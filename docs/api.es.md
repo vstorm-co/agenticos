@@ -1,5 +1,5 @@
 ---
-source_sha: "d9eb2ee93fb0"
+source_sha: "d8ab63f0a753"
 ---
 
 # La API HTTP { #the-http-api }
@@ -53,6 +53,17 @@ también como una entrada de auditoría nombra la clave que actuó: cada entrada
 registrada durante una petición autenticada con clave lleva `via_api_key` en sus
 detalles. Una clave puede caducar, y revocarla (`DELETE /api/v1/api-keys/{id}`)
 surte efecto en su siguiente petición.
+
+La consola muestra las claves antes que la guía de conexión, con las activas
+primero. Busca por nombre, prefijo o emisor; las tarjetas del móvil conservan la
+caducidad y el último uso. En **Create key**, despliega los detalles de permisos
+de una plantilla o elige **Custom** para buscar permisos individuales. La búsqueda conserva la selección.
+Intro en el campo del nombre crea la clave; Intro en la búsqueda de permisos no envía el formulario.
+
+Durante la creación se bloquean los campos y el cierre. Si se rechaza, el borrador
+se conserva para reintentar. Copia la clave antes de cerrar; si el portapapeles
+falla, el valor sigue disponible para otro intento. Cerrar limpia el estado de
+creación. Si se rechaza una revocación, su confirmación sigue abierta para reintentar.
 
 **Una clave no es la persona que la emitió.** Un run que inicia pertenece a quien
 la emitió, cuenta en su presupuesto y en su auditoría, pero no alcanza nada

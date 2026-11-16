@@ -143,3 +143,23 @@ it("keeps unannotated steps selectable with their normal labels", async () => {
   expect(select).toHaveBeenCalledWith("configure");
   expect(screen.getByRole("button", { name: "Configure" })).not.toHaveAttribute("aria-describedby");
 });
+
+it("lets a non-cancellable write disable the cancel action", async () => {
+  const back = vi.fn();
+  const view = render(
+    <WizardNav
+      backLabel="Cancel"
+      onBack={back}
+      backDisabled
+      nextLabel="Save"
+      onNext={vi.fn()}
+      busy
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(back).not.toHaveBeenCalled();
+  view.rerender(<WizardNav backLabel="Cancel" onBack={back} nextLabel="Save" onNext={vi.fn()} />);
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(back).toHaveBeenCalledOnce();
+});

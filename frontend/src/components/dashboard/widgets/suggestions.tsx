@@ -42,7 +42,11 @@ export function SuggestionsWidget({ title, hint, seeAll, options }: DashboardWid
         />
       ) : (
         <div className="space-y-2">
-          <SuggestionRows items={first} dense />
+          <SuggestionRows
+            items={first}
+            dense
+            className="grid grid-cols-1 gap-3 divide-y-0 @[640px]/widget:grid-cols-2 [&>li]:min-h-36 [&>li]:rounded-lg [&>li]:border [&>li]:p-3"
+          />
           {suggestions.length > SHOWN && (
             <Link
               href={ROUTES.INBOX}

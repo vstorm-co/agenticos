@@ -1074,6 +1074,7 @@ async def fork_payload_bytes(db: AsyncSession, *, source_id: UUID, ordinal: int)
                     func.octet_length(func.coalesce(Message.content, ""))
                     + func.octet_length(func.coalesce(Message.thinking, ""))
                     + func.octet_length(func.coalesce(Message.attachment_context, ""))
+                    + func.octet_length(func.coalesce(Message.model_content, ""))
                     + func.octet_length(func.coalesce(cast(Message.parts, Text), ""))
                 ),
                 0,
@@ -1370,6 +1371,7 @@ async def fork_conversation(
             else None,
             interrupted=original.interrupted,
             guardrail_refused=original.guardrail_refused,
+            model_content=original.model_content,
             created_at=original.created_at,
             tool_calls=[
                 ToolCall(
@@ -1997,6 +1999,7 @@ class RunOutcome(NamedTuple):
     status: str
     duration_ms: int | None
     started_at: datetime | None = None
+    error: str | None = None
 
 
 async def run_outcomes(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID, RunOutcome]:
@@ -2011,21 +2014,22 @@ async def run_outcomes(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID
     if not run_ids:
         return {}
     result = await db.execute(
-        select(AgentRun.id, AgentRun.status, AgentRun.started_at, AgentRun.ended_at).where(
-            AgentRun.id.in_(list(run_ids))
-        )
+        select(
+            AgentRun.id, AgentRun.status, AgentRun.started_at, AgentRun.ended_at, AgentRun.error
+        ).where(AgentRun.id.in_(list(run_ids)))
     )
     return {
         run_id: RunOutcome(
             status=status,
             started_at=started,
+            error=error,
             duration_ms=(
                 round((ended - started).total_seconds() * 1000)
                 if started is not None and ended is not None
                 else None
             ),
         )
-        for run_id, status, started, ended in result.all()
+        for run_id, status, started, ended, error in result.all()
     }
 
 
@@ -2344,6 +2348,7 @@ async def create_message(
     conversation_id: UUID,
     role: str,
     content: str,
+    model_content: str | None = None,
     client_message_id: str | None = None,
     thinking: str | None = None,
     parts: list[dict[str, object]] | None = None,
@@ -2369,6 +2374,7 @@ async def create_message(
         conversation_id=conversation_id,
         role=role,
         content=content,
+        model_content=model_content,
         client_message_id=client_message_id,
         attachment_context=attachment_context,
         channel_identity_id=channel_identity_id,
@@ -2861,3 +2867,19 @@ async def last_answer_message(
         .limit(1)
     )
     return result.scalar_one_or_none()
+
+
+async def set_model_content(
+    db: AsyncSession, *, message_id: UUID, conversation_id: UUID, content: str
+) -> None:
+    """Save the current user's screened projection before the run's opening commit."""
+    await db.execute(
+        sql_update(Message)
+        .where(
+            Message.id == message_id,
+            Message.conversation_id == conversation_id,
+            Message.role == "user",
+        )
+        .values(model_content=content)
+    )
+    await db.flush()

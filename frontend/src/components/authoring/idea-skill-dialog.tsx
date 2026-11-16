@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeIdentifier } from "@/lib/normalize-identifier";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -25,11 +26,7 @@ const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** A model's "Refund Policy Summary" as the skill library's `refund-policy-summary`. */
 export function skillSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .slice(0, 64)
-    .replace(/^-+|-+$/g, "");
+  return normalizeIdentifier(name).slice(0, 64).replace(/-+$/g, "");
 }
 
 /**
@@ -54,14 +51,21 @@ export function IdeaSkillDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const answers = change.answers ?? 0;
-  const nameValid = SKILL_NAME.test(name);
+  const nameValid = SKILL_NAME.test(normalizeIdentifier(name));
   const ready = nameValid && description.trim() !== "" && content.trim() !== "" && !busy;
 
   async function submit() {
     setBusy(true);
     setError(null);
     try {
-      if (await onCreate({ name, description: description.trim(), content })) onOpenChange(false);
+      if (
+        await onCreate({
+          name: normalizeIdentifier(name),
+          description: description.trim(),
+          content,
+        })
+      )
+        onOpenChange(false);
     } catch (failure) {
       setError(getErrorMessage(failure, tErrors));
     } finally {
@@ -88,16 +92,14 @@ export function IdeaSkillDialog({
               id="idea-skill-name"
               value={name}
               maxLength={64}
-              aria-invalid={!nameValid}
               aria-describedby="idea-skill-name-hint"
               onChange={(event) => setName(event.target.value)}
+              onBlur={() => setName(normalizeIdentifier(name))}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
             />
-            <p
-              id="idea-skill-name-hint"
-              className={
-                nameValid ? "text-muted-foreground text-xs" : "text-destructive-ink text-xs"
-              }
-            >
+            <p id="idea-skill-name-hint" className="text-muted-foreground text-xs">
               {t("nameHint")}
             </p>
           </div>

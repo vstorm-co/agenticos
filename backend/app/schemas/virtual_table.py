@@ -30,6 +30,8 @@ from pydantic import (
     model_validator,
 )
 
+from app.core.resource_icons import ResourceIconName
+
 ColumnTypeName = Literal[
     "text",
     "long_text",
@@ -261,6 +263,7 @@ class ColumnInput(_Request):
 
 
 class TableCreate(_Request):
+    icon: ResourceIconName | None = None
     name: Label = Field(description="Unique among the organization's live tables")
     description: Description | None = None
     columns: list[ColumnInput] = Field(default_factory=list, max_length=MAX_COLUMNS)
@@ -272,6 +275,7 @@ class TableUpdate(_Request):
         default=None,
         description="Shared saved view opened by default; null resets to the plain table",
     )
+    icon: ResourceIconName | None = None
     name: Label | None = None
     description: Description | None = None
 
@@ -286,6 +290,7 @@ class SchemaUpdate(_Request):
 class TableSummary(_Schema):
     default_view_id: UUID | None = None
     id: UUID
+    icon: ResourceIconName | None = None
     name: str
     description: str | None = None
     visibility: VisibilityName

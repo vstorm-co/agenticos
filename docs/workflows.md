@@ -1,5 +1,7 @@
 # Workflows
 
+Choose a workflow’s icon beside its name in the editor. The same neutral tile appears in the catalog. A selected mark survives reload; **Use default icon** resets it. This changes presentation metadata, not the draft revision or published graph.
+
 A **workflow** chains steps into an automation your agents carry out: read a
 [table](virtual-tables.md), call an agent, branch on the result, loop over a
 list. You build it on a canvas, wire the steps together, and publish it as an
@@ -78,7 +80,11 @@ the same list.
 
 **More → Settings** contains the workflow's name, description, tags and runtime settings, saved automatically. The step editor fills the available window: Input on the left, Parameters and Settings in the middle, Output on the right. Triggers use two panes because they have no incoming data. Each pane scrolls independently on larger screens; phones use one scrolling column. Recorded executions show the parameters read-only beside their data. Record values are fields named after table columns. Notes offer Open note, size presets and resize handles.
 
-The app picker includes catalog MCP servers before they are connected; its generic Call an MCP tool entry is hidden. Connect a service in place, then choose one of its discovered tools. The connection's allowlist remains enforced. The canvas starts with colored steps and a minimap. AI model steps expose instructions, temperature and reasoning effort; unset controls retain provider defaults. Jev decisions expose their model, question and confidence threshold. Send an email uses the platform sender, or connects Gmail or Outlook and switches to that mailbox's actual MCP tool after confirmation. Switching clears incompatible input mappings and is undoable.
+The app picker includes catalog MCP servers before they are connected; its generic Call an MCP tool entry is hidden, and those nobody has connected wait under **more apps to connect** at the end of their section. Connect a service in place, then choose one of its discovered tools. The connection's allowlist remains enforced.
+
+The canvas starts with colored steps and a minimap. On a phone it opens with the whole flow in view and the minimap hidden; **Canvas options** shows it again.
+
+AI model steps expose instructions, temperature and reasoning effort; unset controls retain provider defaults. **Decisions** steps, answered by the Jev decision model, expose their model, question and confidence threshold. Send an email uses the platform sender, or connects Gmail or Outlook and switches to that mailbox's actual MCP tool after confirmation. Switching clears incompatible input mappings and is undoable.
 
 The **Send an email** step also offers **SMTP account → New SMTP account**. Enter the server, port, username, password and sender in the vault dialog. STARTTLS usually uses 587; implicit TLS usually uses 465, with certificate verification in both modes. Only `smtp_secret_id` is stored in the workflow. Select **Platform sender** to clear it. Publication and execution enforce secret access; an unavailable account fails instead of silently changing senders.
 
@@ -109,6 +115,8 @@ Agents called from workflows can use their AgenticOS MCP tools in the background
 
 ## The canvas and adding steps { #the-canvas-and-the-palette }
 
+After **Test draft**, the canvas shows the run's status and completed-step count. **Open run** opens its details. On narrow screens the status bar wraps inside the canvas so the link and close button remain reachable.
+
 The editor keeps **Runs**, **Test draft** and **Publish** visible. **More** contains **Versions** and the edit/view switch. **Canvas options** holds the minimap, connection style and shortcuts. A step with no incoming connection leaves more room for parameters by omitting the empty Input pane; **Expected output fields** expands the output schema. **Review setup before testing** opens the unfinished setup.
 
 The **canvas** is where a workflow's steps and connections appear, and it has the
@@ -128,7 +136,7 @@ pinch - or Ctrl or Cmd with the wheel - zooms it; its controls sit in the corner
 
 Steps are chosen in the **step picker**. It lists sections - **Start**, **AI**,
 **Flow**, **Data**, **Apps and the web** - with the groups under each. A group such
-as **Slack**, **Tables** or **Jev decisions** opens to its steps, and a group of one
+as **Slack**, **Tables** or **Decisions** opens to its steps, and a group of one
 step is that step. **Search steps** finds any step by its name, what it does or its
 group. You add a step four ways:
 
@@ -838,6 +846,12 @@ a later step sends what the person approved. A decider the step does not name se
 the proposal read-only, and a request decided with a changed version
 shows an **Edited** badge under **Decided**.
 
+In the run itself, a finished approval step opens with who decided it and when -
+**Approved by** or **Rejected by** the person and the time - only the decision and the time
+when the account is gone or the reader may not list members - above the step's output. When the approver changed the
+proposal, **Show changes** compares the two. A request that expired or was cancelled
+with its run says so instead.
+
 When the step lists **Ways to approve**, the queue shows one button for each, with the
 label its author wrote, in place of **Approve**; **Reject** stays. Each way is an output
 port of the step, so the workflow goes on by the one the approver pressed, and the
@@ -892,6 +906,8 @@ characters of it (at least four); **Show only this run** on a line fills it in, 
 that wrote it. In the run view, each step's own lines sit under it, in the order they
 were written. An organization API key with `workflows:view` reads them too, for
 public-origin runs: see [Reading a workflow's log](api.md#reading-a-workflows-log).
+
+New Quick Log lines show default step names in the reader's language, including on the dashboard. The saved run graph identifies default names, including in older lines. Custom labels and lines whose saved graph no longer identifies the step keep their stored words.
 
 ### Alerts { #log-alerts }
 

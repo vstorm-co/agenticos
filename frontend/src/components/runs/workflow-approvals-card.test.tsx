@@ -74,6 +74,34 @@ const CHOOSING: WorkflowApprovalRead = {
 };
 
 describe("WorkflowApprovalsCard", () => {
+  it("uses current group eligibility returned by the server", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [
+        {
+          ...ASKING,
+          approver_user_ids: ["someone-else"],
+          approver_group_ids: ["group-1"],
+          can_decide: true,
+        },
+      ],
+      total: 1,
+    });
+    render(<WorkflowApprovalsCard />, { wrapper });
+    await screen.findByText("Send the refund?");
+    expect(screen.getByRole("button", { name: /Approve/ })).toBeEnabled();
+  });
+  it("keeps an empty configured group restricted", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [
+        { ...ASKING, approver_user_ids: [], approver_group_ids: ["group-1"], can_decide: false },
+      ],
+      total: 1,
+    });
+    render(<WorkflowApprovalsCard />, { wrapper });
+    await screen.findByText("Send the refund?");
+    expect(screen.getByRole("button", { name: /Approve/ })).toBeDisabled();
+  });
+
   it("shows what each step asks, from which run, and answers it", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [ASKING], total: 1 });
     vi.mocked(apiClient.post).mockResolvedValue({ ...ASKING, status: "rejected" });

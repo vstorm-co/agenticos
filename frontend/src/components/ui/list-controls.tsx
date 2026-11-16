@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { PageNavigation } from "@/components/ui/pagination-bar";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
@@ -189,6 +189,7 @@ export function Pager({
   total,
   onPage,
   counted,
+  isLoading,
 }: {
   page: number;
   pageCount: number;
@@ -209,41 +210,23 @@ export function Pager({
    * count message for every list in the product (#362).
    */
   counted: string;
+  isLoading?: boolean;
 }) {
   const t = useTranslations("ui");
-  if (pageCount <= 1) {
-    return matched === total ? null : (
-      <p className="text-muted-foreground text-xs">{t("matchedOfTotal", { matched, counted })}</p>
-    );
-  }
+  if (matched === 0 || pageCount <= 1) return null;
 
   return (
-    <div className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-2">
-      <p className="text-muted-foreground text-xs">
-        {matched === total
-          ? t("pagerAll", { counted, page: page + 1, pageCount })
-          : t("pagerMatched", { matched, counted, page: page + 1, pageCount })}
+    <div className="mt-auto flex min-h-9 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <p className="text-muted-foreground text-[13px] tabular-nums">
+        {matched === total ? t("pagerAll", { counted }) : t("pagerMatched", { matched, counted })}
       </p>
-      <div className="flex items-center gap-1">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page === 0}
-          onClick={() => onPage(page - 1)}
-          aria-label={t("previousPage")}
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page >= pageCount - 1}
-          onClick={() => onPage(page + 1)}
-          aria-label={t("nextPage")}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
+      <PageNavigation
+        page={page}
+        pageCount={pageCount}
+        hasNext={page < pageCount - 1}
+        isLoading={isLoading}
+        onPage={onPage}
+      />
     </div>
   );
 }

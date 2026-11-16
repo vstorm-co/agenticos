@@ -1,8 +1,10 @@
 ---
-source_sha: "d4ebadc86d2b"
+source_sha: "3dcf65276140"
 ---
 
 # Workflows { #workflows }
+
+Das Workflow-Symbol wählen Sie neben dem Namen im Editor. Dieselbe neutrale Kachel erscheint im Katalog. Die Auswahl bleibt nach dem Neuladen erhalten; **Standardsymbol verwenden** setzt sie zurück. Dies ändert Darstellungsmetadaten, weder die Entwurfsrevision noch den veröffentlichten Graphen.
 
 Ein **Workflow** verkettet Schritte zu einer Automatisierung, die Ihre Agents
 ausführen: eine [Tabelle](virtual-tables.md) lesen, einen Agent aufrufen, auf das
@@ -87,7 +89,11 @@ Neuladen oder ein geteilter Link dieselbe Liste zeigt.
 
 **More → Settings** enthält Name, Beschreibung, Tags und Laufzeiteinstellungen des Workflows; Änderungen werden automatisch gespeichert. Der Schritteditor nutzt das verfügbare Fenster: Input links, Parameters und Settings in der Mitte, Output rechts. Trigger haben zwei Bereiche, da sie keine eingehenden Daten haben. Auf großen Bildschirmen scrollt jeder Bereich separat, auf Telefonen gibt es eine Spalte. Gespeicherte Ausführungen zeigen ihre Parameter schreibgeschützt neben den Daten. Datensatzwerte verwenden die Spaltennamen der Tabelle. Notizen bieten Open note, Größen und Ziehgriffe.
 
-Die App-Auswahl zeigt MCP-Katalogserver bereits vor dem Verbinden; der allgemeine Eintrag Call an MCP tool ist ausgeblendet. Verbinde einen Dienst direkt und wähle anschließend eines seiner erkannten Werkzeuge. Die Werkzeug-Freigabeliste bleibt wirksam. Farbige Schritte und Minimap sind standardmäßig aktiv. KI-Modellschritte zeigen Anweisungen, Temperatur und Reasoning-Aufwand; leere Einstellungen behalten die Anbieterstandards. Jev zeigt Modell, Frage und Konfidenzschwelle. Send an email verwendet den Plattformabsender oder verbindet Gmail beziehungsweise Outlook und wechselt nach Bestätigung zum tatsächlichen MCP-Werkzeug des Postfachs. Dabei werden inkompatible Eingabezuordnungen entfernt; der Wechsel lässt sich rückgängig machen.
+Die App-Auswahl zeigt MCP-Katalogserver bereits vor dem Verbinden; der allgemeine Eintrag Call an MCP tool ist ausgeblendet, und Dienste, die niemand verbunden hat, warten unter **Apps zum Verbinden** am Ende ihres Abschnitts. Verbinde einen Dienst direkt und wähle anschließend eines seiner erkannten Werkzeuge. Die Werkzeug-Freigabeliste bleibt wirksam.
+
+Farbige Schritte und Minimap sind standardmäßig aktiv. Auf einem Telefon öffnet sich der Canvas mit dem ganzen Ablauf im Blick und ausgeblendeter Minimap; **Canvas options** blendet sie wieder ein.
+
+KI-Modellschritte zeigen Anweisungen, Temperatur und Reasoning-Aufwand; leere Einstellungen behalten die Anbieterstandards. **Decisions**-Schritte, die das Entscheidungsmodell Jev beantwortet, zeigen Modell, Frage und Konfidenzschwelle. Send an email verwendet den Plattformabsender oder verbindet Gmail beziehungsweise Outlook und wechselt nach Bestätigung zum tatsächlichen MCP-Werkzeug des Postfachs. Dabei werden inkompatible Eingabezuordnungen entfernt; der Wechsel lässt sich rückgängig machen.
 
 Der Schritt **Send an email** bietet auch **SMTP account → Neues SMTP-Konto**. Im Vault-Dialog werden Server, Port, Benutzername, Passwort und Absender gespeichert. STARTTLS nutzt meist 587, implizites TLS meist 465; beide prüfen Zertifikate. Im Workflow steht nur `smtp_secret_id`. **Plattformabsender** entfernt die Auswahl. Veröffentlichung und Ausführung prüfen den Secret-Zugriff; ein nicht verfügbares Konto stoppt den Schritt statt den Absender zu wechseln.
 
@@ -119,6 +125,8 @@ Aus Workflows aufgerufene Agenten können ihre AgenticOS-MCP-Werkzeuge sowohl im
 
 ## Die Zeichenfläche und das Hinzufügen von Schritten { #the-canvas-and-the-palette }
 
+Nach **Test draft** zeigt die Zeichenfläche den Status des Runs und die Anzahl abgeschlossener Schritte. **Open run** öffnet die Details. Auf schmalen Bildschirmen bricht die Statusleiste innerhalb der Zeichenfläche um, sodass der Link und die Schaltfläche zum Schließen erreichbar bleiben.
+
 Der Editor zeigt **Runs**, **Test draft** und **Publish** direkt. **More** enthält **Versions** und den Wechsel zwischen Bearbeiten und Ansicht. **Canvas options** enthält Minimap, Verbindungsstil und Tastenkürzel. Ein Schritt ohne eingehende Verbindung lässt das leere Input-Panel weg und gibt Parametern mehr Platz; **Expected output fields** öffnet das Ausgabeschema. **Review setup before testing** zeigt die unvollständige Einrichtung.
 
 Die **Zeichenfläche** ist der Ort, an dem die Schritte und Verbindungen eines
@@ -141,7 +149,7 @@ sitzt in der Ecke.
 
 Schritte wählen Sie in der **Schrittauswahl**. Sie zeigt Abschnitte - **Start**,
 **AI**, **Flow**, **Data**, **Apps and the web** - mit den Gruppen darunter. Eine
-Gruppe wie **Slack**, **Tables** oder **Jev decisions** öffnet sich zu ihren
+Gruppe wie **Slack**, **Tables** oder **Decisions** öffnet sich zu ihren
 Schritten, und eine Gruppe mit einem Schritt ist dieser Schritt. **Search steps**
 findet jeden Schritt nach Namen, nach dem, was er tut, oder nach seiner Gruppe. Sie
 fügen einen Schritt auf vier Wegen hinzu:
@@ -939,6 +947,13 @@ Schritt aber nicht genannt wird, sieht den Vorschlag schreibgeschützt, und eine
 einer geänderten Fassung entschiedene Anfrage trägt unter **Entschieden (Decided)** das Zeichen
 **Bearbeitet (Edited)**.
 
+Im Run selbst beginnt ein abgeschlossener Freigabeschritt damit, wer wann entschieden hat -
+**Genehmigt von** oder **Abgelehnt von** der Person mit der Uhrzeit - nur Entscheidung und
+Uhrzeit, wenn das Konto nicht mehr existiert oder die lesende Person keine Mitglieder sehen
+darf - über der Ausgabe des Schritts. Hat die
+freigebende Person den Vorschlag geändert, vergleicht **Änderungen anzeigen (Show changes)**
+beide Fassungen. Eine abgelaufene oder mit dem Run abgebrochene Anfrage sagt stattdessen das.
+
 Listet der Schritt **Ways to approve**, zeigt die Warteschlange statt **Approve** eine
 Schaltfläche je Weg, mit der Beschriftung, die ihr Autor geschrieben hat; **Reject**
 bleibt. Jeder Weg ist ein Ausgangsport des Schritts, der Workflow geht also über den
@@ -1004,6 +1019,8 @@ geschrieben hat. In der Laufansicht stehen die Zeilen jedes Schritts unter ihm, 
 Reihenfolge des Schreibens. Ein Organisations-API-Schlüssel mit `workflows:view` liest
 sie ebenfalls, für Läufe öffentlichen Ursprungs: siehe [Das Log eines Workflows
 lesen](api.md#reading-a-workflows-log).
+
+Neue Quick-Log-Zeilen zeigen Standardnamen der Schritte in der Sprache des Lesers, auch im Dashboard. Der gespeicherte Run-Graph identifiziert Standardnamen, auch in älteren Zeilen. Eigene Bezeichnungen und Zeilen, deren gespeicherter Graph den Schritt nicht mehr identifiziert, behalten ihren gespeicherten Text.
 
 ### Alerts { #log-alerts }
 

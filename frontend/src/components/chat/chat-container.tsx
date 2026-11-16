@@ -27,6 +27,7 @@ import {
 } from "@/hooks";
 import type { ChatTesting, SteerDraft } from "@/hooks/use-chat";
 import { AgentPicker, isChattable } from "./agent-picker";
+import { ChatApprovalSelector } from "./chat-approval-selector";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
 import { SheetRow } from "./composer-sheet";
@@ -214,6 +215,7 @@ export function ChatContainer({
   }, [shared, clearShared]);
   const {
     currentConversationId,
+    createdConversationId,
     currentMessages,
     currentCost,
     isLoading: isConversationLoading,
@@ -253,7 +255,11 @@ export function ChatContainer({
   const listed = conversations.find((conversation) => conversation.id === currentConversationId);
   const notListed = currentConversationId !== null && listed === undefined;
   const meId = useAuthStore((state) => state.user?.id);
-  const needsAccess = currentConversationId !== null && (notListed || listed?.user_id !== meId);
+  // Naming the first turn is not opening an unknown thread: the socket has
+  // just confirmed creation, before its row reaches the sidebar's query.
+  const newlyCreated = notListed && createdConversationId === currentConversationId;
+  const needsAccess =
+    currentConversationId !== null && !newlyCreated && (notListed || listed?.user_id !== meId);
   const access = useConversationAccess(currentConversationId, needsAccess);
   const sharedConversation = useSharedConversation(currentConversationId);
   const isArchived = listed?.is_archived ?? access.archived;
@@ -482,6 +488,7 @@ export function ChatContainer({
     setModelProfile,
     setApprovalMode,
     pendingApproval,
+    continuingApproval,
     mayRememberApproval,
     sendResumeDecisions,
     pendingQuestions,
@@ -924,6 +931,7 @@ export function ChatContainer({
         sentTurnAnchoredRef={sentTurnAnchoredRef}
         sentTurnSpacerRef={sentTurnSpacerRef}
         pendingApproval={pendingApproval}
+        continuingApproval={continuingApproval}
         onResumeDecisions={sendResumeDecisions}
         mayRememberApproval={mayRememberApproval}
         pendingQuestions={pendingQuestions}
@@ -1058,6 +1066,7 @@ interface ChatUIProps {
   sentTurnAnchoredRef: React.RefObject<boolean>;
   sentTurnSpacerRef: React.RefObject<HTMLDivElement | null>;
   pendingApproval?: PendingApproval | null;
+  continuingApproval?: boolean;
   onResumeDecisions?: (decisions: Decision[]) => void;
   mayRememberApproval?: boolean;
   pendingQuestions?: AskUserQuestion[] | null;
@@ -1134,6 +1143,7 @@ function ChatUI({
   sentTurnAnchoredRef,
   sentTurnSpacerRef,
   pendingApproval,
+  continuingApproval = false,
   onResumeDecisions,
   mayRememberApproval,
   pendingQuestions,
@@ -1623,7 +1633,11 @@ function ChatUI({
               <OutcomeCards
                 conversationId={conversationId}
                 hasApprovalPanel={!!pendingApproval && !!onResumeDecisions}
-                isWorking={isProcessing || messages.some((message) => message.isStreaming)}
+                isWorking={
+                  isProcessing ||
+                  continuingApproval ||
+                  messages.some((message) => message.isStreaming)
+                }
                 className="pointer-events-auto mx-auto max-h-40 w-full max-w-5xl overflow-y-auto overscroll-contain px-2 pb-2 sm:px-4"
               />
             )}
@@ -1850,11 +1864,13 @@ function ChatUI({
                             // Who answers first and largest: it is the most
                             // consequential choice in the composer.
                             controlsSlot={
-                              agentFixed ? undefined : (
-                                <>
-                                  <AgentPicker />
-                                  {/* A phone's row is the agent alone; the project is
-                                    picked from its `+` sheet. */}
+                              <>
+                                {!agentFixed && <AgentPicker />}
+                                <ChatApprovalSelector
+                                  onChange={onApprovalModeChange}
+                                  disabled={isProcessing || readOnly}
+                                />
+                                {!agentFixed && (
                                   <span className="contents max-md:hidden">
                                     <ProjectChip
                                       conversationId={conversationId}
@@ -1862,8 +1878,8 @@ function ChatUI({
                                       onPickerOpenChange={setProjectPickerOpen}
                                     />
                                   </span>
-                                </>
-                              )
+                                )}
+                              </>
                             }
                             onProject={
                               agentFixed || conversationId

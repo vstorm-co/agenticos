@@ -396,6 +396,8 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   // Bumped to reconnect on a fresh key. The socket carries the key in its URL,
   // so a new thread is a new connection rather than a frame.
   const [session, setSession] = useState(0);
+  const [readySession, setReadySession] = useState<{ key: string; session: number } | null>(null);
+  const connected = readySession?.key === config.public_key && readySession.session === session;
   const [listening, setListening] = useState(false);
   const [browserFailure, setBrowserFailure] = useState<BrowserSpeechFailure | null>(null);
   // Files already stored, waiting on the message that will name them. Held here
@@ -511,6 +513,9 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
     // reconnect, "start a new chat" bumping `session` - does not read as the
     // server having dropped us and flash "connection lost" on the way out.
     let intentional = false;
+    socket.onopen = () => {
+      if (!intentional) setReadySession({ key: config.public_key, session });
+    };
 
     socket.onmessage = (event) => {
       const frame = JSON.parse(event.data as string);
@@ -521,6 +526,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
     };
     socket.onclose = (event) => {
       if (intentional) return;
+      setReadySession(null);
       setThinking(false);
       if (event.code === 4029) setClosed("too-many");
       else if (event.code === 4003) setClosed("refused");
@@ -909,7 +915,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
                 <DictationBar state={dictation} actions={dictationActions} />
               </div>
             ) : (
-              <div className="flex items-end gap-2 px-3 py-2 sm:px-4">
+              <div className="flex items-center gap-2 px-3 py-2 sm:px-4">
                 <Input
                   ref={draftRef}
                   value={draft}
@@ -923,7 +929,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
                   disabled={closed !== null}
                   className="min-h-[40px] flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
                 />
-                <div className="flex shrink-0 items-center gap-0.5 pb-1">
+                <div className="flex shrink-0 items-center gap-0.5">
                   {config.allow_files && (
                     <>
                       <input
@@ -993,9 +999,13 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
                   <Button
                     type="submit"
                     size="icon"
-                    className="h-9 w-9 rounded-full text-white hover:opacity-90"
+                    className="size-10 shrink-0 rounded-full p-0 text-white hover:opacity-90"
                     style={{ backgroundColor: "var(--hosted-accent)" }}
-                    disabled={closed !== null || (draft.trim() === "" && attached.length === 0)}
+                    disabled={
+                      !connected ||
+                      closed !== null ||
+                      (draft.trim() === "" && attached.length === 0)
+                    }
                   >
                     <Send className="h-4 w-4" />
                     <span className="sr-only">{t("send")}</span>

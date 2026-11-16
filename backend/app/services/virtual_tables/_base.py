@@ -137,6 +137,7 @@ class Operations:
             id=table.id,
             name=table.name,
             description=table.description,
+            icon=table.icon,
             visibility=as_visibility(table.visibility),
             owner_user_id=table.owner_user_id,
             schema_version=table.schema_version,

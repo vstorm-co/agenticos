@@ -1,6 +1,6 @@
 # Skills
 
-Open a skill from the catalog to read it in a modal without losing your search, filters or page. **Open full view** opens the same tab and selected line on its dedicated page. The version tree grows with its contents up to a bounded canvas height; a single version leaves no large empty canvas. A single comparison preview uses the available width and renders instructions as Markdown, with source available on request. Multiple selected versions share the space on desktop and scroll within their comparison on a phone.
+Open a skill from the catalog to edit its instructions, description and files in a modal without losing your search, filters or list page. **Open full view**, beside **Share** in the modal footer, opens the Content tab on its dedicated page, with Agents and History available beside it. Leaving unsaved edits asks what to keep. Improve shows a next step when no feedback is available instead of a spending form that cannot run.
 
 
 A skill is know-how written once and attached to many agents: how refunds are
@@ -119,8 +119,12 @@ the skill - or that none does yet. Context files and knowledge bases offer the s
 
 **A skill's name is the id a model loads it by**, so it takes the form models
 write ids in: lowercase letters and digits joined by single hyphens, such as
-`refund-policy`. A name with spaces or capitals is refused when the skill is
-created. A name the model has to reproduce exactly, like `Refund policy`, was
+`refund-policy`. In the console, capitals, spaces, punctuation and Latin accents
+are formatted automatically when you leave the name field or submit it: `Refund Policy`
+becomes `refund-policy`. The API still requires the canonical format. Existing-name
+collisions and capability names are refused without discarding the draft.
+
+A name the model has to reproduce exactly, like `Refund policy`, was
 loaded as `refund-policy` instead, and two wrong guesses end the turn
 ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)).
 
@@ -778,21 +782,6 @@ a fork, discarded, expired - and what it cost. **Continue** opens a session stil
 waiting on you; **Open** reads a finished one. A version a session applied links
 back to it.
 
-**Version tree** draws main as a line of boxes from left to right, ending at its
-newest version. Each fork branches off the version it started from on a lane of its
-own, and every agent sits in the box of the version it uses. On a line of eight
-versions or more, stretches that no agent uses fold into one box. **Compare** on a
-version puts it in a comparison under the diagram. Pick as many versions as you
-like, from main and forks alike, to see their descriptions, instructions and files
-side by side. Drag to move the diagram, and zoom with the wheel or the buttons, as
-on an agent's map.
-
-The first version picked is the **Reference**, always drawn first behind a divider.
-Every other column marks what it
-says differently from it, word by word as History's diffs do, and its files as
-added, removed or changed. **Set as reference** makes another column the
-reference, and **Only the differences** folds the parts that say the same.
-
 **Edit** saves a new version on the line on screen. On main, the agents following
 main get it at once; pinned agents and forks keep their version. A changed text is
 not saved at the first press: the dialog names the agents it reaches on their next
@@ -966,3 +955,15 @@ The assistant can propose **Worth creating a skill** when a reusable procedure a
 A procedure drawn from fewer than three distinct answers is not proposed as a suggestion. It is listed with its full text under **more ideas need your decision**. **Create skill** opens a preview: the name, description and body can be edited, and a warning says how many answers it is based on. **Create skill** in the preview creates the skill in the library and binds it to the agent's draft, never to a published version. It needs the same permissions as Accept and makes no model call. A second click returns the skill already created.
 
 The estimate reserves the full proposed body for each candidate answer and its confirming reruns, in addition to the historical per-answer price.
+
+## Design resources for Apps and Visuals { #design-resources }
+
+`artifact-pages` guides reusable Apps, evidence-led reports, decision workbenches and browser presentations. `visual-design` guides interactive explanations, comparisons, diagrams and original procedural graphics. Both choose composition, style and interactions for school, play or work rather than applying one dashboard to every subject. Detailed playbooks and complete HTML examples are loaded only when needed.
+
+The examples include an evidence filter, editable decision criteria, a transparent cost comparison, a reproducible generative field and a keyboard-operated slide deck with overview, four visual themes and a complete print layout. Example data and assumptions are labelled. Controls, error states, reset, phone layouts and reduced motion are part of verification.
+
+Apps can export a published HTML/Markdown page or browser presentation through `export_artifact`. The operator must configure `ARTIFACT_RENDER_CDP_URL` and install the `browser` extra; the agent needs a workspace to save the real PDF. Exports use the same access and audience rules as App previews and refuse unavailable bound data. A file is limited to 50 pages and 20 MB and gets a unique filename. Inspect the PDF, including page breaks and all slides. This does not introduce a PowerPoint format.
+
+Chat can embed interactive content. Mattermost and other text channels receive an authorized App link, a rendered image where supported, or a requested PDF through file delivery; HTML does not execute inside those messages. Posting a link does not grant public access. Existing installations receive these resources through the normal library refresh: untouched copies update, followed skills wait for their check, and customized copies remain protected.
+
+Bundled platform skills and the skills shipped with the AI Architect can be read and used through normal resource access, but changing their content, files, versions or forks, deleting them, or claiming their reserved name requires organization-wide agent edit authority (Owner/Admin in the built-in roles). A skill edit grant does not bypass this protection. Ordinary organization skills retain their existing ownership and sharing rules.

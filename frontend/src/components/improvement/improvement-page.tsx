@@ -36,7 +36,7 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
   const orgId = useOrgStore((state) => state.activeOrgId);
   const { agent, isLoading, error } = useAgent(agentId);
   const { can } = usePermissions();
-  if (isLoading) return <LoadingState variant="skeleton-cards" rows={3} />;
+  if (isLoading) return <LoadingState variant="pending" />;
   if (error || !agent) return <ErrorState description={getErrorMessage(error, tErrors)} />;
   // Reading a session needs the agent and its runs; starting one, or changing
   // one, needs edit access too, and without it the session is only read.
@@ -96,7 +96,7 @@ function Session({
   );
   const [wordingOpen, setWordingOpen] = useState(false);
   const session = actions.session;
-  if (actions.isLoading) return <LoadingState variant="skeleton-cards" rows={3} />;
+  if (actions.isLoading) return <LoadingState variant="pending" />;
   if (actions.error || !session)
     return (
       <ErrorState

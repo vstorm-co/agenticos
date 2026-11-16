@@ -411,7 +411,7 @@ describe("the capability workbench", () => {
     await openCapability("Charts");
 
     const panel = screen.getByRole("group", { name: "Charts" });
-    expect(within(panel).getByText("charts")).toBeInTheDocument();
+    expect(within(panel).getByRole("switch", { name: "Charts enabled" })).toBeChecked();
     expect(screen.queryByRole("group", { name: "Context" })).not.toBeInTheDocument();
   });
 

@@ -13,6 +13,7 @@ from sqlalchemy import ColumnElement, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only
 
+from app.core.resource_icons import ResourceIconName
 from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 
@@ -138,6 +139,7 @@ async def create(
     owner_user_id: UUID | None,
     created_by_user_id: UUID | None,
     visibility: str,
+    icon: ResourceIconName | None = None,
     tags: list[str] | None = None,
 ) -> Workflow:
     workflow = Workflow(
@@ -145,6 +147,7 @@ async def create(
         slug=slug,
         name=name,
         description=description,
+        icon=icon,
         owner_user_id=owner_user_id,
         created_by_user_id=created_by_user_id,
         visibility=visibility,

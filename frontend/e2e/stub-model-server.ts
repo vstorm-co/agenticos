@@ -544,6 +544,51 @@ const server = createServer((request, response) => {
     return;
   }
 
+  // Lexical vectors exercise KB ingestion/search locally, without a provider key.
+  // They test the pipeline and source identity, not embedding-model quality.
+  if (request.method === "POST" && path.endsWith("/embeddings")) {
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer) => chunks.push(chunk));
+    request.on("end", () => {
+      let body: unknown;
+      try {
+        body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      } catch {
+        response.writeHead(400).end();
+        return;
+      }
+      const input =
+        typeof body === "object" && body !== null && "input" in body ? body.input : null;
+      const texts = typeof input === "string" ? [input] : input;
+      if (
+        !Array.isArray(texts) ||
+        !texts.every((item): item is string => typeof item === "string")
+      ) {
+        response.writeHead(400).end();
+        return;
+      }
+      const data = texts.map((text, index) => {
+        const embedding: number[] = Array.from({ length: 768 }, () => 0);
+        for (const word of text.toLowerCase().match(/[a-z]+/g) ?? []) {
+          let slot = 0;
+          for (const char of word) slot = (slot * 31 + char.charCodeAt(0)) % 768;
+          embedding[slot] = (embedding[slot] ?? 0) + 1;
+        }
+        if (!embedding.some(Boolean)) embedding[0] = 1;
+        return { object: "embedding", index, embedding };
+      });
+      response.writeHead(200, { "content-type": "application/json" }).end(
+        JSON.stringify({
+          object: "list",
+          model: "nomic-embed-text",
+          data,
+          usage: { prompt_tokens: texts.length, total_tokens: texts.length },
+        }),
+      );
+    });
+    return;
+  }
+
   if (request.method !== "POST" || !path.endsWith("/chat/completions")) {
     response
       .writeHead(404, { "content-type": "application/json" })

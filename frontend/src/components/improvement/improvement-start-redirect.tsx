@@ -23,5 +23,5 @@ export function ImprovementStartRedirect({ agentId }: { agentId: string }) {
   useEffect(() => {
     router.replace(target);
   }, [router, target]);
-  return <LoadingState variant="skeleton-cards" rows={1} />;
+  return <LoadingState variant="pending" />;
 }

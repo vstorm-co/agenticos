@@ -84,6 +84,8 @@ out and it reaches the model exactly as typed. The fourth row is the other one â
 Activity to see "what happened" sees the visitor's real input, because the
 guardrail rewrites what the *model* reads, never the stored conversation turn.
 
+The human transcript remains the original audit record. A separate screened copy, including any attachment briefing, is stored for model replay and quotations. Later turns keep that copy even if input redaction is disabled afterwards. Legacy replay is screened before the runâ€™s context management; blocked turns still use the refusal marker.
+
 !!! example "Recorded on v0.0.504, 25 September 2026, before phone redaction"
 
     Model: Claude Sonnet 4.6 through OpenRouter. First reply: *"some of your

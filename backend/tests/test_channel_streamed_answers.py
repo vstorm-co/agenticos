@@ -331,7 +331,7 @@ class TestStreamedReply:
 
 
 class TestLiveReplySteps:
-    async def test_a_step_starting_is_said_and_its_end_is_not(self) -> None:
+    async def test_a_finished_step_updates_the_reply_to_preparing_the_answer(self) -> None:
         pushed: list[str] = []
 
         async def push(text: str) -> None:
@@ -342,7 +342,7 @@ class TestLiveReplySteps:
         await reply.step(AnswerStep("1", "Searching the web…", "in_progress"))
         await reply.step(AnswerStep("1", "Searching the web…", "complete"))
 
-        assert pushed == ["Searching the web…"]
+        assert pushed == ["Searching the web…", "Preparing the answer…"]
 
 
 class _ToolNode:

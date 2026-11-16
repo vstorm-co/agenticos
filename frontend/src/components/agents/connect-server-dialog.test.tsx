@@ -128,12 +128,24 @@ describe("ConnectServerDialog", () => {
     );
   });
 
+  it("formats an edited tool prefix instead of refusing a human title", async () => {
+    open(TOKEN_ENTRY);
+    await userEvent.click(await screen.findByRole("button", { name: "More options" }));
+    const name = screen.getByLabelText("Tool prefix");
+    await userEvent.clear(name);
+    await userEvent.type(name, "Support CRM");
+    await submit();
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith(expect.objectContaining({ name: "support-crm" })),
+    );
+  });
+
   it("refuses a name the server would not accept, without calling the API", async () => {
     open(TOKEN_ENTRY);
     await userEvent.click(await screen.findByRole("button", { name: "More options" }));
     const name = screen.getByLabelText("Tool prefix");
     await userEvent.clear(name);
-    await userEvent.type(name, "Not A Name");
+    await userEvent.type(name, "---");
 
     await submit();
 

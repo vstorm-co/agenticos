@@ -6,7 +6,7 @@ import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
-import { ErrorState, LoadingState } from "@/components/states";
+import { ErrorState } from "@/components/states";
 import {
   Badge,
   Button,
@@ -16,6 +16,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  Skeleton,
 } from "@/components/ui";
 import { useEvalSuiteResults } from "@/hooks/use-eval-suites";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -70,7 +71,20 @@ function SuiteResults({ suite }: { suite: EvalSuite }) {
   });
 
   if (isLoading) {
-    return <LoadingState variant="skeleton-table" columns={1} rows={4} className="m-5" />;
+    return (
+      <div aria-busy="true" className="divide-border divide-y">
+        {[0, 1, 2, 3].map((row) => (
+          <div key={row} aria-hidden="true" className="space-y-2 px-5 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Skeleton className="h-5 w-20 rounded-full" />
+              <Skeleton className="h-3 w-40" />
+            </div>
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
+        ))}
+      </div>
+    );
   }
   if (error !== null) return <ErrorState title={t("resultsCouldNotBeRead")} className="m-5" />;
   if (results.length === 0) {

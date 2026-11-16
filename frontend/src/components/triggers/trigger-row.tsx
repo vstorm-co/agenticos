@@ -127,16 +127,18 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
           {/* The routine's own name leads - it was the smallest text in the row,
               under the cadence it is only a property of. */}
           {(trigger.name || (showAgent && trigger.agent_name)) && (
-            <p className="truncate text-sm font-medium">{trigger.name ?? trigger.agent_name}</p>
+            <p className="text-sm font-medium [overflow-wrap:anywhere] sm:truncate">
+              {trigger.name ?? trigger.agent_name}
+            </p>
           )}
-          <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+          <p className="text-muted-foreground flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs sm:flex-nowrap">
             {trigger.name && showAgent && trigger.agent_name && (
               <>
                 <span className="text-foreground/80 truncate">{trigger.agent_name}</span>
                 <span aria-hidden>·</span>
               </>
             )}
-            <span className="truncate">
+            <span className="min-w-0 sm:truncate">
               <TriggerSummary trigger={trigger} />
             </span>
           </p>
@@ -146,6 +148,22 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
       {trigger.last_delivery_status === "unavailable" && (
         <Badge variant="secondary">{t("deliveryUnavailable")}</Badge>
       )}
+      {trigger.setup_required &&
+        (trigger.can_manage && me != null && me === trigger.created_by_user_id && !impersonating ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setConsenting(true)}
+            title={t("setupRequiredHint")}
+          >
+            <ShieldCheck className="mr-1.5 size-3.5" />
+            {t("setupRequired")}
+          </Button>
+        ) : (
+          <Badge variant="secondary" title={t("setupOwnerRequired")}>
+            {t("setupRequired")}
+          </Badge>
+        ))}
       {trigger.runs_as_creator && <Badge variant="outline">{t("actsAsCreator")}</Badge>}
       {(trigger.waiting_device_count ?? 0) > 0 && (
         <Badge variant="secondary">
@@ -153,7 +171,7 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
         </Badge>
       )}
       <RoutineAutoPause stoppedAt={trigger.auto_stopped_at} count={trigger.consecutive_failures} />
-      {!trigger.is_active && !trigger.auto_stopped_at && (
+      {!trigger.is_active && !trigger.auto_stopped_at && !trigger.setup_required && (
         <Badge variant="secondary">{t("paused")}</Badge>
       )}
       {trigger.is_active && trigger.paused_for_budget && (
@@ -162,7 +180,7 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
       {trigger.can_manage && (
         <TooltipProvider>
           <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:ml-0">
-            {me != null && me === trigger.created_by_user_id && (
+            {me != null && me === trigger.created_by_user_id && !impersonating && (
               <RoutineActionTooltip label={t("actionConsents.title")}>
                 <Button
                   variant="ghost"

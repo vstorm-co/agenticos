@@ -1,5 +1,5 @@
 ---
-source_sha: "68958b7ea0a1"
+source_sha: "d3f26132e044"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -161,7 +161,7 @@ contabilidad. El modo de código mantiene esas paradas al cruzar el límite del 
 | `compaction` | Conversaciones largas | utility | ninguna, a propósito | — | — | sin efecto |
 | `media` | Imágenes fuera del historial | utility | ninguna, a propósito | — | — | sin efecto |
 | `tool_output_limits` | Límites de resultados de herramientas | utility | `read_tool_result` | — | — | tal cual |
-| `artifacts` | Aplicaciones | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | tal cual |
+| `artifacts` | Aplicaciones | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `export_artifact`, `share_artifact` | — | — | tal cual |
 | `channel_tools` | Información del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | no disponible |
 | `phone_calls` | [Llamadas telefónicas](../voice.md#telephone-calls) | channels | `get_phone_contact_policy`, `call_me`, `list_phone_transfer_contacts`, `transfer_phone_call`, `end_phone_call` | `endpoint_id` | — | — |
 | `ask_user` | Preguntar al usuario | utility | `ask_user_question` | — | — | en pantalla |
@@ -436,7 +436,7 @@ archivos se gestionan bajo `/api/v1/context` y se vinculan a un agent por id
 Notas que un agent guarda por su cuenta entre conversaciones, indexadas por otra
 que él mismo mantiene. Donde `context` es una biblioteca que una persona escribe y
 vincula a muchos agents, la memoria es del propio agent: escribe con herramientas
-en mitad del run, y aquí no escribe nadie más. No se vincula por id: activar la
+en mitad del run. Una persona puede corregir sus propias notas en **Settings → Memory → Notes**, sin obtener acceso a notas ajenas. Las correcciones conservan la fecha de escritura original del agent y el estado de supresión, comprueban la revisión y generan una auditoría sin el contenido de la nota. No se vincula por id: activar la
 capability le da al agent sus notas.
 
 **`MEMORY.md` es el índice, y se le muestra al agent en cada petición.** Es una
@@ -1801,8 +1801,32 @@ eran más pequeños al empezar la tarea. El parche se guarda hasta 256 KiB y 500
 **Quién lee el diff.** Se guarda con la conversación y se lee con el mismo acceso
 que su transcripción, así que lo ve quien pueda leer el chat; borrar el chat lo
 borra. En una sandbox que comparten varios chats, una tarea que se ejecuta a la vez
-que otra ve también los cambios de esa en su diff. Todavía no se ofrece revertir
-una tarea, y una tarea en este ordenador no registra diff.
+que otra ve también los cambios de esa en su diff. Una tarea en este ordenador no registra diff.
+
+**Revertir esta tarea.** Las tareas nuevas pueden restaurar archivos regulares
+solo si su snapshot completo se capturó en un workspace aislado de conversación.
+Los snapshots con ámbito de proyecto, agente, canal o usuario siguen siendo de
+solo lectura, porque pueden incluir trabajo de otra conversación. Necesitas
+acceso de edición actual y ningún run debe estar escribiendo en el workspace.
+El contenido y modo ejecutable de cada archivo deben coincidir con el estado
+final de la tarea. Un conflicto rechaza toda la reversión e indica los archivos.
+Los demás archivos, el índice de Git y su historial permanecen sin cambios.
+
+La acción encola un trabajo duradero y reserva el workspace. El panel muestra el
+progreso y los rechazos confirmados. Un resultado desconocido conserva la reserva;
+**Reintentar reversión** comprueba antes de escribir si los archivos ya se
+restauraron. Así, un fallo o una respuesta perdida no aplica la reversión dos
+veces. El worker vuelve a comprobar el acceso y registra el éxito en la auditoría.
+
+La reversión restaura solo archivos; conserva la conversación y el informe.
+Requiere Git y Python 3 y rechaza snapshots truncados, redactados, antiguos de
+solo visualización, archivos enlazados y archivos actuales de más de 2 MiB. No
+sustituye un workspace eliminado o trasladado.
+
+**Número de archivos cambiados.** El panel y el pie del mensaje usan el conjunto
+de cambios guardado, incluidas las ediciones del shell y el número de archivos
+omitidos por el límite. Solo una tarea sin conjunto de cambios usa la lista del
+harness; los informes nuevos expresan esas rutas respecto al workspace.
 
 **Las tareas de una conversación continúan una sesión.** El id de sesión del harness
 se guarda en la sandbox junto al trabajo, en `.agenticos/coding-agent/`, uno por
@@ -1958,6 +1982,8 @@ de bibliotecas del despliegue, que ahora incluye three.js, Mermaid y Leaflet, y 
 propia ruta de teselas del despliegue. Consulte [Visuals](../artifacts.md#visuals).
 
 ## Aplicaciones { #artifacts }
+
+`export_artifact` guarda la versión publicada actual como PDF real en el workspace. Usa el renderer aislado, admite informes A4 y presentaciones web 16:9, conserva las comprobaciones de acceso y audiencia de la vista previa y rechaza datos vinculados no disponibles. Requiere configurar el renderer y el extra `browser`. Los archivos tienen nombres únicos y un límite de 50 páginas y 20 MB. Consulta los [recursos de diseño](../skills.es.md#design-resources).
 
 `publish_artifact` — _Publica una página terminada — un informe, un pequeño
 dashboard, un resumen — bajo un enlace estable._
@@ -3118,6 +3144,8 @@ censurado llega al modelo limpio, pero la conversación guarda el mensaje tal co
 escribió la persona, datos personales incluidos. Quien pueda leer la conversación
 puede leer ese mensaje.
 
+La transcripción para personas conserva el registro original de auditoría. Se guarda otra copia censurada, incluida la descripción de adjuntos, para el historial del modelo y las citas. Los turnos posteriores conservan esa copia aunque después se desactive la censura de entrada. El historial antiguo se revisa antes de gestionar el contexto del run; los turnos bloqueados siguen usando el marcador de rechazo.
+
 **El borde de entrada revisa un adjunto antes de escribirlo.** Un archivo adjunto
 llega al prompt como su nombre, su ruta y sus primeras 20 líneas (como máximo 2.000
 caracteres), y el borde de entrada las lee junto con el mensaje de la persona. En un
@@ -3519,3 +3547,17 @@ La elección de acceso local pertenece al agente seleccionado, no a un valor glo
 La corrección `[session:api] Usa las cifras de la UE` llega a la sesión `api`. Con una sola sesión activa, también recibe las correcciones sin destinatario; con varias, estas quedan para el agente principal para no modificar otra tarea. El agente principal registra la corrección una vez cuando continúa.
 
 Las tareas de programación en sandbox del mismo conjunto de herramientas se ejecutan en secuencia para evitar que se superpongan sus instantáneas de archivos; las sesiones locales independientes siguen en paralelo.
+
+
+## Aplicaciones de chat conectadas (`channel_actions`) { #connected-chat-apps-channel_actions }
+
+Permisos explícitos del bot para encontrar canales, buscar mensajes y entregar informes solicitados desde cualquier ejecución.
+
+| Herramienta | Acción |
+| --- | --- |
+| `list_chat_connections` | Identificadores de bots, permisos y destino actual |
+| `find_chat_channels` | Metadatos de canales del bot con paginación |
+| `read_chat_messages` | Historial limitado con filtros |
+| `send_chat_message` | Mensaje o informe solicitado en una publicación nueva o un hilo existente |
+
+Cada operación vuelve a comprobar la pertenencia a la organización, acceso al agente, vinculación y bot activos, además de pertenencia al canal y correspondencia del hilo. No se une a canales ni utiliza bots de otros agentes. La búsqueda y el historial devuelven páginas limitadas con cursores; una página sin coincidencias no es el final si hay cursor. Los fallos del proveedor son rechazos, no resultados vacíos. Los envíos siguen la política de aprobación; una entrega no confirmada debe comprobarse antes de reintentarse. Las demás plataformas conservan sus herramientas de conversación; las acciones entre canales solo se ofrecen donde el adaptador verifica la pertenencia.

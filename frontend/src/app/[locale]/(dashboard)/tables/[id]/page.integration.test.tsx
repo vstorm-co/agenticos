@@ -860,6 +860,9 @@ describe("the table detail page", () => {
       expect(screen.queryByRole("button", { name: "add-column" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /columns/i })).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: /add record/i })).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "View settings" }));
+      expect(screen.queryByRole("button", { name: "Set as default" })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "View settings" }));
       await user.click(screen.getByRole("button", { name: "More actions" }));
       expect(screen.queryByRole("menuitem", { name: "Archive table" })).not.toBeInTheDocument();
     });
@@ -1144,6 +1147,7 @@ describe("the table detail page", () => {
     serve({ tableFixture: table({ default_view_id: "v-kanban" }) });
     renderPage();
     expect(await screen.findByTestId("kanban-view")).toHaveAttribute("data-group-by", "c2");
+    await userEvent.click(screen.getByRole("button", { name: "View settings" }));
     expect(screen.getByRole("button", { name: "Default view" })).toBeDisabled();
   });
 
@@ -1155,6 +1159,7 @@ describe("the table detail page", () => {
     );
     renderPage();
     await screen.findByTestId("kanban-view");
+    await userEvent.click(screen.getByRole("button", { name: "View settings" }));
     await userEvent.click(screen.getByRole("button", { name: "Set as default" }));
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1", {
@@ -1313,6 +1318,7 @@ describe("the table detail page", () => {
     expect(screen.getByRole("combobox", { name: "Select a table view" })).toHaveTextContent(
       "All records",
     );
+    await userEvent.click(screen.getByRole("button", { name: "View settings" }));
     await userEvent.click(screen.getByRole("button", { name: "Set as default" }));
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith("/tables/t1", {
@@ -1603,6 +1609,9 @@ describe("the table detail page", () => {
       expect(await screen.findByText(/^Archived on/)).toBeInTheDocument();
       expect(screen.getByText(/Restore the table to change them again/)).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /add record/i })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "View settings" }));
+      expect(screen.queryByRole("button", { name: "Set as default" })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "View settings" }));
       await user.click(screen.getByRole("button", { name: "More actions" }));
       expect(screen.queryByRole("menuitem", { name: "Archive table" })).not.toBeInTheDocument();
       await user.keyboard("{Escape}");

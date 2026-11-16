@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeIdentifier } from "@/lib/normalize-identifier";
 import {
   AudiencePicker,
   EVERYONE,
@@ -160,7 +161,7 @@ export function CreateSkillDialog({ open, onOpenChange, onCreated }: CreateSkill
     setSubmitting(true);
     try {
       const skill = await create.mutateAsync({
-        name,
+        name: normalizeIdentifier(name),
         description,
         content,
         // Whitespace-only means "no category" - the backend refuses an empty
@@ -218,12 +219,22 @@ export function CreateSkillDialog({ open, onOpenChange, onCreated }: CreateSkill
                 id="new-skill-name"
                 value={name}
                 onChange={(event) => edit("name", event.target.value)}
+                onBlur={() => {
+                  const formatted = normalizeIdentifier(name);
+                  if (formatted !== name) edit("name", formatted);
+                }}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                aria-describedby="new-skill-name-hint"
                 placeholder="refund-policy"
                 maxLength={MAX_NAME}
                 className="font-mono"
                 aria-invalid={errors.name ? true : undefined}
               />
-              <FieldNote error={errors.name}>{t("howModelRefersSkill")}</FieldNote>
+              <div id="new-skill-name-hint">
+                <FieldNote error={errors.name}>{t("howModelRefersSkill")}</FieldNote>
+              </div>
             </div>
             <div
               className="min-w-0 flex-1 basis-72 space-y-1.5"

@@ -130,7 +130,7 @@ export function UnsavedChangesGuard() {
         if (!open && !saving) void answer("stay");
       }}
     >
-      <DialogContent className={DIALOG_CONFIRM}>
+      <DialogContent dismissible={!saving} className={DIALOG_CONFIRM}>
         <DialogHeader>
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>{t(canSave ? "body" : "bodyNoSave")}</DialogDescription>

@@ -1,16 +1,15 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { FileWarning, Wrench } from "lucide-react";
+import { FileWarning } from "lucide-react";
 
 import { CopyButton } from "@/components/chat/copy-button";
-import { RunWaterfall } from "@/components/runs/run-waterfall";
 import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyState, ErrorState } from "@/components/states";
 import { Badge } from "@/components/ui";
+import { EmptyState, ErrorState } from "@/components/states";
 import { useRunManifest } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
-import type { ManifestTool } from "@/types/runs";
+import { RunModelInput } from "./run-model-input";
 
 /**
  * What the run handed its model: the prompt, the tools, the settings, and the
@@ -67,56 +66,7 @@ export function RunManifest({ runId }: { runId: string }) {
         </p>
       )}
 
-      <Section title={t("systemPrompt")} copyText={manifest.instructions ?? undefined}>
-        {manifest.instructions === null ? (
-          manifest.system_prompts.length === 0 && (
-            <p className="text-muted-foreground text-sm">{t("noInstructionsSent")}</p>
-          )
-        ) : (
-          <pre className="bg-muted/40 max-h-80 overflow-auto rounded p-3 text-xs whitespace-pre-wrap">
-            {manifest.instructions}
-          </pre>
-        )}
-        {/* Separate on the wire, so separate here: an agent built with a system
-            prompt sends one of these and a capability injecting a reminder sends
-            another, and a reader comparing spec with reality needs both. */}
-        {manifest.system_prompts.map((prompt, index) => (
-          <pre
-            key={index}
-            className="bg-muted/40 mt-2 max-h-60 overflow-auto rounded p-3 text-xs whitespace-pre-wrap"
-          >
-            {prompt}
-          </pre>
-        ))}
-      </Section>
-
-      {Object.keys(manifest.settings).length > 0 && (
-        <Section title={t("modelSettings")}>
-          <div className="flex flex-wrap gap-1.5">
-            {Object.entries(manifest.settings).map(([key, value]) => (
-              <Badge key={key} variant="secondary" className="font-mono text-xs">
-                {t("settingPair", { key, value: String(value) })}
-              </Badge>
-            ))}
-          </div>
-        </Section>
-      )}
-
-      <Section title={t("toolsSent", { count: manifest.tools.length })}>
-        {manifest.tools.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t("noToolsSent")}</p>
-        ) : (
-          <ul className="space-y-1.5">
-            {manifest.tools.map((tool) => (
-              <ToolRow key={`${tool.kind}-${tool.name}`} tool={tool} />
-            ))}
-          </ul>
-        )}
-      </Section>
-
-      <Section title={t("requests", { count: manifest.requests.length })}>
-        <RunWaterfall requests={manifest.requests} />
-      </Section>
+      <RunModelInput manifest={manifest} />
 
       {/* What steered the run, and who: a correction the run's model received
           mid-run reads as the agent changing its mind otherwise (#2106). */}
@@ -219,41 +169,5 @@ function Section({
       </div>
       {children}
     </section>
-  );
-}
-
-/**
- * One tool, with the sentence the model reads.
- *
- * The description leads rather than hiding behind a disclosure: it is what the
- * model decides on, and an agent that never calls a tool it has is usually an
- * agent whose tool describes itself badly. The schema is behind the disclosure
- * because it is long and is read second.
- */
-function ToolRow({ tool }: { tool: ManifestTool }) {
-  const t = useTranslations("pages.runs");
-  return (
-    <li className="rounded-md border px-3 py-2">
-      <div className="flex items-center gap-2">
-        <Wrench className="text-muted-foreground h-3 w-3 shrink-0" aria-hidden />
-        <span className="font-mono text-xs">{tool.name}</span>
-        {tool.kind !== "function" && (
-          <Badge variant="outline" className="text-xs">
-            {tool.kind}
-          </Badge>
-        )}
-      </div>
-      {tool.description !== null && (
-        <p className="text-muted-foreground mt-1 text-xs">{tool.description}</p>
-      )}
-      <details className="mt-1">
-        <summary className="text-muted-foreground cursor-pointer text-xs select-none">
-          {t("argumentSchema")}
-        </summary>
-        <pre className="bg-muted/40 mt-1 max-h-60 overflow-auto rounded p-2 text-xs">
-          {JSON.stringify(tool.parameters_json_schema, null, 2)}
-        </pre>
-      </details>
-    </li>
   );
 }

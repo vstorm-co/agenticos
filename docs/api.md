@@ -47,6 +47,17 @@ the key that acted — every entry recorded during a key-authenticated request
 carries `via_api_key` in its details. A key can have an expiry, and revoking it
 (`DELETE /api/v1/api-keys/{id}`) takes effect on its next request.
 
+The console puts your keys before the connection guide, with active keys first.
+Search by name, prefix or issuer; phone cards keep expiry and last use visible.
+In **Create key**, expand the permission details for a preset, or choose
+**Custom** to search individual permissions. Searching does not clear selections.
+Enter in the name field creates the key; Enter in the permission search does not submit.
+
+Fields and dismissal are locked while a key is being created. A refusal keeps
+your draft for retry. After creation, copy the key before closing; a clipboard
+refusal leaves the value available for another attempt. Closing clears the
+creation state. A refused revocation keeps its confirmation open for retry.
+
 **A key is not its issuer's person.** A run it starts is owned, budgeted and
 audited as the issuer, but it reaches none of their personal state: no
 [memory](reference/capabilities.md#whose-notes-and-who-may-hear-them), no search

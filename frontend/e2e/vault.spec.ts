@@ -71,7 +71,7 @@ test.describe("Vault", () => {
     // "Add credential".
     await page.getByRole("button", { name: "Add key" }).first().click();
     const dialog = page.getByRole("dialog");
-    await expect(dialog.getByText("Add a key")).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: "Add a key" })).toBeVisible();
 
     // The family first, then the service - two questions rather than a scroll
     // through thirty-one. Which service decides every field below it.
