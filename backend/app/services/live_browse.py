@@ -164,8 +164,32 @@ async def open_view(run_id: str, call_id: str, meta: BrowseMeta) -> None:
         return
     try:
         await _redis.raw.set(_key(run_id, call_id, "meta"), meta.model_dump_json(), ex=TTL_SECONDS)
+        # A continuation can finish without a streaming surface. Keep only view
+        # IDs so its final channel answer can retain authenticated watch links.
+        index = f"browse:{run_id}:views"
+        pipe = _redis.raw.pipeline()
+        pipe.rpush(index, call_id)
+        pipe.ltrim(index, -32, -1)
+        pipe.expire(index, TTL_SECONDS)
+        await pipe.execute()
     except Exception:
         logger.exception("live_browse_open_failed")
+
+
+async def view_links(run_id: str) -> tuple[str, ...]:
+    """Existing views for a trusted run ID; URLs still require normal sign-in/access."""
+    if _redis is None:
+        return ()
+    try:
+        calls = dict.fromkeys(await _redis.list_range(f"browse:{run_id}:views"))
+        links: list[str] = []
+        for call_id in calls:
+            if await _redis.get(_key(run_id, call_id, "meta")) is not None:
+                links.append(link(run_id, call_id))
+        return tuple(links[-8:])
+    except Exception:
+        logger.exception("live_browse_links_failed")
+        return ()
 
 
 async def publish(run_id: str, call_id: str, event: BrowserEvent) -> None:

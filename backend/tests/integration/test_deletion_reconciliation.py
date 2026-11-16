@@ -326,7 +326,11 @@ class TestDeletingAUser:
             s.add(kb)
             await s.flush()
             s.add(_kb_document(collection, kb.id, org.id, stored_path))
-            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.execute(
+                text(
+                    f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
+                )
+            )
             await s.commit()
             user_id, kb_id = user.id, kb.id
 
@@ -377,7 +381,11 @@ class TestDeletingAUser:
             s.add(_personal_kb(leaver_org.id, leaver.id, collection))
             keeper_kb = _personal_kb(keeper_org.id, keeper.id, collection)
             s.add(keeper_kb)
-            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.execute(
+                text(
+                    f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
+                )
+            )
             await s.commit()
             leaver_id, keeper_kb_id = leaver.id, keeper_kb.id
 
@@ -420,7 +428,11 @@ class TestDeletingAUser:
             s.add(kb)
             await s.flush()
             s.add(_kb_document(collection, kb.id, personal_org.id, stored_path))
-            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.execute(
+                text(
+                    f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
+                )
+            )
             await s.commit()
             user_id, kb_id = user.id, kb.id
 
@@ -459,7 +471,11 @@ class TestDeletingAnOrg:
             await s.flush()
             org = await _org(s, user)
             s.add(_org_collection(org.id, collection))
-            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.execute(
+                text(
+                    f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
+                )
+            )
             await s.commit()
             org_id = org.id
 
@@ -514,7 +530,11 @@ class TestDeletingAnOrg:
             await s.flush()
             org = await _org(s, user)
             s.add(_org_collection(org.id, collection))
-            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.execute(
+                text(
+                    f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
+                )
+            )
             await s.commit()
             org_id = org.id
 
@@ -584,7 +604,11 @@ class TestDeletingAnOrg:
             await s.flush()
             doc = _kb_document(collection, kb.id, org.id, stored)
             s.add(doc)
-            await s.execute(text(f"CREATE TABLE {table} (id int, metadata jsonb)"))
+            await s.execute(
+                text(
+                    f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
+                )
+            )
             await s.commit()
             kb_id, doc_id = kb.id, doc.id
 
@@ -646,7 +670,11 @@ class TestDeletingAnOrg:
             await s.flush()
             org = await _org(s, user)
             s.add(_org_collection(org.id, collection))
-            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.execute(
+                text(
+                    f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
+                )
+            )
             await s.commit()
             org_id = org.id
 
@@ -770,7 +798,11 @@ class TestDeletingAnOrg:
             await s.flush()
             org = await _org(s, user)
             s.add(_org_collection(org.id, collection))
-            await s.execute(text(f"CREATE TABLE {table} (id int)"))
+            await s.execute(
+                text(
+                    f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)"
+                )
+            )
             await s.commit()
             org_id = org.id
 
@@ -1026,10 +1058,14 @@ async def _filed_table(s, table: str, chunks: dict[str, uuid.UUID]) -> None:
     """A runtime vector table holding one chunk per id, filed under the given base.
 
     Only `metadata` matters to the purge, so the table carries no embedding."""
-    await s.execute(text(f"CREATE TABLE {table} (id text PRIMARY KEY, metadata jsonb)"))
+    await s.execute(
+        text(f"CREATE TABLE {table} (id text PRIMARY KEY, parent_doc_id text, metadata jsonb)")
+    )
     for chunk_id, kb_id in chunks.items():
         await s.execute(
-            text(f"INSERT INTO {table} (id, metadata) VALUES (:id, CAST(:meta AS jsonb))"),  # noqa: S608
+            text(
+                f"INSERT INTO {table} (id, parent_doc_id, metadata) VALUES (:id, :id, CAST(:meta AS jsonb))"  # noqa: S608
+            ),
             {"id": chunk_id, "meta": json.dumps({"knowledge_base_id": str(kb_id)})},
         )
 

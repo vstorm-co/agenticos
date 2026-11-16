@@ -1153,7 +1153,7 @@ service's container, is refused with `mounts denied`.
 
 |  | Default |  |
 | --- | --- | --- |
-| Local dev | `/tmp/agenticos-sandbox-workspaces` | Docker Desktop shares it and anybody can write to it, so a laptop needs no setup |
+| Local dev | `/tmp/agenticos-sandbox-workspaces` | `make dev` creates it world-writable before the stack starts. Docker on Linux, including Docker Desktop under WSL, creates a missing one as root, which uid 10001 cannot write, and every sandbox then fails with `SANDBOX_START_FAILED`; `make dev` reports such a directory with the `sudo chown 10001` + `sudo chmod u+wx` that fixes it |
 | The server files | `/var/lib/agenticos/sandbox-workspaces` | Has to exist and be writable by uid 10001 — `sudo mkdir -p <path> && sudo chown 10001:10001 <path>`, once. Not `install -d -o 10001`: `install` resolves the owner through the passwd database and refuses a uid no account owns. It belongs on storage somebody backs up |
 
 A reboot sweeps `/tmp`, which is the one reason not to point a real deployment

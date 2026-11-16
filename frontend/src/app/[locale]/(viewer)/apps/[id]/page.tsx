@@ -1,3 +1,4 @@
+import { appReturnTo } from "@/lib/app-return";
 import { ArtifactViewer } from "@/components/artifacts/artifact-viewer";
 
 /**
@@ -11,13 +12,14 @@ export default async function ArtifactPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ version?: string; requests?: string }>;
+  searchParams: Promise<{ version?: string; requests?: string; returnTo?: string }>;
 }) {
   const { id } = await params;
-  const { version, requests } = await searchParams;
+  const { version, requests, returnTo } = await searchParams;
   return (
     <ArtifactViewer
       artifactId={id}
+      backHref={appReturnTo(returnTo)}
       initialVersionId={version ?? null}
       openRequests={requests === "open"}
     />

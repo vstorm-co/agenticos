@@ -24,8 +24,7 @@ from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.organization import Organization
 from app.db.models.rag_document import RAGDocument
 from app.db.models.user import User
-from app.repositories import sync_source_repo
-from app.services import user as user_service
+from app.repositories import rag_document_repo, sync_source_repo
 from app.services.user import UserService
 from app.worker.tasks import rag_tasks
 from tests.integration.test_deletion_reconciliation import (
@@ -118,18 +117,18 @@ async def test_a_spend_recorded_while_the_account_deletes_its_documents_lets_bot
     have removed the row anyway.
     """
     recording: list[asyncio.Task[None]] = []
-    delete_documents = user_service.rag_document_repo.delete_by_knowledge_base
+    delete_documents = rag_document_repo.delete_by_knowledge_base_with_vectors
 
     async def delete_then_let_the_spend_in(
         db: AsyncSession, knowledge_base_id: uuid.UUID
-    ) -> list[str]:
+    ) -> rag_document_repo.DeletedDocuments:
         deleted = await delete_documents(db, knowledge_base_id)
         recording.append(asyncio.create_task(account.record_spend()))
         await _until_a_statement_waits_on_a_lock(account.factory)
         return deleted
 
     monkeypatch.setattr(
-        user_service.rag_document_repo, "delete_by_knowledge_base", delete_then_let_the_spend_in
+        rag_document_repo, "delete_by_knowledge_base_with_vectors", delete_then_let_the_spend_in
     )
 
     await asyncio.wait_for(account.delete(), timeout=10)

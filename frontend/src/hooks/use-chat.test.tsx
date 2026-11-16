@@ -5288,6 +5288,29 @@ describe("useChat - coming back to a turn still being written", () => {
     expect(useChatStore.getState().messages.filter((m) => m.role === "user")).toHaveLength(1);
   });
 
+  it("replaces the previous socket's unsaved bubble when attachment replays the same turn", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+    act(() =>
+      useChatStore.getState().addMessage({
+        id: "abandoned-socket",
+        role: "assistant",
+        content: "Checking the page.",
+        timestamp: new Date(),
+        conversationId: "c-1",
+        isTemporaryId: true,
+        isStreaming: true,
+      }),
+    );
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Checking the page." });
+    const answers = useChatStore.getState().messages.filter((m) => m.role === "assistant");
+    expect(answers).toHaveLength(1);
+    expect(answers[0]?.content).toBe("Checking the page.");
+    expect(answers[0]?.id).not.toBe("abandoned-socket");
+  });
+
   it("asks to follow the conversation's turn once its transcript is here", () => {
     renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
     expect(sent).not.toHaveBeenCalled();
@@ -7017,4 +7040,27 @@ it.each([
     ),
   );
   expect(useChatStore.getState().messages).toEqual([]);
+});
+
+it("ends an existing streaming segment when a resumed background turn attaches", () => {
+  useConversationStore.getState().setCurrentConversationId("c-resume");
+  useChatStore.getState().addMessage({
+    id: "old-segment",
+    role: "assistant",
+    content: "Earlier work",
+    timestamp: new Date(),
+    conversationId: "c-resume",
+    runId: "r-resume",
+    isStreaming: true,
+  });
+  renderHook(() => useChat(), { wrapper });
+  receive("turn_attached", { conversation_id: "c-resume" });
+  receive("background_task_turn", {
+    conversation_id: "c-resume",
+    agent_id: "a-1",
+    resumed_run_id: "r-resume",
+  });
+  expect(
+    useChatStore.getState().messages.find((message) => message.id === "old-segment")?.isStreaming,
+  ).toBe(false);
 });

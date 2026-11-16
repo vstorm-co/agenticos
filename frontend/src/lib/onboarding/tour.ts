@@ -381,6 +381,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "chat-coding-revert",
+    page: ROUTES.CHAT,
+    target: "coding-task-revert",
+    optional: true,
+  },
+  {
     id: "chat-background-tasks",
     page: ROUTES.CHAT,
     target: "chat-background-tasks",

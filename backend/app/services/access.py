@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.resource_grant import GRANT_ORDER, GrantLevel, Visibility
+from app.db.models.skill import Skill
 from app.repositories import member_repo, resource_grant_repo, user_repo
 
 
@@ -134,6 +135,17 @@ def _scope_allows(scope: Scope, resource: OwnedResource, user_id: UUID) -> bool:
     return False
 
 
+def platform_skill_write_allowed(ctx: AuthContext, name: str) -> bool:
+    """Bundled instructions are part of the shipped assistants' authority boundary."""
+    from app.services import skill_library
+
+    protected = (
+        name in {entry.name for entry in skill_library.library()}
+        or name in skill_library.architect_names()
+    )
+    return not protected or ctx.scope_for(Perm.AGENTS_EDIT) is Scope.ALL
+
+
 async def resolve_access(
     db: AsyncSession,
     ctx: AuthContext,
@@ -162,6 +174,14 @@ async def resolve_access(
         return False
 
     if resource.organization_id != ctx.organization_id:
+        return False
+
+    if (
+        resource_type is SKILL
+        and perm is Perm.SKILLS_EDIT
+        and isinstance(resource, Skill)
+        and not platform_skill_write_allowed(ctx, resource.name)
+    ):
         return False
 
     if resource_type is TABLE:
@@ -235,6 +255,12 @@ async def accessible_ids(
         if resource.organization_id == ctx.organization_id
         and (_scope_allows(scope, resource, subject) or resource.id in granted)
     }
+    if resource_type is SKILL and perm is Perm.SKILLS_EDIT:
+        allowed.difference_update(
+            resource.id
+            for resource in resources
+            if isinstance(resource, Skill) and not platform_skill_write_allowed(ctx, resource.name)
+        )
     if resource_type is TABLE:
         from app.services.task_access import table_access
 

@@ -1,9 +1,12 @@
 "use client";
 
-import { ContextHelp } from "@/components/ui/context-help";
 import { useState } from "react";
-import { Copy, Plug, Trash2 } from "lucide-react";
+import { Copy, Plug, Plus, Server, Trash2 } from "lucide-react";
 
+import { LocalServiceIcon } from "@/components/kb/local-service-icon";
+import { LocalServiceDialog } from "@/components/kb/local-service-dialog";
+import { LocalServiceRemove } from "@/components/kb/local-services";
+import type { LocalServiceRecord } from "@/lib/local-services-api";
 import { ConnectorIcon } from "@/components/rag/connector-icon";
 import { ErrorState } from "@/components/states";
 import { SyncSourceWizard } from "@/components/rag/sync-source-wizard";
@@ -17,7 +20,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
+  DataTable,
+  ListCard,
+  type Column,
   Button,
+  ListCardEmpty,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -32,18 +39,17 @@ import {
   SelectTrigger,
   SelectValue,
   Spinner,
-  Skeleton,
 } from "@/components/ui";
-import { usePermissions, useReusableIntegrations } from "@/hooks";
+import { useLocalServices, usePermissions, useReusableIntegrations } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import type { SyncSourceCreate, SyncSourceRead } from "@/lib/rag-api";
 import type { KnowledgeBase } from "@/types";
 import { Perm } from "@/types/permissions";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
-import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import { DIALOG_FORM } from "@/lib/dialog-sizes";
 
-interface ReusableIntegrationsProps {
+interface KnowledgeIntegrationsProps {
   /** Collections an integration can be cloned into - the page's own list. */
   targets: KnowledgeBase[];
 }
@@ -65,14 +71,17 @@ interface ReusableIntegrationsProps {
  * a section that could only fail; the collections they may feed are on their
  * own pages regardless.
  */
-export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
+export function KnowledgeIntegrations({ targets }: KnowledgeIntegrationsProps) {
   const t = useTranslations("kb");
-  const { can } = usePermissions();
+  const { can, isAppAdmin } = usePermissions();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const mayManage = can(Perm.connectionsManage);
 
   const { integrations, connectors, isLoading, error, create, remove, cloneInto } =
     useReusableIntegrations(mayManage ? activeOrgId : null);
+
+  const local = useLocalServices(mayManage);
+  const [addingServer, setAddingServer] = useState(false);
 
   const [wizardOpen, setWizardOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -92,65 +101,151 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
     }
   };
 
-  return (
-    <section className="border-border bg-card flex min-w-0 flex-col overflow-hidden rounded-xl border">
-      <div className="border-border flex flex-col items-start justify-between gap-3 border-b px-5 py-4 sm:flex-row sm:items-center">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1">
-            <h2 className="text-foreground text-sm font-semibold">{t("reusableIntegrations")}</h2>
-            <ContextHelp>{t("configuredOnceUsedAs")}</ContextHelp>
-          </div>
-        </div>
-        {connectors.length > 0 && (
-          <Button
-            data-tour="knowledge-add-integration"
-            variant="outline"
-            size="sm"
-            onClick={() => setWizardOpen(true)}
-          >
-            <Plug className="h-4 w-4" />
-            {t("addIntegration")}
-          </Button>
-        )}
-      </div>
-
-      {error ? (
-        <ErrorState description={error} className="m-4 border-0 py-8" />
-      ) : isLoading ? (
-        <div role="status" aria-label={t("loadingIntegrations")} className="space-y-4 p-4">
-          {[0, 1].map((index) => (
-            <div key={index} className="flex items-center gap-3" aria-hidden>
-              <Skeleton className="size-8 shrink-0 rounded-lg" />
-              <div className="flex-1 space-y-2">
-                <Skeleton className="h-4 w-2/3" />
-                <Skeleton className="h-3 w-4/5" />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : integrations.length === 0 ? (
-        <div className="flex items-start gap-3 px-5 py-6">
-          <span className="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-xl">
-            <Plug className="size-5" aria-hidden />
+  type Row =
+    { kind: "source"; source: SyncSourceRead } | { kind: "service"; service: LocalServiceRecord };
+  const rows: Row[] = [
+    ...integrations.map((source): Row => ({ kind: "source", source })),
+    ...local.services.map((service): Row => ({ kind: "service", service })),
+  ];
+  const columns: Column<Row>[] = [
+    {
+      key: "name",
+      header: t("name"),
+      cell: (row) => (
+        <div className="flex min-w-0 items-center gap-3">
+          {row.kind === "source" ? (
+            <ConnectorIcon type={row.source.connector_type} size="sm" />
+          ) : (
+            <span className="bg-muted text-muted-foreground grid size-8 shrink-0 place-items-center rounded-lg">
+              <LocalServiceIcon kind={row.service.kind} className="size-4" />
+            </span>
+          )}
+          <span className="min-w-0 font-medium break-words">
+            {row.kind === "source"
+              ? row.source.name
+              : row.service.organization_id === null
+                ? t("deploymentWideNamed", { name: row.service.name })
+                : row.service.name}
           </span>
-          <p className="text-muted-foreground max-w-md text-sm leading-relaxed">
-            {t(connectors.length > 0 ? "nothingHereYetAdd" : "noConnectorsAvailable")}
-          </p>
         </div>
-      ) : (
-        <ul className="divide-border divide-y">
-          {integrations.map((source) => (
-            <IntegrationRow
-              key={source.id}
-              source={source}
-              canClone={targets.length > 0}
-              onClone={() => setCloning(source)}
-              onDelete={() => remove(source.id)}
-            />
-          ))}
-        </ul>
-      )}
+      ),
+    },
+    {
+      key: "kind",
+      header: t("localServiceKind"),
+      cell: (row) =>
+        row.kind === "source"
+          ? (connectors.find((entry) => entry.type === row.source.connector_type)?.name ??
+            row.source.connector_type)
+          : t(row.service.kind === "embedding" ? "embeddingServer" : "ocrServer"),
+    },
+    {
+      key: "details",
+      header: t("integrationDetails"),
+      cell: (row) => (
+        <span className="text-muted-foreground break-all">
+          {row.kind === "source"
+            ? row.source.schedule_minutes
+              ? t("everyMinutes", { minutes: row.source.schedule_minutes })
+              : t("manualSchedule")
+            : row.service.base_url}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      header: t("integrationActions"),
+      align: "right",
+      className: "sm:w-px sm:whitespace-nowrap",
+      cell: (row) =>
+        row.kind === "source" ? (
+          <IntegrationActions
+            source={row.source}
+            canClone={targets.length > 0}
+            onClone={() => setCloning(row.source)}
+            onDelete={() => remove(row.source.id)}
+          />
+        ) : (
+          <LocalServiceRemove
+            service={row.service}
+            canRemove={row.service.organization_id !== null || isAppAdmin}
+            onDelete={() => local.remove(row.service.id)}
+          />
+        ),
+    },
+  ];
 
+  return (
+    <ListCard
+      title={t("reusableIntegrations")}
+      counted={
+        isLoading || local.isLoading
+          ? null
+          : error || local.error
+            ? t("integrationsDescription")
+            : t("integrationsCount", { count: rows.length })
+      }
+      fill
+      contentClassName="flex min-h-0 flex-1 flex-col p-0"
+      controls={
+        <div className="flex flex-wrap items-center gap-2">
+          <span data-tour="knowledge-local-services">
+            <Button
+              data-tour="knowledge-add-local-service"
+              variant="outline"
+              size="sm"
+              onClick={() => setAddingServer(true)}
+            >
+              <Server className="size-4" aria-hidden />
+              {t("addServer")}
+            </Button>
+          </span>
+          {connectors.length > 0 && (
+            <Button
+              data-tour="knowledge-add-integration"
+              size="sm"
+              onClick={() => setWizardOpen(true)}
+            >
+              <Plus className="size-4" aria-hidden />
+              {t("addIntegration")}
+            </Button>
+          )}
+        </div>
+      }
+    >
+      <p className="text-muted-foreground border-b px-4 py-3 text-xs leading-relaxed sm:px-5">
+        {t("integrationsDescription")}
+      </p>
+      {error && <ErrorState description={error} className="m-4 border-0 py-4" />}
+      {local.error && <ErrorState description={local.error} className="m-4 border-0 py-4" />}
+      <DataTable
+        columns={columns}
+        rows={rows}
+        getRowKey={(row) =>
+          row.kind === "source" ? `source:${row.source.id}` : `service:${row.service.id}`
+        }
+        loading={isLoading || local.isLoading}
+        stackOnNarrow
+        fillHeight
+        className="rounded-t-none rounded-b-xl border-0"
+        empty={
+          error || local.error ? (
+            <></>
+          ) : (
+            <ListCardEmpty
+              icon={Plug}
+              title={t("integrationsEmpty")}
+              description={t(connectors.length > 0 ? "nothingHereYetAdd" : "noConnectorsAvailable")}
+            />
+          )
+        }
+      />
+      <LocalServiceDialog
+        open={addingServer}
+        onOpenChange={setAddingServer}
+        canRegisterDeploymentWide={isAppAdmin}
+        onSubmit={local.create}
+      />
       <SyncSourceWizard
         open={wizardOpen}
         onOpenChange={setWizardOpen}
@@ -169,11 +264,11 @@ export function ReusableIntegrations({ targets }: ReusableIntegrationsProps) {
         onOpenChange={(open) => !open && setCloning(null)}
         onClone={cloneInto}
       />
-    </section>
+    </ListCard>
   );
 }
 
-function IntegrationRow({
+function IntegrationActions({
   source,
   canClone,
   onClone,
@@ -187,18 +282,14 @@ function IntegrationRow({
   const t = useTranslations("kb");
   const tc = useTranslations("common");
   return (
-    <li className="hover:bg-accent flex items-center gap-3 px-4 py-3 transition-colors">
-      <ConnectorIcon type={source.connector_type} size="sm" />
-      <div className="min-w-0 flex-1">
-        <p className="text-foreground truncate text-sm font-medium">{source.name}</p>
-        <p className="text-muted-foreground mt-0.5 text-xs">
-          {source.connector_type}
-          {source.schedule_minutes
-            ? ` · ${t("everyMinutes", { minutes: source.schedule_minutes })}`
-            : ` · ${t("manualSchedule")}`}
-        </p>
-      </div>
-      <Button variant="outline" size="sm" onClick={onClone} disabled={!canClone}>
+    <div className="flex shrink-0 items-center justify-end gap-2">
+      <Button
+        className="shrink-0 whitespace-nowrap"
+        variant="outline"
+        size="sm"
+        onClick={onClone}
+        disabled={!canClone}
+      >
         <Copy className="h-3.5 w-3.5" />
         {t("use")}
       </Button>
@@ -229,7 +320,7 @@ function IntegrationRow({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </li>
+    </div>
   );
 }
 
@@ -275,19 +366,24 @@ function CloneIntoDialog({
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className={DIALOG_CONFIRM}>
+      <DialogContent className={DIALOG_FORM}>
         <DialogHeader>
           <DialogTitle>{t("useSourceInCollection", { name: source.name })}</DialogTitle>
           <DialogDescription>{t("itsCredentialsAreCopied")}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-5">
+          <div className="bg-muted/40 flex min-w-0 items-center gap-3 rounded-lg border p-3">
+            <ConnectorIcon type={source.connector_type} size="sm" />
+            <p className="min-w-0 text-sm font-medium break-all">{source.name}</p>
+          </div>
           <div className="space-y-1.5">
-            <Label className="text-foreground/80 text-xs font-medium tracking-wider uppercase">
-              {t("knowledgeBase")}
-            </Label>
+            <Label className="text-sm font-medium">{t("knowledgeBase")}</Label>
             <Select value={targetId} onValueChange={setTargetId}>
-              <SelectTrigger className="h-10 rounded-xl" aria-label={t("knowledgeBase")}>
+              <SelectTrigger
+                className="h-10 w-full min-w-0 rounded-lg"
+                aria-label={t("knowledgeBase")}
+              >
                 <SelectValue placeholder={t("selectKnowledgeBase")} />
               </SelectTrigger>
               <SelectContent>
@@ -301,10 +397,7 @@ function CloneIntoDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label
-              htmlFor="clone-target-name"
-              className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
-            >
+            <Label htmlFor="clone-target-name" className="text-sm font-medium">
               {t("nameCopy")}
             </Label>
             <Input
@@ -312,7 +405,7 @@ function CloneIntoDialog({
               placeholder={t("leaveEmptyAutoGenerate")}
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className="h-10 rounded-xl"
+              className="h-10 w-full min-w-0 rounded-lg"
             />
           </div>
         </div>
@@ -323,7 +416,7 @@ function CloneIntoDialog({
           </Button>
           <Button onClick={handleSubmit} disabled={!target || submitting}>
             {submitting && <Spinner className="h-3.5 w-3.5" />}
-            {submitting ? t("adding") : t("addKnowledgeBase")}
+            {submitting ? t("adding") : t("use")}
           </Button>
         </DialogFooter>
       </DialogContent>

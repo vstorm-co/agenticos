@@ -944,6 +944,14 @@ class ArtifactPublicDataDisclosure(BaseSchema):
     )
 
 
+class ArtifactThumbnailRead(BaseSchema):
+    """A versioned, data-free preview; never an executable document."""
+
+    version_id: UUID
+    state: Literal["ready", "unavailable"]
+    image: str | None
+
+
 class ArtifactView(BaseSchema):
     """Where a frame loads one version from, and until when that address holds."""
 

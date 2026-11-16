@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  WorkflowRunLoading,
+  WORKFLOW_RUN_LAYOUT,
+  WORKFLOW_RUN_PANELS,
+} from "@/components/workflows/workflow-run-loading";
+
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -154,12 +160,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
 
   // As the editor does, the canvas waits for the catalog its cards are drawn from.
   if (isLoading || catalogLoading || run === null || !workflow) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col gap-4">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-96 w-full" />
-      </div>
-    );
+    return <WorkflowRunLoading />;
   }
 
   // The typed `WorkflowError` the run recorded - its own words, never an exception's.
@@ -180,7 +181,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
     Date.parse(node.ended_at) > Date.parse(run.ended_at);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
+    <div className={WORKFLOW_RUN_LAYOUT}>
       <PageHeader
         title={workflow?.name ?? title}
         description={run.mode === "test" ? t("runTestDescription") : t("runRealDescription")}
@@ -333,7 +334,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
         <WorkflowRunQuestions runId={run.id} />
       )}
 
-      <div className="grid min-h-[34rem] flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className={WORKFLOW_RUN_PANELS}>
         <div className="border-border bg-card min-h-[28rem] overflow-hidden rounded-xl border lg:min-h-0">
           {graph === null ? (
             <Skeleton className="h-full w-full" />

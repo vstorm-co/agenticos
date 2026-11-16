@@ -34,6 +34,8 @@ export interface Notification {
   } | null;
   /** The shared outcome this row is one delivery of, when it is something to act on (#2575). */
   outcome_id?: string | null;
+  /** An approval request's or a budget limit's named values, for the reader's own wording. */
+  params?: Record<string, string> | null;
 }
 
 export interface NotificationAgent {
