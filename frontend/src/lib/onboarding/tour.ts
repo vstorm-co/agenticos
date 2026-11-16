@@ -1411,6 +1411,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.secretsEdit,
     inTour: true,
   },
+  {
+    id: "integration-provider-setup",
+    page: ROUTES.VAULT,
+    target: "integration-provider-setup",
+    permission: Perm.connectionsView,
+  },
   { id: "vault-keys", page: ROUTES.VAULT, target: "vault-keys", permission: Perm.secretsView },
 
   {
@@ -1608,6 +1614,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // in the shared layout, so it lands on whichever of the four pages the reader
   // opened help from. Ungated: everyone has their own settings.
   { id: "settings-tabs", page: SETTINGS_DETAIL, target: "settings-tabs" },
+  {
+    id: "personal-integration-accounts",
+    page: SETTINGS_DETAIL,
+    target: "personal-integration-accounts",
+    optional: true,
+  },
   {
     id: "personal-coding-accounts",
     page: SETTINGS_DETAIL,

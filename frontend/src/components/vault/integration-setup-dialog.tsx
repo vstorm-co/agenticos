@@ -20,8 +20,8 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui";
-import { ErrorState } from "@/components/states";
-import { ProviderRegistrationSteps } from "./provider-registration-steps";
+import { ErrorState, LoadingState } from "@/components/states";
+import { IntegrationProviderSetup } from "./integration-providers";
 import { AddSecretDialog } from "@/components/vault/secret-dialog";
 import { useIntegrationSetup } from "@/hooks/use-integration-setup";
 import {
@@ -57,7 +57,10 @@ export function IntegrationSetupDialog({
     provider,
   });
   const { can } = usePermissions();
-  const secrets = useSecrets();
+  const allowApplication =
+    owner === "organization" || reconnectAccount?.auth_type === "application";
+  const secrets = useSecrets({ enabled: allowApplication });
+  const [providerSetup, setProviderSetup] = useState(false);
   const [adding, setAdding] = useState(false);
   const [products, setProducts] = useState<string[]>(initialProducts);
   const [token, setToken] = useState("");
@@ -76,6 +79,11 @@ export function IntegrationSetupDialog({
   const pathname = usePathname();
   const returnTo = oauthReturnTo ?? pathname;
   const info = setup.data;
+  const canChooseApps =
+    method !== "oauth" ||
+    info?.oauth_client_status === "ready" ||
+    allowApplication ||
+    provider === "slack";
   const scopes =
     info?.products
       .filter((p) => products.includes(p.id))
@@ -96,23 +104,23 @@ export function IntegrationSetupDialog({
             <DialogTitle>{t("title", { provider: t(`provider.${provider}`) })}</DialogTitle>
             <DialogDescription>{t("description")}</DialogDescription>
           </DialogHeader>
+          {setup.isLoading && <LoadingState variant="skeleton-list" rows={2} />}
           {setup.error && <ErrorState description={getErrorMessage(setup.error, errors)} />}
           {info && (
             <div className={`${DIALOG_BODY} space-y-4`}>
-              <Label htmlFor="integration-account-label">{t("accountLabel")}</Label>
-              <Input
-                id="integration-account-label"
-                maxLength={64}
-                value={label}
-                onChange={(event) => setLabel(event.target.value)}
-              />
-              <ProviderRegistrationSteps
-                provider={provider}
-                redirectUri={info.redirect_uri}
-                consoleUrl={info.manifest_url ?? info.console_url}
-                enableApisCommand={info.enable_apis_command}
-              />
-              {provider !== "slack" && (
+              {method === "oauth" && info.oauth_client_status !== "ready" && (
+                <div className="space-y-2 rounded-lg border p-3">
+                  <p className="text-sm">{t("organizationSetupRequired")}</p>
+                  {can("secrets:edit") ? (
+                    <Button size="sm" variant="outline" onClick={() => setProviderSetup(true)}>
+                      {t("configureProvider", { provider: t(`provider.${provider}`) })}
+                    </Button>
+                  ) : (
+                    <p className="text-muted-foreground text-xs">{t("askAdministrator")}</p>
+                  )}
+                </div>
+              )}
+              {provider !== "slack" && allowApplication && (
                 <div className="grid gap-3">
                   <div className="flex gap-2">
                     <Button
@@ -163,51 +171,65 @@ export function IntegrationSetupDialog({
                 </div>
               )}
 
-              {can("secrets:edit") && (
+              {method === "application" && can("secrets:edit") && (
                 <Button variant="outline" onClick={() => setAdding(true)}>
-                  {t(method === "application" ? "saveCredential" : "saveClient")}
+                  {t("saveCredential")}
                 </Button>
               )}
-              <div className="grid gap-2">
-                {info.products.map((product) => (
-                  <Label key={product.id} className="flex items-center gap-2">
+              {canChooseApps && (
+                <>
+                  <div className="grid gap-2">
+                    {info.products.map((product) => (
+                      <Label key={product.id} className="flex items-center gap-2">
+                        <Checkbox
+                          checked={products.includes(product.id)}
+                          disabled={
+                            method === "application" &&
+                            !product.application_supported &&
+                            !products.includes(product.id)
+                          }
+                          onCheckedChange={(checked) =>
+                            setProducts((current) =>
+                              checked
+                                ? [...current, product.id]
+                                : current.filter((id) => id !== product.id),
+                            )
+                          }
+                        />
+                        {product.name}
+                      </Label>
+                    ))}
+                  </div>
+                  <Label className="flex items-center gap-2">
                     <Checkbox
-                      checked={products.includes(product.id)}
-                      disabled={
-                        method === "application" &&
-                        !product.application_supported &&
-                        !products.includes(product.id)
-                      }
-                      onCheckedChange={(checked) =>
-                        setProducts((current) =>
-                          checked
-                            ? [...current, product.id]
-                            : current.filter((id) => id !== product.id),
-                        )
-                      }
+                      checked={write}
+                      onCheckedChange={(checked) => setWrite(checked === true)}
                     />
-                    {product.name}
+                    {t("write")}
                   </Label>
-                ))}
-              </div>
-              <Label className="flex items-center gap-2">
-                <Checkbox
-                  checked={write}
-                  onCheckedChange={(checked) => setWrite(checked === true)}
-                />
-                {t("write")}
-              </Label>
-              <details className="text-xs">
-                <summary>{t("scopes")}</summary>
-                <pre className="mt-2 break-all whitespace-pre-wrap">
-                  {[
-                    ...new Set([
-                      ...(method === "oauth" ? (info?.identity_scopes ?? []) : []),
-                      ...scopes,
-                    ]),
-                  ].join("\n")}
-                </pre>
-              </details>
+                  <details className="text-xs">
+                    <summary>{t("scopes")}</summary>
+                    <pre className="mt-2 break-all whitespace-pre-wrap">
+                      {[
+                        ...new Set([
+                          ...(method === "oauth" ? (info?.identity_scopes ?? []) : []),
+                          ...scopes,
+                        ]),
+                      ].join("\n")}
+                    </pre>
+                  </details>
+                  <details className="space-y-2 text-xs">
+                    <summary>{t("accountOptions")}</summary>
+                    <Label htmlFor="integration-account-label">{t("accountLabel")}</Label>
+                    <Input
+                      id="integration-account-label"
+                      maxLength={64}
+                      value={label}
+                      onChange={(event) => setLabel(event.target.value)}
+                    />
+                  </details>
+                </>
+              )}
               {provider === "slack" &&
                 (!reconnectAccount || reconnectAccount.auth_type === "bearer") && (
                   <details
@@ -252,6 +274,7 @@ export function IntegrationSetupDialog({
               <Button
                 disabled={
                   reconnectAccount?.auth_type === "bearer" ||
+                  (method === "oauth" && info.oauth_client_status !== "ready") ||
                   !products.length ||
                   isConnecting ||
                   connectApplication.isPending ||
@@ -290,12 +313,15 @@ export function IntegrationSetupDialog({
           )}
         </DialogContent>
       </Dialog>
+      {providerSetup && (
+        <IntegrationProviderSetup provider={provider} onClose={() => setProviderSetup(false)} />
+      )}
       {adding && info && (
         <AddSecretDialog
           open
           onOpenChange={setAdding}
           kinds={secrets.kinds}
-          kind={method === "application" ? applicationKind : info.secret_kind}
+          kind={applicationKind}
           isPending={secrets.create.isPending}
           onSubmit={async (data) => {
             const saved = await secrets.create.mutateAsync({ ...data, visibility: "org" });

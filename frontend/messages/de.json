@@ -5957,6 +5957,14 @@
       "chat-coding-revert": {
         "title": "Eine Programmieraufgabe prüfen und rückgängig machen",
         "body": "Öffne eine Programmieraufgabe, um ihre geänderten Dateien zu prüfen. Die Aufgabe lässt sich nur rückgängig machen, wenn keine dieser Dateien seitdem geändert wurde."
+      },
+      "integration-provider-setup": {
+        "title": "Integrationen der Organisation",
+        "body": "Ein Administrator richtet Google, Microsoft oder Slack hier einmal ein. Mitglieder verbinden danach ihre eigenen Konten im Chat oder Profil."
+      },
+      "personal-integration-accounts": {
+        "title": "Ihre verbundenen Konten",
+        "body": "Hier können Sie Ihre Konten hinzufügen, erneut verbinden oder trennen. Mehrere Konten desselben Dienstes sind möglich."
       }
     },
     "chooseLanguage": "Sprache",
@@ -7488,7 +7496,7 @@
         "pollingFailed": "Polling fehlgeschlagen. Kontoberechtigungen und ausgewählte Quellen prüfen.",
         "setup": {
           "title": "{provider} verbinden",
-          "description": "Registrieren Sie einmal eine OAuth-App für Ihre Organisation und verbinden Sie dann Ihr Konto.",
+          "description": "Wählen Sie die erlaubten Apps und melden Sie sich bei Ihrem Konto an.",
           "redirect": "Weiterleitungs-URL",
           "copyRedirect": "Weiterleitungs-URL kopieren",
           "google": "Erstellen Sie ein Cloud-Projekt, aktivieren Sie die APIs, konfigurieren Sie Internal oder External und erstellen Sie einen Web-OAuth-Client. Im Modus External/Testing laufen Refresh-Token nach sieben Tagen ab. Native Integrationen benötigen weder MCP Preview noch einen AI-powered-Client.",
@@ -7533,16 +7541,49 @@
           "odooOrigin": "Odoo-HTTPS-Adresse",
           "odooDatabase": "Datenbankname",
           "odooKey": "Odoo-API-Schlüssel",
-          "connectDirect": "Konto verbinden"
+          "connectDirect": "Konto verbinden",
+          "adminTitle": "Integrationen der Organisation",
+          "adminDescription": "Ein Administrator registriert jeden Anbieter einmal. Danach verbinden Mitglieder ihre eigenen Konten oder ein Administrator verbindet gemeinsame Organisationskonten.",
+          "configureProvider": "{provider} konfigurieren",
+          "clientStatus": {
+            "missing": "Einrichtung erforderlich",
+            "ready": "OAuth-Client gespeichert",
+            "ambiguous": "Mehrere OAuth-Clients – nur einen behalten"
+          },
+          "organizationSetupRequired": "Diese Organisation hat die Integration noch nicht fertig eingerichtet.",
+          "askAdministrator": "Bitten Sie einen Administrator um die Einrichtung unter Tresor → Integrationen.",
+          "manageCredentials": "Zugangsdaten im Tresor verwalten",
+          "accountOptions": "Kontooptionen",
+          "manageIntegrations": "Integrationen"
         },
         "userAccountsTitle": "Verbundene Konten des jeweiligen Nutzers",
         "accountOwner": "Wessen Konten soll der Agent verwenden",
         "chooseAccount": "Verbundenes Konto auswählen",
-        "accountNameLabel": "Kontoname des Nutzers (optional)",
-        "accountNameHint": "Der Agent verwendet die verbundenen Konten der Person, die mit ihm spricht. Jeder Nutzer verbindet seine eigenen Konten unter Chat → Werkzeuge → Ihre Konten. Leer lassen, um mehrere Konten zuzulassen und bei unklarer Auswahl nachzufragen. Ein Name oder Label beschränkt den Zugriff auf ein passendes Konto je Nutzer.",
         "manageAccounts": "Verbundene Konten verwalten",
         "chooseAccounts": "Verbundene Konten auswählen",
-        "multipleAccountsHint": "Wählen Sie alle Organisationskonten aus, die dieser Agent verwenden darf. Bei Bedarf fragt er nach, welches Konto gemeint ist."
+        "multipleAccountsHint": "Wählen Sie alle Organisationskonten aus, die dieser Agent verwenden darf. Bei Bedarf fragt er nach, welches Konto gemeint ist.",
+        "userAccountsHint": "Jede Person verbindet ihre eigenen Konten im Chat oder in den Profileinstellungen.",
+        "legacyAccountFilter": "Diese gespeicherte Konfiguration beschränkt Nutzerkonten auf „{name}“.",
+        "removeAccountFilter": "Kontofilter entfernen",
+        "personalDescription": "Verbinden Sie die Konten, die Ihre Agenten verwenden können. Mehrere Konten desselben Dienstes sind möglich.",
+        "addAccount": "Konto hinzufügen",
+        "noPersonalAccounts": "Noch keine Konten verbunden.",
+        "updateAccess": "Zugriff ändern",
+        "managePersonalAccounts": "Meine Konten verwalten",
+        "updateAccessNamed": "Zugriff für {email} ändern",
+        "picker": {
+          "title": "Konto verbinden",
+          "description": "Wählen Sie einen Dienst zum Verbinden.",
+          "personal": "Mein Konto",
+          "organization": "Organisationskonto",
+          "products": {
+            "google": "Gmail, Kalender, Drive und Dokumente",
+            "microsoft": "Outlook, OneDrive, Office und Teams",
+            "slack": "Nachrichten und Kanäle",
+            "imap": "E-Mail mit einem App-Passwort",
+            "odoo": "CRM, Verkauf und Geschäftsdaten"
+          }
+        }
       },
       "connectAccount": "Konto verbinden",
       "personalAccount": "Dein Konto",

@@ -4375,7 +4375,7 @@
         "pollingFailed": "Polling nie powiódł się. Sprawdź uprawnienia konta i wybrane źródła.",
         "setup": {
           "title": "Połącz {provider}",
-          "description": "Zarejestruj aplikację OAuth raz dla organizacji, a następnie połącz swoje konto.",
+          "description": "Wybierz aplikacje, do których udzielasz dostępu, i zaloguj się na swoje konto.",
           "redirect": "Adres przekierowania",
           "copyRedirect": "Kopiuj adres przekierowania",
           "google": "Utwórz projekt Cloud, włącz poniższe API, skonfiguruj ekran zgody Internal lub External i utwórz klienta web OAuth. W trybie External/Testing refresh token wygasa po siedmiu dniach. Integracja używa zwykłych API; nie wymaga programu MCP Preview ani klienta AI-powered.",
@@ -4420,16 +4420,49 @@
           "odooOrigin": "Adres HTTPS Odoo",
           "odooDatabase": "Nazwa bazy danych",
           "odooKey": "Klucz API Odoo",
-          "connectDirect": "Połącz konto"
+          "connectDirect": "Połącz konto",
+          "adminTitle": "Integracje organizacji",
+          "adminDescription": "Administrator rejestruje każdą usługę jeden raz. Potem użytkownicy podłączają własne konta, a administrator może podłączyć wspólne konta organizacji.",
+          "configureProvider": "Skonfiguruj {provider}",
+          "clientStatus": {
+            "missing": "Wymaga konfiguracji",
+            "ready": "Zapisano klienta OAuth",
+            "ambiguous": "Kilku klientów OAuth — pozostaw jednego"
+          },
+          "organizationSetupRequired": "Organizacja nie zakończyła konfiguracji tej integracji.",
+          "askAdministrator": "Poproś administratora o konfigurację w Sejf → Integracje.",
+          "manageCredentials": "Zarządzaj danymi dostępu w Sejfie",
+          "accountOptions": "Opcje konta",
+          "manageIntegrations": "Integracje"
         },
         "userAccountsTitle": "Podłączone konta użytkownika",
         "accountOwner": "Z czyich kont ma korzystać agent",
         "chooseAccount": "Wybierz połączone konto",
-        "accountNameLabel": "Nazwa konta użytkownika (opcjonalnie)",
-        "accountNameHint": "Agent korzysta z podłączonych kont osoby, która z nim rozmawia. Każdy użytkownik podłącza własne konta w Czat → Narzędzia → Twoje konta. Pozostaw puste, aby umożliwić korzystanie z kilku kont i dopytanie, gdy wybór jest niejasny. Podaj nazwę lub etykietę, aby ograniczyć dostęp do pasującego konta każdego użytkownika.",
         "manageAccounts": "Zarządzaj połączonymi kontami",
         "chooseAccounts": "Wybierz podłączone konta",
-        "multipleAccountsHint": "Wybierz konta organizacji dostępne dla tego agenta. Przy wielu kontach agent w razie potrzeby dopyta, które masz na myśli."
+        "multipleAccountsHint": "Wybierz konta organizacji dostępne dla tego agenta. Przy wielu kontach agent w razie potrzeby dopyta, które masz na myśli.",
+        "userAccountsHint": "Każda osoba podłącza własne konta w czacie lub ustawieniach profilu.",
+        "legacyAccountFilter": "Ta zapisana konfiguracja ogranicza konta użytkownika do „{name}”.",
+        "removeAccountFilter": "Usuń filtr konta",
+        "personalDescription": "Podłącz konta, z których mogą korzystać Twoi agenci. Możesz dodać kilka kont tej samej usługi.",
+        "addAccount": "Dodaj konto",
+        "noPersonalAccounts": "Nie masz jeszcze podłączonych kont.",
+        "updateAccess": "Zmień dostęp",
+        "managePersonalAccounts": "Zarządzaj moimi kontami",
+        "updateAccessNamed": "Zmień dostęp konta {email}",
+        "picker": {
+          "title": "Podłącz konto",
+          "description": "Wybierz usługę, którą chcesz podłączyć.",
+          "personal": "Moje konto",
+          "organization": "Konto organizacji",
+          "products": {
+            "google": "Gmail, Kalendarz, Dysk i dokumenty",
+            "microsoft": "Outlook, OneDrive, Office i Teams",
+            "slack": "Wiadomości i kanały",
+            "imap": "Poczta z hasłem aplikacji",
+            "odoo": "CRM, sprzedaż i dane firmy"
+          }
+        }
       },
       "connectAccount": "Połącz konto",
       "personalAccount": "Twoje konto",
@@ -7727,6 +7760,14 @@
       "chat-coding-revert": {
         "title": "Sprawdź i cofnij zadanie programistyczne",
         "body": "Otwórz zadanie programistyczne, aby sprawdzić zmienione pliki. Cofnięcie przywraca te pliki tylko wtedy, gdy żaden nie zmienił się od zakończenia zadania."
+      },
+      "integration-provider-setup": {
+        "title": "Integracje organizacji",
+        "body": "Administrator konfiguruje tutaj Google, Microsoft lub Slack jeden raz. Potem użytkownicy podłączają własne konta w czacie lub profilu."
+      },
+      "personal-integration-accounts": {
+        "title": "Twoje podłączone konta",
+        "body": "Tutaj dodajesz, ponownie łączysz i odłączasz własne konta. Możesz podłączyć kilka kont tej samej usługi."
       }
     },
     "chooseLanguage": "Język",

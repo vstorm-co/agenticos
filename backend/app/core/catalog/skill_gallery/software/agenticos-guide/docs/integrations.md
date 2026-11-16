@@ -1,16 +1,16 @@
 # Built-in integrations
 
-Connect accounts in **Vault → Connect account**. Personal accounts can also be connected or repaired directly in **Chat settings → Tools → Your accounts** under `/chat`. You can connect several accounts for the same provider. Each Google, Microsoft or Slack product is a separate capability in an agent's **Toolbox**, with its own account selection and individual tool switches. These integrations use provider APIs directly; vendor MCP servers, Google Workspace MCP preview and a Microsoft Copilot licence are not required.
+Personal accounts are connected in **Chat settings → Tools → Your accounts** under `/chat`, or **Settings → Profile → Your connected accounts**. Organization accounts are connected in **Vault → Connect account**. You can connect several accounts for the same provider. Each Google, Microsoft or Slack product is a separate capability in an agent’s **Toolbox**. These integrations use provider APIs directly; vendor MCP servers, Google Workspace MCP preview and a Microsoft Copilot licence are not required.
 
 ## Set up an account
 
-The provider wizard shows the deployment's exact callback URL, console link and requested scopes. Select products first. Reads are the default; opt into write permissions explicitly. An administrator stores one organization-visible OAuth app in the Vault; members reuse it when connecting personal accounts. Multiple app credentials require an administrator to resolve which one the deployment uses.
+First, an administrator opens **Vault → Integrations**, configures the provider app and saves one organization-visible OAuth client. This setup shows the exact callback URL, provider console and permissions. “OAuth client saved” only confirms a stored client; the provider may still require consent or app approval. Missing or multiple clients block account consent with guidance to the administrator. Members then choose apps and sign in from chat or their profile, without configuring the provider console. Read access is the default; write permissions are opt-in.
 
 Google: create a Cloud project, enable the listed APIs (the wizard supplies a `gcloud services enable` command), configure the consent screen and create a **Web application** OAuth client. Copy the callback exactly and store `google_oauth_app`. Choose Internal only for a Workspace organization that owns the project. External apps in Testing can issue refresh tokens that expire after seven days. A normal API integration does not need an AI-powered-agent client or the hosted MCP APIs.
 
 Microsoft: register an Entra app, choose the supported account types and tenant, add a Web redirect and the displayed delegated Graph permissions, and save `microsoft_oauth_app`. Work/school and personal Microsoft accounts work only where the chosen Graph product supports them; Teams requires work/school accounts. Administrator consent can still be required by the tenant's policy.
 
-Slack: **Create the Slack app** opens a prefilled manifest with this deployment's redirect and read-only user scopes. Add write scopes when requesting writes, then reinstall/authorize. Save `slack_oauth_app` and complete consent. An existing channel-bot app can be reused by adding the redirect and user scopes to it. Workspace app limits and administrator approval still apply. The **Agents → MCP Server** toggle is needed only when separately using Slack's hosted MCP server.
+Slack: the provider-console button opens a manifest with this deployment's redirect and the supported user scopes. Review the scopes before registering the app; each account's consent still requests only its selected read/write access. Save `slack_oauth_app`. An existing channel-bot app can be reused by adding the redirect and user scopes. Workspace app limits and administrator approval still apply. The **Agents → MCP Server** toggle is needed only for Slack's hosted MCP server.
 
 ## Alternatives to OAuth
 
@@ -36,7 +36,7 @@ Google products: Gmail (search/read, labels, draft/send), Calendar (events and f
 
 Microsoft products: Outlook mail, Calendar, OneDrive/SharePoint files, Excel and Word documents, and Teams chats/channels. Slack offers search, my mentions, history/threads, channels/users, lookup, posting/replies, DMs and reactions. IMAP offers search and message reads without marking them seen.
 
-Choose **personal** to use the current person's own accounts. Leave the account name empty to make their accounts available at run time, or set an exact name, label or address to restrict the capability to one matching account. Personal tools require a private conversation and current organization membership; the agent never borrows another member's or its publisher's account.
+Choose **personal** to use the accounts of the person talking to the agent. The capability does not ask its author for user account names. Existing name filters in saved specs remain visible and can be explicitly removed. Personal tools require a private conversation and current organization membership; the agent never borrows another member’s or its publisher’s account.
 
 Choose **organization** and select the accounts the agent may use. Existing specs with one `connection_id` remain valid; `connection_ids` admits several accounts. Publication checks every selected account and its enabled operations. Each operation rechecks the binding author's current access.
 

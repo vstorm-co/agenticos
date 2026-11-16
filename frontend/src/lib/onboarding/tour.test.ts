@@ -360,6 +360,7 @@ describe("stepsForPage", () => {
       "phone-contact",
       "phone-dial",
       "settings-tabs",
+      "personal-integration-accounts",
       "personal-coding-accounts",
       "desktop-local-agents",
       "settings-appearance",

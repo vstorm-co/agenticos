@@ -3672,7 +3672,7 @@
         "pollingFailed": "Yoklama başarısız oldu. Hesap izinlerini ve seçili kaynakları kontrol edin.",
         "setup": {
           "title": "Connect {provider}",
-          "description": "Register an OAuth app once for your organization, then connect your account.",
+          "description": "İzin verilecek uygulamaları seçin, ardından hesabınıza giriş yapın.",
           "redirect": "Redirect URL",
           "copyRedirect": "Copy redirect URL",
           "google": "Create a Cloud project, enable the APIs below, configure an Internal or External consent screen, and create a web OAuth client. External apps in Testing issue refresh tokens lasting seven days. Native integrations use ordinary APIs; no MCP preview or AI-powered client is required.",
@@ -3717,18 +3717,51 @@
           "odooOrigin": "Odoo HTTPS adresi",
           "odooDatabase": "Veritabanı adı",
           "odooKey": "Odoo API anahtarı",
-          "connectDirect": "Hesabı bağla"
+          "connectDirect": "Hesabı bağla",
+          "adminTitle": "Kuruluş entegrasyonları",
+          "adminDescription": "Bir yönetici her sağlayıcıyı bir kez kaydeder. Ardından üyeler kendi hesaplarını, bir yönetici de ortak kuruluş hesaplarını bağlayabilir.",
+          "configureProvider": "{provider} yapılandır",
+          "clientStatus": {
+            "missing": "Kurulum gerekli",
+            "ready": "OAuth istemcisi kaydedildi",
+            "ambiguous": "Birden fazla OAuth istemcisi var — birini tutun"
+          },
+          "organizationSetupRequired": "Bu kuruluş entegrasyon kurulumunu henüz tamamlamadı.",
+          "askAdministrator": "Bir yöneticiden Kasa → Entegrasyonlar bölümünde yapılandırmasını isteyin.",
+          "manageCredentials": "Kasa içindeki kimlik bilgilerini yönet",
+          "accountOptions": "Hesap seçenekleri",
+          "manageIntegrations": "Entegrasyonlar"
         },
         "connect": "{provider} hesabını bağla",
         "disconnectDetail": "Aracılar, iş akışları, bilgi senkronizasyonu ve izlemeler bu hesaba erişimini kaybeder. Kayıtlı yetkilendirme Vault içinden silinir.",
         "userAccountsTitle": "Her kullanıcının bağlı hesapları",
         "accountOwner": "Aracı kimin hesaplarını kullansın",
         "chooseAccount": "Bağlı bir hesap seçin",
-        "accountNameLabel": "Kullanıcının hesap adı (isteğe bağlı)",
-        "accountNameHint": "Aracı, kendisiyle konuşan kullanıcının bağlı hesaplarını kullanır. Her kullanıcı kendi hesaplarını Sohbet → Araçlar → Hesaplarınız bölümünden bağlar. Birden fazla hesaba izin vermek ve seçim belirsizse sormak için boş bırakın. Her kullanıcı için eşleşen bir hesapla sınırlamak üzere ad veya etiket girin.",
         "manageAccounts": "Bağlı hesapları yönet",
         "chooseAccounts": "Bağlı hesapları seçin",
-        "multipleAccountsHint": "Bu aracının kullanabileceği kuruluş hesaplarını seçin. Birden fazla hesap varsa gerektiğinde hangisini kastettiğinizi sorar."
+        "multipleAccountsHint": "Bu aracının kullanabileceği kuruluş hesaplarını seçin. Birden fazla hesap varsa gerektiğinde hangisini kastettiğinizi sorar.",
+        "userAccountsHint": "Her kişi kendi hesaplarını sohbetten veya profil ayarlarından bağlar.",
+        "legacyAccountFilter": "Bu kayıtlı yapılandırma kullanıcı hesaplarını “{name}” ile sınırlar.",
+        "removeAccountFilter": "Hesap filtresini kaldır",
+        "personalDescription": "Aracılarınızın kullanabileceği hesapları bağlayın. Aynı hizmetten birden fazla hesap ekleyebilirsiniz.",
+        "addAccount": "Hesap ekle",
+        "noPersonalAccounts": "Henüz bağlı hesap yok.",
+        "updateAccess": "Erişimi değiştir",
+        "managePersonalAccounts": "Hesaplarımı yönet",
+        "updateAccessNamed": "{email} hesabının erişimini değiştir",
+        "picker": {
+          "title": "Hesap bağla",
+          "description": "Bağlanacak bir hizmet seçin.",
+          "personal": "Hesabım",
+          "organization": "Kuruluş hesabı",
+          "products": {
+            "google": "Gmail, Takvim, Drive ve belgeler",
+            "microsoft": "Outlook, OneDrive, Office ve Teams",
+            "slack": "Mesajlar ve kanallar",
+            "imap": "Uygulama parolasıyla e-posta",
+            "odoo": "CRM, satış ve işletme kayıtları"
+          }
+        }
       }
     },
     "workspaces": {
@@ -9416,6 +9449,14 @@
       "chat-coding-revert": {
         "title": "Kodlama görevini incele ve geri al",
         "body": "Değişen dosyaları incelemek için kodlama görevini aç. Görev yalnızca etkilenen dosyalar görev bittikten sonra değişmediyse geri alınır."
+      },
+      "integration-provider-setup": {
+        "title": "Kuruluş entegrasyonları",
+        "body": "Bir yönetici Google, Microsoft veya Slack hizmetini burada bir kez yapılandırır. Ardından üyeler hesaplarını sohbetten veya profilden bağlar."
+      },
+      "personal-integration-accounts": {
+        "title": "Bağlı hesaplarınız",
+        "body": "Hesaplarınızı buradan ekleyin, yeniden bağlayın veya bağlantısını kesin. Aynı hizmet için birden fazla hesap bağlayabilirsiniz."
       }
     }
   },

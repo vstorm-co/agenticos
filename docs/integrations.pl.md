@@ -1,20 +1,20 @@
 ---
-source_sha: "864476c5a2d0"
+source_sha: "830b6494877e"
 ---
 
 # Wbudowane integracje { #built-in-integrations }
 
-Podłącz konta w **Vault → Podłącz konto**. Konta osobiste można też podłączyć lub naprawić bezpośrednio w **Ustawienia czatu → Narzędzia → Twoje konta** w `/chat`. Możesz podłączyć kilka kont tego samego dostawcy. Każdy produkt Google, Microsoft i Slack ma osobną capability w **Toolboxie** agenta, z wyborem kont i przełącznikami narzędzi. Integracje używają bezpośrednio API dostawców; nie wymagają ich serwerów MCP, programu Google Workspace MCP Preview ani licencji Microsoft Copilot.
+Konta osobiste podłączysz w **Ustawienia czatu → Narzędzia → Twoje konta** pod `/chat` albo **Ustawienia → Profil → Twoje podłączone konta**. Konta organizacji podłącza się w **Vault → Podłącz konto**. Możesz dodać kilka kont tej samej usługi. Każdy produkt Google, Microsoft lub Slack jest osobną capability w **Toolbox** agenta. Integracje korzystają bezpośrednio z API dostawców; nie wymagają ich serwerów MCP, Google Workspace MCP preview ani licencji Microsoft Copilot.
 
 ## Konfiguracja konta { #set-up-an-account }
 
-Kreator pokazuje dokładny URL callbacku tego wdrożenia, odnośnik do konsoli i żądane zakresy. Najpierw wybierz produkty. Domyślnie przyznajesz odczyt; zapis wymaga jawnego zaznaczenia. Administrator zapisuje jedną aplikację OAuth widoczną dla organizacji w Vault. Członkowie używają jej, łącząc własne konta. Przy kilku takich credentialach administrator musi rozstrzygnąć, który ma służyć wdrożeniu.
+Najpierw administrator otwiera **Vault → Integracje**, konfiguruje aplikację dostawcy i zapisuje jednego klienta OAuth widocznego dla organizacji. Ten etap pokazuje dokładny callback, konsolę i uprawnienia. „Zapisano klienta OAuth” potwierdza tylko zapis konfiguracji; dostawca może nadal wymagać zgody lub zatwierdzenia aplikacji. Brak klienta albo kilka klientów blokuje logowanie i wskazuje potrzebę działania administratora. Potem użytkownik wybiera aplikacje i loguje się z czatu lub profilu, bez konfigurowania konsoli dostawcy. Domyślny jest odczyt; zapis wymaga jawnego wyboru.
 
 Google: utwórz projekt Cloud, włącz wskazane API (kreator podaje polecenie `gcloud services enable`), skonfiguruj ekran zgody i klienta OAuth typu **Web application**. Skopiuj callback i zapisz `google_oauth_app`. Internal służy organizacji Workspace będącej właścicielem projektu. Tokeny odświeżania aplikacji External w trybie Testing mogą wygasać po siedmiu dniach. Zwykła integracja API nie wymaga klienta AI-powered-agent ani API hostowanego MCP.
 
 Microsoft: zarejestruj aplikację Entra, wybierz typy kont i tenant, dodaj przekierowanie Web oraz pokazane delegowane uprawnienia Graph i zapisz `microsoft_oauth_app`. Konta służbowe i osobiste działają tam, gdzie obsługuje je dany produkt Graph; Teams wymaga konta służbowego. Polityka tenanta może wymagać zgody administratora.
 
-Slack: **Utwórz aplikację Slack** otwiera manifest z callbackiem wdrożenia i zakresami użytkownika do odczytu. Przed zapisem dodaj zakresy zapisu, ponownie zainstaluj aplikację i udziel zgody. Zapisz `slack_oauth_app`. Możesz wykorzystać istniejącą aplikację bota kanałowego, dodając callback i zakresy użytkownika. Nadal obowiązują limity aplikacji workspace i zgoda administratora. Przełącznik **Agents → MCP Server** jest potrzebny tylko przy osobnym użyciu hostowanego MCP Slacka.
+Slack: przycisk konsoli dostawcy otwiera manifest z callbackiem wdrożenia i obsługiwanymi zakresami użytkownika. Sprawdź zakresy przed rejestracją aplikacji; zgoda każdego konta nadal obejmuje tylko wybrany dostęp do odczytu lub zapisu. Zapisz `slack_oauth_app`. Możesz wykorzystać aplikację bota kanałowego, dodając callback i zakresy użytkownika. Nadal obowiązują limity aplikacji workspace i zgoda administratora. **Agents → MCP Server** jest potrzebny tylko przy hostowanym MCP Slacka.
 
 ## Alternatywy dla OAuth { #alternatives-to-oauth }
 
@@ -42,7 +42,7 @@ Produkty Microsoft: Outlook mail, Calendar, pliki OneDrive/SharePoint, Excel, do
 
 Czytniki Drive, SharePoint i Slack pobierają token uprawnionego konta przed każdym żądaniem do dostawcy. Długi sync może dzięki temu odnowić OAuth bez przechowywania sekretów odświeżania w konfiguracji konektora. Cofnięcie grantu do konta wejściowego zatrzymuje też polling natywnych triggerów przed otwarciem tokenu. Triggery plików Microsoft rozpoznają własne edycje konta aplikacyjnego po skonfigurowanym użytkowniku i identyfikatorze aplikacji; domyślny filtr je pomija.
 
-Wybierz **personal**, aby użyć własnych kont aktualnej osoby. Pusta nazwa udostępnia jej konta w czasie wykonania; dokładna nazwa, etykieta lub adres ogranicza capability do jednego pasującego konta. Narzędzia osobiste wymagają prywatnej rozmowy i aktualnego członkostwa w organizacji. Agent nie pożycza kont innych członków ani swojego autora.
+Wybierz **personal**, aby używać kont osoby rozmawiającej z agentem. Capability nie pyta autora o nazwy kont użytkowników. Istniejące filtry nazw w zapisanych specyfikacjach pozostają widoczne i można je jawnie usunąć. Narzędzia osobiste wymagają prywatnej rozmowy i aktualnego członkostwa w organizacji; agent nie korzysta z kont innych osób ani wydawcy.
 
 Wybierz **organization** i zaznacz konta dostępne dla agenta. Dotychczasowe specy z jednym `connection_id` pozostają poprawne; `connection_ids` dopuszcza kilka kont. Publikacja sprawdza każde konto i włączone operacje. Każda operacja ponownie sprawdza bieżący dostęp autora konfiguracji.
 

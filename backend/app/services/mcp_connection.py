@@ -99,6 +99,7 @@ from app.repositories import (
     conversation_repo,
     mcp_connection_repo,
     mcp_registry_server_repo,
+    organization_secret_repo,
     resource_grant_repo,
 )
 from app.schemas.mcp_connection import (
@@ -907,6 +908,23 @@ class McpConnectionService:
         if provider not in {"google", "microsoft", "slack"}:
             raise BadRequestError(message="Unknown integration provider")
         return setup_for(provider, write=write)
+
+    async def integration_setup_for(
+        self, ctx: AuthContext, provider: str, *, write: bool = False
+    ) -> IntegrationSetup:
+        """Report the organization's OAuth prerequisite without opening or listing secrets.
+
+        Ready means one organization-visible OAuth client is stored, not that
+        the provider has approved the app or that consent will succeed.
+        """
+        setup = self.integration_setup(provider, write=write)
+        clients = await organization_secret_repo.list_org_visible_by_kind(
+            self.db, organization_id=ctx.organization_id, kind=setup.secret_kind
+        )
+        setup.oauth_client_status = (
+            "missing" if not clients else "ready" if len(clients) == 1 else "ambiguous"
+        )
+        return setup
 
     async def list_for_user(self, *, user_id: UUID) -> tuple[list[McpConnection], int]:
         return await mcp_connection_repo.list_for_user(self.db, user_id=user_id)

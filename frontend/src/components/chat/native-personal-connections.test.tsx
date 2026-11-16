@@ -15,6 +15,11 @@ vi.mock("@/hooks/use-agents", () => ({
   useCapabilityCatalog: () => ({
     error: state.catalogError,
     capabilities: [
+      {
+        id: "google_calendar",
+        name: "Google Calendar",
+        config_schema: { "x-integration-provider": "google" },
+      },
       { id: "gmail", name: "Gmail", config_schema: { "x-integration-provider": "google" } },
       { id: "slack", name: "Slack", config_schema: { "x-integration-provider": "slack" } },
       { id: "sandbox", name: "Sandbox", config_schema: {} },
@@ -156,3 +161,14 @@ it.each(["gmail", "sandbox"])(
     expect(screen.getByText("Product catalog unavailable")).toBeVisible();
   },
 );
+
+it("groups apps using one provider without duplicating connected accounts", async () => {
+  state.accounts = [account("work")];
+  render(<NativePersonalConnections bindings={[binding("gmail"), binding("google_calendar")]} />);
+  expect(screen.getAllByText("Work — work@example.com")).toHaveLength(1);
+  await userEvent.click(screen.getByRole("button", { name: "Add account" }));
+  expect(screen.getByRole("dialog", { name: "Account setup" })).toHaveAttribute(
+    "data-products",
+    "gmail,google_calendar",
+  );
+});

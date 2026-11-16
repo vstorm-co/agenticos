@@ -1,3 +1,4 @@
+vi.mock("@/components/vault/integration-providers", () => ({ IntegrationProviders: () => null }));
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -121,7 +122,7 @@ describe("vault inventory", () => {
     expect(state.hook).toHaveBeenCalledWith("organization", { enabled: false, provider: "all" });
     expect(screen.queryByText("organization@example.test")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Connect account" }));
-    expect(screen.queryByRole("menuitem", { name: /Organization account/ })).toBeNull();
+    expect(screen.queryByRole("radio", { name: "Organization account" })).toBeNull();
   });
   it("respects organization management authority while retaining personal actions", () => {
     state.permissions.delete(Perm.mcpManage);
@@ -134,7 +135,8 @@ describe("vault inventory", () => {
   it("opens native setup in the selected owner scope", async () => {
     render(<VaultPage />);
     await userEvent.click(screen.getByRole("button", { name: "Connect account" }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Google · Your account" }));
+    await userEvent.click(screen.getByRole("radio", { name: "My account" }));
+    await userEvent.click(screen.getByRole("button", { name: "Google" }));
     expect(screen.getByRole("dialog", { name: "Account setup" })).toHaveAttribute(
       "data-owner",
       "personal",
@@ -185,7 +187,7 @@ it("repairs the selected provider account and clears it before creating another"
   expect(setup).toHaveAttribute("data-account", "personal");
   await userEvent.click(screen.getByRole("button", { name: "Close setup" }));
   await userEvent.click(screen.getByRole("button", { name: "Connect account" }));
-  await userEvent.click(screen.getByRole("menuitem", { name: "Odoo · Organization account" }));
+  await userEvent.click(screen.getByRole("button", { name: "Odoo" }));
   const fresh = screen.getByRole("dialog", { name: "Account setup" });
   expect(fresh).toHaveAttribute("data-owner", "organization");
   expect(fresh).toHaveAttribute("data-provider", "odoo");

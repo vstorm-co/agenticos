@@ -1,20 +1,20 @@
 ---
-source_sha: "864476c5a2d0"
+source_sha: "830b6494877e"
 ---
 
 # Integraciones incorporadas { #built-in-integrations }
 
-Conecte cuentas en **Vault → Conectar cuenta**. Las cuentas personales también pueden conectarse o repararse desde **Configuración del chat → Herramientas → Tus cuentas** en `/chat`. Puede conectar varias cuentas del mismo proveedor. Cada producto de Google, Microsoft y Slack es una capability independiente en la **Toolbox** del agente, con selección de cuentas y controles por herramienta. Usan las API directamente; no requieren servidores MCP del proveedor, Google Workspace MCP Preview ni licencia de Microsoft Copilot.
+Las cuentas personales se conectan en **Configuración del chat → Herramientas → Tus cuentas** en `/chat`, o **Configuración → Perfil → Tus cuentas conectadas**. Las cuentas de la organización se conectan en **Vault → Conectar cuenta**. Se admiten varias cuentas del mismo proveedor. Cada producto de Google, Microsoft y Slack es una capability independiente en la **Toolbox**. Las integraciones usan las API directamente; no requieren servidores MCP del proveedor, Google Workspace MCP Preview ni licencia de Microsoft Copilot.
 
 ## Configurar una cuenta { #set-up-an-account }
 
-El asistente muestra la URL de callback exacta de la instalación, el enlace a la consola y los permisos solicitados. Seleccione productos primero. La lectura es el valor predeterminado; active escritura expresamente. Un administrador guarda una app OAuth visible para la organización en Vault; los miembros la reutilizan al conectar cuentas personales. Si existen varias credenciales de app, el administrador debe resolver cuál usa la instalación.
+Primero, un administrador abre **Vault → Integraciones**, registra la aplicación del proveedor y guarda un único cliente OAuth visible para la organización. Este paso muestra callback, consola y permisos. «Cliente OAuth guardado» solo confirma la configuración almacenada; el proveedor puede exigir consentimiento o aprobación. La ausencia o duplicación de clientes bloquea el inicio de sesión e indica que debe intervenir un administrador. Después, los miembros eligen aplicaciones e inician sesión desde el chat o su perfil, sin configurar la consola del proveedor. La lectura es el valor predeterminado; la escritura requiere una elección explícita.
 
 Google: cree un proyecto Cloud, active las API indicadas (el asistente proporciona `gcloud services enable`), configure el consentimiento y un cliente OAuth **Web application**. Copie el callback exactamente y guarde `google_oauth_app`. Internal corresponde a la organización Workspace propietaria del proyecto. En External/Testing, los refresh tokens pueden caducar a los siete días. El acceso normal no necesita un cliente AI-powered-agent ni las API MCP alojadas.
 
 Microsoft: registre una app Entra, elija tipos de cuenta y tenant, añada una redirección Web y los permisos delegados Graph indicados, y guarde `microsoft_oauth_app`. Las cuentas personales y empresariales funcionan donde el producto Graph las admite; Teams requiere cuenta empresarial. La política del tenant puede exigir consentimiento del administrador.
 
-Slack: **Crear la app de Slack** abre un manifiesto con el callback y permisos de lectura de usuario. Añada permisos de escritura antes de escribir y reinstale/autorice. Guarde `slack_oauth_app` y complete el consentimiento. Puede reutilizar la app del bot de canales añadiendo el callback y permisos de usuario. Siguen vigentes los límites de apps del workspace y la aprobación del administrador. **Agents → MCP Server** solo es necesario al usar por separado el MCP alojado de Slack.
+Slack: el botón de consola abre un manifiesto con el callback y los permisos de usuario admitidos. Revise los permisos antes de registrar la app; cada cuenta sigue solicitando solo el acceso de lectura o escritura elegido. Guarde `slack_oauth_app`. Puede reutilizar una app de bot añadiendo el callback y los permisos de usuario. Siguen vigentes los límites de apps y la aprobación del administrador. **Agents → MCP Server** solo es necesario para el MCP alojado de Slack.
 
 ## Alternativas a OAuth { #alternatives-to-oauth }
 

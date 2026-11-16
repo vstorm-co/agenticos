@@ -283,12 +283,13 @@ async def test_members_cannot_connect_an_organization_credential_without_manage_
 async def test_setup_route_returns_the_same_scopes_and_callback_as_the_service(owner, service):
     from app.services.integrations import setup_for
 
-    service.integration_setup.return_value = setup_for("slack", write=True)
+    service.integration_setup_for = AsyncMock(return_value=setup_for("slack", write=True))
     async with owner() as client:
         response = await client.get(_url("/me/connected-accounts/setup/slack?write=true"))
     assert response.status_code == 200
     assert response.json()["manifest_url"] == setup_for("slack", write=True).manifest_url
-    service.integration_setup.assert_called_once_with("slack", write=True)
+    assert service.integration_setup_for.await_args.args[1] == "slack"
+    assert service.integration_setup_for.await_args.kwargs == {"write": True}
 
 
 @pytest.mark.parametrize(

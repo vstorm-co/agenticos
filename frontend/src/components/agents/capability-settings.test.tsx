@@ -1052,7 +1052,7 @@ it("switches native tools individually while retaining the selected account", as
   );
 });
 
-it("edits the personal account alias through native capability settings", async () => {
+it("does not ask agent authors for personal account names", () => {
   const definition: CapabilityCatalogEntry = {
     ...KNOWLEDGE,
     id: "gmail",
@@ -1068,8 +1068,6 @@ it("edits the personal account alias through native capability settings", async 
       onChange={change}
     />,
   );
-  await userEvent.type(screen.getByLabelText("Personal account name"), "W");
-  expect(change).toHaveBeenLastCalledWith(
-    expect.objectContaining({ id: "gmail", config: { account_name: "W" } }),
-  );
+  expect(screen.queryByRole("textbox", { name: /account name/i })).not.toBeInTheDocument();
+  expect(change).not.toHaveBeenCalled();
 });

@@ -6078,6 +6078,14 @@
       "chat-coding-revert": {
         "title": "Review and revert a coding task",
         "body": "Open a coding task to review its changed files. Revert this task restores those files only when none has changed since the task ended."
+      },
+      "integration-provider-setup": {
+        "title": "Organization integrations",
+        "body": "An administrator configures Google, Microsoft or Slack once here. Members then connect their own accounts from chat or their profile."
+      },
+      "personal-integration-accounts": {
+        "title": "Your connected accounts",
+        "body": "Add, reconnect or disconnect your accounts here. You can connect several accounts for the same service."
       }
     },
     "chooseLanguage": "Language",
@@ -8215,7 +8223,7 @@
         "pollingFailed": "Polling failed. Check the account permissions and selected sources.",
         "setup": {
           "title": "Connect {provider}",
-          "description": "Register an OAuth app once for your organization, then connect your account.",
+          "description": "Choose the apps to allow, then sign in to your account.",
           "redirect": "Redirect URL",
           "copyRedirect": "Copy redirect URL",
           "google": "Create a Cloud project, enable the APIs below, configure an Internal or External consent screen, and create a web OAuth client. External apps in Testing issue refresh tokens lasting seven days. Native integrations use ordinary APIs; no MCP preview or AI-powered client is required.",
@@ -8260,16 +8268,49 @@
           "odooOrigin": "Odoo HTTPS origin",
           "odooDatabase": "Database name",
           "odooKey": "Odoo API key",
-          "connectDirect": "Connect account"
+          "connectDirect": "Connect account",
+          "adminTitle": "Organization integrations",
+          "adminDescription": "An administrator registers each provider once. Members can then connect their own accounts, or an administrator can connect shared organization accounts.",
+          "configureProvider": "Configure {provider}",
+          "clientStatus": {
+            "missing": "Setup required",
+            "ready": "OAuth client saved",
+            "ambiguous": "Several OAuth clients — keep one"
+          },
+          "organizationSetupRequired": "This organization has not finished setting up this integration.",
+          "askAdministrator": "Ask an administrator to configure it in Vault → Integrations.",
+          "manageCredentials": "Manage credentials in Vault",
+          "accountOptions": "Account options",
+          "manageIntegrations": "Integrations"
         },
         "userAccountsTitle": "Each user’s connected accounts",
         "accountOwner": "Whose accounts to use",
         "chooseAccount": "Choose a connected account",
-        "accountNameLabel": "User account name (optional)",
-        "accountNameHint": "The agent uses the connected accounts of the user talking to it. Each user connects their own accounts in Chat → Tools → Your accounts. Leave empty to allow several accounts and ask when the choice is unclear. Enter a name or label to restrict access to a matching account for each user.",
         "manageAccounts": "Manage connected accounts",
         "chooseAccounts": "Choose connected accounts",
-        "multipleAccountsHint": "Select every organization account this agent may use. With several accounts, it asks which one you mean when needed."
+        "multipleAccountsHint": "Select every organization account this agent may use. With several accounts, it asks which one you mean when needed.",
+        "userAccountsHint": "Each person connects their own accounts in chat or profile settings.",
+        "legacyAccountFilter": "This saved configuration restricts user accounts to “{name}”.",
+        "removeAccountFilter": "Remove account filter",
+        "personalDescription": "Connect the accounts your agents can use. You can add several accounts for the same service.",
+        "addAccount": "Add account",
+        "noPersonalAccounts": "No accounts connected yet.",
+        "updateAccess": "Update access",
+        "managePersonalAccounts": "Manage my accounts",
+        "updateAccessNamed": "Update access for {email}",
+        "picker": {
+          "title": "Connect an account",
+          "description": "Choose a service to connect.",
+          "personal": "My account",
+          "organization": "Organization account",
+          "products": {
+            "google": "Gmail, Calendar, Drive and docs",
+            "microsoft": "Outlook, OneDrive, Office and Teams",
+            "slack": "Messages and channels",
+            "imap": "Email with an app password",
+            "odoo": "CRM, sales and business records"
+          }
+        }
       },
       "connectAccount": "Connect account",
       "personalAccount": "Your account",

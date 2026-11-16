@@ -7,7 +7,7 @@ import { ErrorState } from "@/components/states";
 import {
   Checkbox,
   FormField,
-  Input,
+  Button,
   Select,
   SelectContent,
   SelectItem,
@@ -38,7 +38,7 @@ export function IntegrationAccountFields({
   const owner = config.account === "organization" ? "organization" : "personal";
   const { accounts, isLoading, error } = useConnectedAccounts(owner, {
     provider,
-    enabled: !disabled,
+    enabled: owner === "organization" && !disabled,
   });
   const prefix = `integration-${productId}`;
   return (
@@ -107,31 +107,26 @@ export function IntegrationAccountFields({
           <p className="text-muted-foreground text-xs">{t("multipleAccountsHint")}</p>
         </fieldset>
       ) : (
-        <FormField
-          label={t("accountNameLabel")}
-          htmlFor={`${prefix}-name`}
-          description={t("accountNameHint")}
-          error={configErrors.account_name}
-        >
-          <Input
-            id={`${prefix}-name`}
-            list={`${prefix}-names`}
-            value={typeof config.account_name === "string" ? config.account_name : ""}
-            disabled={disabled}
-            maxLength={320}
-            onChange={(event) => onChange({ ...config, account_name: event.target.value })}
-          />
-          <datalist id={`${prefix}-names`}>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.name || account.email}>
-                {account.label ? `${account.label} — ${account.email}` : account.email}
-              </option>
-            ))}
-          </datalist>
-        </FormField>
+        <div className="space-y-2">
+          <p className="text-muted-foreground text-xs">{t("userAccountsHint")}</p>
+          {typeof config.account_name === "string" && config.account_name && (
+            <div className="space-y-2 rounded-lg border p-3">
+              <p className="text-xs">{t("legacyAccountFilter", { name: config.account_name })}</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={disabled}
+                onClick={() => onChange({ ...config, account_name: "" })}
+              >
+                {t("removeAccountFilter")}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
       <Link
-        href={ROUTES.VAULT}
+        href={owner === "organization" ? ROUTES.VAULT : ROUTES.SETTINGS_PROFILE}
         className="text-muted-foreground text-xs underline underline-offset-4"
       >
         {t("manageAccounts")}

@@ -1,20 +1,20 @@
 ---
-source_sha: "864476c5a2d0"
+source_sha: "830b6494877e"
 ---
 
 # Integrierte Integrationen { #built-in-integrations }
 
-Verbinden Sie Konten unter **Vault → Konto verbinden**. Persönliche Konten lassen sich auch direkt unter **Chat-Einstellungen → Werkzeuge → Ihre Konten** in `/chat` verbinden oder reparieren. Mehrere Konten desselben Anbieters sind möglich. Jedes Google-, Microsoft- oder Slack-Produkt ist eine eigene Capability in der **Toolbox** des Agenten, mit Kontenauswahl und einzelnen Werkzeugschaltern. Die Integrationen verwenden die Anbieter-APIs direkt; Anbieter-MCP-Server, Google Workspace MCP Preview und eine Microsoft-Copilot-Lizenz sind nicht erforderlich.
+Persönliche Konten verbinden Sie unter **Chat-Einstellungen → Werkzeuge → Ihre Konten** in `/chat` oder **Einstellungen → Profil → Ihre verbundenen Konten**. Organisationskonten werden unter **Vault → Konto verbinden** verbunden. Mehrere Konten desselben Anbieters sind möglich. Jedes Google-, Microsoft- oder Slack-Produkt ist eine eigene Capability in der **Toolbox**. Die Integrationen verwenden Anbieter-APIs direkt; Anbieter-MCP-Server, Google Workspace MCP Preview und eine Microsoft-Copilot-Lizenz sind nicht erforderlich.
 
 ## Ein Konto einrichten { #set-up-an-account }
 
-Der Assistent zeigt die genaue Callback-URL dieser Installation, den Konsolenlink und angeforderte Berechtigungen. Wählen Sie zuerst Produkte. Standard ist Lesezugriff; Schreibrechte werden ausdrücklich aktiviert. Ein Administrator speichert eine organisationsweit sichtbare OAuth-App im Vault; Mitglieder verwenden sie für ihre persönlichen Konten. Bei mehreren App-Zugangsdaten muss der Administrator die Zuordnung klären.
+Zuerst öffnet ein Administrator **Vault → Integrationen**, registriert die Anbieter-App und speichert einen organisationsweit sichtbaren OAuth-Client. Hier stehen Callback-URL, Konsole und Berechtigungen. „OAuth-Client gespeichert“ bestätigt nur die gespeicherte Konfiguration; Zustimmung oder App-Freigabe durch den Anbieter kann weiterhin nötig sein. Fehlende oder mehrere Clients blockieren die Kontoanmeldung mit einem Hinweis an den Administrator. Mitglieder wählen danach Apps und melden sich im Chat oder Profil an, ohne die Anbieter-Konsole einzurichten. Lesezugriff ist Standard; Schreibrechte sind optional.
 
 Google: Cloud-Projekt anlegen, die aufgeführten APIs aktivieren (`gcloud services enable` steht im Assistenten), Zustimmungsbildschirm konfigurieren und einen OAuth-Client **Web application** erstellen. Callback exakt kopieren und `google_oauth_app` speichern. Internal gilt für die Workspace-Organisation des Projekts. Bei External/Testing können Refresh-Tokens nach sieben Tagen ablaufen. Der normale API-Zugriff braucht weder einen AI-powered-agent-Client noch gehostete MCP-APIs.
 
 Microsoft: Entra-App registrieren, Kontotypen und Tenant wählen, Web-Weiterleitung und angezeigte delegierte Graph-Rechte hinzufügen und `microsoft_oauth_app` speichern. Private und geschäftliche Konten funktionieren nur, soweit das jeweilige Graph-Produkt sie unterstützt; Teams benötigt ein Geschäftskonto. Die Tenant-Richtlinie kann Administratorzustimmung verlangen.
 
-Slack: **Slack-App erstellen** öffnet ein Manifest mit Callback und Benutzer-Leserechten. Für Schreibzugriff die Rechte ergänzen und neu installieren/autorisieren. `slack_oauth_app` speichern und Zustimmung abschließen. Eine bestehende Channel-Bot-App kann durch Benutzerrechte und Callback ergänzt werden. Workspace-App-Limits und Administratorfreigaben bleiben bestehen. **Agents → MCP Server** wird nur für den separat verwendeten gehosteten Slack-MCP-Server benötigt.
+Slack: Die Anbieter-Konsole öffnet ein Manifest mit Callback und unterstützten Benutzerrechten. Prüfen Sie die Rechte vor der Registrierung; jede Kontoanmeldung fordert weiterhin nur den gewählten Lese-/Schreibzugriff an. Speichern Sie `slack_oauth_app`. Eine Channel-Bot-App kann durch Benutzerrechte und Callback ergänzt werden. Workspace-App-Limits und Administratorfreigaben bleiben bestehen. **Agents → MCP Server** wird nur für den gehosteten Slack-MCP-Server benötigt.
 
 ## Alternativen zu OAuth { #alternatives-to-oauth }
 
@@ -42,7 +42,7 @@ Microsoft: Outlook-Mail, Calendar, OneDrive/SharePoint-Dateien, Excel, Word-Doku
 
 Verbundene Drive-, SharePoint- und Slack-Leser beziehen vor jeder Provideranfrage das Token des autorisierten Kontos erneut. Lange Synchronisierungen können OAuth dadurch erneuern, ohne Refresh-Secrets in der Connector-Konfiguration zu speichern. Der Entzug der Eingabekontofreigabe stoppt auch natives Trigger-Polling vor dem Tokenzugriff. Microsoft-Dateitrigger erkennen eigene Änderungen von Anwendungskonten anhand des konfigurierten Benutzers und der Anwendungs-ID; der standardmäßige Eigenänderungsfilter unterdrückt sie.
 
-Wählen Sie **personal** für die eigenen Konten der aktuellen Person. Ein leerer Kontoname stellt deren Konten zur Laufzeit bereit; ein exakter Name, ein Label oder eine Adresse beschränkt die Capability auf ein passendes Konto. Persönliche Werkzeuge benötigen einen privaten Chat und aktive Organisationsmitgliedschaft. Der Agent leiht weder fremde Konten noch das Konto seines Autors aus.
+Wählen Sie **personal**, um die Konten der Person zu verwenden, die mit dem Agenten spricht. Die Capability fragt den Autor nicht nach Kontonamen der Nutzer. Vorhandene Namensfilter in gespeicherten Specs bleiben sichtbar und können ausdrücklich entfernt werden. Persönliche Werkzeuge erfordern eine private Unterhaltung und aktuelle Organisationsmitgliedschaft; der Agent verwendet keine Konten anderer Mitglieder oder seines Herausgebers.
 
 Wählen Sie **organization** und die für den Agenten zugelassenen Konten. Bestehende Spezifikationen mit einer `connection_id` bleiben gültig; `connection_ids` erlaubt mehrere Konten. Die Veröffentlichung prüft jedes Konto und seine aktivierten Operationen. Jede Operation prüft den aktuellen Zugriff des Bindungsautors erneut.
 

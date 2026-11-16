@@ -44,6 +44,7 @@ vi.mock("@/hooks/use-integration-setup", () => ({
     error: null,
     data: {
       provider: "google",
+      oauth_client_status: "ready",
       redirect_uri: "https://example.com/callback",
       console_url: "https://console.cloud.google.com",
       manifest_url: null,
@@ -206,7 +207,7 @@ it("shows a poll failure, repairs that account, and clears the target before sta
   expect(application.mock.calls[0]?.[0].connection_id).toBe(account.id);
   await userEvent.keyboard("{Escape}");
   await userEvent.click(screen.getByRole("button", { name: "Connect Google account" }));
-  expect(screen.getByRole("button", { name: "OAuth" })).toBeEnabled();
+  expect(screen.queryByRole("button", { name: "OAuth" })).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("checkbox", { name: "Gmail" }));
   await userEvent.click(screen.getByRole("button", { name: "Continue to account consent" }));
   expect(connect.mock.calls[0]?.[1]).not.toHaveProperty("connection_id");

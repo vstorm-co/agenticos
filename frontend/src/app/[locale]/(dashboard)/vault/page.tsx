@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Lock, Plug, Plus } from "lucide-react";
+import { Lock, Plug, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ConnectedAccountPicker } from "@/components/vault/connected-account-picker";
+import { IntegrationProviders } from "@/components/vault/integration-providers";
 import { VaultTable } from "@/components/vault/vault-table";
 import {
   Button,
@@ -13,17 +15,13 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
   ListCardEmpty,
 } from "@/components/ui";
 import { ErrorState } from "@/components/states";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import { AddSecretDialog, RotateSecretDialog } from "@/components/vault/secret-dialog";
 import { useMcpOAuthOutcome, usePermissions, useSecretPurposes, useSecrets } from "@/hooks";
-import { INTEGRATION_PROVIDERS, useConnectedAccounts } from "@/hooks/use-connected-accounts";
+import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
 import {
   ConnectedAccountSetup,
   type AccountSetupTarget,
@@ -39,6 +37,7 @@ export default function VaultPage() {
   const t = useTranslations("pages.vault");
   const ta = useTranslations("pages.vault.connectedAccounts");
   const tErrors = useTranslations("errors");
+  const [picking, setPicking] = useState(false);
   const [setup, setSetup] = useState<AccountSetupTarget | null>(null);
   const {
     secrets,
@@ -83,37 +82,17 @@ export default function VaultPage() {
         title={t("vault")}
         description={t("pageDescription")}
         secondaryActions={
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                disabled={personal.isConnecting || organization.isConnecting}
-              >
-                <Plug className="size-4" />
-                {t("connectAccount")}
-                <ChevronDown className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {INTEGRATION_PROVIDERS.map((provider) => (
-                <DropdownMenuItem
-                  key={provider}
-                  onSelect={() => setSetup({ owner: "personal", provider })}
-                >
-                  {ta(`setup.provider.${provider}`)} · {t("personalAccount")}
-                </DropdownMenuItem>
-              ))}
-              {canManageOrganization &&
-                INTEGRATION_PROVIDERS.map((provider) => (
-                  <DropdownMenuItem
-                    key={provider}
-                    onSelect={() => setSetup({ owner: "organization", provider })}
-                  >
-                    {ta(`setup.provider.${provider}`)} · {t("organizationAccount")}
-                  </DropdownMenuItem>
-                ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-2">
+            {canViewOrganization && <IntegrationProviders />}
+            <Button
+              variant="outline"
+              disabled={personal.isConnecting || organization.isConnecting}
+              onClick={() => setPicking(true)}
+            >
+              <Plug className="size-4" aria-hidden />
+              {t("connectAccount")}
+            </Button>
+          </div>
         }
         actions={
           canCreate ? (
@@ -151,6 +130,17 @@ export default function VaultPage() {
           />
         )}
       </div>
+      {picking && (
+        <ConnectedAccountPicker
+          allowOrganization={canManageOrganization}
+          initialOwner={canManageOrganization ? "organization" : "personal"}
+          onClose={() => setPicking(false)}
+          onSelect={(target) => {
+            setPicking(false);
+            setSetup(target);
+          }}
+        />
+      )}
       {setup && <ConnectedAccountSetup target={setup} onClose={() => setSetup(null)} />}
       {disconnecting && (
         <ConfirmDialog

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { ROUTES } from "@/lib/constants";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -11,7 +13,7 @@ import {
   type AccountSetupTarget,
 } from "@/components/vault/connected-account-setup";
 import { useCapabilityCatalog } from "@/hooks/use-agents";
-import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
+import { useConnectedAccounts, type IntegrationProvider } from "@/hooks/use-connected-accounts";
 import { hereForMcpOAuthReturn } from "@/lib/mcp-oauth";
 import { getErrorMessage } from "@/lib/api-error";
 import type { CapabilityBindingSpec } from "@/types/agents";
@@ -22,7 +24,7 @@ export function NativePersonalConnections({ bindings }: { bindings: CapabilityBi
   const ta = useTranslations("pages.vault.connectedAccounts");
   const errors = useTranslations("errors");
   const { capabilities, error: catalogError } = useCapabilityCatalog();
-  const products = bindings.flatMap((binding) => {
+  const requested = bindings.flatMap((binding) => {
     const entry = capabilities.find((item) => item.id === binding.id);
     const provider = entry?.config_schema?.["x-integration-provider"];
     return binding.enabled !== false &&
@@ -32,6 +34,24 @@ export function NativePersonalConnections({ bindings }: { bindings: CapabilityBi
       ? [{ binding, provider, name: entry.name }]
       : [];
   });
+  const grouped = new Map<
+    string,
+    {
+      binding: CapabilityBindingSpec;
+      provider: IntegrationProvider;
+      name: string;
+      productIds: string[];
+    }
+  >();
+  for (const product of requested) {
+    const key = `${product.provider}:${String(product.binding.config.account_name ?? "")}`;
+    const held = grouped.get(key);
+    if (held) {
+      held.productIds.push(product.binding.id);
+      held.name += `, ${product.name}`;
+    } else grouped.set(key, { ...product, productIds: [product.binding.id] });
+  }
+  const products = [...grouped.values()];
   const { accounts, isLoading, error } = useConnectedAccounts("personal", {
     provider: "all",
     enabled: products.length > 0,
@@ -45,7 +65,7 @@ export function NativePersonalConnections({ bindings }: { bindings: CapabilityBi
       {catalogError && <ErrorState description={getErrorMessage(catalogError, errors)} />}
       {error && <ErrorState description={getErrorMessage(error, errors)} />}
       <ul className="space-y-3">
-        {products.map(({ binding, provider, name }) => {
+        {products.map(({ binding, provider, name, productIds }) => {
           const held = accounts.filter((account) => account.provider === provider);
           const exact = held.filter((account) => account.name === binding.config.account_name);
           const matching = exact.length
@@ -69,7 +89,7 @@ export function NativePersonalConnections({ bindings }: { bindings: CapabilityBi
                     setSetup({
                       owner: "personal",
                       provider,
-                      products: [binding.id],
+                      products: productIds,
                       returnTo: hereForMcpOAuthReturn(),
                     })
                   }
@@ -103,7 +123,7 @@ export function NativePersonalConnections({ bindings }: { bindings: CapabilityBi
                           owner: "personal",
                           provider,
                           account,
-                          products: [binding.id],
+                          products: productIds,
                           returnTo: hereForMcpOAuthReturn(),
                         })
                       }
@@ -117,6 +137,12 @@ export function NativePersonalConnections({ bindings }: { bindings: CapabilityBi
           );
         })}
       </ul>
+      <Link
+        href={ROUTES.SETTINGS_PROFILE}
+        className="text-muted-foreground text-xs underline underline-offset-4"
+      >
+        {ta("managePersonalAccounts")}
+      </Link>
       {setup && <ConnectedAccountSetup target={setup} onClose={() => setSetup(null)} />}
     </div>
   );

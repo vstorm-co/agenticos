@@ -34,7 +34,7 @@ import type {
  * field added to `AwsCredentialsSecret` from being a field this app never
  * offers.
  */
-export function useSecrets() {
+export function useSecrets({ enabled = true }: { enabled?: boolean } = {}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("vault");
   const queryClient = useQueryClient();
@@ -42,11 +42,13 @@ export function useSecrets() {
   const secrets = useQuery({
     queryKey: qk.secrets.list(),
     queryFn: () => apiClient.get<SecretList>("/secrets"),
+    enabled,
   });
 
   const kinds = useQuery({
     queryKey: qk.secrets.kinds(),
     queryFn: () => apiClient.get<SecretKindList>("/secrets/kinds"),
+    enabled,
     // The set of shapes changes when the platform is redeployed, never while a
     // dialog is open. Refetching it on every focus buys nothing.
     staleTime: Infinity,
@@ -63,6 +65,8 @@ export function useSecrets() {
     // An organization-visible key is one of the credentials speech to text is
     // sent with, so which providers are usable can change with it.
     await invalidateSpeechSettings(queryClient);
+    await queryClient.cancelQueries({ queryKey: qk.connectedAccounts.all() });
+    await queryClient.invalidateQueries({ queryKey: qk.connectedAccounts.all() });
   }, [queryClient]);
 
   // Neither writing mutation toasts its failure: a name already in use is the

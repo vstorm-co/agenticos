@@ -1,3 +1,6 @@
+vi.mock("@/components/settings/personal-integration-accounts", () => ({
+  PersonalIntegrationAccounts: () => <div>Personal integration accounts</div>,
+}));
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";

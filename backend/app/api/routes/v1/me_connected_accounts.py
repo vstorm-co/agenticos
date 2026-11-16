@@ -49,8 +49,12 @@ async def list_my_accounts(service: McpConnectionSvc, ctx: Auth, provider: str =
 async def integration_setup(
     provider: str, service: McpConnectionSvc, ctx: Auth, write: bool = False
 ) -> Any:
-    """The deployment's redirect URL, exact scopes and provider-console links."""
-    return service.integration_setup(provider, write=write)
+    """Setup links, scopes and whether this organization has one OAuth client stored.
+
+    The status reveals no credential IDs, names or values, and is available to
+    members who can connect their own accounts without access to Vault.
+    """
+    return await service.integration_setup_for(ctx, provider, write=write)
 
 
 @router.post("/oauth/start", response_model=McpOAuthStartResult)

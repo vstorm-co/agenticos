@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { IntegrationAccountFields } from "./integration-account-fields";
@@ -13,7 +13,7 @@ beforeEach(() => {
     error: null,
   });
 });
-it("keeps a personal label portable across the people running an agent", async () => {
+it("binds each user's accounts without asking the author for an account name", () => {
   const change = vi.fn();
   render(
     <IntegrationAccountFields productId="gmail" provider="google" config={{}} onChange={change} />,
@@ -21,16 +21,16 @@ it("keeps a personal label portable across the people running an agent", async (
   expect(screen.getByRole("combobox", { name: "Whose accounts to use" })).toHaveTextContent(
     "Each user’s connected accounts",
   );
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   expect(
-    screen.getByText(/The agent uses the connected accounts of the user talking to it/),
-  ).toHaveTextContent("Each user connects their own accounts in Chat → Tools → Your accounts");
-  await userEvent.type(screen.getByLabelText("User account name (optional)"), "W");
-  expect(change).toHaveBeenLastCalledWith({ account_name: "W" });
-  expect(accounts).toHaveBeenCalledWith("personal", { provider: "google", enabled: true });
+    screen.getByText("Each person connects their own accounts in chat or profile settings."),
+  ).toBeInTheDocument();
+  expect(accounts).toHaveBeenCalledWith("personal", { provider: "google", enabled: false });
   expect(screen.getByRole("link", { name: "Manage connected accounts" })).toHaveAttribute(
     "href",
-    "/vault",
+    "/settings/profile",
   );
+  expect(change).not.toHaveBeenCalled();
 });
 it("selects organization accounts by label and stores only their IDs", async () => {
   const change = vi.fn();
@@ -79,7 +79,7 @@ it("makes a read-only capability unable to change accounts", () => {
       disabled
     />,
   );
-  expect(screen.getByLabelText("User account name (optional)")).toBeDisabled();
+  expect(screen.getByRole("combobox", { name: "Whose accounts to use" })).toBeDisabled();
   expect(accounts).toHaveBeenCalledWith("personal", { provider: "google", enabled: false });
 });
 
@@ -96,29 +96,22 @@ it("shows a publish refusal beside the account field", () => {
   expect(screen.getByText("Choose an account in this organization")).toBeInTheDocument();
 });
 
-it("submits the unique account name when two personal accounts share a label", () => {
-  accounts.mockReturnValue({
-    accounts: [
-      { id: "one", name: "google-account-one", label: "Work", email: "one@example.com" },
-      { id: "two", name: "google-account-two", label: "Work", email: "two@example.com" },
-    ],
-    isLoading: false,
-    error: null,
-  });
+it("preserves a saved account restriction until its author explicitly removes it", async () => {
   const change = vi.fn();
   render(
-    <IntegrationAccountFields productId="gmail" provider="google" config={{}} onChange={change} />,
+    <IntegrationAccountFields
+      productId="gmail"
+      provider="google"
+      config={{ account_name: "Work" }}
+      onChange={change}
+    />,
   );
-  const options = screen.getAllByRole("option", { hidden: true });
-  expect(options.map((option) => option.getAttribute("value"))).toEqual([
-    "google-account-one",
-    "google-account-two",
-  ]);
-  expect(options[1]).toHaveTextContent("Work — two@example.com");
-  fireEvent.change(screen.getByLabelText("User account name (optional)"), {
-    target: { value: "google-account-two" },
-  });
-  expect(change).toHaveBeenCalledWith({ account_name: "google-account-two" });
+  expect(
+    screen.getByText("This saved configuration restricts user accounts to “Work”."),
+  ).toBeInTheDocument();
+  expect(change).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Remove account filter" }));
+  expect(change).toHaveBeenCalledWith({ account_name: "" });
 });
 
 it("keeps a legacy organization account selected when another one is added", async () => {

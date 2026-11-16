@@ -2008,3 +2008,39 @@ async def test_new_oauth_consent_cannot_replace_a_non_oauth_identity(
             state="state", code="code", browser_nonce=NONCE, acting_user_id=INITIATOR
         )
     assert old.auth_type == "application" and old.oauth_payload is None
+
+
+@pytest.mark.parametrize("count,status", [(0, "missing"), (1, "ready"), (2, "ambiguous")])
+async def test_setup_reports_only_current_organization_client_readiness(
+    monkeypatch, ctx, count, status
+):
+    member = AuthContext(user_id=ctx.user_id, organization_id=ctx.organization_id, role="member")
+    lookup = AsyncMock(return_value=[MagicMock() for _ in range(count)])
+    monkeypatch.setattr(service_module.organization_secret_repo, "list_org_visible_by_kind", lookup)
+    db = AsyncMock()
+    setup = await McpConnectionService(db).integration_setup_for(member, "google", write=True)
+    assert setup.oauth_client_status == status
+    lookup.assert_awaited_once_with(
+        db, organization_id=ctx.organization_id, kind="google_oauth_app"
+    )
+    assert set(setup.model_dump()) == {
+        "provider",
+        "identity_scopes",
+        "redirect_uri",
+        "console_url",
+        "secret_kind",
+        "products",
+        "enable_apis_command",
+        "manifest_url",
+        "oauth_client_status",
+    }
+
+
+async def test_setup_does_not_hide_database_failures(monkeypatch, ctx):
+    monkeypatch.setattr(
+        service_module.organization_secret_repo,
+        "list_org_visible_by_kind",
+        AsyncMock(side_effect=RuntimeError("database unavailable")),
+    )
+    with pytest.raises(RuntimeError, match="database unavailable"):
+        await McpConnectionService(AsyncMock()).integration_setup_for(ctx, "google")

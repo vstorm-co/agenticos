@@ -33,6 +33,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Separate organization OAuth setup from personal account sign-in. Members can manage multiple connected accounts from their profile; capability settings no longer ask agent authors for user account names.
+
 - Connected-product capability illustrations show real product logos, and account settings clarify that personal accounts belong to each user talking to the agent.
 
 - Restore dependency freshness checks with ty 0.0.104 by updating renamed diagnostic rules and the minimum checker version, and allow the full backend CI runtime for the upgrade canary.

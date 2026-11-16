@@ -15,7 +15,7 @@ interface IntegrationProduct {
   application_read_scopes: string[];
   application_write_scopes: string[];
 }
-interface IntegrationSetup {
+export interface IntegrationSetup {
   provider: IntegrationProvider;
   identity_scopes: string[];
   redirect_uri: string;
@@ -24,6 +24,7 @@ interface IntegrationSetup {
   products: IntegrationProduct[];
   enable_apis_command: string | null;
   manifest_url: string | null;
+  oauth_client_status: "missing" | "ready" | "ambiguous";
 }
 
 export function useIntegrationSetup(provider: IntegrationProvider, write = false) {

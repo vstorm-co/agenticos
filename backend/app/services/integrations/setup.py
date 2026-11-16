@@ -1,6 +1,7 @@
 """Provider setup data generated from the same operation scopes used at consent."""
 
 import json
+from typing import Literal
 from urllib.parse import urlencode
 
 from pydantic import BaseModel
@@ -29,6 +30,7 @@ class IntegrationSetup(BaseModel):
     products: list[SetupProduct]
     enable_apis_command: str | None = None
     manifest_url: str | None = None
+    oauth_client_status: Literal["missing", "ready", "ambiguous"] = "missing"
 
 
 def setup_for(provider: Provider, *, write: bool = False) -> IntegrationSetup:

@@ -25,6 +25,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/en/vault" }));
 
 const info = {
   provider: "google",
+  oauth_client_status: "ready",
   redirect_uri: "https://private.example/api/me/mcp-connections/oauth/callback",
   console_url: "https://console.cloud.google.com/apis/credentials",
   manifest_url: null,
@@ -52,7 +53,8 @@ beforeEach(() => {
 describe("IntegrationSetupDialog", () => {
   it("uses the server callback and requests only selected read products by default", async () => {
     render(<IntegrationSetupDialog provider="google" owner="personal" onClose={vi.fn()} />);
-    expect(screen.getByText(info.redirect_uri)).toBeInTheDocument();
+    expect(screen.queryByText(info.redirect_uri)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open provider console" })).not.toBeInTheDocument();
     const proceed = screen.getByRole("button", { name: "Continue to account consent" });
     expect(proceed).toBeDisabled();
     await userEvent.click(screen.getByRole("checkbox", { name: "Gmail" }));
@@ -86,10 +88,7 @@ describe("IntegrationSetupDialog", () => {
       error: null,
     });
     render(<IntegrationSetupDialog provider="slack" owner="personal" onClose={vi.fn()} />);
-    expect(screen.getByRole("link", { name: "Open provider console" })).toHaveAttribute(
-      "href",
-      "https://api.slack.com/apps?new_app=1",
-    );
+    expect(screen.queryByRole("link", { name: "Open provider console" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByText("Use an existing Slack user or bot token"));
     await userEvent.type(screen.getByLabelText("Slack token"), "xoxp-private");
     expect(screen.getByLabelText("Slack token")).toHaveAttribute("type", "password");
@@ -111,7 +110,7 @@ describe("IntegrationSetupDialog", () => {
       },
       error: null,
     });
-    render(<IntegrationSetupDialog provider="microsoft" owner="personal" onClose={vi.fn()} />);
+    render(<IntegrationSetupDialog provider="microsoft" owner="organization" onClose={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: "Application access" }));
     expect(screen.getByRole("checkbox", { name: "Excel" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Continue to account consent" })).toBeDisabled();
@@ -137,4 +136,22 @@ it("keeps the current conversation as the OAuth return and preselects its produc
     "/en/chat?conversation=existing-chat",
     expect.objectContaining({ provider: "google", products: ["gmail"] }),
   );
+});
+
+it("blocks personal consent until an administrator registers the organization client", () => {
+  setup.mockReturnValue({ data: { ...info, oauth_client_status: "missing" }, error: null });
+  render(
+    <IntegrationSetupDialog
+      provider="google"
+      owner="personal"
+      initialProducts={["gmail"]}
+      onClose={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Continue to account consent" })).toBeDisabled();
+  expect(
+    screen.getByText("Ask an administrator to configure it in Vault → Integrations."),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(info.redirect_uri)).not.toBeInTheDocument();
+  expect(secrets).toHaveBeenCalledWith({ enabled: false });
 });
