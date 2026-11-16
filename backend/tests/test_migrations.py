@@ -2242,7 +2242,7 @@ def test_routine_overlap_history_round_trip_preserves_runs_and_other_attempts() 
 
 
 def test_routine_activation_index_round_trip_preserves_legacy_policy() -> None:
-    """0333_channel_thread_context.py adds only a reversible lookup index."""
+    """0332_routine_activation_lookup.py adds only a reversible lookup index."""
     from sqlalchemy import inspect
 
     from app.db.models.agent import Agent
