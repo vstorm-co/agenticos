@@ -14330,12 +14330,12 @@
     "preferences": "Inbox-Einstellungen",
     "preferencesDescription": "Wähle, welche automatischen Vorschläge deinen Inbox erreichen.",
     "approvals": {
-      "title": "{count, plural, =1 {1 Freigabe wartet auf Sie} other {# Freigaben warten auf Sie}}",
+      "title": "Zur Genehmigung",
       "open": "Freigaben öffnen",
       "fromWorkflow": "Workflow {workflow}",
       "fromAgent": "Agent {agent}",
       "anAgent": "Ein Agent",
-      "toolCall": "Möchte {tool} verwenden"
+      "actionBy": "{source} · {action}"
     }
   },
   "datasets": {

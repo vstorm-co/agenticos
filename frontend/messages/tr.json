@@ -12896,12 +12896,12 @@
     "preferences": "Gelen kutusu tercihleri",
     "preferencesDescription": "Gelen kutuna hangi otomatik önerilerin ulaşacağını seç.",
     "approvals": {
-      "title": "{count, plural, =1 {1 onay sizi bekliyor} other {# onay sizi bekliyor}}",
+      "title": "Onay bekleyenler",
       "open": "Onayları aç",
       "fromWorkflow": "Workflow {workflow}",
       "fromAgent": "Agent {agent}",
       "anAgent": "Bir agent",
-      "toolCall": "{tool} kullanmak istiyor"
+      "actionBy": "{source} · {action}"
     }
   },
   "agentLimit": {

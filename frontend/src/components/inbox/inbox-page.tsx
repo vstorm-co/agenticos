@@ -117,7 +117,7 @@ export function InboxPage() {
         }
       />
       <ListCard
-        fill
+        fill={!showsApprovals && open.length === 0}
         namedByPage
         title={t("title")}
         counted={

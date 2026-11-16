@@ -13873,12 +13873,12 @@
     "preferences": "Ustawienia Inbox",
     "preferencesDescription": "Wybierz, jakie automatyczne sugestie trafiają do Twojego Inbox.",
     "approvals": {
-      "title": "{count, plural, one {1 zatwierdzenie czeka na Ciebie} few {# zatwierdzenia czekają na Ciebie} many {# zatwierdzeń czeka na Ciebie} other {# zatwierdzenia czeka na Ciebie}}",
+      "title": "Do zatwierdzenia",
       "open": "Otwórz zatwierdzenia",
       "fromWorkflow": "Workflow {workflow}",
       "fromAgent": "Agent {agent}",
       "anAgent": "Agent",
-      "toolCall": "Chce użyć {tool}"
+      "actionBy": "{source} · {action}"
     }
   },
   "agentLimit": {

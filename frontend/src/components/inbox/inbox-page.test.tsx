@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InboxPage } from "./inbox-page";
+import type { ToolApproval } from "@/types/runs";
 import type { Suggestion } from "@/lib/suggestions-api";
 
 /**
@@ -41,7 +42,16 @@ vi.mock("@/hooks/use-suggestions", () => ({
   }),
 }));
 const pending = vi.hoisted(() => ({
-  tools: [] as { id: string; tool_id: string; agent_name: string | null }[],
+  tools: [] as Pick<
+    ToolApproval,
+    | "id"
+    | "tool_id"
+    | "agent_name"
+    | "tool_args"
+    | "capability_tool_id"
+    | "context"
+    | "content_hidden"
+  >[],
   steps: [] as { id: string; title: string; workflow_name: string }[],
   count: 0,
   isLoading: false,
@@ -244,8 +254,13 @@ describe("approvals waiting on the reader", () => {
   beforeEach(() => {
     pending.steps = [{ id: "s1", title: "Send the refund?", workflow_name: "Refunds" }];
     pending.tools = [
-      { id: "t1", tool_id: "send_email", agent_name: "Support" },
-      { id: "t2", tool_id: "create_lead", agent_name: null },
+      {
+        id: "t1",
+        tool_id: "send_email",
+        agent_name: "Support",
+        tool_args: { subject: "Confirm the delivery date" },
+      },
+      { id: "t2", tool_id: "create_lead", agent_name: null, tool_args: {} },
     ];
     pending.count = 2;
   });
@@ -253,10 +268,14 @@ describe("approvals waiting on the reader", () => {
   it("leads the inbox, counted with everything else, and leads to the approvals queue", () => {
     render(<InboxPage />);
 
-    const section = screen.getByRole("region", { name: "2 approvals wait on you" });
+    const section = screen.getByRole("region", { name: "Approval requests" });
     expect(section).toHaveTextContent("Send the refund?");
     expect(section).toHaveTextContent("Workflow Refunds");
-    expect(section).toHaveTextContent("Wants to use send_email");
+    expect(section).toHaveTextContent("Confirm the delivery date");
+    expect(section).toHaveTextContent("Send email");
+    expect(section).not.toHaveTextContent("send_email");
+    expect(section).toHaveTextContent("Create lead");
+    expect(section.closest("[data-list-layout]")).not.toHaveClass("flex-1");
     expect(section).toHaveTextContent("Agent Support");
     // A call whose agent the queue could not name still says where it came from.
     expect(section).toHaveTextContent("An agent");
@@ -269,15 +288,56 @@ describe("approvals waiting on the reader", () => {
     expect(screen.queryByText("Nothing waits here")).toBeNull();
   });
 
+  it("uses the stable action context and does not preview hidden arguments", () => {
+    pending.tools = [
+      {
+        id: "t1",
+        tool_id: "renamed_write",
+        capability_tool_id: "create_record",
+        context: { table: "Delivery exceptions" },
+        tool_args: { title: "Express shipping" },
+      },
+      {
+        id: "t2",
+        tool_id: "share_memory",
+        tool_args: { text: "Private run content" },
+        content_hidden: true,
+      },
+    ];
+    render(<InboxPage />);
+    const section = screen.getByRole("region", { name: "Approval requests" });
+    expect(section).toHaveTextContent("Delivery exceptions");
+    expect(section).not.toHaveTextContent("Private run content");
+  });
+
+  it("keeps the preview bounded and leaves every request reachable in the queue", () => {
+    pending.steps = Array.from({ length: 7 }, (_, index) => ({
+      id: `s${index}`,
+      title: `Decision ${index}`,
+      workflow_name: "Deliveries",
+    }));
+    pending.tools = [];
+    pending.count = 7;
+    render(<InboxPage />);
+    const section = screen.getByRole("region", { name: "Approval requests" });
+    expect(section.querySelectorAll("li")).toHaveLength(5);
+    expect(screen.queryByText("Decision 5")).toBeNull();
+    expect(screen.getByRole("link", { name: "Open approvals" })).toHaveAttribute(
+      "href",
+      "/runs?tab=approvals",
+    );
+    expect(screen.getByText("7 waiting")).toBeInTheDocument();
+  });
+
   it("stays among the urgent items and out of routine results", () => {
     state.filter = "urgent";
     const { unmount } = render(<InboxPage />);
-    expect(screen.getByRole("region", { name: "2 approvals wait on you" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Approval requests" })).toBeInTheDocument();
     unmount();
 
     state.filter = "watches";
     render(<InboxPage />);
-    expect(screen.queryByRole("region", { name: /approvals wait on you/ })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Approval requests" })).toBeNull();
     expect(screen.getByText("Nothing waits here")).toBeInTheDocument();
   });
 
@@ -286,14 +346,14 @@ describe("approvals waiting on the reader", () => {
     render(<InboxPage />);
     expect(screen.queryByText("Nothing waits here")).toBeNull();
     expect(screen.queryByText(/waiting/)).toBeNull();
-    expect(screen.queryByRole("region", { name: /approvals wait on you/ })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Approval requests" })).toBeNull();
   });
 
   it("offers a retry of both reads when the approvals could not be read", async () => {
     pending.error = new Error("offline");
     render(<InboxPage />);
     expect(screen.queryByText("Nothing waits here")).toBeNull();
-    expect(screen.queryByRole("region", { name: /approvals wait on you/ })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Approval requests" })).toBeNull();
     expect(screen.getByText("—")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(pending.refetch).toHaveBeenCalledOnce();
@@ -305,7 +365,7 @@ describe("approvals waiting on the reader", () => {
     pending.tools = [];
     pending.count = 0;
     render(<InboxPage />);
-    expect(screen.queryByRole("region", { name: /approvals wait on you/ })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Approval requests" })).toBeNull();
     expect(screen.getByText("Nothing waits here")).toBeInTheDocument();
   });
 });

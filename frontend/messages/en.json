@@ -14644,12 +14644,12 @@
     "preferences": "Inbox preferences",
     "preferencesDescription": "Choose which automatic suggestions reach your Inbox.",
     "approvals": {
-      "title": "{count, plural, =1 {1 approval waits on you} other {# approvals wait on you}}",
+      "title": "Approval requests",
       "open": "Open approvals",
       "fromWorkflow": "Workflow {workflow}",
       "fromAgent": "Agent {agent}",
       "anAgent": "An agent",
-      "toolCall": "Wants to use {tool}"
+      "actionBy": "{source} · {action}"
     }
   },
   "datasets": {
