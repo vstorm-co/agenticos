@@ -29,8 +29,8 @@ from app.services.channels.mentions import AnsweredTurn, UnaddressedMessage
 from app.services.channels.router import ChannelMessageRouter
 from app.services.channels.whatsapp import WhatsAppAdapter
 from app.services.channels.whatsapp_graph import WhatsAppCredentials, WhatsAppGraphError
+from app.services.channels.whatsapp_inbound import process_channel_events_in_order
 from app.services.channels.whatsapp_payload import parse_webhook, to_event
-from app.worker.background.channel import process_channel_events_in_order
 from tests.test_whatsapp_payload import FIXTURES
 from tests.whatsapp_fakes import OpenWindow
 
@@ -344,7 +344,7 @@ class TestMessages:
     async def test_events_are_awaited_one_after_another(self):
         order: list[str] = []
 
-        async def process(event: IncomingMessage) -> None:
+        async def process(event: IncomingMessage, _db: object) -> None:
             order.append(f"start {event.text}")
             await asyncio.sleep(0.01 if event.text == "first" else 0)
             order.append(f"end {event.text}")
@@ -353,7 +353,12 @@ class TestMessages:
             IncomingMessage("whatsapp", "b", "u", "c", "private", text=text)
             for text in ("first", "second")
         ]
-        with patch("app.worker.background.channel.process_channel_event", process):
+        with (
+            patch("app.services.channels.whatsapp_inbound.get_db_context") as db_context,
+            patch.object(ChannelMessageRouter, "route", AsyncMock(side_effect=process)),
+        ):
+            db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            db_context.return_value.__aexit__ = AsyncMock(return_value=False)
             await process_channel_events_in_order(events)
 
         assert order == ["start first", "end first", "start second", "end second"]

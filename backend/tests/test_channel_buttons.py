@@ -31,7 +31,6 @@ from app.services.channels.telegram import TelegramAdapter
 from app.services.channels.telegram_press import parse_press
 from app.services.channels.webhooks import inbound_actions_url, sign_press
 from app.worker.background.channel import (
-    process_channel_events_in_order,
     process_channel_press,
     process_slack_surface,
 )
@@ -573,18 +572,24 @@ class TestTheBackgroundHandlers:
         prompts.return_value.press.assert_awaited_once()
 
     async def test_presses_and_messages_are_dispatched_in_order(self):
-        module = "app.worker.background.channel"
+        from app.services.channels.whatsapp_inbound import process_channel_events_in_order
+
+        module = "app.services.channels.whatsapp_inbound"
         message = IncomingMessage("whatsapp", "b", "u", "c", "private", text="hi")
         press = IncomingPress("whatsapp", "b", "u", "c", "aos:p:0")
         order: list[object] = []
 
-        async def routed(event: object) -> None:
+        async def routed(event: object, *_args: object) -> None:
             order.append(event)
 
         with (
-            patch(f"{module}.process_channel_event", routed),
-            patch(f"{module}.process_channel_press", routed),
+            patch(f"{module}.get_db_context") as db_context,
+            patch(f"{module}.claim_press", AsyncMock(return_value=True)),
+            patch(f"{module}.ChannelMessageRouter.route", AsyncMock(side_effect=routed)),
+            patch(f"{module}.ChannelPrompts.press", AsyncMock(side_effect=routed)),
         ):
+            db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            db_context.return_value.__aexit__ = AsyncMock(return_value=False)
             await process_channel_events_in_order([message, press, message])
 
         assert order == [message, press, message]
