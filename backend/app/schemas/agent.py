@@ -299,6 +299,15 @@ class AgentRead(BaseSchema):
         default=None,
         description="Enabled capability ids from the published version, filled by the listing. Null when unknown.",
     )
+    published_hosted_capabilities: list[str] | None = Field(
+        default=None,
+        description=(
+            "Enabled browser/computer capabilities whose frozen published configuration "
+            "explicitly selects a supported hosted target. Empty means none; null means "
+            "not loaded. This does not verify provider health, override local chat choices, "
+            "or grant permission to run the agent."
+        ),
+    )
     local_coding_agent: LocalCodingAgent | None = Field(
         default=None,
         description=(
@@ -358,7 +367,10 @@ class AgentRead(BaseSchema):
 
 
 class AgentDetail(AgentRead):
-    """An agent plus the spec currently being edited."""
+    """An agent plus its draft, with the listing's same resource access hints.
+
+    Views additionally gate configuration by lifecycle and workflow ownership.
+    """
 
     draft_spec: AgentSpec
 

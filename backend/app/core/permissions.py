@@ -102,6 +102,9 @@ class Perm(StrEnum):
     # permission for both meant the second had to be granted to permit the first.
     CONNECTIONS_VIEW = "connections:view"
     CONNECTIONS_MANAGE = "connections:manage"
+    # Selecting a server's tools does not authorize changing its address,
+    # credentials, sharing or tool ceiling.
+    MCP_USE = "mcp:use"
     MCP_MANAGE = "mcp:manage"
     CHANNELS_MANAGE = "channels:manage"
     # Who is in the organization: names, emails, roles. Every role holds it - any
@@ -162,6 +165,7 @@ RESOURCE_PERMS: frozenset[Perm] = frozenset(
         Perm.PROJECTS_EDIT,
         # Per connection since an organization's MCP server can be narrowed to the
         # groups that use it (#2072): Finance's ledger server is Finance's.
+        Perm.MCP_USE,
         Perm.MCP_MANAGE,
     }
 )
@@ -276,6 +280,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.PROJECTS_VIEW: Scope.ALL,
         Perm.PROJECTS_USE: Scope.ALL,
         Perm.PROJECTS_EDIT: Scope.ALL,
+        Perm.MCP_USE: Scope.ALL,
         Perm.MCP_MANAGE: Scope.ALL,
     },
     # Admin runs the org day to day but cannot delete it.
@@ -306,6 +311,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.PROJECTS_VIEW: Scope.ALL,
         Perm.PROJECTS_USE: Scope.ALL,
         Perm.PROJECTS_EDIT: Scope.ALL,
+        Perm.MCP_USE: Scope.ALL,
         Perm.MCP_MANAGE: Scope.ALL,
     },
     # Builder sees the whole org to learn from it, but edits only what is theirs
@@ -342,6 +348,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SECRETS_EDIT: Scope.OWN,
         # The organization's servers, its own, and those shared with its groups -
         # not a department's server narrowed to somebody else's group.
+        Perm.MCP_USE: Scope.SHARED,
         Perm.MCP_MANAGE: Scope.SHARED,
         # Both halves, spelled out. Nothing in this catalog models one permission
         # implying another - `agents:edit` does not carry `agents:view` either -
@@ -713,7 +720,7 @@ class AuthContext:
         else:
             held = dict(ROLE_PERMS.get(self.role, {}))
         if self.key_scopes is not None:
-            return {perm: scope for perm, scope in held.items() if perm in self.key_scopes}
+            return {perm: scope for perm, scope in held.items() if self.key_allows(perm)}
         return held
 
     def key_allows(self, perm: Perm) -> bool:
@@ -724,7 +731,14 @@ class AuthContext:
         person do to this row", and a read-only key held by somebody with an edit
         grant must still not edit.
         """
-        return self.key_scopes is None or perm in self.key_scopes
+        # Before use and administration were separated, a management-scoped key
+        # also selected a connection. Preserve that narrower authority for issued
+        # keys; a use-scoped key never acquires management in the other direction.
+        return (
+            self.key_scopes is None
+            or perm in self.key_scopes
+            or (perm is Perm.MCP_USE and Perm.MCP_MANAGE in self.key_scopes)
+        )
 
     def scope_for(self, perm: Perm) -> Scope:
         """How far this permission reaches, or `Scope.NONE` if not held."""

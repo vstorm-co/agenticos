@@ -2,7 +2,7 @@
 source_sha: "7cb876b5ef26"
 ---
 
-<!-- source_sha: 6ba9e8a85274 -->
+<!-- source_sha: 38cf8cd6bd00 -->
 
 # Zu AgenticOS beitragen
 
@@ -114,6 +114,9 @@ verschickt.
 - Bugs kommen mit einem Regressionstest, der ohne den Fix fehlschlägt.
 - Schreiben Sie in die Beschreibung, was Sie entschieden haben und warum. Das
   Was zeigt der Code.
+- Die schnelle CI läuft für jeden Pull Request. Die vollständige CI erfordert
+  das Label `full-ci`, einen Pull-Request-Quellbranch nach dem Muster
+  `sync/upstream-*` oder eine Veröffentlichung (Push eines `v*`-Tags).
 
 ## Sicherheit
 

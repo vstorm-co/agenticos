@@ -3595,6 +3595,40 @@
       }
    },
    "chat" : {
+      "workspace" : {
+         "rail" : "Workspace",
+         "browser" : "Browser",
+         "computer" : "Computer",
+         "openBrowser" : "Open Browser",
+         "openComputer" : "Open Computer",
+         "close" : "Close workspace panel",
+         "resize" : "Resize workspace panel",
+         "computerMenu" : "Computer options",
+         "computerWaiting" : "Waiting for the computer’s screenshot…",
+         "computerWatching" : "Computer preview",
+         "computerControlling" : "Interactive computer view",
+         "computerImage" : "Screenshot of the agent’s computer",
+         "browserEmpty" : "Enter a website and ask the agent to open its hosted browser. Opening this panel does not start a session.",
+         "computerEmpty" : "Ask the agent to start its hosted computer and show the desktop. Opening this panel does not start a session.",
+         "startBrowser" : "Ask agent to open browser",
+         "startComputer" : "Ask agent to start computer",
+         "browserPrompt" : "Open {url} in your hosted browser and show the page. Do not access my local browser or computer.",
+         "computerPrompt" : "Start your hosted computer and show me a screenshot of its desktop once it is ready. Do not access my local computer.",
+         "lastView" : "Last view",
+         "lastViewHint" : "This is the last captured view. Ask the agent for a fresh view to continue.",
+         "unknown" : "The agent’s published tool configuration is not available yet.",
+         "browserUnavailable" : "This agent is not configured for hosted browser use. Update and publish its Browser settings to start it here.",
+         "computerUnavailable" : "This agent is not configured for hosted computer use. Update and publish its Computer settings to start it here.",
+         "localSelected" : "This chat is using tools on your own computer. Switch those off in Chat controls before starting a hosted session here.",
+         "chooseAgent" : "Select an agent to start a hosted session.",
+         "readOnly" : "You can view this conversation, but cannot start a session here.",
+         "roomComposer" : "Choose a responder in the room composer and ask them to open the browser or computer.",
+         "busy" : "Wait for the current turn to finish before starting a session.",
+         "disconnected" : "Reconnect to the chat before starting a session.",
+         "website" : "Website address",
+         "websitePlaceholder" : "https://example.com",
+         "websiteInvalid" : "Enter a website address starting with https:// or http://, without sign-in details."
+      },
       "accessChanged" : "Access changed",
       "accessChecking" : "Checking conversation access…",
       "accessFailed" : "Could not verify access to this conversation",
@@ -3602,6 +3636,38 @@
       "accessLevelFor" : "Access level for {name}",
       "accessRetry" : "Retry",
       "accessRevoked" : "Access revoked",
+      "agentSettings" : {
+         "close" : "Close agent settings",
+         "draftHint" : "These settings belong to the agent. Save the draft, then publish a version to make it available. Running turns keep their current configuration.",
+         "expand" : "Expand agent settings",
+         "capabilitiesHint" : "Enable or disable tools already configured for this agent. Add tools and edit their configuration in the full editor.",
+         "loading" : "Loading agent settings…",
+         "restore" : "Dock agent settings",
+         "workflowOwned" : "This agent is configured in its workflow step.",
+         "noCapabilities" : "No capabilities are configured yet.",
+         "instructionsHint" : "The guidance the agent follows when it works. Keep existing instruction variables intact.",
+         "description" : "Description",
+         "saved" : "Draft saved · publish to apply changes",
+         "descriptionHint" : "A short description for people choosing this agent.",
+         "readOnly" : "You can view this agent’s settings. Editing is not available with your current access.",
+         "open" : "Open agent settings",
+         "save" : "Save draft",
+         "publishContextFailed" : "Publication history or environments could not be loaded. Open the full editor to retry before publishing.",
+         "modelHint" : "This changes the agent’s draft default. A model chosen in the chat header still overrides it for chat requests.",
+         "instructions" : "Instructions",
+         "nameRequired" : "Enter a name for the agent.",
+         "model" : "Default model",
+         "unsaved" : "Unsaved changes",
+         "saving" : "Saving draft…",
+         "reset" : "Discard changes",
+         "loadFailed" : "Agent settings could not be loaded.",
+         "openBuilder" : "Open full editor for skills, knowledge, connections and limits",
+         "publish" : "Review and publish",
+         "name" : "Name",
+         "capabilities" : "Tools and capabilities",
+         "title" : "Agent settings",
+         "checking" : "Checking draft…"
+      },
       "agentPicker" : {
          "appliesNext" : "Applies from your next message - earlier answers keep their agent.",
          "current" : "Agent: {name}",
@@ -4144,6 +4210,28 @@
          "provider" : "Provider",
          "runModel" : "Run on this model",
          "thisChat" : "Just this chat"
+      },
+      "modelSelector" : {
+         "choose" : "Choose chat model: {model}",
+         "chooseUnavailable" : "Choose chat model: {model} (unavailable)",
+         "title" : "Chat model",
+         "default" : "Default",
+         "override" : "Override",
+         "unavailable" : "Model unavailable",
+         "useDefault" : "Use agent's model",
+         "scope" : "Choose a saved model for your next message. This chat preference is remembered for your account in this organization.",
+         "afterTurn" : "The running turn keeps its model. Your selection applies to the next message and is remembered as your chat preference.",
+         "providers" : "Model providers",
+         "search" : "Search saved models or accounts…",
+         "account" : "Provider account",
+         "allAccounts" : "All accounts",
+         "personalAccount" : "Your personal account",
+         "savedModels" : "Saved models",
+         "empty" : "No saved models yet. Open Controls beside the message box to add one.",
+         "noMatches" : "No saved models match this search.",
+         "advancedHint" : "Open Controls beside the message box to add a model or manage its connection. Your chat selection does not edit the agent.",
+         "missingKey" : "Connection unavailable — reconnect in Controls",
+         "notChatModel" : "Unavailable for chat"
       },
       "modelSetup" : {
          "action" : "Connect my AI model",
@@ -10550,9 +10638,17 @@
             "body" : "Choose a Twilio SMS bot, a public voice exposure for inbound calls, limits and authorized transfer contacts. Copy the webhook URLs into Twilio. Member phone consent is separate.",
             "title" : "Set up telephone routing"
          },
+         "chat-workspace" : {
+            "title" : "Open your workspace",
+            "body" : "Open Browser, Computer or Files beside the chat. Ask the selected agent to start a hosted tool when it is configured; opening a panel alone starts no session."
+         },
          "chat-agent-picker" : {
             "body" : "Switch between your agents right here. Each brings its own instructions, tools and knowledge, so the same question can get a very different answer.",
             "title" : "Choose who answers"
+         },
+         "chat-agent-settings" : {
+            "title" : "Edit the agent beside your chat",
+            "body" : "Open the settings pane to change this agent’s instructions, default model and configured tools. Save a draft and review it before publishing. The model in the chat header is a separate chat choice."
          },
          "chat-approval-mode" : {
             "body" : "Follow the agent's own settings, ask about every tool it can use, or - if you may decide approvals - let this conversation run without stopping. Every waived call is still recorded against your account.",
@@ -10589,6 +10685,10 @@
          "chat-model-picker" : {
             "body" : "Pick which of the organization's models answers - just for this conversation, without changing the agent.",
             "title" : "Tune the model"
+         },
+         "chat-model-selector" : {
+            "body" : "Open the model pill to search saved models, switch providers or accounts, and return to the agent's model. Your selection applies to the next message and is remembered as your chat preference. Controls beside the message box has the full connection setup.",
+            "title" : "Choose a model from the header"
          },
          "chat-plan" : {
             "body" : "An agent that plans keeps a checklist here, above the composer - the step in flight, and how much is left. Open it for the whole plan; it stays current as the run works through it.",

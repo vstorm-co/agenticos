@@ -154,10 +154,19 @@ subset of the permissions here, never more than its issuer holds now.
 **Resource** permissions carry a `Scope`, because they answer the second question
 a role cannot: not "may this role touch agents?" but *which* agents.
 
-`mcp:manage` is one of them: an organization's MCP server can be narrowed to
-groups or people, like a skill ([Departments](departments.md#a-departments-mcp-servers)).
-A role holding it at `SHARED` sees the organization's servers, its own, and
-those shared with it; `ALL` sees every one.
+`mcp:use` and `mcp:manage` separate selecting a connection from administering it.
+An organization's MCP server can be narrowed to groups or people, like a skill
+([Departments](departments.md#a-departments-mcp-servers)). A `use` grant permits
+binding its tools; an `edit` grant permits administration. Role scopes still
+apply: Owners and Admins retain `ALL`, and Builders retain `SHARED`.
+
+Existing `use` grants are kept, not upgraded to `edit`. A Builder using a private
+server needs an explicit `edit` grant to change, delete, probe or reshare it.
+Existing management-scoped API keys retain connection use, while a use-scoped key
+cannot administer a server. Published-agent delegation and the existing
+workflow/trigger selection paths keep their previous audience. The management
+listing still requires `mcp:manage`; this change adds no discovery endpoint or
+Viewer-role permission.
 
 ### Scope
 
@@ -184,9 +193,9 @@ Ordered `NONE < OWN < SHARED < TEAM < ALL`.
 
 | Role | Idea | Agents | Secrets | Global |
 | --- | --- | --- | --- | --- |
-| `owner` | owns the organization | all `ALL` | `ALL` | everything, including `org:delete` |
-| `admin` | runs it day to day | all `ALL` | `ALL` | everything **except** `org:delete` |
-| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `owner` | owns the organization | all `ALL` | `ALL` | everything, including `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
+| `admin` | runs it day to day | all `ALL` | `ALL` | everything **except** `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
+| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:use`/`mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `operator` | keeps the running system healthy | `view`/`run` `ALL`, no edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `member` | the everyday user | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
 | `viewer` | reads | `view` `SHARED` | none | `members:view` |

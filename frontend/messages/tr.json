@@ -2941,6 +2941,40 @@
       }
    },
    "chat" : {
+      "workspace" : {
+         "rail" : "Workspace",
+         "browser" : "Tarayıcı",
+         "computer" : "Bilgisayar",
+         "openBrowser" : "Tarayıcıyı aç",
+         "openComputer" : "Bilgisayarı aç",
+         "close" : "Workspace panelini kapat",
+         "resize" : "Workspace panelini yeniden boyutlandır",
+         "computerMenu" : "Bilgisayar seçenekleri",
+         "computerWaiting" : "Bilgisayarın ekran görüntüsü bekleniyor…",
+         "computerWatching" : "Bilgisayar önizlemesi",
+         "computerControlling" : "Etkileşimli bilgisayar görünümü",
+         "computerImage" : "Agent'ın bilgisayarının ekran görüntüsü",
+         "browserEmpty" : "Bir web sitesi adresi girin ve Agent'tan barındırılan tarayıcısını açmasını isteyin. Bu paneli açmak oturum başlatmaz.",
+         "computerEmpty" : "Agent'tan barındırılan bilgisayarını başlatmasını ve masaüstünü göstermesini isteyin. Bu paneli açmak oturum başlatmaz.",
+         "startBrowser" : "Agent'tan tarayıcıyı açmasını iste",
+         "startComputer" : "Agent'tan bilgisayarı başlatmasını iste",
+         "browserPrompt" : "Barındırılan tarayıcında {url} adresini aç ve sayfayı göster. Yerel tarayıcıma veya bilgisayarıma erişme.",
+         "computerPrompt" : "Barındırılan bilgisayarını başlat ve masaüstü hazır olduğunda bana bir ekran görüntüsü göster. Yerel bilgisayarıma erişme.",
+         "lastView" : "Son görünüm",
+         "lastViewHint" : "Bu, son kaydedilen görünümdür. Devam etmek için Agent'tan yeni bir görünüm isteyin.",
+         "unknown" : "Agent'ın yayımlanmış araç yapılandırması henüz kullanılamıyor.",
+         "browserUnavailable" : "Bu Agent, barındırılan tarayıcı kullanımı için yapılandırılmamış. Buradan başlatmak için Tarayıcı ayarlarını güncelleyip yayımlayın.",
+         "computerUnavailable" : "Bu Agent, barındırılan bilgisayar kullanımı için yapılandırılmamış. Buradan başlatmak için Bilgisayar ayarlarını güncelleyip yayımlayın.",
+         "localSelected" : "Bu chat kendi bilgisayarınızdaki araçları kullanıyor. Burada barındırılan bir oturum başlatmadan önce Chat ayarlarından bunları kapatın.",
+         "chooseAgent" : "Barındırılan bir oturum başlatmak için bir Agent seçin.",
+         "readOnly" : "Bu konuşmayı görüntüleyebilirsiniz ancak burada oturum başlatamazsınız.",
+         "roomComposer" : "Odanın mesaj alanında kimin yanıt vereceğini seçin ve tarayıcıyı veya bilgisayarı açmasını isteyin.",
+         "busy" : "Oturum başlatmadan önce mevcut turun bitmesini bekleyin.",
+         "disconnected" : "Oturum başlatmadan önce chat'e yeniden bağlanın.",
+         "website" : "Web sitesi adresi",
+         "websitePlaceholder" : "https://example.com",
+         "websiteInvalid" : "https:// veya http:// ile başlayan, oturum açma bilgileri içermeyen bir web sitesi adresi girin."
+      },
       "accessChanged" : "Erişim değiştirildi",
       "accessChecking" : "Sohbet erişimi kontrol ediliyor…",
       "accessFailed" : "Bu sohbete erişim doğrulanamadı",
@@ -3477,6 +3511,28 @@
          "provider" : "Provider",
          "runModel" : "Bu modelle çalıştır",
          "thisChat" : "Yalnızca bu chat"
+      },
+      "modelSelector" : {
+         "choose" : "Sohbet modelini seç: {model}",
+         "chooseUnavailable" : "Sohbet modelini seç: {model} (kullanılamıyor)",
+         "title" : "Sohbet modeli",
+         "default" : "Varsayılan",
+         "override" : "Özel seçim",
+         "unavailable" : "Model kullanılamıyor",
+         "useDefault" : "Agent’ın modelini kullan",
+         "scope" : "Sonraki mesajın için kayıtlı bir model seç. Bu sohbet tercihi, bu kuruluştaki hesabın için hatırlanır.",
+         "afterTurn" : "Devam eden run kendi modelini kullanmaya devam eder. Seçimin sonraki mesaj için geçerlidir ve sohbet tercihin olarak hatırlanır.",
+         "providers" : "Model providerları",
+         "search" : "Kayıtlı modellerde veya hesaplarda ara…",
+         "account" : "Provider hesabı",
+         "allAccounts" : "Tüm hesaplar",
+         "personalAccount" : "Kişisel hesabın",
+         "savedModels" : "Kayıtlı modeller",
+         "empty" : "Henüz kayıtlı model yok. Model eklemek için mesaj kutusunun yanındaki Controls bölümünü aç.",
+         "noMatches" : "Bu aramayla eşleşen kayıtlı model yok.",
+         "advancedHint" : "Model eklemek veya bağlantısını yönetmek için mesaj kutusunun yanındaki Controls bölümünü aç. Sohbet modeli seçimin agent’ı değiştirmez.",
+         "missingKey" : "Bağlantı kullanılamıyor — Controls bölümünden yeniden bağlan",
+         "notChatModel" : "Sohbet için kullanılamıyor"
       },
       "modelSetup" : {
          "action" : "AI modelimi bağla",
@@ -7443,6 +7499,10 @@
             "body" : "Slack, Telegram veya Mattermost gibi bir sohbet platformu kaydedin; ardından yanıt vermesi için herhangi bir agent’ı bağlayabilirsiniz. Bot token’ı vault’ta korunur. Buradan bir kanal ekleyin.",
             "title" : "Agent’lara insanların bulunduğu yerden ulaşın"
          },
+         "chat-workspace" : {
+            "title" : "Workspace'inizi açın",
+            "body" : "Chat'in yanında Tarayıcı, Bilgisayar veya Dosyalar'ı açın. Yapılandırılmış bir barındırılan aracı başlatmasını seçili Agent'tan isteyin. Yalnızca bir paneli açmak oturum başlatmaz."
+         },
          "chat-agent-picker" : {
             "body" : "Buradan agent’larınız arasında geçiş yapın. Her agent kendi talimatlarını, araçlarını ve bilgisini getirir; aynı soru çok farklı yanıtlar alabilir.",
             "title" : "Yanıt verecek agent’ı seçin"
@@ -7482,6 +7542,10 @@
          "chat-model-picker" : {
             "body" : "Agent’ı değiştirmeden, yalnızca bu konuşmada yanıt verecek kuruluş modelini seçin.",
             "title" : "Modeli ayarlayın"
+         },
+         "chat-model-selector" : {
+            "body" : "Kayıtlı modelleri aramak, provider veya hesap değiştirmek ve agent’ın modeline dönmek için model seçiciyi aç. Seçimin sonraki mesaj için geçerlidir ve sohbet tercihin olarak hatırlanır. Tam bağlantı kurulumu mesaj kutusunun yanındaki Controls bölümündedir.",
+            "title" : "Üst bilgiden model seç"
          },
          "chat-plan" : {
             "body" : "Plan yapan bir agent, composer’ın üstünde bir kontrol listesi gösterir: yürütülen adım ve kalan işler. Planın tamamını açın; run ilerledikçe liste güncel kalır.",

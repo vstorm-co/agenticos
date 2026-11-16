@@ -3583,6 +3583,40 @@
       }
    },
    "chat" : {
+      "workspace" : {
+         "rail" : "Workspace",
+         "browser" : "Przeglądarka",
+         "computer" : "Komputer",
+         "openBrowser" : "Otwórz przeglądarkę",
+         "openComputer" : "Otwórz komputer",
+         "close" : "Zamknij panel workspace",
+         "resize" : "Zmień rozmiar panelu workspace",
+         "computerMenu" : "Opcje komputera",
+         "computerWaiting" : "Oczekiwanie na zrzut ekranu komputera…",
+         "computerWatching" : "Podgląd komputera",
+         "computerControlling" : "Interaktywny widok komputera",
+         "computerImage" : "Zrzut ekranu komputera agenta",
+         "browserEmpty" : "Wpisz adres strony i poproś agenta o otwarcie hostowanej przeglądarki. Otwarcie tego panelu nie rozpoczyna sesji.",
+         "computerEmpty" : "Poproś agenta o uruchomienie hostowanego komputera i pokazanie pulpitu. Otwarcie tego panelu nie rozpoczyna sesji.",
+         "startBrowser" : "Poproś agenta o otwarcie przeglądarki",
+         "startComputer" : "Poproś agenta o uruchomienie komputera",
+         "browserPrompt" : "Otwórz {url} w swojej hostowanej przeglądarce i pokaż stronę. Nie korzystaj z mojej lokalnej przeglądarki ani komputera.",
+         "computerPrompt" : "Uruchom swój hostowany komputer i pokaż mi zrzut jego pulpitu, gdy będzie gotowy. Nie korzystaj z mojego lokalnego komputera.",
+         "lastView" : "Ostatni widok",
+         "lastViewHint" : "To ostatnio zapisany widok. Poproś agenta o nowy widok, aby kontynuować.",
+         "unknown" : "Opublikowana konfiguracja narzędzi agenta nie jest jeszcze dostępna.",
+         "browserUnavailable" : "Ten agent nie ma skonfigurowanej hostowanej przeglądarki. Zaktualizuj i opublikuj jego ustawienia przeglądarki, aby uruchomić ją tutaj.",
+         "computerUnavailable" : "Ten agent nie ma skonfigurowanego hostowanego komputera. Zaktualizuj i opublikuj jego ustawienia komputera, aby uruchomić go tutaj.",
+         "localSelected" : "Ten chat używa narzędzi na Twoim komputerze. Wyłącz je w ustawieniach chatu, zanim rozpoczniesz tutaj hostowaną sesję.",
+         "chooseAgent" : "Wybierz agenta, aby rozpocząć hostowaną sesję.",
+         "readOnly" : "Możesz oglądać tę rozmowę, ale nie możesz tutaj rozpocząć sesji.",
+         "roomComposer" : "W polu wiadomości pokoju wybierz, kto ma odpowiedzieć, i poproś o otwarcie przeglądarki lub komputera.",
+         "busy" : "Zaczekaj na zakończenie bieżącej tury, zanim rozpoczniesz sesję.",
+         "disconnected" : "Połącz się ponownie z chatem, zanim rozpoczniesz sesję.",
+         "website" : "Adres strony",
+         "websitePlaceholder" : "https://example.com",
+         "websiteInvalid" : "Wpisz adres strony zaczynający się od https:// lub http://, bez danych logowania."
+      },
       "accessChanged" : "Zmieniono dostęp",
       "accessChecking" : "Sprawdzanie dostępu do rozmowy…",
       "accessFailed" : "Nie udało się sprawdzić dostępu do tej rozmowy",
@@ -4129,6 +4163,28 @@
          "provider" : "Provider",
          "runModel" : "Uruchom na tym modelu",
          "thisChat" : "Tylko ten czat"
+      },
+      "modelSelector" : {
+         "choose" : "Wybierz model czatu: {model}",
+         "chooseUnavailable" : "Wybierz model czatu: {model} (niedostępny)",
+         "title" : "Model czatu",
+         "default" : "Domyślny",
+         "override" : "Własny wybór",
+         "unavailable" : "Model niedostępny",
+         "useDefault" : "Użyj modelu agenta",
+         "scope" : "Wybierz zapisany model dla następnej wiadomości. Ten wybór jest zapamiętywany dla Twojego konta w tej organizacji.",
+         "afterTurn" : "Trwający run zachowuje swój model. Twój wybór dotyczy następnej wiadomości i jest zapamiętywany jako ustawienie czatu.",
+         "providers" : "Providerzy modeli",
+         "search" : "Szukaj zapisanych modeli lub kont…",
+         "account" : "Konto providera",
+         "allAccounts" : "Wszystkie konta",
+         "personalAccount" : "Twoje osobiste konto",
+         "savedModels" : "Zapisane modele",
+         "empty" : "Nie ma jeszcze zapisanych modeli. Otwórz Controls obok pola wiadomości, aby dodać model.",
+         "noMatches" : "Żaden zapisany model nie pasuje do tego wyszukiwania.",
+         "advancedHint" : "Otwórz Controls obok pola wiadomości, aby dodać model lub zarządzać jego połączeniem. Wybór modelu czatu nie zmienia agenta.",
+         "missingKey" : "Połączenie niedostępne — połącz ponownie w Controls",
+         "notChatModel" : "Niedostępny dla czatu"
       },
       "modelSetup" : {
          "action" : "Podłącz mój model AI",
@@ -10173,6 +10229,10 @@
             "body" : "Wybierz bota SMS Twilio, publiczną rozmowę głosową dla połączeń przychodzących, limity i dozwolone kontakty przekierowań. Skopiuj adresy webhooków do Twilio. Zgody członków są osobne.",
             "title" : "Skonfiguruj telefonię"
          },
+         "chat-workspace" : {
+            "title" : "Otwórz swój workspace",
+            "body" : "Otwórz Przeglądarkę, Komputer lub Pliki obok chatu. Poproś wybranego agenta o uruchomienie skonfigurowanego hostowanego narzędzia. Samo otwarcie panelu nie rozpoczyna sesji."
+         },
          "chat-agent-picker" : {
             "body" : "Przełączaj się między agentami tutaj. Każdy wnosi własne instrukcje, narzędzia i wiedzę, więc to samo pytanie może dostać zupełnie inną odpowiedź.",
             "title" : "Wybierz, kto odpowiada"
@@ -10212,6 +10272,10 @@
          "chat-model-picker" : {
             "body" : "Wybierz, który z modeli organizacji odpowiada - tylko dla tej rozmowy, bez zmiany agenta.",
             "title" : "Dostrój model"
+         },
+         "chat-model-selector" : {
+            "body" : "Otwórz wybór modelu, aby wyszukać zapisane modele, zmienić providera lub konto i wrócić do modelu agenta. Wybór dotyczy następnej wiadomości i jest zapamiętywany jako ustawienie czatu. Pełną konfigurację połączenia znajdziesz w Controls obok pola wiadomości.",
+            "title" : "Wybierz model w nagłówku"
          },
          "chat-plan" : {
             "body" : "Agent, który planuje, trzyma tu listę kontrolną, nad polem wiadomości - bieżący krok i ile zostało. Otwórz ją, aby zobaczyć cały plan; aktualizuje się w miarę postępu runu.",

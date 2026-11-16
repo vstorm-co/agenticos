@@ -1,5 +1,5 @@
 ---
-source_sha: "1488eff9ea76"
+source_sha: "bb0dabba2198"
 ---
 
 # Konsola { #the-console }
@@ -39,7 +39,7 @@ ustawieniach czatu, pod suwakami obok mikrofonu.
 
 Listy zasobów, w tym Inbox i Routines, wypełniają pozostałą wysokość strony również wtedy, gdy są puste. Szablony Routines pozostają w formularzu tworzenia zamiast osobnego panelu pomysłów.
 
-Czat używa większych portretów agentów bez obwódek. Przełącznik Files pozostaje w polu wiadomości podczas otwierania i zamykania panelu; animacja respektuje ograniczenie ruchu. Ustawienia czatu pokazują najpierw bieżący model. Rozwiń **Zmień model**, aby edytować uzupełnionego dostawcę i model; wybór zaczyna działać po zatwierdzeniu. Karty załączników znajdują się nad polem wiadomości bez dodatkowego panelu z cieniem.
+Czat używa większych portretów agentów bez obwódek. W pełnym widoku czatu na komputerze przełącznik Files pozostaje wśród elementów sterujących obszaru roboczego podczas otwierania i zamykania panelu; animacja respektuje ograniczenie ruchu. Ustawienia czatu pokazują najpierw bieżący model. Rozwiń **Zmień model**, aby edytować uzupełnionego dostawcę i model; wybór zaczyna działać po zatwierdzeniu. Karty załączników znajdują się nad polem wiadomości bez dodatkowego panelu z cieniem.
 
 Wprowadzenia do stron i objaśnienia ustawień są dostępne pod ikoną informacji obok nagłówka. Bieżące podsumowania i ostrzeżenia o nieodwracalnych działaniach pozostają widoczne.
 
@@ -79,6 +79,10 @@ Na telefonie edytory skilli i contextu chowają opis, kategorię i zarządzanie 
 Nagłówki korzystają z odstępów otaczającego układu bez ich podwajania. Karty, wiersze panelu bocznego, zakładki i puste stany mają mniejsze odstępy na komputerze, a kontrolki zachowują większe obszary dotykowe.
 
 Przyciski drugorzędne i filtry mają wspólne, wyraźniejsze wypełnienie, kontrastowe etykiety oraz czytelne stany najechania, naciśnięcia i otwarcia. Wybór modelu w chacie korzysta z tego samego stylu przycisku.
+
+Nagłówek chatu z agentem pokazuje bieżący model z ikoną providera. Otwórz przycisk modelu, aby przeszukać zapisane modele, zmienić providera lub konto albo wybrać **Use agent's model**. Wybór dotyczy następnej wiadomości i jest zapamiętywany dla twojego konta w bieżącej organizacji; nie edytuje agenta. Trwająca tura zachowuje swój model. Rozłączone połączenia i modele nieobsługujące chatu pozostają widoczne, ale nie można ich wybrać. Gdy lista modeli jest nieczytelna, wybierz **Retry**. **Controls** obok pola wiadomości zachowuje pełną konfigurację modeli i połączeń.
+
+Zmiana modelu w nagłówku wymaga `connections:manage`, tak jak dotychczasowe kontrolki modelu. W rozmowach tylko do odczytu oraz bez tego uprawnienia bieżący model pozostaje widoczny.
 
 Ustawienia osobiste zachowują poziome zakładki u góry, w tym opcje desktopowe dostępne w aplikacji. Panele pokazują opisy bezpośrednio, a formularze mają wysokość dopasowaną do zawartości. Konto zawiera zmianę hasła i aktywne sesje; przycisk zmiany hasła jest pod polami.
 
@@ -654,10 +658,46 @@ jako kartę w swojej odpowiedzi. Każda część ma własną ikonę kopiowania, 
 kopiuje zwykły tekst; kilka wariantów jednej wersji roboczej to zakładki w jednej
 karcie. Własne **Kopiuj** wiadomości obejmuje też jej wersje robocze.
 
+**Przeglądarka (Browser), Komputer (Computer) i Pliki (Files).** W pełnym widoku czatu
+na komputerze przyciski znajdują się po prawej stronie i otwierają panel przeglądarki,
+komputera lub plików. Ten pasek jest ukryty na telefonach i w kompaktowych czatach.
+
+Panele
+przeglądarki i komputera można otworzyć, zanim agent ich użyje. Otwarcie pustego
+panelu nie uruchamia runu ani hostowanej sesji.
+
+Przed uruchomieniem przeglądarki wpisz adres strony. Jeśli wybrany agent ma odpowiednią
+hostowaną capability i możesz go uruchomić, osobna akcja rozpoczęcia prosi go o
+otwarcie przeglądarki lub wykonanie zrzutu pulpitu. W przeciwnym razie panel
+wyjaśnia, co jest niedostępne. Opublikowane ustawienia agenta i kontrola dostępu
+nadal obowiązują. W pokojach zespołu wybierz w polu wiadomości, kto ma odpowiedzieć,
+i poproś o otwarcie przeglądarki lub komputera. Panele pozostają dostępne do podglądu.
+
+Widoki przeglądarki i komputera pozostają oddzielne. Panele są początkowo zamknięte;
+zamknięty panel pozostaje zamknięty także po nadejściu nowych wyników narzędzi. Na
+wąskich ekranach wybrany panel zajmuje cały ekran. Po zakończeniu runu obraz ma
+oznaczenie **Ostatni widok (Last view)**; nie jest to pulpit na żywo. Poproś o nowy
+zrzut ekranu, aby odświeżyć widok komputera.
+
+**Ustawienia agenta.** W pełnych czatach na komputerze przycisk ustawień po prawej
+otwiera wersję roboczą wybranego agenta obok rozmowy. Pasek jest ukryty na telefonach
+i w kompaktowych czatach; tam użyj pełnego edytora agenta. Zmień nazwę, krótki opis,
+instrukcje, domyślny model i włączone
+capabilities, a następnie wybierz **Save draft**. **Review and publish** sprawdza
+zapisaną wersję roboczą i otwiera istniejące potwierdzenie publikacji. Zmiana modelu
+domyślnego nie usuwa wyboru modelu w Chat controls; trwający run zachowuje swoją
+zamrożoną konfigurację.
+
+Edycja i publikowanie zależą od decyzji serwera dla tego agenta, w tym jawnych
+grantów. Chat tylko do odczytu pokazuje ustawienia bez przycisków edycji; agent
+należący do workflow jest nadal konfigurowany w swoim kroku. Złożenie panelu lub
+otwarcie Browser, Computer albo Files zachowuje niezapisane zmiany wybranego agenta.
+Zapisz je przed zmianą agenta lub opuszczeniem chatu. Zmiana wykonana gdzie indziej
+wstrzymuje zapis, aż wczytasz nową wersję lub wybierzesz zachowanie swoich zmian.
+
 **Oglądanie przeglądania.** [Przeglądarka](reference/capabilities.md#browser-automation)
-otwiera się automatycznie w pełnym panelu obok przewijanej rozmowy.
-Na wąskim ekranie zajmuje cały widok. Po zamknięciu panelu zostaje w rozmowie
-mały przycisk do ponownego otwarcia. Karty odwiedzonych stron pokazują ikonę,
+pojawia się we własnym panelu obok rozmowy. Karty odwiedzonych stron otwierają
+ponownie panel przeglądarki i pokazują ikonę,
 domenę i tytuł, także po ponownym otwarciu rozmowy. Każda odpowiedź ma jeden
 kafelek na kartę przeglądarki; kliknięcia, ponowne odczyty i powroty aktualizują ten kafelek. Pasek kart w panelu
 przełącza strony. Po zakończeniu

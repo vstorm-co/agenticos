@@ -11,6 +11,7 @@ import {
   MessageSquarePlus,
   Minimize2,
   MoreHorizontal,
+  Monitor,
   Undo2,
   X,
 } from "lucide-react";
@@ -27,6 +28,7 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import { useAuthStore } from "@/stores";
+import type { BrowseSurface } from "@/stores/browser-panel-store";
 import { BrowserNavigation } from "./browser-navigation";
 import { BrowserCommentLayer, type PageComment } from "./browser-comment";
 import type { BrowseOutcome } from "@/types/chat";
@@ -287,6 +289,7 @@ export function BrowserWindow({
   newTabHref,
   waitForFit = false,
   onComment,
+  surface = "browser",
 }: {
   browse: Browse;
   control: BrowseControl | null;
@@ -300,9 +303,12 @@ export function BrowserWindow({
   waitForFit?: boolean;
   /** Where a comment on a spot of the page goes - the chat's composer; none, no button. */
   onComment?: (comment: PageComment) => void;
+  surface?: BrowseSurface;
 }) {
   const t = useTranslations("chat");
   const tb = useTranslations("browse");
+  const workspace = useTranslations("chat.workspace");
+  const computer = surface === "computer";
   const [showSteps, setShowSteps] = useState(false);
   const [remember, setRemember] = useState(false);
   const [commenting, setCommenting] = useState(false);
@@ -311,15 +317,15 @@ export function BrowserWindow({
   const host = hostOf(browse.url);
   const secure = browse.url?.startsWith("https:") ?? false;
   const canDrive = running && control !== null && control.canControl;
-  const { ref: pageRef, asked } = useFitPage(canDrive ? control : null);
-  const fitted = useFitted(browse.image, asked, waitForFit && canDrive);
+  const { ref: pageRef, asked } = useFitPage(canDrive && !computer ? control : null);
+  const fitted = useFitted(browse.image, asked, waitForFit && canDrive && !computer);
   // Pointing at the page and driving it are two gestures on one picture; while
   // somebody holds the tab, a click is theirs to send to it.
   const canComment = onComment !== undefined && browse.image !== null && fitted && !hold.holding;
 
   return (
     <section
-      aria-label={t("browserHeading")}
+      aria-label={computer ? workspace("computer") : t("browserHeading")}
       className="bg-background @container/browser-window flex h-full min-h-0 min-w-0 flex-col"
     >
       <div className="bg-muted/25 border-border flex shrink-0 flex-wrap items-center gap-1.5 border-b p-1.5 @min-[640px]/browser-window:flex-nowrap">
@@ -329,7 +335,12 @@ export function BrowserWindow({
             browse.navigable && canDrive && "basis-full @min-[420px]/browser-window:basis-auto",
           )}
         >
-          {browse.navigable && canDrive ? (
+          {computer ? (
+            <div className="flex h-9 min-w-0 flex-1 items-center gap-2 px-2 text-sm">
+              <Monitor className="text-muted-foreground size-4" aria-hidden />
+              <h2 className="flex-1 font-medium">{workspace("computer")}</h2>
+            </div>
+          ) : browse.navigable && canDrive ? (
             <BrowserNavigation url={browse.url} holding={hold.holding} send={control.send} />
           ) : (
             <div
@@ -404,8 +415,8 @@ export function BrowserWindow({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                aria-label={t("browserMenu")}
-                title={t("browserMenu")}
+                aria-label={computer ? workspace("computerMenu") : t("browserMenu")}
+                title={computer ? workspace("computerMenu") : t("browserMenu")}
                 className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 shrink-0 items-center justify-center rounded-full"
               >
                 <MoreHorizontal className="size-4" aria-hidden />
@@ -437,7 +448,7 @@ export function BrowserWindow({
               {onClose && (
                 <DropdownMenuItem onSelect={onClose}>
                   <X className="size-4" aria-hidden />
-                  {t("browserClose")}
+                  {computer ? workspace("close") : t("browserClose")}
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -445,7 +456,7 @@ export function BrowserWindow({
         </div>
       </div>
 
-      {browse.navigable && canDrive && (
+      {!computer && browse.navigable && canDrive && (
         <h2 className="sr-only">{browse.title || host || t("browserHeading")}</h2>
       )}
       {browse.controlError && (
@@ -455,7 +466,7 @@ export function BrowserWindow({
       )}
       {/* While holding: keep the sign-in made here for later browses, offered
           only to the person the run acts for - the server says who that is. */}
-      {hold.holding && control?.canRemember && host && (
+      {!computer && hold.holding && control?.canRemember && host && (
         <label className="border-border flex cursor-pointer items-center gap-2 border-b px-3 py-2 text-sm">
           <input
             type="checkbox"
@@ -466,7 +477,7 @@ export function BrowserWindow({
           <span>{tb("rememberSignIn", { site: host })}</span>
         </label>
       )}
-      {browse.kept && !hold.holding && (
+      {!computer && browse.kept && !hold.holding && (
         <p className="text-muted-foreground border-border border-b px-3 py-1.5 text-xs">
           {tb("signInKept", { site: browse.kept })}
         </p>
@@ -498,6 +509,12 @@ export function BrowserWindow({
               <LiveViewport
                 browse={browse}
                 holding={hold.holding}
+                label={
+                  computer
+                    ? workspace(hold.holding ? "computerControlling" : "computerWatching")
+                    : undefined
+                }
+                imageAlt={computer ? workspace("computerImage") : undefined}
                 onCommand={(command) => control?.send(command)}
                 flush
                 overlay={
@@ -521,10 +538,18 @@ export function BrowserWindow({
               className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3 p-5 text-center text-xs"
             >
               <span className="bg-muted/50 border-border/60 flex size-10 items-center justify-center rounded-xl border">
-                <Globe className="size-5 opacity-50" aria-hidden />
+                {computer ? (
+                  <Monitor className="size-5 opacity-50" aria-hidden />
+                ) : (
+                  <Globe className="size-5 opacity-50" aria-hidden />
+                )}
               </span>
               <span className="max-w-64 leading-relaxed">
-                {running ? t("browserWaitingForFrame") : t("browserNoPreview")}
+                {running
+                  ? computer
+                    ? workspace("computerWaiting")
+                    : t("browserWaitingForFrame")
+                  : t("browserNoPreview")}
               </span>
             </div>
           )}
