@@ -222,3 +222,49 @@ async def test_missing_or_foreign_admissions_do_not_record_attempts(
     else:
         assert await service.queue_fire(uuid4(), organization_id=ctx.organization_id) is None
     assert (await service.attempts(ctx, trigger.agent_id, trigger.id, skip=0, limit=10)).total == 0
+
+
+async def test_an_overlapping_schedule_leaves_a_reason_and_fires_after_the_run_ends(
+    db: AsyncSession,
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from app.db.models.agent_run import RunStatus
+    from app.repositories import agent_run_repo
+
+    ctx, trigger, _, _ = await world(db)
+    now = datetime.now(UTC)
+    run = await agent_run_repo.create_run(
+        db,
+        organization_id=ctx.organization_id,
+        agent_id=trigger.agent_id,
+        agent_version_id=trigger.pinned_version_id,
+        user_id=ctx.user_id,
+        conversation_id=None,
+        surface="schedule",
+        model_label=None,
+        started_at=now,
+        trigger_id=trigger.id,
+    )
+    run.status = RunStatus.AWAITING_APPROVAL.value
+    trigger.last_run_id = run.id
+    trigger.next_fire_at = now - timedelta(seconds=1)
+    trigger.overlap = "skip"
+    await db.flush()
+    service = AgentTriggerService(db)
+    assert await service.claim_and_advance(now=now) == []
+    attempts = await service.attempts(ctx, trigger.agent_id, trigger.id, skip=0, limit=10)
+    assert [row.reason for row in attempts.items] == ["previous_run_active"]
+    assert trigger.next_fire_at > now
+    assert await db.scalar(select(func.count()).select_from(AgentRun)) == 1
+    assert await service.claim_and_advance(now=now) == []
+    assert (await service.attempts(ctx, trigger.agent_id, trigger.id, skip=0, limit=10)).total == 1
+    later = trigger.next_fire_at
+    assert await service.claim_and_advance(now=later) == []
+    assert (await service.attempts(ctx, trigger.agent_id, trigger.id, skip=0, limit=10)).total == 1
+    run.status = RunStatus.CANCELLED.value
+    trigger.next_fire_at = now
+    await db.flush()
+    with patch.object(service, "queue_fire", AsyncMock()) as queued:
+        assert await service.claim_and_advance(now=now) == [trigger]
+    queued.assert_awaited_once()

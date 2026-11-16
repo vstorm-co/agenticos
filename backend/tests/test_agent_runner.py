@@ -9643,6 +9643,9 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
         await service.prepare(ctx, agent.id)
     assert create.await_args.kwargs["trigger_id"] == ctx.routine_id
     assert create.await_args.kwargs["routine_policy"]["mcp_sources"] == {}
+    assert (
+        create.await_args.kwargs["routine_policy"]["acts_as_creator"] == authority.acts_as_creator
+    )
     guards = [
         item
         for item in build.call_args.kwargs["extra_capabilities"]

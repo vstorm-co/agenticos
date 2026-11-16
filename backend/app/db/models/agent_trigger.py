@@ -584,7 +584,7 @@ class TriggerAttempt(Base):
         ),
         CheckConstraint(
             "reason IN ('platform_identity_required', 'source_review_required', "
-            "'agent_unavailable', 'preparation_failed')",
+            "'agent_unavailable', 'preparation_failed', 'previous_run_active')",
             name="ck_trigger_attempt_reason",
         ),
     )

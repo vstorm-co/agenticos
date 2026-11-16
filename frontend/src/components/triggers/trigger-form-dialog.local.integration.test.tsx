@@ -13,7 +13,7 @@ import { useOrgStore } from "@/stores/org-store";
 const native = vi.hoisted(() => ({ allow: vi.fn(), pick: vi.fn(), grants: [] as unknown[] }));
 vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
-  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock("@/hooks/use-routine-local-work", () => ({
@@ -57,16 +57,29 @@ beforeEach(() => {
       created_at: "2026-01-01T00:00:00Z",
     },
   });
-  vi.mocked(apiClient.get).mockImplementation(async (path) =>
-    path === "/me/permissions" ? { permissions: [] } : { items: [], total: 0 },
-  );
+  vi.mocked(apiClient.get).mockImplementation(async (path) => {
+    if (path.endsWith("/sources"))
+      return {
+        current: true,
+        review_token: "sources",
+        version_id: "v1",
+        resources: ["Skill instructions"],
+        accounts: [],
+        unavailable_sources: [],
+      };
+    if (path.endsWith("/action-consents"))
+      return { can_waive: true, review_token: "actions", items: [] };
+    return path === "/me/permissions" ? { permissions: [] } : { items: [], total: 0 };
+  });
   vi.mocked(apiClient.post).mockResolvedValue({
     id: "routine",
+    agent_id: "agent",
     trigger_type: "schedule",
     is_active: false,
   });
   vi.mocked(apiClient.patch).mockResolvedValue({
     id: "routine",
+    agent_id: "agent",
     trigger_type: "schedule",
     is_active: true,
   });
@@ -89,7 +102,7 @@ async function configure() {
   return { user, dialog, onCreated, onOpenChange, ...view };
 }
 describe("local routine creation", () => {
-  it("creates paused, asks once for every routine, then attaches and activates", async () => {
+  it("creates paused, asks once for every routine, then reviews access before activation", async () => {
     const { user, dialog, onCreated } = await configure();
     await user.click(dialog.getByRole("button", { name: "Create" }));
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
@@ -110,7 +123,6 @@ describe("local routine creation", () => {
     );
     expect(apiClient.patch).toHaveBeenCalledWith("/agents/agent/triggers/routine", {
       local_target: approved,
-      is_active: true,
     });
   });
   it("uses the permission for every routine without asking again", async () => {
@@ -130,7 +142,6 @@ describe("local routine creation", () => {
       "/agents/agent/triggers/routine",
       expect.objectContaining({
         local_target: expect.objectContaining({ routine_grant: "all", folder: "/work" }),
-        is_active: true,
       }),
     );
   });
