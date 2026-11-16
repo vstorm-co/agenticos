@@ -6,7 +6,6 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
-from uuid import UUID
 
 from pydantic import (
     Field,
@@ -1034,11 +1033,6 @@ class Settings(BaseSettings):
     # would pass either ceiling fails with `FILE_QUOTA_EXCEEDED` and stores nothing.
     WORKFLOW_RUN_MAX_FILE_BYTES: int = Field(default=1_073_741_824, gt=0)
     WORKFLOW_ORG_MAX_FILE_BYTES: int = Field(default=21_474_836_480, gt=0)
-    # Permanent node versions remain readable while new media admissions are off.
-    # Generation is enabled only after separately authorized provider acceptance.
-    WORKFLOW_ASSET_INPUT_ENABLED: bool = False
-    WORKFLOW_IMAGE_GENERATION_ENABLED: bool = False
-    WORKFLOW_VIDEO_GENERATION_ENABLED: bool = False
     # How long a webhook delivery whose graph answers it (`webhook.respond`) holds
     # its request open for that answer. Past it the sender gets the `202` a
     # delivery without one gets, and the run goes on; a proxy in front with a
@@ -1240,20 +1234,6 @@ class Settings(BaseSettings):
     # service, `http://browser:9222`. Its host has to be in
     # `BROWSER_CDP_ALLOWED_HOSTS` like any agent's. Empty hides the option.
     BROWSER_SIGN_IN_CDP_URL: str = ""
-
-    # Teaching is separately admitted for synthetic/test organizations first.
-    # Organization policy and the published agent/member opt-ins can only narrow it.
-    BROWSER_TEACHING_ENABLED: bool = False
-    BROWSER_TEACHING_ORGANIZATION_IDS: list[UUID] = []
-
-    # Credential fills use only that provisioned browser, in an admitted private
-    # console run. Rollout is explicit per organization, with optional member pins.
-    BROWSER_CREDENTIAL_FILL_ENABLED: bool = False
-    BROWSER_CREDENTIAL_ORGANIZATION_IDS: list[UUID] = []
-    BROWSER_CREDENTIAL_USER_IDS: list[UUID] = []
-    BROWSER_CREDENTIAL_TOTP_ENABLED: bool = False
-    BROWSER_CREDENTIAL_PROFILE_ENABLED: bool = False
-    BROWSER_CREDENTIAL_SHARED_ENABLED: bool = False
 
     # The browser a visual is drawn to a picture with (#2171), where no frame can
     # run it: a chat app's reply and a dashboard thumbnail of a page. The compose

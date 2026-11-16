@@ -3,7 +3,6 @@
 import { FILTER_CONTROL } from "@/components/ui/control-styles";
 
 import { useState } from "react";
-import Link from "next/link";
 import type { ReactNode } from "react";
 import { BookOpen, ChevronDown, Library, ListFilter, Lock, Plus } from "lucide-react";
 
@@ -38,9 +37,8 @@ import { useUrlOverlay } from "@/hooks/use-url-state";
 import type { SkillSort } from "@/hooks/use-skills";
 import { getErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
-import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 
 /**
  * One pressed-or-not control, used for the sort.
@@ -78,8 +76,6 @@ function Chip({
 }
 
 export default function SkillsPage() {
-  const locale = useLocale();
-  const teaching = useTranslations("browserTeaching");
   const [selectedSkill, skillView] = useUrlOverlay("skill");
   const t = useTranslations("pages.skills");
   const tc = useTranslations("common");
@@ -126,21 +122,12 @@ export default function SkillsPage() {
       title={t("skills2")}
       description={t("skillKnowHowWritten")}
       secondaryActions={
-        <>
-          <Button asChild variant="outline" data-tour="skills-teaching">
-            <Link href={`/${locale}${ROUTES.SKILLS_TEACHING}`}>{teaching("listTitle")}</Link>
+        canCreate ? (
+          <Button variant="outline" data-tour="skills-gallery" onClick={() => setGalleryOpen(true)}>
+            <Library className="h-4 w-4" />
+            {tGallery("browse")}
           </Button>
-          {canCreate ? (
-            <Button
-              variant="outline"
-              data-tour="skills-gallery"
-              onClick={() => setGalleryOpen(true)}
-            >
-              <Library className="h-4 w-4" />
-              {tGallery("browse")}
-            </Button>
-          ) : null}
-        </>
+        ) : undefined
       }
       actions={
         canCreate ? (

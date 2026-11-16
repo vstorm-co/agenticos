@@ -46,10 +46,8 @@ from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
 from app.agents.capabilities.browser_use import BROWSER_STEP_MODEL_RESOURCE
 from app.agents.capabilities.budget import (
     BudgetExceeded,
-    BudgetGuard,
     BudgetScope,
     SpendLedger,
-    SpendLimit,
     assert_ambient_budget,
     can_afford_ambient_call,
 )
@@ -1394,10 +1392,6 @@ class TestPrepare:
                 "app.services.spend.workflow_run_repo.node_spend_since",
                 new=AsyncMock(return_value=Decimal("0")),
             ),
-            patch(
-                "app.services.spend.media_repo.outstanding_usd",
-                new=AsyncMock(return_value=Decimal("0")),
-            ),
         ):
             spent = await built["org_period_spend"]()
 
@@ -1409,56 +1403,6 @@ class TestPrepare:
         # The organization-wide sum narrows to no agent - that absence is the
         # difference between this lookup and the one above it.
         assert total.call_args.kwargs.get("agent_id") is None
-
-    @pytest.mark.anyio
-    @pytest.mark.security
-    async def test_an_ordinary_agent_request_is_refused_when_media_holds_exhaust_its_org_cap(self):
-        ctx = _ctx()
-        built = await self._period_lookups(ctx)
-        guard = BudgetGuard(
-            limits=[
-                SpendLimit(
-                    scope=BudgetScope.ORGANIZATION,
-                    limit_usd=Decimal("5"),
-                    period_spend=built["org_period_spend"],
-                )
-            ]
-        )
-        requests = []
-
-        async def answer(_messages, _info):
-            requests.append(1)
-            return ModelResponse(parts=[TextPart("A request must not reach the model")])
-
-        agent = Agent(FunctionModel(answer), capabilities=[guard])
-        with (
-            patch(
-                "app.services.spend.agent_run_repo.sum_cost_since",
-                new=AsyncMock(return_value=Decimal("4")),
-            ),
-            patch(
-                "app.services.spend.ingestion_spend_repo.sum_cost_since",
-                new=AsyncMock(return_value=Decimal(0)),
-            ),
-            patch(
-                "app.services.spend.retention_repo.sum_purged_cost_since",
-                new=AsyncMock(return_value=Decimal(0)),
-            ),
-            patch(
-                "app.services.spend.workflow_run_repo.node_spend_since",
-                new=AsyncMock(return_value=Decimal(0)),
-            ),
-            patch(
-                "app.services.spend.media_repo.outstanding_usd",
-                new=AsyncMock(return_value=Decimal("1")),
-            ) as unresolved,
-            pytest.raises(BudgetExceeded) as refused,
-        ):
-            await agent.run("Synthetic request")
-        assert requests == [] and guard.ledger.total_usd == 0
-        assert refused.value.scope is BudgetScope.ORGANIZATION
-        assert refused.value.spent_usd == refused.value.limit_usd == Decimal("5")
-        assert unresolved.await_args.kwargs == {"organization_id": ctx.organization_id}
 
     @pytest.mark.anyio
     @pytest.mark.security
@@ -1544,10 +1488,6 @@ class TestPrepare:
             ),
             patch(
                 "app.services.spend.workflow_run_repo.node_spend_since",
-                new=AsyncMock(return_value=Decimal("0")),
-            ),
-            patch(
-                "app.services.spend.media_repo.outstanding_usd",
                 new=AsyncMock(return_value=Decimal("0")),
             ),
         ):
@@ -4709,7 +4649,7 @@ class TestResume:
                 new=AsyncMock(return_value=Decimal("0")),
             ) as runs,
             patch(
-                "app.services.agent_runner.organization_budget_usage_since",
+                "app.services.agent_runner.organization_spend_since",
                 new=AsyncMock(return_value=Decimal("0")),
             ) as organization,
         ):
@@ -8756,123 +8696,6 @@ class TestAddingToARunAndAskingAside:
             await service.prepare(_ctx(), agent.id, aside=True)
 
         assert assemble.await_args.kwargs["spec"].capabilities == []
-
-    @pytest.mark.anyio
-    @pytest.mark.security
-    async def test_room_lead_preparation_retains_only_the_trusted_planning_capability(self):
-        from app.agents.room_lead import RoomLeadPlanning
-
-        service = AgentRunnerService(_db())
-        agent = MagicMock(
-            id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
-        )
-        spec = AgentSpec(
-            name="Lead",
-            capabilities=[CapabilityBindingSpec(id="web_search")],
-            code_mode={"enabled": True},
-        )
-        planning = RoomLeadPlanning(context="Pinned specialists", create_proposal=AsyncMock())
-        with (
-            patch.object(
-                service.registry,
-                "get_runnable_spec",
-                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
-            ),
-            patch.object(service, "_assemble", new=AsyncMock()) as assemble,
-            patch.object(
-                service, "_with_environment_observability", new=AsyncMock(return_value=spec)
-            ),
-        ):
-            await service.prepare(
-                _ctx(),
-                agent.id,
-                surface=RunSurface.WEB,
-                conversation_id=uuid.uuid4(),
-                acts_for_sender=True,
-                room_lead=planning,
-            )
-        args = assemble.await_args.kwargs
-        assert args["room_lead"] is planning and args["answer_only"]
-        assert args["spec"].capabilities == [] and not args["spec"].code_mode.enabled
-        assert args["version_id"] == agent.current_version_id
-
-    @pytest.mark.anyio
-    @pytest.mark.security
-    async def test_the_assembled_lead_gets_the_trusted_capability_without_dynamic_tools(self):
-        from app.agents.room_lead import RoomLeadPlanning
-
-        planning = RoomLeadPlanning(context="Pinned specialists", create_proposal=AsyncMock())
-        _, built = await TestThePersonBehindTheRun._prepare(
-            _ctx(),
-            surface=RunSurface.WEB,
-            conversation_id=uuid.uuid4(),
-            acts_for_sender=True,
-            room_lead=planning,
-        )
-        assert built["extra_capabilities"] == (planning,)
-        assert built["extra_toolsets"] == []
-
-    @pytest.mark.anyio
-    @pytest.mark.security
-    async def test_execute_preserves_the_worker_planning_capability(self):
-        from app.agents.room_lead import RoomLeadPlanning
-
-        planning = RoomLeadPlanning(context="Pinned specialists", create_proposal=AsyncMock())
-        service = AgentRunnerService(_db())
-        prepared = _prepared()
-        with (
-            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)) as prepare,
-            patch.object(service, "_run", new=AsyncMock()) as run,
-        ):
-            run.return_value = MagicMock(output="Ready for review", run=MagicMock(), tool_calls=[])
-            await service.execute(_ctx(), uuid.uuid4(), "Plan this", room_lead=planning)
-        assert prepare.await_args.kwargs["room_lead"] is planning
-        assert prepare.await_args.kwargs["aside"] is False
-
-    @pytest.mark.anyio
-    @pytest.mark.security
-    @pytest.mark.parametrize("changed", ["surface", "conversation", "sender", "local", "public"])
-    async def test_planning_cannot_be_attached_to_an_untrusted_run_surface(self, changed):
-        from app.agents.room_lead import RoomLeadPlanning
-
-        service = AgentRunnerService(_db())
-        agent = MagicMock(
-            id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
-        )
-        spec = AgentSpec(name="Lead")
-        values = {
-            "surface": RunSurface.WEB,
-            "conversation_id": uuid.uuid4(),
-            "acts_for_sender": True,
-        }
-        values.update(
-            {
-                "surface": {"surface": RunSurface.API},
-                "conversation": {"conversation_id": None},
-                "sender": {"acts_for_sender": False},
-                "local": {"local": MagicMock()},
-                "public": {"public_origin": True},
-            }[changed]
-        )
-        with (
-            patch.object(
-                service.registry,
-                "get_runnable_spec",
-                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
-            ),
-            patch.object(service, "_assemble", new=AsyncMock()) as assemble,
-            patch.object(
-                service, "_with_environment_observability", new=AsyncMock(return_value=spec)
-            ),
-            pytest.raises(BadRequestError, match="requesting member"),
-        ):
-            await service.prepare(
-                _ctx(),
-                agent.id,
-                room_lead=RoomLeadPlanning(context="policy", create_proposal=AsyncMock()),
-                **values,
-            )
-        assemble.assert_not_awaited()
 
 
 class TestAFailedRunOverTheApi:

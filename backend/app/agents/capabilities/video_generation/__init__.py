@@ -13,7 +13,6 @@ from app.agents.capabilities._registry import (
 from app.agents.capabilities.video_generation._capability import VideoGeneration
 from app.core.secret_kinds import ApiKeySecret, SecretCondition, SecretKind, SecretRequirement
 from app.services.video_models import (
-    USUAL_SECONDS,
     VideoModel,
     by_provider,
     default_choice,
@@ -23,6 +22,8 @@ from app.services.video_models import (
 )
 
 __all__ = ["VideoGeneration", "VideoGenerationConfig"]
+
+USUAL_SECONDS = 5
 
 AlibabaRegion = Literal[
     "ap-southeast-1", "us-east-1", "eu-central-1", "ap-northeast-1", "cn-beijing", "cn-hongkong"

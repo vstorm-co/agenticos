@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useLiveBrowse } from "./use-live-browse";
 import { useAuthStore } from "@/stores";
-import { useOrgStore } from "@/stores/org-store";
 import type { BrowserFrame } from "@/types/chat";
 
 interface SocketOptions {
@@ -49,62 +48,15 @@ beforeEach(() => {
   socket.disconnect.mockReset();
   socket.sendMessage.mockReset();
   useAuthStore.setState({ accessToken: "jwt", user: { id: "u1" } as never });
-  useOrgStore.setState({ activeOrgId: null });
 });
 
 describe("useLiveBrowse", () => {
-  it("clears a teaching lease on disconnect and never reconstructs it from snapshot identities", () => {
-    const { result } = renderHook(() => useLiveBrowse("run-1", "c1"));
-    receive({
-      type: "browser_snapshot",
-      task: "t",
-      can_control: true,
-      trace: [
-        frame({ kind: "browser_opened", step: 0 }),
-        frame({ kind: "browser_held", by_user_id: "u1", takeover_id: "server-token" }),
-      ],
-      frame: null,
-    });
-    expect(result.current.browse?.takeoverId).toBe("server-token");
-    act(() => socket.options!.onClose({ code: 1006 } as CloseEvent));
-    expect(result.current.canControl).toBe(false);
-    expect(result.current.browse?.takeoverId).toBeNull();
-    receive({
-      type: "browser_snapshot",
-      task: "t",
-      can_control: true,
-      takeover_id: "outer-field-is-not-authority",
-      trace: [
-        frame({ kind: "browser_opened", step: 0 }),
-        frame({ kind: "browser_held", by_user_id: "u1" }),
-      ],
-      frame: null,
-    });
-    expect(result.current.canControl).toBe(true);
-    expect(result.current.browse?.takeoverId).toBeNull();
-    receive(frame({ kind: "browser_held", by_user_id: "u1", takeover_id: "fresh-server-token" }));
-    expect(result.current.browse?.takeoverId).toBe("fresh-server-token");
-    receive(frame({ kind: "browser_protected", output_protected: true }));
-    receive(
-      frame({
-        kind: "browser_teaching",
-        teaching_session_id: "capture",
-        teaching_revision: 1,
-        teaching_status: "recording",
-      }),
-    );
-    expect(result.current.browse).toMatchObject({
-      outputProtected: true,
-      takeoverId: null,
-      teachingSessionId: null,
-    });
-  });
   it("opens the browse's own socket, for the signed-in person, with the token as a subprotocol", () => {
     const { unmount } = renderHook(() => useLiveBrowse("run 1", "c1"));
 
     expect(socket.options?.url).toBe("wss://api.example.com/api/v1/ws/browse/run%201/c1");
     expect(socket.options?.protocols()).toEqual(["access_token.jwt", "browse"]);
-    expect(socket.options?.identity).toBe(JSON.stringify(["u1", null, "run 1", "c1"]));
+    expect(socket.options?.identity).toBe("u1");
     expect(socket.connect).toHaveBeenCalled();
 
     unmount();

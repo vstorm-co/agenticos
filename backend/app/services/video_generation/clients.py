@@ -29,14 +29,10 @@ from typing import Any, Literal
 
 import anyio
 import httpx
-import httpx2
 import logfire
 
-from app.core.pinned_http import PinnedAsyncClient
-from app.core.sanitize import UrlRefusedError
 from app.services.provider_error_code import error_code, safe_code
 from app.services.video_generation.exceptions import VideoFailure, VideoProviderError
-from app.services.video_generation.receipts import VideoReceipt
 
 logger = logging.getLogger(__name__)
 
@@ -129,11 +125,6 @@ class VideoCall:
     so it may be billed whatever happens to this call - and when it is `made`:
     finished and billed, with only the clip left to fetch."""
 
-    api: str = ""
-    receipt: VideoReceipt | None = None
-    on_receipt: Callable[[VideoReceipt], Awaitable[None]] | None = field(default=None, repr=False)
-    protected_downloads: bool = False
-
 
 @dataclass(frozen=True)
 class Clip:
@@ -168,39 +159,6 @@ _TRANSIENT_ERRORS = (
 )
 """Transport failures worth another try. A proxy refusing, or a scheme the client
 cannot speak, is not one: retrying it only spends the deadline."""
-
-_DOWNLOAD_TRANSIENT_ERRORS = (
-    *_TRANSIENT_ERRORS,
-    httpx2.TimeoutException,
-    httpx2.ConnectError,
-    httpx2.ReadError,
-    httpx2.RemoteProtocolError,
-    httpx2.DecodingError,
-)
-
-_OPAQUE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,255}\Z")
-
-
-def _resume_id(call: VideoCall) -> str | None:
-    if call.receipt is None:
-        return None
-    call.reached("submitted")
-    return call.receipt.id
-
-
-async def _remember(call: VideoCall, opaque_id: str, kind: Literal["job", "file"]) -> None:
-    """Persist before collection; a failed journal never triggers another POST."""
-    if call.on_receipt is not None:
-        receipt = VideoReceipt.model_validate(
-            {
-                "provider": call.provider,
-                "api": call.api,
-                "model": call.model,
-                "kind": kind,
-                "id": opaque_id,
-            }
-        )
-        await call.on_receipt(receipt)
 
 
 def _failure_for(status: int, body: str) -> VideoFailure:
@@ -288,11 +246,10 @@ async def _create(
     except VideoProviderError:
         call.reached("sent")
         raise
-    if not isinstance(found, str) or _OPAQUE_ID.fullmatch(found) is None:
+    if not isinstance(found, str):
         call.reached("sent")
         raise _unusable(call)
     call.reached("submitted")
-    await _remember(call, found, "job")
     return found
 
 
@@ -348,20 +305,6 @@ async def _download(
     deadline: float,
     headers: dict[str, str] | None = None,
 ) -> bytes:
-    """Collect a clip, pinning every workflow download hop to public addresses."""
-    if call.protected_downloads:
-        async with PinnedAsyncClient(timeout=httpx2.Timeout(POLL_REQUEST_SECONDS)) as protected:
-            return await _download_from(protected, call, url, deadline, headers)
-    return await _download_from(client, call, url, deadline, headers)
-
-
-async def _download_from(
-    client: httpx.AsyncClient | httpx2.AsyncClient,
-    call: VideoCall,
-    url: httpx.URL,
-    deadline: float,
-    headers: dict[str, str] | None = None,
-) -> bytes:
     """Fetch the finished clip, refusing a body past :data:`MAX_BYTES`.
 
     Redirects are followed here rather than by httpx, which strips only an
@@ -387,7 +330,7 @@ async def _download_from(
             try:
                 async with client.stream(
                     "GET",
-                    str(url),
+                    url,
                     headers=sent,
                     timeout=max(min(POLL_REQUEST_SECONDS, ends - loop.time()), 1.0),
                 ) as response:
@@ -438,9 +381,7 @@ async def _download_from(
                             # still publishing the object - is no clip.
                             raise _unusable(call)
                         return bytes(data)
-            except UrlRefusedError:
-                raise VideoProviderError(VideoFailure.REJECTED, provider=call.provider) from None
-            except _DOWNLOAD_TRANSIENT_ERRORS:
+            except _TRANSIENT_ERRORS:
                 logger.warning(
                     "Video download from %s failed in transit; trying again", call.provider
                 )
@@ -560,9 +501,6 @@ async def gemini_interactions(client: httpx.AsyncClient, call: VideoCall, deadli
     `docs/data-protection.md` states.
     """
     headers = {"x-goog-api-key": call.api_key}
-    if (file_id := _resume_id(call)) is not None:
-        call.reached("made")
-        return await _gemini_file(client, call, deadline, file_id, headers)
     prompt: object = call.prompt
     if call.first_frame is not None:
         prompt = [
@@ -618,21 +556,9 @@ async def gemini_interactions(client: httpx.AsyncClient, call: VideoCall, deadli
         except binascii.Error:
             raise _unusable(call) from None
     found = re.search(r"/files/([^/:?]+)", str(video.get("uri") or ""))
-    if found is None or _OPAQUE_ID.fullmatch(found.group(1)) is None:
+    if found is None:
         raise _unusable(call)
-    file_id = found.group(1)
-    await _remember(call, file_id, "file")
-    return await _gemini_file(client, call, deadline, file_id, headers)
-
-
-async def _gemini_file(
-    client: httpx.AsyncClient,
-    call: VideoCall,
-    deadline: float,
-    file_id: str,
-    headers: dict[str, str],
-) -> Clip:
-    file_url = f"{call.base_url}/files/{file_id}"
+    file_url = f"{call.base_url}/files/{found.group(1)}"
     ready = await _poll(
         client,
         call,
@@ -683,18 +609,16 @@ async def byteplus_tasks(client: httpx.AsyncClient, call: VideoCall, deadline: f
         body["duration"] = call.duration
     if call.audio is not None:
         body["generate_audio"] = call.audio
-    task_id = _resume_id(call)
-    if task_id is None:
-        task_id = await _create(
-            call,
-            client.post(
-                f"{call.base_url}/contents/generations/tasks",
-                headers=headers,
-                json=body,
-                timeout=_until(deadline),
-            ),
-            lambda answer: answer.get("id"),
-        )
+    task_id = await _create(
+        call,
+        client.post(
+            f"{call.base_url}/contents/generations/tasks",
+            headers=headers,
+            json=body,
+            timeout=_until(deadline),
+        ),
+        lambda answer: answer.get("id"),
+    )
     task_url = f"{call.base_url}/contents/generations/tasks/{task_id}"
 
     async def cancel() -> None:
@@ -703,11 +627,7 @@ async def byteplus_tasks(client: httpx.AsyncClient, call: VideoCall, deadline: f
         try:
             await client.delete(task_url, headers=headers, timeout=CANCEL_SECONDS)
         except httpx.HTTPError:
-            logger.info(
-                "Cancelling video task at %s failed",
-                call.provider,
-                exc_info=not call.protected_downloads,
-            )
+            logger.info("Cancelling video task at %s failed", call.provider, exc_info=True)
 
     task = await _poll(
         client,
@@ -753,18 +673,16 @@ async def xai_videos(client: httpx.AsyncClient, call: VideoCall, deadline: float
         body["image"] = {"url": call.first_frame.data_uri()}
     else:
         body["aspect_ratio"] = call.aspect_ratio
-    request_id = _resume_id(call)
-    if request_id is None:
-        request_id = await _create(
-            call,
-            client.post(
-                f"{call.base_url}/videos/generations",
-                headers=headers,
-                json=body,
-                timeout=_until(deadline),
-            ),
-            lambda answer: answer.get("request_id"),
-        )
+    request_id = await _create(
+        call,
+        client.post(
+            f"{call.base_url}/videos/generations",
+            headers=headers,
+            json=body,
+            timeout=_until(deadline),
+        ),
+        lambda answer: answer.get("request_id"),
+    )
     job = await _poll(
         client,
         call,
@@ -811,18 +729,16 @@ async def dashscope_tasks(client: httpx.AsyncClient, call: VideoCall, deadline: 
         parameters["duration"] = call.duration
     if call.audio is not None:
         parameters["audio"] = call.audio
-    task_id = _resume_id(call)
-    if task_id is None:
-        task_id = await _create(
-            call,
-            client.post(
-                f"{call.base_url}/services/aigc/video-generation/video-synthesis",
-                headers={**headers, "X-DashScope-Async": "enable"},
-                json={"model": call.model, "input": request_input, "parameters": parameters},
-                timeout=_until(deadline),
-            ),
-            lambda answer: _dict(call, answer.get("output")).get("task_id"),
-        )
+    task_id = await _create(
+        call,
+        client.post(
+            f"{call.base_url}/services/aigc/video-generation/video-synthesis",
+            headers={**headers, "X-DashScope-Async": "enable"},
+            json={"model": call.model, "input": request_input, "parameters": parameters},
+            timeout=_until(deadline),
+        ),
+        lambda answer: _dict(call, answer.get("output")).get("task_id"),
+    )
     task = await _poll(
         client,
         call,

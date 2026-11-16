@@ -40,7 +40,6 @@ async def get_locked(
             OrganizationSecret.organization_id == organization_id,
         )
         .with_for_update()
-        .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
 

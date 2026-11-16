@@ -10,20 +10,7 @@ import { DecidedApproval, PendingApproval } from "@/components/runs/approval-car
 import { DecidedWorkflowApproval } from "@/components/runs/workflow-approvals-card";
 import { ExportMenu } from "@/components/runs/export-menu";
 import { EmptyState, ErrorState } from "@/components/states";
-import {
-  ListCard,
-  ListCardFootRow,
-  Pager,
-  Skeleton,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui";
-import { BrowserCredentialReview } from "@/components/browser/browser-credential-review";
-import { useBrowserCredentialAudience } from "@/hooks/use-browser-credentials";
-import type { BrowserCredentialSelection } from "@/lib/browser-credential-approval";
+import { ListCard, ListCardFootRow, Pager, Skeleton } from "@/components/ui";
 import {
   useApprovalHistory,
   useApprovals,
@@ -60,7 +47,11 @@ const APPROVALS_PAGE = 50;
 /** When a request was made, as a number to sort on - none reads as the oldest. */
 const askedAt = (createdAt: string | undefined): number => Date.parse(createdAt ?? "") || 0;
 
-interface ApprovalsTabProps {
+export function ApprovalsTab({
+  period,
+  onFocusRun,
+  periodControl,
+}: {
   period: Period;
   onFocusRun: (runId: string | null) => void;
   /**
@@ -68,21 +59,8 @@ interface ApprovalsTabProps {
    * the same table they do, so it sits with them rather than in a band above.
    */
   periodControl?: ReactNode;
-}
-
-export function ApprovalsTab(props: ApprovalsTabProps) {
-  const audience = useBrowserCredentialAudience();
-  return (
-    <ScopedApprovalsTab key={JSON.stringify([audience.actor, audience.organization])} {...props} />
-  );
-}
-
-function ScopedApprovalsTab({ period, onFocusRun, periodControl }: ApprovalsTabProps) {
+}) {
   const t = useTranslations("pages.runs");
-  const browser = useTranslations("browserCredentials");
-  const continuation = useTranslations("browserContinuation");
-  // The receipt remains open when confirmation removes its pending queue row.
-  const [credentialReview, setCredentialReview] = useState<BrowserCredentialSelection | null>(null);
   const range = { from: periodStart(period), to: periodEnd(period) };
   // Which page of the queue. Not keyed on the window the way the history below
   // is: `/approvals` does not narrow the pending queue by date, so the page's
@@ -121,186 +99,154 @@ function ScopedApprovalsTab({ period, onFocusRun, periodControl }: ApprovalsTabP
   if (page >= pageCount) setPage(pageCount - 1);
 
   return (
-    <>
-      <ListCard
-        fill
-        title={t("approvalsTitle")}
-        counted={
-          isLoading || history.isLoading
-            ? null
-            : t("approvalsCounted", { waiting: total + stepQueue.total, decided: history.total })
-        }
-        controls={
-          <div className="flex flex-wrap items-center gap-2">
-            {periodControl}
-            <ExportMenu
-              permission={Perm.approvalsDecide}
-              endpoint="/approvals/export"
-              kind="approvals"
-              // Every status the table shows, queue and record alike - absent, the
-              // route exports the pending queue alone. Pairs, because the
-              // parameter repeats.
-              params={[
-                ["status", "pending"],
-                ["status", "approved"],
-                ["status", "rejected"],
-                ["status", "expired"],
-              ]}
-              rangeParams={{ from: "created_from", to: "created_to" }}
-              range={range}
-            />
-          </div>
-        }
-        contentClassName="p-0"
-      >
-        {error ? (
-          <ErrorState
-            title={t("queueCouldNotBeRead")}
-            description={t("aParkedRunIsStill")}
-            cta={{ label: t("tryAgain"), onClick: () => void refetch() }}
-            className="m-5"
+    <ListCard
+      fill
+      title={t("approvalsTitle")}
+      counted={
+        isLoading || history.isLoading
+          ? null
+          : t("approvalsCounted", { waiting: total + stepQueue.total, decided: history.total })
+      }
+      controls={
+        <div className="flex flex-wrap items-center gap-2">
+          {periodControl}
+          <ExportMenu
+            permission={Perm.approvalsDecide}
+            endpoint="/approvals/export"
+            kind="approvals"
+            // Every status the table shows, queue and record alike - absent, the
+            // route exports the pending queue alone. Pairs, because the
+            // parameter repeats.
+            params={[
+              ["status", "pending"],
+              ["status", "approved"],
+              ["status", "rejected"],
+              ["status", "expired"],
+            ]}
+            rangeParams={{ from: "created_from", to: "created_to" }}
+            range={range}
           />
-        ) : (
-          <>
-            {/* What is waiting first, as requests a person reads, then the record
+        </div>
+      }
+      contentClassName="p-0"
+    >
+      {error ? (
+        <ErrorState
+          title={t("queueCouldNotBeRead")}
+          description={t("aParkedRunIsStill")}
+          cta={{ label: t("tryAgain"), onClick: () => void refetch() }}
+          className="m-5"
+        />
+      ) : (
+        <>
+          {/* What is waiting first, as requests a person reads, then the record
               of what was answered, as lines - one card for both, because they
               are the same calls in two states. */}
-            {isLoading ? (
-              <div className="space-y-3 p-5">
-                <Skeleton className="h-24 w-full" />
-                <Skeleton className="h-24 w-full" />
+          {isLoading ? (
+            <div className="space-y-3 p-5">
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          ) : approvals.length === 0 &&
+            decided.length > 0 &&
+            !stepQueue.error &&
+            stepQueue.total === 0 ? (
+            <div className="flex items-center gap-3 px-5 py-5" role="status">
+              <CheckCircle2 className="text-muted-foreground h-5 w-5 shrink-0" aria-hidden />
+              <div>
+                <p className="text-sm font-medium">{t("nothingWaiting")}</p>
+                <p className="text-muted-foreground mt-0.5 text-xs">
+                  {t("agentsAreRunningWithout")}
+                </p>
               </div>
-            ) : approvals.length === 0 &&
-              decided.length > 0 &&
-              !stepQueue.error &&
-              stepQueue.total === 0 ? (
-              <div className="flex items-center gap-3 px-5 py-5" role="status">
-                <CheckCircle2 className="text-muted-foreground h-5 w-5 shrink-0" aria-hidden />
-                <div>
-                  <p className="text-sm font-medium">{t("nothingWaiting")}</p>
-                  <p className="text-muted-foreground mt-0.5 text-xs">
-                    {t("agentsAreRunningWithout")}
-                  </p>
-                </div>
-              </div>
-            ) : approvals.length === 0 ? (
-              // Not while the card above has steps waiting on the same person:
-              // "nothing waiting" under "waiting on you" contradicts itself. Nor
-              // when that queue could not be read - then nobody knows.
-              !stepQueue.error &&
-              stepQueue.total === 0 && (
-                <EmptyState
-                  className="flex-1 rounded-none border-0 bg-transparent shadow-none"
-                  icon={CheckCircle2}
-                  title={t("nothingWaiting")}
-                  description={t("agentsAreRunningWithout")}
-                />
-              )
-            ) : (
-              <section aria-label={t("waitingSection")}>
-                <ul className="divide-y">
-                  {approvals.map((approval) => (
-                    <PendingApproval
-                      key={approval.id}
-                      approval={approval}
-                      deciding={decide.isPending}
-                      onDecide={(approved) => decide.mutate({ id: approval.id, approved })}
-                      onOpenRun={() => onFocusRun(approval.run_id)}
-                      onReviewCredential={setCredentialReview}
+            </div>
+          ) : approvals.length === 0 ? (
+            // Not while the card above has steps waiting on the same person:
+            // "nothing waiting" under "waiting on you" contradicts itself. Nor
+            // when that queue could not be read - then nobody knows.
+            !stepQueue.error &&
+            stepQueue.total === 0 && (
+              <EmptyState
+                className="flex-1 rounded-none border-0 bg-transparent shadow-none"
+                icon={CheckCircle2}
+                title={t("nothingWaiting")}
+                description={t("agentsAreRunningWithout")}
+              />
+            )
+          ) : (
+            <section aria-label={t("waitingSection")}>
+              <ul className="divide-y">
+                {approvals.map((approval) => (
+                  <PendingApproval
+                    key={approval.id}
+                    approval={approval}
+                    deciding={decide.isPending}
+                    onDecide={(approved) => decide.mutate({ id: approval.id, approved })}
+                    onOpenRun={() => onFocusRun(approval.run_id)}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
+          {decided.length > 0 && (
+            <section aria-label={t("decidedSection")} className="border-t">
+              <h3 className="text-muted-foreground px-5 pt-4 pb-1 text-xs font-medium">
+                {t("decidedSection")}
+              </h3>
+              <ul className="divide-y">
+                {decided.map((entry) =>
+                  entry.kind === "tool" ? (
+                    <DecidedApproval
+                      key={entry.approval.id}
+                      approval={entry.approval}
+                      onOpenRun={() => onFocusRun(entry.approval.run_id)}
                     />
-                  ))}
-                </ul>
-              </section>
-            )}
-            {decided.length > 0 && (
-              <section aria-label={t("decidedSection")} className="border-t">
-                <h3 className="text-muted-foreground px-5 pt-4 pb-1 text-xs font-medium">
-                  {t("decidedSection")}
-                </h3>
-                <ul className="divide-y">
-                  {decided.map((entry) =>
-                    entry.kind === "tool" ? (
-                      <DecidedApproval
-                        key={entry.approval.id}
-                        approval={entry.approval}
-                        onOpenRun={() => onFocusRun(entry.approval.run_id)}
-                        onReviewCredential={setCredentialReview}
-                      />
-                    ) : (
-                      <DecidedWorkflowApproval key={entry.approval.id} approval={entry.approval} />
-                    ),
-                  )}
-                </ul>
-              </section>
-            )}
-            {/* The queue is server-paged. It used to be one page of fifty with a
+                  ) : (
+                    <DecidedWorkflowApproval key={entry.approval.id} approval={entry.approval} />
+                  ),
+                )}
+              </ul>
+            </section>
+          )}
+          {/* The queue is server-paged. It used to be one page of fifty with a
               line explaining the gap, which left the newest request - the one an
               alert is about - unreachable until enough older calls were decided
               (#1336). The pager is the way to it, and the decide controls stay
               on the row where they belong. */}
-            {total > APPROVALS_PAGE && (
-              <ListCardFootRow>
-                <Pager
-                  page={page}
-                  pageCount={pageCount}
-                  matched={approvals.length}
-                  total={total}
-                  onPage={setPage}
-                  counted={t("approvalCount", { count: total })}
-                />
-              </ListCardFootRow>
-            )}
-            {/* The record is one page of the same fifty, newest first - the
+          {total > APPROVALS_PAGE && (
+            <ListCardFootRow>
+              <Pager
+                page={page}
+                pageCount={pageCount}
+                matched={approvals.length}
+                total={total}
+                onPage={setPage}
+                counted={t("approvalCount", { count: total })}
+              />
+            </ListCardFootRow>
+          )}
+          {/* The record is one page of the same fifty, newest first - the
               counted line above reports the window's total, so without this
               the gap between "214 decided" and fifty rows goes unexplained. */}
-            {history.total > history.shown && (
-              <ListCardFootRow>
-                <p className="text-muted-foreground text-xs" role="note">
-                  {t("showingTheNewestOf", {
-                    shown: history.shown,
-                    total: history.total,
-                  })}
-                </p>
-              </ListCardFootRow>
-            )}
-            {history.error != null && (
-              <ListCardFootRow>
-                <p className="text-muted-foreground text-xs" role="note">
-                  {t("decisionsCouldNotBeRead")}
-                </p>
-              </ListCardFootRow>
-            )}
-          </>
-        )}
-      </ListCard>
-      {credentialReview && (
-        <Dialog
-          open
-          onOpenChange={(open) => {
-            if (!open) setCredentialReview(null);
-          }}
-        >
-          <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
-            <DialogHeader>
-              <DialogTitle>
-                {credentialReview.continuationId
-                  ? continuation("reviewContinuation")
-                  : browser("reviewDestination")}
-              </DialogTitle>
-              <DialogDescription>
-                {credentialReview.continuationId
-                  ? continuation("checksOnlyRead")
-                  : browser("readOnlyChecks")}
-              </DialogDescription>
-            </DialogHeader>
-            <BrowserCredentialReview
-              runId={credentialReview.runId}
-              planId={credentialReview.planId}
-              continuationId={credentialReview.continuationId}
-            />
-          </DialogContent>
-        </Dialog>
+          {history.total > history.shown && (
+            <ListCardFootRow>
+              <p className="text-muted-foreground text-xs" role="note">
+                {t("showingTheNewestOf", {
+                  shown: history.shown,
+                  total: history.total,
+                })}
+              </p>
+            </ListCardFootRow>
+          )}
+          {history.error != null && (
+            <ListCardFootRow>
+              <p className="text-muted-foreground text-xs" role="note">
+                {t("decisionsCouldNotBeRead")}
+              </p>
+            </ListCardFootRow>
+          )}
+        </>
       )}
-    </>
+    </ListCard>
   );
 }

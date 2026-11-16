@@ -1,11 +1,11 @@
 """The web browser: the table, the step, the loop, the tab a run keeps, the migration.
 
-The capability must register, validate, build and enumerate its tool without
-importing `cdp-use`, reaching it only when `browse_web` opens a tab. An explicit
-missing-extra test retains that optional runtime boundary while dev/CI installs
-the pinned SDK. The browser is substituted through `PageFactory` and the browsing
-model is a `FunctionModel` standing in for the run's own, so nothing here opens
-a browser or calls a provider.
+Every test runs with the `browser` extra absent - the CI state - which is the
+point: the capability must register, validate, build and enumerate its tool
+without `cdp-use`, reaching it only when `browse_web` opens a tab. The browser is
+substituted through `PageFactory` and the browsing model is a `FunctionModel`
+standing in for the run's own, so nothing here opens a browser or calls a
+provider.
 
 The modules that decide anything - which elements may be acted on, what an action
 does, when to stop, where the agent may go - are exercised directly, and the
@@ -575,18 +575,13 @@ BROWSER_TOOLS = (
     "browser_switch_tab",
     "browser_close_tab",
     "browser_read",
-    "browser_procedures",
     "browser_click",
     "browser_type",
-    "browser_credential_options",
-    "browser_fill_credential",
     "browser_select",
     "browser_scroll",
     "browser_back",
 )
 """The whole task handed off, then the agent's own hands on the same tab."""
-
-CREDENTIAL_TOOLS = {"browser_credential_options", "browser_fill_credential"}
 
 
 class TestOneStep:

@@ -87,14 +87,6 @@ from app.services.mentions import MentionService
 from app.services.mfa import MfaService
 from app.services.personal_data import PersonalDataService
 from app.services.browser_sign_in import BrowserSignInService
-from app.services.browser_credentials import (
-    BrowserCredentialContinuationService,
-    BrowserCredentialPlanService,
-    BrowserCredentialPolicyService,
-)
-from app.services.browser_teaching._service import BrowserTeachingService
-from app.services.browser_teaching._policy import BrowserTeachingPolicyService
-from app.services.browser_teaching._generation import BrowserTeachingDraftService
 from app.services.user import UserService
 from app.services.session import SessionService
 from app.services.web_push import WebPushService
@@ -108,7 +100,6 @@ from app.services.conversation import ConversationService
 from app.services.coding_task_changes import CodingTaskChangeService
 from app.services.conversation_tasks import ConversationTaskService
 from app.services.room_submission import RoomSubmissionService
-from app.services.room_routing import RoomRoutingService
 from app.services.tasks import TaskService
 from app.services.visual import VisualService
 from app.services.local_service import LocalServiceService
@@ -214,13 +205,6 @@ def get_room_submission_service(db: DBSession) -> RoomSubmissionService:
 
 
 RoomSubmissionSvc = Annotated[RoomSubmissionService, Depends(get_room_submission_service)]
-
-
-def get_room_routing_service(db: DBSession) -> RoomRoutingService:
-    return RoomRoutingService(db)
-
-
-RoomRoutingSvc = Annotated[RoomRoutingService, Depends(get_room_routing_service)]
 
 
 def get_coding_task_change_service(db: DBSession) -> CodingTaskChangeService:
@@ -1302,62 +1286,6 @@ def get_browser_sign_in_service(db: DBSession) -> BrowserSignInService:
 
 
 BrowserSignInSvc = Annotated[BrowserSignInService, Depends(get_browser_sign_in_service)]
-
-
-def get_browser_credential_plan_service(
-    db: DBSession, redis: Redis
-) -> BrowserCredentialPlanService:
-    return BrowserCredentialPlanService(db, redis)
-
-
-BrowserCredentialPlanSvc = Annotated[
-    BrowserCredentialPlanService, Depends(get_browser_credential_plan_service)
-]
-
-
-def get_browser_credential_continuation_service(
-    db: DBSession, redis: Redis
-) -> BrowserCredentialContinuationService:
-    return BrowserCredentialContinuationService(db, redis)
-
-
-BrowserCredentialContinuationSvc = Annotated[
-    BrowserCredentialContinuationService, Depends(get_browser_credential_continuation_service)
-]
-
-
-def get_browser_credential_policy_service(db: DBSession) -> BrowserCredentialPolicyService:
-    return BrowserCredentialPolicyService(db)
-
-
-BrowserCredentialPolicySvc = Annotated[
-    BrowserCredentialPolicyService, Depends(get_browser_credential_policy_service)
-]
-
-
-def get_browser_teaching_service(db: DBSession, redis: Redis) -> BrowserTeachingService:
-    return BrowserTeachingService(db, redis)
-
-
-BrowserTeachingSvc = Annotated[BrowserTeachingService, Depends(get_browser_teaching_service)]
-
-
-def get_browser_teaching_policy_service(db: DBSession) -> BrowserTeachingPolicyService:
-    return BrowserTeachingPolicyService(db)
-
-
-BrowserTeachingPolicySvc = Annotated[
-    BrowserTeachingPolicyService, Depends(get_browser_teaching_policy_service)
-]
-
-
-def get_browser_teaching_draft_service(db: DBSession, redis: Redis) -> BrowserTeachingDraftService:
-    return BrowserTeachingDraftService(db, redis)
-
-
-BrowserTeachingDraftSvc = Annotated[
-    BrowserTeachingDraftService, Depends(get_browser_teaching_draft_service)
-]
 
 
 def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
@@ -2702,18 +2630,6 @@ def get_coding_account_service(db: DBSession) -> CodingAccountService:
 
 
 CodingAccountSvc = Annotated[CodingAccountService, Depends(get_coding_account_service)]
-
-
-from app.services.coding_account_usage import CodingAccountUsageService
-
-
-def get_coding_account_usage_service(db: DBSession, redis: Redis) -> CodingAccountUsageService:
-    return CodingAccountUsageService(db, redis)
-
-
-CodingAccountUsageSvc = Annotated[
-    CodingAccountUsageService, Depends(get_coding_account_usage_service)
-]
 
 
 from app.services.onboarding import OnboardingService

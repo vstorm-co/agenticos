@@ -125,21 +125,20 @@ class TestPollDueDispatches:
 
 
 class TestReconcile:
-    def _reconciler(self, *, stale: int = 0, resolved: int = 0, booked: int = 0) -> MagicMock:
+    def _reconciler(self, *, stale: int = 0, resolved: int = 0) -> MagicMock:
         reconciler = MagicMock()
         reconciler.stale_claims = AsyncMock(return_value=stale)
         reconciler.resolve_orphaned_attempts = AsyncMock(return_value=resolved)
-        reconciler.book_pending_media_costs = AsyncMock(return_value=booked)
         reconciler.wake_stale_approval_decisions = AsyncMock(return_value=0)
         reconciler.wake_stale_step_approvals = AsyncMock(return_value=0)
         return reconciler
 
-    async def test_reports_what_each_of_the_five_sweeps_did(self):
+    async def test_reports_what_each_of_the_four_sweeps_did(self):
         with (
             patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
             patch(
                 "app.services.workflow_execution.reconciler.WorkflowReconcilerService",
-                return_value=self._reconciler(stale=2, resolved=1, booked=3),
+                return_value=self._reconciler(stale=2, resolved=1),
             ),
         ):
             result = await workflow_tasks.reconcile()
@@ -147,7 +146,6 @@ class TestReconcile:
         assert result == {
             "reclaimed_claims": 2,
             "resolved_attempts": 1,
-            "booked_media_nodes": 3,
             "woken_approvals": 0,
             "woken_step_approvals": 0,
         }

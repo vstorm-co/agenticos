@@ -11,7 +11,6 @@ import {
 } from "@/lib/onboarding/flows";
 import {
   IMPROVEMENT,
-  BROWSER_TEACHING_DETAIL,
   IMPROVEMENT_START,
   AGENT_BUILDER,
   DATASET_DETAIL,
@@ -57,23 +56,6 @@ const STOCKED: OrgState = {
   hasRoomForAgent: true,
 };
 const NO_CHOICES: Record<string, "yes" | "skip"> = {};
-
-it("explains the owner teaching review without clicking Draft or Apply", () => {
-  expect(flowForPage(BROWSER_TEACHING_DETAIL)).toBe("review-browser-teaching");
-  const flow = FLOWS["review-browser-teaching"];
-  expect(canOfferFlow(flow, deny)).toBe(true);
-  expect(flow.steps.map((step) => step.target)).toEqual([
-    "teaching-review",
-    "teaching-draft",
-    "teaching-proposal",
-  ]);
-  for (const step of flow.steps) {
-    expect(step.optional).toBe(true);
-    expect(step.signal).toBeUndefined();
-    expect(step.activate).toBeUndefined();
-    expect(step.page).toBe(BROWSER_TEACHING_DETAIL);
-  }
-});
 
 describe("FLOWS", () => {
   it("walks each per-section flow into its dialog and ends on the resource landing", () => {

@@ -399,7 +399,6 @@ class WorkflowRun(Base, TimestampMixin):
     ended_at: Mapped[datetime | None] = mapped_column(SADateTime(timezone=True), nullable=True)
 
     __table_args__ = (
-        UniqueConstraint("organization_id", "id", name="uq_workflow_runs_org_id"),
         CheckConstraint(
             "(workflow_version_id IS NULL) != (draft_graph_snapshot IS NULL)",
             name="ck_workflow_run_graph_source_xor",
@@ -490,9 +489,6 @@ class NodeRun(Base, TimestampMixin):
 
     __table_args__ = (
         UniqueConstraint(
-            "organization_id", "workflow_run_id", "id", name="uq_node_runs_org_run_id"
-        ),
-        UniqueConstraint(
             "workflow_run_id", "node_instance_id", "scope_path", name="uq_node_run_identity"
         ),
         CheckConstraint(
@@ -564,9 +560,6 @@ class NodeAttempt(Base, TimestampMixin):
     ended_at: Mapped[datetime | None] = mapped_column(SADateTime(timezone=True), nullable=True)
 
     __table_args__ = (
-        UniqueConstraint(
-            "organization_id", "node_run_id", "id", name="uq_node_attempts_org_node_id"
-        ),
         UniqueConstraint("node_run_id", "attempt_no", name="uq_node_attempt_number"),
         CheckConstraint("attempt_no >= 1", name="ck_node_attempt_number"),
         CheckConstraint(

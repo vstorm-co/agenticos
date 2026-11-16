@@ -1,10 +1,10 @@
 """The `browse_web` tool, the tab it keeps for the run, and the seams it is tested through.
 
-The tool is declared and its toolset built **without importing `cdp-use`**.
-Runtime deployments choose the `browser` extra; dev/CI installs its exact pin for
-typing and SDK tests. The capability also works without that extra until an
-agent opens a tab, when it reports the install instruction rather than failing
-to register or build its toolset.
+The tool is declared and its toolset built **without importing `cdp-use`**, which
+arrives with the `browser` extra and is absent from a default install and from
+CI. So the capability registers, enumerates its tool and builds its toolset with
+it missing, and an agent bound to it on a deployment without the extra fails that
+one tool with the install line rather than failing to start.
 
 **The browsing model is the run's own model**, wrapped in
 :class:`~app.agents.capabilities._metered.MeteredModel` so every step is checked
@@ -22,18 +22,16 @@ import asyncio
 import base64
 import functools
 import hashlib
-import json
 import logging
 import time
-from collections.abc import AsyncGenerator, Awaitable, Callable
-from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontextmanager
+from collections.abc import Awaitable, Callable
+from contextlib import AbstractAsyncContextManager, AsyncExitStack
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal, cast
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
-import anyio
 import httpx
 from pydantic_ai import Agent, BinaryContent
 from pydantic_ai.messages import UserContent
@@ -82,7 +80,6 @@ from app.agents.capabilities.browser_use._loop import (
 from app.agents.capabilities.browser_use._native import NativePage
 from app.agents.capabilities.browser_use._page import (
     MISSING_EXTRA,
-    CdpPage,
     DomainRefused,
     PagePolicy,
     StaleElement,
@@ -90,28 +87,10 @@ from app.agents.capabilities.browser_use._page import (
 )
 from app.agents.capabilities.browser_use._plans import plan_key
 from app.agents.capabilities.browser_use._preview import Preview
-from app.agents.capabilities.browser_use._protected import BrowserOutputGuard
 from app.agents.capabilities.browser_use._route import BrowserRoute, recheck
-from app.agents.capabilities.browser_use._teaching_hooks import TeachingCapture
-from app.agents.capabilities.browser_use._teaching_page import TeachingPage
-from app.agents.capabilities.skills._log import SkillUseLog
 from app.agents.deps import AgentDeps
-from app.core.browser_continuation import (
-    BrowserContinuationReason,
-    BrowserContinuationRefused,
-    require_continuation,
-)
-from app.core.browser_fill import BrowserFillRefused, BrowserFillSelection
-from app.core.browser_origins import browser_origin
-from app.core.browser_session import ProtectedSignIn
-from app.core.browser_teaching import TeachingRefused
 from app.core.sanitize import UrlRefusedError
-from app.db.session import get_db_context
 from app.services import browse_plans, browser_sign_in, live_browse
-from app.services.browser_credentials import BrowserCredentialPlanService
-from app.services.browser_credentials._continuation import ContinuationClaim
-from app.services.browser_credentials._controller import BrowserCredentialController
-from app.services.browser_credentials._saved_sessions import protected_restore
 
 BROWSER_TAB_REQUIREMENT = "agenticos_browser_tab_requirement"
 
@@ -169,11 +148,7 @@ def _signed_in_as(deps: AgentDeps) -> _Person | None:
 
 
 async def _live(
-    deps: AgentDeps,
-    call_id: str,
-    task: str,
-    get_guard: Callable[[], BrowserOutputGuard | None] | None = None,
-    get_teaching: Callable[[], TeachingCapture | None] | None = None,
+    deps: AgentDeps, call_id: str, task: str
 ) -> tuple[BrowserEventSink | None, BrowserControl | None, str | None]:
     """Where this browse's frames go, where its people's commands come from, and its run.
 
@@ -184,66 +159,33 @@ async def _live(
     chat's own sink, which is what a test or the CLI gets.
     """
     chat = deps.browser_events
-    run: str | None = None
     if not live_browse.available() or deps.run_id is None or deps.organization_id is None:
-        if chat is None:
-            return None, None, None
-    else:
-        run = str(deps.run_id)
-        signed_in = _signed_in_as(deps) is not None
-        await live_browse.open_view(
-            run,
-            call_id,
-            live_browse.BrowseMeta(
-                organization_id=deps.organization_id,
-                agent_id=deps.agent_id,
-                user_id=deps.user_id,
-                remembers=signed_in,
-                # A browse carrying its person's kept sign-ins is theirs to watch
-                # and drive alone, whoever else may see runs or edit the agent.
-                personal=signed_in,
-                task=task,
-                started_at=datetime.now(UTC),
-            ),
-        )
+        return chat, None, None
+    run = str(deps.run_id)
+    signed_in = _signed_in_as(deps) is not None
+    await live_browse.open_view(
+        run,
+        call_id,
+        live_browse.BrowseMeta(
+            organization_id=deps.organization_id,
+            agent_id=deps.agent_id,
+            user_id=deps.user_id,
+            remembers=signed_in,
+            # A browse carrying its person's kept sign-ins is theirs to watch and
+            # drive alone: the pages are their accounts, whoever else may see runs
+            # or edit the agent.
+            personal=signed_in,
+            task=task,
+            started_at=datetime.now(UTC),
+        ),
+    )
 
     checked_at = float("-inf")
     viewers = False
     last_image: BrowserEvent | None = None
-    event_lock = asyncio.Lock()
-    view_token = object()
-    bound_guard: BrowserOutputGuard | None = None
-    last_step = 0
-    tab_id: str | None = None
 
-    async def announce_protection() -> None:
-        nonlocal last_image
-        assert bound_guard is not None
-        last_image = None
-        event = bound_guard.event(
-            BrowserEvent(
-                kind="browser_protected",
-                call_id=call_id,
-                step=last_step,
-                tab_id=tab_id,
-                run_id=run,
-            )
-        )
-        if run is not None:
-            await live_browse.protect_view(run, call_id, event)
-        if chat is not None:
-            await chat(event)
-
-    async def publish_event(event: BrowserEvent) -> bool:
+    async def sink(event: BrowserEvent) -> bool:
         nonlocal checked_at, viewers, last_image
-        if run is None:
-            return await chat(event) if chat is not None else False
-        if event.kind == "browser_protected":
-            last_image = None
-            await live_browse.protect_view(run, call_id, event)
-            if chat is not None:
-                await chat(event)
-            return True
         if event.kind == "browser_frame":
             if event.image is not None:
                 last_image = event
@@ -268,30 +210,7 @@ async def _live(
             await chat(event)
         return True
 
-    async def sink(event: BrowserEvent) -> bool:
-        nonlocal last_image, bound_guard, last_step, tab_id
-        async with event_lock:
-            teaching = None if get_teaching is None else get_teaching()
-            if teaching is not None:
-                event = teaching.event(event)
-            guard = None if get_guard is None else get_guard()
-            if guard is None:
-                return await publish_event(event)
-            bound_guard = guard
-            last_step, tab_id = event.step, event.tab_id or tab_id
-            guard.bind_view(view_token, announce_protection)
-            async with guard.publication_lock:
-                if guard.active:
-                    # Announce to every earlier call while holding the shared
-                    # fence, so no page-bound cache can survive secret delivery.
-                    last_image = None
-                    await guard.announce()
-                    event = guard.event(event)
-                    if event.kind == "browser_protected":
-                        return True
-                return await publish_event(event)
-
-    return sink, None if run is None else live_browse.LiveControl(run, call_id), run
+    return sink, live_browse.LiveControl(run, call_id), run
 
 
 def _remembering(person: _Person) -> RememberSignIn:
@@ -361,8 +280,6 @@ class BrowserToolset(FunctionToolset[Any]):
         self.parked: dict[str, tuple[BrowseSession, AsyncExitStack]] = {}
         self.checkpoint: Callable[[], Awaitable[None]] | None = None
         self._preview_stack: AsyncExitStack | None = None
-        self.credential_controller: BrowserCredentialController | None = None
-        self.protected_views: dict[str, tuple[DirectView, BrowserCredentialController]] = {}
 
     async def __aenter__(self) -> BrowserToolset:
         self._entered += 1
@@ -372,7 +289,6 @@ class BrowserToolset(FunctionToolset[Any]):
         self._entered -= 1
         if self._entered == 0:
             try:
-                await self.stop_credentials()
                 if self.checkpoint is not None:
                     await self.checkpoint()
             finally:
@@ -402,7 +318,6 @@ class BrowserToolset(FunctionToolset[Any]):
             or not view.preview
             or view.sink is None
             or self.session is None
-            or (isinstance(self.session.page, CdpPage) and self.session.page.output_guard.active)
         ):
             return
         session = self.session
@@ -427,9 +342,6 @@ class BrowserToolset(FunctionToolset[Any]):
 
     async def park(self) -> None:
         """End the selected view and pause its paints, retaining its isolated page."""
-        await self.stop_credentials()
-        if self.session is not None and self.session.teaching is not None:
-            await self.session.teaching.end()
         await self.stop_watching()
         if self.view is not None:
             await close_view(self.view, self.session)
@@ -447,16 +359,12 @@ class BrowserToolset(FunctionToolset[Any]):
         await self.park()
         self.session, self._stack = self.parked.pop(tab_id)
         self.tab_id = tab_id
-        protected = self.protected_views.pop(tab_id, None)
-        if protected is not None:
-            self.view, self.credential_controller = protected
         self.session.last = None
         return True
 
     async def close(self) -> None:
         """Release every tab even when another tab's teardown raises."""
         parked, self.parked = self.parked, {}
-        self.protected_views.clear()
         async with AsyncExitStack() as cleanup:
             for _, stack in parked.values():
                 cleanup.push_async_callback(stack.aclose)
@@ -469,7 +377,6 @@ class BrowserToolset(FunctionToolset[Any]):
         end is its finish - said before the tab goes, while the page is still
         there to name.
         """
-        await self.stop_credentials()
         view, self.view = self.view, None
         stack, self._stack = self._stack, None
         session, self.session = self.session, None
@@ -480,11 +387,6 @@ class BrowserToolset(FunctionToolset[Any]):
         finally:
             if stack is not None:
                 await stack.aclose()
-
-    async def stop_credentials(self) -> None:
-        controller, self.credential_controller = self.credential_controller, None
-        if controller is not None:
-            await controller.close()
 
 
 logger = logging.getLogger(__name__)
@@ -520,9 +422,6 @@ def build_toolset(
     step_model: Model | None = None,
     route: BrowserRoute | None = None,
     resume_local: bool = False,
-    credential_ids: tuple[UUID, ...] = (),
-    allow_teaching: bool = False,
-    skill_log: SkillUseLog | None = None,
 ) -> BrowserToolset:
     """`browse_web` and the agent's own browser tools, bound to the browser seam."""
     open_browser = page_factory if page_factory is not None else open_page
@@ -563,17 +462,9 @@ def build_toolset(
         if page_factory is None and not cdp_url and (route is None or route.remote_url is None):
             return NO_ENDPOINT
 
-        await toolset.stop_credentials()
         await toolset.stop_watching()
         call_id = ctx.tool_call_id or str(uuid4())
-        current_page = None if toolset.session is None else toolset.session.page
-        guard = current_page.output_guard if isinstance(current_page, CdpPage) else None
-        teaching = None if toolset.session is None else toolset.session.teaching
-        # This invocation pins one owning page, including the page that is about
-        # to open. Never look up the toolset's selected tab from a late event.
-        sink, control, run_id = await _live(
-            ctx.deps, call_id, task, lambda: guard, lambda: teaching
-        )
+        sink, control, run_id = await _live(ctx.deps, call_id, task)
         person = _signed_in_as(ctx.deps)
         remember = None if person is None else _remembering(person)
         # The agent's own step model where it named one - a cheaper or
@@ -630,8 +521,6 @@ def build_toolset(
                 if isinstance(opened, str):
                     return await fail(opened)
                 session = opened
-                guard = session.page.output_guard if isinstance(session.page, CdpPage) else None
-                teaching = session.teaching
             elif start_url:
                 session.restart()
                 try:
@@ -742,8 +631,6 @@ def build_toolset(
             async def checkpoint() -> None:
                 tabs: list[_sessions.SavedTab] = []
                 for tab_id, session in toolset.sessions().items():
-                    if isinstance(session.page, CdpPage) and session.page.output_guard.active:
-                        continue
                     try:
                         url, _ = await session.page.location()
                         if not url or urlsplit(url).scheme not in ("http", "https"):
@@ -760,73 +647,15 @@ def build_toolset(
             sign_ins = [entry for entry in sign_ins if entry.site != restored.sign_in.site]
             sign_ins.append(restored.sign_in)
         try:
-            opened: BrowseSession | None = None
-            if url is not None and not hosted and credential_ids:
-                try:
-                    parts = urlsplit(url)
-                    origin = browser_origin(f"{parts.scheme}://{parts.netloc}")
-                except ValueError:
-                    origin = None
-                if origin is not None:
-                    try:
-                        async with protected_restore(
-                            ctx.deps,
-                            credential_ids,
-                            toolset.tab_id,
-                            ctx.tool_call_id or str(uuid4()),
-                            origin,
-                        ) as protected:
-                            if protected is not None:
-                                with anyio.fail_after(30):
-                                    opened = await toolset.open(
-                                        open_browser,
-                                        cdp_url=cdp_url,
-                                        start_url=origin,
-                                        policy=page_policy,
-                                        sign_ins=[],
-                                        route=pinned_route,
-                                        protected_sign_in=protected,
-                                    )
-                                    require_continuation(
-                                        isinstance(opened.page, CdpPage)
-                                        and opened.page.output_guard.active,
-                                        BrowserContinuationReason.PROTECTION_UNAVAILABLE,
-                                    )
-                                    opened.resumable = False
-                    except BaseException as failure:
-                        # Cookie/native errors are tainted too. They never reach logs or model output.
-                        if opened is not None:
-                            with anyio.move_on_after(15, shield=True):
-                                await toolset.close_active()
-                        if isinstance(failure, asyncio.CancelledError):
-                            raise
-                        return "The protected saved session is unavailable for this run or current access."
-            if opened is None:
-                opened = await toolset.open(
-                    open_browser,
-                    **options,
-                    cdp_url=cdp_url,
-                    start_url=url,
-                    policy=page_policy,
-                    sign_ins=sign_ins,
-                    route=pinned_route,
-                )
-            redis = live_browse.credential_redis()
-            if allow_teaching and isinstance(opened.page, CdpPage) and redis is not None:
-                from app.services.browser_teaching._capture import BrowserTeachingCapture
-
-                opened.teaching = await BrowserTeachingCapture.create(
-                    deps=ctx.deps,
-                    tab_id=toolset.tab_id,
-                    redis=redis,
-                    page=TeachingPage(opened.page._credential_command),
-                    guard=opened.page.output_guard,
-                    step=lambda: opened.steps,
-                    locate=opened.page._locate,
-                )
-                if opened.teaching is not None:
-                    assert toolset._stack is not None
-                    toolset._stack.push_async_callback(opened.teaching.close)
+            return await toolset.open(
+                open_browser,
+                **options,
+                cdp_url=cdp_url,
+                start_url=url,
+                policy=page_policy,
+                sign_ins=sign_ins,
+                route=pinned_route,
+            )
         except (httpx.HTTPError, OSError) as exc:
             # Only while opening: the browser was never reached - a name that does
             # not resolve, a refused connection, an endpoint answering 5xx. The
@@ -840,20 +669,13 @@ def build_toolset(
                 type(exc).__name__,
             )
             return UNREACHABLE
-        else:
-            return opened
 
     async def direct_view(ctx: RunContext[AgentDeps], goal: str) -> tuple[DirectView, bool]:
         """The view this run's direct actions are drawn in, and whether it is new."""
         if toolset.view is not None:
             return toolset.view, False
         call_id = ctx.tool_call_id or str(uuid4())
-        page = None if toolset.session is None else toolset.session.page
-        guard = page.output_guard if isinstance(page, CdpPage) else None
-        teaching = None if toolset.session is None else toolset.session.teaching
-        sink, control, run_id = await _live(
-            ctx.deps, call_id, goal, lambda: guard, lambda: teaching
-        )
+        sink, control, run_id = await _live(ctx.deps, call_id, goal)
         person = _signed_in_as(ctx.deps)
         toolset.view = DirectView(
             call_id=call_id,
@@ -863,203 +685,9 @@ def build_toolset(
             else control,
             run_id=run_id,
             remember=None if person is None else _remembering(person),
-            preview=loop_policy.preview and not (guard is not None and guard.active),
+            preview=loop_policy.preview,
         )
-        await start_credentials(ctx, toolset.view)
         return toolset.view, True
-
-    async def start_credentials(ctx: RunContext[AgentDeps], view: DirectView) -> None:
-        current = toolset.credential_controller
-        if current is not None and current.alive:
-            return
-        session = toolset.session
-        redis = live_browse.credential_redis()
-        if (
-            not credential_ids
-            or session is None
-            or not isinstance(session.page, CdpPage)
-            or redis is None
-            or view.sink is None
-        ):
-            return
-        page = session.page
-
-        async def protect(origin: str) -> None:
-            if session.teaching is not None:
-                await session.teaching.protect()
-            await toolset.stop_watching()
-            page.protect_credentials(origin)
-            view.preview = False
-            session.last = page.output_guard.snapshot()
-            session.resumable = False
-            await view.emit(
-                BrowserEvent(
-                    kind="browser_protected",
-                    call_id=view.call_id,
-                    step=session.steps,
-                    tab_id=session.tab_id,
-                    run_id=view.run_id,
-                )
-            )
-
-        toolset.credential_controller = await BrowserCredentialController.create(
-            deps=ctx.deps,
-            credential_ids=credential_ids,
-            tab_id=toolset.tab_id,
-            call_id=view.call_id,
-            redis=redis,
-            page=page,
-            tab_lock=toolset.tab,
-            snapshot=lambda: session.last,
-            protect=protect,
-            sink=view.sink,
-            continue_session=functools.partial(continue_session, ctx),
-        )
-        if page.output_guard.active:
-            await protect(page.output_guard.location()[0])
-
-    @asynccontextmanager
-    async def continue_session(
-        ctx: RunContext[AgentDeps], claim: ContinuationClaim, state: ProtectedSignIn
-    ) -> AsyncGenerator[None]:
-        """Register one isolated protected tab; a failed persistence commit closes only this tab."""
-        if len(toolset.sessions()) >= 8 or claim.tab_id in toolset.sessions():
-            raise BrowserContinuationRefused(BrowserContinuationReason.NOT_AVAILABLE)
-        if route is not None and route.remote_url is not None:
-            raise BrowserContinuationRefused(BrowserContinuationReason.DESTINATION_REFUSED)
-        redis = live_browse.credential_redis()
-        if redis is None:
-            raise BrowserContinuationRefused(BrowserContinuationReason.NOT_AVAILABLE)
-        stack = AsyncExitStack()
-        try:
-            pinned = None if route is None else await recheck(route)
-            page = await stack.enter_async_context(
-                open_browser(
-                    cdp_url=cdp_url,
-                    start_url=state.provenance.origin,
-                    policy=page_policy,
-                    sign_ins=[],
-                    route=pinned,
-                    protected_sign_in=state,
-                )
-            )
-            require_continuation(
-                isinstance(page, CdpPage) and page.output_guard.active,
-                BrowserContinuationReason.PROTECTION_UNAVAILABLE,
-            )
-            assert isinstance(page, CdpPage)
-            session = BrowseSession(page=page, tab_id=claim.tab_id, resumable=False)
-            sink, control, run_id = await _live(
-                ctx.deps, claim.call_id, "Protected site session", lambda: page.output_guard
-            )
-            require_continuation(sink is not None, BrowserContinuationReason.NOT_AVAILABLE)
-            assert sink is not None
-            view = DirectView(
-                call_id=claim.call_id,
-                sink=sink,
-                control=control,
-                run_id=run_id,
-                remember=None,
-                preview=False,
-            )
-
-            async def protect(origin: str) -> None:
-                page.protect_credentials(origin)
-                session.last = page.output_guard.snapshot()
-                await view.emit(
-                    BrowserEvent(
-                        kind="browser_protected",
-                        call_id=claim.call_id,
-                        step=session.steps,
-                        tab_id=claim.tab_id,
-                        run_id=run_id,
-                    )
-                )
-
-            # The guard is active before _live receives its first event, so even
-            # page-derived URLs, errors, titles and images are fixed projections.
-            await protect(state.provenance.origin)
-            controller = await BrowserCredentialController.create(
-                deps=ctx.deps,
-                credential_ids=credential_ids,
-                tab_id=claim.tab_id,
-                call_id=claim.call_id,
-                redis=redis,
-                page=page,
-                tab_lock=toolset.tab,
-                snapshot=lambda: session.last,
-                protect=protect,
-                sink=sink,
-                continue_session=functools.partial(continue_session, ctx),
-            )
-            require_continuation(
-                controller is not None, BrowserContinuationReason.AUTHORITY_CHANGED
-            )
-            assert controller is not None
-            stack.push_async_callback(close_view, view, session)
-            stack.push_async_callback(controller.close)
-            await open_view(view, session, "Protected site session")
-            toolset.parked[claim.tab_id] = (session, stack)
-            toolset.protected_views[claim.tab_id] = (view, controller)
-            yield
-        except BaseException:
-            toolset.parked.pop(claim.tab_id, None)
-            toolset.protected_views.pop(claim.tab_id, None)
-            with anyio.move_on_after(15, shield=True):
-                await stack.aclose()
-            raise
-
-    async def browser_credential_options(ctx: RunContext[AgentDeps]) -> str:
-        """List saved credential IDs, generations and field names eligible on this private page.
-
-        No username, password, TOTP seed/code or profile value is returned. Use the
-        references only with browser_fill_credential and the page's current field numbers.
-        """
-        if toolset.session is None:
-            return NO_TAB
-        view, _ = await direct_view(ctx, WORKING)
-        await start_credentials(ctx, view)
-        controller = toolset.credential_controller
-        if controller is None or not controller.alive:
-            return "Saved credential filling is unavailable in this browser session."
-        try:
-            async with get_db_context() as db:
-                items = await BrowserCredentialPlanService(db, controller.redis).eligible(
-                    controller.ctx,
-                    controller.identity.run_id,
-                    controller.identity.call_id,
-                    controller.identity.tab_id,
-                )
-        except BrowserFillRefused:
-            return "Saved credential filling is unavailable in this browser session."
-        return json.dumps([item.model_dump(mode="json") for item in items])
-
-    async def browser_fill_credential(
-        ctx: RunContext[AgentDeps],
-        secret_id: UUID,
-        authorization_generation: UUID,
-        selection: BrowserFillSelection,
-    ) -> str:
-        """Request a saved credential fill and keep the live page for the owner's review.
-
-        Choose only an ID/generation returned by browser_credential_options and fields
-        from the current numbered page. The person confirms the destination in the UI.
-        This never submits automatically; submission needs a separate explicit action.
-        The wait is bounded and expired or resumed native handles cannot be reused.
-        """
-        try:
-            async with toolset.tab:
-                if toolset.session is None:
-                    return NO_TAB
-                view, _ = await direct_view(ctx, WORKING)
-                await start_credentials(ctx, view)
-                controller = toolset.credential_controller
-                if controller is None or not controller.alive:
-                    return "Browser credential request refused: live_browser_required."
-                plan = await controller.request(secret_id, authorization_generation, selection)
-            return await controller.wait(plan.id)
-        except BrowserFillRefused as refused:
-            return f"Browser credential request refused: {refused.reason.value}."
 
     async def drive(ctx: RunContext[AgentDeps], action: Action) -> str:
         """One action of the agent's own on the open tab, or why it could not be taken."""
@@ -1237,31 +865,6 @@ def build_toolset(
         await toolset.watch(view)
         return page_report(snapshot)
 
-    async def browser_procedures(ctx: RunContext[AgentDeps]) -> str:
-        """Read approved bound procedures for the live origin, without executing them.
-
-        Returns:
-            Reviewed procedure facts, or a fixed refusal. Observe and rematch every
-            control before acting; captured element numbers and values are never returned.
-        """
-        session = toolset.session
-        if session is None:
-            return NO_TAB
-        if not isinstance(session.page, CdpPage) or session.page.output_guard.active:
-            return "Browser procedures are unavailable for this page."
-        from app.services.browser_teaching._discovery import discover
-
-        try:
-            with anyio.fail_after(15):
-                observed = await TeachingPage(session.page._credential_command).observe("origin")
-                async with get_db_context() as db:
-                    procedures = await discover(db, ctx.deps, skill_log, observed.origin)
-        except TeachingRefused:
-            return "Browser procedures are unavailable for this page or current authority."
-        except Exception:
-            return "Browser procedure discovery is unavailable."
-        return json.dumps([item.model_dump(mode="json") for item in procedures])
-
     async def browser_click(ctx: RunContext[AgentDeps], element: int) -> str:
         """Click an element of the open page, by its number in the last page read.
 
@@ -1332,18 +935,6 @@ def build_toolset(
     toolset.add_function(
         on_the_tab(browse_web), takes_ctx=True, metadata=BACKGROUND, sequential=False
     )
-    toolset.add_function(
-        on_the_tab(browser_credential_options),
-        takes_ctx=True,
-        metadata={BROWSER_TAB_REQUIREMENT: "credential"},
-    )
-    # The owner task takes the lock for preparation/effect; holding it while the
-    # human decides would prevent that task from making progress.
-    toolset.add_function(
-        browser_fill_credential,
-        takes_ctx=True,
-        metadata={BROWSER_TAB_REQUIREMENT: "credential"},
-    )
     for direct in (
         browser_open,
         browser_new_tab,
@@ -1351,7 +942,6 @@ def build_toolset(
         browser_switch_tab,
         browser_close_tab,
         browser_read,
-        browser_procedures,
         browser_click,
         browser_type,
         browser_select,
@@ -1362,7 +952,6 @@ def build_toolset(
         if direct in (browser_switch_tab, browser_close_tab):
             metadata = {BROWSER_TAB_REQUIREMENT: "any"}
         elif direct in (
-            browser_procedures,
             browser_click,
             browser_type,
             browser_select,

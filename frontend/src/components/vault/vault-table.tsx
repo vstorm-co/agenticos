@@ -7,9 +7,6 @@ import { ProviderIcon } from "./provider-icon";
 import { Badge, Button, DataTable, EntityAvatar, type Column } from "@/components/ui";
 import type { Secret, SecretPurpose } from "@/types/secrets";
 import type { ConnectedAccount } from "@/types/mirage";
-import { useAuthStore } from "@/stores/auth-store";
-import { isBrowserSecretKind } from "./browser-secret-fields";
-import { BrowserCredentialMetadata } from "./browser-credential-metadata";
 
 type VaultEntry =
   | { kind: "key"; id: string; name: string; secret: Secret }
@@ -51,8 +48,6 @@ export function VaultTable({
   const t = useTranslations("vault");
   const tc = useTranslations("common");
   const ta = useTranslations("pages.vault.connectedAccounts");
-  const tb = useTranslations("browserCredentials");
-  const actor = useAuthStore((state) => state.user?.id);
   const rows: VaultEntry[] = [
     ...secrets.map((secret) => ({
       kind: "key" as const,
@@ -70,15 +65,13 @@ export function VaultTable({
   const access = (row: VaultEntry) =>
     row.kind === "account"
       ? t(row.account.owner === "personal" ? "visibilityPrivate" : "visibilityOrg")
-      : isBrowserSecretKind(row.secret.kind)
-        ? tb("privateValues")
-        : t(
-            row.secret.visibility === "private"
-              ? "visibilityPrivate"
-              : row.secret.visibility === "team"
-                ? "visibilityTeam"
-                : "visibilityOrg",
-          );
+      : t(
+          row.secret.visibility === "private"
+            ? "visibilityPrivate"
+            : row.secret.visibility === "team"
+              ? "visibilityTeam"
+              : "visibilityOrg",
+        );
   const columns: Column<VaultEntry>[] = [
     {
       key: "name",
@@ -101,11 +94,7 @@ export function VaultTable({
               {row.name}
             </p>
             {row.kind === "key" ? (
-              isBrowserSecretKind(row.secret.kind) ? (
-                <BrowserCredentialMetadata metadata={row.secret.browser} />
-              ) : (
-                <p className="text-muted-foreground font-mono text-xs">····{row.secret.hint}</p>
-              )
+              <p className="text-muted-foreground font-mono text-xs">····{row.secret.hint}</p>
             ) : (
               <p
                 className={
@@ -132,11 +121,9 @@ export function VaultTable({
         <span className="text-muted-foreground text-sm">
           {row.kind === "account"
             ? t("googleAccount")
-            : isBrowserSecretKind(row.secret.kind)
-              ? tb(row.secret.kind === "browser_login" ? "login" : "profile")
-              : !row.secret.purpose || row.secret.purpose === "custom"
-                ? t("customService")
-                : (purposes.find((p) => p.id === row.secret.purpose)?.label ?? row.secret.purpose)}
+            : !row.secret.purpose || row.secret.purpose === "custom"
+              ? t("customService")
+              : (purposes.find((p) => p.id === row.secret.purpose)?.label ?? row.secret.purpose)}
         </span>
       ),
     },
@@ -160,7 +147,6 @@ export function VaultTable({
             {access(row)}
           </Badge>
           {row.kind === "key" &&
-            !isBrowserSecretKind(row.secret.kind) &&
             row.secret.visibility !== "org" &&
             (row.secret.shared_with ?? 0) > 0 && (
               <span className="text-muted-foreground text-xs">
@@ -221,18 +207,12 @@ export function VaultTable({
       className: "w-32 pr-5",
       cell: (row) =>
         row.kind === "key"
-          ? row.secret.can_edit === true &&
-            (!isBrowserSecretKind(row.secret.kind) ||
-              (!!actor && row.secret.owner_user_id === actor)) && (
+          ? row.secret.can_edit === true && (
               <div className="flex justify-end gap-1">
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label={
-                    isBrowserSecretKind(row.secret.kind)
-                      ? tb("manageBrowserUse", { name: row.name })
-                      : t("manageAccessTo", { name: row.name })
-                  }
+                  aria-label={t("manageAccessTo", { name: row.name })}
                   onClick={() => onShare(row.secret)}
                 >
                   <Users className="size-4" />

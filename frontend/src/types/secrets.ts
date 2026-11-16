@@ -23,9 +23,7 @@ export type SecretKind =
   | "http_credential"
   | "smtp_account"
   | "microsoft_oauth_app"
-  | "openai_codex"
-  | "browser_login"
-  | "browser_profile";
+  | "openai_codex";
 
 /**
  * Every kind a person can save. `none` is not one of them: it says "there is no
@@ -33,10 +31,6 @@ export type SecretKind =
  * may not - `POST /secrets` refuses it with a 422.
  */
 export type StorableSecretKind = Exclude<SecretKind, "none">;
-
-export function isBrowserSecretKind(kind: unknown): kind is "browser_login" | "browser_profile" {
-  return kind === "browser_login" || kind === "browser_profile";
-}
 
 /**
  * A secret a capability declares it cannot work without. Mirrors
@@ -204,13 +198,6 @@ export type SecretVisibility = "private" | "team" | "org";
 /** Who may spend a model credential, independently of who may view its metadata. */
 export type SecretUsageScope = "organization" | "personal";
 
-/** Browser selection metadata never contains a login or contact field value. */
-export interface BrowserSecretMetadata {
-  allowed_origins: string[];
-  available_fields: string[];
-  has_totp: boolean;
-}
-
 export interface Secret {
   /** Effective edit access in listings; absent on older deployments or write responses. */
   can_edit?: boolean;
@@ -224,8 +211,6 @@ export interface Secret {
    * is not confidential and its secret access key is.
    */
   hint: string;
-  /** Present only for saved browser logins and contact profiles; their hint is empty. */
-  browser?: BrowserSecretMetadata | null;
   /** What the key is for - a provider id, a service id, or `custom`. */
   purpose?: string;
   visibility?: SecretVisibility;

@@ -69,8 +69,6 @@ export const ROUTES = {
   DOCUMENTS: "/documents",
   DOCUMENT_FOLDER: (id: string) => `/documents/${id}`,
   SKILLS: "/skills",
-  SKILLS_TEACHING: "/skills/teaching",
-  SKILL_TEACHING: (id: string) => `/skills/teaching/${encodeURIComponent(id)}`,
   SKILL_DETAIL: (id: string) => `/skills/${id}`,
   /** A skill's Improve, started from what an agent's Improve session found in it. */
   SKILL_IMPROVE_FROM_RUN: (id: string, runId: string) =>

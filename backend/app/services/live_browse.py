@@ -29,7 +29,7 @@ from collections import deque
 from collections.abc import AsyncGenerator, AsyncIterable, Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import anyio
 from fastapi import WebSocket, WebSocketDisconnect
@@ -61,9 +61,6 @@ COMMAND_LIMIT = 100
 """How many commands wait for a held browser at most. A person types and clicks far
 slower than this drains; past it the oldest go, so a flood cannot grow Redis or bury
 the newest `give_back` behind it."""
-
-CONTROL_SEQUENCE_LIMIT = 1_000_000
-"""The server ends a connection before its accepted-input sequence can grow unbounded."""
 
 _NOT_FOUND_CLOSE_CODE = 4404
 _FORBIDDEN_CLOSE_CODE = 4403
@@ -110,11 +107,6 @@ async def connect_in_worker() -> None:
 def available() -> bool:
     """Whether this process can publish a live view at all - a CLI or a test cannot."""
     return _redis is not None
-
-
-def credential_redis() -> RedisClient | None:
-    """The existing process connection; native controllers never create a second pool."""
-    return _redis
 
 
 async def save_session(scope: str, sealed: str) -> None:
@@ -198,29 +190,6 @@ async def view_links(run_id: str) -> tuple[str, ...]:
     except Exception:
         logger.exception("live_browse_links_failed")
         return ()
-
-
-async def protect_view(run_id: str, call_id: str, event: BrowserEvent) -> None:
-    """Remove cached output before a fill; failure refuses the effect instead of being logged away.
-
-    The owning sink serializes this operation with all its publications, and its
-    sticky page guard sanitizes every later event. No raw publisher may bypass it.
-    """
-    if _redis is None or event.kind != "browser_protected" or event.image is not None:
-        raise RuntimeError("Browser output protection unavailable")
-    with anyio.fail_after(5):
-        body = event.model_dump_json()
-        pipe = _redis.raw.pipeline(transaction=True)
-        pipe.delete(
-            _key(run_id, call_id, "frame"),
-            _key(run_id, call_id, "location"),
-            _key(run_id, call_id, "trace"),
-        )
-        pipe.set(_key(run_id, call_id, "location"), body, ex=TTL_SECONDS)
-        pipe.rpush(_key(run_id, call_id, "trace"), body)
-        pipe.expire(_key(run_id, call_id, "trace"), TTL_SECONDS)
-        pipe.publish(_key(run_id, call_id, "events"), body)
-        await pipe.execute()
 
 
 async def publish(run_id: str, call_id: str, event: BrowserEvent) -> None:
@@ -390,15 +359,7 @@ async def _load(run_id: str, call_id: str) -> tuple[BrowseMeta | None, list[str]
     raw_location = await _redis.get(_key(run_id, call_id, "location"))
     if raw_location is not None:
         location = BrowserEvent.model_validate_json(raw_location)
-        if location.output_protected:
-            # Protection may have committed between these separate Redis reads.
-            # Never combine a pre-fill picture or trace with a protected location.
-            trace = [
-                item for item in trace if BrowserEvent.model_validate_json(item).output_protected
-            ]
-            picture = location.model_copy(update={"image": None})
-        else:
-            picture = BrowserEvent.model_validate_json(frame) if frame is not None else location
+        picture = BrowserEvent.model_validate_json(frame) if frame is not None else location
         frame = picture.model_copy(
             update={"url": location.url, "title": location.title}
         ).model_dump_json()
@@ -471,7 +432,6 @@ class _PreviewPacket:
     raw: str
     picture: bool
     terminal: bool = False
-    protected: bool = False
 
 
 async def _deliver_preview(
@@ -488,19 +448,12 @@ async def _deliver_preview(
     wake = asyncio.Event()
     done = False
     slow = False
-    protected = False
     async with anyio.create_task_group() as tasks:
 
         async def collect() -> None:
-            nonlocal picture, done, slow, protected
+            nonlocal picture, done, slow
             try:
                 async for packet in source:
-                    if packet.protected and not protected:
-                        protected = True
-                        picture = None
-                        events.clear()
-                    elif protected and packet.picture:
-                        continue
                     if packet.picture:
                         picture = packet.raw
                     elif len(events) < PREVIEW_EVENT_LIMIT:
@@ -539,41 +492,6 @@ async def _deliver_preview(
     return not slow
 
 
-@contextlib.asynccontextmanager
-async def _teaching_connection(
-    redis: RedisClient, meta: BrowseMeta, access: _Access, run_id: str, call_id: str
-) -> AsyncGenerator[UUID | None]:
-    """A server identity ends with its socket; the client never selects it."""
-    if (
-        not access.own
-        or not settings.BROWSER_TEACHING_ENABLED
-        or meta.organization_id not in settings.BROWSER_TEACHING_ORGANIZATION_IDS
-    ):
-        yield None
-        return
-    from app.services.browser_teaching._lease import close_connection, open_connection
-
-    connection_id = uuid4()
-    if not await open_connection(redis, run_id, call_id, connection_id, access.user_id):
-        yield None
-        return
-    try:
-        yield connection_id
-    finally:
-        await close_connection(redis, run_id, call_id, connection_id, access.user_id)
-        with anyio.move_on_after(3, shield=True):
-            with contextlib.suppress(Exception):
-                await send(
-                    run_id,
-                    call_id,
-                    BrowserCommand(
-                        type="control_lost",
-                        by_user_id=access.user_id,
-                        control_connection_id=connection_id,
-                    ),
-                )
-
-
 async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id: str) -> None:
     """Serve one viewer of one browse until either side is done.
 
@@ -586,7 +504,6 @@ async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id:
     if _redis is None:
         await websocket.close(code=1011, reason="Live view is unavailable")
         return
-    redis = _redis
     meta, trace, frame = await _load(run_id, call_id)
     if meta is None:
         await websocket.close(code=_NOT_FOUND_CLOSE_CODE, reason="Browse not found")
@@ -621,7 +538,6 @@ async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id:
     # `REVALIDATE_SECONDS` while only frames flow.
     current = access
     lost = False
-    sequence = 0
 
     async def still_allowed() -> bool:
         nonlocal current, lost
@@ -629,21 +545,10 @@ async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id:
         if fresh is None:
             lost = True
             return False
-        if connection_id is not None:
-            from app.services.browser_teaching._lease import renew_connection
-
-            if (
-                not fresh.own
-                or fresh.user_id != access.user_id
-                or not await renew_connection(redis, run_id, call_id, connection_id, access.user_id)
-            ):
-                lost = True
-                return False
         current = fresh
         return True
 
     async def commands() -> None:
-        nonlocal sequence, lost
         try:
             while True:
                 raw = await websocket.receive_text()
@@ -651,59 +556,34 @@ async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id:
                     return
                 if not current.control:
                     continue
-                if len(raw) > 32_768:
-                    continue
                 try:
                     command = BrowserCommand.model_validate_json(raw)
                 except ValidationError:
                     continue
-                if command.type == "control_lost":
-                    continue
-                if sequence >= CONTROL_SEQUENCE_LIMIT:
-                    lost = True
-                    return
-                sequence += 1
                 await send(
                     run_id,
                     call_id,
-                    command.model_copy(
-                        update={
-                            "by": current.name,
-                            "by_user_id": current.user_id,
-                            "control_connection_id": connection_id,
-                            "control_sequence": sequence if connection_id is not None else None,
-                        }
-                    ),
+                    command.model_copy(update={"by": current.name, "by_user_id": current.user_id}),
                 )
         except WebSocketDisconnect:
             return
 
     async with (
-        _teaching_connection(redis, meta, access, run_id, call_id) as connection_id,
         _subscription(run_id, call_id, viewer=True) as pubsub,
         anyio.create_task_group() as tasks,
     ):
         slow = False
 
         async def incoming() -> AsyncGenerator[_PreviewPacket]:
-            # Subscribe first, then recover protection published in the initial
-            # snapshot/subscribe interval. Later protection is already queued.
-            location = await redis.get(_key(run_id, call_id, "location"))
-            if location is not None:
-                observed = BrowserEvent.model_validate_json(location)
-                if observed.output_protected:
-                    yield _PreviewPacket(location, False, protected=True)
             async for message in pubsub.listen():
                 if message.get("type") == "message":
                     # RedisClient decodes channel names. Routing by channel avoids
                     # parsing/reallocating the base64 JPEG merely to classify it.
-                    is_event = message.get("channel") == _key(run_id, call_id, "events")
-                    details = json.loads(str(message["data"])) if is_event else {}
                     yield _PreviewPacket(
                         str(message["data"]),
                         message.get("channel") == _key(run_id, call_id, "pictures"),
-                        is_event and details.get("kind") == "browser_finished",
-                        is_event and details.get("output_protected") is True,
+                        message.get("channel") == _key(run_id, call_id, "events")
+                        and json.loads(str(message["data"])).get("kind") == "browser_finished",
                     )
 
         async def forward() -> None:
@@ -718,9 +598,7 @@ async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id:
 
         async def revalidate() -> None:
             while True:
-                await anyio.sleep(
-                    min(REVALIDATE_SECONDS, 15) if connection_id is not None else REVALIDATE_SECONDS
-                )
+                await anyio.sleep(REVALIDATE_SECONDS)
                 if not await still_allowed():
                     break
             tasks.cancel_scope.cancel()

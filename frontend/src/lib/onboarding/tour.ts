@@ -34,7 +34,6 @@ export const DATASET_DETAIL = "dataset-detail";
  * history and its version tree. The walk opens the first skill the reader can see.
  */
 export const SKILL_DETAIL = "skill-detail";
-export const BROWSER_TEACHING_DETAIL = "browser-teaching-detail";
 
 /** A skill's improvement wizard, `/skills/<id>/improve/<session>`, and its start. */
 export const SKILL_IMPROVEMENT = "skill-improvement";
@@ -375,12 +374,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
   { id: "chat-composer", page: ROUTES.CHAT, target: "chat-composer", optional: true },
   { id: "chat-workspace", page: ROUTES.CHAT, target: "chat-workspace" },
-  {
-    id: "browser-protected-continuation",
-    page: ROUTES.CHAT,
-    target: "browser-protected-continuation",
-    optional: true,
-  },
   { id: "chat-agent-settings", page: ROUTES.CHAT, target: "chat-agent-settings", optional: true },
   { id: "chat-team-room", page: ROUTES.CHAT, target: "chat-team-room", optional: true },
   { id: "chat-team-composer", page: ROUTES.CHAT, target: "chat-team-composer", optional: true },
@@ -774,32 +767,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   { id: "skills-list", page: ROUTES.SKILLS, target: "skills-list", permission: Perm.skillsView },
-  {
-    id: "skills-teaching",
-    page: ROUTES.SKILLS,
-    target: "skills-teaching",
-    activate: "page-secondary-actions",
-  },
-  { id: "teaching-list", page: ROUTES.SKILLS_TEACHING, target: "teaching-list" },
-  {
-    id: "teaching-summary",
-    page: BROWSER_TEACHING_DETAIL,
-    target: "teaching-summary",
-    optional: true,
-  },
-  {
-    id: "teaching-review",
-    page: BROWSER_TEACHING_DETAIL,
-    target: "teaching-review",
-    optional: true,
-  },
-  { id: "teaching-draft", page: BROWSER_TEACHING_DETAIL, target: "teaching-draft", optional: true },
-  {
-    id: "teaching-proposal",
-    page: BROWSER_TEACHING_DETAIL,
-    target: "teaching-proposal",
-    optional: true,
-  },
   // Grouping by department (#2124): only where the organization has groups.
   {
     id: "skills-groups",
@@ -1405,13 +1372,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     anyPermission: [Perm.budgetsManage, Perm.approvalsDecide, Perm.orgSettings],
   },
   {
-    id: "org-browser-teaching",
-    page: ORG_MEMBERS,
-    target: "org-browser-teaching",
-    activate: "org-tab-governance",
-    permission: Perm.orgSettings,
-  },
-  {
     id: "org-proactivity",
     page: ORG_MEMBERS,
     target: "org-proactivity",
@@ -1831,8 +1791,6 @@ export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
   if (path.startsWith(`${ROUTES.RAG}/`)) return KB_DETAIL;
   if (path.startsWith(`${ROUTES.DATASETS}/`)) return DATASET_DETAIL;
-  if (path === ROUTES.SKILLS_TEACHING) return ROUTES.SKILLS_TEACHING;
-  if (path.startsWith(`${ROUTES.SKILLS_TEACHING}/`)) return BROWSER_TEACHING_DETAIL;
   if (/^\/skills\/[^/]+\/improve\/new(\/|$)/.test(path)) return SKILL_IMPROVEMENT_START;
   if (/^\/skills\/[^/]+\/improve\/[^/]+/.test(path)) return SKILL_IMPROVEMENT;
   if (path.startsWith(`${ROUTES.SKILLS}/`)) return SKILL_DETAIL;

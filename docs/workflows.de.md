@@ -1,5 +1,5 @@
 ---
-source_sha: "ebe2636bfc0c"
+source_sha: "3dcf65276140"
 ---
 
 # Workflows { #workflows }
@@ -557,98 +557,6 @@ Zeilen werden mit ihrem Lauf aufbewahrt und mit ihm entfernt, wenn die Aufbewahr
 Verlaufs den Lauf entfernt (siehe [Workflow-Einstellungen](#workflow-settings)). Sie
 lesen sie auf der [Logs-Seite](#the-logs-page) oder, je Schritt, in der Laufansicht.
 
-## Medieneingaben und Generierung { #media-inputs-and-generation }
-
-Mit **Asset** prüfen Sie ein vorhandenes Bild, eine Audioaufnahme oder ein
-Video. **Generate image** erzeugt ein Bild, **Generate video** einen Clip. Jeder
-Schritt reicht eine typisierte Dateireferenz weiter. Asset liest berechtigte
-Dateien und stellt keine Modellanfrage. Die Generierung ruft den ausgewählten
-Anbieter auf und kann Kosten verursachen, auch in einem Testlauf.
-
-Die drei Schritte sind standardmäßig deaktiviert und werden vom Administrator
-Ihrer Installation einzeln aktiviert. Ein deaktivierter Schritt fehlt in der
-Palette. Ein gespeicherter Graph behält seine Definition, kann den Schritt aber
-nicht ausführen. Die [Knotenreferenz](reference/workflow-nodes.md#asset-input)
-nennt die Einstellungen sowie die typisierten Ein- und Ausgaben.
-
-### Datei, Modell und Anbieterschlüssel wählen { #media-configuration }
-
-Binden Sie Assets `file` an eine zugelassene Run-Eingabe oder eine Datei aus
-einem vorherigen Schritt. Asset prüft tatsächliche Bytes, Typ, Abmessungen und
-Dauer innerhalb Ihrer Grenzen. Ein Dateiname oder eine URL gewährt keinen
-Zugriff. Binden Sie die Ausgabe `file` nur dann an `reference_image` eines
-Generierungsschritts, wenn dessen Modell ein Eingabebild unterstützt. Audio- und
-Videodateien können diese Bildeingabe nicht belegen.
-
-Wählen Sie Anbieter und Modell aus dem Workflow-Katalog und anschließend im
-Vault einen **API-Schlüssel** mit Organisationsgeltung. Sein Zweck muss genau
-dem Anbieter entsprechen. Persönliche Verbindungen, Browser-Anmeldedaten und
-Schlüssel mit dem Zweck `custom` sind ungeeignet. Beim Anlegen im Auswahlfeld
-gelten dieselben Anforderungen. Der Run nutzt seine eigenen Berechtigungen und
-prüft die Autorisierungsversion des Schlüssels vor dem Aufruf und der
-Veröffentlichung der Ausgabe erneut.
-
-Das Modell bestimmt die Optionen für Größe, Qualität, Seitenverhältnis,
-Auflösung, Dauer und Ton. Standardwerte stammen aus dem Serverkatalog.
-Optionaler Videoton ist zunächst ausgeschaltet; feste Ton- oder Dauervorgaben
-werden als fest angezeigt. OpenAI-Bildgenerierung in Workflows akzeptiert
-anfangs nur Text. GPT Image 2 fehlt dort, bis eine belastbare Obergrenze seiner
-Ausgabekosten vorliegt. Die bestehende Agentenbindung ist davon unabhängig.
-
-### Reservierung vor dem Start prüfen { #media-reservations }
-
-Der Editor fordert eine Schätzung für die aktuelle Konfiguration vom Server
-an, ohne den Schlüssel zu entschlüsseln oder einen Anbieter aufzurufen. Sie
-zeigt Preisstand, USD-Reservierung, reservierte Ausgabebytes und Annahmen zu
-Ein- und Ausgabelimits, zur Promptgrenze des Bildwerkzeugs oder zu Videodauer
-und Tarif. Wählt das Modell seine Dauer selbst, wird sein Maximum reserviert.
-Die Preisobergrenze für optionalen Ton deckt unterstützte Anfragen mit Ton ab.
-
-Diese konservative Reservierung hält Kapazität frei; sie ist keine
-Rechnungsprognose und kann deutlich über einer üblichen kurzen Anfrage liegen.
-Reicht `max_cost_usd` des Schritts nicht aus, zeigt die Schätzung den Fehlbetrag.
-Verkleinern Sie die Anfrage oder prüfen Sie das Limit. Beim Start werden auch
-verbleibende Workflow- und Organisationsbudgets sowie Dateiquoten geprüft.
-Eine erfolgreiche Schätzung reserviert noch nichts und umgeht diese Prüfung
-nicht.
-
-Das Run-Journal trennt **reservierte**, **angefallene** und **gebuchte** Beträge
-und kennzeichnet gemeldete Kosten gegenüber Katalogschätzungen. Ein ungenutztes
-Maximum wird nie als Gebühr gebucht. Ungeklärte Arbeit behält ihre Reservierung
-nach Timeout, Lease-Ablauf, Schlüssellöschung oder einem späteren Run. Ein
-OpenAI-Bild kann gespeichert sein, während ungeprüfte Eingabekosten des nativen
-Bildwerkzeugs reserviert bleiben. Ein zurückgelieferter überarbeiteter Prompt
-belegt nicht die vollständige abgerechnete Eingabe. Auch normale
-Agenten-Budgetprüfungen berücksichtigen offene Medienverpflichtungen;
-Ausgabenberichte zeigen gebuchte Gebühren.
-
-### Ausgaben prüfen und unterbrochene Arbeit fortsetzen { #media-recovery }
-
-Öffnen Sie Files oder die Schrittausgabe des Runs, um ein gespeichertes Ergebnis
-mit den bestehenden Dateiberechtigungen anzusehen oder herunterzuladen. Der
-Server prüft die erzeugten Bytes vor der Veröffentlichung. Das Journal zeigt
-Phase und Vorhandensein eines Anbieterbelegs, ohne Schlüssel, Anbieterantwort
-oder private Download-URL offenzulegen. Die offene Gesamtsumme umfasst auch
-frühere Operationen dieses Schritts.
-
-Die Wiederaufnahme richtet sich nach den vorhandenen Nachweisen.
-**Collect existing** fragt denselben Anbieterauftrag ab; **Recover output**
-liefert dieselbe gespeicherte Datei. Beides erzeugt keine neuen Medien und
-erfordert weiterhin aktuelle Berechtigungen sowie die ursprüngliche
-Autorisierungsversion des Schlüssels. Eine unbekannte Übermittlung ohne
-brauchbaren Beleg oder erhaltene Ausgabe muss abgeglichen werden und kann im
-selben Run nicht erneut übermittelt werden. Lokaler Abbruch verspricht weder
-Stornierung noch Erstattung beim Anbieter.
-
-Eine ausdrücklich angebotene neue Übermittlung verlangt eine
-Kostenbestätigung. **Retry from failed step** erzeugt einen separaten Run:
-Abgeschlossene Schritte können ihre Ausgaben wiederverwenden; ein erneut
-ausgeführter Generierungsschritt kann erneut Kosten verursachen. Frühere offene
-Reservierungen bleiben bestehen. Prüfen Sie das Journal, bevor Sie Ersatzarbeit
-starten. Vorschau-Aktualisierung und Abholen eines bestehenden Auftrags brauchen
-keine neue Übermittlung. Runs mit offenen Kosten- oder Byte-Reservierungen
-bleiben bis zu deren Abgleich erhalten.
-
 ## Verbindungen und foreach-Scope { #connections-and-foreach-scope }
 
 Sie ziehen eine Kante, indem Sie einen Ausgangs-Port eines Knotens mit einem
@@ -1066,8 +974,8 @@ Schritt dessen **Input** und **Output** aus diesem Lauf. Die Zeilen, die das
 **Retry from failed step**
 startet einen neuen Lauf derselben Version mit derselben Eingabe, in dem jeder
 erfolgreiche Schritt weitergibt, was er zuvor weitergegeben hat. So laufen nur der
-fehlgeschlagene Schritt und was er nicht erreicht hat; abgeschlossene Schritte
-verwenden ihre bestätigten Ausgaben wieder. Eine Schleife läuft erneut und verwendet die erfolgreichen
+fehlgeschlagene Schritt und was er nicht erreicht hat, und ein Schreibzugriff
+geschieht nie zweimal. Eine Schleife läuft erneut und verwendet die erfolgreichen
 Schritte jedes Elements wieder. **Debug in editor** heftet an die Schritte des
 Entwurfs, was jeder Schritt außerhalb einer Schleife in diesem Lauf weitergegeben
 hat, sodass ein Testlauf dort beginnt, wo jener war. Über die API wiederholt `POST

@@ -23,7 +23,6 @@ import { MessageList } from "./message-list";
 import { MessageItem } from "./message-item";
 import { PlanStrip } from "./plan-strip";
 import { RoomComposer } from "./team-room-composer";
-import { RoomRoutingPanel } from "./room-routing-panel";
 
 const OVERLAY_QUERY = "(max-width: 1023px)";
 
@@ -211,13 +210,6 @@ export function RoomThreadPanel({
                 <p className="text-muted-foreground mb-3 text-xs">
                   {t("replies", { count: page.total })}
                 </p>
-                {projectId !== null && (
-                  <RoomRoutingPanel
-                    conversationId={conversationId}
-                    threadRootMessageId={rootId}
-                    readOnly={!canPost}
-                  />
-                )}
                 {query.hasNextPage && (
                   <Button
                     variant="ghost"

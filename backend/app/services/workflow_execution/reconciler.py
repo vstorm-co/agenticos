@@ -29,7 +29,6 @@ from app.core.config import settings
 from app.db.locks import LockScope, try_hold_subject
 from app.db.models.workflow_run import DispatchOutbox, DispatchOutboxStatus, NodeAttemptStatus
 from app.repositories import workflow_approval as workflow_approval_repo
-from app.repositories import workflow_media_operation as media_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.workflow_execution import dispatch_queue, dispatcher
 from app.services.workflow_execution.approval_wake import ready_to_resume, still_waiting_on
@@ -143,33 +142,6 @@ class WorkflowReconcilerService:
                 extra={"node_run_id": str(node_run.id), "attempt_id": str(fresh.id)},
             )
         return resolved
-
-    async def book_pending_media_costs(self, *, limit: int = 100) -> int:
-        """Close the crash gap after a late fee fact, including terminal attempts.
-
-        This sweep only books existing facts. It never authorizes a provider
-        request, changes an attempt verdict, or schedules another submission.
-        """
-        nodes = await media_repo.unbooked_nodes(self.db, limit=limit)
-        booked = 0
-        for organization_id, run_id, node_id in nodes:
-            if not await try_hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, organization_id):
-                continue
-            run = await workflow_run_repo.try_lock_run(
-                self.db, run_id, organization_id=organization_id
-            )
-            if run is None:
-                continue
-            node = await workflow_run_repo.get_node_run_by_id_for_update(self.db, node_id)
-            if (
-                node is None
-                or node.organization_id != organization_id
-                or node.workflow_run_id != run.id
-            ):
-                continue
-            await dispatcher.book_media_costs(self.db, run=run, node_run=node)
-            booked += 1
-        return booked
 
     async def wake_stale_step_approvals(self, *, limit: int = 100) -> int:
         """Dispatch again every `human.approval` step whose request was decided, or ran

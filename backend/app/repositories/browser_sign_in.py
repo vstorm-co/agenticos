@@ -2,7 +2,6 @@
 
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import func, select, update
@@ -28,22 +27,16 @@ async def list_for(
 
 
 async def get(
-    db: AsyncSession,
-    sign_in_id: UUID,
-    *,
-    organization_id: UUID,
-    user_id: UUID,
-    locked: bool = False,
+    db: AsyncSession, sign_in_id: UUID, *, organization_id: UUID, user_id: UUID
 ) -> BrowserSignIn | None:
     """One sign-in, only if it is this person's in this organization."""
-    query = select(BrowserSignIn).where(
-        BrowserSignIn.id == sign_in_id,
-        BrowserSignIn.organization_id == organization_id,
-        BrowserSignIn.user_id == user_id,
+    result = await db.execute(
+        select(BrowserSignIn).where(
+            BrowserSignIn.id == sign_in_id,
+            BrowserSignIn.organization_id == organization_id,
+            BrowserSignIn.user_id == user_id,
+        )
     )
-    if locked:
-        query = query.with_for_update().execution_options(populate_existing=True)
-    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 
@@ -55,7 +48,6 @@ async def save(
     site: str,
     sealed_state: str,
     key_version: int,
-    protection_kind: Literal["manual", "credential"] = "manual",
 ) -> BrowserSignIn:
     """Keep a sign-in, replacing the person's earlier one to the same site.
 
@@ -73,7 +65,6 @@ async def save(
             site=site,
             sealed_state=sealed_state,
             secret_key_version=key_version,
-            protection_kind=protection_kind,
         )
         .on_conflict_do_update(
             index_elements=[
@@ -84,7 +75,6 @@ async def save(
             set_={
                 "sealed_state": sealed_state,
                 "secret_key_version": key_version,
-                "protection_kind": protection_kind,
                 "updated_at": func.now(),
             },
         )
@@ -92,19 +82,6 @@ async def save(
         .execution_options(populate_existing=True)
     )
     return (await db.execute(statement)).scalar_one()
-
-
-async def protected_for_site(
-    db: AsyncSession, *, organization_id: UUID, user_id: UUID, site: str
-) -> BrowserSignIn | None:
-    return await db.scalar(
-        select(BrowserSignIn).where(
-            BrowserSignIn.organization_id == organization_id,
-            BrowserSignIn.user_id == user_id,
-            BrowserSignIn.site == site,
-            BrowserSignIn.protection_kind == "credential",
-        )
-    )
 
 
 async def mark_used(db: AsyncSession, sign_in_ids: Sequence[UUID]) -> None:

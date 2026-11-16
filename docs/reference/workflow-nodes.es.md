@@ -1,5 +1,5 @@
 ---
-source_sha: "66a7891467fd"
+source_sha: "68ac0f7695b1"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -1325,75 +1325,6 @@ puede volver a unir las ramas.
 ::: app.workflows.nodes.table_create._handler.TableCreateConfig
 
 ::: app.workflows.nodes.table_create._handler.TableCreatedOutput
-
-## Asset { #asset-input }
-
-`asset.input@1` comprueba una imagen, grabación de audio o vídeo que el run tenga
-permiso para leer. Vincule `file` con un `FileRef` admitido o producido. Se
-rechazan nombres de archivo, URL arbitrarias y archivos no importados de otro
-run. La salida conserva la misma referencia duradera y añade metadatos
-verificados a partir de sus bytes.
-
-::: app.workflows.nodes.asset_input._handler.AssetInputConfig
-
-::: app.workflows.nodes.asset_input._handler.AssetInput
-
-::: app.workflows.nodes.asset_input._handler.AssetOutput
-
-Admite imágenes estáticas PNG, JPEG, WebP y GIF; audio WAV, FLAC, MP3 y Ogg
-reconocido; y MP4 o WebM con una pista de vídeo y audio opcional. Las imágenes
-animadas, formatos no compatibles, archivos ausentes y discrepancias de tipo
-o tamaño producen errores controlados. `required_input_name` exige
-opcionalmente la misma referencia en la entrada del run. Los límites de bytes,
-píxeles y duración se aplican al contenido real.
-
-`WORKFLOW_ASSET_INPUT_ENABLED` es false por defecto. Las instalaciones
-desactivadas conservan definición y salidas guardadas, ocultan el paso en la
-paleta y rechazan nuevas ejecuciones. La inspección de audio y vídeo requiere
-`ffprobe`, incluido en la imagen del backend. Este nodo no llama a proveedores
-ni modelos.
-
-## Generar imagen { #image-generate }
-
-`image.generate@1` recibe un `prompt` y un archivo `reference_image` autorizado
-opcional. El catálogo de workflows debe admitir proveedor, modelo y opciones;
-OpenAI acepta inicialmente solo texto. Seleccione una clave API de organización
-cuyo propósito coincida con el proveedor. `WORKFLOW_IMAGE_GENERATION_ENABLED`
-es false por defecto.
-
-::: app.workflows.nodes._media_config.ImageGenerateConfig
-
-::: app.workflows.nodes._media_config.MediaGenerateInput
-
-::: app.workflows.nodes._media_config.ImageGenerationOutput
-
-Este paso de escritura consume presupuesto y declara `retry_guarantee=none`.
-Su operación duradera reserva coste y bytes antes de una única solicitud al
-proveedor. La salida confirmada es un archivo inspeccionado del run, con un
-comprobante que separa el coste incurrido de la reserva pendiente. Recuperar
-devuelve la salida guardada original; un envío desconocido no se convierte
-silenciosamente en otra solicitud. Consulte
-[reservas y recuperación multimedia](../workflows.md#media-reservations).
-
-## Generar vídeo { #video-generate }
-
-`video.generate@1` usa las mismas entradas de prompt e imagen de referencia
-y reglas de clave. El catálogo proporciona opciones compatibles de resolución,
-relación de aspecto, duración y sonido. El sonido opcional está desactivado
-por defecto. Una duración elegida por el proveedor reserva el máximo del
-modelo. `WORKFLOW_VIDEO_GENERATION_ENABLED` es false por defecto.
-
-::: app.workflows.nodes._media_config.VideoGenerateConfig
-
-::: app.workflows.nodes._media_config.VideoGenerationOutput
-
-Este paso de escritura también consume presupuesto y declara
-`retry_guarantee=none`. Un comprobante conocido permite consultar y recoger ese
-mismo trabajo, con permisos vigentes y la generación original de la clave.
-Nunca autoriza otro envío. Los bytes se inspeccionan antes de publicar un
-archivo del run. Cancelar o agotar el tiempo puede dejar un cargo del proveedor
-y una reserva pendiente. Revise
-[las opciones de recuperación](../workflows.md#media-recovery) antes de reemplazarlo.
 
 ## Archivos { #files }
 

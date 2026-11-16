@@ -24,8 +24,13 @@ import logging
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError
+from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai.capabilities import NativeTool
 from pydantic_ai.exceptions import UnexpectedModelBehavior, UserError
+from pydantic_ai.messages import BinaryImage
+from pydantic_ai.models import Model, infer_model
 from pydantic_ai.native_tools import ImageGenerationTool
+from pydantic_ai.providers import infer_provider_class
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 
@@ -35,7 +40,6 @@ from app.agents.capabilities._metered import MeteredModel
 from app.agents.capabilities.budget import can_afford_ambient_call
 from app.agents.deps import AgentDeps
 from app.agents.observability import inherited_instrumentation
-from app.services import image_generation
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +50,10 @@ The image models here answer at most a few megapixels - a PNG of a 4096-pixel
 square at its worst runs to tens of megabytes, a typical answer to one or two -
 so a flat 16 MiB covers what is usually made with room to spare. An image larger
 than this is still recorded at its real size."""
+
+_SUBAGENT_INSTRUCTIONS = (
+    "Generate an image based on the user prompt. Do not ask clarifying questions."
+)
 
 
 class GeneratedImage(BaseModel):
@@ -79,6 +87,23 @@ def parse_generated_image(result: str) -> GeneratedImage | None:
     except ValidationError:
         return None
     return payload if payload.kind == "generated_image" else None
+
+
+def _build_image_model(model_id: str, api_key: str) -> Model:
+    """A model client for one image model, authenticated with the org's key.
+
+    `infer_model` parses the provider prefix (`openai-responses:`, `google:`) and
+    hands the provider name to the factory, which builds the provider class with
+    the key - the same indirection the main model resolver uses, without going
+    through the profile catalog a chat model is resolved from.
+    """
+    return infer_model(
+        model_id,
+        # Every provider reachable here takes `api_key`, but the inferred class is
+        # the abstract `Provider`, whose only `__init__` is `object`'s - the same
+        # gap `model_resolver._build_provider` documents.
+        provider_factory=lambda name: infer_provider_class(name)(api_key=api_key),  # ty: ignore[unknown-argument]
+    )
 
 
 def build_image_toolset(
@@ -123,27 +148,31 @@ def build_image_toolset(
         if isinstance(slot, str):
             return slot
         async with slot:
-            async with image_generation.open_image_model(
-                model_id, api_key, single_request=False
-            ) as provider_model:
-                try:
-                    image = await image_generation.generate_image(
-                        MeteredModel(provider_model),
-                        prompt=prompt,
-                        tool=ImageGenerationTool(**tool_settings),
-                        instrument=inherited_instrumentation(ctx.agent),
-                        single_request=False,
-                    )
-                except (UserError, UnexpectedModelBehavior) as exc:
-                    # Returned strings are stored and streamed verbatim. Only the
-                    # exception's type may cross the tool boundary (#681, #695).
-                    logger.exception("Image generation failed")
-                    return steer(
-                        ctx,
-                        f"Image generation failed ({type(exc).__name__}). "
-                        "Rephrase the prompt, or answer without an image.",
-                    )
+            model = MeteredModel(_build_image_model(model_id, api_key))
+            agent: PydanticAgent[None, BinaryImage] = PydanticAgent(
+                model,
+                output_type=BinaryImage,
+                capabilities=[NativeTool(ImageGenerationTool(**tool_settings))],
+                instructions=_SUBAGENT_INSTRUCTIONS,
+            )
+            agent.instrument = inherited_instrumentation(ctx.agent)
+            try:
+                result = await agent.run(prompt)
+            except (UserError, UnexpectedModelBehavior) as exc:
+                # The image model refused or misbehaved - a bad prompt, an
+                # unsupported setting. Hand it back for the model to rephrase rather
+                # than ending the turn on an error string. Its own text does not
+                # travel: on the last attempt `steer` returns this rather than
+                # raising it, and a returned string is stored and streamed verbatim
+                # where a retry prompt is replaced with a notice (#681, #695).
+                logger.exception("Image generation failed")
+                return steer(
+                    ctx,
+                    f"Image generation failed ({type(exc).__name__}). "
+                    "Rephrase the prompt, or answer without an image.",
+                )
 
+            image = result.output
             image_format = image.format or "png"
             stored = await store_generated(
                 ctx, image.data, filename=f"image.{image_format}", slot=slot

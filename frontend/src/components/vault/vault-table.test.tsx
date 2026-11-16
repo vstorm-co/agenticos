@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { VaultTable } from "./vault-table";
 import type { Secret, SecretPurpose } from "@/types/secrets";
-import { useAuthStore } from "@/stores/auth-store";
 
 /**
  * Every key the organization holds, one row each, named by what it is for.
@@ -56,56 +55,6 @@ function renderTable(secrets: Secret[]) {
 }
 
 describe("the keys", () => {
-  it("shows browser metadata without hints and reserves its policy for the immutable owner", async () => {
-    const owner = { id: "owner-a" } as NonNullable<
-      ReturnType<typeof useAuthStore.getState>["user"]
-    >;
-    useAuthStore.setState({ user: owner });
-    const browser = secret({
-      name: "Browser login",
-      kind: "browser_login",
-      hint: "DO-NOT-ECHO",
-      can_edit: true,
-      owner_user_id: owner.id,
-      browser: {
-        allowed_origins: ["https://accounts.example"],
-        available_fields: ["username", "password"],
-        has_totp: true,
-      },
-    });
-    const onShare = vi.fn();
-    const { rerender } = render(
-      <VaultTable
-        secrets={[browser]}
-        purposes={[]}
-        onShare={onShare}
-        onRotate={noop}
-        onDelete={noop}
-      />,
-    );
-    expect(screen.getByText("https://accounts.example")).toBeVisible();
-    expect(screen.queryByText(/DO-NOT-ECHO/)).not.toBeInTheDocument();
-    await userEvent.click(
-      screen.getByRole("button", { name: "Manage browser use for Browser login" }),
-    );
-    expect(onShare).toHaveBeenCalledWith(browser);
-    rerender(
-      <VaultTable
-        secrets={[{ ...browser, owner_user_id: "different-owner", created_by_user_id: owner.id }]}
-        purposes={[]}
-        onShare={onShare}
-        onRotate={noop}
-        onDelete={noop}
-      />,
-    );
-    expect(
-      screen.queryByRole("button", { name: "Manage browser use for Browser login" }),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Rotate Browser login" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Delete Browser login" })).not.toBeInTheDocument();
-    useAuthStore.setState({ user: null });
-  });
-
   it("lists every key, each named by the service it is for", () => {
     renderTable([
       secret({ name: "Main OpenAI", purpose: "openai" }),

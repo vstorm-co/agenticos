@@ -19,7 +19,6 @@ from app.db.models.workflow_run import (
 from app.schemas.agent import ParkedQuestion
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.reply_expectation import ReplyExpectation
-from app.schemas.workflow_media import WorkflowMediaOperationRead
 from app.workflows.graph.model import pinned_output_fits
 
 MAX_RUN_DEADLINE_SECONDS = 30 * 24 * 3600
@@ -239,11 +238,6 @@ class WorkflowNodeRunRead(BaseSchema):
         default=None,
         description="The decision an approval step asked for - who settled it and when. Null "
         "for every other step",
-    )
-    media_operation: WorkflowMediaOperationRead | None = Field(
-        default=None,
-        description="The current media operation's durable phase and cost holds, including "
-        "the total unresolved cost of earlier superseded operations. This grants no retry permission",
     )
 
 

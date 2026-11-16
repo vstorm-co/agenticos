@@ -40,7 +40,6 @@ from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApp
 from app.db.models.background_task_kind import BackgroundTaskKind
 from app.db.models.workflow import Workflow
 from app.db.models.workflow_file import WorkflowFile
-from app.db.models.workflow_media_operation import WorkflowMediaOperation
 from app.db.models.workflow_run import (
     DispatchOutbox,
     DispatchOutboxStatus,
@@ -1650,27 +1649,6 @@ async def mark_outbox_done(db: AsyncSession, *, outbox: DispatchOutbox) -> Dispa
     return outbox
 
 
-async def get_live_outbox(
-    db: AsyncSession, *, node_run_id: UUID, organization_id: UUID
-) -> DispatchOutbox | None:
-    """Read the unique live claim without holding a lease lock across an effect."""
-    result = await db.execute(
-        select(DispatchOutbox)
-        .where(
-            DispatchOutbox.node_run_id == node_run_id,
-            DispatchOutbox.organization_id == organization_id,
-            DispatchOutbox.status.in_(
-                [
-                    DispatchOutboxStatus.PENDING.value,
-                    DispatchOutboxStatus.CLAIMED.value,
-                ]
-            ),
-        )
-        .execution_options(populate_existing=True)
-    )
-    return result.scalar_one_or_none()
-
-
 async def get_outbox_for_node_run_for_update(
     db: AsyncSession, *, node_run_id: UUID
 ) -> DispatchOutbox | None:
@@ -1902,15 +1880,6 @@ async def take_expired_runs(
             ~exists().where(
                 retry.retry_of_run_id == WorkflowRun.id,
                 retry.ended_at.is_(None),
-            ),
-            ~exists().where(
-                WorkflowMediaOperation.workflow_run_id == WorkflowRun.id,
-                WorkflowMediaOperation.organization_id == WorkflowRun.organization_id,
-                or_(
-                    WorkflowMediaOperation.held_usd > 0,
-                    WorkflowMediaOperation.held_bytes > 0,
-                    WorkflowMediaOperation.incurred_usd > WorkflowMediaOperation.booked_usd,
-                ),
             ),
             ~exists(
                 select(ResourceRef.id)

@@ -1,11 +1,6 @@
 "use client";
 
 import { SchemaForm } from "@/components/agents/schema-form";
-import {
-  BrowserSecretFields,
-  isBrowserSecretComplete,
-  isBrowserSecretKind,
-} from "./browser-secret-fields";
 import type { JsonSchema } from "@/types/agents";
 import type { SecretKind, SecretKindInfo, SecretPayload } from "@/types/secrets";
 
@@ -46,18 +41,6 @@ export function SecretFields({
   idPrefix,
   errors,
 }: SecretFieldsProps) {
-  if (isBrowserSecretKind(info.kind)) {
-    return (
-      <BrowserSecretFields
-        kind={info.kind}
-        value={value}
-        onChange={onChange}
-        disabled={disabled}
-        idPrefix={idPrefix}
-        errors={errors}
-      />
-    );
-  }
   return (
     <div className="space-y-4">
       {/* What the shape is, only where there is more than one field to read
@@ -85,34 +68,6 @@ export function SecretFields({
  * while the input it belongs to sat there unmarked.
  */
 export function secretFieldNames(schema: JsonSchema): string[] {
-  const kind = schema.properties?.kind?.const;
-  if (kind === "browser_login") {
-    return [
-      "totp.seed",
-      "totp.algorithm",
-      "totp.digits",
-      "totp.period_seconds",
-      "allowed_origins",
-      "username",
-      "password",
-      "totp",
-    ];
-  }
-  if (kind === "browser_profile") {
-    return [
-      "fields.name",
-      "fields.email",
-      "fields.phone",
-      "fields.address_line1",
-      "fields.address_line2",
-      "fields.city",
-      "fields.region",
-      "fields.postal_code",
-      "fields.country",
-      "allowed_origins",
-      "fields",
-    ];
-  }
   return Object.entries(schema.properties ?? {})
     .filter(([, property]) => property.const === undefined)
     .map(([name]) => name);
@@ -127,8 +82,6 @@ export function secretFieldNames(schema: JsonSchema): string[] {
  * which is what an untouched one already is.
  */
 export function isSecretComplete(schema: JsonSchema, value: Record<string, unknown>): boolean {
-  const kind = schema.properties?.kind?.const;
-  if (isBrowserSecretKind(kind)) return isBrowserSecretComplete(kind, value);
   const required = schema.required ?? [];
   return secretFieldNames(schema)
     .filter((name) => required.includes(name))

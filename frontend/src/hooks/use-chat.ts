@@ -72,13 +72,7 @@ import {
   resolveAwaitingOnResume,
   resumeFailureStatus,
 } from "@/lib/delegations";
-import {
-  latestBrowserTabs,
-  applyBrowserFrame,
-  applyBrowserProtection,
-  type Browse,
-  type BrowserProtection,
-} from "@/lib/browse";
+import { latestBrowserTabs, applyBrowserFrame, type Browse } from "@/lib/browse";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import { buildAssistantParts, replyFromWire, type WireReply } from "@/lib/conversation-to-chat";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
@@ -489,9 +483,6 @@ export function useChat(options: UseChatOptions = {}) {
   // after `complete`, and anything hung off the streaming message would lose the
   // outcome - which for a browse is the whole answer.
   const [browses, setBrowses] = useState<Browse[]>([]);
-  const protectBrowser = useCallback((protection: BrowserProtection) => {
-    setBrowses((current) => applyBrowserProtection(current, protection));
-  }, []);
   // Selected rather than destructured, so a frame arriving does not re-render
   // this hook's whole tree every time the panel's own open state changes.
   //
@@ -714,28 +705,6 @@ export function useChat(options: UseChatOptions = {}) {
   const handleWebSocketMessage = useCallback(
     (event: MessageEvent) => {
       const wsEvent: WSEvent = JSON.parse(event.data);
-      // Protection may arrive after Stop or after this tab declined a turn.
-      // It may erase an existing matching view here, but never reconstruct one.
-      const browserFrame = wsEvent.data as BrowserFrame | undefined;
-      if (
-        wsEvent.type.startsWith("browser_") &&
-        browserFrame &&
-        (wsEvent.type === "browser_protected" || browserFrame.output_protected === true)
-      ) {
-        setBrowses((current) =>
-          current.some(
-            (browse) =>
-              browse.callId === browserFrame.call_id &&
-              (!browse.runId || !browserFrame.run_id || browse.runId === browserFrame.run_id),
-          )
-            ? applyBrowserFrame(current, {
-                ...browserFrame,
-                kind: "browser_protected",
-                output_protected: true,
-              })
-            : current,
-        );
-      }
       // The frames of a turn this tab declined to follow: a teammate's, in a room
       // the tab has just left - another chat opened before the server heard.
       // Drawn, they would land in the chat on screen.
@@ -1420,8 +1389,6 @@ export function useChat(options: UseChatOptions = {}) {
         case "browser_held":
         case "browser_released":
         case "browser_needs_person":
-        case "browser_protected":
-        case "browser_teaching":
         case "browser_control_error":
         case "browser_pointer": {
           // One branch for every frame: the envelope's `type` is the frame's own
@@ -4030,7 +3997,6 @@ export function useChat(options: UseChatOptions = {}) {
     delegations: displayedDelegations,
     /** The turn's browses, in the order they started. See `BrowserPanel`. */
     browses,
-    protectBrowser,
     connect,
     disconnect,
     sendMessage: sendChatMessage,

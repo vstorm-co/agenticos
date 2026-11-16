@@ -18,7 +18,6 @@ from app.services import chat_room, live_turn
 from app.services.agent_runner import AgentRunnerService, RunSegment
 from app.services.conversation import ConversationService
 from app.services.conversation_turns import claim
-from app.services.room_routing import RoomRoutingService
 from app.services.room_submission import TERMINAL, RoomSubmissionService, announce_request
 from app.services.run_stream import RunFrames
 from app.worker.jobs import RoomRequestJob
@@ -133,11 +132,6 @@ async def run_request(job: RoomRequestJob) -> None:
                 return
             try:
                 ctx, conversation, message = await service.authority(submission)
-                planning = (
-                    await RoomRoutingService(db).planner(submission)
-                    if submission.intent == "ask_lead"
-                    else None
-                )
             except AppException:
                 submission.status = "failed"
                 submission.error = (
@@ -215,7 +209,6 @@ async def run_request(job: RoomRequestJob) -> None:
                             thread_root_message_id=message.thread_root_message_id,
                             message_history=history,
                             acts_for_sender=True,
-                            room_lead=planning,
                             parks_questions=True,
                             on_run_open=opened,
                             check_model_request=check_model_request,

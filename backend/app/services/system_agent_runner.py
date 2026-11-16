@@ -21,10 +21,8 @@ not change whether its answer can be read.
 
 import json
 import re
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from decimal import Decimal
-from typing import TypedDict
 from uuid import UUID
 
 from pydantic import TypeAdapter
@@ -54,11 +52,6 @@ from app.services.model_profile import ModelProfileService
 from app.services.system_agents import SystemAgentService
 
 _FENCE = re.compile(r"^```[a-zA-Z]*\s*\n?|\n?```\s*$")
-
-
-class _RunConstraints(TypedDict, total=False):
-    run_limit_usd: Decimal
-    check_model_request: Callable[[AsyncSession], Awaitable[None]]
 
 
 @dataclass(frozen=True)
@@ -128,8 +121,6 @@ class SystemAgentRunner:
         version_id: UUID | None = None,
         improvement_run_id: UUID | None = None,
         knowledge_base_ids: Sequence[UUID] = (),
-        run_limit_usd: Decimal | None = None,
-        check_model_request: Callable[[AsyncSession], Awaitable[None]] | None = None,
     ) -> SystemAgentResult[T]:
         """Run system agent `key` on `prompt` as the caller, and validate its answer.
 
@@ -172,11 +163,6 @@ class SystemAgentRunner:
         selected_version = version_id or agent.current_version_id
         assert selected_version is not None
         knowledge = RunKnowledge(tuple(knowledge_base_ids))
-        constraints: _RunConstraints = {}
-        if run_limit_usd is not None:
-            constraints["run_limit_usd"] = run_limit_usd
-        if check_model_request is not None:
-            constraints["check_model_request"] = check_model_request
         try:
             text, run = await AgentRunnerService(self.db).execute(
                 ctx,
@@ -194,7 +180,6 @@ class SystemAgentRunner:
                     else None
                 ),
                 reports_failure=True,
-                **constraints,
             )
         except RunFailedError as failure:
             cause = failure.__cause__

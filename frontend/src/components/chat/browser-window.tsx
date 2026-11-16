@@ -34,8 +34,6 @@ import { BrowserCommentLayer, type PageComment } from "./browser-comment";
 import type { BrowseOutcome } from "@/types/chat";
 import { OUTCOME_TONE, StepTimeline } from "./browser-view";
 import { LiveViewport } from "./live-viewport";
-import { BrowserCredentialReview } from "@/components/browser/browser-credential-review";
-import { BrowserTeachingControls } from "@/components/browser/browser-teaching-controls";
 
 /** What a person may do with the browser, as the window offers it. */
 export interface BrowseControl {
@@ -281,94 +279,7 @@ function useFitted(image: string | null, asked: number | null, waiting: boolean)
  * `control` is null where nobody can drive this browse from here: a finished
  * one, or one whose run is not known yet.
  */
-interface BrowserWindowProps {
-  browse: Browse;
-  control: BrowseControl | null;
-  onClose?: () => void;
-  maximized?: boolean;
-  onMaximize?: () => void;
-  maximizeLabel?: string;
-  newTabHref?: string;
-  waitForFit?: boolean;
-  onComment?: (comment: PageComment) => void;
-  surface?: BrowseSurface;
-  onProtected?: () => void;
-}
-
-export function BrowserWindow(props: BrowserWindowProps) {
-  return props.browse.outputProtected ? (
-    <ProtectedBrowserWindow {...props} />
-  ) : (
-    <UnprotectedBrowserWindow {...props} />
-  );
-}
-
-function ProtectedBrowserWindow({
-  browse,
-  onClose,
-  onMaximize,
-  maximizeLabel,
-  maximized,
-  newTabHref,
-  onProtected,
-}: BrowserWindowProps) {
-  const t = useTranslations("browserCredentials");
-  const chat = useTranslations("chat");
-  return (
-    <section
-      aria-label={t("protectedTitle")}
-      className="bg-background flex h-full min-h-0 min-w-0 flex-col"
-    >
-      <div className="border-border flex shrink-0 items-center gap-2 border-b p-2">
-        <Lock className="size-4 shrink-0" aria-hidden />
-        <h2 className="min-w-0 flex-1 text-sm font-medium">{t("protectedTitle")}</h2>
-        {newTabHref && (
-          <a
-            href={newTabHref}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={chat("browserOpenNewTab")}
-            className="hover:bg-muted rounded p-2"
-          >
-            <ExternalLink className="size-4" aria-hidden />
-          </a>
-        )}
-        {onMaximize && (
-          <ChromeButton
-            onClick={onMaximize}
-            label={maximizeLabel ?? chat(maximized ? "browserRestore" : "browserMaximize")}
-          >
-            {maximized ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
-          </ChromeButton>
-        )}
-        {onClose && (
-          <ChromeButton label={t("closeView")} onClick={onClose}>
-            <X className="size-4" />
-          </ChromeButton>
-        )}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <p className="text-muted-foreground px-4 pt-4 text-sm">{t("protectedSummary")}</p>
-        {browse.runId && browse.credentialPlanId ? (
-          <BrowserCredentialReview
-            runId={browse.runId}
-            planId={browse.credentialPlanId}
-            callId={browse.callId}
-            tabId={browse.tabId ?? undefined}
-            onProtected={onProtected}
-          />
-        ) : (
-          <div className="text-muted-foreground space-y-3 p-4 text-sm">
-            <p>{t("protectedNoReceipt")}</p>
-            <p>{t("stopOriginatingRun")}</p>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function UnprotectedBrowserWindow({
+export function BrowserWindow({
   browse,
   control,
   onClose,
@@ -379,8 +290,21 @@ function UnprotectedBrowserWindow({
   waitForFit = false,
   onComment,
   surface = "browser",
-  onProtected,
-}: BrowserWindowProps) {
+}: {
+  browse: Browse;
+  control: BrowseControl | null;
+  onClose?: () => void;
+  maximized?: boolean;
+  onMaximize?: () => void;
+  maximizeLabel?: string;
+  /** Where the same browse opens on a page of its own, where that is somewhere else. */
+  newTabHref?: string;
+  /** Hold the picture back until a frame of this window's size arrives - see `useFitted`. */
+  waitForFit?: boolean;
+  /** Where a comment on a spot of the page goes - the chat's composer; none, no button. */
+  onComment?: (comment: PageComment) => void;
+  surface?: BrowseSurface;
+}) {
   const t = useTranslations("chat");
   const tb = useTranslations("browse");
   const workspace = useTranslations("chat.workspace");
@@ -450,9 +374,6 @@ function UnprotectedBrowserWindow({
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-0.5">
           {browse.outcome && <OutcomeBadge outcome={browse.outcome} />}
-          {!computer && browse.runId && (running || browse.teachingSessionId) && (
-            <BrowserTeachingControls browse={browse} canControl={canDrive} />
-          )}
           {canDrive &&
             (hold.holding ? (
               <button
@@ -572,18 +493,6 @@ function UnprotectedBrowserWindow({
         <p className="text-muted-foreground border-border border-b px-3 py-1.5 text-xs">
           {tb("heldBy", { name: browse.heldBy })}
         </p>
-      )}
-
-      {!computer && browse.runId && browse.credentialPlanId && (
-        <div className="border-border max-h-[65%] shrink-0 overflow-y-auto border-b">
-          <BrowserCredentialReview
-            runId={browse.runId}
-            planId={browse.credentialPlanId}
-            callId={browse.callId}
-            tabId={browse.tabId ?? undefined}
-            onProtected={onProtected}
-          />
-        </div>
       )}
 
       {/* The page, edge to edge, the way a browser draws one: the window has

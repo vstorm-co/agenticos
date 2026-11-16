@@ -7,14 +7,12 @@ the same refusal a provider's own error would be.
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 
 import httpx
-import httpx2
 
 from app.services.video_generation.clients import CLIENTS, Clip, FirstFrame, JobStage, VideoCall
 from app.services.video_generation.exceptions import VideoFailure, VideoProviderError
-from app.services.video_generation.receipts import VideoReceipt
 from app.services.video_models import VideoProvider
 
 logger = logging.getLogger(__name__)
@@ -40,9 +38,6 @@ async def generate_video(
     first_frame: FirstFrame | None = None,
     reached: Callable[[JobStage], None] | None = None,
     base_url: str | None = None,
-    receipt: VideoReceipt | None = None,
-    on_receipt: Callable[[VideoReceipt], Awaitable[None]] | None = None,
-    protected_downloads: bool = False,
 ) -> Clip:
     """Make one clip with one provider's model, and return its bytes.
 
@@ -62,12 +57,6 @@ async def generate_video(
             can book what the provider bills although no clip comes back.
         base_url: Where to call the provider instead of the catalog's address -
             an Alibaba workspace host.
-        receipt: Collect this existing provider job or file without a new POST.
-            The caller must recheck operation authority and credential generation.
-        on_receipt: Persist a new closed receipt before any poll or download.
-            A failure propagates; this function never falls back to a fresh job.
-        protected_downloads: Pin every download hop to public addresses and keep
-            the provider endpoint fixed. A fresh submission requires a journal.
 
     Raises:
         VideoProviderError: The provider refused, failed, timed out, or returned
@@ -86,16 +75,6 @@ async def generate_video(
         raise ValueError(f"{model} does not start from an image")
     if not prompt.strip():
         raise ValueError("There is no prompt")
-    if receipt is not None and (
-        (receipt.provider, receipt.api, receipt.model) != (provider.provider, provider.api, model)
-        or receipt.kind != ("file" if provider.api == "gemini_interactions" else "job")
-    ):
-        raise ValueError("The video receipt does not match this provider, API and model")
-    if protected_downloads:
-        if base_url is not None and base_url.rstrip("/") != provider.base_url.rstrip("/"):
-            raise ValueError("Workflow video generation requires the catalog provider endpoint")
-        if receipt is None and on_receipt is None:
-            raise ValueError("Workflow video generation requires a durable receipt journal")
     call = VideoCall(
         provider=provider.provider,
         base_url=base_url or provider.base_url,
@@ -107,32 +86,22 @@ async def generate_video(
         duration=duration if chosen.duration_choosable else None,
         audio=audio if chosen.audio == "optional" else None,
         first_frame=first_frame,
-        api=provider.api,
-        receipt=receipt,
-        on_receipt=on_receipt,
-        protected_downloads=protected_downloads,
         **({} if reached is None else {"reached": reached}),
     )
     deadline = asyncio.get_running_loop().time() + timeout_seconds
     try:
         async with httpx.AsyncClient(timeout=REQUEST_SECONDS) as client:
             return await CLIENTS[provider.api](client, call, deadline)
-    except httpx.TimeoutException, httpx2.TimeoutException:
+    except httpx.TimeoutException:
         # One slow request before the job's deadline is a provider having a bad
         # moment, not the job running past the time it was given.
-        logger.warning(
-            "Video request to %s timed out", provider.provider, exc_info=not protected_downloads
-        )
+        logger.warning("Video request to %s timed out", provider.provider, exc_info=True)
         failure = (
             VideoFailure.TIMED_OUT
             if asyncio.get_running_loop().time() >= deadline
             else VideoFailure.UNAVAILABLE
         )
         raise VideoProviderError(failure, provider=provider.provider) from None
-    except httpx.HTTPError, httpx2.HTTPError:
-        logger.warning(
-            "Video request to %s failed in transit",
-            provider.provider,
-            exc_info=not protected_downloads,
-        )
+    except httpx.HTTPError:
+        logger.warning("Video request to %s failed in transit", provider.provider, exc_info=True)
         raise VideoProviderError(VideoFailure.UNAVAILABLE, provider=provider.provider) from None

@@ -34,7 +34,6 @@ from app.repositories import (
     organization_repo,
     retention_repo,
 )
-from app.repositories import workflow_media_operation as media_repo
 from app.repositories import (
     workflow_run as workflow_run_repo,
 )
@@ -123,27 +122,6 @@ async def organization_monthly_spend(
     )
 
 
-async def organization_budget_usage_since(
-    db: AsyncSession,
-    organization_id: UUID,
-    since: datetime,
-    *,
-    until: datetime | None = None,
-    exclude_run_id: UUID | None = None,
-) -> Decimal:
-    """Admission usage: actual period fees plus every unresolved media amount.
-
-    A media journal contributes only its remaining hold and incurred fees not
-    yet in the canonical ledger. Booked fees are already in the period sum.
-    Holds survive lease expiry and calendar rollover until reconciled; reporting
-    APIs keep using the actual-spend functions above.
-    """
-    spent = await organization_spend_since(
-        db, organization_id, since, until=until, exclude_run_id=exclude_run_id
-    )
-    return spent + await media_repo.outstanding_usd(db, organization_id=organization_id)
-
-
 async def assert_organization_within_budget(db: AsyncSession, organization_id: UUID) -> None:
     """Refuse work that would spend past the organization's monthly cap.
 
@@ -159,7 +137,7 @@ async def assert_organization_within_budget(db: AsyncSession, organization_id: U
     organization = await organization_repo.get_by_id(db, organization_id)
     if organization is None or organization.monthly_budget_usd is None:
         return
-    spent = await organization_budget_usage_since(db, organization_id, month_start())
+    spent = await organization_monthly_spend(db, organization_id)
     if spent >= organization.monthly_budget_usd:
         raise BudgetExceeded(
             limit_usd=organization.monthly_budget_usd,

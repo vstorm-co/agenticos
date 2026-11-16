@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SecretPicker, type SecretPickerProps } from "./secret-picker";
+import { SecretPicker } from "./secret-picker";
 
 const useSecretsMock = vi.fn();
 
@@ -43,21 +43,13 @@ beforeEach(() => {
   useSecretsMock.mockReturnValue(vault(SECRETS));
 });
 
-function vault(
-  secrets: ((typeof SECRETS)[number] & {
-    purpose?: string;
-    usage_scope?: "organization" | "personal";
-  })[],
-  isLoading = false,
-) {
+function vault(secrets: typeof SECRETS, isLoading = false) {
   return { secrets, kinds: KINDS, isLoading, create: { mutateAsync, isPending: false } };
 }
 
 function mount(
   value: string | null,
-  props: Partial<
-    Pick<SecretPickerProps, "disabled" | "error" | "kind" | "label" | "purpose" | "usageScope">
-  > = {},
+  props: Partial<{ disabled: boolean; error: string; kind: string; label: string }> = {},
 ) {
   const onChange = vi.fn();
   render(<SecretPicker value={value} onChange={onChange} {...props} />);
@@ -86,90 +78,6 @@ describe("SecretPicker", () => {
 
     expect(screen.getByRole("option", { name: /OpenAI/ })).toBeVisible();
     expect(screen.queryByRole("option", { name: /AWS/ })).toBeNull();
-  });
-
-  it("offers only the exact organization provider key, without assuming a missing scope", async () => {
-    useSecretsMock.mockReturnValue(
-      vault([
-        {
-          id: "team",
-          name: "Team key",
-          kind: "api_key",
-          purpose: "google",
-          usage_scope: "organization",
-        },
-        {
-          id: "mine",
-          name: "Personal key",
-          kind: "api_key",
-          purpose: "google",
-          usage_scope: "personal",
-        },
-        { id: "unknown", name: "Unknown scope", kind: "api_key", purpose: "google" },
-        {
-          id: "custom",
-          name: "Custom purpose",
-          kind: "api_key",
-          purpose: "custom",
-          usage_scope: "organization",
-        },
-        {
-          id: "other",
-          name: "Other provider",
-          kind: "api_key",
-          purpose: "openai",
-          usage_scope: "organization",
-        },
-        {
-          id: "subscription",
-          name: "Subscription",
-          kind: "openai_codex",
-          purpose: "google",
-          usage_scope: "organization",
-        },
-      ]),
-    );
-    mount(null, { kind: "api_key", purpose: "google", usageScope: "organization" });
-    await userEvent.click(screen.getByRole("combobox", { name: "Secret" }));
-    expect(screen.getByRole("option", { name: /Team key/ })).toBeVisible();
-    expect(
-      screen.queryByRole("option", {
-        name: /Personal key|Unknown scope|Custom purpose|Other provider|Subscription/,
-      }),
-    ).toBeNull();
-  });
-
-  it("keeps a previously selected ineligible key visible as an orphan", () => {
-    useSecretsMock.mockReturnValue(
-      vault([
-        {
-          id: "mine",
-          name: "Personal key",
-          kind: "api_key",
-          purpose: "google",
-          usage_scope: "personal",
-        },
-      ]),
-    );
-    mount("mine", { kind: "api_key", purpose: "google", usageScope: "organization" });
-    expect(screen.getByText("The referenced secret is no longer available.")).toBeVisible();
-    expect(screen.getByText("mine")).toBeVisible();
-  });
-
-  it("creates an organization provider key and returns only its id", async () => {
-    const onChange = mount(null, {
-      kind: "api_key",
-      purpose: "google",
-      usageScope: "organization",
-    });
-    await userEvent.click(screen.getByRole("button", { name: "Add API key" }));
-    await userEvent.click(screen.getByRole("button", { name: "store api_key" }));
-    expect(mutateAsync).toHaveBeenCalledWith({
-      name: "new",
-      purpose: "google",
-      usage_scope: "organization",
-    });
-    await vi.waitFor(() => expect(onChange).toHaveBeenCalledWith("s-new"));
   });
 
   it("adds an API key directly from the selector without storing the action as a reference", async () => {

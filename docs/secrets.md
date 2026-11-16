@@ -195,14 +195,6 @@ transcription's [usage record](ml-services.md#what-is-recorded) names the key it
 was sent with. See [which engine a recording reaches](ml-services.md#which-engine-a-recording-reaches).
 A key's list of the agents using it does not show this use.
 
-**Workflow media.** Generation nodes name an organization-scoped `api_key` with
-the exact selected provider purpose. Publication checks metadata without
-decrypting it. `OrganizationSecretService.workflow_media_key` locks and refreshes
-the row, rechecks the run principal's current access and the operation's pinned
-authorization generation, then opens it only for the trusted generation adapter.
-Rotation cannot silently substitute another paid credential during recovery.
-The graph and receipts contain ids and accounting metadata, never key values.
-
 **Voice calls.** The key a [voice call](voice.md) is held with is named on the
 agent's Voice card, beside the realtime provider and model. Its purpose must be
 the provider and its kind the provider's: an `api_key`, or an `azure_openai`

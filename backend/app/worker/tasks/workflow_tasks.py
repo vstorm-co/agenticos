@@ -162,8 +162,6 @@ async def reconcile() -> dict[str, int]:
     async with get_worker_db_context() as db:
         resolved = await WorkflowReconcilerService(db).resolve_orphaned_attempts()
     async with get_worker_db_context() as db:
-        booked_media = await WorkflowReconcilerService(db).book_pending_media_costs()
-    async with get_worker_db_context() as db:
         woken = await WorkflowReconcilerService(db).wake_stale_approval_decisions()
     async with get_worker_db_context() as db:
         woken_steps = await WorkflowReconcilerService(db).wake_stale_step_approvals()
@@ -171,7 +169,6 @@ async def reconcile() -> dict[str, int]:
     result = {
         "reclaimed_claims": reclaimed,
         "resolved_attempts": resolved,
-        "booked_media_nodes": booked_media,
         "woken_approvals": woken,
         "woken_step_approvals": woken_steps,
     }

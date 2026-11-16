@@ -2321,7 +2321,7 @@ class AgentRegistryService:
                     )
 
         for binding in spec.capabilities:
-            problems.merge(await self._binding_problems(ctx, binding, agent_id=agent_id))
+            problems.merge(await self._binding_problems(ctx, binding))
         problems.add(_rename_clash_problems(spec))
 
         # A model, named. There is no organization-wide default to fall back
@@ -2449,7 +2449,7 @@ class AgentRegistryService:
         return []
 
     async def _binding_problems(
-        self, ctx: AuthContext, binding: CapabilityBindingSpec, *, agent_id: UUID | None = None
+        self, ctx: AuthContext, binding: CapabilityBindingSpec
     ) -> _SpecProblems:
         """Everything wrong with one capability binding.
 
@@ -2480,28 +2480,6 @@ class AgentRegistryService:
             problems.merge(_config_problems(binding.id, exc))
         else:
             problems.add(await _browser_problems(config, has_secret=binding.secret_id is not None))
-            if isinstance(config, WebBrowserConfig) and config.browser_credential_ids:
-                from app.services.browser_credentials._bindings import binding_problem
-
-                browser_problem = await binding_problem(
-                    self.db,
-                    ctx,
-                    config.browser_credential_ids,
-                    agent_id=agent_id,
-                    provisioned=(
-                        config.connection == "built_in"
-                        and bool(settings.BROWSER_SIGN_IN_CDP_URL)
-                        and config.cdp_url.rstrip("/")
-                        == settings.BROWSER_SIGN_IN_CDP_URL.rstrip("/")
-                    ),
-                )
-                if browser_problem is not None:
-                    problems.merge(
-                        _SpecProblems.at(
-                            "capabilities.browser_use.config.browser_credential_ids",
-                            browser_problem,
-                        )
-                    )
             problems.add(_computer_use_problems(config))
             if isinstance(config, WebBrowserConfig) and config.step_model_profile_id is not None:
                 problems.add(await self.model_profile_problems(ctx, config.step_model_profile_id))

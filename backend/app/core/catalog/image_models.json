@@ -7,222 +7,22 @@
       {
         "id": "gpt-image-2",
         "name": "GPT Image 2",
-        "description": "State-of-the-art image generation model.",
-        "workflow": null
+        "description": "State-of-the-art image generation model."
       },
       {
         "id": "gpt-image-1.5",
         "name": "GPT Image 1.5",
-        "description": "Sharper text and instruction following than GPT Image 1, at the same sizes.",
-        "workflow": {
-          "reference_image": false,
-          "qualities": [
-            "low",
-            "medium",
-            "high"
-          ],
-          "sizes": [
-            "1024x1024",
-            "1024x1536",
-            "1536x1024"
-          ],
-          "aspect_ratios": [],
-          "backgrounds": [
-            "opaque",
-            "transparent",
-            "auto"
-          ],
-          "output_formats": [
-            "png",
-            "webp",
-            "jpeg"
-          ],
-          "defaults": {
-            "quality": "medium",
-            "size": "1024x1024",
-            "background": "opaque",
-            "output_format": "png"
-          },
-          "max_input_tokens": 1050000,
-          "max_output_tokens": 8192,
-          "input_usd_per_million": "5",
-          "output_usd_per_million": "22.50",
-          "tool_prompt_max_characters": 32000,
-          "tool_input_usd_per_million": "5",
-          "output_prices": [
-            {
-              "size": "1024x1024",
-              "quality": "low",
-              "output_estimate_usd": "0.009",
-              "output_ceiling_usd": "0.010"
-            },
-            {
-              "size": "1024x1536",
-              "quality": "low",
-              "output_estimate_usd": "0.013",
-              "output_ceiling_usd": "0.014"
-            },
-            {
-              "size": "1536x1024",
-              "quality": "low",
-              "output_estimate_usd": "0.013",
-              "output_ceiling_usd": "0.014"
-            },
-            {
-              "size": "1024x1024",
-              "quality": "medium",
-              "output_estimate_usd": "0.034",
-              "output_ceiling_usd": "0.035"
-            },
-            {
-              "size": "1024x1536",
-              "quality": "medium",
-              "output_estimate_usd": "0.05",
-              "output_ceiling_usd": "0.051"
-            },
-            {
-              "size": "1536x1024",
-              "quality": "medium",
-              "output_estimate_usd": "0.05",
-              "output_ceiling_usd": "0.051"
-            },
-            {
-              "size": "1024x1024",
-              "quality": "high",
-              "output_estimate_usd": "0.133",
-              "output_ceiling_usd": "0.134"
-            },
-            {
-              "size": "1024x1536",
-              "quality": "high",
-              "output_estimate_usd": "0.2",
-              "output_ceiling_usd": "0.201"
-            },
-            {
-              "size": "1536x1024",
-              "quality": "high",
-              "output_estimate_usd": "0.2",
-              "output_ceiling_usd": "0.201"
-            }
-          ],
-          "pricing_as_of": "2026-11-16",
-          "sources": [
-            "https://developers.openai.com/api/docs/models/gpt-5.4",
-            "https://developers.openai.com/api/docs/pricing",
-            "https://developers.openai.com/api/docs/guides/image-generation",
-            "https://developers.openai.com/api/reference/resources/images/methods/generate"
-          ]
-        }
+        "description": "Sharper text and instruction following than GPT Image 1, at the same sizes."
       },
       {
         "id": "gpt-image-1",
         "name": "GPT Image 1",
-        "description": "The generation before it - still the widest set of sizes and background options.",
-        "workflow": null
+        "description": "The generation before it - still the widest set of sizes and background options."
       },
       {
         "id": "gpt-image-1-mini",
         "name": "GPT Image 1 mini",
-        "description": "Cheapest and fastest of the OpenAI set, for drafts and thumbnails.",
-        "workflow": {
-          "reference_image": false,
-          "qualities": [
-            "low",
-            "medium",
-            "high"
-          ],
-          "sizes": [
-            "1024x1024",
-            "1024x1536",
-            "1536x1024"
-          ],
-          "aspect_ratios": [],
-          "backgrounds": [
-            "opaque",
-            "transparent",
-            "auto"
-          ],
-          "output_formats": [
-            "png",
-            "webp",
-            "jpeg"
-          ],
-          "defaults": {
-            "quality": "medium",
-            "size": "1024x1024",
-            "background": "opaque",
-            "output_format": "png"
-          },
-          "max_input_tokens": 1050000,
-          "max_output_tokens": 8192,
-          "input_usd_per_million": "5",
-          "output_usd_per_million": "22.50",
-          "tool_prompt_max_characters": 32000,
-          "tool_input_usd_per_million": "2",
-          "output_prices": [
-            {
-              "size": "1024x1024",
-              "quality": "low",
-              "output_estimate_usd": "0.005",
-              "output_ceiling_usd": "0.006"
-            },
-            {
-              "size": "1024x1536",
-              "quality": "low",
-              "output_estimate_usd": "0.006",
-              "output_ceiling_usd": "0.007"
-            },
-            {
-              "size": "1536x1024",
-              "quality": "low",
-              "output_estimate_usd": "0.006",
-              "output_ceiling_usd": "0.007"
-            },
-            {
-              "size": "1024x1024",
-              "quality": "medium",
-              "output_estimate_usd": "0.011",
-              "output_ceiling_usd": "0.012"
-            },
-            {
-              "size": "1024x1536",
-              "quality": "medium",
-              "output_estimate_usd": "0.015",
-              "output_ceiling_usd": "0.016"
-            },
-            {
-              "size": "1536x1024",
-              "quality": "medium",
-              "output_estimate_usd": "0.015",
-              "output_ceiling_usd": "0.016"
-            },
-            {
-              "size": "1024x1024",
-              "quality": "high",
-              "output_estimate_usd": "0.036",
-              "output_ceiling_usd": "0.037"
-            },
-            {
-              "size": "1024x1536",
-              "quality": "high",
-              "output_estimate_usd": "0.052",
-              "output_ceiling_usd": "0.053"
-            },
-            {
-              "size": "1536x1024",
-              "quality": "high",
-              "output_estimate_usd": "0.052",
-              "output_ceiling_usd": "0.053"
-            }
-          ],
-          "pricing_as_of": "2026-11-16",
-          "sources": [
-            "https://developers.openai.com/api/docs/models/gpt-5.4",
-            "https://developers.openai.com/api/docs/pricing",
-            "https://developers.openai.com/api/docs/guides/image-generation",
-            "https://developers.openai.com/api/reference/resources/images/methods/generate"
-          ]
-        }
+        "description": "Cheapest and fastest of the OpenAI set, for drafts and thumbnails."
       }
     ]
   },
@@ -233,169 +33,22 @@
       {
         "id": "gemini-3-pro-image",
         "name": "Nano Banana Pro",
-        "description": "Gemini 3 Pro Image. The most capable of Google's set, and the slowest.",
-        "workflow": {
-          "reference_image": true,
-          "qualities": [],
-          "sizes": [
-            "1K",
-            "2K",
-            "4K"
-          ],
-          "aspect_ratios": [
-            "1:1",
-            "3:2",
-            "2:3",
-            "4:3",
-            "3:4",
-            "5:4",
-            "4:5",
-            "16:9",
-            "9:16",
-            "21:9"
-          ],
-          "backgrounds": [],
-          "output_formats": [],
-          "defaults": {
-            "size": "1K",
-            "aspect_ratio": "1:1"
-          },
-          "max_input_tokens": 65536,
-          "max_output_tokens": 8192,
-          "input_usd_per_million": "2",
-          "output_usd_per_million": "120",
-          "pricing_as_of": "2026-11-16",
-          "sources": [
-            "https://ai.google.dev/gemini-api/docs/models/gemini-3-pro-image",
-            "https://ai.google.dev/gemini-api/docs/pricing",
-            "https://ai.google.dev/gemini-api/docs/thinking",
-            "https://ai.google.dev/gemini-api/docs/image-generation"
-          ]
-        }
+        "description": "Gemini 3 Pro Image. The most capable of Google's set, and the slowest."
       },
       {
         "id": "gemini-3.1-flash-image",
         "name": "Nano Banana 2",
-        "description": "Gemini 3.1 Flash Image. The everyday choice - fast, and edits an image it is given.",
-        "workflow": {
-          "reference_image": true,
-          "qualities": [],
-          "sizes": [
-            "512",
-            "1K",
-            "2K",
-            "4K"
-          ],
-          "aspect_ratios": [
-            "1:1",
-            "3:2",
-            "2:3",
-            "4:3",
-            "3:4",
-            "5:4",
-            "4:5",
-            "16:9",
-            "9:16",
-            "21:9"
-          ],
-          "backgrounds": [],
-          "output_formats": [],
-          "defaults": {
-            "size": "1K",
-            "aspect_ratio": "1:1"
-          },
-          "max_input_tokens": 131072,
-          "max_output_tokens": 8192,
-          "input_usd_per_million": "0.50",
-          "output_usd_per_million": "60",
-          "pricing_as_of": "2026-11-16",
-          "sources": [
-            "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-image",
-            "https://ai.google.dev/gemini-api/docs/pricing",
-            "https://ai.google.dev/gemini-api/docs/thinking",
-            "https://ai.google.dev/gemini-api/docs/image-generation"
-          ]
-        }
+        "description": "Gemini 3.1 Flash Image. The everyday choice - fast, and edits an image it is given."
       },
       {
         "id": "gemini-3.1-flash-lite-image",
         "name": "Nano Banana 2 Lite",
-        "description": "Gemini 3.1 Flash Lite Image. Cheapest of Google's set.",
-        "workflow": {
-          "reference_image": true,
-          "qualities": [],
-          "sizes": [
-            "1K"
-          ],
-          "aspect_ratios": [
-            "1:1",
-            "3:2",
-            "2:3",
-            "4:3",
-            "3:4",
-            "5:4",
-            "4:5",
-            "16:9",
-            "9:16",
-            "21:9"
-          ],
-          "backgrounds": [],
-          "output_formats": [],
-          "defaults": {
-            "size": "1K",
-            "aspect_ratio": "1:1"
-          },
-          "max_input_tokens": 65536,
-          "max_output_tokens": 4096,
-          "input_usd_per_million": "0.25",
-          "output_usd_per_million": "30",
-          "pricing_as_of": "2026-11-16",
-          "sources": [
-            "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite-image",
-            "https://ai.google.dev/gemini-api/docs/pricing",
-            "https://ai.google.dev/gemini-api/docs/thinking",
-            "https://ai.google.dev/gemini-api/docs/image-generation"
-          ]
-        }
+        "description": "Gemini 3.1 Flash Lite Image. Cheapest of Google's set."
       },
       {
         "id": "gemini-2.5-flash-image",
         "name": "Nano Banana",
-        "description": "Gemini 2.5 Flash Image. The previous generation, still widely available.",
-        "workflow": {
-          "reference_image": true,
-          "qualities": [],
-          "sizes": [],
-          "aspect_ratios": [
-            "1:1",
-            "3:2",
-            "2:3",
-            "4:3",
-            "3:4",
-            "5:4",
-            "4:5",
-            "16:9",
-            "9:16",
-            "21:9"
-          ],
-          "backgrounds": [],
-          "output_formats": [],
-          "defaults": {
-            "size": null,
-            "aspect_ratio": "1:1"
-          },
-          "max_input_tokens": 65536,
-          "max_output_tokens": 8192,
-          "input_usd_per_million": "0.30",
-          "output_usd_per_million": "30",
-          "pricing_as_of": "2026-11-16",
-          "sources": [
-            "https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash-image",
-            "https://ai.google.dev/gemini-api/docs/pricing",
-            "https://ai.google.dev/gemini-api/docs/thinking",
-            "https://ai.google.dev/gemini-api/docs/image-generation"
-          ]
-        }
+        "description": "Gemini 2.5 Flash Image. The previous generation, still widely available."
       }
     ]
   }

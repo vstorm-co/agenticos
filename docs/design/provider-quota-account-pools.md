@@ -6,49 +6,12 @@ Only Codex OAuth accounts with a stored provider account id can join a pool.
 Claude API keys and other Codex API keys remain single-account selections because
 they do not provide a stable account identity.
 
-An owner can request a bounded metadata refresh before the first coding task via
-`POST /v1/coding-accounts/{account_id}/usage/refresh`, supplying the reviewed
-account generation. `GET /v1/coding-accounts/{account_id}/usage` and the personal
-account list read its normalized cache without calling the provider. A durable
-job rechecks active membership, account consent, generation and its queue-attempt
-fence. Its private Docker workbench runs only the pinned Codex 0.160.0 app-server
-metadata methods; it does not create a model thread or turn. An occupied account
-lease reports a busy state instead of interrupting its coding task.
-
-The Codex adapter reads `account/rateLimits/read`, verifies the response account
-id against the selected grant, and preserves explicit percentage windows and UTC
-reset timestamps. Readiness comes from `ordinaryUsageAllowed`, never inferred
-from percentages or a reset countdown. A changed identity refuses the observation.
-Missing, stale, unsupported and malformed evidence remains unknown. Claude and
-API-key accounts explicitly report unsupported usage telemetry.
-
-Model discovery is labeled **provider-advertised models**, not guaranteed
-per-call entitlement. The pinned `model/list` can silently fall back to bundled
-metadata, so advertisement also requires a fresh, identity-scoped, version-matched
-`models_cache.json` created in this selected account's new private native home.
-Only allowlisted model ids shared by the remote cache and current native list are
-returned. A model-catalog failure preserves an already verified quota observation.
-Each cache entry binds organization, owner, account and generation, expires after
-five minutes, and is hidden immediately after consent changes. The probe never
-returns provider credentials, raw errors, provider account identifiers or model descriptions.
-
-The supported wire contract is pinned to OpenAI Codex commit
-[`a956835d020762cb2b570053af06f643a11c0ecc`](https://github.com/openai/codex/tree/a956835d020762cb2b570053af06f643a11c0ecc)
-(`rust-v0.160.0`):
-
-- [`account.rs`](https://github.com/openai/codex/blob/a956835d020762cb2b570053af06f643a11c0ecc/codex-rs/app-server-protocol/src/protocol/v2/account.rs) defines account identity, readiness, windows and the snake-case rate-limit reasons.
-- [`catalog_processor.rs`](https://github.com/openai/codex/blob/a956835d020762cb2b570053af06f643a11c0ecc/codex-rs/app-server/src/request_processors/catalog_processor.rs) implements native model listing.
-- [`manager.rs`](https://github.com/openai/codex/blob/a956835d020762cb2b570053af06f643a11c0ecc/codex-rs/models-manager/src/manager.rs) and [`cache.rs`](https://github.com/openai/codex/blob/a956835d020762cb2b570053af06f643a11c0ecc/codex-rs/models-manager/src/cache.rs) establish the fallback and fresh-cache provenance checks.
-
-Profile includes an explicit usage refresh control for supported accounts, with
-pending, freshness and unknown states. Authorization refusals clear private usage
-and model metadata; a late response cannot restore the refused evidence.
-
-Fake-process and disposable-database tests establish the integration boundaries;
-they do not substitute for a real-provider acceptance receipt. That receipt remains
-outstanding in [issue #130](https://github.com/t3grp/agenticos/issues/130). Model
-vendor compatibility still validates the coding-agent spec; no catalog record
-guarantees a future call.
+No provider quota adapter is enabled. Usage snapshots therefore report
+`unknown`, `unavailable`, no observation time and no windows. Synthetic tests
+exercise normalization rules; they do not establish provider support. The
+provider acceptance receipt remains outstanding. Model vendor compatibility is
+validated in the coding-agent spec, but account-specific provider entitlement
+has no verified adapter contract.
 
 Manual selection sets the account default in Profile or the private chat
 controls. Pool members are selected in stable order, with at most three lease

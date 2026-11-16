@@ -20,7 +20,6 @@ import { Perm } from "@/types/permissions";
 import { ROUTES } from "@/lib/constants";
 import type { SkillChangeRecord } from "@/lib/skill-changes-api";
 import { SkillCheckDialog } from "./skill-check-dialog";
-import { BrowserProcedureSummary } from "./browser-procedure-summary";
 import { useTranslations } from "next-intl";
 
 interface ProposedChangesProps {
@@ -191,9 +190,6 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
 
       {open && (
         <div className="space-y-3">
-          {change.source === "browser_teaching" && change.browser_procedure && (
-            <BrowserProcedureSummary procedure={change.browser_procedure} />
-          )}
           {change.rationale && (
             <RationaleText text={change.rationale} evidence={change.evidence ?? []} />
           )}

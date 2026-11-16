@@ -3,7 +3,6 @@
 import { useTranslations } from "next-intl";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { clientId } from "@/lib/ids";
-import { announceRoomChange } from "@/lib/room-events";
 import { useAuthStore, useChatStore, useOrgStore } from "@/stores";
 import { EMPTY_ROOM_DRAFT } from "@/stores/chat-store";
 import { useRoomActions } from "./use-room";
@@ -32,22 +31,16 @@ export function useRoomDraft(
     else change((held) => ({ ...held, reply: value }));
   };
 
-  async function submit(leadPolicyRevision?: number) {
+  async function submit() {
     const generation = chatApi.getState().roomDraftGeneration;
     const held = chatApi.getState().roomDrafts[key] ?? EMPTY_ROOM_DRAFT;
     if (held.sending || !isCurrent() || held.content.trim().length === 0) return;
-    if (held.attempt === null && held.intent === "ask_lead" && leadPolicyRevision === undefined)
-      return;
     const selectedReply = threadRootMessageId === null ? chatApi.getState().replyTo : held.reply;
     const snapshot = held.attempt ?? {
       input: {
         client_message_id: clientId(),
         content: held.content.trim(),
-        ...(held.intent === "ask_lead"
-          ? { intent: "ask_lead" as const, expected_policy_revision: leadPolicyRevision }
-          : held.agentId === null
-            ? {}
-            : { agent_id: held.agentId }),
+        ...(held.agentId === null ? {} : { agent_id: held.agentId }),
         ...(selectedReply === null ? {} : { reply_to_message_id: selectedReply.messageId }),
         ...(threadRootMessageId === null ? {} : { thread_root_message_id: threadRootMessageId }),
       },
@@ -81,29 +74,15 @@ export function useRoomDraft(
         chatApi.getState().roomDrafts[key]?.attempt !== snapshot
       )
         return;
-      const firstPolicyRefusal =
-        held.attempt === null &&
-        snapshot.input.intent === "ask_lead" &&
-        failure instanceof ApiError &&
-        failure.status === 409 &&
-        failure.code === "ROOM_LEAD_POLICY_CHANGED";
-      change((value) => ({
-        ...value,
-        error: firstPolicyRefusal
-          ? t("leadPolicyChanged")
-          : getErrorMessage(failure, tErrors, t("postFailed")),
-      }));
+      change((value) => ({ ...value, error: getErrorMessage(failure, tErrors, t("postFailed")) }));
       // These are definite refusals before admission. Unknown outcomes retain
       // the id and frozen payload, including the chosen agent and reply.
       if (
         held.attempt === null &&
         failure instanceof ApiError &&
-        ([400, 403, 404, 422].includes(failure.status) || firstPolicyRefusal)
+        [400, 403, 404, 422].includes(failure.status)
       ) {
         change((value) => ({ ...value, attempt: null, sending: false }));
-        if (firstPolicyRefusal && conversationId !== null) {
-          announceRoomChange({ conversationId, accountId, organizationId: tenantId });
-        }
       }
     } finally {
       // Closing a thread keeps its uncertain token retryable. A tenant reset
@@ -121,10 +100,7 @@ export function useRoomDraft(
     content: draft.content,
     setContent: (content: string) => change((value) => ({ ...value, content })),
     agentId: draft.agentId,
-    intent: draft.intent,
-    setAgentId: (agentId: string | null) =>
-      change((value) => ({ ...value, agentId, intent: "message" })),
-    setAskLead: () => change((value) => ({ ...value, agentId: null, intent: "ask_lead" })),
+    setAgentId: (agentId: string | null) => change((value) => ({ ...value, agentId })),
     reply: draft.attempt === null ? reply : draft.attempt.reply,
     setReply,
     clearReply: () => setReply(null),

@@ -194,7 +194,6 @@ export function QuickAsk({
     clearMessages,
     stopGeneration,
     browses,
-    protectBrowser,
     reportVisual,
     pendingApproval,
     sendResumeDecisions,
@@ -716,7 +715,7 @@ export function QuickAsk({
         className="border-border min-h-0 flex-1 overflow-y-auto overscroll-contain border-t px-4 py-3 text-sm"
       >
         {historyControl}
-        <LiveBrowsesProvider value={{ browses, onProtected: protectBrowser }}>
+        <LiveBrowsesProvider value={{ browses }}>
           <ConversationVisualsProvider
             messages={messages}
             conversationId={conversationId}
@@ -978,7 +977,7 @@ export function QuickAsk({
         <>
           <FilePreviewDialog />
           <SourcesPanel contained />
-          <BrowserPanel browses={browses} onProtected={protectBrowser} />
+          <BrowserPanel browses={browses} />
         </>
       )}
     </div>

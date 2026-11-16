@@ -1,5 +1,5 @@
 ---
-source_sha: "66a7891467fd"
+source_sha: "68ac0f7695b1"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -1365,76 +1365,6 @@ Port, und ein `logic.merge` kann die Zweige wieder zusammenführen.
 ::: app.workflows.nodes.table_create._handler.TableCreateConfig
 
 ::: app.workflows.nodes.table_create._handler.TableCreatedOutput
-
-## Asset { #asset-input }
-
-`asset.input@1` prüft ein Bild, eine Audioaufnahme oder ein Video, das der Run
-lesen darf. Binden Sie `file` an einen zugelassenen oder erzeugten `FileRef`.
-Ein Dateiname, eine beliebige URL oder eine nicht importierte Datei eines
-anderen Runs wird abgewiesen. Die Ausgabe behält dieselbe dauerhafte
-Dateireferenz und ergänzt aus den Bytes geprüfte Metadaten.
-
-::: app.workflows.nodes.asset_input._handler.AssetInputConfig
-
-::: app.workflows.nodes.asset_input._handler.AssetInput
-
-::: app.workflows.nodes.asset_input._handler.AssetOutput
-
-Akzeptiert werden statische PNG-, JPEG-, WebP- und GIF-Bilder; WAV-, FLAC-,
-MP3- und erkanntes Ogg-Audio sowie MP4 oder WebM mit einem Videostream und
-optionalem Audio. Animierte Bilder, nicht unterstützte Medien, fehlende Dateien
-und abweichende Typ- oder Größenangaben führen zu kontrollierten Fehlern.
-`required_input_name` verlangt optional dieselbe Referenz in der Run-Eingabe.
-Byte-, Pixel- und Dauergrenzen gelten für den tatsächlichen Inhalt.
-
-`WORKFLOW_ASSET_INPUT_ENABLED` ist standardmäßig false. Deaktivierte
-Installationen behalten Definition und gespeicherte Ausgaben, blenden den
-Schritt in der Palette aus und verweigern neue Ausführung. Audio- und
-Videoprüfung benötigen das im Backend-Image enthaltene `ffprobe`. Der Schritt
-ruft weder Anbieter noch Modell auf.
-
-## Bild generieren { #image-generate }
-
-`image.generate@1` erhält einen `prompt` und optional eine berechtigte
-`reference_image`-Datei. Anbieter, Modell und Optionen müssen im
-Workflow-Katalog zugelassen sein; OpenAI akzeptiert zunächst nur Text. Wählen
-Sie einen Organisations-API-Schlüssel mit zum Anbieter passendem Zweck.
-`WORKFLOW_IMAGE_GENERATION_ENABLED` ist standardmäßig false.
-
-::: app.workflows.nodes._media_config.ImageGenerateConfig
-
-::: app.workflows.nodes._media_config.MediaGenerateInput
-
-::: app.workflows.nodes._media_config.ImageGenerationOutput
-
-Dieser schreibende Schritt verbraucht Budget und deklariert
-`retry_guarantee=none`. Seine dauerhafte Operation reserviert Kosten und Bytes
-vor genau einer Anbieteranfrage. Die veröffentlichte Ausgabe ist eine geprüfte
-Run-Datei samt Beleg, der angefallene Kosten von der offenen Reservierung
-trennt. Wiederherstellung liefert die ursprüngliche gespeicherte Ausgabe;
-eine unbekannte Übermittlung wird nicht still zu einer zweiten Anfrage. Siehe
-[Medienreservierungen und Wiederaufnahme](../workflows.md#media-reservations).
-
-## Video generieren { #video-generate }
-
-`video.generate@1` nutzt dieselbe Prompt-/Referenzbildeingabe und dieselben
-Schlüsselregeln. Der Katalog liefert unterstützte Auflösung, Seitenverhältnis,
-Dauer und Tonoptionen. Optionaler Ton ist zunächst aus. Bestimmt der Anbieter
-die Dauer, wird das Modellmaximum reserviert.
-`WORKFLOW_VIDEO_GENERATION_ENABLED` ist standardmäßig false.
-
-::: app.workflows.nodes._media_config.VideoGenerateConfig
-
-::: app.workflows.nodes._media_config.VideoGenerationOutput
-
-Auch dieser schreibende Schritt verbraucht Budget und deklariert
-`retry_guarantee=none`. Ein bekannter Anbieterbeleg erlaubt Abfragen und Abholen
-genau dieses Auftrags, mit aktuellen Berechtigungen und ursprünglicher
-Autorisierungsversion des Schlüssels. Er erlaubt keine neue Übermittlung.
-Erzeugte Bytes werden vor Veröffentlichung einer Run-Datei geprüft. Abbruch
-oder Timeout kann eine Anbietergebühr und offene Reservierung hinterlassen.
-Prüfen Sie [die Wiederaufnahmeoptionen](../workflows.md#media-recovery), bevor
-Sie Ersatzarbeit starten.
 
 ## Dateien { #files }
 

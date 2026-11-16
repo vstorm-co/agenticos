@@ -6,7 +6,6 @@ import { DiffView } from "@/components/authoring/diff-view";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { MarkdownModeToggle, type MarkdownMode } from "@/components/ui";
 import type { SkillVersionRead } from "@/types/skill-versions";
-import { BrowserProcedureSummary } from "./browser-procedure-summary";
 
 /** A saved version, read as a document; History retains comparisons between changes. */
 export function VersionSections({ version }: { version: SkillVersionRead }) {
@@ -14,9 +13,6 @@ export function VersionSections({ version }: { version: SkillVersionRead }) {
   const [mode, setMode] = useState<MarkdownMode>("preview");
   return (
     <>
-      {version.source === "browser_teaching" && version.browser_procedure && (
-        <BrowserProcedureSummary procedure={version.browser_procedure} />
-      )}
       <section className="space-y-2">
         <h3 className="text-muted-foreground text-xs font-medium">{t("description")}</h3>
         <p className="text-sm leading-relaxed">{version.description}</p>

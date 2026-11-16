@@ -96,7 +96,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-core libreoffice-writer libreoffice-calc libreoffice-impress \
     tesseract-ocr tesseract-ocr-eng tesseract-ocr-pol \
-    git ca-certificates ffmpeg \
+    git ca-certificates \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # What `gssapi` loads at run time, for an image built with the `kerberos` extra.

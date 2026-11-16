@@ -14,7 +14,6 @@ from app.api.deps import (
     CurrentUser,
     MessageRatingSvc,
     ProjectSvc,
-    RoomRoutingSvc,
     RoomSubmissionSvc,
     VisualSvc,
     WorkspaceSvc,
@@ -53,15 +52,6 @@ from app.schemas.message_rating import (
     MessageRatingCreate,
     MessageRatingRead,
 )
-from app.schemas.room_routing import (
-    RoomLeadPolicyRead,
-    RoomLeadPolicyWrite,
-    RoomProposalAccept,
-    RoomProposalDiscard,
-    RoomRoutingProposalList,
-    RoomRoutingProposalRead,
-    RoomTaskCardList,
-)
 from app.schemas.room_submission import (
     RoomAgentRequestList,
     RoomAgentRequestRead,
@@ -78,90 +68,6 @@ from app.schemas.workspace import (
 from app.services.sandbox_workspace import owner_label, stored_ceiling
 
 router = APIRouter()
-
-
-@router.get("/{conversation_id}/lead-policy", response_model=RoomLeadPolicyRead)
-async def read_room_lead_policy(conversation_id: UUID, service: RoomRoutingSvc, ctx: Auth) -> Any:
-    """The room's pinned lead policy and the current member's explicit controls."""
-    return await service.policy(ctx, conversation_id)
-
-
-@router.put("/{conversation_id}/lead-policy", response_model=RoomLeadPolicyRead)
-async def update_room_lead_policy(
-    conversation_id: UUID, body: RoomLeadPolicyWrite, service: RoomRoutingSvc, ctx: Auth
-) -> Any:
-    """Pin published cloud agents after project-edit and revision checks."""
-    return await service.update_policy(ctx, conversation_id, body)
-
-
-@router.get("/{conversation_id}/routing-proposals", response_model=RoomRoutingProposalList)
-async def list_room_routing_proposals(
-    conversation_id: UUID,
-    service: RoomRoutingSvc,
-    ctx: Auth,
-    thread_root_message_id: UUID | None = None,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-) -> Any:
-    """Room proposals across all threads, or only the named subthread, newest first."""
-    return await service.list(
-        ctx, conversation_id, thread_root_message_id=thread_root_message_id, skip=skip, limit=limit
-    )
-
-
-@router.get(
-    "/{conversation_id}/routing-proposals/{proposal_id}", response_model=RoomRoutingProposalRead
-)
-async def read_room_routing_proposal(
-    conversation_id: UUID, proposal_id: UUID, service: RoomRoutingSvc, ctx: Auth
-) -> Any:
-    """Reconcile one durable proposal and its final decision after an uncertain response."""
-    return await service.read(ctx, conversation_id, proposal_id)
-
-
-@router.post(
-    "/{conversation_id}/routing-proposals/{proposal_id}/accept",
-    response_model=RoomRoutingProposalRead,
-)
-async def accept_room_routing_proposal(
-    conversation_id: UUID,
-    proposal_id: UUID,
-    body: RoomProposalAccept,
-    service: RoomRoutingSvc,
-    ctx: Auth,
-) -> Any:
-    """The requester accepts selected items once, through the canonical task lifecycle."""
-    return await service.accept(ctx, conversation_id, proposal_id, body)
-
-
-@router.post(
-    "/{conversation_id}/routing-proposals/{proposal_id}/discard",
-    response_model=RoomRoutingProposalRead,
-)
-async def discard_room_routing_proposal(
-    conversation_id: UUID,
-    proposal_id: UUID,
-    body: RoomProposalDiscard,
-    service: RoomRoutingSvc,
-    ctx: Auth,
-) -> Any:
-    """The requester declines the proposal without creating or dispatching work."""
-    return await service.discard(ctx, conversation_id, proposal_id, body)
-
-
-@router.get("/{conversation_id}/task-links", response_model=RoomTaskCardList)
-async def list_room_task_cards(
-    conversation_id: UUID,
-    service: RoomRoutingSvc,
-    ctx: Auth,
-    thread_root_message_id: UUID | None = None,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-) -> Any:
-    """Current readable canonical task cards, without private working chat or Inbox ids."""
-    return await service.task_cards(
-        ctx, conversation_id, thread_root_message_id=thread_root_message_id, skip=skip, limit=limit
-    )
 
 
 @router.post("/{conversation_id}/room-messages", response_model=RoomMessageRead)

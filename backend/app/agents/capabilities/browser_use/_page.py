@@ -6,11 +6,11 @@ chosen, which operation to carry out, when to stop, where the agent may go - liv
 in a module that runs without one. What is here is I/O and the one piece of
 JavaScript that reads a page.
 
-`cdp-use` is imported inside the functions that use it. Runtime deployments opt
-into the `browser` extra; the dev group also installs its exact pin for CI typing
-and native SDK tests. The capability still registers, enumerates its tool and
-builds its toolset without that runtime extra, so a deployment missing it reports
-the install instruction when the tool is used instead of failing to start.
+`cdp-use` is imported inside the functions that use it. The `browser` extra is
+absent from a default install and from CI, and the capability has to register,
+enumerate its tool and build its toolset without it - so an agent bound to it on a
+deployment that never installed the extra fails that one tool with an install
+line, rather than failing to start.
 """
 
 import asyncio
@@ -20,11 +20,10 @@ import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 from urllib.parse import urlsplit
 
-import anyio
-from pydantic import BaseModel, Field, JsonValue, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from app.agents.browser_sign_ins import (
     SignIn,
@@ -36,11 +35,6 @@ from app.agents.browser_sign_ins import (
     site_of,
     storage_from,
 )
-from app.agents.capabilities.browser_use._continuation_page import (
-    ContinuationMethod,
-    ContinuationPage,
-)
-from app.agents.capabilities.browser_use._credential_page import CredentialPage, NativeMethod
 from app.agents.capabilities.browser_use._elements import (
     MAX_COLLECTED_OPTIONS,
     MAX_PAGE_TEXT,
@@ -59,23 +53,7 @@ from app.agents.capabilities.browser_use._endpoint import (
     version_url,
     websocket_url,
 )
-from app.agents.capabilities.browser_use._protected import PROTECTED_TEXT, BrowserOutputGuard
 from app.agents.capabilities.browser_use._route import BrowserRoute
-from app.agents.capabilities.browser_use._transport_privacy import (
-    protect_transport_logging,
-    require_private_transport,
-)
-from app.core.browser_continuation import (
-    BrowserContinuationReason,
-    BrowserContinuationRefused,
-)
-from app.core.browser_fill import BrowserFillReason, BrowserFillRefused
-from app.core.browser_session import (
-    CredentialGeneration,
-    ProtectedSignIn,
-    protected_cookie_params,
-    request_at_origin,
-)
 from app.core.config import settings
 
 MISSING_EXTRA = (
@@ -713,79 +691,6 @@ class CdpPage:
         self._height = round(policy.preview_width * _VIEWPORT_RATIO)
         self._scale = 1
         self._streaming = False
-        self.output_guard = BrowserOutputGuard()
-        self.credentials = CredentialPage(self._credential_command)
-        self.inherited_credentials: tuple[CredentialGeneration, ...] = ()
-        self.continuation = ContinuationPage(
-            self._continuation_command, context_id, lambda: self.output_guard.active
-        )
-
-    async def _continuation_command(
-        self, method: ContinuationMethod, params: dict[str, JsonValue]
-    ) -> object:
-        if method == "Storage.getCookies":
-            if not self._context or params != {"browserContextId": self._context}:
-                raise BrowserContinuationRefused(BrowserContinuationReason.PROTECTION_UNAVAILABLE)
-            return await self._client.send.Storage.getCookies(params=params)
-        return await self._credential_command(method, params)
-
-    async def navigate_protected(self, origin: str) -> None:
-        """One native navigation; readiness reads only a fixed protected document identity."""
-        if not self.output_guard.active or self.output_guard.location()[0] != origin:
-            raise BrowserContinuationRefused(BrowserContinuationReason.PROTECTION_UNAVAILABLE)
-        try:
-            with anyio.fail_after(15):
-                result = await self._client.send.Page.navigate(
-                    params={"url": origin}, session_id=self._session
-                )
-                if result.get("errorText"):
-                    raise BrowserContinuationRefused(BrowserContinuationReason.PROVIDER_UNAVAILABLE)
-                for _ in range(20):
-                    try:
-                        observed = await self.continuation.prepare()
-                    except BrowserContinuationRefused as refused:
-                        if refused.reason != BrowserContinuationReason.DOCUMENT_CHANGED:
-                            raise
-                        await asyncio.sleep(0.1)
-                        continue
-                    if observed.origin != origin:
-                        raise BrowserContinuationRefused(
-                            BrowserContinuationReason.DESTINATION_REFUSED
-                        )
-                    return
-                raise BrowserContinuationRefused(BrowserContinuationReason.DOCUMENT_CHANGED)
-        finally:
-            await self.continuation.close()
-
-    async def _credential_command(
-        self, method: NativeMethod, params: dict[str, JsonValue]
-    ) -> object:
-        """A fixed command set on this page's attached session; no endpoint or script input."""
-        match method:
-            case "Page.getFrameTree":
-                return await self._client.send.Page.getFrameTree(session_id=self._session)
-            case "Page.createIsolatedWorld":
-                return await self._client.send.Page.createIsolatedWorld(
-                    params=params, session_id=self._session
-                )
-            case "Runtime.callFunctionOn":
-                return await self._client.send.Runtime.callFunctionOn(
-                    params=params, session_id=self._session
-                )
-            case "Runtime.evaluate":
-                return await self._client.send.Runtime.evaluate(
-                    params=params, session_id=self._session
-                )
-            case "Runtime.releaseObject":
-                return await self._client.send.Runtime.releaseObject(
-                    params=params, session_id=self._session
-                )
-
-    def protect_credentials(self, origin: str) -> None:
-        """The owning toolset must stop and join its preview before this boundary."""
-        if self._streaming:
-            raise BrowserFillRefused(BrowserFillReason.PROTECTION_UNAVAILABLE)
-        self.output_guard.protect(origin)
 
     async def _evaluate(  # pragma: no cover - needs a live browser
         self, expression: str, *, await_promise: bool = False
@@ -805,8 +710,6 @@ class CdpPage:
         Raises:
             RuntimeError: The page never came back, or failed for any other reason.
         """
-        if self.output_guard.active:
-            raise EndpointError(PROTECTED_TEXT)
         for attempt in range(_EVAL_ATTEMPTS):
             try:
                 answer = await asyncio.wait_for(
@@ -829,8 +732,6 @@ class CdpPage:
                     f"The browser stopped answering after {_COMMAND_TIMEOUT:.0f}s."
                 ) from exc
             except RuntimeError as exc:
-                if self.output_guard.active:
-                    raise EndpointError(PROTECTED_TEXT) from None
                 if not any(
                     message in str(exc)
                     for message in (_CONTEXT_GONE, "Inspected target navigated or closed")
@@ -842,8 +743,6 @@ class CdpPage:
                     ) from exc
                 await asyncio.sleep(_EVAL_BACKOFF)
                 continue
-            if self.output_guard.active:
-                raise EndpointError(PROTECTED_TEXT)
             thrown = answer.get("exceptionDetails")
             if thrown is not None:
                 # Without this a script that raised came back as
@@ -860,11 +759,6 @@ class CdpPage:
 
     async def snapshot(self) -> Snapshot:  # pragma: no cover - needs a live browser
         """The page as it is now, refused if it has left the allowlist."""
-        if self.output_guard.active:
-            try:
-                return await self.credentials.protected_snapshot(self.output_guard.location()[0])
-            except BrowserFillRefused:
-                return self.output_guard.snapshot()
         # The cut is applied in the page rather than after the transfer; a
         # little slack over `MAX_PAGE_TEXT` so the collapse in Python has
         # something to collapse.
@@ -1132,8 +1026,6 @@ class CdpPage:
 
     async def location(self) -> tuple[str, str]:
         """Read navigation metadata without collecting the DOM or taking a screenshot."""
-        if self.output_guard.active:
-            return self.output_guard.location()
         result = (await self._evaluate("({url: location.href, title: document.title})")).get(
             "value"
         )
@@ -1157,8 +1049,6 @@ class CdpPage:
         and how wide the picture is, which is also what keeps the frame a person
         watches identical to the page the model was shown.
         """
-        if self.output_guard.active:
-            return None
         shot = await self._client.send.Page.captureScreenshot(
             params={
                 "format": "jpeg",
@@ -1168,8 +1058,6 @@ class CdpPage:
             },
             session_id=self._session,
         )
-        if self.output_guard.active:
-            return None
         data = shot.get("data")
         return f"data:image/jpeg;base64,{data}" if data else None
 
@@ -1192,15 +1080,12 @@ class CdpPage:
         slow socket gets the page as it is now rather than a queue of the past.
         The stream is a preview: a failure ends the stream and nothing else.
         """
-        if self.output_guard.active:
-            yield
-            return
         parked: list[dict[str, Any]] = []
         arrived = asyncio.Event()
         streaming = True
 
         def on_frame(event: dict[str, Any], session_id: str | None) -> None:
-            if streaming and not self.output_guard.active and session_id == self._session:
+            if streaming and session_id == self._session:
                 parked[:] = [event]
                 arrived.set()
 
@@ -1213,13 +1098,11 @@ class CdpPage:
                     await self._client.send.Page.screencastFrameAck(
                         params={"sessionId": frame["sessionId"]}, session_id=self._session
                     )
-                    if not self.output_guard.active:
-                        await deliver(f"data:image/jpeg;base64,{frame['data']}")
+                    await deliver(f"data:image/jpeg;base64,{frame['data']}")
                     await asyncio.sleep(STREAM_GAP)
             except (RuntimeError, ConnectionError, OSError) as stopped:
                 self._streaming = False
-                if not self.output_guard.active:
-                    logger.debug("browser stream stopped: %s", stopped)
+                logger.debug("browser stream stopped: %s", stopped)
 
         self._client.register.Page.screencastFrame(on_frame)
         await self._client.send.Page.startScreencast(
@@ -1327,8 +1210,6 @@ class CdpPage:
         `Network.getCookies` for the page's own URL misses those set by the
         identity provider it bounced through on the way.
         """
-        if self.output_guard.active:
-            return None
         here = str((await self._evaluate("location.href")).get("value") or "")
         site = site_of(here)
         if site is None:
@@ -1364,8 +1245,6 @@ class CdpPage:
         Returns:
             The page's text, or a sentence saying it was withheld and why.
         """
-        if self.output_guard.active:
-            return PROTECTED_TEXT
         url = (await self._evaluate("location.href")).get("value")
         if not domain_allowed(str(url or ""), self._policy.allowed_domains):
             return (
@@ -1399,12 +1278,7 @@ async def _resolve(cdp_url: str) -> str | None:  # pragma: no cover - needs a re
 
 
 async def _intercept(  # pragma: no cover - needs a live browser
-    client: Any,
-    session: str,
-    route: BrowserRoute | None,
-    allowed_domains: list[str] | None,
-    *,
-    protected_origin: str | None = None,
+    client: Any, session: str, route: BrowserRoute | None, allowed_domains: list[str] | None
 ) -> None:
     """Pause every request the tab makes, refuse the internal ones, and sign in to a proxy.
 
@@ -1431,12 +1305,6 @@ async def _intercept(  # pragma: no cover - needs a live browser
         )
 
     async def decide(request_id: str, url: str) -> None:
-        if protected_origin is not None and not request_at_origin(url, protected_origin):
-            await client.send.Fetch.failRequest(
-                params={"requestId": request_id, "errorReason": "AddressUnreachable"},
-                session_id=session,
-            )
-            return
         parts = urlsplit(url)
         key = (f"{parts.scheme}://{parts.hostname}", parts.port)
         if key not in verdicts:
@@ -1480,7 +1348,6 @@ async def open_page(  # pragma: no cover - needs a live browser
     policy: PagePolicy,
     sign_ins: Sequence[SignIn] = (),
     route: BrowserRoute | None = None,
-    protected_sign_in: ProtectedSignIn | None = None,
 ) -> AsyncGenerator[CdpPage]:
     """Attach to a browser, open one tab on `start_url`, and close it again.
 
@@ -1501,25 +1368,17 @@ async def open_page(  # pragma: no cover - needs a live browser
         DomainRefused: `start_url` is outside the agent's allowlist.
         EndpointError: The endpoint is not a Chromium DevTools endpoint.
     """
-    if protected_sign_in is not None and (
-        sign_ins
-        or start_url != protected_sign_in.provenance.origin
-        or (route is not None and route.remote_url is not None)
-    ):
-        raise BrowserContinuationRefused(BrowserContinuationReason.DESTINATION_REFUSED)
     if not domain_allowed(start_url, policy.allowed_domains):
         raise DomainRefused(f"{start_url} is outside this agent's allowed domains.")
-    protect_transport_logging()
-    if protected_sign_in is not None:
-        require_private_transport()
     try:
         import httpx
 
-        # Runtime deployments may omit the browser extra. Dev/CI installs the
-        # same pinned SDK; this lazy import preserves the runtime install error.
-        from cdp_use import CDPClient
-        from cdp_use.cdp.emulation.commands import SetUserAgentOverrideParameters
-        from cdp_use.cdp.network.types import CookieParam
+        # ty: `cdp-use` arrives with the `browser` extra, which a default install
+        # and CI deliberately do not have - the whole design of this package is
+        # that everything but this function works without it. The import is
+        # inside the `try` for the same reason, and the `except` below is what a
+        # deployment missing the extra actually gets.
+        from cdp_use import CDPClient  # ty: ignore[import-not-found]
     except ImportError as exc:
         raise RuntimeError(MISSING_EXTRA) from exc
 
@@ -1558,17 +1417,9 @@ async def open_page(  # pragma: no cover - needs a live browser
         # prevent. A pooled or long-lived default profile keeps what a takeover
         # wrote - cookies, local storage, IndexedDB - for whoever attaches next.
         context = await client.send.Target.createBrowserContext(
-            params={
-                **context_params(route, hosted=remote is not None),
-                **({"disposeOnDetach": True} if protected_sign_in is not None else {}),
-            }
+            params=context_params(route, hosted=remote is not None)
         )
-        created_context = context.get("browserContextId")
-        if not isinstance(created_context, str) or not created_context:
-            if protected_sign_in is not None:
-                raise BrowserContinuationRefused(BrowserContinuationReason.PROTECTION_UNAVAILABLE)
-            raise EndpointError("The browser did not allocate an isolated context.")
-        context_id = created_context
+        context_id = context["browserContextId"]
         # The tab is created empty and navigated afterwards, which is not a
         # detail: `createTarget` with a URL starts navigating before there is a
         # session to attach, so the first command lands in an execution context
@@ -1576,7 +1427,7 @@ async def open_page(  # pragma: no cover - needs a live browser
         created = await client.send.Target.createTarget(
             params={
                 "url": "about:blank",
-                "browserContextId": context_id,
+                **({"browserContextId": context_id} if context_id else {}),
             }
         )
         target = created["targetId"]
@@ -1595,12 +1446,7 @@ async def open_page(  # pragma: no cover - needs a live browser
         locale = route.locale if route else None
         override = user_agent_override(await client.send.Browser.getVersion(), locale)
         if override is not None:
-            await client.send.Emulation.setUserAgentOverride(
-                # The existing builder owns this fixed native shape. Generated SDK
-                # TypedDict forward references are not runtime validation models.
-                params=cast(SetUserAgentOverrideParameters, override),
-                session_id=session,
-            )
+            await client.send.Emulation.setUserAgentOverride(params=override, session_id=session)
         if locale is not None:
             await client.send.Emulation.setLocaleOverride(
                 params={"locale": locale.replace("-", "_")}, session_id=session
@@ -1609,15 +1455,7 @@ async def open_page(  # pragma: no cover - needs a live browser
             await client.send.Emulation.setTimezoneOverride(
                 params={"timezoneId": route.timezone}, session_id=session
             )
-        await _intercept(
-            client,
-            session,
-            route,
-            policy.allowed_domains,
-            protected_origin=None
-            if protected_sign_in is None
-            else protected_sign_in.provenance.origin,
-        )
+        await _intercept(client, session, route, policy.allowed_domains)
         await client.send.Page.addScriptToEvaluateOnNewDocument(
             params={"source": _STEALTH_JS}, session_id=session
         )
@@ -1645,43 +1483,24 @@ async def open_page(  # pragma: no cover - needs a live browser
             },
             session_id=session,
         )
-        page = CdpPage(client, session, policy, context_id=context_id or "")
-        if protected_sign_in is not None:
-            # Sticky taint is installed before any cookie or navigation reaches this context.
-            page.inherited_credentials = protected_sign_in.provenance.credential_generations
-            page.protect_credentials(protected_sign_in.provenance.origin)
-        cookies = (
-            cookie_params([cookie for sign_in in sign_ins for cookie in sign_in.cookies])
-            if protected_sign_in is None
-            else protected_cookie_params(protected_sign_in)
-        )
+        cookies = cookie_params([cookie for sign_in in sign_ins for cookie in sign_in.cookies])
         if cookies:
             await client.send.Storage.setCookies(
                 params={
-                    # Both builders project supported native fields; protected
-                    # cookies were strictly validated before this SDK-only bridge.
-                    "cookies": cast(list[CookieParam], cookies),
-                    "browserContextId": context_id,
+                    "cookies": cookies,
+                    **({"browserContextId": context_id} if context_id else {}),
                 }
             )
         if any(sign_in.local_storage for sign_in in sign_ins):
             await client.send.Page.addScriptToEvaluateOnNewDocument(
                 params={"source": restore_script(list(sign_ins))}, session_id=session
             )
-        if protected_sign_in is None:
-            await page.navigate(start_url)
-        else:
-            await page.navigate_protected(protected_sign_in.provenance.origin)
+        page = CdpPage(client, session, policy, context_id=context_id or "")
+        await page.navigate(start_url)
         yield page
     finally:
-        try:
-            if target is not None:
-                await client.send.Target.closeTarget(params={"targetId": target})
-        finally:
-            try:
-                if context_id is not None:
-                    await client.send.Target.disposeBrowserContext(
-                        params={"browserContextId": context_id}
-                    )
-            finally:
-                await client.stop()
+        if target is not None:
+            await client.send.Target.closeTarget(params={"targetId": target})
+        if context_id is not None:
+            await client.send.Target.disposeBrowserContext(params={"browserContextId": context_id})
+        await client.stop()

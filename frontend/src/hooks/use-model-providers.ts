@@ -324,44 +324,12 @@ export function useProviderModels(
   return { models, refused, source: data?.source ?? null, isLoading: isFetching };
 }
 
-/** Verified workflow options from the server; absence means the model is unavailable there. */
-export interface ImageWorkflowSupport {
-  reference_image: boolean;
-  qualities: string[];
-  sizes: string[];
-  aspect_ratios: string[];
-  backgrounds: string[];
-  output_formats: string[];
-  defaults: {
-    quality: string | null;
-    size: string | null;
-    aspect_ratio: string | null;
-    background: string | null;
-    output_format: string | null;
-  };
-  max_input_tokens: number;
-  max_output_tokens: number;
-  input_usd_per_million: string;
-  output_usd_per_million: string;
-  tool_prompt_max_characters: number;
-  tool_input_usd_per_million: string;
-  output_prices: {
-    size: string;
-    quality: string;
-    output_estimate_usd: string;
-    output_ceiling_usd: string;
-  }[];
-  pricing_as_of: string;
-  sources: string[];
-}
-
 /** One model that draws. */
 export interface ImageModel {
   id: string;
   name: string;
   /** When to reach for this one rather than another. */
   description: string;
-  workflow?: ImageWorkflowSupport | null;
 }
 
 /** One provider that can draw, and what may be chosen on it. */
@@ -494,18 +462,6 @@ export function useTextToSpeechProviders() {
 }
 
 /** One model that makes video, and what it can make. */
-export interface VideoWorkflowSupport {
-  reference_image: boolean;
-  pricing_as_of: string;
-  usd_per_second: Record<string, string>;
-  defaults: {
-    resolution: string;
-    aspect_ratio: string;
-    seconds: number | null;
-    audio: boolean | null;
-  };
-}
-
 export interface VideoModel {
   id: string;
   name: string;
@@ -520,7 +476,6 @@ export interface VideoModel {
   resolutions: string[];
   audio: "always" | "optional" | "never";
   first_frame: boolean;
-  workflow?: VideoWorkflowSupport | null;
 }
 
 /** One provider that can make video, and what may be chosen on it. */

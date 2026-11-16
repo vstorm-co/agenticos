@@ -205,13 +205,6 @@ describe("one file's bytes", () => {
     await waitFor(() => expect(result.current.error).toBe("That file could not be read"));
   });
 
-  it("uses the localized fallback for a refusal with no message", async () => {
-    vi.mocked(workspaceApi.readWorkspaceBytes).mockRejectedValue(new Error());
-    const { result } = renderHook(() => useFileBytes(workspaceFile("/chart.png")), { wrapper });
-    await waitFor(() => expect(result.current.error).toBe("That file could not be read"));
-    expect(result.current.url).toBeNull();
-  });
-
   it("keys text apart from bytes, so one cannot be served as the other", async () => {
     const access = workspaceFile("/report.pdf");
 
@@ -309,13 +302,6 @@ describe("the two things done to a file besides looking at it", () => {
 
     result.current.download();
 
-    await waitFor(() => expect(result.current.error).toBe("That file could not be fetched"));
-  });
-
-  it("explains a download refusal even when it has no message", async () => {
-    vi.mocked(workspaceApi.readWorkspaceBytes).mockRejectedValue(new Error());
-    const { result } = renderHook(() => useFileActions(workspaceFile("/chart.png")), { wrapper });
-    result.current.download();
     await waitFor(() => expect(result.current.error).toBe("That file could not be fetched"));
   });
 

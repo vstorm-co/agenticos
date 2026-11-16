@@ -106,10 +106,6 @@ class NodeDefinition:
     handler: NodeHandler | None = None
     routes: RouteSelector | None = None
     resource_check: ResourceCheck | None = None
-    available: Callable[[], bool] | None = None
-    """Whether new use is enabled on this deployment. Disabled definitions stay
-    registered so published graphs and stored results retain their pinned schema;
-    each gated handler must independently refuse new execution."""
     retry_guarantee_for: Callable[[BaseModel | None], RetryGuarantee] | None = None
     """The guarantee one configured call gives, when it is not the kind's own.
 

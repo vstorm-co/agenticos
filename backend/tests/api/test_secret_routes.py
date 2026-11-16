@@ -5,7 +5,6 @@
 actually return - and the one thing that must never appear in any of it.
 """
 
-import json
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
@@ -20,9 +19,7 @@ from app.api import deps
 from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import SecretKind
-from app.db.models.resource_grant import Visibility
 from app.main import app
-from tests.test_browser_credentials import PASSWORD, SEED, USERNAME, login
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -37,7 +34,6 @@ def _row(**overrides: Any) -> MagicMock:
     row.description = "Used by the forecast capability"
     row.kind = SecretKind.API_KEY.value
     row.hint = "4242"
-    row.browser = None
     # Who stored it and what it is holding up. Both are read off the row rather
     # than joined per request, so a route test has to carry them.
     row.created_by_user_id = None
@@ -91,42 +87,6 @@ def _url(tail: str) -> str:
     return f"{settings.API_V1_STR}/secrets{tail}"
 
 
-async def test_browser_creation_defaults_to_private_personal_metadata(client, service) -> None:
-    service.create.return_value = _row(
-        kind="browser_login", hint="", visibility="private", usage_scope="personal"
-    )
-    async with client() as opened:
-        response = await opened.post(
-            _url(""),
-            json={"name": "Private portal", "value": json.loads(login().model_dump_json())},
-        )
-    assert response.status_code == 201
-    assert service.create.await_args.kwargs["usage_scope"] == "personal"
-    assert service.create.await_args.kwargs["visibility"] is Visibility.PRIVATE
-    assert not any(value in response.text for value in (PASSWORD, USERNAME, SEED))
-
-
-async def test_invalid_browser_payload_never_echoes_values_in_errors_or_logs(
-    client, service, caplog
-) -> None:
-    value = json.loads(login().model_dump_json())
-    value["allowed_origins"] = [f"https://user:{PASSWORD}@example.test"]
-    async with client() as opened:
-        response = await opened.post(_url(""), json={"name": "Private portal", "value": value})
-    assert response.status_code == 422
-    assert not any(secret in response.text + caplog.text for secret in (PASSWORD, USERNAME, SEED))
-    service.create.assert_not_awaited()
-
-
-async def test_browser_replacement_cannot_omit_its_password(client, service) -> None:
-    value = json.loads(login().model_dump_json())
-    del value["password"]
-    async with client() as opened:
-        response = await opened.patch(_url(f"/{_SECRET_ID}"), json={"value": value})
-    assert response.status_code == 422
-    service.update.assert_not_awaited()
-
-
 class TestListing:
     async def test_a_secret_is_identified_by_name_kind_and_hint(self, client) -> None:
         async with client() as opened:
@@ -158,8 +118,6 @@ class TestListing:
             "api_key",
             "azure_openai",
             "aws_credentials",
-            "browser_login",
-            "browser_profile",
             "gcp_service_account",
             "github_oauth_app",
             "github_app",

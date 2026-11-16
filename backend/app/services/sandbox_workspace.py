@@ -994,44 +994,6 @@ class SandboxWorkspaceService:
             opened_directories=tuple(row.directories or ()) if row is not None else (),
         )
 
-    async def open_account_usage(self, ctx: AuthContext, *, request_id: UUID) -> OpenWorkspace:
-        """A private managed workbench for an owner-requested metadata probe.
-
-        No agent, conversation or task is invented to read account metadata.
-        The caller rechecks account consent; the normal connection resolver
-        still owns tenant binding and vault access. A run-scoped session is
-        destroyed on close and cannot reuse a coding task's files or CLI home.
-        """
-        from app.services.coding_accounts import account_owner
-
-        account_owner(ctx)
-        resolved = await self.connections.resolve(ctx, None)
-        if resolved.kind != "docker":
-            raise BadRequestError(
-                message="Account usage requires the managed Docker workbench", details={}
-            )
-        key = f"usage-{ctx.organization_id.hex[:8]}-{request_id.hex}"
-        sandbox = self._service_capability(
-            resolved, key, runtime="workbench", tenant=str(ctx.organization_id)
-        )
-        recorder = RecordingWorkspace(
-            Workspace(sandbox.backend(None)),
-            db=self.db,
-            organization_id=ctx.organization_id,
-            session_key=key,
-            agent_id=None,
-            run_id=None,
-        )
-        return OpenWorkspace(
-            workspace=recorder,
-            sandbox=sandbox,
-            kind="service",
-            scope="run",
-            scope_key=key,
-            row_id=None,
-            connection_id=resolved.row.id,
-        )
-
     async def _open_service(
         self,
         config: SandboxConfig,

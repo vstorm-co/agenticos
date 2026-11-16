@@ -14,7 +14,6 @@ nothing behind.
 """
 
 import codecs
-import hashlib
 import io
 import json
 import zipfile
@@ -31,7 +30,6 @@ from app.db.models.workflow_file import WorkflowFile
 from app.db.models.workflow_run import ResourceRefKind
 from app.db.session import get_worker_db_context
 from app.repositories import workflow_file as workflow_file_repo
-from app.repositories import workflow_media_operation as media_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.file_storage import (
     delete_files_best_effort,
@@ -40,8 +38,6 @@ from app.services.file_storage import (
     sniff_image_header,
 )
 from app.services.file_upload import zip_has_too_many_members
-from app.services.media_inspection import MediaInfo
-from app.services.media_types import sniff_av_header
 from app.services.workflow_execution import context
 from app.services.workflow_execution.exceptions import InvalidBindingError, WorkflowFileQuotaError
 from app.workflows.contracts.io import FileRef, file_refs
@@ -91,9 +87,6 @@ def sniff(data: bytes) -> str:
         return image
     if head.startswith(b"%PDF-"):
         return "application/pdf"
-    media = sniff_av_header(head)
-    if media is not None:
-        return media
     container = sniff_container(head)
     if container == "zip":
         return DOCX if _is_docx(data) else "application/zip"
@@ -178,43 +171,6 @@ async def open_stream(ref: FileRef) -> tuple[StoredFile, AsyncIterator[bytes]] |
     return StoredFile(data=b"", content_type=row.content_type, filename=row.filename), chunks
 
 
-async def load_verified(ref: FileRef, *, max_bytes: int) -> StoredFile | Failed:
-    """Read one scoped file, verifying its reference and the actual streamed size.
-
-    Media consumers need metadata as well as authority. The row is still the
-    authority; a caller cannot relabel it or bypass the byte ceiling by forging a
-    FileRef. The stream is bounded independently of that row and always closed.
-    """
-    row = await _row_for(ref)
-    if row is None:
-        return not_found()
-    if row.byte_size != ref.byte_size or row.content_type != ref.content_type:
-        return failed(
-            "FILE_METADATA_MISMATCH", "The file reference does not match its stored metadata"
-        )
-    if row.byte_size > max_bytes:
-        return failed(FILE_TOO_LARGE, "The file exceeds this step's byte limit")
-    try:
-        chunks = await get_file_storage().open_stream(row.storage_path)
-    except FileNotFoundError:
-        return not_found()
-    data = bytearray()
-    try:
-        async for chunk in chunks:
-            if len(data) + len(chunk) > max_bytes:
-                return failed(FILE_TOO_LARGE, "The stored bytes exceed this step's byte limit")
-            data.extend(chunk)
-    except FileNotFoundError:
-        return not_found()
-    finally:
-        close = getattr(chunks, "aclose", None)
-        if close is not None:
-            await close()
-    if len(data) != row.byte_size:
-        return failed("FILE_METADATA_MISMATCH", "The stored file size could not be verified")
-    return StoredFile(data=bytes(data), content_type=row.content_type, filename=row.filename)
-
-
 def normalized_filename(filename: str | None) -> str | None:
     """Keep a JSONB-safe basename and its extension inside the database's 255 characters."""
     if filename is None:
@@ -262,84 +218,6 @@ async def save(data: bytes, *, content_type: str, filename: str | None) -> FileR
     return FileRef(file_id=file_id, content_type=content_type, byte_size=len(data))
 
 
-class ReservedFileError(ValueError):
-    """The journal cannot authorize these exact bytes at this output identity."""
-
-
-async def reserve_capacity(db: AsyncSession, *, size: int) -> None:
-    """Check capacity under the file quota lock before journaling a new byte hold."""
-    await _enforce_quota(db, size)
-
-
-async def persist_reserved(db: AsyncSession, *, operation_id: UUID, data: bytes) -> FileRef:
-    """Store one journaled media output in the caller's still-open transaction.
-
-    The caller holds current run/node/credential authority and marks this same
-    journal stored before committing. Identity, digest and metadata must already
-    be durable before this call. A failed or cancelled transaction deliberately
-    leaves its deterministic blob for reconciliation; it never removes a target
-    another collector may have committed. Ordinary `save` retains its existing
-    new-file and compensation behavior.
-    """
-    current = context.current()
-    await hold_subject(db, LockScope.WORKFLOW_FILE_BYTES, current.organization_id)
-    operation = await media_repo.get(
-        db, operation_id, organization_id=current.organization_id, locked=True
-    )
-    if (
-        operation is None
-        or operation.workflow_run_id != current.workflow_run_id
-        or operation.node_run_id != current.node_run_id
-        or operation.superseded_at is not None
-        or operation.phase not in {"collecting", "stored"}
-        or current.claim.lost
-        or current.claim_token is None
-        or operation.collector_token != current.claim_token
-    ):
-        raise ReservedFileError("This dispatch may not persist the reserved media output")
-    attempt = await workflow_run_repo.get_attempt(db, operation.collector_attempt_id)
-    if attempt is None or attempt.attempt_no != current.attempt_no:
-        raise ReservedFileError("This collector no longer owns the reserved media output")
-    metadata = MediaInfo.model_validate(operation.output_metadata)
-    if (
-        metadata.kind != operation.media_kind
-        or metadata.byte_size != len(data)
-        or len(data) > operation.reserved_bytes
-        or hashlib.sha256(data).hexdigest() != operation.output_sha256
-    ):
-        raise ReservedFileError("The output does not match the media journal's verified bytes")
-    file_id = operation.output_file_id
-    storage_path = f"workflow-files/{current.organization_id}/{current.workflow_run_id}/{file_id}"
-    existing = await workflow_file_repo.get(db, file_id, organization_id=current.organization_id)
-    if existing is not None:
-        if (
-            existing.workflow_run_id != current.workflow_run_id
-            or existing.producing_node_run_id != current.node_run_id
-            or existing.storage_path != storage_path
-            or existing.content_type != metadata.media_type
-            or existing.byte_size != len(data)
-            or existing.filename != operation.output_filename
-        ):
-            raise ReservedFileError(
-                "The reserved output identity belongs to different stored bytes"
-            )
-    else:
-        await _enforce_quota(db, len(data), exclude_operation_id=operation.id)
-        await get_file_storage().save_at(storage_path, data)
-        await workflow_file_repo.create(
-            db,
-            file_id=file_id,
-            organization_id=current.organization_id,
-            workflow_run_id=current.workflow_run_id,
-            producing_node_run_id=current.node_run_id,
-            storage_path=storage_path,
-            content_type=metadata.media_type,
-            byte_size=len(data),
-            filename=operation.output_filename,
-        )
-    return FileRef(file_id=file_id, content_type=metadata.media_type, byte_size=len(data))
-
-
 class SavedFileBatch:
     """New files whose references are published only when the whole step succeeds."""
 
@@ -376,9 +254,7 @@ async def saved_batch() -> AsyncGenerator[SavedFileBatch]:
         raise
 
 
-async def _enforce_quota(
-    db: AsyncSession, size: int, *, exclude_operation_id: UUID | None = None
-) -> None:
+async def _enforce_quota(db: AsyncSession, size: int) -> None:
     """Refuse a file that would pass the run's or the organization's stored-bytes ceiling.
 
     Sums under the organization's lock, held until the row is inserted, so two
@@ -394,16 +270,8 @@ async def _enforce_quota(
         stored = await workflow_file_repo.sum_bytes(
             db, organization_id=current.organization_id, workflow_run_id=run_id
         )
-        held = await media_repo.held_bytes(
-            db,
-            organization_id=current.organization_id,
-            workflow_run_id=run_id,
-            exclude_operation_id=exclude_operation_id,
-        )
-        if stored + held + size > limit:
-            raise WorkflowFileQuotaError(
-                scope=scope, limit=limit, stored=stored + held, requested=size
-            )
+        if stored + size > limit:
+            raise WorkflowFileQuotaError(scope=scope, limit=limit, stored=stored, requested=size)
 
 
 async def import_output_files(

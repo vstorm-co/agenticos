@@ -10,40 +10,6 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
-  browserTeaching: {
-    all: (actor: string | undefined, organization: string | null) =>
-      ["browser-teaching", actor, organization] as const,
-    detail: (actor: string | undefined, organization: string | null, id: string) =>
-      ["browser-teaching", actor, organization, "detail", id] as const,
-    policy: (actor: string | undefined, organization: string | null) =>
-      ["browser-teaching", actor, organization, "policy"] as const,
-    preference: (actor: string | undefined, organization: string | null, id: string) =>
-      ["browser-teaching", actor, organization, "preference", id] as const,
-    run: (actor: string | undefined, organization: string | null, id: string) =>
-      ["browser-teaching", actor, organization, "run", id] as const,
-    skills: (actor: string | undefined, organization: string | null) =>
-      ["browser-teaching", actor, organization, "skills"] as const,
-    list: (actor: string | undefined, organization: string | null) =>
-      ["browser-teaching", actor, organization, "list"] as const,
-  },
-  roomRouting: {
-    all: (account: string | undefined, tenant: string | null, conversation: string | null) =>
-      ["room-routing", account, tenant, conversation] as const,
-    policy: (account: string | undefined, tenant: string | null, conversation: string | null) =>
-      ["room-routing", account, tenant, conversation, "policy"] as const,
-    proposals: (
-      account: string | undefined,
-      tenant: string | null,
-      conversation: string | null,
-      thread: string | null,
-    ) => ["room-routing", account, tenant, conversation, "proposals", thread] as const,
-    tasks: (
-      account: string | undefined,
-      tenant: string | null,
-      conversation: string | null,
-      thread: string | null,
-    ) => ["room-routing", account, tenant, conversation, "tasks", thread] as const,
-  },
   roomThreads: {
     detail: (
       account: string | undefined,
@@ -80,8 +46,6 @@ export const qk = {
   codingAccounts: {
     all: () => ["coding-accounts"] as const,
     mine: (scope: string) => ["coding-accounts", scope] as const,
-    usage: (scope: string, account: string, generation: string) =>
-      ["coding-accounts", scope, "usage", account, generation] as const,
   },
   durableTasks: {
     root: () => ["durable-tasks"] as const,
@@ -116,27 +80,6 @@ export const qk = {
   // redeploy, not while somebody reads it.
   publicApi: {
     openapi: () => ["public-api", "openapi"] as const,
-  },
-  browserContinuations: {
-    receipt: (
-      actor: string | undefined,
-      org: string | null,
-      source: import("@/types/browser-credentials").BrowserCredentialPlan,
-    ) =>
-      [
-        "browser-continuations",
-        actor,
-        org,
-        source.run_id,
-        source.id,
-        source.parent_plan_id,
-        source.authorization_generation,
-        source.secret_id,
-        source.call_id,
-        source.tab_id,
-        source.document_id,
-        source.origin,
-      ] as const,
   },
   browserSignIns: {
     /** The caller's kept browser sign-ins in one organization (#2129). */
@@ -290,26 +233,6 @@ export const qk = {
     runNodes: (runId: string) => ["workflows", "run", runId, "nodes"] as const,
     runGraph: (runId: string) => ["workflows", "run", runId, "graph"] as const,
     runFiles: (runId: string) => ["workflows", "run", runId, "files"] as const,
-    runFilePreview: (
-      runId: string,
-      fileId: string,
-      scope: string,
-      contentType: string,
-      byteSize: number,
-      generation: string,
-    ) =>
-      [
-        "workflows",
-        "run",
-        runId,
-        "files",
-        fileId,
-        "preview",
-        scope,
-        contentType,
-        byteSize,
-        generation,
-      ] as const,
     // The decisions workflow steps wait on. Under "workflows" so a decision's
     // invalidation of every run refreshes the queue with them.
     approvals: () => ["workflows", "approvals"] as const,

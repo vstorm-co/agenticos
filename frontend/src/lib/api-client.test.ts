@@ -155,24 +155,6 @@ describe("apiClient", () => {
 });
 
 describe("recovering from an expired token", () => {
-  it("does not refresh or replay an explicit consent write when its caller opts out", async () => {
-    fetchMock.mockResolvedValue(refused(401, { detail: "Token expired" }));
-    await expect(
-      apiClient.post(
-        "/runs/r/browser-credential-plans/p/confirmation",
-        {
-          document_id: "document",
-          authorization_generation: "generation",
-          approve: true,
-        },
-        { retryAfterRefresh: false },
-      ),
-    ).rejects.toMatchObject({ status: 401 });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(init().method).toBe("POST");
-    expect(init()).not.toHaveProperty("retryAfterRefresh");
-  });
-
   it("refreshes once and retries the request", async () => {
     fetchMock
       .mockResolvedValueOnce(refused(401, { detail: "Token expired" }))

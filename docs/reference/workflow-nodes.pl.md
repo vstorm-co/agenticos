@@ -1,5 +1,5 @@
 ---
-source_sha: "66a7891467fd"
+source_sha: "68ac0f7695b1"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -1304,73 +1304,6 @@ połączyć gałęzie.
 ::: app.workflows.nodes.table_create._handler.TableCreateConfig
 
 ::: app.workflows.nodes.table_create._handler.TableCreatedOutput
-
-## Asset { #asset-input }
-
-`asset.input@1` sprawdza obraz, nagranie audio lub wideo, które run może
-odczytać. Powiąż `file` z dopuszczonym lub utworzonym `FileRef`. Nazwa pliku,
-dowolny URL albo niezaimportowany plik innego runa zostaną odrzucone. Wyjście
-zachowuje tę samą trwałą referencję i dodaje metadane zweryfikowane na podstawie
-bajtów.
-
-::: app.workflows.nodes.asset_input._handler.AssetInputConfig
-
-::: app.workflows.nodes.asset_input._handler.AssetInput
-
-::: app.workflows.nodes.asset_input._handler.AssetOutput
-
-Obsługiwane są statyczne obrazy PNG, JPEG, WebP i GIF; audio WAV, FLAC, MP3
-i rozpoznane Ogg; oraz MP4 lub WebM z jednym strumieniem wideo i opcjonalnym
-audio. Animowane obrazy, nieobsługiwane formaty, brak pliku oraz niezgodność
-typu lub rozmiaru powodują kontrolowane błędy. Opcjonalne `required_input_name`
-wymaga tej samej referencji w wejściu runa. Limity bajtów, pikseli i czasu
-trwania dotyczą rzeczywistej zawartości.
-
-`WORKFLOW_ASSET_INPUT_ENABLED` ma domyślnie wartość false. Wyłączone wdrożenie
-zachowuje definicję i zapisane wyniki, ukrywa krok w palecie i odmawia nowych
-wykonań. Inspekcja audio i wideo wymaga `ffprobe`, dostępnego w obrazie
-backendu. Węzeł nie wywołuje dostawcy ani modelu.
-
-## Generowanie obrazu { #image-generate }
-
-`image.generate@1` przyjmuje `prompt` i opcjonalny dozwolony plik
-`reference_image`. Dostawca, model i opcje muszą być dopuszczone w katalogu
-workflow; OpenAI początkowo przyjmuje tylko tekst. Wybierz klucz API organizacji
-o przeznaczeniu odpowiadającym dostawcy. `WORKFLOW_IMAGE_GENERATION_ENABLED`
-ma domyślnie wartość false.
-
-::: app.workflows.nodes._media_config.ImageGenerateConfig
-
-::: app.workflows.nodes._media_config.MediaGenerateInput
-
-::: app.workflows.nodes._media_config.ImageGenerationOutput
-
-Ten krok zapisujący zużywa budżet i deklaruje `retry_guarantee=none`. Trwała
-operacja rezerwuje koszt i bajty przed jednym żądaniem do dostawcy. Zatwierdzone
-wyjście to sprawdzony plik runa oraz potwierdzenie oddzielające koszt poniesiony
-od nierozliczonej rezerwacji. Odzyskiwanie zwraca pierwotny zapisany wynik;
-nieznane wysłanie nie zamienia się po cichu w drugie żądanie. Zobacz
-[rezerwacje i odzyskiwanie multimediów](../workflows.md#media-reservations).
-
-## Generowanie wideo { #video-generate }
-
-`video.generate@1` korzysta z tych samych wejść promptu i obrazu referencyjnego
-oraz zasad klucza. Katalog określa obsługiwane rozdzielczości, proporcje, czas
-trwania i dźwięk. Opcjonalny dźwięk jest domyślnie wyłączony. Jeśli długość
-wybiera dostawca, rezerwowane jest maksimum modelu.
-`WORKFLOW_VIDEO_GENERATION_ENABLED` ma domyślnie wartość false.
-
-::: app.workflows.nodes._media_config.VideoGenerateConfig
-
-::: app.workflows.nodes._media_config.VideoGenerationOutput
-
-Ten krok zapisujący także zużywa budżet i deklaruje `retry_guarantee=none`.
-Znane potwierdzenie pozwala odpytywać i odebrać wynik dokładnie tego zadania,
-przy aktualnych uprawnieniach i pierwotnej generacji klucza. Nigdy nie
-upoważnia do nowego wysłania. Bajty są sprawdzane przed publikacją pliku runa.
-Anulowanie lub upływ czasu może pozostawić opłatę dostawcy i nierozliczoną
-rezerwację. Sprawdź [opcje odzyskiwania](../workflows.md#media-recovery), zanim
-rozpoczniesz pracę zastępczą.
 
 ## Pliki { #files }
 

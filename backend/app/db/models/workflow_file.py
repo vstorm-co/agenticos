@@ -14,7 +14,7 @@ produced.
 
 import uuid
 
-from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -55,9 +55,6 @@ class WorkflowFile(Base, TimestampMixin):
     filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     __table_args__ = (
-        UniqueConstraint(
-            "organization_id", "workflow_run_id", "id", name="uq_workflow_files_org_run_id"
-        ),
         CheckConstraint("byte_size >= 0", name="ck_workflow_file_byte_size"),
         # The organization's stored-bytes quota sums `byte_size` on every save, under
         # a lock; carrying it in the index lets that sum read the index alone.

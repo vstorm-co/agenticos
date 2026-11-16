@@ -17,21 +17,6 @@ const councilMembers = vi.hoisted(() => [
   { name: "Reviewer B", provider: "openai", model_profile_id: "profile-b" },
   { name: "Reviewer C", provider: "openrouter", model_profile_id: "profile-c" },
 ]);
-vi.mock("./browser-credentials-field", () => ({
-  BrowserCredentialsField: ({
-    onChange,
-    disabled,
-  }: {
-    onChange: (ids: string[]) => void;
-    disabled?: boolean;
-  }) => (
-    <div role="group" aria-label="Browser credential references">
-      <button type="button" disabled={disabled} onClick={() => onChange(["credential-a"])}>
-        Choose browser credential
-      </button>
-    </div>
-  ),
-}));
 vi.mock("./council-members-field", () => ({
   CouncilMembersField: ({
     onChange,
@@ -198,86 +183,6 @@ const openTools = () => {
 /** One control inside that row. Every row names its fields the same way. */
 const toolField = (id: string, label: "Name" | "Description the model reads" | "Approval") =>
   within(toolRow(id)).getByLabelText(label);
-
-describe("browser credential bindings", () => {
-  const browser: CapabilityCatalogEntry = {
-    ...KNOWLEDGE,
-    id: "browser_use",
-    name: "Web browser",
-    tools: [],
-    config_schema: {
-      type: "object",
-      properties: {
-        connection: {
-          type: "string",
-          enum: ["built_in", "proxy", "hosted", "local"],
-          default: "built_in",
-          title: "Browser connection",
-        },
-        browser_credential_ids: {
-          type: "array",
-          items: { type: "string" },
-          title: "Raw credential IDs",
-          "x-visible-when": { field: "connection", equals: ["built_in"] },
-        },
-      },
-    },
-  };
-
-  it("uses the typed picker for the default built-in browser and preserves unrelated config", async () => {
-    const change = vi.fn();
-    const chosen = binding("browser_use", { config: { max_steps: 4 }, approval: "never" });
-    render(<CapabilitySettings catalog={[browser]} selected={[chosen]} onChange={change} />);
-    expect(screen.queryByRole("textbox", { name: "Raw credential IDs" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Choose browser credential" }));
-    expect(change).toHaveBeenCalledWith({
-      ...chosen,
-      config: { max_steps: 4, browser_credential_ids: ["credential-a"] },
-    });
-  });
-
-  it.each(["proxy", "hosted", "local"])(
-    "does not offer credential binding for a %s connection",
-    (connection) => {
-      render(
-        <CapabilitySettings
-          catalog={[browser]}
-          selected={[binding("browser_use", { config: { connection } })]}
-          onChange={vi.fn()}
-        />,
-      );
-      expect(
-        screen.queryByRole("group", { name: "Browser credential references" }),
-      ).not.toBeInTheDocument();
-    },
-  );
-
-  it("uses the schema visibility rule to remove credentials when leaving the built-in connection", async () => {
-    const change = vi.fn();
-    render(
-      <CapabilitySettings
-        catalog={[browser]}
-        selected={[
-          binding("browser_use", {
-            config: { connection: "built_in", browser_credential_ids: ["credential-a"] },
-          }),
-        ]}
-        onChange={change}
-      />,
-    );
-    await userEvent.click(
-      screen.getByRole("combobox", { name: "How the browser reaches the web" }),
-    );
-    await userEvent.click(
-      screen.getByRole("option", { name: en.capabilityChoices.browser_use.connection.proxy.label }),
-    );
-    expect(change).toHaveBeenCalledWith(
-      expect.objectContaining({
-        config: { connection: "proxy", browser_credential_ids: undefined },
-      }),
-    );
-  });
-});
 
 describe("CapabilitySettings", () => {
   it("shows every bound capability, configurable or not", () => {

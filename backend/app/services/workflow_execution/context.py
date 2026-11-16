@@ -74,9 +74,6 @@ class DispatchContext:
     `run` again on a wake would silently drop an approved call by re-sending
     the original prompt to a fresh agent."""
     claim: ClaimState = field(default_factory=ClaimState)
-    claim_token: UUID | None = None
-    """The exact outbox fencing token. Media effects refuse a missing token; the
-    default preserves contexts used by existing, nonmedia handlers."""
     workflow_id: UUID | None = None
     """The workflow this run executes - what a node checks a recipient's reach against."""
     run_input: dict[str, Any] = field(default_factory=dict)

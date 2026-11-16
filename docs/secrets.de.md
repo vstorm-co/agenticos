@@ -1,5 +1,5 @@
 ---
-source_sha: "dd968324d437"
+source_sha: "f0b3009ed75d"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -216,16 +216,6 @@ können. Der [Nutzungseintrag](ml-services.md#what-is-recorded) jeder
 Transkription nennt den Schlüssel, mit dem sie gesendet wurde. Siehe
 [welche Engine eine Aufnahme erreicht](ml-services.md#which-engine-a-recording-reaches).
 Die Liste der Agents, die einen Schlüssel nutzen, zeigt diese Verwendung nicht.
-
-**Medien in Workflows.** Generierungsknoten benennen einen organisationsgebundenen
-`api_key`, dessen Zweck genau dem gewählten Provider entspricht. Beim
-Veröffentlichen werden die Metadaten geprüft, ohne den Schlüssel zu entschlüsseln.
-`OrganizationSecretService.workflow_media_key` sperrt die Zeile und lädt sie neu,
-prüft die aktuellen Zugriffsrechte des Run-Auftraggebers und die für den Vorgang
-festgehaltene Autorisierungsgeneration erneut und öffnet den Schlüssel erst dann
-für den vertrauenswürdigen Generierungsadapter. Eine Rotation kann bei der
-Wiederherstellung nicht unbemerkt andere kostenpflichtige Zugangsdaten einsetzen.
-Graph und Belege enthalten IDs und Abrechnungsmetadaten, niemals Schlüsselwerte.
 
 **Sprachanrufe.** Der Schlüssel, mit dem ein [Sprachanruf](voice.md) geführt
 wird, ist auf der Karte Stimme (Voice) des Agents benannt, neben Realtime-Provider

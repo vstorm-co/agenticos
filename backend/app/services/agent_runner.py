@@ -237,7 +237,6 @@ from app.agents.model_context import ModelContextCheck, checking_model_context
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
 from app.agents.person_briefing import Person, with_person
-from app.agents.room_lead import RoomLeadPlanning, planning_spec
 from app.agents.routine_actions import RoutineToolCheck
 from app.agents.routine_authority import RoutineCheck, guard_for
 from app.agents.secret_request import (
@@ -442,8 +441,8 @@ from app.services.skills import SkillService
 from app.services.spend import (
     budget_window,
     month_start,
-    organization_budget_usage_since,
     organization_monthly_spend,
+    organization_spend_since,
 )
 from app.services.transcript import (
     STOPPED_TOOL_RESULT,
@@ -3915,7 +3914,6 @@ class AgentRunnerService:
         decision_model: bool = False,
         source_run: AgentRun | None = None,
         watch_receipt: WatchReadReceipt | None = None,
-        room_lead: RoomLeadPlanning | None = None,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
@@ -4082,18 +4080,6 @@ class AgentRunnerService:
             spec = _answer_only(spec)
         if organization_mcp_only:
             spec = _organization_mcp_only(spec)
-        if room_lead is not None:
-            if (
-                surface is not RunSurface.WEB
-                or conversation_id is None
-                or not acts_for_sender
-                or local is not None
-                or public_origin
-            ):
-                raise BadRequestError(
-                    message="Room planning requires the requesting member's room run"
-                )
-            spec = planning_spec(spec)
         prepared = await self._assemble(
             ctx,
             agent=agent,
@@ -4120,10 +4106,9 @@ class AgentRunnerService:
             environment_id=effective_environment_id,
             approval_mode=await self._allowed_approval_mode(ctx, approval_mode, surface=surface),
             local=local,
-            answer_only=aside or room_lead is not None,
+            answer_only=aside,
             organization_mcp_only=organization_mcp_only,
             decision_model=decision_model,
-            room_lead=room_lead,
             # Passed in rather than set on the built deps like `on_compaction`:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
@@ -4333,7 +4318,6 @@ class AgentRunnerService:
         restored_channel_context: str = "",
         restored_channel_authors: dict[str, UUID] | None = None,
         watch_receipt: WatchReadReceipt | None = None,
-        room_lead: RoomLeadPlanning | None = None,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
 
@@ -4948,7 +4932,7 @@ class AgentRunnerService:
 
         async def org_period_spend() -> Decimal:
             async with spend_session("organization")() as db:
-                return await organization_budget_usage_since(
+                return await organization_spend_since(
                     db, ctx.organization_id, since, until=until, exclude_run_id=run.id
                 )
 
@@ -5495,7 +5479,6 @@ class AgentRunnerService:
             extra_capabilities=(
                 *(() if on_use is None else (on_use,)),
                 *(() if computer_on_use is None else (computer_on_use,)),
-                *(() if room_lead is None else (room_lead,)),
                 *guard_for(routine_check, agent_id=agent.id),
             ),
             agent_period_spend=agent_period_spend,
@@ -7579,7 +7562,6 @@ class AgentRunnerService:
         on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
         check_model_request: Callable[[AsyncSession], Awaitable[None]] | None = None,
         on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
-        room_lead: RoomLeadPlanning | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -7704,7 +7686,6 @@ class AgentRunnerService:
             aside=aside or result_only,
             organization_mcp_only=organization_mcp_only,
             decision_model=decision_model,
-            room_lead=room_lead,
             draft=draft,
             test=test,
             watch_receipt=watch_receipt,

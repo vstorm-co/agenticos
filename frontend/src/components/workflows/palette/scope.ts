@@ -35,7 +35,6 @@ export function isAddableInScope(
   definition: NodeDefinition,
   scopePath: readonly string[],
 ): boolean {
-  if (definition.available === false) return false;
   if (HIDDEN_CATEGORIES.has(definition.category)) return false;
   if (isTrigger(definition)) return scopePath.length === 0;
   if (definition.loop_body_only) return false;

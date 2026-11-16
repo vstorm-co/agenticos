@@ -3,9 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Perm, type Permission } from "@/types/permissions";
 import type { ConnectedAccount } from "@/types/mirage";
-import type { Secret, SecretKindInfo } from "@/types/secrets";
-import { LOGIN, PROFILE } from "@/test-utils/browser-credential-fixtures";
-import { useAuthStore } from "@/stores/auth-store";
+import type { Secret } from "@/types/secrets";
 import VaultPage from "./page";
 
 const state = vi.hoisted(() => ({
@@ -14,8 +12,6 @@ const state = vi.hoisted(() => ({
   error: null as Error | null,
   personalError: null as Error | null,
   secrets: [] as Secret[],
-  kinds: [] as SecretKindInfo[],
-  add: vi.fn(),
   personal: [] as ConnectedAccount[],
   organization: [] as ConnectedAccount[],
   connect: vi.fn(),
@@ -28,11 +24,11 @@ vi.mock("@/hooks", () => ({
   useSecretPurposes: () => ({ purposes: [] }),
   useSecrets: () => ({
     secrets: state.secrets,
-    kinds: state.kinds,
+    kinds: [],
     isLoading: state.loading,
     listError: state.error,
-    create: { mutateAsync: vi.fn(), isPending: false, reset: vi.fn() },
-    rotate: { mutateAsync: vi.fn(), isPending: false, reset: vi.fn() },
+    create: { mutateAsync: vi.fn(), isPending: false },
+    rotate: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutate: vi.fn() },
   }),
 }));
@@ -50,16 +46,8 @@ vi.mock("@/hooks/use-connected-accounts", () => ({
   },
 }));
 vi.mock("@/components/vault/secret-dialog", () => ({
-  AddSecretDialog: (props: unknown) => {
-    state.add(props);
-    return null;
-  },
+  AddSecretDialog: () => null,
   RotateSecretDialog: () => null,
-}));
-vi.mock("@/components/vault/browser-credential-policy", () => ({
-  BrowserCredentialPolicy: ({ secret }: { secret: Secret }) => (
-    <div role="region" aria-label={`Browser policy for ${secret.name}`} />
-  ),
 }));
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
@@ -80,7 +68,6 @@ beforeEach(() => {
   state.permissions = new Set([Perm.secretsEdit, Perm.connectionsView, Perm.mcpManage]);
   state.loading = false;
   state.error = null;
-  state.kinds = [];
   state.personalError = null;
   state.secrets = [
     {
@@ -97,43 +84,6 @@ beforeEach(() => {
 });
 
 describe("vault inventory", () => {
-  it("offers typed browser creation only when the backend publishes those kinds", async () => {
-    state.kinds = [LOGIN, PROFILE];
-    render(<VaultPage />);
-    await userEvent.click(screen.getByRole("button", { name: "Add browser credential" }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Add browser contact profile" }));
-    expect(state.add).toHaveBeenLastCalledWith(
-      expect.objectContaining({ open: true, kind: "browser_profile" }),
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Add key" }));
-    expect(state.add).toHaveBeenLastCalledWith(
-      expect.objectContaining({ open: true, kind: undefined }),
-    );
-  });
-
-  it("routes browser use to its dedicated owner policy rather than generic sharing", async () => {
-    useAuthStore.setState({
-      user: { id: "owner" } as NonNullable<ReturnType<typeof useAuthStore.getState>["user"]>,
-    });
-    state.secrets = [
-      {
-        id: "browser",
-        name: "Browser login",
-        kind: "browser_login",
-        description: null,
-        hint: "",
-        owner_user_id: "owner",
-        can_edit: true,
-      },
-    ];
-    render(<VaultPage />);
-    await userEvent.click(
-      screen.getByRole("button", { name: "Manage browser use for Browser login" }),
-    );
-    expect(screen.getByRole("region", { name: "Browser policy for Browser login" })).toBeVisible();
-    useAuthStore.setState({ user: null });
-  });
-
   it("renders one table without separate account cards or a count strip", () => {
     render(<VaultPage />);
     expect(screen.getAllByRole("table")).toHaveLength(1);

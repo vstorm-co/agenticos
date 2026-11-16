@@ -9,7 +9,6 @@ content goes to (#2127).
 """
 
 from dataclasses import dataclass, field, replace
-from uuid import UUID
 
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.models import Model, ModelRequestContext
@@ -28,7 +27,6 @@ from app.agents.capabilities.browser_use._toolset import (
     PageFactory,
     build_toolset,
 )
-from app.agents.capabilities.skills._log import SkillUseLog
 
 _INSTRUCTIONS = (
     "You can use a real web browser two ways. Drive it yourself with browser_open, then "
@@ -79,9 +77,6 @@ class WebBrowser(AbstractCapability[AgentDepsT]):
     vision: bool = False
     preview: bool = True
     report_tool_names: frozenset[str] = BROWSER_REPORT_TOOLS
-    browser_credential_ids: tuple[UUID, ...] = ()
-    allow_teaching: bool = False
-    skill_log: SkillUseLog | None = field(default=None, repr=False, compare=False)
 
     step_model: Model | None = field(default=None, repr=False, compare=False)
     """The model `browse_web` asks for each step, when the agent named one; else the run's."""
@@ -116,14 +111,6 @@ class WebBrowser(AbstractCapability[AgentDepsT]):
                 "that it is busy and wait rather than repeatedly retrying."
             )
         return _INSTRUCTIONS + (
-            " Use browser_procedures to discover approved procedures from this run's bound skills "
-            "for the current origin. Read fresh page observations and rematch every intended control; "
-            "procedure steps never authorize blind replay or supply saved entered values. "
-            " For saved credentials, call browser_credential_options, then browser_fill_credential "
-            "with only the returned credential ID/generation and the current numbered fields. "
-            "It waits for the owner's destination confirmation; never ask for or repeat credential values. "
-            "Filling does not submit. Protected sessions expose only fixed form-control roles afterwards; "
-            "ordinary page text and images remain unavailable even after navigation. "
             " Use browser_new_tab(url) to open a separate tab (up to eight); browser_tabs "
             "lists ids, browser_switch_tab selects and reads one, browser_close_tab closes one. "
             "In private conversations, browser_read restores the previous remote session "
@@ -148,8 +135,6 @@ class WebBrowser(AbstractCapability[AgentDepsT]):
             if requirement == "active" and not has_active:
                 continue
             if requirement == "any" and not has_tabs:
-                continue
-            if requirement == "credential" and (not has_active or not self.browser_credential_ids):
                 continue
             offered.append(tool)
         return offered
@@ -180,8 +165,5 @@ class WebBrowser(AbstractCapability[AgentDepsT]):
                 step_model=self.step_model,
                 route=self.route,
                 resume_local=self.resume_local,
-                credential_ids=self.browser_credential_ids,
-                allow_teaching=self.allow_teaching,
-                skill_log=self.skill_log,
             )
         return self._toolset

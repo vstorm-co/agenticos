@@ -133,7 +133,6 @@ def pending(room, **values):
         ordinal=1,
         client_message_id="client-1",
         fingerprint=module.fingerprint(request(agent_id=values.get("agent_id"))),
-        intent="message",
         agent_id=uuid4(),
         version_id=uuid4(),
         status="queued",
@@ -144,14 +143,6 @@ def pending(room, **values):
     for key, value in values.items():
         setattr(row, key, value)
     return row
-
-
-@pytest.mark.security
-async def test_a_planning_run_cannot_resume_as_the_full_published_agent(room, monkeypatch):
-    row = pending(room, intent="ask_lead", lead_policy_revision=1, status="awaiting_answer")
-    monkeypatch.setattr(module.room_repo, "for_run", AsyncMock(return_value=row))
-    with pytest.raises(AlreadyExistsError, match="new Ask lead"):
-        await room.service.resume_authority(uuid4(), room.ctx.organization_id)
 
 
 @pytest.mark.parametrize(
@@ -166,9 +157,6 @@ async def test_a_planning_run_cannot_resume_as_the_full_published_agent(room, mo
         {"file_ids": [str(uuid4())]},
         {"local": {"folder": "/private"}},
         {"model_profile_id": str(uuid4())},
-        {"intent": "ask_lead"},
-        {"intent": "ask_lead", "expected_policy_revision": 1, "agent_id": str(uuid4())},
-        {"expected_policy_revision": 1},
     ],
 )
 async def test_the_wire_contract_refuses_blank_unbounded_and_forged_context(body) -> None:

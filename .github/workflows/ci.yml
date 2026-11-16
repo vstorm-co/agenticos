@@ -297,7 +297,6 @@ jobs:
     # below already does it. Four identical copies is four places to forget one.
     env:
       PYTEST_XDIST_AUTO_NUM_WORKERS: "4"
-      T3OS_TEST_CHROMIUM_EXECUTABLE: /usr/bin/google-chrome
       POSTGRES_HOST: localhost
       POSTGRES_PORT: 5432
       POSTGRES_USER: postgres
@@ -322,33 +321,6 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --directory backend --dev
-
-      - name: Install the pinned media inspector
-        timeout-minutes: 5
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(uname -m)" = x86_64
-          probe_dir="$(mktemp -d "$RUNNER_TEMP/ffprobe.XXXXXX")"
-          package='ffmpeg-n9.0.2-39-g7adfbe40dc-linux64-lgpl-9.0'
-          archive="$probe_dir/archive.tar.xz"
-          timeout 180s curl --fail --location --silent --show-error \
-            --proto '=https' --proto-redir '=https' \
-            --connect-timeout 10 --max-time 60 \
-            --retry 2 --retry-delay 2 --retry-max-time 150 \
-            --output "$archive" \
-            "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/$package.tar.xz"
-          printf '%s  %s\n' '6046d6731b26f58887e953561551d254a6eec9fbca4100dfeab56e19af8328d5' "$archive" | sha256sum --check --strict
-          timeout 60s tar -xJf "$archive" -C "$probe_dir" --no-same-owner --no-same-permissions \
-            "$package/bin/ffprobe" "$package/LICENSE.txt"
-          timeout 10s "$probe_dir/$package/bin/ffprobe" -version
-          printf '%s\n' "$probe_dir/$package/bin" >> "$GITHUB_PATH"
-
-      - name: Verify the native browser acceptance runtime
-        timeout-minutes: 2
-        run: |
-          test -x "$T3OS_TEST_CHROMIUM_EXECUTABLE"
-          "$T3OS_TEST_CHROMIUM_EXECUTABLE" --version
 
       - name: Configure the disposable test database
         env:

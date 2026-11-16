@@ -321,7 +321,6 @@ class TestRotateTable:
             site="linkedin.com",
             sealed_state=seal('{"site": "linkedin.com"}', scope=scope).ciphertext,
             secret_key_version=1,
-            protection_kind="manual",
         )
 
         monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A, 2: KEY_B})

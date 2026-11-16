@@ -55,7 +55,6 @@ from app.schemas.skill_version import (
     VersionResourceSummary,
 )
 from app.services.access import AGENT, SKILL, accessible_ids, resolve_access
-from app.services.browser_teaching._versions import procedure_for_version
 from app.services.resource_usage import in_use_by
 
 ARCHIVE_AFTER = timedelta(days=30)
@@ -159,15 +158,6 @@ class SkillVersionService:
                 locked.library_fingerprint if source is SkillVersionSource.LIBRARY else None
             ),
             created_by_user_id=ctx.user_id,
-            browser_procedure=await procedure_for_version(
-                self.db,
-                organization_id=locked.organization_id,
-                skill_id=locked.id,
-                source=source,
-                proposal_id=proposal_id,
-                content=locked.content,
-                description=locked.description,
-            ),
         )
         await skill_repo.update(
             self.db,
@@ -214,15 +204,6 @@ class SkillVersionService:
             proposal_id=proposal_id,
             library_fingerprint=None,
             created_by_user_id=ctx.user_id,
-            browser_procedure=await procedure_for_version(
-                self.db,
-                organization_id=fork.organization_id,
-                skill_id=fork.skill_id,
-                source=source,
-                proposal_id=proposal_id,
-                content=content,
-                description=description,
-            ),
         )
         await skill_version_repo.update_fork(
             self.db, fork=fork, update_data={"latest_version_id": version.id}

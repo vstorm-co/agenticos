@@ -15,7 +15,6 @@ import {
   isRunning,
   withLivePreview,
   type Browse,
-  type BrowserProtection,
 } from "@/lib/browse";
 import { cn } from "@/lib/utils";
 import { useBrowserPanelStore, type BrowseSurface } from "@/stores/browser-panel-store";
@@ -28,7 +27,6 @@ import { BrowserVisit } from "./browser-visit";
 /** The browses running in this chat, and where a comment on one of their pages goes. */
 const LiveBrowses = createContext<{
   browses: Browse[];
-  onProtected?: (protection: BrowserProtection) => void;
   onComment?: (comment: PageComment) => void;
   surfaces?: ReadonlyMap<string, BrowseSurface>;
 }>({ browses: [] });
@@ -54,7 +52,7 @@ export function TurnBrowses({ calls }: { calls: ToolCall[] }) {
     >
       {visits.map(({ id, call, browse }) =>
         browse ? (
-          browse.navigable || browse.nativeId || browse.outputProtected ? (
+          browse.navigable || browse.nativeId ? (
             <BrowserLink key={id} browse={browse} />
           ) : (
             <InlineBrowser
@@ -102,7 +100,7 @@ function InlineBrowser({
 }) {
   const t = useTranslations("chat");
   const workspace = useTranslations("chat.workspace");
-  const { browses, surfaces = new Map(), onProtected } = useContext(LiveBrowses);
+  const { browses, surfaces = new Map() } = useContext(LiveBrowses);
   const expand = useBrowserPanelStore((state) => state.open);
   const choice = useBrowserPanelStore((state) => state.surface);
   const callId = useBrowserPanelStore((state) => state.openCallId);
@@ -114,7 +112,6 @@ function InlineBrowser({
     streamed.runId ?? "",
     streamed.callId,
     Boolean(streamed.runId) && !expanded,
-    onProtected,
   );
   // The live view's copy while the browse runs: it knows who holds the browser
   // and whether this person may, which the conversation's stream does not say.
@@ -137,7 +134,6 @@ function InlineBrowser({
         <BrowserWindow
           waitForFit
           browse={browse}
-          onProtected={live.protect}
           surface={surface}
           control={
             mine && live.status === "live"
@@ -156,17 +152,7 @@ function InlineBrowser({
 
 /** A compact transcript entry that reopens the browser side panel. */
 function BrowserLink({ browse }: { browse: Browse }) {
-  const t = useTranslations("browserCredentials");
   const open = useBrowserPanelStore((state) => state.open);
-  if (browse.outputProtected || browse.credentialPlanId) {
-    return (
-      <BrowserVisit
-        url={null}
-        title={t(browse.outputProtected ? "protectedTitle" : "reviewDestination")}
-        onOpen={() => open(browse.callId)}
-      />
-    );
-  }
   const page = recordedBrowserPage({ args: { url: browse.url }, result: undefined });
   return <BrowserVisit url={page.url} title={browse.title} onOpen={() => open(browse.callId)} />;
 }

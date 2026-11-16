@@ -1,9 +1,7 @@
 # Room lead routing and task handoffs
 
-**Status: implementation candidate, pending integrated CI and deployment acceptance.**
-The candidate adds explicit room lead routing and review controls. The verified
-baseline and design constraints below remain the reference for release review;
-local tests and visual fixtures do not establish deployed runtime acceptance.
+**Status: proposal only.** This document adds no agent routing, task table,
+conversation fork, thread, attachment feature or automatic dispatch.
 
 Baseline: T3OS `080c12941ed06cce2e92b6b03910e94ace36469e`, inspected on
 14 November 2026. Product benchmark:
@@ -184,69 +182,6 @@ the lead assigned a task. External actions keep their ordinary explicit authorit
 and approval flow.
 
 ## Implementation and acceptance
-
-### Frontend controls in the implementation candidate
-
-Open **Lead & tasks** in a project room or its reply thread. A member with edit
-authority can choose **Configure lead**, select a published cloud agent they may
-run, allow up to twelve specialists and limit each proposal to one, two or three
-items. Saving records the expected policy revision. A conflicting policy must be
-reloaded and reviewed before another save.
-
-The composer still defaults to a human-only post. Choose **Ask lead** explicitly
-to ask the configured lead for help. The submission carries the policy revision;
-the server chooses the pinned agent version. An earlier published version is a
-version notice, not a permission verdict. Unknown submission outcomes retain the
-original message ID, intent, policy revision and thread until acknowledged.
-A first admission refusal with code `ROOM_LEAD_POLICY_CHANGED` writes no room
-message or request: the composer keeps the text, reloads the policy and asks the
-person to review the current lead before sending again. A generic conflict or a
-later refusal while an earlier outcome is uncertain keeps the original frozen
-token and payload. The backend checks exact-token replay before current policy
-admission.
-
-Proposal text is displayed as untrusted plain text. Review the expected result,
-named accountable teammate when authorized, specialist and due time, then select
-the items to **Accept selected**, or **Discard proposal**. Opening the panel,
-selecting an item, receiving an event and polling never accept work. An uncertain
-decision offers **Check and retry**: read the current decision first and only
-replay the same decision token if it is still pending and permitted. Already
-committed decisions are displayed without another POST.
-Denied reconciliation reads and permission changes keep that uncertain token
-across panel remounts; they cannot prove the earlier write failed. A definite
-first decision POST refusal may clear its new attempt. A refused retry with
-`400`, `403`, `404` or `422` keeps the earlier token because validation and
-access checks can run before idempotency replay. A confirmed decided response or
-the backend's post-lock `409` settles an existing attempt. Fresh permission and
-redaction metadata takes precedence even when the proposal revision is unchanged.
-
-Linked cards read status and next actor from canonical task metadata. A completed
-agent run is **Waiting for review** until the existing task flow records the
-reviewed outcome. Another teammate starts their own planned task through Tasks.
-**Open task board** goes to the existing table route; the room does not invent an
-exact task deep link or expose private working-chat or Inbox links. Room-wide
-cards link to the existing reply thread; a thread view only shows that thread's
-cards.
-After explicit acceptance, canonical Task authority and the existing dispatcher
-control execution. Deleting the source room removes its live proposal but keeps
-an allowlisted review-provenance snapshot. It does not cancel the accepted task
-or widen its authority. Room cards never expose private working-chat or Inbox
-identifiers.
-
-Reads are scoped by signed-in account, effective organization, room and thread.
-Fresh reads recheck permission on opening, room events and a fifteen-second
-recovery interval. Refused reads hide stale cards and controls. Account, tenant
-or room changes reset local selections; late decisions cannot update a different
-audience. Pages are bounded to fifty items and load more only on request.
-
-`room-routing.integration.test.tsx`, the composer integration tests and the room
-draft-hook tests cover explicit intent, immutable retries, acceptance authority,
-canonical review status and audience boundaries. The separate
-`room-routing-screenshots.spec.ts` renders clearly named synthetic policy,
-proposal and task metadata on the actual room page at desktop and mobile widths.
-Those images are fixture-only evidence; they do not prove provider execution,
-task creation, dispatch deduplication or live multi-user authorization. The
-integrated backend/worker acceptance below remains required before release.
 
 | Slice | Result | Required evidence |
 |---|---|---|

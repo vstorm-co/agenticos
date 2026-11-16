@@ -99,7 +99,6 @@ from app.services.workflow_execution.exceptions import (
     WorkflowTriggerMismatchError,
 )
 from app.services.workflow_execution.run_status import refresh_run_status
-from app.services.workflow_media_read import WorkflowMediaReadService
 from app.workflows.contracts.payload import json_byte_size
 from app.workflows.graph.errors import GraphValidationError
 from app.workflows.graph.model import WorkflowGraph, jsonb_value_fits
@@ -1189,15 +1188,9 @@ class WorkflowExecutionService:
                 node_run_ids=[row.id for row in rows],
             )
         }
-        media = await WorkflowMediaReadService(self.db).for_nodes(
-            organization_id=ctx.organization_id,
-            workflow_run_id=run.id,
-            node_run_ids=[row.id for row in rows],
-        )
         items = []
         for row in rows:
             read = node_run_read(row, by_run.get(row.id, []))
-            read.media_operation = media.get(row.id)
             if row.node_instance_id in awaited and row.resume_payload is not None:
                 read.reply_expectation = ReplyExpectation.model_validate(row.resume_payload)
             decision = decisions.get(row.id)

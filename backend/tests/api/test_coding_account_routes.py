@@ -10,11 +10,10 @@ from httpx import ASGITransport, AsyncClient
 from app.api import deps
 from app.core.permissions import AuthContext
 from app.main import app
-from app.schemas.coding_account import CodingAccountRead, CodingAccountUsageRead
-from app.services.coding_account_usage import CodingAccountUsageService
+from app.schemas.coding_account import CodingAccountRead
 from app.services.coding_accounts import CodingAccountService
 
-pytestmark = [pytest.mark.anyio, pytest.mark.security]
+pytestmark = pytest.mark.anyio
 CTX = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="member")
 
 
@@ -29,21 +28,8 @@ async def service() -> AsyncGenerator[AsyncMock]:
         app.dependency_overrides.clear()
 
 
-@pytest.fixture
-async def usage_service() -> AsyncGenerator[AsyncMock]:
-    service = AsyncMock(spec=CodingAccountUsageService)
-    app.dependency_overrides[deps.get_auth_context] = lambda: CTX
-    app.dependency_overrides[deps.get_coding_account_usage_service] = lambda: service
-    try:
-        yield service
-    finally:
-        app.dependency_overrides.clear()
-
-
-async def test_a_member_lists_only_account_metadata_through_the_service(
-    usage_service: AsyncMock,
-) -> None:
-    usage_service.mine.return_value = [
+async def test_a_member_lists_only_account_metadata_through_the_service(service: AsyncMock) -> None:
+    service.mine.return_value = [
         CodingAccountRead(
             id=uuid4(),
             harness="codex",
@@ -68,8 +54,6 @@ async def test_a_member_lists_only_account_metadata_through_the_service(
         "is_default",
         "pool_member",
         "usage",
-        "model_catalog",
-        "usage_refresh_pending",
     }
     assert response.json()["items"][0]["usage"] == {
         "status": "unknown",
@@ -80,57 +64,7 @@ async def test_a_member_lists_only_account_metadata_through_the_service(
         "windows": [],
         "reason_code": "provider_contract_unverified",
     }
-    assert response.headers["Cache-Control"] == "no-store"
-    assert response.json()["items"][0]["model_catalog"] == {
-        "status": "unknown",
-        "source": "unavailable",
-        "observed_at": None,
-        "valid_until": None,
-        "model_ids": [],
-        "reason_code": "model_catalog_unverified",
-    }
-    assert response.json()["items"][0]["usage_refresh_pending"] is False
-    usage_service.mine.assert_awaited_once_with(CTX)
-
-
-async def test_usage_get_reads_only_the_owner_scoped_cache(usage_service: AsyncMock) -> None:
-    identifier, generation = uuid4(), uuid4()
-    data = CodingAccountUsageRead(account_id=identifier, generation=generation)
-    usage_service.read.return_value = data
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get(f"/api/v1/coding-accounts/{identifier}/usage")
-    assert response.status_code == 200
-    assert response.headers["Cache-Control"] == "no-store"
-    assert response.json() == data.model_dump(mode="json")
-    usage_service.read.assert_awaited_once_with(CTX, identifier)
-    usage_service.refresh.assert_not_awaited()
-
-
-async def test_usage_refresh_requires_the_reviewed_generation_and_returns_pending(
-    usage_service: AsyncMock,
-) -> None:
-    identifier, generation = uuid4(), uuid4()
-    data = CodingAccountUsageRead(
-        account_id=identifier, generation=generation, refresh_pending=True
-    )
-    usage_service.refresh.return_value = data
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post(
-            f"/api/v1/coding-accounts/{identifier}/usage/refresh",
-            json={"generation": str(generation)},
-        )
-    assert response.status_code == 202
-    assert response.headers["Cache-Control"] == "no-store"
-    assert response.json() == data.model_dump(mode="json")
-    usage_service.refresh.assert_awaited_once_with(CTX, identifier, generation)
-    usage_service.read.assert_not_awaited()
-
-
-async def test_usage_refresh_without_a_generation_never_enqueues(usage_service: AsyncMock) -> None:
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post(f"/api/v1/coding-accounts/{uuid4()}/usage/refresh", json={})
-    assert response.status_code == 422
-    usage_service.refresh.assert_not_awaited()
+    service.mine.assert_awaited_once_with(CTX)
 
 
 async def test_disconnect_keeps_the_callers_authority(service: AsyncMock) -> None:

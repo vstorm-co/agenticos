@@ -14,15 +14,7 @@ not given to another's.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import (
-    CheckConstraint,
-    DateTime,
-    ForeignKey,
-    Integer,
-    String,
-    Text,
-    UniqueConstraint,
-)
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -33,12 +25,7 @@ class BrowserSignIn(Base, TimestampMixin):
     """One person's sign-in to one site, saved when they handed the browser back."""
 
     __tablename__ = "browser_sign_ins"
-    __table_args__ = (
-        UniqueConstraint("organization_id", "user_id", "site"),
-        CheckConstraint(
-            "protection_kind IN ('manual', 'credential')", name="ck_browser_sign_in_protection"
-        ),
-    )
+    __table_args__ = (UniqueConstraint("organization_id", "user_id", "site"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(
@@ -50,9 +37,6 @@ class BrowserSignIn(Base, TimestampMixin):
     site: Mapped[str] = mapped_column(String(253), nullable=False)
     sealed_state: Mapped[str] = mapped_column(Text, nullable=False)
     secret_key_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    protection_kind: Mapped[str] = mapped_column(
-        String(16), nullable=False, default="manual", server_default="manual"
-    )
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     def __repr__(self) -> str:

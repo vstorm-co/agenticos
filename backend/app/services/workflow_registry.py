@@ -40,7 +40,6 @@ from app.db.updates import writable
 from app.repositories import resource_grant_repo, virtual_table_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_file as workflow_file_repo
-from app.repositories import workflow_media_operation as media_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.reply_expectation import ReplyDraftSelection, ReplyMailboxSelection
 from app.schemas.resource_grant import as_visibility
@@ -430,7 +429,6 @@ class WorkflowRegistryService:
                 effect_kind=definition.effect_kind,
                 retry_guarantee=definition.retry_guarantee,
                 scopes=sorted(definition.scopes),
-                available=definition.available() if definition.available else True,
                 loop_body_only=definition.loop_body_only,
                 exclusive_branches=definition.exclusive_branches,
             )
@@ -1225,13 +1223,6 @@ class WorkflowRegistryService:
         ):
             raise WorkflowInUseError(
                 message="Runs of another workflow depend on this workflow. Archive it instead.",
-                details={"workflow_id": str(workflow.id)},
-            )
-        if await media_repo.workflow_has_unresolved(
-            self.db, organization_id=ctx.organization_id, workflow_id=workflow.id
-        ):
-            raise WorkflowInUseError(
-                message="This workflow retains unresolved media operations or costs. Keep their evidence and archive it instead.",
                 details={"workflow_id": str(workflow.id)},
             )
         if await workflow_file_repo.files_are_referenced(

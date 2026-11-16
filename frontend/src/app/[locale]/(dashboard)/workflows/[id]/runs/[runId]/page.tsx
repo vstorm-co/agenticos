@@ -15,6 +15,7 @@ import {
   CircleDollarSign,
   Clock,
   ListChecks,
+  RotateCcw,
   ScrollText,
   Square,
 } from "lucide-react";
@@ -44,8 +45,6 @@ import { outcomeLabels } from "@/components/workflows/logs/outcome-labels";
 import { StepLogs } from "@/components/workflows/logs/step-logs";
 import { SetAsideSteps } from "@/components/workflows/runs/set-aside-steps";
 import { RunFiles } from "@/components/workflows/runs/run-files";
-import { MediaOperationStatus } from "@/components/workflows/runs/media-operation-status";
-import { RunRetryButton } from "@/components/workflows/runs/run-retry-button";
 import { ReplyExpectationControl } from "@/components/workflows/runs/reply-expectation-control";
 import { StepAttentionDialog } from "@/components/workflows/runs/step-attention-dialog";
 import { NodeRunStatusLabel, WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";
@@ -231,25 +230,18 @@ export default function WorkflowRunPage({ params }: PageProps) {
               can(Perm.workflowsRun) &&
               (run.mode === "real" || workflow.can_edit) &&
               (run.status !== "cancelled" || run.can_cancel) && (
-                <RunRetryButton
-                  runId={run.id}
-                  hasMedia={
-                    graph === null
-                      ? null
-                      : graph.nodes.some(
-                          (node) =>
-                            node.definition_id === "image.generate" ||
-                            node.definition_id === "video.generate",
-                        )
-                  }
-                  busy={retry.isPending}
-                  onRetry={() =>
+                <Button
+                  disabled={retry.isPending}
+                  onClick={() =>
                     retry.mutate(undefined, {
                       onSuccess: (started) =>
                         router.push(ROUTES.WORKFLOW_RUN_DETAIL(id, started.id)),
                     })
                   }
-                />
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  {t("runRetry")}
+                </Button>
               )}
           </>
         }
@@ -448,9 +440,6 @@ export default function WorkflowRunPage({ params }: PageProps) {
                     />
                   )}
                   {node.error && <StepProblem problem={node.error} />}
-                  {node.media_operation != null && (
-                    <MediaOperationStatus operation={node.media_operation} />
-                  )}
                   <CalledRun
                     config={graph?.nodes.find((entry) => entry.id === node.node_instance_id)}
                     output={node.output}

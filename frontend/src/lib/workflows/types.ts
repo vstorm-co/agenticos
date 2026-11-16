@@ -63,8 +63,6 @@ export interface NodeDefinition {
   effect_kind: "pure" | "read" | "write";
   retry_guarantee: "none" | "idempotent" | "at_least_once";
   scopes: string[];
-  /** Disabled versions remain readable but cannot be added for new use. */
-  available?: boolean;
   /** Whether the node exists only inside a `control.foreach` body (`loop.item`, `loop.yield`). */
   loop_body_only?: boolean;
   /** Whether the node leaves by exactly one output port per run, so a merge may rejoin its branches. */
@@ -654,8 +652,6 @@ export interface WorkflowStepDecision {
 /** One step of a run, in one loop iteration. Mirrors `WorkflowNodeRunRead`. */
 export interface WorkflowNodeRunRead {
   reply_expectation?: ReplyExpectation | null;
-  /** Durable provider status; absent for older responses and null for other node families. */
-  media_operation?: WorkflowMediaOperationRead | null;
   id: Uuid;
   node_instance_id: Uuid;
   scope_path: { loop_node_id: Uuid; index: number }[];
@@ -674,81 +670,6 @@ export interface WorkflowNodeRunRead {
   ended_at: string | null;
   /** The decision an approval step asked for; null for every other step. */
   approval?: WorkflowStepDecision | null;
-}
-
-/** Unparsed editor settings: the estimate route validates the complete provider-specific config. */
-export type WorkflowMediaEstimateRequest =
-  | { kind: "image"; config: Record<string, unknown> }
-  | { kind: "video"; config: Record<string, unknown> };
-
-export type WorkflowMediaEstimateAssumption =
-  | {
-      code:
-        | "conservative_reservation"
-        | "single_submission"
-        | "dispatch_limits_rechecked"
-        | "unresolved_hold_retained"
-        | "text_only";
-    }
-  | { code: "image_token_ceiling"; max_input_tokens: number; max_output_tokens: number }
-  | {
-      code: "image_tool_ceiling";
-      prompt_max_characters: number;
-      quality: "low" | "medium" | "high";
-      size: string;
-      output_estimate_usd: string;
-      output_ceiling_usd: string;
-    }
-  | {
-      code: "video_duration_rate";
-      seconds: number;
-      resolution: string;
-      usd_per_second: string;
-      uses_model_maximum: boolean;
-      sound_on_ceiling: boolean;
-    };
-
-/** Decimal amounts stay strings; the server is the only reservation calculator. */
-export interface WorkflowMediaEstimateRead {
-  kind: "image" | "video";
-  provider: string;
-  model: string;
-  reservation_usd: string;
-  reserved_bytes: number;
-  pricing_as_of: string;
-  configured_max_cost_usd: string | null;
-  sufficient_max_cost_usd: boolean;
-  deficit_usd: string;
-  assumptions: WorkflowMediaEstimateAssumption[];
-}
-
-export type WorkflowMediaRetryEffect =
-  | "collect_existing"
-  | "recover_output"
-  | "new_billable_submission"
-  | "reconciliation_required"
-  | "none";
-
-/** Journal facts from an authorized node read, including unresolved superseded operations. */
-export interface WorkflowMediaOperationRead {
-  operation_id: Uuid;
-  phase:
-    | "prepared"
-    | "submitting"
-    | "submitted"
-    | "collecting"
-    | "stored"
-    | "unknown"
-    | "failed"
-    | "cancelled";
-  held_usd: string;
-  incurred_usd: string;
-  booked_usd: string;
-  cost_source: "reported" | "catalog_estimate" | null;
-  accounting_complete: boolean;
-  node_unresolved_usd: string;
-  has_receipt: boolean;
-  retry_effect: WorkflowMediaRetryEffect;
 }
 
 /** Questions the reading caller may answer for one suspended agent step. */

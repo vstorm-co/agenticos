@@ -79,8 +79,6 @@ from app.api.routes.v1 import virtual_table_triggers
 from app.api.routes.v1 import memory as memory_files
 from app.api.routes.v1 import onboarding, outcomes, primary_conversations, system_agents
 from app.api.routes.v1 import browser_sign_ins
-from app.api.routes.v1 import browser_credentials
-from app.api.routes.v1 import browser_teaching
 from app.api.routes.v1 import coding_accounts
 from app.api.routes.v1 import permissions
 from app.api.routes.v1 import email_webhook, imessage_webhook, sms_webhook, telegram_webhook, phone
@@ -151,8 +149,6 @@ v1_router.include_router(agent_embeds.router, prefix="/agents", tags=["agents:em
 v1_router.include_router(embed_widget.router, prefix="/embed", tags=["embed"])
 v1_router.include_router(embed_generated_media.router, prefix="/embed", tags=["embed"])
 v1_router.include_router(agent_runs.router, tags=["runs"])
-v1_router.include_router(browser_credentials.router, tags=["browser-credentials"])
-v1_router.include_router(browser_teaching.router, tags=["browser-teaching"])
 v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
 v1_router.include_router(skill_checks.router, prefix="/skills", tags=["skills:checks"])

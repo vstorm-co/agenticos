@@ -31,7 +31,6 @@ from contextlib import AbstractAsyncContextManager, nullcontext
 from dataclasses import dataclass, field, replace
 from hashlib import sha256
 from typing import Protocol
-from uuid import UUID
 
 import anyio
 import logfire
@@ -63,7 +62,6 @@ from app.agents.capabilities.browser_use._endpoint import EndpointError
 from app.agents.capabilities.browser_use._page import DomainRefused, StaleElement
 from app.agents.capabilities.browser_use._plans import PlanStep, record, replay
 from app.agents.capabilities.browser_use._preview import Preview
-from app.agents.capabilities.browser_use._teaching_hooks import TeachingCapture
 
 REPEAT_LIMIT = 3
 """How often the identical action on the identical page is tried before giving up.
@@ -223,7 +221,6 @@ class BrowseSession:
     """Steps taken in this tab across every call, which is what the frames number."""
     last: Snapshot | None = None
     """The page as the agent last read it, whose element numbers a direct action names."""
-    teaching: TeachingCapture | None = None
 
     def restart(self) -> None:
         """Forget the task, keep the tab - for a call that starts a new one in it."""
@@ -307,26 +304,18 @@ async def run_browse(
         `blocked`, which is an answer.
     """
     kept = _Plan(pending=list(plan))
-    completed = False
-    try:
-        if session.teaching is not None:
-            await session.teaching.begin_task(call_id, sink)
-        result = await _drive(
-            task=task,
-            session=session,
-            decide=decide,
-            policy=policy,
-            call_id=call_id,
-            sink=sink,
-            control=control,
-            run_id=run_id,
-            remember=remember,
-            kept=kept,
-        )
-        completed = result.outcome == "done"
-    finally:
-        if session.teaching is not None:
-            await session.teaching.finish_task(completed=completed)
+    result = await _drive(
+        task=task,
+        session=session,
+        decide=decide,
+        policy=policy,
+        call_id=call_id,
+        sink=sink,
+        control=control,
+        run_id=run_id,
+        remember=remember,
+        kept=kept,
+    )
     return replace(
         result,
         plan=tuple(kept.recorded) if result.outcome == "done" else (),
@@ -400,7 +389,6 @@ async def _drive(
                         call_id=call_id,
                         by=waiting.by,
                         by_user_id=waiting.by_user_id,
-                        connection_id=waiting.control_connection_id,
                         remember=remember,
                     )
                     was_held = True
@@ -465,7 +453,6 @@ async def _drive(
                         call_id=call_id,
                         by=waiting.by,
                         by_user_id=waiting.by_user_id,
-                        connection_id=waiting.control_connection_id,
                         remember=remember,
                     )
                 if waiting is not None or resized:
@@ -560,7 +547,6 @@ async def _drive(
                     call_id=call_id,
                     by=arrived.by,
                     by_user_id=arrived.by_user_id,
-                    connection_id=arrived.control_connection_id,
                     remember=remember,
                 )
                 continue
@@ -596,17 +582,9 @@ async def _drive(
                     preview=preview,
                 )
 
-            prepared = (
-                None
-                if session.teaching is None
-                else await session.teaching.before_action(action, element)
-            )
             try:
                 result = await act(page, step, element)
             except StaleElement as refused:
-                if session.teaching is not None:
-                    await session.teaching.finish_task(completed=False)
-                prepared = None
                 # The page moved between the snapshot and the decision, or the number
                 # named nothing. The action did not happen and the next snapshot
                 # describes what is there now - one wasted step with a reason the
@@ -624,8 +602,6 @@ async def _drive(
             session.history += (f"step {step_no}: {step.next_goal} - {result}",)
             if not isinstance(action, (Navigate, GoBack)):
                 await page.settle()
-            if session.teaching is not None:
-                await session.teaching.after_action(prepared)
             clock.mark("settle")
             clock.log(step_no, OPERATION[type(action)])
 
@@ -792,7 +768,6 @@ async def held(
     by: str | None,
     by_user_id: str | None,
     remember: RememberSignIn | None,
-    connection_id: UUID | None = None,
 ) -> None:
     """Hand the tab to a person until they give it back, or until `HOLD_LIMIT`.
 
@@ -807,30 +782,11 @@ async def held(
     hand-back, before the agent touches the page again.
     """
     page = session.page
-    teaching = session.teaching
-    takeover_id = (
-        None
-        if teaching is None
-        else await teaching.begin(
-            call_id=call_id, connection_id=connection_id, user_id=by_user_id, emit=emit
+    await emit(
+        BrowserEvent(
+            kind="browser_held", call_id=call_id, step=session.steps, by=by, by_user_id=by_user_id
         )
     )
-    try:
-        await emit(
-            BrowserEvent(
-                kind="browser_held",
-                call_id=call_id,
-                step=session.steps,
-                by=by,
-                by_user_id=by_user_id,
-                takeover_id=takeover_id,
-            )
-        )
-    except BaseException:
-        if teaching is not None:
-            with anyio.move_on_after(10, shield=True):
-                await teaching.end()
-        raise
     kept: str | None = None
 
     async def pictures() -> None:
@@ -879,28 +835,16 @@ async def held(
             with anyio.move_on_after(HOLD_LIMIT):
                 while True:
                     command = await control.wait(FRAME_EVERY)
-                    if (
-                        command is None
-                        or (by_user_id is not None and command.by_user_id != by_user_id)
-                        or (
-                            connection_id is not None
-                            and command.control_connection_id != connection_id
-                        )
+                    if command is None or (
+                        by_user_id is not None and command.by_user_id != by_user_id
                     ):
                         continue
-                    if command.type == "control_lost":
-                        break
                     if command.type == "give_back":
                         if command.remember and remember is not None:
                             kept = await remember(page, command)
                         break
                     try:
-                        prepared = (
-                            None if teaching is None else await teaching.before_input(command)
-                        )
                         await _person_input(page, command)
-                        if teaching is not None:
-                            await teaching.after_input(prepared)
                         if command.type in {"navigate", "back", "forward", "reload"}:
                             url, title = await page.location()
                             await emit(
@@ -920,8 +864,6 @@ async def held(
                                 )
                             )
                     except (StaleElement, DomainRefused, EndpointError) as refused:
-                        if teaching is not None:
-                            await teaching.failed_input()
                         await emit(
                             BrowserEvent(
                                 kind="browser_control_error",
@@ -932,9 +874,6 @@ async def held(
                         )
         finally:
             tasks.cancel_scope.cancel()
-            if teaching is not None:
-                with anyio.move_on_after(10, shield=True):
-                    await teaching.end()
     await emit(
         BrowserEvent(kind="browser_released", call_id=call_id, step=session.steps, detail=kept)
     )

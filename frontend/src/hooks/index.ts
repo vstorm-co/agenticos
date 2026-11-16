@@ -235,7 +235,6 @@ export { useWikiGraph } from "./use-wiki-graph";
 export { useDurableTasks } from "./use-durable-tasks";
 
 export { useCodingAccounts } from "./use-coding-accounts";
-export { useBrowserCredentialContinuation } from "./use-browser-credential-continuation";
 export {
   useAssistantPageContext,
   useRegisterAssistantPageContext,

@@ -17,7 +17,6 @@ import logging
 import os
 import re
 import shutil
-import stat
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
@@ -758,38 +757,10 @@ class LocalFileStorage(BaseFileStorage):
 
     @staticmethod
     def _write_at_blocking(file_path: Path, data: bytes) -> None:
-        """Publish a complete sibling write, including when another collector writes.
-
-        Opening the destination in place truncates an already committed object
-        before the replacement bytes exist. Cancellation cannot stop this pool
-        thread, so its cleanup must also never remove a competing writer's target.
-        Only this call's exclusively created sibling is disposable.
-        """
+        """Both syscalls on the pool. `mkdir` is one too, and on a network-backed
+        volume it is the slow one."""
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = file_path.with_name(f".storage-{uuid.uuid4().hex}.tmp")
-        # Like write_bytes, a newly created file respects the process umask.
-        # Open before the cleanup scope: a collision is not our file to remove.
-        stream = temporary.open("xb")
-        try:
-            with stream:
-                stream.write(data)
-                stream.flush()
-                os.fsync(stream.fileno())
-            try:
-                mode = stat.S_IMODE(file_path.stat().st_mode)
-            except FileNotFoundError:
-                pass
-            else:
-                temporary.chmod(mode)
-            temporary.replace(file_path)
-        finally:
-            try:
-                temporary.unlink(missing_ok=True)
-            except PermissionError:
-                # Windows may refuse to reap our read-only temporary after a
-                # failed replace. Alter only this owned sibling, never the target.
-                temporary.chmod(stat.S_IWRITE)
-                temporary.unlink(missing_ok=True)
+        file_path.write_bytes(data)
 
     async def delete_prefix(self, prefix: str) -> int:
         """On the pool, and not cancellation-shielded.

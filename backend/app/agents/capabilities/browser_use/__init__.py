@@ -23,7 +23,6 @@ from app.agents.capabilities.browser_use._route import (
     route_for,
     timezone_problem,
 )
-from app.agents.capabilities.skills._log import SKILL_USE_LOG_RESOURCE, SkillUseLog
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import ApiKeySecret, SecretCondition, SecretKind, SecretRequirement
@@ -136,28 +135,6 @@ class WebBrowserConfig(BaseModel):
             "Allowed browser hosts. No restriction allows any domain; an empty domain list blocks all. "
             "Patterns such as *.example.com are supported. Checked on every step."
         ),
-    )
-    allow_teaching: bool = Field(
-        default=False,
-        title="Allow browser teaching",
-        description="Let a person explicitly record structural actions in this provisioned browser and review a skill draft.",
-        json_schema_extra={"x-visible-when": {"field": "connection", "equals": ["built_in"]}},
-    )
-    learn_site_procedures: bool = Field(
-        default=False,
-        title="Suggest browser procedure refinements",
-        description="Allow review-only suggestions from completed browser work when the acting member also opts in. Never publishes a skill.",
-        json_schema_extra={"x-visible-when": {"field": "connection", "equals": ["built_in"]}},
-    )
-    browser_credential_ids: list[UUID] = Field(
-        default_factory=list,
-        max_length=50,
-        title="Browser credentials",
-        description=(
-            "Saved browser logins or contact profiles this agent may request in your private "
-            "console chat. Each fill requires a live destination confirmation."
-        ),
-        json_schema_extra={"x-visible-when": {"field": "connection", "equals": ["built_in"]}},
     )
     max_steps: int = Field(
         title="Steps per call at most",
@@ -288,13 +265,6 @@ class WebBrowserConfig(BaseModel):
         """An emptied field in the Builder arrives as `""`, which means none."""
         return None if value == "" else value
 
-    @field_validator("browser_credential_ids")
-    @classmethod
-    def _distinct_browser_credentials(cls, value: list[UUID]) -> list[UUID]:
-        if len(set(value)) != len(value):
-            raise ValueError("Select each browser credential only once")
-        return value
-
 
 def connection_problems(config: WebBrowserConfig, *, has_secret: bool) -> list[str]:
     """What is wrong with how this binding says its browses reach the web.
@@ -303,17 +273,6 @@ def connection_problems(config: WebBrowserConfig, *, has_secret: bool) -> list[s
     `_route.check_address` at publish and again as each browse starts.
     """
     problems: list[str] = []
-    if config.allow_teaching or config.learn_site_procedures:
-        if (
-            config.connection != "built_in"
-            or not settings.BROWSER_SIGN_IN_CDP_URL
-            or config.cdp_url.rstrip("/") != settings.BROWSER_SIGN_IN_CDP_URL.rstrip("/")
-        ):
-            problems.append("Browser teaching requires the operator-provisioned built-in browser")
-        if config.learn_site_procedures and not config.allow_teaching:
-            problems.append(
-                "Enable browser teaching before allowing procedure refinement suggestions"
-            )
     if config.connection == "proxy":
         if not config.proxy_url:
             problems.append("Say which proxy the browser goes through")
@@ -464,11 +423,6 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
             side_effecting=False,
         ),
         CapabilityToolInfo(
-            id="browser_procedures",
-            description="Read approved procedures bound to this run for the current browser origin; each action still needs fresh observation.",
-            side_effecting=False,
-        ),
-        CapabilityToolInfo(
             id="browser_click",
             description="Click an element of the open page, by its number in the last page read.",
             side_effecting=False,
@@ -476,18 +430,6 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
         CapabilityToolInfo(
             id="browser_type",
             description="Type into a field of the open page, replacing what it held.",
-            side_effecting=False,
-        ),
-        CapabilityToolInfo(
-            id="browser_credential_options",
-            description="List eligible saved credential references for this private browser page.",
-            side_effecting=False,
-        ),
-        CapabilityToolInfo(
-            id="browser_fill_credential",
-            description="Request and wait for the owner's exact destination confirmation of a saved credential fill.",
-            # The dedicated live plan always asks through ApprovalService at the actual
-            # effect. A generic tool decision cannot authorize or resume a native fill.
             side_effecting=False,
         ),
         CapabilityToolInfo(
@@ -528,7 +470,6 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
     """
     config = ctx.config if isinstance(ctx.config, WebBrowserConfig) else WebBrowserConfig()
     step_model = ctx.resources.get(BROWSER_STEP_MODEL_RESOURCE)
-    skill_log = ctx.resources.get(SKILL_USE_LOG_RESOURCE)
     credential = (
         ctx.secret.api_key.get_secret_value() if isinstance(ctx.secret, ApiKeySecret) else None
     )
@@ -545,13 +486,6 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
         if override.name is not None
     }
     return WebBrowser(
-        skill_log=skill_log if isinstance(skill_log, SkillUseLog) else None,
-        allow_teaching=config.allow_teaching
-        if config.connection == "built_in" and not isinstance(local_session, UUID)
-        else False,
-        browser_credential_ids=tuple(config.browser_credential_ids)
-        if config.connection == "built_in" and not isinstance(local_session, UUID)
-        else (),
         report_tool_names=frozenset(aliases.get(tool, tool) for tool in BROWSER_REPORT_TOOLS),
         resume_local=isinstance(local_session, UUID) and native_local,
         page_factory=local_page_factory(local_session, native=native_local)

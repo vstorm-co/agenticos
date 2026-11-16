@@ -626,18 +626,6 @@ def repo():
     mocked.get_run_called_by.return_value = None
     # A failed run's error workflow is `failure`'s, proven against a database.
     with (
-        patch(
-            "app.repositories.workflow_media_operation.current_for_node",
-            new=AsyncMock(return_value=None),
-        ),
-        patch(
-            "app.repositories.workflow_media_operation.unbooked_for_node",
-            new=AsyncMock(return_value=[]),
-        ),
-        patch(
-            "app.repositories.workflow_media_operation.outstanding_usd",
-            new=AsyncMock(return_value=Decimal(0)),
-        ),
         patch(f"{DISPATCHER_PATH}.workflow_run_repo", new=mocked),
         patch("app.services.workflow_execution.admission.workflow_run_repo", new=mocked),
         patch(f"{DISPATCHER_PATH}.failure.start_error_workflow", new=AsyncMock()),

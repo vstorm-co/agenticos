@@ -24,11 +24,6 @@ vi.mock("@/hooks/use-organizations", () => ({
   useOrganizationList: () => ({ data: [] }),
 }));
 
-// The task-description contract uses the real rich renderer. Resolve its heavy
-// module during fixture setup; markdown-content.loading.test.tsx covers the
-// separate lazy-loading fallback, without tying this UI deadline to a cold transform.
-import "./markdown-content.impl";
-
 beforeEach(() => {
   held.permissions = [Perm.approvalsDecide];
 });

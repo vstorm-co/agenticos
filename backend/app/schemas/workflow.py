@@ -384,9 +384,6 @@ class NodeCatalogEntry(BaseSchema):
     effect_kind: Literal["pure", "read", "write"]
     retry_guarantee: Literal["none", "idempotent", "at_least_once"]
     scopes: list[str] = Field(default_factory=list)
-    available: bool = Field(
-        default=True, description="Whether new use is enabled on this deployment"
-    )
     loop_body_only: bool = Field(
         default=False, description="Whether the node exists only inside a for-each loop's body"
     )
