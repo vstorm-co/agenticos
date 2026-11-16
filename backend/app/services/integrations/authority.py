@@ -76,8 +76,14 @@ async def require_reviewed_accounts(
     run = await agent_run_repo.get_run(db, agent_run_id, organization_id=organization_id)
     if run is None:
         raise AuthorizationError(message="This integration run no longer exists")
-    if run.routine_kind != "trigger":
+    # Ordinary chat runs also store the default kind "trigger". Provenance,
+    # including the pre-provenance trigger ID, distinguishes an actual routine.
+    if run.routine_kind != "trigger" or (run.routine_origin_id is None and run.trigger_id is None):
         return
+    if run.routine_policy is None:
+        raise AuthorizationError(
+            message="Review this routine's sources before using integration accounts"
+        )
     from app.schemas.routine_sources import RoutineSourcePolicy
 
     policy = RoutineSourcePolicy.model_validate(run.routine_policy)

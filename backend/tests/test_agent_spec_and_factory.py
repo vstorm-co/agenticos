@@ -28,6 +28,7 @@ from pydantic_ai_harness import CodeMode
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities import all_capabilities, load_builtins
+from app.agents.capabilities._integration import NativeIntegration
 from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.capabilities.budget import BudgetScope, SpendLimit
 from app.agents.capabilities.compaction import ReportContextSize
@@ -60,6 +61,7 @@ from app.agents.spec import (
 from app.agents.tool_repair import CountedRepair
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import ApiKeySecret
+from app.services.integrations.catalog import PRODUCTS
 
 
 @pytest.fixture(autouse=True)
@@ -421,6 +423,19 @@ class TestFactory:
         built = self._audience_agent(audience=audience)
         assert built.deps.audience == audience
 
+    @pytest.mark.parametrize("capability", sorted(PRODUCTS))
+    @pytest.mark.parametrize("private", [False, True])
+    def test_native_only_agents_keep_their_actual_audience(
+        self, capability: str, private: bool
+    ) -> None:
+        """Native tools must work in private chat without borrowing a memory capability's gate."""
+        audience = RunAudience(
+            user_id=uuid.uuid4(),
+            room_key=None if private else "room:slack:C1",
+        )
+        built = self._audience_agent(capability=capability, audience=audience)
+        assert built.deps.audience is audience
+
     def test_every_capability_that_reads_the_audience_is_listed_as_needing_one(self):
         """`_AUDIENCE_AWARE` is a hand-kept list and its failure is silent.
 
@@ -432,7 +447,8 @@ class TestFactory:
         wants.
 
         So the check is over the source: whichever packages read the field are
-        exactly the ones the factory gives it to.
+        exactly the ones the factory gives it to. Native products import the
+        shared implementation rather than reading the audience in their package.
         """
         load_builtins()
         readers = {
@@ -444,6 +460,8 @@ class TestFactory:
                     import_module(definition.builder.__module__).__file__ or ""
                 ).parent.glob("*.py")
             )
+            or getattr(import_module(definition.builder.__module__), "NativeIntegration", None)
+            is NativeIntegration
         }
 
         assert readers == set(_AUDIENCE_AWARE)

@@ -116,6 +116,7 @@ from app.agents.voice import (
 )
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
+from app.services.integrations.catalog import PRODUCTS
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +131,7 @@ _AUDIENCE_AWARE = frozenset(
         BROWSER_CAPABILITY_ID,
         MEMORY_FILES_CAPABILITY_ID,
         CONVERSATION_SEARCH_CAPABILITY_ID,
+        *PRODUCTS,
     }
 )
 

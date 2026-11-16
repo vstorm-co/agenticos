@@ -248,7 +248,11 @@ async def test_a_running_routine_cannot_acquire_an_account_added_after_review(
         spec_hash="b" * 64,
         mirage_accounts={row.id: row.authorization_generation},
     )
-    run = AgentRun(routine_kind=kind, routine_policy=policy.model_dump(mode="json"))
+    run = AgentRun(
+        routine_kind=kind,
+        routine_origin_id=uuid4() if kind else None,
+        routine_policy=policy.model_dump(mode="json"),
+    )
     monkeypatch.setattr(authority.agent_run_repo, "get_run", AsyncMock(return_value=run))
     await authority.require_reviewed_accounts(
         AsyncMock(), [row], organization_id=org, agent_run_id=identifier
@@ -263,6 +267,28 @@ async def test_a_running_routine_cannot_acquire_an_account_added_after_review(
     with pytest.raises(AuthorizationError, match="no longer exists"):
         await authority.require_reviewed_accounts(
             AsyncMock(), [row], organization_id=org, agent_run_id=identifier
+        )
+
+
+async def test_ordinary_chat_does_not_require_a_routine_source_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run = AgentRun(routine_kind="trigger", routine_policy=None)
+    monkeypatch.setattr(authority.agent_run_repo, "get_run", AsyncMock(return_value=run))
+    await authority.require_reviewed_accounts(
+        AsyncMock(), [account()], organization_id=uuid4(), agent_run_id=uuid4()
+    )
+
+
+@pytest.mark.parametrize("provenance", ["routine_origin_id", "trigger_id"])
+async def test_routines_without_review_remain_refused_after_source_deletion(
+    monkeypatch: pytest.MonkeyPatch, provenance: str
+) -> None:
+    run = AgentRun(routine_kind="trigger", routine_policy=None, **{provenance: uuid4()})
+    monkeypatch.setattr(authority.agent_run_repo, "get_run", AsyncMock(return_value=run))
+    with pytest.raises(AuthorizationError, match="Review"):
+        await authority.require_reviewed_accounts(
+            AsyncMock(), [account()], organization_id=uuid4(), agent_run_id=uuid4()
         )
 
 

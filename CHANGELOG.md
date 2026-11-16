@@ -295,6 +295,10 @@ Two things are versioned separately from this file and worth knowing about:
   preserving per-entry authority and removing separate empty cards/count strips.
 - Show Google and Microsoft services separately in the account picker, with each
   product's logo and only that product preselected for consent.
+- Preserve the private-chat audience for agents with native integrations alone,
+  so personal accounts work without an unrelated memory or browser capability.
+- Apply native-account source reviews only to actual routine runs, retaining
+  refusal for routines whose reviewed policy is missing or outdated.
 - Restore wheel scrolling in resource-sharing member/group pickers inside modals,
   bound the list to the available viewport and correct project access descriptions.
 - Keep the Skill editor frame mounted across skeleton, metadata and module loading
