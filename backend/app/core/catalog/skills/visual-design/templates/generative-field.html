@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>A field of small decisions</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --paper: light-dark(#faf8f3, #191b20);
+        --ink: light-dark(#252b32, #e9eced);
+        --muted: light-dark(#535f69, #acb7bf);
+        --line: light-dark(#c9cfce, #46505b);
+        --accent: light-dark(#176654, #81d5bb);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font:
+          17px/1.55 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 1120px;
+        margin: auto;
+        padding: clamp(20px, 5vw, 64px);
+      }
+      h1 {
+        font:
+          clamp(36px, 6vw, 72px)/1.04 Georgia,
+          serif;
+        max-width: 18ch;
+        margin: 16px 0 24px;
+      }
+      h2 {
+        font-size: 24px;
+        line-height: 1.2;
+      }
+      p {
+        max-width: 70ch;
+      }
+      .eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--accent);
+      }
+      .muted,
+      small {
+        color: var(--muted);
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      button,
+      select,
+      input:not([type="range"]) {
+        min-height: 44px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 8px 12px;
+        background: var(--paper);
+        color: var(--ink);
+      }
+      button {
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: var(--accent);
+      }
+      :focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 3px;
+      }
+      label {
+        display: block;
+        font-size: 14px;
+        font-weight: 600;
+        margin-top: 16px;
+      }
+      input[type="range"] {
+        width: 100%;
+        min-height: 44px;
+        accent-color: var(--accent);
+      }
+      .split {
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr);
+        gap: 40px;
+      }
+      .rule {
+        border-top: 1px solid var(--line);
+        padding-top: 24px;
+        margin-top: 32px;
+      }
+      svg,
+      canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 14px;
+      }
+      th,
+      td {
+        text-align: left;
+        border-bottom: 1px solid var(--line);
+        padding: 12px 8px;
+      }
+      output {
+        font-variant-numeric: tabular-nums;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .error {
+        color: light-dark(#a32e29, #ffaaa5);
+      }
+      @media (max-width: 640px) {
+        .split {
+          grid-template-columns: 1fr;
+          gap: 20px;
+        }
+        h1 {
+          font-size: 40px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          scroll-behavior: auto !important;
+        }
+      }
+      @media print {
+        button,
+        input,
+        select,
+        .controls {
+          display: none;
+        }
+        body {
+          background: white;
+          color: black;
+        }
+        main {
+          padding: 0;
+        }
+      }
+      figure {
+        margin: 0;
+      }
+      canvas {
+        border-radius: 8px;
+        aspect-ratio: 8/7;
+      }
+      button[aria-pressed="true"] {
+        border-color: var(--accent);
+      }
+      body {
+        background: transparent;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">Generative study · Original procedural art</p>
+        <h1>A field of small decisions.</h1>
+        <p>
+          One seed makes a repeatable composition. Density adds paths; curvature
+          changes how they bend. This is an artistic pattern, not measured data.
+        </p>
+      </header>
+      <div class="split rule">
+        <section class="controls" aria-labelledby="parameters">
+          <h2 id="parameters">Shape the field</h2>
+          <label for="seed">Seed (0–999999)</label
+          ><input
+            id="seed"
+            type="number"
+            min="0"
+            max="999999"
+            step="1"
+            value="42"
+          /><label for="density"
+            >Paths: <output id="density-value" for="density">70</output></label
+          ><input
+            id="density"
+            type="range"
+            min="10"
+            max="150"
+            step="1"
+            value="70"
+          /><label for="curve"
+            >Curvature: <output id="curve-value" for="curve">35</output></label
+          ><input
+            id="curve"
+            type="range"
+            min="0"
+            max="80"
+            step="1"
+            value="35"
+          />
+          <p id="error" class="error" role="status"></p>
+          <button type="button" id="motion">Animate</button>
+          <button type="button" id="reset">Reset</button>
+          <p class="muted" id="motion-note">
+            Animation is optional. The initial field is static.
+          </p>
+        </section>
+        <figure>
+          <canvas
+            id="field"
+            width="800"
+            height="700"
+            role="img"
+            aria-label="Seeded flowing lines in a bounded field. Adjust seed, density and curvature to explore the composition."
+            >A procedural line composition. Use the labelled controls to change
+            its parameters.</canvas
+          >
+          <figcaption id="caption"></figcaption>
+        </figure>
+      </div>
+    </main>
+    <script>
+      const canvas = document.getElementById("field");
+      const context = canvas.getContext("2d");
+      const seed = document.getElementById("seed");
+      const density = document.getElementById("density");
+      const curve = document.getElementById("curve");
+      const motion = document.getElementById("motion");
+      const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+      let frame = 0;
+      let started = 0;
+      let phase = 0;
+      function randomSource(value) {
+        let state = value >>> 0;
+        return () => {
+          state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+          return state / 4294967296;
+        };
+      }
+      function draw() {
+        const valid =
+          seed.validity.valid && Number.isInteger(seed.valueAsNumber);
+        document.getElementById("error").textContent = valid
+          ? ""
+          : "Enter an integer seed from 0 to 999999.";
+        if (!valid) {
+          stop();
+          return;
+        }
+        const count = density.valueAsNumber,
+          bend = curve.valueAsNumber;
+        document.getElementById("density-value").value = String(count);
+        document.getElementById("curve-value").value = String(bend);
+        const dpr = Math.min(devicePixelRatio || 1, 2);
+        canvas.width = 800 * dpr;
+        canvas.height = 700 * dpr;
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
+        context.fillStyle = "#122b32";
+        context.fillRect(0, 0, 800, 700);
+        const random = randomSource(seed.valueAsNumber);
+        for (let line = 0; line < count; line++) {
+          const start = 40 + random() * 620;
+          const bias = random() * Math.PI * 2;
+          context.beginPath();
+          for (let step = 0; step <= 80; step++) {
+            const x = 30 + step * 9.25;
+            const y = Math.max(
+              20,
+              Math.min(
+                680,
+                start +
+                  Math.sin(step / 13 + bias + phase) * bend +
+                  Math.cos(step / 23 + bias) * bend * 0.6,
+              ),
+            );
+            if (step === 0) context.moveTo(x, y);
+            else context.lineTo(x, y);
+          }
+          context.strokeStyle = line % 4 === 0 ? "#e5b984" : "#9ed3c4";
+          context.globalAlpha = 0.35 + random() * 0.55;
+          context.lineWidth = 0.8 + random() * 1.5;
+          context.stroke();
+        }
+        context.globalAlpha = 1;
+        document.getElementById("caption").textContent =
+          `Seed ${seed.value} · ${count} paths · curvature ${bend}. Repeat these settings for the same static composition.`;
+      }
+      function stop() {
+        cancelAnimationFrame(frame);
+        frame = 0;
+        motion.textContent = "Animate";
+        motion.setAttribute("aria-pressed", "false");
+      }
+      function tick(now) {
+        phase = (now - started) / 5000;
+        draw();
+        if (frame) frame = requestAnimationFrame(tick);
+      }
+      motion.addEventListener("click", () => {
+        if (frame) {
+          stop();
+          return;
+        }
+        if (reduced.matches) return;
+        started = performance.now() - phase * 5000;
+        motion.textContent = "Pause";
+        motion.setAttribute("aria-pressed", "true");
+        frame = requestAnimationFrame(tick);
+      });
+      for (const field of [seed, density, curve])
+        field.addEventListener("input", () => {
+          stop();
+          phase = 0;
+          draw();
+        });
+      function setMotionPreference() {
+        stop();
+        motion.disabled = reduced.matches;
+        document.getElementById("motion-note").textContent = reduced.matches
+          ? "Reduced motion is enabled. The field stays static."
+          : "Animation is optional. The initial field is static.";
+      }
+      reduced.addEventListener("change", setMotionPreference);
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) stop();
+      });
+      window.addEventListener("pagehide", stop);
+      document.getElementById("reset").addEventListener("click", () => {
+        stop();
+        seed.value = "42";
+        density.value = "70";
+        curve.value = "35";
+        phase = 0;
+        draw();
+      });
+      setMotionPreference();
+      draw();
+    </script>
+  </body>
+</html>

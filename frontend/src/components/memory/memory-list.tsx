@@ -1,9 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ChevronRight, ChevronLeft, type LucideIcon } from "lucide-react";
+import { ChevronRight, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { Button, ListCardFootRow } from "@/components/ui";
+import { ListCardFootRow } from "@/components/ui";
+import { PageNavigation } from "@/components/ui/pagination-bar";
 
 export function MemoryRow({
   title,
@@ -67,26 +68,12 @@ export function MemoryPager({
       <span className="text-muted-foreground text-xs">
         {t("showing", { from: count ? skip + 1 : 0, to: skip + count, total })}
       </span>
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={skip === 0}
-          onClick={() => onPage(Math.max(0, skip - size))}
-        >
-          <ChevronLeft className="size-4" aria-hidden />
-          <span className="sr-only sm:not-sr-only">{t("newer")}</span>
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={skip + count >= total}
-          onClick={() => onPage(skip + size)}
-        >
-          <span className="sr-only sm:not-sr-only">{t("older")}</span>
-          <ChevronRight className="size-4" aria-hidden />
-        </Button>
-      </div>
+      <PageNavigation
+        page={Math.floor(skip / size)}
+        pageCount={Math.ceil(total / size)}
+        hasNext={skip + count < total}
+        onPage={(page) => onPage(page * size)}
+      />
     </ListCardFootRow>
   );
 }

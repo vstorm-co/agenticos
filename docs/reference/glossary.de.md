@@ -1,5 +1,5 @@
 ---
-source_sha: "e8a351bb48c4"
+source_sha: "242dfeb03788"
 ---
 
 # Glossar { #glossary }
@@ -117,7 +117,7 @@ nicht bricht.
 
 ## Capabilities { #capabilities }
 
-Der Name, den der Builder zeigt, und die ID, die der Spec eines Agents bindet.
+Der im Builder angezeigte Name und die ID, auf die sich der Spec eines Agents bezieht.
 Jede ist unter [Capabilities](capabilities.md) beschrieben.
 
 | In der Konsole | Im Spec |
@@ -128,6 +128,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Entwürfe | `drafts` |
 | Webbrowser | `browser_use` |
 | Infos zum Chat-Kanal | `channel_tools` |
+| Verbundene Chat-Apps | `channel_actions` |
 | Telefonanrufe | `phone_calls` |
 | Diagramme | `charts` |
 | Datum und Uhrzeit | `clock` |
@@ -170,3 +171,5 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Websuche | `web_research` |
 | Tabellen | AgenticOS MCP: `list_virtual_tables`, `query_virtual_table` |
 | Workflows | `workflows` |
+
+Die englische Konsolenbezeichnung für **Verbundene Chat-Apps** lautet **Connected chat apps**.

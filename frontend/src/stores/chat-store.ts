@@ -29,9 +29,11 @@ function persistedAliases(local: ChatMessage[], history: ChatMessage[]): Map<str
     if (key !== undefined) prompts.set(key, prompts.has(key) ? null : index);
   });
   local.forEach((message, index) => {
-    if (!message.isTemporaryId || message.role !== "user") return;
+    if (message.role !== "user") return;
     const key = promptKey(message);
-    const savedIndex = key === undefined ? undefined : prompts.get(key);
+    const stableIndex = history.findIndex((saved) => saved.id === message.id);
+    const savedIndex =
+      stableIndex >= 0 ? stableIndex : key === undefined ? undefined : prompts.get(key);
     if (typeof savedIndex !== "number") return;
     const saved = history[savedIndex]!;
     aliases.set(message.id, saved.id);
@@ -71,6 +73,31 @@ function persistedAliases(local: ChatMessage[], history: ChatMessage[]): Map<str
     if (match) aliases.set(message.id, match.id);
   }
   return aliases;
+}
+
+/** Keep recovery without a save acknowledgement limited to plain text.
+ * Rich outcomes and paused controls may still address the local message ID. */
+function plainTextAnswer(message: ChatMessage): boolean {
+  if (
+    message.isLocalContinuation ||
+    message.runWaitingFor ||
+    message.runFailed ||
+    message.runError ||
+    message.wasStopped ||
+    message.interrupted ||
+    message.thinking ||
+    message.toolCalls?.length ||
+    message.files?.length ||
+    message.fileIds?.length ||
+    message.mentions?.length ||
+    message.replyTo
+  )
+    return false;
+  const parts = message.parts ?? [];
+  return (
+    parts.length === 0 ||
+    (parts.length === 1 && parts[0]!.type === "text" && parts[0]!.content === message.content)
+  );
 }
 
 export interface ChatState {
@@ -270,9 +297,23 @@ const chatState: StateCreator<ChatState> = (set) => ({
         const persisted = incoming.get(id);
         if (persisted) {
           nextPersisted = id;
+          const previous = state.messages[index - 1];
+          // An exact plain-text snapshot can recover a missed save acknowledgement.
+          // Rich and parked outcomes retain their local details and control pointers.
+          const awaitingSave =
+            message.role === "assistant" &&
+            message.isTemporaryId &&
+            aliases.has(message.id) &&
+            previous?.role === "user" &&
+            !previous.isTemporaryId &&
+            incoming.has(previous.id) &&
+            (message.content !== persisted.content ||
+              message.usage !== undefined ||
+              !plainTextAnswer(message) ||
+              !plainTextAnswer(persisted));
           incoming.set(
             id,
-            message.isStreaming
+            message.isStreaming || awaitingSave
               ? { ...message, persistedId: id }
               : {
                   ...retainNextSteps(persisted, message),

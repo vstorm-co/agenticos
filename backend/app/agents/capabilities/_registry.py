@@ -832,6 +832,7 @@ def load_builtins() -> None:
         background_tools,
         browser_use,
         burst,
+        channel_actions,
         channel_tools,
         charts,
         clock,

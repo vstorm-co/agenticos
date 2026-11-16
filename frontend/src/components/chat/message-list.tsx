@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
 import { useAgents } from "@/hooks";
+import { appLinkFromChat } from "@/lib/app-return";
 import { consoleLink, pointAt } from "@/lib/assistant-highlight";
 import { buildAssistantParts } from "@/lib/conversation-to-chat";
 import { dayLabel, startsADay } from "@/lib/day-separator";
@@ -262,10 +263,20 @@ export function MessageList({
   // Architect's links do - rather than reloading the whole app.
   const onClickCapture = (event: React.MouseEvent) => {
     const anchor = (event.target as Element).closest("a");
-    const link = consoleLink(anchor?.getAttribute("href") ?? null, window.location.origin);
+    const href = anchor?.getAttribute("href");
+    const link = consoleLink(
+      href
+        ? appLinkFromChat(
+            href,
+            window.location.pathname + window.location.search,
+            window.location.origin,
+          )
+        : null,
+      window.location.origin,
+    );
     if (link === null) return;
     event.preventDefault();
-    router.push(link.path);
+    router.push(appLinkFromChat(link.path, window.location.pathname + window.location.search));
     if (link.anchor) void pointAt(link.anchor, link.path);
   };
 

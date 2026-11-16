@@ -235,7 +235,12 @@ async def list_for_person(
 
 
 async def get_owned(
-    db: AsyncSession, *, organization_id: UUID, owner_key: str, file_id: UUID
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    owner_key: str,
+    file_id: UUID,
+    for_update: bool = False,
 ) -> AgentMemoryFile | None:
     """One note by id, only if it belongs to this store.
 
@@ -243,13 +248,14 @@ async def get_owned(
     somebody's own delete and deactivate resolve through, and a lookup by id alone
     with a check bolted on is the shape that eventually loses the check.
     """
-    result = await db.execute(
-        select(AgentMemoryFile).where(
-            AgentMemoryFile.id == file_id,
-            AgentMemoryFile.organization_id == organization_id,
-            AgentMemoryFile.owner_key == owner_key,
-        )
+    statement = select(AgentMemoryFile).where(
+        AgentMemoryFile.id == file_id,
+        AgentMemoryFile.organization_id == organization_id,
+        AgentMemoryFile.owner_key == owner_key,
     )
+    if for_update:
+        statement = statement.with_for_update().execution_options(populate_existing=True)
+    result = await db.execute(statement)
     return result.scalar_one_or_none()
 
 

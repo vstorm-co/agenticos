@@ -142,6 +142,15 @@ from tests.workspaces import document_workspace
 
 
 @pytest.fixture(autouse=True)
+def _no_connected_chat_bindings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These runs have no bot grants; test_channel_actions exercises actual audiences."""
+    monkeypatch.setattr(
+        "app.services.channel_actions.agent_exposure_repo.list_for_agent",
+        AsyncMock(return_value=[]),
+    )
+
+
+@pytest.fixture(autouse=True)
 def _nobody_the_account_describes(monkeypatch: pytest.MonkeyPatch) -> None:
     """No account behind these runs' facts; `test_prompt_variables` covers the person (#2301).
 
@@ -6667,6 +6676,16 @@ class TestWhatTheChannelLetsTheAgentLookUp:
         assert CHANNEL_DIRECTORY_RESOURCE not in built["resources"]
         assert spec.capabilities == []
 
+    @pytest.mark.anyio
+    async def test_connected_action_grants_reach_the_factory_resource(self):
+        with patch(
+            "app.services.channel_actions.ChannelActionService.tools",
+            new=AsyncMock(return_value=["react_to_chat_message"]),
+        ):
+            spec, built = await self._built(exposure=None, directory=None)
+        assert "channel_actions" in built["resources"]
+        assert any(binding.id == "channel_actions" for binding in spec.capabilities)
+
 
 class TestTheBrowsersStepModel:
     """A fast model for `browse_web`'s steps reaches the capability built, not the run."""
@@ -6684,7 +6703,7 @@ class TestTheBrowsersStepModel:
         )
         step_model = MagicMock(name="fast-model")
         resolve = AsyncMock(
-            side_effect=lambda ctx, profile_id=None: MagicMock(
+            side_effect=lambda ctx, profile_id=None, decision=False: MagicMock(
                 label="m", build=MagicMock(return_value=step_model)
             )
         )
@@ -6726,7 +6745,9 @@ class TestTheBrowsersStepModel:
         )
         resolver = AsyncMock(
             side_effect=resolve
-            or (lambda ctx, profile_id=None: MagicMock(label="m", build=MagicMock()))
+            or (
+                lambda ctx, profile_id=None, decision=False: MagicMock(label="m", build=MagicMock())
+            )
         )
         with (
             patch.object(
@@ -6794,7 +6815,7 @@ class TestTheBrowsersStepModel:
             ],
         )
 
-        def resolve(ctx, profile_id=None):
+        def resolve(ctx, profile_id=None, decision=False):
             if profile_id == gone:
                 raise NotFoundError(message="Model profile not found")
             return MagicMock(label="m", build=MagicMock())
@@ -10410,16 +10431,26 @@ async def test_a_background_tasks_budget_stop_retains_its_own_outcome() -> None:
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("ending", ["answer", "failure", "cancel"])
+@pytest.mark.parametrize("ending", ["answer", "park", "failure", "cancel"])
+@pytest.mark.parametrize("saved", [False, True], ids=["unsaved", "saved"])
 async def test_required_segment_handback_is_persisted_before_the_terminal_commit(
     ending: str,
+    saved: bool,
 ) -> None:
     db = _db()
     service = AgentRunnerService(db)
     prepared = _prepared()
+    message_id = uuid.uuid4() if saved else None
     if ending == "answer":
         prepared.built.agent.run = AsyncMock(
             return_value=MagicMock(output="Saved", new_messages=list)
+        )
+    elif ending == "park":
+        prepared.approvals.parked = {"approval-1": "call-1"}
+        prepared.built.agent.run = AsyncMock(
+            return_value=MagicMock(
+                output=DeferredToolRequests(), new_messages=list, all_messages=list
+            )
         )
     else:
         prepared.built.agent.run = AsyncMock(
@@ -10436,10 +10467,12 @@ async def test_required_segment_handback_is_persisted_before_the_terminal_commit
 
     with (
         patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
-        patch.object(service.transcript, "record", new=AsyncMock()) as record,
+        patch.object(
+            service.transcript, "record", new=AsyncMock(return_value=message_id)
+        ) as record,
     ):
-        if ending == "answer":
-            await service._run(
+        if ending in {"answer", "park"}:
+            returned = await service._run(
                 prepared,
                 user_prompt=None,
                 said=None,
@@ -10447,6 +10480,7 @@ async def test_required_segment_handback_is_persisted_before_the_terminal_commit
                 deferred_tool_results=None,
                 on_segment=persist,
             )
+            assert returned.message_id == message_id
         else:
             with pytest.raises(RuntimeError if ending == "failure" else asyncio.CancelledError):
                 await service._run(
@@ -10458,6 +10492,7 @@ async def test_required_segment_handback_is_persisted_before_the_terminal_commit
                     on_segment=persist,
                 )
     assert len(seen) == 1
+    assert seen[0].message_id == message_id
     assert db.commit.await_count == 2
     assert "provider secret" not in seen[0].output
     if ending == "answer":

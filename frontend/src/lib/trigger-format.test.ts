@@ -262,6 +262,7 @@ describe("cadenceText", () => {
     expect(event("outlook")).toBe("event.outlook");
     expect(event("webhook")).toBe("event.webhook");
     expect(event("hubspot")).toBe("event.hubspot");
+    expect(event("linear")).toBe("event.linear");
     expect(event("zendesk")).toBe("event.zendesk");
     expect(event("google_drive")).toBe("event.google_drive");
     expect(event("microsoft_files")).toBe("event.microsoft_files");

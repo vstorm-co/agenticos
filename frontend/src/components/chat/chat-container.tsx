@@ -29,6 +29,7 @@ import {
 import type { ChatTesting, SteerDraft } from "@/hooks/use-chat";
 import type { AssistantPageContext } from "@/lib/assistant-page-context";
 import { AgentPicker, isChattable } from "./agent-picker";
+import { ChatApprovalSelector } from "./chat-approval-selector";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
 import { ChatModelHeader } from "./chat-model-header";
@@ -523,6 +524,7 @@ export function ChatContainer({
     setModelProfile,
     setApprovalMode,
     pendingApproval,
+    continuingApproval,
     mayRememberApproval,
     sendResumeDecisions,
     pendingQuestions,
@@ -1052,6 +1054,7 @@ export function ChatContainer({
         sentTurnAnchoredRef={sentTurnAnchoredRef}
         sentTurnSpacerRef={sentTurnSpacerRef}
         pendingApproval={pendingApproval}
+        continuingApproval={continuingApproval}
         onResumeDecisions={sendResumeDecisions}
         mayRememberApproval={mayRememberApproval}
         pendingQuestions={pendingQuestions}
@@ -1197,6 +1200,7 @@ interface ChatUIProps {
   sentTurnAnchoredRef: React.RefObject<boolean>;
   sentTurnSpacerRef: React.RefObject<HTMLDivElement | null>;
   pendingApproval?: PendingApproval | null;
+  continuingApproval?: boolean;
   onResumeDecisions?: (decisions: Decision[]) => void;
   mayRememberApproval?: boolean;
   pendingQuestions?: AskUserQuestion[] | null;
@@ -1283,6 +1287,7 @@ function ChatUI({
   sentTurnAnchoredRef,
   sentTurnSpacerRef,
   pendingApproval,
+  continuingApproval = false,
   onResumeDecisions,
   mayRememberApproval,
   pendingQuestions,
@@ -1798,7 +1803,11 @@ function ChatUI({
               <OutcomeCards
                 conversationId={conversationId}
                 hasApprovalPanel={!!pendingApproval && !!onResumeDecisions}
-                isWorking={isProcessing || messages.some((message) => message.isStreaming)}
+                isWorking={
+                  isProcessing ||
+                  continuingApproval ||
+                  messages.some((message) => message.isStreaming)
+                }
                 className="pointer-events-auto mx-auto max-h-40 w-full max-w-4xl min-w-0 overflow-y-auto overscroll-contain px-4 pb-2 sm:px-6"
               />
             )}
@@ -2044,11 +2053,13 @@ function ChatUI({
                             // Who answers first and largest: it is the most
                             // consequential choice in the composer.
                             controlsSlot={
-                              agentFixed ? undefined : (
-                                <>
-                                  <AgentPicker />
-                                  {/* A phone's row is the agent alone; the project is
-                                    picked from its `+` sheet. */}
+                              <>
+                                {!agentFixed && <AgentPicker />}
+                                <ChatApprovalSelector
+                                  onChange={onApprovalModeChange}
+                                  disabled={isProcessing || readOnly}
+                                />
+                                {!agentFixed && (
                                   <span className="contents max-md:hidden">
                                     <ProjectChip
                                       conversationId={conversationId}
@@ -2057,8 +2068,8 @@ function ChatUI({
                                       readOnly={projectReadOnly}
                                     />
                                   </span>
-                                </>
-                              )
+                                )}
+                              </>
                             }
                             onProject={
                               agentFixed || conversationId

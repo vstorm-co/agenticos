@@ -6,7 +6,7 @@ There are two ways that reaches us, and which one a source uses is the source's 
 business rather than yours:
 
 - **Pushed.** A provider POSTs a signed payload: **GitHub**, **HubSpot**,
-  **Zendesk**, or anything that can send signed JSON (the **API** source).
+  **Zendesk**, **Linear**, or anything that can send signed JSON (the **API** source).
 - **Polled.** The platform reads a connected account on a schedule: the mailboxes
   (**Gmail**, **Outlook**), the files (**Google Drive**, **OneDrive & SharePoint**)
   and the calendars (**Google Calendar**, **Outlook Calendar**). Nothing is posted
@@ -111,7 +111,7 @@ see the agents sees their routines; the outcome and cost on each row need
 
 ## The mechanism, once
 
-An event trigger hands you two things: a **webhook URL** and a **signing secret**. A
+An event trigger uses a **webhook URL** and a **signing secret**. A
 provider POSTs its payload to the URL and signs the request; the platform recomputes
 the signature and fires the agent only if the two match.
 
@@ -123,9 +123,9 @@ flowchart TD
     V -->|yes| J{a JSON object?}
     J -->|no| R400["400"]
     J -->|yes| F{trigger active,<br/>filter matches?}
-    F -->|no| R202["202 - nothing to do"]
+    F -->|no| R202["202, or 200 for Linear - nothing to do"]
     F -->|yes| SUB["queue a fire-trigger job"]
-    SUB --> R202b["202 - accepted, not finished"]
+    SUB --> R202b["202, or 200 for Linear - accepted, not finished"]
     SUB -.->|later, in the worker| RUN[the agent runs, spending the org's budget]
 ```
 
@@ -137,7 +137,7 @@ flowchart TD
   {PUBLIC_BASE_URL}/api/v1/webhooks/triggers/{source}/{trigger_id}
   ```
 
-  `source` is one of `github`, `hubspot`, `zendesk` or `webhook` (the API source's
+  `source` is one of `github`, `hubspot`, `zendesk`, `linear` or `webhook` (the API source's
   wire name); `trigger_id` is an unguessable UUID. The dialog fills this in for you -
   copy it, do not build it by hand. **A polled source has no URL**: it has no
   inbound door, and a POST naming one is answered like any delivery with nothing to
@@ -151,14 +151,23 @@ flowchart TD
   | `github` | `X-Hub-Signature-256` | The raw body, `sha256=<hex>` |
   | `webhook` | `X-Signature-256` | The raw body, `sha256=<hex>` - or the time and the body, see [below](#signing-a-delivery-yourself) |
   | `hubspot` | `X-HubSpot-Signature-v3` | The method, the URL, the body and `X-HubSpot-Request-Timestamp`, base64 |
+  | `linear` | `Linear-Signature` | The raw body, hex HMAC-SHA256 |
   | `zendesk` | `X-Zendesk-Webhook-Signature` | `X-Zendesk-Webhook-Signature-Timestamp` and the body, base64 |
 
-  GitHub, HubSpot and Zendesk sign their own deliveries, so you give the provider
-  the secret - or, for HubSpot and Zendesk, take the one it issued - and it does the
-  signing. The API source reuses GitHub's scheme under `X-Signature-256`, which
+  GitHub, HubSpot, Zendesk and Linear sign their own deliveries, so you give the provider
+  the secret - or, for HubSpot, Zendesk and Linear, take the one it issued - and it does the
+  signing. By default, the API source reuses GitHub's scheme under `X-Signature-256`, which
   whatever you point at the URL has to set itself. A **polled** source signs
   nothing and holds no secret: it was not addressed, it was read, and the account's
   own OAuth grant is what authorized reading it.
+
+The generic `webhook` defaults to the signature above. When creating or updating a trigger through the API, set `event_config` to `{"signature_scheme":"hmac-sha256-base64","signature_header":"X-Shopify-Hmac-Sha256"}` for Shopify, or use `X-Hookdeck-Signature` for Hookdeck's default signature. Use `hmac-sha256-hex` for an unprefixed hex digest. Both sign the exact raw body and require the provider's secret as `event_secret`; header names are case-insensitive.
+
+These modes do not authenticate a timestamp, so captured requests can be replayed. The generic delivery ID header is not signed and does not prevent an attacker changing it. Configure provider-side filtering and use a dedicated integration when its contract requires timestamp checks, a different success response, or another signature scheme. In particular, these options alone do not implement Linear's webhook contract. The console currently creates the default scheme; configure alternatives through the API.
+
+Shopify and Hookdeck do not normally send `X-Delivery-ID`, so retries can fire again. Their provider delivery IDs are not checked by this trigger. Body signatures do not bind the destination URL or provider headers: use a separate secret for each trust boundary, and do not rely on unsigned shop or topic headers to authorize a delivery. Shopify's app secret may be shared across shops, so do not use this mode when a signature must prove which shop or subscription sent the event.
+
+Rotate generates a new AgenticOS secret; it cannot install a replacement issued by a provider. For a provider-controlled secret, create a new trigger and update the provider's URL after changing the secret. Hookdeck's second signature during delayed rotation is not checked.
 
 !!! danger "The signature is not decoration"
 
@@ -172,21 +181,21 @@ A request whose signature does not verify is refused with a `403` before the run
 is ever reached; the secret is sealed in the [vault](secrets.md) and never appears
 in a read, a listing, or the URL.
 
-!!! info "The `202` means accepted, not finished"
+!!! info "Acceptance does not mean the run has finished"
 
     A matched delivery is queued as a `fire-trigger` job in the request's own
     transaction and the agent runs in the worker, so the provider gets its
-    answer after one insert rather than waiting out a model. Do not read a `202`
+    answer after one insert rather than waiting out a model. Do not read a success
     as "the agent has replied" - read the run in Activity for that.
 
 A verified delivery that has nothing to do - an inactive trigger, or a payload the
-filter does not match - answers `202` exactly as a fired one does, so holding the secret
+filter does not match - answers with the same success status as a fired one does, so holding the secret
 tells you nothing about which triggers exist. A body that is not a JSON object is a
-`400` (HubSpot's array of events is the one exception the door expects).
+`400` (HubSpot accepts an array); Linear rejects an invalid body with `403`.
 
 **One trigger fires at most 60 times a minute.** A verified delivery past that is
-refused with `429` and a `Retry-After`, and the provider's retry fires it once the
-minute has passed. It is counted only once the signature holds, so nobody without
+refused with `429` and a `Retry-After`. A provider can retry after the minute
+has passed, subject to its signature freshness check. It is counted only once the signature holds, so nobody without
 the secret can use it up, and it is what stops a leaked secret or a relay stuck in
 a loop from spending the budget in an afternoon.
 
@@ -221,7 +230,8 @@ re-registers it with the new secret, so its deliveries keep verifying and there 
 nothing to reveal. Unless the account can no longer register it, in which case the
 trigger falls back to `manual` and the revealed secret is what you re-paste.
 
-A schedule has no secret, so rotating one is refused.
+A schedule has no secret, so rotating one is refused. Linear secrets cannot be
+rotated here: create a new trigger with Linear's new secret and update its URL.
 
 **Which issue actions fire is a filter, not a different trigger**, so it is
 editable in place. `PATCH` the trigger with a new `event_config` and it is
@@ -380,6 +390,28 @@ through.
 A sender filter matches the parsed address, never the display name. A complete
 address or an `@domain` filter is an exact match; other text is a substring of the
 address. DMARC does not authenticate a person's display name.
+
+## Linear
+
+1. Open Linear's webhook settings and copy the signing secret.
+2. In AgenticOS, create an event trigger with source **Linear**. Paste Linear's
+   signing secret and finish setup.
+3. Copy the trigger's webhook URL into Linear, choose the events to send, and
+   save the webhook.
+
+The API also accepts optional `event_types` and `actions` filters in `event_config`.
+
+AgenticOS verifies `Linear-Signature` against the exact body and checks the
+body's signed `webhookTimestamp` is within 60 seconds. It returns `200` when a
+delivery is accepted or has nothing to do; this does not mean the agent has
+finished. Repeated identical bodies are deduplicated for 15 minutes while Redis
+is available.
+
+Linear retries failed deliveries after one minute, one hour and six hours. If a
+retry retains the original body timestamp, the freshness check rejects it;
+Linear's documentation does not establish whether retries refresh that timestamp.
+Check delivery history if a retry does not arrive. To replace the signing secret,
+create a new trigger with the new Linear secret and update the webhook URL.
 
 ## HubSpot
 
@@ -776,12 +808,12 @@ Two ways through it:
 
 ## Recap
 
-- A trigger hands you a **URL** and a **signing secret**. The URL is its identity
-  and never changes; the secret is a credential and can be rotated.
+- An event trigger uses a **URL** and a **signing secret**. The URL is its identity;
+  the secret is a credential. Linear secret replacement requires a new trigger.
 - The signature is an `HMAC-SHA256` over the **exact raw bytes**, in each provider's
   scheme, and it is what makes a delivery authentic rather than merely addressed
-  correctly. HubSpot's and Zendesk's secrets are the provider's to issue.
-- A `202` means **accepted**, not finished. Read the run in Activity.
+  correctly. HubSpot's, Zendesk's and Linear's secrets are the provider's to issue.
+- A success response (`202`, or `200` for Linear) means **accepted**, not finished. Read the run in Activity.
 - **The mailboxes, files and calendars are polled**, so they have no URL and no
   secret at all - connect the account and that is the setup.
 - A sender filter fires only on mail the sender's domain signed.

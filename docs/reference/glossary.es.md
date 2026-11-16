@@ -1,5 +1,5 @@
 ---
-source_sha: "e8a351bb48c4"
+source_sha: "242dfeb03788"
 ---
 
 # Glosario { #glossary }
@@ -129,6 +129,7 @@ se describe en [Capabilities](capabilities.md).
 | Borradores | `drafts` |
 | Web browser | `browser_use` |
 | Chat channel lookup | `channel_tools` |
+| Aplicaciones de chat conectadas (Connected chat apps) | `channel_actions` |
 | Llamadas telefónicas | `phone_calls` |
 | Charts | `charts` |
 | Date and time | `clock` |
@@ -153,7 +154,7 @@ se describe en [Capabilities](capabilities.md).
 | Mensajes de agentes | `agent_messages` |
 | Watch a command | `monitor` |
 | Babysit PR | `babysit_pr` |
-| Escenario de prueba | `proof_scenario` |
+| Escenario con evidencia | `proof_scenario` |
 | Sandbox | `sandbox` |
 | Skills | `skills` |
 | Sol-loop | `sol_loop` |

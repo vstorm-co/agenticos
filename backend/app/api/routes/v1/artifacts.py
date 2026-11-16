@@ -57,6 +57,7 @@ from app.schemas.artifact import (
     ArtifactPublicDataDisclosure,
     ArtifactPublicLinkUpdate,
     ArtifactRead,
+    ArtifactThumbnailRead,
     ArtifactUpdate,
     ArtifactVersionList,
     ArtifactView,
@@ -456,6 +457,17 @@ async def favourite_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth)
 async def unfavourite_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
     """Remove the app from this person's favourites."""
     return await service.set_favourite(ctx, artifact_id, favourite=False)
+
+
+@router.get("/{artifact_id}/thumbnail", response_model=ArtifactThumbnailRead)
+async def artifact_thumbnail(
+    artifact_id: UUID,
+    service: ArtifactSvc,
+    ctx: Auth,
+    version_id: UUID | None = Query(None, description="A version this caller may open"),
+) -> Any:
+    """A cached preview image without running the page in the listing or loading live records."""
+    return await service.thumbnail(ctx, artifact_id, version_id=version_id)
 
 
 @router.get("/{artifact_id}/view", response_model=ArtifactView)

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.sync_log import SyncLog
@@ -22,17 +22,16 @@ async def get_by_id(db: AsyncSession, sync_id: UUID) -> SyncLog | None:
 class SyncLogScope:
     """The sync runs a listing may include.
 
-    A run carries a collection name and, when a sync source started it, that
-    source - no organization and no base. The name alone is not whose a run is:
-    an app-scoped base and an organization's base can share it, and every
-    member of every organization reads the app base. So a run started by a
-    source is listed only when that source is one of `sync_source_ids` - the
-    sources feeding a base the caller reads - and a run with no source (a local
-    directory or command-line sync, or one whose source was deleted) by its name.
+    A source-backed legacy run is readable through its authorized source. New
+    runs retain organization and base ownership after that source is deleted.
+    A source-less legacy run with unknown ownership is never inferred from a
+    shared collection name.
     """
 
     collections: list[str]
     sync_source_ids: list[UUID]
+    organization_id: UUID | None = None
+    knowledge_base_ids: tuple[UUID, ...] = ()
 
 
 async def get_all(
@@ -51,7 +50,10 @@ async def get_all(
         query = query.where(
             SyncLog.collection_name.in_(scope.collections),
             or_(
-                SyncLog.sync_source_id.is_(None),
+                and_(
+                    SyncLog.organization_id == scope.organization_id,
+                    SyncLog.knowledge_base_id.in_(scope.knowledge_base_ids),
+                ),
                 SyncLog.sync_source_id.in_(scope.sync_source_ids),
             ),
         )
@@ -71,9 +73,13 @@ async def create(
     status: str = "running",
     sync_source_id: UUID | None = None,
     triggered_by_user_id: UUID | None = None,
+    organization_id: UUID | None = None,
+    knowledge_base_id: UUID | None = None,
 ) -> SyncLog:
     """Create a new sync log record."""
     log = SyncLog(
+        organization_id=organization_id,
+        knowledge_base_id=knowledge_base_id,
         source=source,
         collection_name=collection_name,
         mode=mode,
