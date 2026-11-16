@@ -689,7 +689,7 @@ async def skip_pending(db: AsyncSession, eval_run_id: UUID, *, organization_id: 
     await db.flush()
     # `execute` is typed to return `Result`, which has no `rowcount`; a DML
     # statement's result does have one.
-    return int(result.rowcount or 0)  # ty: ignore[unresolved-attribute]
+    return int(result.rowcount or 0)  # ty: ignore[missing-attribute]
 
 
 class RunExecution(NamedTuple):

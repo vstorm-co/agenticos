@@ -326,7 +326,7 @@ async def delete_empty_topics(db: AsyncSession) -> int:
     await db.flush()
     # `execute` is typed to return `Result`, which has no `rowcount`; a DML
     # statement actually returns a `CursorResult`, which does (see `resource_grant`).
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+    return result.rowcount or 0  # ty: ignore[missing-attribute]
 
 
 class TopicRow(NamedTuple):
@@ -1220,7 +1220,7 @@ async def record_classifications(
     await db.flush()
     # `execute` is typed to return `Result`, which has no `rowcount`; a DML
     # statement actually returns a `CursorResult`, which does (see `resource_grant`).
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+    return result.rowcount or 0  # ty: ignore[missing-attribute]
 
 
 async def classifications_of(
