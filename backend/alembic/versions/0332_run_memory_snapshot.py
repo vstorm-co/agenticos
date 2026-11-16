@@ -22,8 +22,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0323_run_memory_snapshot"
-down_revision: str = "0322_defer_run_conversation_fk"
+revision: str = "0332_run_memory_snapshot"
+down_revision: str = "0331_defer_run_conversation_fk"
 branch_labels: None = None
 depends_on: None = None
 

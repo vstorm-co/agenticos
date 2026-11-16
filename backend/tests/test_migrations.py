@@ -506,7 +506,7 @@ def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None
     constraint = "agent_runs_conversation_id_fkey"
     for action, revision in (
         ("upgrade", "head"),
-        ("downgrade", "0321_resource_icons"),
+        ("downgrade", "0330_linear_trigger"),
     ):
         result = _alembic(action, revision)
         assert result.returncode == 0, result.stderr
@@ -577,7 +577,7 @@ def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None
 
         for action, revision, deferred in (
             ("upgrade", "head", True),
-            ("downgrade", "0321_resource_icons", False),
+            ("downgrade", "0330_linear_trigger", False),
             ("upgrade", "head", True),
         ):
             result = _alembic(action, revision)
