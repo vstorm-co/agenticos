@@ -104,6 +104,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Table link replacements validate every explicitly submitted destination before accepting an unchanged write. Hidden and missing destination IDs receive the same refusal; omitted hidden links remain preserved for older clients.
 - Completed room answers adopt their saved message identity when the transcript is complete, restoring reply, fork and rating actions even when a save event is missed. Partial history still preserves local answer text and tool details.
+- Table links expose only readable destination IDs and labels, including exports and projected reads. Link filters and counts use the same visible destinations, and legacy array replacements retain hidden existing links. Invalid stored row policies block record access with a repairable `ROW_POLICY_INVALID` error instead of disabling restrictions.
+- Chat followers recover saved-answer acknowledgements and final outcomes when a turn finishes during replay or a quiet interval. Sequence checks keep recovered frames in order without duplicating earlier output.
 
 ## [1.76.1] - 2026-11-15
 
@@ -1147,8 +1149,6 @@ environment without a person's decision.
   fallbacks for email clients that do not load them.
 
 ### Fixed
-
-- Table links expose only readable destination IDs and labels, including exports and projected reads. Link filters and counts use the same visible destinations, and legacy array replacements retain hidden existing links. Invalid stored row policies block record access with a repairable `ROW_POLICY_INVALID` error instead of disabling restrictions.
 
 - Keep parked secret requests in their original conversation, account and organization.
   Leaving that context clears the card and ignores delayed reads or decisions;

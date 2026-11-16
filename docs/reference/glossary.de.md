@@ -171,3 +171,5 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Websuche | `web_research` |
 | Tabellen | AgenticOS MCP: `list_virtual_tables`, `query_virtual_table` |
 | Workflows | `workflows` |
+
+Die englische Konsolenbezeichnung für **Verbundene Chat-Apps** lautet **Connected chat apps**.

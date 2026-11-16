@@ -329,6 +329,88 @@ class TestKeepingATurn:
         ]
         assert frames[-1] == (live_turn.END, {"conversation_id": CONVERSATION})
 
+    @pytest.mark.parametrize("during_replay", [True, False], ids=["snapshot", "quiet"])
+    @pytest.mark.parametrize("saved", [True, False], ids=["saved", "unsaved"])
+    async def test_a_turn_finishing_during_follow_keeps_its_final_outcome(
+        self, store: _Store, during_replay: bool, saved: bool
+    ) -> None:
+        """A final outcome must reach the reader even if the writer ends before
+        the follower checks its alive key after replay or a quiet channel."""
+        turn = await _begin()
+        follower = live_turn.follow(CONVERSATION, turn.token)
+        outcome = (
+            ("message_saved", {"message_id": "saved-answer"})
+            if saved
+            else ("error", {"code": "message_save_failed", "message": "Could not save the answer"})
+        )
+        try:
+            await live_turn.publish(turn, "model_request_start", {})
+            await live_turn.publish(turn, "text_delta", {"content": "Ready"})
+            first = await anext(follower)
+
+            async def finish() -> None:
+                await live_turn.publish(turn, *outcome)
+                await live_turn.publish(turn, "complete", {})
+                await live_turn.end(turn)
+
+            if during_replay:
+                await finish()
+            else:
+                store.on_quiet = finish
+
+            frames = [first, *[frame async for frame in follower]]
+            assert [(frame["type"], frame["data"]) for frame in frames] == [
+                ("model_request_start", {}),
+                ("text_delta", {"content": "Ready"}),
+                outcome,
+                ("complete", {}),
+                (live_turn.END, {"conversation_id": CONVERSATION}),
+            ]
+            assert [frame["seq"] for frame in frames] == [1, 2, 3, 4, 5]
+        finally:
+            await follower.aclose()
+            await live_turn.end(turn)
+
+    async def test_a_final_trace_recovery_skips_malformed_frames(self, store: _Store) -> None:
+        turn = await _begin()
+        follower = live_turn.follow(CONVERSATION, turn.token)
+        try:
+            await live_turn.publish(turn, "text_delta", {"content": "Ready"})
+            assert (await anext(follower))["type"] == "text_delta"
+            await store.rpush(turn.key("trace"), "not json")
+            await live_turn.publish(turn, "message_saved", {"message_id": "saved-answer"})
+            await live_turn.end(turn)
+
+            frames = [frame async for frame in follower]
+            assert [(frame["type"], frame["data"]) for frame in frames] == [
+                ("message_saved", {"message_id": "saved-answer"}),
+                (live_turn.END, {"conversation_id": CONVERSATION}),
+            ]
+        finally:
+            await follower.aclose()
+            await live_turn.end(turn)
+
+    async def test_a_final_trace_read_that_stops_answering_ends_the_follow(
+        self, store: _Store, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(live_turn.redis_view, "TIMEOUT_SECONDS", 0.01)
+        turn = await _begin()
+        follower = live_turn.follow(CONVERSATION, turn.token)
+        try:
+            await live_turn.publish(turn, "text_delta", {"content": "Ready"})
+            assert (await anext(follower))["type"] == "text_delta"
+            await live_turn.end(turn)
+
+            async def never_answers(_key: str) -> list[str]:
+                return await asyncio.Future[list[str]]()
+
+            assert live_turn._redis is not None
+            monkeypatch.setattr(live_turn._redis, "list_range", never_answers)
+            assert [frame async for frame in follower] == []
+        finally:
+            await follower.aclose()
+            await live_turn.end(turn)
+
     async def test_a_writer_that_died_without_a_terminal_frame_is_not_waited_on(
         self, store: _Store
     ) -> None:

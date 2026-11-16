@@ -10,7 +10,7 @@ Es gibt zwei Wege, auf denen das bei uns ankommt, und welchen eine Quelle nutzt,
 ist die Sache der Quelle und nicht Ihre:
 
 - **Geschoben.** Ein Provider schickt per POST eine signierte Payload: **GitHub**,
-  **HubSpot**, **Zendesk**, oder alles, was signiertes JSON senden kann (die
+  **HubSpot**, **Zendesk**, **Linear** oder alles, was signiertes JSON senden kann (die
   Quelle **API**).
 - **Abgefragt.** Die Plattform liest ein verbundenes Konto nach einem Zeitplan: die
   Postfächer (**Gmail**, **Outlook**), die Dateien (**Google Drive**, **OneDrive &

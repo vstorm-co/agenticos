@@ -170,3 +170,5 @@ w [Capabilities](capabilities.md).
 | Wyszukiwanie w internecie | `web_research` |
 | Tabele | AgenticOS MCP: `list_virtual_tables`, `query_virtual_table` |
 | Workflowy | `workflows` |
+
+Angielska nazwa pozycji **Podłączone komunikatory** w konsoli to **Connected chat apps**.

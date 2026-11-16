@@ -153,6 +153,7 @@ class TestTheCredentialIsReferencedNotCarried:
         assert read.connected_account_id == str(account_id)
         assert read.secret_id is None
 
+    @pytest.mark.security
     @pytest.mark.parametrize("operation", ["create", "update", "clone"])
     async def test_google_account_binding_requires_connections_view(self, monkeypatch, operation):
         service = _service(monkeypatch)
@@ -199,7 +200,9 @@ class TestTheCredentialIsReferencedNotCarried:
                 str(source.id), SyncSourceClone(collection_name="mine"), ctx=ctx
             )
 
-        with pytest.raises(AuthorizationError):
+        with pytest.raises(
+            AuthorizationError, match="Viewing organization connections is required"
+        ):
             await call
 
     async def test_a_source_naming_a_credential_of_the_right_kind_is_created(self, monkeypatch):

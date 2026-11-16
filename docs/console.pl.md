@@ -692,7 +692,7 @@ zamrożoną konfigurację.
 
 Edycja i publikowanie zależą od decyzji serwera dla tego agenta, w tym jawnych
 grantów. Chat tylko do odczytu pokazuje ustawienia bez przycisków edycji; agent
-należący do workflow jest nadal konfigurowany w swoim kroku. Złożenie panelu lub
+należący do workflow jest nadal konfigurowany w swoim workflow. Złożenie panelu lub
 otwarcie Browser, Computer albo Files zachowuje niezapisane zmiany wybranego agenta.
 Zapisz je przed zmianą agenta lub opuszczeniem chatu. Zmiana wykonana gdzie indziej
 wstrzymuje zapis, aż wczytasz nową wersję lub wybierzesz zachowanie swoich zmian.

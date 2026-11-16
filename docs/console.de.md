@@ -749,7 +749,7 @@ eingefrorene Konfiguration.
 Bearbeitung und Veröffentlichung folgen der Zugriffsentscheidung des Servers für
 diesen Agent, einschließlich ausdrücklicher Grants. Schreibgeschützte Chats zeigen
 die Einstellungen ohne Bearbeitungsaktionen; Workflow-Agents werden weiterhin in
-ihrem Schritt konfiguriert. Einklappen oder Wechsel zu Browser, Computer oder Files
+ihrem Workflow konfiguriert. Einklappen oder Wechsel zu Browser, Computer oder Files
 bewahrt ungespeicherte Änderungen des ausgewählten Agents. Speichern Sie vor einem
 Agent-Wechsel oder dem Verlassen des Chats. Externe Änderungen halten das Speichern
 an, bis Sie neu laden oder Ihre Änderungen ausdrücklich behalten.

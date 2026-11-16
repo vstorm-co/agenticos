@@ -714,7 +714,7 @@ la selección de modelo de Chat controls; un turno activo conserva su configurac
 
 La edición y la publicación siguen la decisión del servidor para ese agente,
 incluidos los grants explícitos. Los chats de solo lectura muestran los ajustes
-sin controles de edición; los agentes de workflow se configuran en su propio paso.
+sin controles de edición; los agentes de un workflow se configuran en ese workflow.
 Cerrar el panel o abrir Browser, Computer o Files conserva los cambios sin guardar
 del agente seleccionado. Guarda antes de cambiar de agente o salir del chat. Los
 cambios externos detienen el guardado hasta que recargues o decidas conservar tus
