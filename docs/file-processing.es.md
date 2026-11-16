@@ -1,5 +1,5 @@
 ---
-source_sha: "9acf7a5db2e7"
+source_sha: "1f9d4ae97fcd"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1530,6 +1530,7 @@ Cada ejecución guardada conserva su base y organización originales como límit
 de acceso: reasignar una fuente no concede a la nueva base acceso a ejecuciones
 privadas anteriores. El filtrado se aplica antes del límite de página. Las
 ejecuciones antiguas sin una base guardada siguen atribuyéndose mediante su fuente.
+Al eliminar una base registrada se archiva el vínculo histórico con la fuente antes de borrar el identificador de la base, para que el historial no quede visible mediante una fuente reasignada.
 
 La reconciliación, las reclamaciones de documentos sin cambios y el seguimiento
 de vectores usan el ámbito documental de la base de destino. Reasignar una fuente

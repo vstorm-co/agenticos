@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, false, or_, select, true
+from sqlalchemy import and_, false, or_, select, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.sync_log import SyncLog
@@ -17,6 +17,21 @@ from app.db.models.sync_source import SyncSource
 async def get_by_id(db: AsyncSession, sync_id: UUID) -> SyncLog | None:
     """Get a sync log by ID."""
     return await db.get(SyncLog, sync_id)
+
+
+async def detach_sources_from_base_history(db: AsyncSession, knowledge_base_id: UUID) -> None:
+    """Archive source provenance before deletion clears the recorded base FK.
+
+    A NULL-base log can be legacy history attributed through its source. Once
+    its recorded base is deleted it must not inherit a repointed source's audience.
+    The caller holds the base lock until deletion and commit.
+    """
+    await db.execute(
+        update(SyncLog)
+        .where(SyncLog.knowledge_base_id == knowledge_base_id)
+        .values(sync_source_id=None)
+    )
+    await db.flush()
 
 
 @dataclass(frozen=True)

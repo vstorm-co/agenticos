@@ -1413,6 +1413,7 @@ Each recorded run keeps its original base and organization as its access boundar
 reassigning a source does not grant the new base access to earlier private runs.
 Filtering happens before the page limit. Legacy runs without a recorded base
 remain attributable through their source.
+Deleting a recorded base archives the historical source link before the base ID is cleared, so that history cannot become visible through a reassigned source.
 
 Reconciliation, unchanged-document claims and vector tracking use the target
 base's document scope. Reassigning a source clears its cached sync state and last

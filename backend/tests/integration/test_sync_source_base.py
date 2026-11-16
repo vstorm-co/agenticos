@@ -981,3 +981,34 @@ async def test_operator_can_act_on_a_legacy_app_run_without_source_provenance(
     ).id == log.id
     with pytest.raises(NotFoundError):
         await access.sync_log(estate.reader, str(log.id))
+
+
+async def test_deleting_the_previous_base_does_not_revive_source_based_history_access(
+    db: AsyncSession, history_targets: _HistoryTargets
+) -> None:
+    estate = history_targets
+    await KnowledgeBaseService(db).delete(estate.private.id, ctx=estate.owner)
+    await db.refresh(estate.private_log)
+    await db.refresh(estate.shared_log)
+    await db.refresh(estate.source)
+    assert estate.private_log.knowledge_base_id is None
+    assert estate.private_log.sync_source_id is None
+    assert estate.source.knowledge_base_id == estate.shared.id
+    assert estate.shared_log.sync_source_id == estate.source.id
+    access = CollectionAccessService(db)
+    scope = await access.readable_sync_log_scope(estate.reader, None)
+    logs = await sync_log_repo.get_all(db, scope=scope)
+    assert estate.private_log.id not in {log.id for log in logs}
+    assert estate.shared_log.id in {log.id for log in logs}
+    with pytest.raises(NotFoundError):
+        await access.sync_log(estate.reader, str(estate.private_log.id))
+
+
+async def test_legacy_history_cannot_gain_authority_through_an_unmatched_old_name(
+    db: AsyncSession, history_targets: _HistoryTargets
+) -> None:
+    estate = history_targets
+    estate.legacy_log.collection_name = "old-private-name"
+    await db.flush()
+    with pytest.raises(NotFoundError):
+        await CollectionAccessService(db).sync_log(estate.reader, str(estate.legacy_log.id))

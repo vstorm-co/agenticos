@@ -1,5 +1,5 @@
 ---
-source_sha: "9acf7a5db2e7"
+source_sha: "1f9d4ae97fcd"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1502,6 +1502,7 @@ Każdy zapisany przebieg zachowuje swoją pierwotną bazę i organizację jako g
 dostępu: przepięcie źródła nie udostępnia nowej bazie wcześniejszych prywatnych
 przebiegów. Filtrowanie następuje przed limitem strony. Starsze przebiegi bez
 zapisanej bazy pozostają przypisane przez swoje źródło.
+Usunięcie zapisanej bazy archiwizuje historyczne powiązanie ze źródłem przed wyczyszczeniem identyfikatora bazy, więc historia nie staje się widoczna przez przepięte źródło.
 
 Uzgadnianie dokumentów, przypisywanie niezmienionych dokumentów i śledzenie
 wektorów używają zakresu dokumentów bazy docelowej. Przepięcie źródła czyści jego

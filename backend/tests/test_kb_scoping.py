@@ -30,8 +30,11 @@ def _a_free_name(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def _no_sync_sources(monkeypatch: pytest.MonkeyPatch) -> None:
-    """No connectors unless a teardown test explicitly supplies one."""
+    """No connectors or source history unless a teardown test supplies them."""
     monkeypatch.setattr("app.repositories.sync_source.get_all", AsyncMock(return_value=[]))
+    monkeypatch.setattr(
+        "app.repositories.sync_log_repo.detach_sources_from_base_history", AsyncMock()
+    )
 
 
 @pytest.fixture(autouse=True)

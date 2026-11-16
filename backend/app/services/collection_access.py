@@ -706,13 +706,10 @@ class CollectionAccessService:
                 and kb.collection_name == log.collection_name
                 and await writable_kb(self.db, ctx, kb)
             )
-        candidates = await knowledge_base_repo.list_by_collection_name(self.db, log.collection_name)
-        if source is None and log.organization_id != ctx.organization_id:
+        if source is None or not _reaches_source(ctx, source):
             return False
+        candidates = await knowledge_base_repo.list_by_collection_name(self.db, log.collection_name)
         for kb in candidates:
-            if (
-                (source is not None and _reaches_source(ctx, source) and _feeds(source, kb))
-                or (source is None and log.knowledge_base_id == kb.id)
-            ) and await writable_kb(self.db, ctx, kb):
+            if _feeds(source, kb) and await writable_kb(self.db, ctx, kb):
                 return True
         return False

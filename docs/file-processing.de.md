@@ -1,5 +1,5 @@
 ---
-source_sha: "9acf7a5db2e7"
+source_sha: "1f9d4ae97fcd"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1604,6 +1604,7 @@ und Organisation als Zugriffsgrenze: Eine Neuzuordnung gibt der neuen Datenbank
 keinen Zugriff auf frühere private Läufe. Die Filterung erfolgt vor dem
 Seitenlimit. Ältere Läufe ohne gespeicherte Datenbank bleiben über ihre Source
 zuordenbar.
+Beim Löschen einer gespeicherten Datenbank wird die historische Source-Verknüpfung archiviert, bevor ihre Datenbank-ID gelöscht wird. So wird die Historie nicht über eine neu zugeordnete Source sichtbar.
 
 Dokumentabgleich, Ansprüche auf unveränderte Dokumente und Vektorverfolgung
 verwenden den Dokumentbereich der Zieldatenbank. Eine Neuzuordnung löscht den

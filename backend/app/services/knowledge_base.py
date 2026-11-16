@@ -21,6 +21,7 @@ from app.repositories import (
     organization_secret_repo,
     rag_document_repo,
     resource_grant_repo,
+    sync_log_repo,
 )
 from app.repositories.rag_document import CollectionCounts, CollectionScope
 from app.schemas.knowledge_base import (
@@ -435,6 +436,7 @@ class KnowledgeBaseService:
         # A kept default must not be refilled by its previous sources.
         await CollectionAccessService(self.db).detach_sources_targeting(kb)
         if remove_default or not kb.is_default:
+            await sync_log_repo.detach_sources_from_base_history(self.db, kb.id)
             await knowledge_base_repo.delete(self.db, kb.id)
         # Always a job: a kept table has the base's chunks to purge, and an
         # unreferenced one is dropped.
