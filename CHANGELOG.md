@@ -81,6 +81,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Invalid channel-bot CLI configuration returns a credential-free validation
+  error, with token lengths checked against the bot API limits before registration.
+
 - Routine access reviews refresh their sources and action inventories after a personal or organization MCP connection is changed, checked or connected through OAuth, including live updates, without reloading the console (#3061).
 - Routine history clears the starting placeholder when the requested run appears, including runs already waiting for approval or finished before the first refresh. Older runs do not hide a new dispatch, and the exact queued activation keeps polling independent of concurrent fires, paginated history and browser/server clock differences (#3063). Waiting-for-answer runs have a translated status in every console language (#3064).
 - Run now returns an explicit conflict when no job or durable refusal can be recorded, instead of acknowledging work that will never run (#3069).

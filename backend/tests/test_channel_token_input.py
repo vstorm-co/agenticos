@@ -59,7 +59,9 @@ def test_conflicting_sources_are_refused_without_echoing_credentials(tmp_path: P
 
 
 @pytest.mark.security
-@pytest.mark.parametrize("contents", [" \n", "first\nsecond", "with\x00nul", "a" * 4097])
+@pytest.mark.parametrize(
+    "contents", [" \n", "short", "first\nsecond", "synthetic\x00test-token", "a" * 501, "a" * 4097]
+)
 def test_invalid_token_files_are_refused_without_their_contents(
     contents: str, tmp_path: Path
 ) -> None:
@@ -123,3 +125,23 @@ def test_read_error_does_not_expose_exception_details() -> None:
     with pytest.raises(click.ClickException, match="Cannot read") as exc:
         channel._read_bot_token(None, Unreadable())
     assert "private-token" not in str(exc.value)
+
+
+@pytest.mark.parametrize("ending", ["", "\n", "\r\n"])
+@pytest.mark.parametrize("length", [10, 500])
+def test_schema_token_boundaries_accept_a_file_newline(ending: str, length: int) -> None:
+    token = "a" * length
+    assert channel._read_bot_token(None, StringIO(token + ending)) == token
+
+
+@pytest.mark.security
+def test_invalid_platform_configuration_does_not_expose_the_token() -> None:
+    result = CliRunner().invoke(
+        channel.channel_add_bot,
+        ["--platform", "mattermost", "--name", "Support"],
+        input="synthetic-test-token\n",
+    )
+    assert result.exit_code != 0
+    assert "synthetic-test-token" not in result.output
+    assert "synthetic-test-token" not in str(result.exception)
+    assert "Invalid channel configuration" in result.output

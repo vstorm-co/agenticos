@@ -1418,8 +1418,8 @@ uv run agenticos cmd channel-add-bot --platform telegram --name "Support" --mode
 ```
 
 For automation, use `--token-file /run/secrets/telegram-token` or `--token-file -`
-to read from stdin. The UTF-8 file must contain one token, at most 4096 characters
-including its trailing newline. Restrict file access to the deployment operator.
+to read from stdin. The UTF-8 file must contain one token of 10–500 characters,
+with an optional final newline. Restrict file access to the deployment operator.
 Do not combine `--token-file` with `--token`. Existing `--token` calls still work,
 but a literal credential can remain in shell history and process arguments.
 Registration alone does not bind an agent; bind a published agent before testing.

@@ -1,5 +1,5 @@
 ---
-source_sha: "f568bbdda31a"
+source_sha: "5b1e8870d320"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1454,8 +1454,8 @@ uv run agenticos cmd channel-add-bot --platform telegram --name "Support" --mode
 ```
 
 W automatyzacji użyj `--token-file /run/secrets/telegram-token` albo `--token-file -`,
-aby czytać ze stdin. Plik UTF-8 musi zawierać jeden token i najwyżej 4096 znaków,
-łącznie z końcowym znakiem nowej linii. Ogranicz dostęp do pliku do operatora wdrożenia.
+aby czytać ze stdin. Plik UTF-8 musi zawierać jeden token o długości 10–500 znaków
+z opcjonalnym końcowym znakiem nowej linii. Ogranicz dostęp do pliku do operatora wdrożenia.
 Nie łącz `--token-file` z `--token`. Dotychczasowe wywołania z `--token` nadal działają,
 ale jawny sekret może pozostać w historii powłoki i argumentach procesu.
 Sama rejestracja nie przypisuje agenta; przed testem powiąż opublikowanego agenta.

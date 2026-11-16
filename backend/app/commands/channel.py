@@ -32,6 +32,7 @@ from typing import Any, Literal, TextIO
 from uuid import UUID
 
 import click
+from pydantic import ValidationError
 
 from app.commands import command, error, info, success
 from app.core.exceptions import AppException, NotFoundError
@@ -143,20 +144,18 @@ def _read_bot_token(token: str | None, token_file: TextIO | None) -> str:
         raise click.UsageError("Use either --token or --token-file, not both.")
     if token_file is not None:
         try:
-            contents = token_file.read(4097)
+            contents = token_file.read(503)
         except OSError, UnicodeError:
             raise click.ClickException("Cannot read the bot token file as UTF-8 text.") from None
-        if len(contents) > 4096:
-            raise click.ClickException("The bot token file exceeds 4096 characters.")
+        if len(contents) > 502:
+            raise click.ClickException("The bot token file exceeds 502 characters.")
         value = contents.strip()
     elif token is not None:
         value = token.strip()
     else:
         value = click.prompt("Bot token", hide_input=True, type=str).strip()
-    if not value or len(value) > 4096 or any(char in value for char in "\n\r\x00"):
-        raise click.UsageError(
-            "The bot token must be a non-empty single line of at most 4096 characters."
-        )
+    if not 10 <= len(value) <= 500 or any(char in value for char in "\n\r\x00"):
+        raise click.UsageError("The bot token must be a single line of 10 to 500 characters.")
     return value
 
 
@@ -264,22 +263,28 @@ def channel_add_bot(
     resolved_token = _read_bot_token(token, token_file)
 
     async def _run() -> None:
-        data = ChannelBotCreate(
-            platform=platform,
-            name=name,
-            token=resolved_token,
-            access_policy=AccessPolicy(mode=mode, discord_guild_ids=list(discord_guild_ids)),
-            api_base_url=api_base_url,
-            webhook_secret=webhook_secret,
-            # A pasted secret is only ever for an inbound webhook, so saying so
-            # here saves an operator a second command to switch the mode on.
-            webhook_mode=webhook_secret is not None,
-            teams_app_id=teams_app_id,
-            teams_tenant_id=teams_tenant_id,
-            whatsapp_phone_number_id=whatsapp_phone_number_id,
-            whatsapp_account_id=whatsapp_account_id,
-            whatsapp_verify_token=whatsapp_verify_token,
-        )
+        try:
+            data = ChannelBotCreate(
+                platform=platform,
+                name=name,
+                token=resolved_token,
+                access_policy=AccessPolicy(mode=mode, discord_guild_ids=list(discord_guild_ids)),
+                api_base_url=api_base_url,
+                webhook_secret=webhook_secret,
+                # A pasted secret is only ever for an inbound webhook, so saying so
+                # here saves an operator a second command to switch the mode on.
+                webhook_mode=webhook_secret is not None,
+                teams_app_id=teams_app_id,
+                teams_tenant_id=teams_tenant_id,
+                whatsapp_phone_number_id=whatsapp_phone_number_id,
+                whatsapp_account_id=whatsapp_account_id,
+                whatsapp_verify_token=whatsapp_verify_token,
+            )
+        except ValidationError:
+            # Pydantic model errors can carry the full credential-bearing input.
+            raise click.UsageError(
+                "Invalid channel configuration; check the required fields for the selected platform."
+            ) from None
         async with _channel_service(org_id) as svc:
             bot = await svc.create(data, actor_user_id=None)
 
