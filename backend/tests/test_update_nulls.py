@@ -113,6 +113,7 @@ from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.notification_route import NotificationRouteUpdate
 from app.schemas.onboarding import OnboardingUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
+from app.schemas.permissions import RoleNavigationUpdate
 from app.schemas.project import ProjectUpdate
 from app.schemas.push import ApnsKeyUpdate, PushFocusUpdate, PushPreferencesUpdate
 from app.schemas.resource_grant import VisibilityUpdate
@@ -200,6 +201,8 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     ProjectUpdate: Project,
     RecordGrantUpdate: ResourceGrant,
     RecordUpdate: None,
+    # Replaces one role's list inside role_navigation JSONB, not a hidden_items row column.
+    RoleNavigationUpdate: None,
     # Replaces the validated row_policy JSONB document, not columns named after its fields.
     RowPolicyUpdate: None,
     # Both patch keys within Session.push_preferences JSONB, not columns by name.
@@ -248,6 +251,9 @@ _DUMP_EXEMPT = {
     # row columns. Explicit null resets its model/instructions; omission keeps it.
     "app/services/dataset.py",
     "app/services/rag_document.py",
+    # Appearance tokens merge into one JSONB document and are validated whole;
+    # omitted tokens preserve their value and explicit null is rejected by the schema.
+    "app/services/user_appearance.py",
     "app/services/voice/transport.py",
 }
 
@@ -322,6 +328,7 @@ class TestEveryUpdateSchemaIsAccountedFor:
             "TaskUpdate",
             "NotificationPreferenceUpdate",
             "RecordUpdate",
+            "RoleNavigationUpdate",
             "RowPolicyUpdate",
             "SchemaUpdate",
             "PushFocusUpdate",

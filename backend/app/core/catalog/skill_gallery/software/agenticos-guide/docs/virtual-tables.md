@@ -50,6 +50,24 @@ columns are evaluated before projection, so their dependencies need not be selec
 The same records immediately appear in the console; table-trigger dispatch is
 asynchronous and never delays the CRUD response.
 
+## Database tenant isolation { #database-tenant-isolation }
+
+Logical tables remain in the deployment's PostgreSQL database. The tenant RLS
+migration installs policies without enabling them; the operator activates them
+after upgrading and draining all API and worker processes. Once activated, normal
+table operations bind the authenticated organization's ID to the current
+transaction. Missing context exposes no Tables rows, and a transaction cannot
+switch organizations. The boundary includes schemas, records, history, media,
+views, receipts, triggers, normalized links and Tables grants.
+
+Table and row Read/Write permissions still apply in the service. Global account
+export and deletion use a separately configured maintenance connection after
+authentication and a fresh authority check. Removing an organization membership
+cascades that person's Tables grants in the same transaction, including directory
+updates spanning organizations. Other resource grant families keep their existing
+authorization rules. See the [operator cutover procedure](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md)
+for credential separation, preflight, activation and rollback.
+
 ## How a table is built { #how-a-table-is-built }
 
 | Part | What it is | Identity |
