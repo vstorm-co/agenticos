@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.79.0] - 2026-11-16
+
 ### Upgrading
 
 - Apply `0333_channel_thread_context.py` before starting the new API and workers. Ordinary Slack, Mattermost, Telegram, Teams and Discord messages require the background worker. Legacy thread cursors are preserved so compacted conversations are not imported again. Queued runs are attempted once; after a lost worker or an unconfirmed reply, inspect existing actions before asking again.
@@ -21884,7 +21886,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.78.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.79.0...HEAD
+[1.79.0]: https://github.com/vstorm-co/agenticos/compare/v1.78.1...v1.79.0
 [1.78.1]: https://github.com/vstorm-co/agenticos/compare/v1.78.0...v1.78.1
 [1.78.0]: https://github.com/vstorm-co/agenticos/compare/v1.77.0...v1.78.0
 [1.77.0]: https://github.com/vstorm-co/agenticos/compare/v1.76.2...v1.77.0
