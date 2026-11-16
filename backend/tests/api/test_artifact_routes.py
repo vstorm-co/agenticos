@@ -321,6 +321,7 @@ class TestFavourites:
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
             patch(f"{PATH}.artifact_repo.update", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}.hold_subject", new=AsyncMock()),
             patch(f"{PATH}.resource_grant_repo.delete_for_resource", new=AsyncMock()),
             patch(f"{PATH}.artifact_repo.delete_artifact", new=AsyncMock()),
             patch(f"{PATH}.record_audit", new=AsyncMock()),
