@@ -294,6 +294,16 @@ async def test_legacy_replacement_preserves_all_links_when_target_is_unreachable
     assert merged == before
 
 
+async def test_removing_only_visible_links_preserves_nothing(linked_data):
+    before: dict[str, CellValue] = {KEY: [str(VISIBLE)]}
+    requested: dict[str, CellValue] = {KEY: []}
+    merged = _merge([LINK], requested, before)
+    await RecordOperations(MagicMock())._preserve_unreadable_links(
+        context(), [LINK], requested, before, merged
+    )
+    assert not merged[KEY]
+
+
 @pytest.mark.parametrize("hidden_first", [False, True])
 async def test_a_visible_array_round_trip_preserves_hidden_positions(linked_data, hidden_first):
     old = [str(HIDDEN), str(VISIBLE)] if hidden_first else [str(VISIBLE), str(HIDDEN)]
