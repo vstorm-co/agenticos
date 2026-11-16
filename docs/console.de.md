@@ -1,5 +1,5 @@
 ---
-source_sha: "031be7672e9f"
+source_sha: "8e1d955d9230"
 ---
 
 # Die Konsole { #the-console }
@@ -735,6 +735,24 @@ schmalen Bildschirmen füllt das ausgewählte Panel den Bildschirm. Nach einem R
 kennzeichnet **Letzte Ansicht (Last view)** das abgeschlossene Bild; es ist kein
 Live-Desktop. Fordern Sie ein neues Bildschirmfoto an, um eine Computer-Ansicht zu
 aktualisieren.
+
+**Agent-Einstellungen.** In vollständigen Desktop-Chats öffnet die
+Einstellungsschaltfläche rechts den Entwurf des ausgewählten Agents neben dem
+Gespräch. Die Leiste ist auf Telefonen und in kompakten Chats ausgeblendet;
+verwenden Sie dort den vollständigen Agent-Editor. Bearbeiten Sie Name, Kurzbeschreibung,
+Anweisungen, Standardmodell und vorhandene Capability-Schalter und wählen Sie
+**Save draft**. **Review and publish** prüft den gespeicherten Entwurf und öffnet
+die bestehende Bestätigung zur Veröffentlichung. Eine Änderung des Standardmodells
+entfernt keine Modellauswahl in Chat controls; ein laufender Turn behält seine
+eingefrorene Konfiguration.
+
+Bearbeitung und Veröffentlichung folgen der Zugriffsentscheidung des Servers für
+diesen Agent, einschließlich ausdrücklicher Grants. Schreibgeschützte Chats zeigen
+die Einstellungen ohne Bearbeitungsaktionen; Workflow-Agents werden weiterhin in
+ihrem Schritt konfiguriert. Einklappen oder Wechsel zu Browser, Computer oder Files
+bewahrt ungespeicherte Änderungen des ausgewählten Agents. Speichern Sie vor einem
+Agent-Wechsel oder dem Verlassen des Chats. Externe Änderungen halten das Speichern
+an, bis Sie neu laden oder Ihre Änderungen ausdrücklich behalten.
 
 **Einem Durchlauf zusehen.** Der [Webbrowser](reference/capabilities.md#browser-automation)
 erscheint in seinem eigenen Panel neben dem Gespräch. Karten besuchter Seiten

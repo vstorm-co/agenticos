@@ -29,6 +29,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- An Agent settings pane beside chat, with explicit draft saving for name, description, instructions, default model and configured capability switches. Editing and publishing use per-agent access hints, including resource grants. Publishing validates the draft and uses the existing version/environment confirmation. Edits survive switching workspace panes; remote changes pause saving. Chat model overrides and running turns keep their existing scope.
 - The agent chat header has a compact model selector with provider icons, saved-model search, explicit account filtering and a return to the agent's model. It preserves chat preferences, permission gates and the advanced connection setup in Controls; disconnected or non-chat models stay unavailable.
 - Browser, Computer and Files controls beside full desktop chats, with separate panels that open before tool activity. The rail is hidden on phones and in compact chats. Hosted-tool start actions use the selected agent's published configuration and run permissions. Opening an empty panel starts no run; completed browser and desktop images are clearly marked as the last view, and closing a panel keeps it closed as new results arrive.
 - Project-room messaging APIs accept human posts without a model call and explicit requests for published cloud agents. A PostgreSQL submission ledger deduplicates retries, queues agent requests per conversation and retains their original requester; permissions are checked when accepted and when work starts or resumes. A waiting approval or answer keeps the room queue blocked. Queued follow-ups read earlier messages and the completed answers to preceding requests, while excluding later prompts. Migration `0311_room_submissions.py` follows `0303_virtual_table_row_policy.py`, which follows `0310_secret_requests.py`; the separate Team rooms interface uses these endpoints.
@@ -98,6 +99,12 @@ Two things are versioned separately from this file and worth knowing about:
   containers, volumes and networks intact.
 - A harness capability backs an agent with a Claude Code or Codex session in its sandbox, kept open across turns: `harness_start` opens a named session with a first prompt, `harness_prompt` sends it the next one, `harness_stop` closes it and `harness_sessions` lists the open ones. The session is the CLI's own, resumed by an id kept beside the work, and a prompt runs through the same detached execution, live narration, budget ledger and approval as a coding agent's task. A ChatGPT sign-in for Codex is not accepted yet; Codex runs on an OpenAI API key.
 - The harness capability also drives OpenCode, Gemini CLI and Pi sessions, on the same pattern: the same session lifecycle and `read_only` / `edit` access semantics where the CLI supports them, with the CLI's own session id resumed across turns. The credential follows the model for OpenCode and Pi, and is always a Gemini API key for Gemini CLI. The adapters are written from the CLIs' public docs and are untested against the real CLIs; a harness that is not installed reports as failed rather than claiming otherwise.
+
+### Fixed
+
+- Table link replacements validate every explicitly submitted destination before accepting an unchanged write. Hidden and missing destination IDs receive the same refusal; omitted hidden links remain preserved for older clients.
+- Completed room answers adopt their saved message identity when the transcript is complete, restoring reply, fork and rating actions even when a save event is missed. Partial history still preserves local answer text and tool details.
+
 ## [1.76.1] - 2026-11-15
 
 ### Documentation
@@ -140,7 +147,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Completed room answers adopt their saved message identity when the transcript is complete, restoring reply, fork and rating actions even when a save event is missed. Partial history still preserves local answer text and tool details.
 - Keep sandbox connection details and session controls readable on narrow screens, search sessions by agent name, and confirm channel-bot removal before disconnecting bound agents.
 
 - Align organization role, directory and retention views with shared list layouts: searchable permission matrices with sticky labels, responsive retention fields and matching loading states, disabled unchanged saves, and retryable directory deletion refusals.
@@ -1141,6 +1147,8 @@ environment without a person's decision.
   fallbacks for email clients that do not load them.
 
 ### Fixed
+
+- Table links expose only readable destination IDs and labels, including exports and projected reads. Link filters and counts use the same visible destinations, and legacy array replacements retain hidden existing links. Invalid stored row policies block record access with a repairable `ROW_POLICY_INVALID` error instead of disabling restrictions.
 
 - Keep parked secret requests in their original conversation, account and organization.
   Leaving that context clears the card and ignores delayed reads or decisions;

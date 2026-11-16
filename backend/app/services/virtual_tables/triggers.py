@@ -62,6 +62,7 @@ from app.schemas.virtual_table_trigger import (
 )
 from app.services.access import TABLE, WORKFLOW, resolve_access
 from app.services.virtual_tables._base import Operations
+from app.services.virtual_tables.computed import visible_link_ids
 from app.services.virtual_tables.presentation import readable
 from app.services.virtual_tables.row_policy import may_view_row
 from app.services.virtual_tables.types import COLUMN_TYPES, CellProblem, validate_filter
@@ -588,7 +589,6 @@ class TableTriggerConsumer:
         if snapshot is None:
             await record(AdmissionStatus.FAILED, AdmissionReason.UNAVAILABLE)
             return None
-        values = snapshot.values
         changed = snapshot.changed()
         if (
             snapshot.event == "updated"
@@ -605,6 +605,17 @@ class TableTriggerConsumer:
             ),
         )
         columns = await self._columns(table)
+        fire = await self._fire_context(trigger, table)
+        if fire is None:
+            await record(AdmissionStatus.FAILED, AdmissionReason.PERMISSION_DENIED)
+            return None
+        ctx, workflow, version = fire
+        values = await self._visible_link_values(ctx, list(columns.values()), snapshot.values)
+        before = (
+            await self._visible_link_values(ctx, list(columns.values()), snapshot.before)
+            if snapshot.before is not None
+            else None
+        )
         conditions = [RecordFilter.model_validate(item) for item in trigger.filters]
         if not all(
             column is not None and holds(column, condition, values)
@@ -613,15 +624,10 @@ class TableTriggerConsumer:
         ):
             await record(AdmissionStatus.FILTERED, AdmissionReason.FILTER_MISMATCH)
             return None
-        fire = await self._fire_context(trigger, table)
-        if fire is None:
-            await record(AdmissionStatus.FAILED, AdmissionReason.PERMISSION_DENIED)
-            return None
-        ctx, workflow, version = fire
         # The publisher's visibility is row-level too: a trigger must not hand
         # a workflow run a record its publisher cannot see, and the run input
         # would disclose it even though later node reads are filtered.
-        if not await may_view_row(self.db, ctx, table, list(columns.values()), values):
+        if not await may_view_row(self.db, ctx, table, list(columns.values()), snapshot.values):
             await record(AdmissionStatus.FILTERED, AdmissionReason.ROW_POLICY)
             return None
         if causing is not None:
@@ -652,7 +658,7 @@ class TableTriggerConsumer:
                 for column in columns.values()
                 if not column.archived and str(column.id) in values
             },
-            before=snapshot.before,
+            before=before,
             changed=[
                 column.label
                 for column in columns.values()
@@ -702,6 +708,25 @@ class TableTriggerConsumer:
             return None
         await record(AdmissionStatus.QUEUED, None, run.id)
         return run.id, entry_node_run_id
+
+    async def _visible_link_values(
+        self, ctx: AuthContext, columns: list[ColumnDef], values: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Keep only link destinations the trigger's publisher may read."""
+        visible = dict(values)
+        for column in columns:
+            key = str(column.id)
+            cell = values.get(key)
+            if (
+                column.type != "link"
+                or column.link_table_id is None
+                or not isinstance(cell, list)
+                or not cell
+            ):
+                continue
+            allowed = await visible_link_ids(self.db, ctx, column.link_table_id, set(cell))
+            visible[key] = [record_id for record_id in cell if record_id in allowed]
+        return visible
 
     async def _columns(self, table: VirtualTable) -> dict[UUID, ColumnDef]:
         version = await virtual_table_repo.get_schema_version(

@@ -26,6 +26,7 @@ from app.repositories.virtual_table import RecordCells
 from app.schemas.virtual_table import CellValue, ColumnDef, LinkedRecord, RecordRead, RowPolicy
 from app.services.access import TABLE, resolve_access
 from app.services.virtual_tables.deadline import ReadDeadline, arm_if_set
+from app.services.virtual_tables.exceptions import InvalidRowPolicyError
 from app.services.virtual_tables.formula import references, work_out
 from app.services.virtual_tables.row_policy import (
     bypasses_policy,
@@ -141,11 +142,15 @@ async def linked_table_access(
         db, table_id=table.id, version=table.schema_version
     )
     columns = [ColumnDef.model_validate(column) for column in version.columns]
+    try:
+        policy = parse_policy(table.row_policy)
+    except InvalidRowPolicyError:
+        return None
     return LinkedTable(
         table_id=table.id,
         columns=columns,
         named_by=named_by(columns),
-        row_policy=parse_policy(table.row_policy),
+        row_policy=policy,
         owner_user_id=table.owner_user_id,
     )
 
@@ -234,6 +239,14 @@ async def _linked_table(
             _name(values[record_id], linked.named_by) or row.external_id or record_id[:8]
         )
     return _Linked(columns=linked.columns, values=values, names=names)
+
+
+async def visible_link_ids(
+    db: AsyncSession, ctx: AuthContext, table_id: UUID, ids: set[str]
+) -> set[str]:
+    """The requested destinations readable by this caller, using the read-through policy."""
+    linked = await _linked_table(db, ctx, table_id, ids, targets=frozenset())
+    return set() if linked is None else set(linked.values)
 
 
 def _name(values: dict[str, CellValue], column: ColumnDef | None) -> str | None:
@@ -364,6 +377,7 @@ async def _with_links(
     deadline: ReadDeadline | None,
 ) -> list[RecordRead]:
     """`records` with each link's records named and every lookup and rollup worked out."""
+    link_keys = {str(column.id) for column in columns if column.type == "link"}
     link_tables = {
         column.id: column.link_table_id
         for column in columns
@@ -372,7 +386,7 @@ async def _with_links(
         and column.link_table_id is not None
         and (linked_keys is None or column.link_table_id in linked_keys)
     }
-    if not link_tables or not records:
+    if not link_keys or not records:
         return records
     wanted: dict[UUID, set[str]] = {}
     for column_id, table_id in link_tables.items():
@@ -406,16 +420,26 @@ async def _with_links(
     ]
     result: list[RecordRead] = []
     for record in records:
-        values = dict(record.values)
+        # Stored links are complete; every public representation is projected
+        # from the same permitted destinations. Archived or unrequested links
+        # must not retain a second, unfiltered UUID array in values.
+        values = {key: value for key, value in record.values.items() if key not in link_keys}
         named: dict[str, list[LinkedRecord]] = {}
         for column_id, table_id in link_tables.items():
+            key = str(column_id)
             linked = tables[table_id]
             if linked is None:
+                if key in record.values:
+                    values[key] = []
                 continue
-            named[str(column_id)] = [
+            visible = [
+                record_id for record_id in record.values.get(key) or [] if record_id in linked.names
+            ]
+            if key in record.values:
+                values[key] = visible if record.values[key] is not None else None
+            named[key] = [
                 LinkedRecord(id=UUID(record_id), label=linked.names[record_id])
-                for record_id in record.values.get(str(column_id)) or []
-                if record_id in linked.names
+                for record_id in visible
             ]
         for column in reading:
             link_id = column.link_column_id

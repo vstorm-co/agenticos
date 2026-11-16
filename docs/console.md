@@ -658,6 +658,22 @@ it closed as new tool results arrive. On narrow screens the selected panel fills
 the screen. After a run, a completed image is labelled **Last view**; it is not a
 live desktop. Request a new screenshot to update a Computer view.
 
+**Agent settings.** In full desktop chats, the settings control on the right opens
+the selected agent's draft beside the conversation. The rail is hidden on phones
+and in compact chats; use the full agent editor there. Edit its name, short
+description, instructions, default model and existing capability switches, then
+choose **Save draft**.
+**Review and publish** validates the saved draft and opens the existing publication
+confirmation. Changing the default here does not clear a model override in Chat
+controls, and a running turn keeps its frozen configuration.
+
+Editing and publishing follow the server's access decision for this agent,
+including explicit resource grants. Read-only chats show settings without edit
+controls; workflow-owned agents remain configured in their workflow. Collapsing
+the pane or opening Browser, Computer or Files preserves unsaved edits for the
+selected agent. Save before switching agents or leaving the chat. Changes made
+elsewhere pause saving until you reload or choose to keep your edits.
+
 **Watching a browse.** The [web browser](reference/capabilities.md#browser-automation)
 appears in its own panel beside the transcript. Visited-page cards reopen the
 Browser panel and show the site icon, domain

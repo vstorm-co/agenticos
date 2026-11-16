@@ -45,7 +45,7 @@ export function BrowserPanel({
 }) {
   const openCallId = useBrowserPanelStore((state) => state.openCallId);
   const surface = useBrowserPanelStore((state) => state.surface);
-  if (surface === null || surface === "files") return null;
+  if (surface !== "browser" && surface !== "computer") return null;
   // The browse somebody opened, by id - never "the running one". A view that
   // followed whichever browse advanced last would swap page under a reader the
   // moment the other one moved.
