@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- Workflow record filters choose their column by name from the step's table instead of asking for a column id. The Record exists? and List records steps no longer offer a column list they never read; a stored narrowing stays visible so it can be cleared.
+
 ## [1.78.1] - 2026-11-16
 
 ### Added

@@ -74,6 +74,7 @@ import {
   McpToolField,
   useMcpToolSchema,
 } from "@/components/workflows/pickers/mcp-tool-picker";
+import { FilterColumnField } from "./filter-column-field";
 import { ReplyMailboxPicker } from "./reply-mailbox-picker";
 import { NotificationChannels } from "./notification-channels";
 import { FormPageForm } from "./form-page-form";
@@ -142,6 +143,11 @@ const MERGE = "logic.merge";
 const MCP_SERVER = "connection_id";
 const MCP_TOOL = "tool";
 const MCP_ARGUMENTS = "arguments";
+/** Table steps that only filter: they never read the table ref's `column_ids`. */
+const FILTER_ONLY_TABLE_STEPS: ReadonlySet<string> = new Set([
+  "table.record.exists",
+  "table.record.query",
+]);
 
 /** Optional in the API does not mean secondary in a person's task. */
 const PRIMARY_CONFIG: Readonly<Record<string, readonly string[]>> = {
@@ -343,6 +349,7 @@ function ResourcePin({
   value,
   error,
   disabled,
+  pinsColumns,
   onChange,
 }: {
   kind: ResourceKind;
@@ -352,6 +359,8 @@ function ResourcePin({
   value: unknown;
   error?: string;
   disabled?: boolean;
+  /** For a table: whether the step reads the columns its ref narrows to. */
+  pinsColumns: boolean;
   onChange: (value: unknown) => void;
 }) {
   if (kind === "group") {
@@ -386,6 +395,7 @@ function ResourcePin({
         disabled={disabled}
         error={error}
         storedOnly={schema["x-columns"] === "stored"}
+        pinsColumns={pinsColumns}
       />
     );
   }
@@ -499,9 +509,23 @@ function ConfigLeaf({
           value={value}
           error={error}
           disabled={ctx.disabled}
+          pinsColumns={!FILTER_ONLY_TABLE_STEPS.has(ctx.node.definition_id)}
           onChange={onChange}
         />
       </div>
+    );
+  }
+
+  if (name === "column_id" && path[0] === "filters") {
+    return (
+      <FilterColumnField
+        id={`cfg-${field.replace(/[^a-zA-Z0-9]+/g, "-")}`}
+        tableId={strOrNull(record(ctx.node.config["table"])["table_id"])}
+        value={value}
+        error={error}
+        disabled={ctx.disabled}
+        onChange={onChange}
+      />
     );
   }
 
