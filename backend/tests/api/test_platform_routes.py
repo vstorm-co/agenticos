@@ -1061,6 +1061,9 @@ def _required_permissions(route: RouteContext) -> frozenset[Perm]:
 # authorized even without a `require()` gate - and *must* be, for anything
 # acting on a single resource.
 RESOURCE_AWARE_SERVICES = (
+    # Room routing rechecks the signed-in member's room, project-edit policy
+    # authority and requester-only decisions before touching canonical Tasks.
+    deps.get_room_routing_service,
     deps.get_sharing_service,
     # Listing and revoking API keys act on the caller's own unless they hold
     # `api_keys:manage`; the service decides per key, and answers a key that is

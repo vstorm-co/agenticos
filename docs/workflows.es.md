@@ -1,5 +1,5 @@
 ---
-source_sha: "3dcf65276140"
+source_sha: "ebe2636bfc0c"
 ---
 
 # Workflows { #workflows }
@@ -533,6 +533,98 @@ Las líneas se conservan con su ejecución y se eliminan con ella cuando la rete
 historial elimina la ejecución (consulta [Ajustes del workflow](#workflow-settings)). Las
 lees en la [página Logs](#the-logs-page) o, por paso, en la vista de la ejecución.
 
+## Entradas multimedia y generación { #media-inputs-and-generation }
+
+Use **Asset** para inspeccionar una imagen, grabación de audio o vídeo existente,
+**Generate image** para crear una imagen y **Generate video** para crear un clip.
+Cada paso entrega una referencia de archivo tipada al siguiente. Asset lee
+archivos autorizados sin consultar ningún modelo. La generación llama al
+proveedor seleccionado y puede generar un cargo, incluso en un run de prueba.
+
+Los tres pasos están desactivados por defecto y el administrador de la
+instalación los activa por separado. Un paso desactivado no aparece en la
+paleta; un grafo guardado conserva su definición, pero no puede ejecutarlo. La
+[referencia de nodos](reference/workflow-nodes.md#asset-input) indica los ajustes
+de despliegue y las entradas y salidas tipadas.
+
+### Elegir archivo, modelo y clave del proveedor { #media-configuration }
+
+Vincule `file` de Asset con una entrada admitida del run o con un archivo
+producido por un paso anterior. Asset comprueba los bytes, tipo, dimensiones y
+duración reales dentro de sus límites. Un nombre de archivo o una URL no
+concede acceso. Vincule su salida `file` con la entrada opcional
+`reference_image` de un paso de generación solo si el modelo admite imágenes
+de entrada. Los archivos de audio y vídeo no pueden ocupar esa entrada.
+
+Elija proveedor y modelo en el catálogo de workflows y después una **clave API**
+de ámbito organizacional en el selector del Vault. Su propósito debe coincidir
+exactamente con el proveedor. No sirven una conexión personal, unas
+credenciales de navegador ni una clave con propósito `custom`. La creación
+desde el selector aplica los mismos requisitos. El run usa sus propios
+permisos y vuelve a comprobar la generación de autorización de la clave antes
+del envío y de publicar la salida.
+
+El modelo determina las opciones de tamaño, calidad, relación de aspecto,
+resolución, duración y sonido. Los valores predeterminados proceden del catálogo
+del servidor. El sonido opcional de vídeo está desactivado por defecto; el
+sonido o duración fijos se muestran como tales. La generación de imágenes
+OpenAI en workflows acepta inicialmente solo texto. GPT Image 2 no aparece
+hasta que exista un límite superior justificable de su coste de salida. Su
+configuración existente para agentes es independiente.
+
+### Revisar la reserva antes de ejecutar { #media-reservations }
+
+El editor pide al servidor una estimación de la configuración actual sin
+descifrar la clave ni contactar con el proveedor. Muestra la fecha de los
+precios, la reserva en USD y bytes de salida, y las suposiciones sobre límites
+de entrada y salida, el límite del prompt de la herramienta de imagen o la
+duración y tarifa del vídeo. Si el modelo elige su duración, se reserva su
+máximo. El límite de precio del sonido opcional cubre las solicitudes
+compatibles con sonido activado.
+
+Esta reserva conservadora aparta capacidad; no predice la factura. Puede
+superar ampliamente el coste de una solicitud corta habitual. Si
+`max_cost_usd` del paso es insuficiente, la estimación muestra el déficit.
+Reduzca la solicitud o revise el límite antes de ejecutar. El envío también
+comprueba los presupuestos restantes del workflow y la organización y las
+cuotas de archivos. Obtener una estimación válida no reserva capacidad ni
+omite esas comprobaciones posteriores.
+
+El registro del run separa los importes **reservados**, **incurridos** y
+**contabilizados**, e indica si el coste fue informado o estimado con el
+catálogo. Un máximo sin usar nunca se contabiliza como cargo. El trabajo de
+resultado desconocido conserva su reserva tras un timeout, vencimiento del
+lease, eliminación de la clave o un run posterior. Una imagen OpenAI puede
+estar guardada mientras sigue reservada la entrada no verificada de su
+herramienta nativa. Un prompt revisado devuelto no demuestra toda la entrada
+facturada. Las comprobaciones presupuestarias de los agentes también incluyen
+compromisos multimedia pendientes; los informes muestran cargos contabilizados.
+
+### Inspeccionar salidas y recuperar trabajo interrumpido { #media-recovery }
+
+Abra Files o la salida del paso para previsualizar o descargar un resultado
+guardado con los permisos habituales de archivos del run. El servidor verifica
+los bytes generados antes de publicar el archivo. El registro muestra la fase
+y si existe un comprobante del proveedor, sin revelar credenciales, respuestas
+del proveedor ni URL privadas de descarga. El total pendiente incluye
+operaciones anteriores de ese paso.
+
+La recuperación depende de las pruebas conservadas. **Collect existing**
+consulta el mismo trabajo del proveedor; **Recover output** devuelve el mismo
+archivo guardado. Ninguna inicia una generación nueva. Ambas siguen exigiendo
+permisos vigentes y la generación original de la clave. Un envío desconocido
+sin comprobante útil ni salida conservada necesita conciliación y no puede
+reenviarse dentro del mismo run. Cancelar localmente no garantiza cancelación
+ni reembolso por parte del proveedor.
+
+Un nuevo envío ofrecido explícitamente exige confirmar el posible cargo.
+**Retry from failed step** crea otro run: los pasos completados pueden
+reutilizar sus salidas, pero un paso de generación que se ejecute de nuevo
+puede generar otro cargo. Las reservas pendientes anteriores permanecen.
+Revise el registro antes de iniciar trabajo de reemplazo. Actualizar una
+vista previa o recoger un trabajo existente no requiere otro envío. Los runs
+con costes o bytes pendientes de reserva se conservan hasta su conciliación.
+
 ## Conexiones y scope de foreach { #connections-and-foreach-scope }
 
 Dibujas una arista conectando el puerto de salida de un nodo con el puerto de entrada
@@ -922,7 +1014,7 @@ paso aparecen debajo del paso.
 **Retry from failed step** inicia una ejecución nueva
 de la misma versión con la misma entrada, en la que cada paso que tuvo éxito
 entrega lo que entregó antes, así que solo se ejecutan el paso fallido y lo que no
-alcanzó, y una escritura nunca se hace dos veces. Un bucle vuelve a ejecutarse y
+alcanzó; los pasos completados reutilizan sus salidas confirmadas. Un bucle vuelve a ejecutarse y
 reutiliza los pasos de cada elemento que tuvieron éxito. **Debug in editor** fija
 en los pasos del borrador lo que cada paso fuera de un bucle entregó en esa
 ejecución, así que una ejecución de prueba empieza donde estaba aquella. Por la API,

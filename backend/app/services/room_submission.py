@@ -59,11 +59,15 @@ def cloud_agent(spec: AgentSpec) -> None:
 def fingerprint(request: RoomMessageCreate) -> str:
     # Existing accepted posts retain their exact digest after this additive
     # upgrade. A null root is the old main-room submission, not a new hash shape.
-    scope = (
+    scope: dict[str, object] = (
         {"thread_root_message_id": str(request.thread_root_message_id)}
         if request.thread_root_message_id is not None
         else {}
     )
+    if request.intent == "ask_lead":
+        scope.update(
+            intent=request.intent, expected_policy_revision=request.expected_policy_revision
+        )
     encoded = json.dumps(
         {
             "content": request.content,
@@ -167,15 +171,26 @@ class RoomSubmissionService:
             )
 
         version_id = None
-        if request.agent_id is not None:
+        agent_id = request.agent_id
+        if request.intent == "ask_lead":
+            from app.services.room_routing import RoomRoutingService
+
+            assert request.expected_policy_revision is not None, "validated Ask lead request"
+            agent_id, version_id = await RoomRoutingService(self.db).admit(
+                ctx,
+                conversation_id,
+                request.expected_policy_revision,
+            )
+        elif agent_id is not None:
             _, spec, version_id = await AgentRegistryService(self.db).get_runnable_spec(
-                ctx, request.agent_id
+                ctx, agent_id
             )
             cloud_agent(spec)
-            if await room_repo.active_count(self.db, conversation_id=conversation_id) >= MAX_ACTIVE:
-                raise AlreadyExistsError(
-                    message="This room already has fifty agent requests waiting"
-                )
+        if (
+            agent_id is not None
+            and await room_repo.active_count(self.db, conversation_id=conversation_id) >= MAX_ACTIVE
+        ):
+            raise AlreadyExistsError(message="This room already has fifty agent requests waiting")
         message = await self.conversations.add_message(
             conversation_id,
             MessageCreate(
@@ -198,12 +213,14 @@ class RoomSubmissionService:
                 message_id=message.id,
                 client_message_id=request.client_message_id,
                 fingerprint=digest,
-                agent_id=request.agent_id,
+                agent_id=agent_id,
                 version_id=version_id,
-                status="queued" if request.agent_id is not None else "posted",
+                intent=request.intent,
+                lead_policy_revision=request.expected_policy_revision,
+                status="queued" if agent_id is not None else "posted",
             ),
         )
-        if request.agent_id is not None:
+        if agent_id is not None:
             await self.queue(submission)
             announce_request(self.db, submission)
         spawn_after_commit(
@@ -250,6 +267,10 @@ class RoomSubmissionService:
         )
         cloud_agent(current_spec)
         cloud_agent(pinned_spec)
+        if submission.intent == "ask_lead":
+            from app.services.room_routing import RoomRoutingService
+
+            await RoomRoutingService(self.db).submission_policy(ctx, submission)
         message = await conversation_repo.get_message_by_id(self.db, submission.message_id)
         if (
             message is None
@@ -263,7 +284,9 @@ class RoomSubmissionService:
             content=message.content,
             reply_to_message_id=message.reply_to_message_id,
             thread_root_message_id=message.thread_root_message_id,
-            agent_id=submission.agent_id,
+            agent_id=None if submission.intent == "ask_lead" else submission.agent_id,
+            intent="ask_lead" if submission.intent == "ask_lead" else "message",
+            expected_policy_revision=submission.lead_policy_revision,
         )
         if fingerprint(saved) != submission.fingerprint:
             raise AlreadyExistsError(message="The original room message has changed")
@@ -280,6 +303,10 @@ class RoomSubmissionService:
             return None
         if submission.status not in {"running", "awaiting_approval", "awaiting_answer"}:
             raise AlreadyExistsError(message="This room request no longer owns its run")
+        if submission.intent == "ask_lead":
+            raise AlreadyExistsError(
+                message="Start a new Ask lead request instead of resuming a planning run"
+            )
         first = await room_repo.head(self.db, submission.conversation_id)
         if first is None or first.id != submission.id:
             raise AlreadyExistsError(message="This room request is not the room's current turn")

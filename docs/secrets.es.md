@@ -1,5 +1,5 @@
 ---
-source_sha: "f0b3009ed75d"
+source_sha: "dd968324d437"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -207,6 +207,16 @@ poder verla. El [registro de uso](ml-services.md#what-is-recorded) de cada
 transcripción nombra la clave con la que se envió. Consulta
 [a qué motor llega una grabación](ml-services.md#which-engine-a-recording-reaches).
 La lista de agents que usan una clave no muestra este uso.
+
+**Medios en workflows.** Los nodos de generación nombran una `api_key` del ámbito
+de la organización cuyo propósito coincide exactamente con el proveedor elegido.
+Al publicar se comprueban los metadatos sin descifrar la clave.
+`OrganizationSecretService.workflow_media_key` bloquea la fila y vuelve a cargarla,
+comprueba de nuevo el acceso actual del principal del run y la generación de
+autorización fijada para la operación, y solo entonces abre la clave para el
+adaptador de generación de confianza. Una rotación no puede sustituir de forma
+silenciosa otra credencial de pago durante la recuperación. El grafo y los
+comprobantes contienen ids y metadatos contables, nunca los valores de las claves.
 
 **Llamadas de voz.** La clave con la que se mantiene una
 [llamada de voz](voice.md) se nombra en la tarjeta Voice del agent, junto al

@@ -9,10 +9,12 @@ import type { TranscriptIdentity } from "./conversation-store";
 import { clientId } from "@/lib/ids";
 import type { ChatMessage, MessagePart, MessageReply, ToolCall } from "@/types";
 import type { RoomDraft } from "@/types/room";
+import type { RoomDecisionAttempt } from "@/types/room-routing";
 
 export const EMPTY_ROOM_DRAFT: RoomDraft = {
   content: "",
   agentId: null,
+  intent: "message",
   reply: null,
   attempt: null,
   sending: false,
@@ -144,6 +146,8 @@ export interface ChatState {
   replyTo: MessageReply | null;
   setReplyTo: (reply: MessageReply | null) => void;
   roomDrafts: Record<string, RoomDraft>;
+  roomDecisionAttempts: Record<string, RoomDecisionAttempt>;
+  setRoomDecisionAttempt: (key: string, attempt: RoomDecisionAttempt | null) => void;
   roomDraftGeneration: number;
   updateRoomDraft: (key: string, update: (draft: RoomDraft) => RoomDraft) => void;
   clearRoomDrafts: () => void;
@@ -235,6 +239,7 @@ const chatState: StateCreator<ChatState> = (set) => ({
   isStreaming: false,
   replyTo: null,
   roomDrafts: {},
+  roomDecisionAttempts: {},
   roomDraftGeneration: 0,
 
   addMessage: (message) =>
@@ -395,8 +400,19 @@ const chatState: StateCreator<ChatState> = (set) => ({
     set((state) => ({
       roomDrafts: { ...state.roomDrafts, [key]: update(state.roomDrafts[key] ?? EMPTY_ROOM_DRAFT) },
     })),
+  setRoomDecisionAttempt: (key, attempt) =>
+    set((state) => {
+      const roomDecisionAttempts = { ...state.roomDecisionAttempts };
+      if (attempt === null) delete roomDecisionAttempts[key];
+      else roomDecisionAttempts[key] = attempt;
+      return { roomDecisionAttempts };
+    }),
   clearRoomDrafts: () =>
-    set((state) => ({ roomDrafts: {}, roomDraftGeneration: state.roomDraftGeneration + 1 })),
+    set((state) => ({
+      roomDrafts: {},
+      roomDecisionAttempts: {},
+      roomDraftGeneration: state.roomDraftGeneration + 1,
+    })),
 });
 
 /** A copy of its own, for a conversation in a scope - see `ChatScope`. */

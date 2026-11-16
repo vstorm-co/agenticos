@@ -91,6 +91,16 @@ beforeEach(() => {
 });
 
 describe("SkillHistory", () => {
+  it("names applied browser teaching as its own version source", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.startsWith("/skills/s1/versions?")
+        ? { items: [version(3, { source: "browser_teaching" })], total: 1 }
+        : [],
+    );
+    mount();
+    expect(await screen.findByText("Browser teaching")).toBeVisible();
+  });
+
   it("names each version's source, author and the agents on it", async () => {
     mount();
 

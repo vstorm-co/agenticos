@@ -9,6 +9,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
 import { useCapabilityFieldCopy } from "@/components/agents/capability-field-copy";
 import { CouncilMembersField } from "@/components/agents/council-members-field";
+import { BrowserCredentialsField } from "@/components/agents/browser-credentials-field";
 import { SchemaForm } from "@/components/agents/schema-form";
 import { ContextHelp } from "@/components/ui/context-help";
 import {
@@ -334,7 +335,9 @@ export function CapabilityDetail({
               ? ["file_settings"]
               : binding.id === "council"
                 ? ["members"]
-                : undefined
+                : binding.id === "browser_use"
+                  ? ["browser_credential_ids"]
+                  : undefined
           }
           idPrefix={binding.id}
           schema={definition.config_schema}
@@ -354,6 +357,21 @@ export function CapabilityDetail({
           onChange={(members) => onChange({ ...binding, config: { ...binding.config, members } })}
         />
       )}
+
+      {binding.id === "browser_use" &&
+        !hideConfigForm &&
+        definition.config_schema?.properties?.browser_credential_ids &&
+        (keyed.config.connection ?? definition.config_schema.properties.connection?.default) ===
+          "built_in" && (
+          <BrowserCredentialsField
+            idPrefix={binding.id}
+            value={keyed.config.browser_credential_ids}
+            disabled={disabled || readOnly}
+            onChange={(browser_credential_ids) =>
+              onChange({ ...binding, config: { ...binding.config, browser_credential_ids } })
+            }
+          />
+        )}
 
       {/* Only when *this* configuration needs one. A capability offering a
             free provider and a paid one declares the requirement once and

@@ -1,17 +1,21 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { useId, useState } from "react";
 
 import {
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  Label,
 } from "@/components/ui";
 import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 import type { NodeDefinition, StepChoice, WorkflowNodeRunRead } from "@/lib/workflows/types";
+import { MediaRetryNotice } from "./media-operation-status";
 
 interface StepAttentionDialogProps {
   node: WorkflowNodeRunRead;
@@ -38,7 +42,21 @@ interface StepAttentionDialogProps {
  * write that may already have happened is run again at the risk of doing it twice; a
  * step that stopped waiting has nothing left to wake it.
  */
-export function StepAttentionDialog({
+export function StepAttentionDialog(props: StepAttentionDialogProps) {
+  return (
+    <StepAttentionChoices
+      key={JSON.stringify([
+        props.node.id,
+        props.node.media_operation?.operation_id,
+        props.node.media_operation?.retry_effect,
+        props.open,
+      ])}
+      {...props}
+    />
+  );
+}
+
+function StepAttentionChoices({
   node,
   stepName,
   definition,
@@ -50,6 +68,22 @@ export function StepAttentionDialog({
   busy,
 }: StepAttentionDialogProps) {
   const t = useTranslations("pages.workflows");
+  const [chargeAccepted, setChargeAccepted] = useState(false);
+  const acknowledgementId = useId();
+  const effect = node.media_operation?.retry_effect;
+  const requiresChargeConsent = effect === "new_billable_submission";
+  const cannotRetry =
+    effect === "none" ||
+    effect === "reconciliation_required" ||
+    (requiresChargeConsent && !chargeAccepted);
+  const retryLabel =
+    effect === "collect_existing"
+      ? "mediaRetryCollect"
+      : effect === "recover_output"
+        ? "mediaRetryRecover"
+        : requiresChargeConsent
+          ? "mediaRetrySubmit"
+          : "stepRunAgain";
   const reason =
     node.last_attempt_status === "uncertain" && definition?.effect_kind === "write"
       ? "stepResolveMayHaveHappened"
@@ -66,10 +100,24 @@ export function StepAttentionDialog({
           <DialogDescription>{t(reason, { step: stepName })}</DialogDescription>
         </DialogHeader>
         {node.late_output !== null && <p className="text-sm">{t("stepResolveLate")}</p>}
+        {effect !== undefined && <MediaRetryNotice effect={effect} />}
+        {requiresChargeConsent && (
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id={acknowledgementId}
+              checked={chargeAccepted}
+              disabled={busy}
+              onCheckedChange={(checked) => setChargeAccepted(checked === true)}
+            />
+            <Label htmlFor={acknowledgementId} className="text-sm leading-5">
+              {t("mediaRetryAcknowledge")}
+            </Label>
+          </div>
+        )}
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            <Button disabled={busy} onClick={choose("run_again")}>
-              {t("stepRunAgain")}
+            <Button disabled={busy || cannotRetry} onClick={choose("run_again")}>
+              {t(retryLabel)}
             </Button>
             {node.late_output !== null && (
               <Button variant="outline" disabled={busy} onClick={choose("use_late_result")}>

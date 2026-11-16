@@ -72,6 +72,31 @@ beforeEach(() => {
 });
 
 describe("TurnBrowses - a browse as a browser under its message", () => {
+  it.each([
+    [{ outputProtected: true }, "Protected browser"],
+    [{ credentialPlanId: "66666666-6666-4666-8666-666666666666" }, "Review destination"],
+  ] as const)(
+    "reopens %j without putting raw page identity on the transcript link",
+    async (flags, label) => {
+      render(
+        <BrowserCards
+          browses={[
+            browse({
+              ...flags,
+              navigable: true,
+              outcome: "done",
+              title: "PRIVATE OLD TITLE",
+              image: "data:image/jpeg;base64,OLD",
+            }),
+          ]}
+        />,
+      );
+      expect(screen.queryByText("PRIVATE OLD TITLE")).not.toBeInTheDocument();
+      expect(screen.queryByRole("img")).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: new RegExp(label) }));
+      expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+    },
+  );
   it("draws nothing for a turn that did not browse", () => {
     const { container } = render(<BrowserCards browses={[]} />);
     expect(container).toBeEmptyDOMElement();

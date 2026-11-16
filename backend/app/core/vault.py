@@ -36,7 +36,7 @@ import json
 import os
 from dataclasses import dataclass
 from enum import StrEnum
-from uuid import UUID
+from uuid import UUID, uuid5
 
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
@@ -62,6 +62,7 @@ class VaultScopeKind(StrEnum):
     ORGANIZATION = "org"
     USER = "user"
     DEPLOYMENT = "deployment"
+    BROWSER_MEMBER = "browser_member"
 
 
 @dataclass(frozen=True)
@@ -74,6 +75,9 @@ class VaultScope:
     has no `organization_id` at all, and a member may be in several
     organizations, so binding it to whichever one happened to be active when
     they added it would make the token unreadable after they switch.
+
+    Browser passwords use a separate member scope that also binds the organization.
+    Moving one to another tenant or changing its owner cannot transfer the credential.
     """
 
     kind: VaultScopeKind
@@ -86,6 +90,13 @@ class VaultScope:
     @classmethod
     def user(cls, user_id: UUID) -> VaultScope:
         return cls(kind=VaultScopeKind.USER, subject_id=user_id)
+
+    @classmethod
+    def browser_member(cls, organization_id: UUID, user_id: UUID) -> VaultScope:
+        """A browser credential belongs to this member in this organization only."""
+        return cls(
+            kind=VaultScopeKind.BROWSER_MEMBER, subject_id=uuid5(organization_id, str(user_id))
+        )
 
     @classmethod
     def deployment(cls) -> VaultScope:

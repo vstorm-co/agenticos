@@ -18,6 +18,8 @@ export { ApiError };
 export type UploadProgress = (fraction: number) => void;
 
 interface RequestOptions extends Omit<RequestInit, "body"> {
+  /** Explicit consent writes must be retried by the person, never by auth recovery. */
+  retryAfterRefresh?: boolean;
   /** Pairs allow a repeated key - FastAPI list params arrive as ?status=a&status=b. */
   params?: Record<string, string> | [string, string][];
   body?: unknown;
@@ -204,7 +206,7 @@ class ApiClient {
     endpoint: string,
     options: RequestOptions & { method: string },
   ): Promise<Response> {
-    const { params, body, onProgress, ...fetchOptions } = options;
+    const { params, body, onProgress, retryAfterRefresh = true, ...fetchOptions } = options;
 
     let url = `/api${endpoint}`;
 
@@ -254,7 +256,11 @@ class ApiClient {
     // Transparent 401 recovery: refresh once, then retry the request once.
     // Never on an endpoint whose 401 is the answer rather than an expired token,
     // and only a single time per call.
-    if (response.status === 401 && !NO_REFRESH_RETRY.has(endpoint.split("?", 1)[0] ?? endpoint)) {
+    if (
+      retryAfterRefresh &&
+      response.status === 401 &&
+      !NO_REFRESH_RETRY.has(endpoint.split("?", 1)[0] ?? endpoint)
+    ) {
       const refreshed = await refreshAccessToken();
       if (refreshed) {
         retriedAfterRefresh = true;

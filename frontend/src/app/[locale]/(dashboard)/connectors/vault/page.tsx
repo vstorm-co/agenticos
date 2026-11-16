@@ -23,19 +23,30 @@ import {
 import { ErrorState } from "@/components/states";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import { AddSecretDialog, RotateSecretDialog } from "@/components/vault/secret-dialog";
+import { BrowserCredentialPolicy } from "@/components/vault/browser-credential-policy";
+import { isBrowserSecretKind } from "@/components/vault/browser-secret-fields";
 import { useMcpOAuthOutcome, usePermissions, useSecretPurposes, useSecrets } from "@/hooks";
 import { useConnectedAccounts } from "@/hooks/use-connected-accounts";
 import { getErrorMessage } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
-import type { Secret } from "@/types/secrets";
+import type { Secret, StorableSecretKind } from "@/types/secrets";
+import { useAuthStore } from "@/stores/auth-store";
+import { useOrgStore } from "@/stores/org-store";
 import type { ConnectedAccount } from "@/types/mirage";
 import { cn } from "@/lib/utils";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 
 export default function VaultPage() {
+  const actor = useAuthStore((state) => state.user?.id);
+  const organization = useOrgStore((state) => state.activeOrgId);
+  return <VaultContent key={`${actor}:${organization}`} />;
+}
+
+function VaultContent() {
   const t = useTranslations("pages.vault");
   const ta = useTranslations("pages.vault.connectedAccounts");
   const tErrors = useTranslations("errors");
+  const tb = useTranslations("browserCredentials");
   const returnTo = usePathname();
   const {
     secrets,
@@ -62,6 +73,7 @@ export default function VaultPage() {
     ...(canViewOrganization ? [organization.error] : []),
   ].filter(Boolean);
   const [secretOpen, setSecretOpen] = useState(false);
+  const [secretKind, setSecretKind] = useState<StorableSecretKind | undefined>();
   const [rotating, setRotating] = useState<Secret | null>(null);
   const [sharing, setSharing] = useState<Secret | null>(null);
   const [disconnecting, setDisconnecting] = useState<ConnectedAccount | null>(null);
@@ -102,14 +114,48 @@ export default function VaultPage() {
         }
         actions={
           canCreate ? (
-            <Button
-              data-tour="vault-new"
-              disabled={secretsLoading}
-              onClick={() => setSecretOpen(true)}
-            >
-              <Plus className="size-4" />
-              {t("addKey")}
-            </Button>
+            <>
+              <Button
+                data-tour="vault-new"
+                disabled={secretsLoading}
+                onClick={() => {
+                  setSecretKind(undefined);
+                  setSecretOpen(true);
+                }}
+              >
+                <Plus className="size-4" />
+                {t("addKey")}
+              </Button>
+              {kinds.some((kind) => isBrowserSecretKind(kind.kind)) && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      aria-label={tb("browserCredentialMenu")}
+                      disabled={secretsLoading}
+                    >
+                      <ChevronDown className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {kinds
+                      .filter((kind) => isBrowserSecretKind(kind.kind))
+                      .map((kind) => (
+                        <DropdownMenuItem
+                          key={kind.kind}
+                          onSelect={() => {
+                            setSecretKind(kind.kind);
+                            setSecretOpen(true);
+                          }}
+                        >
+                          {tb(kind.kind === "browser_login" ? "addLogin" : "addProfile")}
+                        </DropdownMenuItem>
+                      ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </>
           ) : undefined
         }
       />
@@ -158,7 +204,14 @@ export default function VaultPage() {
         open={secretOpen}
         onOpenChange={setSecretOpen}
         kinds={kinds}
-        onSubmit={createSecret.mutateAsync}
+        kind={secretKind}
+        onSubmit={async (data) => {
+          try {
+            return await createSecret.mutateAsync(data);
+          } finally {
+            createSecret.reset();
+          }
+        }}
         isPending={createSecret.isPending}
       />
 
@@ -169,15 +222,20 @@ export default function VaultPage() {
         <DialogContent className={cn(DIALOG_SCROLL, DIALOG_FORM)}>
           <DialogHeader>
             <DialogTitle>{t("accessTo", { name: sharing?.name ?? "" })}</DialogTitle>
-            <DialogDescription>{t("whoCanBindKey")}</DialogDescription>
+            <DialogDescription>
+              {isBrowserSecretKind(sharing?.kind) ? tb("sharedUseHelp") : t("whoCanBindKey")}
+            </DialogDescription>
           </DialogHeader>
-          {sharing && (
-            <SharingPanel
-              resourceType="secret"
-              resourceId={sharing.id}
-              canManage={sharing.can_edit === true}
-            />
-          )}
+          {sharing &&
+            (isBrowserSecretKind(sharing.kind) ? (
+              <BrowserCredentialPolicy secret={sharing} />
+            ) : (
+              <SharingPanel
+                resourceType="secret"
+                resourceId={sharing.id}
+                canManage={sharing.can_edit === true}
+              />
+            ))}
         </DialogContent>
       </Dialog>
 
@@ -185,7 +243,13 @@ export default function VaultPage() {
         secret={rotating}
         onOpenChange={(open) => !open && setRotating(null)}
         kinds={kinds}
-        onSubmit={rotateSecret.mutateAsync}
+        onSubmit={async (data) => {
+          try {
+            return await rotateSecret.mutateAsync(data);
+          } finally {
+            rotateSecret.reset();
+          }
+        }}
         isPending={rotateSecret.isPending}
       />
     </div>

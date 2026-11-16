@@ -11,6 +11,7 @@ from uuid import UUID
 
 from pydantic import Field
 
+from app.core.browser_teaching import BrowserProcedure
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.resource_usage import ReachedAgent
 
@@ -49,6 +50,7 @@ class SkillProposalRead(BaseSchema, TimestampSchema):
         default=None,
         description="What wrote it - `workspace`, `improve` or `library`; null when not recorded",
     )
+    browser_procedure: BrowserProcedure | None = None
     authoring_request_id: UUID | None = Field(
         default=None,
         description=(

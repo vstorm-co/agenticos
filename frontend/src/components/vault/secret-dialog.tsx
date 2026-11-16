@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { KeyRound } from "lucide-react";
 import { toast } from "sonner";
 
@@ -9,6 +9,9 @@ import { ProviderIcon } from "@/components/vault/provider-icon";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { useChatGPTSignIn, useSecretPurposes } from "@/hooks";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/stores/auth-store";
+import { useOrgStore } from "@/stores/org-store";
+import { isBrowserSecretKind } from "./browser-secret-fields";
 
 import {
   SecretFields,
@@ -112,7 +115,13 @@ type PurposeCategory = (typeof PURPOSE_GROUPS)[number]["id"];
  * `api_key` where the code wants `aws_credentials` is refused at publish, and
  * that is a much later place to find out.
  */
-export function AddSecretDialog({
+export function AddSecretDialog(props: AddSecretDialogProps) {
+  const actor = useAuthStore((state) => state.user?.id);
+  const organization = useOrgStore((state) => state.activeOrgId);
+  return <AddSecretForm key={`${actor}:${organization}:${props.kind}:${props.open}`} {...props} />;
+}
+
+function AddSecretForm({
   open,
   onOpenChange,
   kinds,
@@ -124,6 +133,14 @@ export function AddSecretDialog({
 }: AddSecretDialogProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("vault");
+  const tb = useTranslations("browserCredentials");
+  const active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const { purposes } = useSecretPurposes();
   // `null` is "nobody has chosen yet", the same shape `name` below uses - and the
   // reason this is not seeded state plus an effect: the catalog is fetched, so on
@@ -161,7 +178,10 @@ export function AddSecretDialog({
   // The one shape nobody types: it is stored by signing in, and it is somebody's
   // own subscription - so it starts private, where every other key starts shared.
   const signsIn = effectiveKind === "openai_codex";
-  const visibility = chosenVisibility ?? (signsIn ? "private" : "org");
+  const browserCredential = isBrowserSecretKind(effectiveKind);
+  const visibility = browserCredential
+    ? "private"
+    : (chosenVisibility ?? (signsIn ? "private" : "org"));
   const pending = isPending || chatgpt.create.isPending;
   // What the field shows: what was typed, or the service's own name. Switching
   // from OpenAI to Anthropic with the field still reading "OpenAI" leaves a key
@@ -237,18 +257,26 @@ export function AddSecretDialog({
           value: toSecretPayload(effectiveKind, value),
           purpose: fixedKind === undefined ? (chosen?.id ?? "custom") : "custom",
           visibility,
+          ...(browserCredential ? { usage_scope: "personal" as const } : {}),
         });
       }
+      if (!active.current) return;
       onOpenChange(false);
       reset();
     } catch (error) {
+      if (!active.current) return;
       const failure = submitFailure(
         error,
         {
           fields: [
+            ...(browserCredential ? secretFieldNames(info.json_schema) : []),
             "name",
             "description",
-            ...(signsIn ? ["callback_url"] : secretFieldNames(info.json_schema)),
+            ...(signsIn
+              ? ["callback_url"]
+              : browserCredential
+                ? []
+                : secretFieldNames(info.json_schema)),
           ],
           identifiedBy: "name",
         },
@@ -269,9 +297,13 @@ export function AddSecretDialog({
       <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)} dismissible={!pending}>
         <DialogHeader>
           <DialogTitle>
-            {t(fixedKind === "smtp_account" ? "addSmtpAccount" : "addSecret")}
+            {browserCredential
+              ? tb(effectiveKind === "browser_login" ? "addLogin" : "addProfile")
+              : t(fixedKind === "smtp_account" ? "addSmtpAccount" : "addSecret")}
           </DialogTitle>
-          <DialogDescription>{t("encryptedBoundOrganizationAgent")}</DialogDescription>
+          <DialogDescription>
+            {browserCredential ? tb("personalOnly") : t("encryptedBoundOrganizationAgent")}
+          </DialogDescription>
         </DialogHeader>
 
         <div className={DIALOG_BODY}>
@@ -436,25 +468,27 @@ export function AddSecretDialog({
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="secret-visibility">{t("whoCanUse")}</Label>
-              <Select
-                value={visibility}
-                onValueChange={(next) => setVisibility(next as SecretVisibility)}
-              >
-                <SelectTrigger id="secret-visibility">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="org">{t("everyoneOrganization")}</SelectItem>
-                  <SelectItem value="private">{t("onlyMe")}</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-muted-foreground text-xs">
-                {visibility === "org" ? t("sharedAccountAnyoneHere") : t("yoursAloneYouCan")}{" "}
-                {t("eitherWayAgentRunsWithIt")}
-              </p>
-            </div>
+            {!browserCredential && (
+              <div className="space-y-2">
+                <Label htmlFor="secret-visibility">{t("whoCanUse")}</Label>
+                <Select
+                  value={visibility}
+                  onValueChange={(next) => setVisibility(next as SecretVisibility)}
+                >
+                  <SelectTrigger id="secret-visibility">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="org">{t("everyoneOrganization")}</SelectItem>
+                    <SelectItem value="private">{t("onlyMe")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-muted-foreground text-xs">
+                  {visibility === "org" ? t("sharedAccountAnyoneHere") : t("yoursAloneYouCan")}{" "}
+                  {t("eitherWayAgentRunsWithIt")}
+                </p>
+              </div>
+            )}
 
             <MoreOptions label={t("moreOptions")}>
               <FormField
@@ -508,7 +542,13 @@ interface RotateSecretDialogProps {
  * of shape with a 400, because a capability bound to an `api_key` cannot be
  * handed an AWS key pair by whoever happened to rotate it.
  */
-export function RotateSecretDialog({
+export function RotateSecretDialog(props: RotateSecretDialogProps) {
+  const actor = useAuthStore((state) => state.user?.id);
+  const organization = useOrgStore((state) => state.activeOrgId);
+  return <RotateSecretForm key={`${actor}:${organization}:${props.secret?.id}`} {...props} />;
+}
+
+function RotateSecretForm({
   secret,
   onOpenChange,
   kinds,
@@ -517,6 +557,14 @@ export function RotateSecretDialog({
 }: RotateSecretDialogProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("vault");
+  const tb = useTranslations("browserCredentials");
+  const active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const [value, setValue] = useState<Record<string, unknown>>({});
   const [callbackUrl, setCallbackUrl] = useState("");
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
@@ -526,6 +574,7 @@ export function RotateSecretDialog({
   // A ChatGPT sign-in is rotated by signing in again: there is no value to type,
   // and the grant a refused refresh left behind is the thing being replaced.
   const reconnects = secret?.kind === "openai_codex";
+  const browserCredential = isBrowserSecretKind(secret?.kind);
   const pending = isPending || chatgpt.reconnect.isPending;
   const complete =
     info !== null &&
@@ -551,9 +600,11 @@ export function RotateSecretDialog({
       } else {
         await onSubmit({ id: secret.id, value: toSecretPayload(secret.kind, value) });
       }
+      if (!active.current) return;
       onOpenChange(false);
       clear();
     } catch (error) {
+      if (!active.current) return;
       const fields = reconnects ? ["callback_url"] : secretFieldNames(info.json_schema);
       const failure = submitFailure(error, { fields }, tErrors);
       setErrors(failure.fields);
@@ -569,7 +620,11 @@ export function RotateSecretDialog({
             {t(reconnects ? "chatgptReconnectNamed" : "rotateNamed", { name: secret?.name ?? "" })}
           </DialogTitle>
           <DialogDescription>
-            {reconnects ? t("chatgptReconnectBody") : t("newValueReplacesOld")}
+            {browserCredential
+              ? tb("valuesHidden")
+              : reconnects
+                ? t("chatgptReconnectBody")
+                : t("newValueReplacesOld")}
           </DialogDescription>
         </DialogHeader>
 
@@ -577,10 +632,12 @@ export function RotateSecretDialog({
           <div className={DIALOG_BODY}>
             <fieldset disabled={pending} className="min-w-0 space-y-4">
               <legend className="sr-only">{t("rotate")}</legend>
-              <p className="text-muted-foreground text-xs">
-                {t("nameCurrentlyEnds", { name: info.name })}{" "}
-                <span className="font-mono">····{secret.hint}</span>
-              </p>
+              {!browserCredential && (
+                <p className="text-muted-foreground text-xs">
+                  {t("nameCurrentlyEnds", { name: info.name })}{" "}
+                  <span className="font-mono">····{secret.hint}</span>
+                </p>
+              )}
               {reconnects ? (
                 <ChatGPTSignInSteps
                   callbackUrl={callbackUrl}

@@ -1,5 +1,5 @@
 ---
-source_sha: "f0b3009ed75d"
+source_sha: "dd968324d437"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -205,6 +205,16 @@ klucz agenta podlega regule pożyczania — publikujący musi go widzieć.
 klucz, z którym ją wysłano. Zobacz
 [do którego silnika trafia nagranie](ml-services.md#which-engine-a-recording-reaches).
 Lista agentów używających klucza nie pokazuje tego użycia.
+
+**Media w workflowach.** Węzły generowania wskazują klucz `api_key` należący do
+organizacji, którego przeznaczenie dokładnie odpowiada wybranemu dostawcy.
+Publikacja sprawdza metadane bez odszyfrowywania klucza.
+`OrganizationSecretService.workflow_media_key` blokuje wiersz i odczytuje go
+ponownie, sprawdza bieżące uprawnienia zleceniodawcy runu oraz utrwaloną dla
+operacji generację autoryzacji, a dopiero potem otwiera klucz dla zaufanego
+adaptera generowania. Rotacja nie może podczas odzyskiwania niepostrzeżenie
+podstawić innego płatnego poświadczenia. Graf i potwierdzenia zawierają
+identyfikatory oraz metadane rozliczeń, nigdy wartości kluczy.
 
 **Rozmowy głosowe.** Klucz, z którym prowadzona jest
 [rozmowa głosowa](voice.md), jest wskazany na karcie Głos (Voice) agenta, obok

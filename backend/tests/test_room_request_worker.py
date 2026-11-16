@@ -27,6 +27,7 @@ def work(monkeypatch: pytest.MonkeyPatch):
         requester_id=uuid4(),
         message_id=uuid4(),
         ordinal=1,
+        intent="message",
         agent_id=uuid4(),
         version_id=uuid4(),
         status="queued",
@@ -132,6 +133,32 @@ async def test_deleted_requests_never_start(work) -> None:
     work.get.return_value = None
     await module.run_request(work.job)
     work.execute.assert_not_called()
+
+
+@pytest.mark.security
+async def test_only_explicit_ask_lead_injects_the_run_only_planning_capability(work, monkeypatch):
+    work.row.intent = "ask_lead"
+    planning = object()
+    planner = AsyncMock(return_value=planning)
+    monkeypatch.setattr(
+        module, "RoomRoutingService", MagicMock(return_value=SimpleNamespace(planner=planner))
+    )
+    await module.run_request(work.job)
+    planner.assert_awaited_once_with(work.row)
+    assert work.execute.await_args.kwargs["room_lead"] is planning
+    assert work.execute.await_args.args[0] == work.ctx
+
+
+@pytest.mark.security
+async def test_changed_lead_policy_is_refused_before_any_model_call(work, monkeypatch):
+    work.row.intent = "ask_lead"
+    planner = AsyncMock(side_effect=AlreadyExistsError(message="Room policy changed"))
+    monkeypatch.setattr(
+        module, "RoomRoutingService", MagicMock(return_value=SimpleNamespace(planner=planner))
+    )
+    await module.run_request(work.job)
+    assert work.row.status == "failed"
+    work.execute.assert_not_awaited()
 
 
 async def test_busy_room_defers_without_spending_or_churning_new_jobs(work, monkeypatch) -> None:

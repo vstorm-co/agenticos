@@ -3,6 +3,7 @@ import {
   AGENT_BUILDER,
   DATASET_DETAIL,
   SKILL_DETAIL,
+  BROWSER_TEACHING_DETAIL,
   EVAL_RUN,
   IMPROVEMENT,
   IMPROVEMENT_START,
@@ -55,7 +56,8 @@ export type FlowId =
   | "first-improvement"
   | "improvement-session"
   | "first-skill-improvement"
-  | "skill-improvement-session";
+  | "skill-improvement-session"
+  | "review-browser-teaching";
 
 /**
  * A resource whose *appearance* ends a step. It is the react-query list the coach
@@ -815,6 +817,29 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       ...skillDialogSteps(ROUTES.SKILLS),
     ],
   },
+  "review-browser-teaching": {
+    id: "review-browser-teaching",
+    steps: [
+      {
+        id: "flow-teaching-review",
+        page: BROWSER_TEACHING_DETAIL,
+        target: "teaching-review",
+        optional: true,
+      },
+      {
+        id: "flow-teaching-draft",
+        page: BROWSER_TEACHING_DETAIL,
+        target: "teaching-draft",
+        optional: true,
+      },
+      {
+        id: "flow-teaching-proposal",
+        page: BROWSER_TEACHING_DETAIL,
+        target: "teaching-proposal",
+        optional: true,
+      },
+    ],
+  },
   "create-kb": {
     id: "create-kb",
     permission: Perm.collectionsEdit,
@@ -1398,6 +1423,8 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
  */
 export function flowForPage(pageId: string, systemAgent = false): FlowId | null {
   switch (pageId) {
+    case BROWSER_TEACHING_DETAIL:
+      return "review-browser-teaching";
     case IMPROVEMENT_START:
       return "first-improvement";
     case IMPROVEMENT:

@@ -20,6 +20,7 @@ export function BrowserTabs({
   children?: ReactNode;
 }) {
   const t = useTranslations("chat");
+  const credentials = useTranslations("browserCredentials");
   const strip = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const list = strip.current;
@@ -61,7 +62,11 @@ export function BrowserTabs({
             key={tab.callId}
             aria-selected={tab.callId === selected}
             tabIndex={tab.callId === selected ? 0 : -1}
-            title={tab.title || tab.url || undefined}
+            title={
+              tab.outputProtected
+                ? credentials("protectedTitle")
+                : tab.title || tab.url || undefined
+            }
             onClick={() => onSelect(tab)}
             className={cn(
               "flex max-w-44 min-w-0 shrink-0 items-center gap-2 rounded-lg px-2.5 py-2 text-xs transition-colors",
@@ -71,7 +76,11 @@ export function BrowserTabs({
             )}
           >
             <Globe className="size-3.5 shrink-0" aria-hidden />
-            <span className="truncate">{tab.title || hostOf(tab.url) || t("browserHeading")}</span>
+            <span className="truncate">
+              {tab.outputProtected
+                ? credentials("protectedTitle")
+                : tab.title || hostOf(tab.url) || t("browserHeading")}
+            </span>
           </button>
         ))}
       </div>

@@ -39,6 +39,8 @@ export interface RoomMessageCreate {
   thread_root_message_id?: string | null;
   /** Omitted for a human-only message; resource mentions never select a responder. */
   agent_id?: string | null;
+  intent?: "message" | "ask_lead";
+  expected_policy_revision?: number;
 }
 
 export interface RoomMessageResult {
@@ -57,6 +59,7 @@ export interface RoomThreadPage {
 export interface RoomDraft {
   content: string;
   agentId: string | null;
+  intent: "message" | "ask_lead";
   reply: MessageReply | null;
   attempt: { input: RoomMessageCreate; reply: MessageReply | null } | null;
   sending: boolean;

@@ -9,8 +9,10 @@ import { useAgents } from "@/hooks/use-agents";
 import { useProject } from "@/hooks/use-projects";
 import { useRoomRequests } from "@/hooks/use-room";
 import { useRoomDraft } from "@/hooks/use-room-draft";
+import { useRoomLeadPolicy } from "@/hooks/use-room-routing";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Agent } from "@/types/agents";
+import type { RoomLeadPolicy } from "@/types/room-routing";
 import { ReplyingTo, ReplyQuote } from "./reply-quote";
 import { TeamRoomQueue } from "./team-room-queue";
 import { roomResponders, TeamRoomResponder } from "./team-room-responder";
@@ -43,6 +45,7 @@ export function RoomComposer({
   const t = useTranslations("chat.teamRoom");
   const tErrors = useTranslations("errors");
   const requests = useRoomRequests(conversationId);
+  const leadPolicy = useRoomLeadPolicy(conversationId);
   const { project, isLoading: loadingProject } = useProject(projectId);
   const { agents } = useAgents();
   const canPost = !readOnly && !requests.isError && requests.data?.can_post === true;
@@ -86,6 +89,7 @@ export function RoomComposer({
       ) : (
         <TeamRoomForm
           draft={draft}
+          leadPolicy={leadPolicy.data}
           agents={roomResponders(agents)}
           onTyping={onTyping}
           actionsSlot={actionsSlot}
@@ -105,16 +109,22 @@ function TeamRoomForm({
   onTyping,
   actionsSlot,
   inThread,
+  leadPolicy,
 }: {
   draft: ReturnType<typeof useRoomDraft>;
   agents: readonly Agent[];
   onTyping: () => void;
   actionsSlot?: ReactNode;
   inThread: boolean;
+  leadPolicy?: RoomLeadPolicy;
 }) {
   const t = useTranslations("chat.teamRoom");
   const thread = useTranslations("chat.roomThread");
-  const available = draft.agentId === null || agents.some((agent) => agent.id === draft.agentId);
+  const routing = useTranslations("chat.roomRouting");
+  const askingLead = draft.intent === "ask_lead";
+  const available = askingLead
+    ? leadPolicy?.can_ask === true
+    : draft.agentId === null || agents.some((agent) => agent.id === draft.agentId);
   const canSend =
     !draft.sending && draft.content.trim().length > 0 && (draft.retrying || available);
   return (
@@ -122,7 +132,7 @@ function TeamRoomForm({
       data-tour="chat-team-composer"
       onSubmit={(event) => {
         event.preventDefault();
-        if (canSend) void draft.submit();
+        if (canSend) void draft.submit(leadPolicy?.can_ask ? leadPolicy.revision : undefined);
       }}
       className="panel composer-box min-w-0 rounded-2xl p-3 sm:p-4"
     >
@@ -141,7 +151,7 @@ function TeamRoomForm({
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
-            if (canSend) void draft.submit();
+            if (canSend) void draft.submit(leadPolicy?.can_ask ? leadPolicy.revision : undefined);
           }
         }}
         aria-label={inThread ? thread("message") : t("message")}
@@ -162,6 +172,9 @@ function TeamRoomForm({
           value={draft.agentId}
           onChange={draft.setAgentId}
           disabled={draft.locked}
+          leadPolicy={leadPolicy}
+          askLead={askingLead}
+          onAskLead={draft.setAskLead}
         />
         <div className="flex items-center gap-2">
           {actionsSlot}
@@ -171,13 +184,20 @@ function TeamRoomForm({
               ? t("posting")
               : draft.retrying
                 ? t("retryPost")
-                : inThread
-                  ? thread("post")
-                  : t("post")}
+                : askingLead
+                  ? routing("askLead")
+                  : inThread
+                    ? thread("post")
+                    : t("post")}
           </Button>
         </div>
       </div>
       <p className="text-muted-foreground mt-2 text-xs">{t("responderHint")}</p>
+      {askingLead && (
+        <p className="text-muted-foreground mt-1 text-xs">
+          {routing(leadPolicy?.lead?.current === false ? "pinnedLeadHint" : "askLeadHint")}
+        </p>
+      )}
     </form>
   );
 }

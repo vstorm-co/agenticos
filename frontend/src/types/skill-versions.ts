@@ -7,6 +7,7 @@
  */
 
 import type { AgentCheckState } from "./skill-checks";
+import type { BrowserProcedure } from "./browser-teaching";
 
 export type SkillVersionSource =
   | "backfill"
@@ -16,6 +17,7 @@ export type SkillVersionSource =
   | "library"
   | "workspace"
   | "improve"
+  | "browser_teaching"
   | "restore"
   /** A fork took main's changes in. */
   | "catch_up"
@@ -61,6 +63,8 @@ export interface SkillVersionRead extends SkillVersionSummary {
   description: string;
   content: string;
   resources: SkillVersionResource[];
+  /** Provenance is bound to this applied version; ordinary edits and restores clear it. */
+  browser_procedure?: BrowserProcedure | null;
 }
 
 export interface SkillVersionList {

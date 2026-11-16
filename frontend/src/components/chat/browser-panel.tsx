@@ -9,7 +9,13 @@ import { isDesktopShell } from "@/lib/desktop/shell";
 import { NativeBrowser } from "./native-browser";
 import { BrowserPanelFrame } from "./browser-panel-frame";
 import { useLiveBrowse } from "@/hooks/use-live-browse";
-import { isRunning, latestBrowserTabs, withLivePreview, type Browse } from "@/lib/browse";
+import {
+  isRunning,
+  latestBrowserTabs,
+  withLivePreview,
+  type Browse,
+  type BrowserProtection,
+} from "@/lib/browse";
 import { useBrowserPanelStore, type BrowseSurface } from "@/stores/browser-panel-store";
 import {
   browseSurface,
@@ -27,6 +33,7 @@ const NO_SURFACES: ReadonlyMap<string, BrowseSurface> = new Map();
 /** One selected browse beside the chat, or full screen when space is limited. */
 export function BrowserPanel({
   browses,
+  onProtected,
   onComment,
   onResume,
   surfaces = NO_SURFACES,
@@ -35,6 +42,7 @@ export function BrowserPanel({
   panelId,
 }: {
   browses: Browse[];
+  onProtected?: (protection: BrowserProtection) => void;
   onResume?: () => void;
   /** Where a comment on the page goes - the conversation's composer. */
   onComment?: (comment: PageComment) => void;
@@ -70,6 +78,7 @@ export function BrowserPanel({
       key={streamed.callId}
       panelId={panelId}
       streamed={streamed}
+      onProtected={onProtected}
       tabs={tabs}
       onComment={onComment}
       onResume={onResume}
@@ -82,6 +91,7 @@ export function BrowserPanel({
 /** A stable selected browse; changing layout keeps its socket and native page mounted. */
 function OpenBrowser({
   streamed,
+  onProtected,
   tabs,
   onComment,
   onResume,
@@ -90,6 +100,7 @@ function OpenBrowser({
   panelId,
 }: {
   streamed: Browse;
+  onProtected?: (protection: BrowserProtection) => void;
   tabs: Browse[];
   onResume?: () => void;
   onComment?: (comment: PageComment) => void;
@@ -102,9 +113,15 @@ function OpenBrowser({
   const shell = useShell();
   const t = useTranslations("browse");
   const chat = useTranslations("chat");
+  const credentials = useTranslations("browserCredentials");
   const workspace = useTranslations("chat.workspace");
   const running = isRunning(streamed);
-  const live = useLiveBrowse(streamed.runId ?? "", streamed.callId, Boolean(streamed.runId));
+  const live = useLiveBrowse(
+    streamed.runId ?? "",
+    streamed.callId,
+    Boolean(streamed.runId),
+    onProtected,
+  );
   // The chat owns completion; the live view supplies its cached final picture.
   const mine = running && live.browse?.callId === streamed.callId;
   const browse = withLivePreview(streamed, live.browse);
@@ -129,7 +146,12 @@ function OpenBrowser({
     <BrowserPanelFrame id={panelId} label={workspace(surface)} resizeLabel={workspace("resize")}>
       {({ fullscreen, toggleFullscreen }) => {
         const content = (() => {
-          if (browse.nativeId && isDesktopShell(shell) && shell.window === "main")
+          if (
+            !browse.outputProtected &&
+            browse.nativeId &&
+            isDesktopShell(shell) &&
+            shell.window === "main"
+          )
             return (
               <NativeBrowser
                 id={browse.nativeId}
@@ -138,7 +160,7 @@ function OpenBrowser({
                 onToggleFullscreen={toggleFullscreen}
               />
             );
-          if (browse.nativeId)
+          if (!browse.outputProtected && browse.nativeId)
             return (
               <div className="flex h-full flex-col items-center justify-center gap-4 p-6">
                 <p>{t("nativeDesktopOnly")}</p>
@@ -152,6 +174,7 @@ function OpenBrowser({
               key={streamed.callId}
               waitForFit
               browse={browse}
+              onProtected={live.protect}
               surface={surface}
               control={
                 mine && live.status === "live"
@@ -161,7 +184,7 @@ function OpenBrowser({
               maximized={fullscreen}
               onMaximize={toggleFullscreen}
               maximizeLabel={chat(fullscreen ? "browserDock" : "browserMaximize")}
-              onClose={close}
+              onClose={browse.outputProtected && tabs.length > 0 ? undefined : close}
               newTabHref={
                 streamed.runId ? `/browse/${streamed.runId}/${streamed.callId}` : undefined
               }
@@ -205,8 +228,10 @@ function OpenBrowser({
                 )}
                 <button
                   type="button"
-                  aria-label={chat("browserClose")}
-                  title={chat("browserClose")}
+                  aria-label={
+                    browse.outputProtected ? credentials("closeView") : chat("browserClose")
+                  }
+                  title={browse.outputProtected ? credentials("closeView") : chat("browserClose")}
                   onClick={close}
                   className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-7 shrink-0 items-center justify-center rounded-md"
                 >

@@ -13,6 +13,8 @@ attempts and live called runs, not kept as a counter, so nothing has to be
 released and a crash cannot leak one. The flip side is accepted: when an attempt's
 lease expires its hold ends while its handler may still be spending, so the total can
 overshoot the cap by up to that hold - and the overshoot is booked, so it heals.
+Paid media adds a durable journal hold that survives that expiry. Only the part
+already covered by its matching in-flight attempt is excluded from the extra hold.
 """
 
 from datetime import datetime
@@ -27,8 +29,9 @@ from app.agents.capabilities.budget import BudgetScope, SpendLimit
 from app.db.models.workflow_run import WorkflowRun
 from app.db.session import get_worker_db_context
 from app.repositories import organization_repo
+from app.repositories import workflow_media_operation as media_repo
 from app.repositories import workflow_run as workflow_run_repo
-from app.services.spend import organization_monthly_spend
+from app.services.spend import month_start, organization_budget_usage_since
 
 
 def over_budget(run: WorkflowRun) -> bool:
@@ -72,6 +75,9 @@ async def unreserved(db: AsyncSession, run: WorkflowRun) -> Decimal | None:
         return None
     held = await workflow_run_repo.sum_in_flight_reservations(db, workflow_run_id=run.id)
     held += await workflow_run_repo.sum_live_child_reservations(db, workflow_run_id=run.id)
+    held += await media_repo.outstanding_usd(
+        db, organization_id=run.organization_id, workflow_run_id=run.id, uncovered_only=True
+    )
     return max(Decimal(0), run.budget_limit - total_cost(run) - held)
 
 
@@ -145,7 +151,7 @@ async def provider_limits(
 
         async def period_spend() -> Decimal:
             async with get_worker_db_context() as opened:
-                return await organization_monthly_spend(opened, organization_id)
+                return await organization_budget_usage_since(opened, organization_id, month_start())
 
         limits.append(
             SpendLimit(

@@ -29,7 +29,10 @@ export default function LiveBrowsePage({ params }: PageProps) {
   const { runId, callId } = use(params);
   const t = useTranslations("browse");
   const ts = useTranslations("states");
-  const { browse, task, canControl, canRemember, status, send } = useLiveBrowse(runId, callId);
+  const { browse, task, canControl, canRemember, status, send, protect } = useLiveBrowse(
+    runId,
+    callId,
+  );
 
   if (status === "gone" || status === "forbidden" || status === "unavailable") {
     return (
@@ -68,17 +71,24 @@ export default function LiveBrowsePage({ params }: PageProps) {
         className="mb-0 md:mb-0"
         title={t("title")}
         description={
-          <>
-            <span className="line-clamp-2">{task || browse.goal}</span>
-            {isRunning(browse) && !canControl && (
-              <span className="mt-1 block text-xs">{t("watchOnly")}</span>
-            )}
-          </>
+          browse.outputProtected ? undefined : (
+            <>
+              <span className="line-clamp-2">{task || browse.goal}</span>
+              {isRunning(browse) && !canControl && (
+                <span className="mt-1 block text-xs">{t("watchOnly")}</span>
+              )}
+            </>
+          )
         }
       />
       {/* The same window the chat draws under a message, given the page. */}
       <div className="border-border bg-background min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-2xl border shadow-sm">
-        <BrowserWindow waitForFit browse={browse} control={{ canControl, canRemember, send }} />
+        <BrowserWindow
+          waitForFit
+          browse={browse}
+          control={{ canControl, canRemember, send }}
+          onProtected={protect}
+        />
       </div>
     </div>
   );

@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import (
     Auth,
+    DBSession,
     WorkflowPortableSvc,
     WorkflowRegistrySvc,
     WorkflowStatsSvc,
@@ -45,8 +46,10 @@ from app.schemas.workflow import (
     WorkflowVersionList,
     WorkflowVersionRestore,
 )
+from app.schemas.workflow_media import WorkflowMediaEstimateRead, WorkflowMediaEstimateRequest
 from app.schemas.workflow_portable import WorkflowExport, WorkflowImported
 from app.schemas.workflow_stats import WorkflowsSummary, WorkflowStats
+from app.services.workflow_media_read import WorkflowMediaReadService
 
 router = APIRouter(dependencies=[PUBLIC])
 
@@ -59,6 +62,16 @@ router = APIRouter(dependencies=[PUBLIC])
 async def list_node_catalog(service: WorkflowRegistrySvc) -> Any:
     """Every registered node type, for the editor's palette."""
     return await service.node_catalog()
+
+
+@router.post(
+    "/media-estimate",
+    response_model=WorkflowMediaEstimateRead,
+    dependencies=[Depends(require(Perm.WORKFLOWS_VIEW))],
+)
+async def estimate_media(data: WorkflowMediaEstimateRequest, db: DBSession, ctx: Auth) -> Any:
+    """A current catalog reservation; no credential unwrap, provider call, or mutation."""
+    return await WorkflowMediaReadService(db).estimate(ctx, data)
 
 
 @router.get("", response_model=WorkflowList, dependencies=[Depends(require(Perm.WORKFLOWS_VIEW))])

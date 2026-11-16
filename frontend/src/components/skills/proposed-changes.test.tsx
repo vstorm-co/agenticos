@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ProposedChanges } from "./proposed-changes";
 import type { SkillChangeRecord } from "@/lib/skill-changes-api";
+import { browserProcedureFixture } from "@/test-utils/browser-teaching";
 
 const state = vi.hoisted(() => ({
   runsView: true,
@@ -69,6 +70,40 @@ beforeEach(() => {
 });
 
 describe("ProposedChanges", () => {
+  it("shows teaching provenance only after opening the draft, with a separate Apply decision", async () => {
+    state.changes = [
+      change({
+        skill_id: null,
+        conversation_id: null,
+        source: "browser_teaching",
+        browser_procedure: browserProcedureFixture(),
+      }),
+    ];
+    render(<ProposedChanges canEdit />);
+    expect(screen.queryByRole("region", { name: "Browser procedure" })).toBeNull();
+    expect(state.apply).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: /Show what changed in refunds/ }));
+    expect(screen.getByRole("region", { name: "Browser procedure" })).toHaveTextContent(
+      "Its website outcome has not been independently verified.",
+    );
+    expect(screen.queryByRole("link", { name: /Read the conversation/ })).toBeNull();
+    expect(state.apply).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: /Apply the change to refunds/ }));
+    expect(state.apply).toHaveBeenCalledWith(expect.objectContaining({ id: "p-1", revision: 1 }));
+  });
+
+  it("keeps a teaching edit behind the existing agent-check authority and accepts absent metadata", async () => {
+    state.changes = [change({ source: "browser_teaching", browser_procedure: null })];
+    render(<ProposedChanges canEdit />);
+    await userEvent.click(screen.getByRole("button", { name: /Show what changed in refunds/ }));
+    expect(screen.queryByRole("region", { name: "Browser procedure" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Apply the change to refunds/ })).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: /Check the change to refunds on the agents/ }),
+    );
+    expect(screen.getByText("checking p-1 on main")).toBeVisible();
+  });
+
   it("says nothing at all to somebody who may not decide", () => {
     // Every route behind this is gated on skills:edit, so a panel of buttons
     // that answer 403 is worse than no panel.

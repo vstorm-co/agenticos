@@ -3,7 +3,7 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
-import type { Browse } from "@/lib/browse";
+import type { Browse, BrowserProtection } from "@/lib/browse";
 import { workspaceStartReason, type WorkspaceStartAccess } from "@/lib/workspace-panels";
 import { useAuthStore } from "@/stores/auth-store";
 import { useOrgStore } from "@/stores/org-store";
@@ -26,6 +26,7 @@ interface WorkspacePanelsProps {
   agentUsesLocalTools: boolean;
   conversationId: string | null;
   browses: Browse[];
+  onBrowserProtected?: (protection: BrowserProtection) => void;
   surfaces: ReadonlyMap<string, BrowseSurface>;
   revision: number;
   attachments: ChatMessageFile[];
@@ -122,6 +123,7 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
       <BrowserPanel
         panelId={surface === "computer" ? panelIds.computer : panelIds.browser}
         browses={props.loading ? [] : props.browses}
+        onProtected={props.onBrowserProtected}
         surfaces={props.surfaces}
         access={access}
         onStart={start}

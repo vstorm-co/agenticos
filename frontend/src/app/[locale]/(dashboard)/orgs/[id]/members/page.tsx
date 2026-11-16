@@ -80,6 +80,7 @@ import { useOrgStore } from "@/stores";
 import { useAssistant } from "@/hooks/use-assistant";
 import { OrganizationProfileSettings } from "@/components/teams/organization-profile-settings";
 import { useTenantId } from "@/hooks/use-organizations";
+import { BrowserTeachingPolicy } from "@/components/browser/browser-teaching-policy";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -577,6 +578,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           {org && <OrgApprovalWaiver org={org} />}
           {org && <OrgPublicAttribution org={org} />}
           {org && <OrgPublicLiveData org={org} />}
+          {org && <BrowserTeachingPolicy />}
         </TabsContent>
         <TabsContent
           value="proactivity"

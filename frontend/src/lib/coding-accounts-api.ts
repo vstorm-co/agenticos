@@ -16,6 +16,7 @@ export interface ProviderUsageWindow {
   limit: number | null;
   unit: string | null;
   resets_at: string | null;
+  window_duration_minutes?: number | null;
 }
 export interface ProviderUsageSnapshot {
   status: ProviderUsageStatus;
@@ -25,6 +26,21 @@ export interface ProviderUsageSnapshot {
   source: "provider_api" | "native_runtime" | "unavailable";
   windows: ProviderUsageWindow[];
   reason_code: string | null;
+}
+export interface ProviderModelCatalog {
+  status: "advertised" | "unknown";
+  source: "native_runtime" | "unavailable";
+  observed_at: string | null;
+  valid_until: string | null;
+  model_ids: string[];
+  reason_code: string | null;
+}
+export interface CodingAccountUsage {
+  account_id: string;
+  generation: string;
+  usage: ProviderUsageSnapshot;
+  model_catalog: ProviderModelCatalog;
+  refresh_pending: boolean;
 }
 export interface CodingAccount {
   id: string;
@@ -36,6 +52,8 @@ export interface CodingAccount {
   is_default: boolean;
   pool_member: boolean;
   usage: ProviderUsageSnapshot;
+  model_catalog: ProviderModelCatalog;
+  usage_refresh_pending: boolean;
 }
 export interface CodingAccountInput {
   harness: CodingHarness;
@@ -51,6 +69,12 @@ export interface CodingAccountChange {
 
 export const listCodingAccounts = () =>
   apiClient.get<{ items: CodingAccount[] }>("/coding-accounts");
+export const readCodingAccountUsage = (id: string) =>
+  apiClient.get<CodingAccountUsage>(`/coding-accounts/${id}/usage`);
+export const refreshCodingAccountUsage = (account: Pick<CodingAccount, "id" | "generation">) =>
+  apiClient.post<CodingAccountUsage>(`/coding-accounts/${account.id}/usage/refresh`, {
+    generation: account.generation,
+  });
 export const connectCodingAccount = (data: CodingAccountInput) =>
   apiClient.post<CodingAccount>("/coding-accounts", data);
 export const enableCodingAccount = (account: CodingAccount) =>

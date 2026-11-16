@@ -14,6 +14,7 @@ import { isDesktopShell } from "@/lib/desktop/shell";
 import { getErrorMessage } from "@/lib/api-error";
 import type { CodingHarness } from "@/lib/coding-accounts-api";
 import { CodingAccountConnect } from "./coding-account-connect";
+import { CodingAccountUsage } from "./coding-account-usage";
 
 const HARNESSES: readonly CodingHarness[] = ["claude_code", "codex"];
 
@@ -69,6 +70,12 @@ function CodingAccountList({ harnesses }: { harnesses: readonly CodingHarness[] 
         cta={{ label: t("retry"), onClick: () => void actions.accounts.refetch() }}
       />
     );
+  if (actions.accounts.isLoading)
+    return (
+      <p role="status" className="text-muted-foreground py-3 text-sm">
+        {t("loading")}
+      </p>
+    );
   return (
     <>
       <ul className="divide-border divide-y">
@@ -94,13 +101,13 @@ function CodingAccountList({ harnesses }: { harnesses: readonly CodingHarness[] 
                 {t("connect")}
               </Button>
               {accounts.length > 0 ? (
-                <ul className="divide-border ml-12 divide-y">
+                <ul className="divide-border divide-y sm:ml-12">
                   {accounts.map((account) => (
                     <li
                       key={account.id}
                       className="flex flex-wrap items-center justify-between gap-3 py-3"
                     >
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1 basis-64">
                         <p className="text-sm font-medium">{account.label}</p>
                         <div className="mt-1 flex flex-wrap gap-2">
                           <Badge variant="outline">
@@ -109,23 +116,6 @@ function CodingAccountList({ harnesses }: { harnesses: readonly CodingHarness[] 
                           {account.is_default && <Badge variant="outline">{t("default")}</Badge>}
                           {account.pool_member && <Badge variant="outline">{t("inPool")}</Badge>}
                         </div>
-                        <p className="text-muted-foreground mt-1 text-xs">
-                          {account.usage.status === "unknown"
-                            ? t("quotaUnknown")
-                            : t("quotaStatus", { status: account.usage.status })}
-                          {` · ${t("usageSource", { source: account.usage.source })}`}
-                          {account.usage.observation_age_seconds !== null &&
-                            ` · ${t("observedSecondsAgo", {
-                              seconds: account.usage.observation_age_seconds,
-                            })}`}
-                        </p>
-                        {account.usage.windows.map((window) => (
-                          <p className="text-muted-foreground text-xs" key={window.name}>
-                            {window.name}: {window.used ?? t("unknownValue")} /{" "}
-                            {window.limit ?? t("unknownValue")} {window.unit ?? ""}
-                            {window.resets_at && ` · ${t("resetsAt", { time: window.resets_at })}`}
-                          </p>
-                        ))}
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {!account.is_default && account.enabled && (
@@ -173,6 +163,10 @@ function CodingAccountList({ harnesses }: { harnesses: readonly CodingHarness[] 
                           {t("disconnect")}
                         </Button>
                       </div>
+                      <CodingAccountUsage
+                        key={`${actions.scope}:${account.id}:${account.generation}`}
+                        account={account}
+                      />
                     </li>
                   ))}
                 </ul>

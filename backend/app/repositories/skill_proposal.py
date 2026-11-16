@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -66,6 +66,8 @@ async def get_pending_for_skill(
         SkillProposal.organization_id == organization_id,
         SkillProposal.status == ProposalStatus.PENDING.value,
         SkillProposal.agent_id == agent_id,
+        or_(SkillProposal.source.is_(None), SkillProposal.source != "browser_teaching"),
+        SkillProposal.browser_procedure.is_(None),
     )
     if skill_id is None:
         statement = statement.where(SkillProposal.skill_id.is_(None), SkillProposal.name == name)
@@ -150,6 +152,8 @@ async def replace_body(
             SkillProposal.organization_id == proposal.organization_id,
             SkillProposal.status == ProposalStatus.PENDING.value,
             SkillProposal.revision == proposal.revision,
+            or_(SkillProposal.source.is_(None), SkillProposal.source != "browser_teaching"),
+            SkillProposal.browser_procedure.is_(None),
         )
         .values(
             description=description,
