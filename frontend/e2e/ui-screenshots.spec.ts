@@ -1,6 +1,12 @@
 import { expect, test } from "./fixtures";
 
-import { AUTH_STATE, SEEDED_AGENT_NAME } from "./helpers";
+import {
+  AUTH_STATE,
+  LIVE_RECORD_TITLE,
+  LIVE_TABLE_NAME,
+  SEEDED_AGENT_NAME,
+  rowsAt,
+} from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
 
@@ -43,6 +49,19 @@ test.describe("Review screenshots", () => {
       await section.scrollIntoViewIfNeeded();
       await section.screenshot({
         path: testInfo.outputPath(`coding-accounts-${size.name}.png`),
+      });
+    });
+
+    test(`captures a table at ${size.name} width`, async ({ page }, testInfo) => {
+      const tables = await rowsAt(page.request, "/api/tables");
+      const table = tables.find((row) => row.name === LIVE_TABLE_NAME);
+      expect(table, "the seeded live table exists").toBeTruthy();
+      await page.setViewportSize({ width: size.width, height: size.height });
+      await page.goto(`/tables/${String(table!.id)}`);
+      await expect(page.getByText(LIVE_RECORD_TITLE).first()).toBeVisible();
+      await page.screenshot({
+        path: testInfo.outputPath(`table-${size.name}.png`),
+        fullPage: false,
       });
     });
   }

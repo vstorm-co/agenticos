@@ -189,6 +189,8 @@ class CodingReport(BaseModel):
     outcome: Literal["completed", "failed", "timed_out"]
     answer: str
     account_label: str | None = None
+    account_id: str | None = None
+    selection_reason: Literal["manual_default", "opt_in_pool"] | None = None
     execution: Literal["isolated_task"] | None = None
     base_revision: str | None = None
     result_archive: str | None = None
