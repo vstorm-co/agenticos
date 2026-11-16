@@ -1429,8 +1429,27 @@
       "title" : "{appName} wurde aktualisiert"
    },
    "appearance" : {
+      "accent" : "Akzentfarbe",
+      "radius" : "Ecken",
+      "textSize" : "Textgröße",
+      "accents" : {"default":"Neutral","blue":"Blau","violet":"Violett","green":"Grün","amber":"Bernstein","rose":"Rosa"},
+      "radii" : {"default":"Standard","square":"Dezent","rounded":"Abgerundet"},
+      "textSizes" : {"default":"Standard","large":"Groß"},
+      "preview" : "Live-Vorschau",
+      "previewTitle" : "Ihr Arbeitsbereich",
+      "previewText" : "Ein Beispiel für Ihre Farben, Ecken und Textgröße.",
+      "previewAction" : "Beispielaktion",
+      "previewHint" : "Bis Sie Übernehmen wählen, ändert sich nur die Vorschau. Zurücksetzen stellt die Standardwerte Ihres Kontos wieder her.",
+      "apply" : "Übernehmen",
+      "discard" : "Vorschau verwerfen",
+      "reset" : "Auf Standard zurücksetzen",
+      "saved" : "Darstellung gespeichert",
+      "resetDone" : "Darstellung zurückgesetzt",
+      "loading" : "Ihre Darstellung wird geladen…",
+      "loadError" : "Ihre gespeicherte Darstellung konnte nicht geladen werden.",
+      "retry" : "Erneut versuchen",
       "colour" : "Farbig",
-      "description" : "Wie die Konsole für Sie aussieht und sich bewegt. In diesem Browser gespeichert und sofort angewendet.",
+      "description" : "Wählen Sie Ihre Darstellung, prüfen Sie die Vorschau und übernehmen Sie sie für Ihr Konto auf allen Geräten.",
       "full" : "Voll",
       "look" : "Stil",
       "lookHint" : "Jeder Stil hat eine helle und eine dunkle Seite; das Design oben wählt sie. In der Desktop-App lässt Glass den Schreibtisch durchscheinen.",
@@ -5053,6 +5072,28 @@
             "cancelled" : "Abgebrochen",
             "interrupted" : "Unterbrochen"
          }
+      },
+      "roomThread": {
+         "historyAudience": "Gespeicherter Gesprächsverlauf",
+         "readOnly": "Dieser Thread ist schreibgeschützt.",
+         "title": "Thread",
+         "start": "Im Thread antworten",
+         "replies": "{count, plural, one {# Antwort} other {# Antworten}}",
+         "message": "Im Thread antworten",
+         "placeholder": "Hier antworten. Alle im Raum können diesen Thread lesen.",
+         "post": "Antwort senden",
+         "close": "Thread schließen",
+         "earlier": "Frühere Antworten laden",
+         "audience": "Für alle in diesem Raum sichtbar",
+         "root": "Ursprüngliche Nachricht",
+         "loading": "Thread wird geladen…",
+         "unavailable": "Dieser Thread ist nicht verfügbar. Er wurde möglicherweise entfernt oder dein Zugriff auf den Raum hat sich geändert.",
+         "retry": "Erneut versuchen",
+         "empty": "Beginne die Unterhaltung in diesem Thread.",
+         "open": "Thread öffnen",
+         "pending": "Ein Agent wartet in einem Thread auf dich.",
+         "mainPending": "Ein Agent wartet im Hauptraum auf dich.",
+         "main": "Zurück zum Raum"
       }
    },
    "claudeSubscription" : {
@@ -10943,6 +10984,10 @@
             "body" : "Ein Zeitraum je Klasse – Unterhaltungen, Runs, Dokumente, Gedächtnis, Uploads und der Audit-Trail. Ein Durchlauf läuft täglich und löscht endgültig, innerhalb der Grenzen, die das Deployment gesetzt hat; der Audit-Trail hat eine Untergrenze, die Sie verlängern und nie verkürzen können.",
             "title" : "Wie lange Daten hier leben"
          },
+         "org-role-navigation" : {
+            "body" : "Sehen Sie sich die Navigation einer Rolle in der Vorschau an und wählen Sie ihre sichtbaren Links. Speichern Sie Änderungen für diese Organisation oder setzen Sie die Rolle auf die Standardeinstellungen zurück. Der Zugriff auf Daten und Aktionen richtet sich weiterhin nach der Berechtigungsmatrix.",
+            "title" : "Seitenleiste für jede Rolle festlegen"
+         },
          "org-roles" : {
             "body" : "Die Berechtigungsmatrix, Rolle für Rolle: was jede anfassen darf und wie weit das reicht. Eine einzelne Ressource zu teilen kann den Zugriff über die Rolle hinaus erweitern, nie einengen.",
             "title" : "Was jede Rolle darf"
@@ -11266,6 +11311,22 @@
          "chat-team-composer" : {
             "title" : "Mit dem Team sprechen und bei Bedarf einen Agent fragen",
             "body" : "Schreibe deinem Team, ohne einen Agent zu starten. Wähle einen Agent ausdrücklich für eine KI-Antwort; die Anfrage kommt in die gemeinsame Warteschlange."
+         },
+         "table-row-access": {
+            "title": "Regeln für den Zeilenzugriff",
+            "body": "Wählen Sie, wer Zeilen lesen darf. Öffnen Sie dann eine Zeile, um einer Person oder Gruppe Lesen oder Schreiben zu geben."
+         },
+         "record-access": {
+            "title": "Diese Zeile teilen",
+            "body": "Schreiben umfasst Lesen und Änderungen an gewöhnlichen Zellen. Es erlaubt weder Löschen noch Zugriffsverwaltung oder Änderungen am Tabellenschema."
+         },
+         "chat-room-thread": {
+            "title": "Eine Nachricht besprechen",
+            "body": "Öffne einen Thread, um Antworten zusammenzuhalten, ohne den Hauptraum zu füllen. Die Anzahl der Antworten führt zurück zur Diskussion; Antworten zitiert weiterhin eine Nachricht."
+         },
+         "chat-room-thread-panel": {
+            "title": "Antworten mit eigenem Kontext",
+            "body": "Die ursprüngliche Nachricht bleibt über den Antworten. Alle im Raum können den Thread lesen. Wähle einen Agenten für Hilfe oder schließe den Thread, um zum Raum zurückzukehren."
          }
       }
    },
@@ -12398,6 +12459,38 @@
          "membersCard" : "Mitglieder",
          "membersDescription" : "{count, plural, =1 {1 Person hat} other {# Personen haben}} Zugriff auf diese Organisation. Owner und Admins können Kolleginnen und Kollegen einladen und Rollen anpassen.",
          "nameAvatarShownAcross" : "Name und Avatar, in der ganzen App für alle in dieser Organisation sichtbar.",
+         "navigation" : {
+            "accessNotice" : "Diese Einstellungen blenden Navigationslinks aus. Datenzugriff, direkte Links und Aktionen richten sich weiterhin nach der Berechtigungsmatrix und der Ressourcenfreigabe.",
+            "alwaysShown" : "Immer angezeigt",
+            "controlsTitle" : "Navigationseinträge",
+            "description" : "Wählen Sie, welche Navigationseinträge jede Rolle in dieser Organisation sieht.",
+            "discard" : "Änderungen verwerfen",
+            "general" : "Allgemein",
+            "hidden" : "Ausgeblendet",
+            "loadError" : "Die Einstellungen der Seitenleiste konnten nicht geladen werden.",
+            "ownerProtected" : "Die Seitenleiste der Rolle „Inhaber“ bleibt verfügbar, damit der Zugriff auf die Organisationseinstellungen immer wiederhergestellt werden kann.",
+            "permissionUnavailable" : "Für diese Rolle nicht verfügbar",
+            "previewHint" : "Diese Vorschau berücksichtigt die Berechtigungen der Rolle. Angeheftete Apps und Projekte erscheinen nur, wenn zugängliche Inhalte vorhanden sind.",
+            "previewTitle" : "Vorschau der Seitenleiste",
+            "readOnly" : "Sie können diese Rolle in der Vorschau ansehen. Bearbeiten können Sie nur Rollen unterhalb Ihrer eigenen.",
+            "reset" : "Auf Standard zurücksetzen",
+            "retry" : "Erneut versuchen",
+            "role" : "Rolle",
+            "roles" : {
+               "admin" : "Administrator",
+               "builder" : "Ersteller",
+               "member" : "Mitglied",
+               "operator" : "Operator",
+               "owner" : "Inhaber",
+               "viewer" : "Betrachter"
+            },
+            "save" : "Seitenleiste speichern",
+            "saved" : "Seitenleiste gespeichert",
+            "showItem" : "{item} anzeigen",
+            "title" : "Sichtbarkeit der Seitenleiste",
+            "unsaved" : "Ungespeicherte Änderungen. Speichern oder verwerfen Sie diese, bevor Sie die Rolle wechseln.",
+            "visible" : "Sichtbar"
+         },
          "newOrganization" : "Neue Organisation",
          "noMembersYet" : "Noch keine Mitglieder",
          "noOrganizationsYet" : "Noch keine Organisationen",
@@ -12434,7 +12527,7 @@
          "usedOfMax" : "{used} von {max} belegt",
          "usersRoles" : "Benutzer & Rollen",
          "waitingOnResponse" : "{count, plural, =1 {1 wartet auf eine Antwort} other {# warten auf eine Antwort}}",
-         "whatEachRoleMay" : "Was jede Rolle darf. Berechtigungen sind im Code definiert und zu Rollen gebündelt – eine Rolle kann nie eine Berechtigung halten, die die Plattform nicht definiert.",
+         "whatEachRoleMay" : "Prüfen Sie die Rollenberechtigungen und wählen Sie, welche Links in der Seitenleiste jede Rolle in dieser Organisation sieht.",
          "workspaceAvatarUpdated" : "Organisations-Avatar aktualisiert",
          "workspaceName" : "Name der Organisation",
          "workspaceProfile" : "Organisationsprofil",
@@ -16349,6 +16442,42 @@
          "timeFormat" : "Zeitformat",
          "title" : "Ansichtseinstellungen",
          "wrapText" : "Text umbrechen"
+      },
+      "access": {
+         "read": "Lesen",
+         "write": "Schreiben",
+         "manage": "Zeilenzugriff",
+         "title": "Diese Zeile teilen",
+         "writeHelp": "Schreiben umfasst Lesen und Änderungen an gewöhnlichen Zellen. Es erlaubt weder Löschen noch Zugriffsverwaltung oder Änderungen am Tabellenschema.",
+         "tableRequired": "Personen und Gruppen benötigen auch Zugriff auf diese Tabelle. Eine Zeilenfreigabe teilt keine verknüpften Datensätze und entfernt keinen Zugriff aus Tabellenregeln.",
+         "loading": "Zeilenzugriff wird geladen…",
+         "personOrGroup": "Person oder Gruppe",
+         "chooseSubject": "Person oder Gruppe auswählen",
+         "permission": "Berechtigung",
+         "expiry": "Ablauf (optional)",
+         "expiryHelp": "Leer lassen für eine dauerhafte Personenfreigabe. Gruppenfreigaben laufen standardmäßig nach 90 Tagen ab.",
+         "add": "Freigabe speichern",
+         "grants": "Explizite Zeilenfreigaben",
+         "empty": "Keine expliziten Freigaben. Tabellen- und Zeilenregeln gelten weiterhin.",
+         "expired": "Abgelaufen — Freigabe erneut hinzufügen, um sie zu verlängern.",
+         "expires": "Läuft am {date} ab",
+         "permissionFor": "Berechtigung für {name}",
+         "removeFor": "Zugriff für {name} entfernen",
+         "saved": "Zeilenzugriff aktualisiert",
+         "rowRules": "Regeln für den Zeilenzugriff",
+         "rowRulesHelp": "Wählen Sie, wer Zeilen lesen darf. Öffnen Sie dann eine Zeile, um einer Person oder Gruppe Lesen oder Schreiben zu geben.",
+         "invalidPolicy": "Die Regeln für den Zeilenzugriff sind ungültig. Datensätze bleiben gesperrt, bis ein Tabellenadministrator hier gültige Regeln speichert.",
+         "mode": "Standardzugriff auf Zeilen",
+         "modeAll": "Alle mit Tabellenzugriff",
+         "modeGrants": "Nur Personen mit Zeilenfreigaben",
+         "modeFields": "Personen in Zeilenfeldern",
+         "allHelp": "Wer die Tabelle lesen darf, kann jede Zeile lesen. Tabellenbearbeiter behalten ihre bisherigen Schreibrechte.",
+         "grantsHelp": "Jede Zeile benötigt eine Lese- oder Schreibfreigabe. Der Tabelleneigentümer und Organisationsadministratoren behalten Zugriff. Richten Sie Freigaben vor dem Wechsel ein.",
+         "fieldsHelp": "Das Lesefeld erlaubt die Anzeige; das Schreibfeld erlaubt sie ebenfalls. Eine Zeilenfreigabe zum Schreiben kann Bearbeitung ohne Tabellenverwaltung erlauben. Bestehende Regeln zur Projektmitgliedschaft bleiben erhalten.",
+         "readField": "Lesefeld",
+         "writeField": "Schreibfeld",
+         "chooseField": "Personenfeld auswählen",
+         "saveRules": "Zeilenregeln speichern"
       }
    },
    "teams" : {

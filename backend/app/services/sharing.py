@@ -19,6 +19,7 @@ from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.db.models.group import Group
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
+from app.db.table_rls import bind_table_access
 from app.repositories import group_repo, member_repo, resource_grant_repo
 from app.services.access import OwnedResource, ResourceType, resolve_access
 from app.services.notifications import NotificationService
@@ -143,6 +144,8 @@ class SharingService:
         resource: OwnedResource,
         resource_type: ResourceType,
     ) -> None:
+        if resource_type.key in ("table", "table_record"):
+            await bind_table_access(self.db, ctx)
         allowed = await resolve_access(
             self.db, ctx, resource, resource_type.edit, resource_type=resource_type
         )
@@ -178,6 +181,8 @@ class SharingService:
         resulting state after changing visibility. Name lookups avoid one UI
         request per grant.
         """
+        if resource_type.key in ("table", "table_record"):
+            await bind_table_access(self.db, ctx)
         for perm in dict.fromkeys((resource_type.view, resource_type.edit)):
             if await resolve_access(self.db, ctx, resource, perm, resource_type=resource_type):
                 break

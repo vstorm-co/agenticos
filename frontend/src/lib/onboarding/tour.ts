@@ -377,6 +377,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "chat-agent-settings", page: ROUTES.CHAT, target: "chat-agent-settings", optional: true },
   { id: "chat-team-room", page: ROUTES.CHAT, target: "chat-team-room", optional: true },
   { id: "chat-team-composer", page: ROUTES.CHAT, target: "chat-team-composer", optional: true },
+  { id: "chat-room-thread", page: ROUTES.CHAT, target: "chat-room-thread", optional: true },
+  {
+    id: "chat-room-thread-panel",
+    page: ROUTES.CHAT,
+    target: "chat-room-thread-panel",
+    optional: true,
+  },
   {
     id: "chat-local-skills",
     page: ROUTES.CHAT,
@@ -1348,6 +1355,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "page-secondary-actions",
   },
   { id: "table-view-tabs", page: TABLE_DETAIL, target: "table-view-tabs" },
+  { id: "table-row-access", page: TABLE_DETAIL, target: "table-row-access", optional: true },
+  { id: "record-access", page: TABLE_DETAIL, target: "record-access", optional: true },
 
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },
 
@@ -1420,6 +1429,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   { id: "org-members", page: ORG_MEMBERS, target: "org-members", activate: "org-tab-members" },
+  { id: "org-role-navigation", page: ORG_ROLES, target: "org-role-navigation" },
   { id: "org-roles", page: ORG_ROLES, target: "org-roles" },
   {
     id: "org-retention",

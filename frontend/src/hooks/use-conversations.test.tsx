@@ -489,7 +489,7 @@ describe("the conversation named in the address bar", () => {
     const fetching = result.current.fetchConversations(controller.signal);
     await waitFor(() =>
       expect(apiClient.get).toHaveBeenCalledWith(
-        "/conversations/c-9/messages?latest=true&limit=101",
+        "/conversations/c-9/messages?latest=true&limit=101&top_level_only=true",
         {
           signal: controller.signal,
         },
@@ -517,13 +517,14 @@ describe("the conversation named in the address bar", () => {
         finish = resolve;
       });
       vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
-        if (path === "/conversations/c-9/messages?latest=true&limit=101") return pending;
+        if (path === "/conversations/c-9/messages?latest=true&limit=101&top_level_only=true")
+          return pending;
         return { items: [], total: 0, cost: null };
       });
       const fetching = result.current.fetchConversations();
       await waitFor(() =>
         expect(apiClient.get).toHaveBeenCalledWith(
-          "/conversations/c-9/messages?latest=true&limit=101",
+          "/conversations/c-9/messages?latest=true&limit=101&top_level_only=true",
           {
             signal: undefined,
           },
@@ -557,7 +558,7 @@ describe("the conversation named in the address bar", () => {
     });
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      "/conversations/c-9/messages?latest=true&limit=101",
+      "/conversations/c-9/messages?latest=true&limit=101&top_level_only=true",
       {
         signal: undefined,
       },
@@ -606,7 +607,7 @@ describe("the conversation named in the address bar", () => {
       fetching = result.current.fetchConversations();
       await waitFor(() =>
         expect(apiClient.get).toHaveBeenCalledWith(
-          "/conversations/c-9/messages?latest=true&limit=101",
+          "/conversations/c-9/messages?latest=true&limit=101&top_level_only=true",
           {
             signal: undefined,
           },
@@ -640,7 +641,7 @@ describe("the conversation named in the address bar", () => {
       fetching = result.current.fetchConversations();
       await waitFor(() =>
         expect(apiClient.get).toHaveBeenCalledWith(
-          "/conversations/c-9/messages?latest=true&limit=101",
+          "/conversations/c-9/messages?latest=true&limit=101&top_level_only=true",
           {
             signal: undefined,
           },
@@ -668,7 +669,7 @@ describe("the conversation named in the address bar", () => {
     });
 
     expect(apiClient.get).not.toHaveBeenCalledWith(
-      "/conversations/c-1/messages?latest=true&limit=101",
+      "/conversations/c-1/messages?latest=true&limit=101&top_level_only=true",
     );
   });
 });
@@ -683,7 +684,7 @@ describe("opening a conversation", () => {
     });
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      "/conversations/c-1/messages?latest=true&limit=101",
+      "/conversations/c-1/messages?latest=true&limit=101&top_level_only=true",
       {
         signal: expect.any(AbortSignal),
       },
@@ -732,11 +733,11 @@ describe("opening a conversation", () => {
 
     await act(async () => {
       // The superseded request answers last, with the wrong thread's messages.
-      pending.get("/conversations/c-2/messages?latest=true&limit=101")!({
+      pending.get("/conversations/c-2/messages?latest=true&limit=101&top_level_only=true")!({
         items: [{ id: "m-2" }],
         total: 1,
       });
-      pending.get("/conversations/c-1/messages?latest=true&limit=101")!({
+      pending.get("/conversations/c-1/messages?latest=true&limit=101&top_level_only=true")!({
         items: [{ id: "m-1" }],
         total: 1,
       });
@@ -2425,3 +2426,29 @@ it("marks and restores shared unread state without touching access or grant cach
   });
   expect(client.getQueryData(sharedKey)).toMatchObject({ items: [{ unread: false }] });
 });
+
+it("retains an initial thread deep link, then clears its root when selecting another conversation", async () => {
+  window.history.replaceState({}, "", "/chat?id=c-1&thread=root-a&keep=value");
+  serve({ items: [conversation("c-1"), conversation("c-2")] });
+  const result = await hook();
+  await act(async () => result.current.fetchConversations());
+  expect(new URLSearchParams(window.location.search).get("thread")).toBe("root-a");
+  await act(async () => result.current.selectConversation("c-2"));
+  expect(new URLSearchParams(window.location.search).get("thread")).toBeNull();
+  expect(new URLSearchParams(window.location.search).get("id")).toBe("c-2");
+  expect(new URLSearchParams(window.location.search).get("keep")).toBe("value");
+});
+
+it.each(["new", "delete"] as const)(
+  "clears a thread deep link when the current conversation is closed by %s",
+  async (choice) => {
+    window.history.replaceState({}, "", "/chat?id=c-1&thread=root-a");
+    const result = await hook();
+    await act(async () => result.current.fetchConversations());
+    await act(async () => {
+      if (choice === "new") await result.current.startNewChat();
+      else await result.current.deleteConversation("c-1");
+    });
+    expect(new URLSearchParams(window.location.search).get("thread")).toBeNull();
+  },
+);

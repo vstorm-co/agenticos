@@ -24,6 +24,8 @@ export interface MyPermissions {
   role: OrgRole | "";
   is_app_admin: boolean;
   permissions: PermissionEntry[];
+  /** Absent in offline snapshots created before role navigation was introduced. */
+  hidden_navigation_items?: string[];
 }
 
 export interface RoleDefinition {

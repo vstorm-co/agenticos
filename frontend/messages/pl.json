@@ -1429,8 +1429,27 @@
       "title" : "{appName} zostało zaktualizowane"
    },
    "appearance" : {
+      "accent" : "Kolor akcentu",
+      "radius" : "Narożniki",
+      "textSize" : "Rozmiar tekstu",
+      "accents" : {"default":"Neutralny","blue":"Niebieski","violet":"Fioletowy","green":"Zielony","amber":"Bursztynowy","rose":"Różowy"},
+      "radii" : {"default":"Standardowe","square":"Subtelne","rounded":"Zaokrąglone"},
+      "textSizes" : {"default":"Standardowy","large":"Duży"},
+      "preview" : "Podgląd na żywo",
+      "previewTitle" : "Twoja przestrzeń pracy",
+      "previewText" : "Przykład wybranych kolorów, narożników i rozmiaru tekstu.",
+      "previewAction" : "Przykładowe działanie",
+      "previewHint" : "Do kliknięcia Zastosuj zmienia się tylko podgląd. Reset przywraca ustawienia domyślne na koncie.",
+      "apply" : "Zastosuj",
+      "discard" : "Odrzuć podgląd",
+      "reset" : "Przywróć domyślne",
+      "saved" : "Wygląd zapisany",
+      "resetDone" : "Wygląd zresetowany",
+      "loading" : "Wczytywanie wyglądu…",
+      "loadError" : "Nie udało się wczytać zapisanego wyglądu.",
+      "retry" : "Spróbuj ponownie",
       "colour" : "W kolorze",
-      "description" : "Wygląd i animacje konsoli. Zapisywane w tej przeglądarce i stosowane od razu.",
+      "description" : "Wybierz wygląd, sprawdź podgląd i zastosuj go na swoim koncie na wszystkich urządzeniach.",
       "full" : "Pełne",
       "look" : "Styl",
       "lookHint" : "Każdy styl ma jasną i ciemną wersję; wybiera ją motyw powyżej. W aplikacji desktopowej Glass prześwituje do pulpitu.",
@@ -5052,6 +5071,28 @@
             "cancelled" : "Anulowano",
             "interrupted" : "Przerwano"
          }
+      },
+      "roomThread": {
+         "historyAudience": "Zapisana historia rozmowy",
+         "readOnly": "Ten wątek jest tylko do odczytu.",
+         "title": "Wątek",
+         "start": "Odpowiedz w wątku",
+         "replies": "{count, plural, one {# odpowiedź} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}}",
+         "message": "Odpowiedz w wątku",
+         "placeholder": "Odpowiedz tutaj. Każdy w pokoju może przeczytać ten wątek.",
+         "post": "Wyślij odpowiedź",
+         "close": "Zamknij wątek",
+         "earlier": "Wczytaj wcześniejsze odpowiedzi",
+         "audience": "Widoczny dla wszystkich w tym pokoju",
+         "root": "Oryginalna wiadomość",
+         "loading": "Wczytywanie wątku…",
+         "unavailable": "Ten wątek jest niedostępny. Być może został usunięty lub zmienił się Twój dostęp do pokoju.",
+         "retry": "Spróbuj ponownie",
+         "empty": "Rozpocznij rozmowę w tym wątku.",
+         "open": "Otwórz wątek",
+         "pending": "Agent czeka na Ciebie w wątku.",
+         "mainPending": "Agent czeka na Ciebie w głównym pokoju.",
+         "main": "Wróć do pokoju"
       }
    },
    "claudeSubscription" : {
@@ -11026,6 +11067,10 @@
             "body" : "Okres na klasę - rozmowy, runy, dokumenty, pamięć, wgrane pliki i ślad audytowy. Sweep chodzi codziennie i usuwa na stałe, w granicach ustawionych przez wdrożenie; ślad audytowy ma podłogę, którą można wydłużyć i nigdy skrócić.",
             "title" : "Jak długo żyją tu dane"
          },
+         "org-role-navigation" : {
+            "body" : "Wyświetl podgląd nawigacji roli i wybierz widoczne dla niej linki. Zapisz zmiany dla tej organizacji lub przywróć ustawienia domyślne roli. Dostęp do danych i działań nadal określa macierz uprawnień.",
+            "title" : "Wybierz pasek boczny dla każdej roli"
+         },
          "org-roles" : {
             "body" : "Macierz uprawnień, rola po roli: czego każda może dotknąć i jak daleko sięga. Udostępnienie pojedynczego zasobu może poszerzyć dostęp ponad rolę, nigdy go nie zawęzi.",
             "title" : "Co może każda rola"
@@ -11349,6 +11394,22 @@
          "chat-team-composer" : {
             "title" : "Rozmawiaj z zespołem, a agenta pytaj w razie potrzeby",
             "body" : "Pisz do zespołu bez uruchamiania agenta. Aby otrzymać odpowiedź AI, wybierz agenta. Prośba trafi do wspólnej kolejki."
+         },
+         "table-row-access": {
+            "title": "Reguły dostępu do wierszy",
+            "body": "Wybierz, kto może odczytywać wiersze, a następnie otwórz wiersz, aby nadać osobie lub grupie odczyt lub zapis."
+         },
+         "record-access": {
+            "title": "Udostępnij ten wiersz",
+            "body": "Zapis obejmuje odczyt i zmianę zwykłych komórek. Nie pozwala usuwać, zarządzać dostępem ani zmieniać schematu tabeli."
+         },
+         "chat-room-thread": {
+            "title": "Omów jedną wiadomość",
+            "body": "Otwórz wątek, aby zebrać odpowiedzi w jednym miejscu bez zapełniania głównego pokoju. Liczba odpowiedzi prowadzi z powrotem do dyskusji; Odpowiedz nadal cytuje wiadomość."
+         },
+         "chat-room-thread-panel": {
+            "title": "Odpowiedzi we własnym kontekście",
+            "body": "Oryginalna wiadomość pozostaje nad odpowiedziami. Każdy w pokoju może przeczytać wątek. Wybierz agenta, gdy potrzebujesz pomocy, lub zamknij wątek, aby wrócić do pokoju."
          }
       }
    },
@@ -12480,6 +12541,38 @@
          "membersCard" : "Członkowie",
          "membersDescription" : "{count, plural, one {1 osoba ma} few {# osoby mają} many {# osób ma} other {# osoby ma}} dostęp do tej organizacji. Właściciele i admini mogą zapraszać i zmieniać role.",
          "nameAvatarShownAcross" : "Nazwa i awatar widoczne w całej aplikacji dla każdego w tej organizacji.",
+         "navigation" : {
+            "accessNotice" : "Te ustawienia ukrywają linki nawigacji. Dostęp do danych, bezpośrednie linki i działania nadal podlegają macierzy uprawnień i zasadom udostępniania zasobów.",
+            "alwaysShown" : "Zawsze widoczne",
+            "controlsTitle" : "Elementy nawigacji",
+            "description" : "Wybierz, które elementy nawigacji widzi każda rola w tej organizacji.",
+            "discard" : "Odrzuć zmiany",
+            "general" : "Ogólne",
+            "hidden" : "Ukryte",
+            "loadError" : "Nie udało się wczytać ustawień paska bocznego.",
+            "ownerProtected" : "Pasek boczny Właściciela pozostaje dostępny, aby zawsze można było odzyskać dostęp do ustawień organizacji.",
+            "permissionUnavailable" : "Niedostępne dla tej roli",
+            "previewHint" : "Ten podgląd uwzględnia uprawnienia roli. Przypięte aplikacje i projekty pojawiają się tylko wtedy, gdy istnieje dostępna dla niej zawartość.",
+            "previewTitle" : "Podgląd paska bocznego",
+            "readOnly" : "Możesz wyświetlić podgląd tej roli. Edytować można tylko role niższe od własnej.",
+            "reset" : "Przywróć domyślne",
+            "retry" : "Spróbuj ponownie",
+            "role" : "Rola",
+            "roles" : {
+               "admin" : "Administrator",
+               "builder" : "Twórca",
+               "member" : "Członek",
+               "operator" : "Operator",
+               "owner" : "Właściciel",
+               "viewer" : "Obserwator"
+            },
+            "save" : "Zapisz pasek boczny",
+            "saved" : "Pasek boczny zapisany",
+            "showItem" : "Pokaż: {item}",
+            "title" : "Widoczność paska bocznego",
+            "unsaved" : "Niezapisane zmiany. Zapisz je lub odrzuć przed zmianą roli.",
+            "visible" : "Widoczne"
+         },
          "newOrganization" : "Nowa organizacja",
          "noMembersYet" : "Brak członków",
          "noOrganizationsYet" : "Brak organizacji",
@@ -12516,7 +12609,7 @@
          "usedOfMax" : "Wykorzystano {used} z {max}",
          "usersRoles" : "Użytkownicy i role",
          "waitingOnResponse" : "{count, plural, one {1 czeka na odpowiedź} few {# czekają na odpowiedź} many {# czeka na odpowiedź} other {# czeka na odpowiedź}}",
-         "whatEachRoleMay" : "Co może każda rola. Uprawnienia są zdefiniowane w kodzie i zebrane w role - rola nigdy nie może mieć uprawnienia, którego platforma nie definiuje.",
+         "whatEachRoleMay" : "Sprawdź uprawnienia ról i wybierz, które linki na pasku bocznym widzi każda rola w tej organizacji.",
          "workspaceAvatarUpdated" : "Awatar organizacji zaktualizowany",
          "workspaceName" : "Nazwa organizacji",
          "workspaceProfile" : "Profil organizacji",
@@ -16434,6 +16527,42 @@
          "timeFormat" : "Format godziny",
          "title" : "Ustawienia widoku",
          "wrapText" : "Zawijaj tekst"
+      },
+      "access": {
+         "read": "Odczyt",
+         "write": "Zapis",
+         "manage": "Dostęp do wiersza",
+         "title": "Udostępnij ten wiersz",
+         "writeHelp": "Zapis obejmuje odczyt i zmianę zwykłych komórek. Nie pozwala usuwać, zarządzać dostępem ani zmieniać schematu tabeli.",
+         "tableRequired": "Osoby i grupy potrzebują także dostępu do tej tabeli. Grant do wiersza nie udostępnia powiązanych rekordów ani nie odbiera dostępu wynikającego z reguł tabeli.",
+         "loading": "Ładowanie dostępu do wiersza…",
+         "personOrGroup": "Osoba lub grupa",
+         "chooseSubject": "Wybierz osobę lub grupę",
+         "permission": "Uprawnienie",
+         "expiry": "Wygaśnięcie (opcjonalnie)",
+         "expiryHelp": "Pozostaw puste, aby grant dla osoby był bezterminowy. Granty grupowe domyślnie wygasają po 90 dniach.",
+         "add": "Zapisz grant",
+         "grants": "Jawne granty do wiersza",
+         "empty": "Brak jawnych grantów. Nadal obowiązują reguły tabeli i wierszy.",
+         "expired": "Wygasł — dodaj grant ponownie, aby go odnowić.",
+         "expires": "Wygasa {date}",
+         "permissionFor": "Uprawnienie dla {name}",
+         "removeFor": "Usuń dostęp dla {name}",
+         "saved": "Zaktualizowano dostęp do wiersza",
+         "rowRules": "Reguły dostępu do wierszy",
+         "rowRulesHelp": "Wybierz, kto może odczytywać wiersze, a następnie otwórz wiersz, aby nadać osobie lub grupie odczyt lub zapis.",
+         "invalidPolicy": "Reguły dostępu do wierszy są nieprawidłowe. Rekordy pozostają zablokowane, dopóki administrator tabeli nie zapisze tu prawidłowych reguł.",
+         "mode": "Domyślny dostęp do wierszy",
+         "modeAll": "Każdy z dostępem do tabeli",
+         "modeGrants": "Tylko osoby z grantami do wierszy",
+         "modeFields": "Osoby wskazane w polach wiersza",
+         "allHelp": "Każdy, kto może odczytać tabelę, może odczytać każdy wiersz. Edytorzy tabeli zachowują obecne uprawnienia zapisu.",
+         "grantsHelp": "Każdy wiersz wymaga grantu odczytu lub zapisu. Właściciel tabeli i administratorzy organizacji zachowują dostęp. Skonfiguruj granty przed zmianą trybu.",
+         "fieldsHelp": "Pole odczytu pozwala wyświetlać wiersz; pole zapisu także. Grant zapisu do wiersza może pozwolić na edycję bez administrowania tabelą. Istniejące reguły członkostwa w projektach pozostają zachowane.",
+         "readField": "Pole odczytu",
+         "writeField": "Pole zapisu",
+         "chooseField": "Wybierz pole osób",
+         "saveRules": "Zapisz reguły wierszy"
       }
    },
    "teams" : {

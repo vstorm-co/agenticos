@@ -231,6 +231,10 @@ class TestWorkflowTableTriggers:
         pair = (uuid.uuid4(), uuid.uuid4())
         consumer = MagicMock(consume=AsyncMock(return_value=[pair]))
         with (
+            patch(
+                "app.repositories.organization_repo.list_all",
+                AsyncMock(return_value=[MagicMock(id=uuid.uuid4())]),
+            ),
             patch(f"{TASKS_PATH}.get_worker_db_context", return_value=_AsyncDBContext(MagicMock())),
             patch(
                 "app.services.virtual_tables.triggers.TableTriggerConsumer", return_value=consumer

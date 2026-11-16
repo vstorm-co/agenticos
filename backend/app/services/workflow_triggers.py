@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.workflow import Workflow, WorkflowVersion
+from app.db.table_rls import bind_table_access
 from app.repositories import virtual_table_trigger as table_trigger_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_exposure as workflow_exposure_repo
@@ -168,6 +169,11 @@ class WorkflowTriggerSync:
 
     async def states(self, organization_id: UUID, workflow_ids: list[UUID]) -> dict[UUID, bool]:
         """Whether each workflow's unattended trigger is on, for those that have one."""
+        # The registry supplies the authorized context's organization, or that of
+        # an already-authorized workflow; callers cannot supply an ambient GUC.
+        await bind_table_access(
+            self.db, AuthContext(user_id=None, organization_id=organization_id, role="")
+        )
         states = await workflow_exposure_repo.active_by_workflow(
             self.db, organization_id=organization_id, workflow_ids=workflow_ids
         )

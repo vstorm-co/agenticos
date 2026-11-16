@@ -29,6 +29,12 @@ async def _live(submission: RoomSubmission, message: MessageRead) -> AsyncGenera
     trace = await live_turn.begin(conversation_id)
 
     async def emit(kind: str, payload: dict[str, object]) -> None:
+        root_id = message.thread_root_message_id
+        payload = {
+            **payload,
+            "conversation_id": conversation_id,
+            "thread_root_message_id": None if root_id is None else str(root_id),
+        }
         if trace is not None:
             await live_turn.publish(trace, kind, payload)
 
@@ -73,6 +79,11 @@ async def _emit_saved(frames: RunFrames, segment: RunSegment | None) -> None:
             "message_id": str(message.id),
             "run_id": str(segment.run.id),
             "run_status": segment.run.status,
+            "thread_root_message_id": (
+                None
+                if message.thread_root_message_id is None
+                else str(message.thread_root_message_id)
+            ),
         },
     )
 
@@ -195,6 +206,7 @@ async def run_request(job: RoomRequestJob) -> None:
                             conversation_id=conversation_id,
                             version_id=version_id,
                             memory_room_key=f"room:project:{conversation_id}",
+                            thread_root_message_id=message.thread_root_message_id,
                             message_history=history,
                             acts_for_sender=True,
                             parks_questions=True,

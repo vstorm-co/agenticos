@@ -101,6 +101,7 @@ const ORG_STEPS = [
   "org-assistant",
   "org-system-agents",
   "org-members",
+  "org-role-navigation",
   "org-roles",
 ];
 
@@ -300,6 +301,8 @@ describe("stepsForPage", () => {
       "chat-agent-settings",
       "chat-team-room",
       "chat-team-composer",
+      "chat-room-thread",
+      "chat-room-thread-panel",
       "chat-local-skills",
       "chat-coding-accounts",
       "chat-local-coding",
@@ -558,6 +561,7 @@ describe("stepsForPage", () => {
       "org-proactivity-model",
       "org-system-agents",
       "org-members",
+      "org-role-navigation",
       "org-roles",
     ]);
   });
@@ -589,8 +593,9 @@ describe("stepsForPage", () => {
     expect(step?.target).toBe("org-proactivity-model");
   });
 
-  it("walks only the roles matrix from a roles route — the last page of the flow", () => {
+  it("walks sidebar visibility and the permission matrix from a roles route", () => {
     expect(stepsForPage("/orgs/some-id/roles", () => true).map((step) => step.id)).toEqual([
+      "org-role-navigation",
       "org-roles",
     ]);
   });

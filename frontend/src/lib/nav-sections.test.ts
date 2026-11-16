@@ -79,3 +79,28 @@ describe("the Connectors nav entry", () => {
     expect(navItemVisible(connectors()!, holding(Perm.workflowsView))).toBe(false);
   });
 });
+
+describe("role navigation preferences", () => {
+  const item = (labelKey: string) =>
+    NAV_GROUPS.flatMap((group) => group.items).find((entry) => entry.labelKey === labelKey)!;
+
+  it("can hide both permission-gated and ungated entries without granting permissions", () => {
+    expect(navItemVisible(item("agents"), () => true, ["agents"])).toBe(false);
+    expect(navItemVisible(item("chat"), () => true, ["chat"])).toBe(false);
+    expect(navItemVisible(item("agents"), () => false, [])).toBe(false);
+    expect(navItemVisible(item("agents"), () => true, [])).toBe(true);
+  });
+
+  it("keeps recovery entries even if stale or invalid preferences name them", () => {
+    for (const name of ["dashboard", "organizations", "adminOverview"]) {
+      expect(navItemVisible(item(name), () => true, [name], false)).toBe(true);
+    }
+  });
+
+  it("hides every configurable entry while permissions or policy are unknown", () => {
+    for (const entry of NAV_GROUPS.flatMap((group) => group.items)) {
+      const recovery = ["dashboard", "organizations", "adminOverview"].includes(entry.labelKey);
+      expect(navItemVisible(entry, () => true, [], false)).toBe(recovery);
+    }
+  });
+});

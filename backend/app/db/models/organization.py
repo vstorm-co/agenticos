@@ -209,6 +209,10 @@ class Organization(Base, TimestampMixin):
     # defaults, its ceiling and the audit floor, and no other place resolves it.
     retention_days: Mapped[dict[str, int | None] | None] = mapped_column(JSONB, nullable=True)
 
+    # Navigation preferences only: authorization still comes from permissions
+    # and resource grants. Null preserves the existing sidebar for every role.
+    role_navigation: Mapped[dict[str, list[str]] | None] = mapped_column(JSONB, nullable=True)
+
     members: Mapped[list[OrganizationMember]] = relationship(
         "OrganizationMember",
         back_populates="organization",

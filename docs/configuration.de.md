@@ -1,5 +1,5 @@
 ---
-source_sha: "aa79e2a8a321"
+source_sha: "3e61bbb57271"
 ---
 
 # Konfiguration { #configuration }
@@ -317,6 +317,8 @@ mit `KERBEROS_DISPLAY_NAME` (Standard `Kerberos`).
 | `POSTGRES_PORT` | `5432` | PostgreSQL-Port |
 | `POSTGRES_USER` | `postgres` | PostgreSQL-Benutzer |
 | `POSTGRES_PASSWORD` | (empty) | PostgreSQL-Passwort |
+| `POSTGRES_MIGRATION_URL` | (unset) | Separater PostgreSQL-Eigentümerzugang für Alembic sowie Vorprüfung und Aktivierung von Tables RLS. Anbieter-URLs werden an den installierten Treiber angepasst. Normale Anwendungssitzungen verwenden weiterhin die Laufzeiteinstellungen. |
+| `POSTGRES_MAINTENANCE_URL` | (unset) | Separater PostgreSQL-Wartungszugang für autorisierte globale Kontoexporte und Kontolöschungen nach der Aktivierung von Tables RLS. Er muss dieselbe Datenbank erreichen und Mitglied der festen Wartungsgruppe sein. Für diese Aktionen bei aktiver Durchsetzung erforderlich; siehe [Umstellungsverfahren](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md). |
 | `POSTGRES_DB` | `agenticos` | Name der Datenbank |
 | `POSTGRES_SSLMODE` | (empty) | Die Verbindung verschlüsseln: `require`, `verify-ca` oder `verify-full`. Leer heißt Klartext. Siehe [Verschlüsselte Verbindungen](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Größe des Connection Pools |

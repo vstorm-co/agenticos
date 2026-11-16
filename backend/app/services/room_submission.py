@@ -28,6 +28,7 @@ from app.schemas.room_submission import (
     RoomAgentRequestRead,
     RoomMessageCreate,
     RoomMessageRead,
+    RoomThreadRead,
 )
 from app.services import chat_room
 from app.services.access import acting_member
@@ -56,6 +57,13 @@ def cloud_agent(spec: AgentSpec) -> None:
 
 
 def fingerprint(request: RoomMessageCreate) -> str:
+    # Existing accepted posts retain their exact digest after this additive
+    # upgrade. A null root is the old main-room submission, not a new hash shape.
+    scope = (
+        {"thread_root_message_id": str(request.thread_root_message_id)}
+        if request.thread_root_message_id is not None
+        else {}
+    )
     encoded = json.dumps(
         {
             "content": request.content,
@@ -63,6 +71,7 @@ def fingerprint(request: RoomMessageCreate) -> str:
             if request.reply_to_message_id
             else None,
             "agent_id": str(request.agent_id) if request.agent_id else None,
+            **scope,
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -123,6 +132,7 @@ class RoomSubmissionService:
             updated_at=message.updated_at,
             sender=ChatPerson.of(user),
             reply_to=await self.conversations.reply_quoted(message),
+            thread_root_message_id=message.thread_root_message_id,
         )
 
     async def post(
@@ -176,6 +186,7 @@ class RoomSubmissionService:
             ),
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
+            thread_root_message_id=request.thread_root_message_id,
         )
         submission = await room_repo.add(
             self.db,
@@ -251,6 +262,7 @@ class RoomSubmissionService:
             client_message_id=submission.client_message_id,
             content=message.content,
             reply_to_message_id=message.reply_to_message_id,
+            thread_root_message_id=message.thread_root_message_id,
             agent_id=submission.agent_id,
         )
         if fingerprint(saved) != submission.fingerprint:
@@ -295,6 +307,53 @@ class RoomSubmissionService:
         return RoomAgentRequestList(
             items=[RoomAgentRequestRead.model_validate(row) for row in rows],
             total=total,
+            can_post=can_post,
+        )
+
+    async def thread(
+        self,
+        ctx: AuthContext,
+        conversation_id: UUID,
+        root_message_id: UUID,
+        *,
+        limit: int = 50,
+        latest: bool = True,
+        before: UUID | None = None,
+    ) -> RoomThreadRead:
+        """Read a root and paged replies under the conversation's current audience.
+
+        Removing a project retains its conversations as private chats. Their
+        existing subthreads remain readable, but only project rooms accept posts.
+        """
+        signed_in(ctx)
+        room = await self.conversations.get_conversation(
+            conversation_id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        items, total, _ = await self.conversations.transcript(
+            conversation_id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            ctx=ctx,
+            include_tool_calls=True,
+            limit=limit,
+            latest=latest,
+            before=before,
+            thread_root_message_id=root_message_id,
+        )
+        can_post = room.project_id is not None and not room.is_archived
+        if can_post:
+            try:
+                await self.room(ctx, conversation_id, for_write=True)
+            except AuthorizationError, NotFoundError:
+                can_post = False
+        return RoomThreadRead(
+            root=MessageRead.model_validate(items[0]),
+            items=[MessageRead.model_validate(item) for item in items[1:]],
+            total=total - 1,
             can_post=can_post,
         )
 

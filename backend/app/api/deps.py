@@ -27,6 +27,7 @@ from app.core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db_session
+from app.db.table_rls import bind_table_access
 
 DBSession = Annotated[AsyncSession, Depends(get_db_session, scope="function")]
 """The request's session, committed before the response leaves the process.
@@ -404,6 +405,7 @@ FileUploadSvc = Annotated[FileUploadService, Depends(get_file_upload_service)]
 from app.repositories import member_repo
 from app.services.organization import OrganizationService
 from app.services.retention import RetentionService
+from app.services.role_navigation import RoleNavigationService
 from app.services.member import MemberService
 from app.services.invitation import InvitationService
 from app.services.invitation_staging import InvitationStagingService
@@ -424,6 +426,10 @@ def get_organization_service(db: DBSession) -> OrganizationService:
     return OrganizationService(db)
 
 
+def get_role_navigation_service(db: DBSession) -> RoleNavigationService:
+    return RoleNavigationService(db)
+
+
 def get_member_service(db: DBSession) -> MemberService:
     """Create MemberService instance with database session."""
     return MemberService(db)
@@ -441,6 +447,7 @@ def get_invitation_staging_service(redis: Redis) -> InvitationStagingService:
 
 OrganizationSvc = Annotated[OrganizationService, Depends(get_organization_service)]
 RetentionSvc = Annotated[RetentionService, Depends(get_retention_service)]
+RoleNavigationSvc = Annotated[RoleNavigationService, Depends(get_role_navigation_service)]
 MemberSvc = Annotated[MemberService, Depends(get_member_service)]
 InvitationSvc = Annotated[InvitationService, Depends(get_invitation_service)]
 InvitationStagingSvc = Annotated[InvitationStagingService, Depends(get_invitation_staging_service)]
@@ -1452,6 +1459,7 @@ async def get_auth_context(
     """
     caller = _key_caller(request)
     if caller is not None:
+        await bind_table_access(db, caller.context)
         return _attributed(request, user, caller.context, caller.surface)
     membership = _membership_read(request, org, user) or await _member_repo.get(
         db, organization_id=org.id, user_id=user.id
@@ -1468,6 +1476,7 @@ async def get_auth_context(
         is_app_admin=user.is_app_admin,
         is_impersonated=current_impersonator() is not None,
     )
+    await bind_table_access(db, ctx)
     return _attributed(request, user, ctx, "console")
 
 
@@ -1507,6 +1516,7 @@ async def get_path_org_context(
             raise NotFoundError(
                 message="Organization not found or access denied", details={"org_id": org_id}
             )
+        await bind_table_access(db, caller.context)
         return _attributed(request, user, caller.context, caller.surface)
     membership = await _member_repo.get(db, organization_id=org_id, user_id=user.id)
     if membership is None and not user.is_app_admin:
@@ -1520,6 +1530,7 @@ async def get_path_org_context(
         is_app_admin=user.is_app_admin,
         is_impersonated=current_impersonator() is not None,
     )
+    await bind_table_access(db, ctx)
     return _attributed(request, user, ctx, "console")
 
 

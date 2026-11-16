@@ -100,6 +100,9 @@ class User(Base, TimestampMixin):
     # agent asked to switch it. Null until they choose: the console then keeps
     # whatever the browser's cookie or the URL says, as it always did.
     locale: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    # Closed appearance tokens, owned by this person across their organizations.
+    # No organization or administrator write surface accepts another user's id.
+    appearance: Mapped[dict[str, str] | None] = mapped_column(JSONB, nullable=True)
     # What every agent is told about the person (#2301): the zone "every Monday
     # at 9" is read in, taken from their browser, and their role and work, which
     # they write once rather than in every conversation.

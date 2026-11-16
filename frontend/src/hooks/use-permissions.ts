@@ -10,6 +10,8 @@ import { useOrgStore } from "@/stores";
 import type { OrgRole } from "@/types";
 import type { MyPermissions, Permission, PermissionScope, RoleCatalog } from "@/types/permissions";
 
+const NO_HIDDEN_NAVIGATION: readonly string[] = [];
+
 /**
  * The caller's effective permissions in the active organization.
  *
@@ -36,6 +38,10 @@ export function usePermissions() {
     queryFn: () =>
       readThrough("permissions", () => apiClient.get<MyPermissions>("/me/permissions")),
     networkMode: "offlineFirst",
+    // Another administrator can change roles or navigation while this window stays open.
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
     // A refused organization is refused again the same way; the retry only
     // delays the recovery. Everything else keeps the client's single retry,
     // because a dropped connection often does succeed the second time.
@@ -64,6 +70,7 @@ export function usePermissions() {
     can,
     canAll,
     scopeOf,
+    hiddenNavigationItems: data?.hidden_navigation_items ?? NO_HIDDEN_NAVIGATION,
     role: data?.role ?? "",
     isAppAdmin: data?.is_app_admin ?? false,
     /**

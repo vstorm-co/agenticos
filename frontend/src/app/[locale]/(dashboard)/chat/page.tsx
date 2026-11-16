@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 import { ChatContainer, ConversationSidebar } from "@/components/chat";
 import { PhoneChatBar } from "@/components/chat/phone-chat-bar";
@@ -10,10 +11,30 @@ import { SAFE_AREA_CLEARANCE } from "@/lib/page-clearance";
 import { StartExample } from "@/components/onboarding/start-example";
 import { startGoal } from "@/lib/onboarding-api";
 import { cn } from "@/lib/utils";
+import { usePathname, useRouter } from "@/lib/locale-navigation";
+import { useConversationStore } from "@/stores";
 
 export default function ChatPage() {
-  const example = startGoal(useSearchParams().get("example"));
-  const requestedConversationId = useSearchParams().get("id");
+  const params = useSearchParams();
+  const example = startGoal(params.get("example"));
+  const requestedConversationId = params.get("id");
+  const requestedThreadRootId = params.get("thread");
+  const router = useRouter();
+  const pathname = usePathname();
+  const trigger = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (requestedThreadRootId !== null) return;
+    trigger.current?.focus();
+    trigger.current = null;
+  }, [requestedThreadRootId]);
+  const changeThread = (root: string | null) => {
+    const next = new URLSearchParams(params.toString());
+    const id = useConversationStore.getState().currentConversationId;
+    if (id !== null) next.set("id", id);
+    if (root === null) next.delete("thread");
+    else next.set("thread", root);
+    router.push(`${pathname}?${next}`, { scroll: false });
+  };
   // A consent started from the chat comes back here, and the outcome is in the
   // query string exactly as it is on the servers page.
   useMcpOAuthOutcome();
@@ -31,6 +52,21 @@ export default function ChatPage() {
         <PhoneChatBar />
         <ChatContainer
           requestedConversationId={requestedConversationId}
+          requestedThreadRootId={requestedThreadRootId}
+          onOpenThread={(root) => {
+            const opener = document.activeElement;
+            // A notice inside a thread disappears when its root changes. Keep
+            // the main-room opener so closing the final panel can restore focus.
+            if (
+              opener instanceof HTMLElement &&
+              opener.closest('[data-tour="chat-room-thread-panel"]') === null
+            )
+              trigger.current = opener;
+            changeThread(root);
+          }}
+          onCloseThread={() => {
+            changeThread(null);
+          }}
           emptyState={
             example
               ? (onPick) => <StartExample key={example} goal={example} onRun={onPick} />

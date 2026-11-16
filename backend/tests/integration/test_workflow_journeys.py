@@ -561,7 +561,7 @@ async def _post_lead(world: _World, pipeline: _LeadPipeline, redis: MagicMock) -
 
 async def _fire(world: _World) -> uuid.UUID:
     async with world.factory() as db:
-        ((run_id, _entry),) = await TableTriggerConsumer(db).consume()
+        ((run_id, _entry),) = await TableTriggerConsumer(db).consume(world.ctx)
         await db.commit()
     return run_id
 
@@ -623,7 +623,7 @@ async def test_a_lead_added_over_the_api_is_scored_written_back_and_announced(
     assert await _told(world) == [world.owner.id]
     # Writing the score back is an update, and an update starts no trigger.
     async with world.factory() as db:
-        assert await TableTriggerConsumer(db).consume() == []
+        assert await TableTriggerConsumer(db).consume(world.ctx) == []
 
 
 # Journey 4: multi-file foreach -> conversion -> agent -> Python -> upsert -> report

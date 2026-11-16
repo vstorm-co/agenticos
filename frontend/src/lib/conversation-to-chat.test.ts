@@ -66,6 +66,26 @@ describe("buildAssistantParts", () => {
 });
 
 describe("conversationMessageToChatMessage", () => {
+  it("keeps root summaries separate from a reply's explicit thread identity", () => {
+    expect(
+      conversationMessageToChatMessage(
+        raw({ thread_root_message_id: "root", thread_reply_count: 0 }),
+      ),
+    ).toMatchObject({ threadRootMessageId: "root", threadReplyCount: 0 });
+    expect(
+      conversationMessageToChatMessage(
+        raw({
+          thread_root_message_id: null,
+          thread_reply_count: 3,
+          thread_last_activity_at: "2026-11-14T12:00:00Z",
+        }),
+      ),
+    ).toMatchObject({
+      threadRootMessageId: undefined,
+      threadReplyCount: 3,
+      threadLastActivityAt: "2026-11-14T12:00:00Z",
+    });
+  });
   it("carries the fields the chat renders a turn from", () => {
     const message = conversationMessageToChatMessage(
       raw({ agent_id: "a-1", agent_version: 3, thinking: "Checking." }),

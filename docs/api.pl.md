@@ -1,5 +1,5 @@
 ---
-source_sha: "158c11621790"
+source_sha: "a6011726f555"
 ---
 
 # API HTTP { #the-http-api }
@@ -311,6 +311,8 @@ przyjdzie jako drugie, dostaje istniejące `400` ze `status` runa. Zob.
 `GET /api/v1/conversations/{id}/transcript` czyta jedną z rozmów wystawcy tura po
 turze, z narzędziami wywołanymi w każdej turze i kosztem, dla klucza z
 `runs:view`.
+Stronicowana trasa `GET /api/v1/conversations/{id}/messages` domyślnie pomija
+odpowiedzi w wątkach pokoju projektu. Ustaw `top_level_only=false`, aby je dołączyć.
 
 !!! info "Wywołujący API nie może obejść nadzoru"
 

@@ -9,7 +9,7 @@ import { consoleLink, pointAt } from "@/lib/assistant-highlight";
 import { buildAssistantParts } from "@/lib/conversation-to-chat";
 import { dayLabel, startsADay } from "@/lib/day-separator";
 import type { AskedBefore } from "@/components/datasets/follows-on";
-import type { ChatMessage, TurnUsage, Delegation } from "@/types";
+import type { ChatMessage, TurnUsage, Delegation, MessageReply } from "@/types";
 import type { PinnedPrompts } from "./chat-container";
 import { MessageItem } from "./message-item";
 
@@ -20,6 +20,10 @@ interface MessageListProps {
   /** Fork the conversation at this answer; absent where the reader may not (#2762). */
   onFork?: (messageId: string) => void;
   forkingMessageId?: string | null;
+  onOpenThread?: (messageId: string) => void;
+  canStartThread?: boolean;
+  onReply?: (reply: MessageReply) => void;
+  allowReply?: boolean;
   /** The test panel's pinned questions; a question here can be pinned or taken off. */
   pins?: PinnedPrompts;
 }
@@ -121,6 +125,9 @@ export function coalesceActivity(messages: ChatMessage[]): ChatMessage[] {
       previous.files?.length ||
       previous.fileIds?.length ||
       previous.replyTo ||
+      previous.threadRootMessageId !== message.threadRootMessageId ||
+      (previous.threadReplyCount ?? 0) > 0 ||
+      (message.threadReplyCount ?? 0) > 0 ||
       previous.agentId !== message.agentId
     ) {
       result.push(message);
@@ -226,6 +233,10 @@ export function MessageList({
   onRegenerate,
   onFork,
   forkingMessageId = null,
+  onOpenThread,
+  canStartThread,
+  onReply,
+  allowReply,
   pins,
 }: MessageListProps) {
   const messages = useMemo(() => coalesceActivity(sourceMessages), [sourceMessages]);
@@ -291,6 +302,10 @@ export function MessageList({
             asked={askedBefore(messages, index)}
             request={pins ? undefined : row.request}
             onFork={onFork}
+            onOpenThread={onOpenThread}
+            canStartThread={canStartThread}
+            onReply={onReply}
+            allowReply={allowReply}
             forkingMessageId={forkingMessageId}
             onRegenerate={
               onRegenerate && index === lastAssistantIndex && !message.isStreaming

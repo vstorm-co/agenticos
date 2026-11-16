@@ -19,6 +19,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.organization import OrganizationMember
 from app.db.models.resource_grant import GrantLevel
 from app.repositories import resource_grant_repo
 from app.schemas.virtual_table import (
@@ -119,6 +120,8 @@ async def test_the_listing_shows_what_the_caller_may_see_and_hides_archived_by_d
     await service.archive_table(ctx, gone.id)
     colleague = await make_user(db)
     stranger = ctx_for(colleague, org, "member")
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="member"))
+    await db.flush()
 
     assert [item.name for item in (await service.list_tables(ctx)).items] == ["Mine"]
     everything = await service.list_tables(ctx, include_archived=True)
@@ -228,6 +231,8 @@ async def test_listing_resolves_can_edit_for_every_row_in_one_grant_query(db, en
     await service.create_table(owner_ctx, TableCreate(name="Ungranted B"))
 
     builder = await make_user(db)
+    db.add(OrganizationMember(organization_id=org.id, user_id=builder.id, role="builder"))
+    await db.flush()
     await resource_grant_repo.upsert(
         db,
         organization_id=org.id,
@@ -261,6 +266,8 @@ async def test_a_private_table_is_a_404_to_another_member_but_a_grant_opens_it(d
     table = await service.create_table(ctx, TableCreate(name="Private"))
     colleague = await make_user(db)
     other = ctx_for(colleague, org, "member")
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="member"))
+    await db.flush()
 
     with pytest.raises(NotFoundError):
         await service.describe_table(other, table.id)
@@ -869,6 +876,8 @@ async def test_restoring_a_table_needs_the_right_to_edit_it(db):
     await service.archive_table(ctx, table.id)
     colleague = await make_user(db)
     member = ctx_for(colleague, org, "member")
+    db.add(OrganizationMember(organization_id=org.id, user_id=colleague.id, role="member"))
+    await db.flush()
     await resource_grant_repo.upsert(
         db,
         organization_id=org.id,

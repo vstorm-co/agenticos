@@ -1,6 +1,32 @@
 """Schemas for the permission catalog and a member's effective permissions."""
 
+from pydantic import ConfigDict, Field, field_validator
+
+from app.core.permissions import OrgRoleName
 from app.schemas.base import BaseSchema
+
+NAVIGATION_ITEM_IDS = (
+    "chat",
+    "inbox",
+    "agentMessages",
+    "allApps",
+    "agents",
+    "workflows",
+    "routines",
+    "datasets",
+    "allProjects",
+    "knowledgeBases",
+    "tables",
+    "skills",
+    "context",
+    "documents",
+    "activity",
+    "failureLearning",
+    "backgroundWork",
+    "connectors",
+    "groups",
+)
+"""Sidebar entry identifiers. Dashboard and Organizations remain available for recovery."""
 
 
 class PermissionEntry(BaseSchema):
@@ -22,6 +48,7 @@ class MyPermissions(BaseSchema):
     role: str
     is_app_admin: bool
     permissions: list[PermissionEntry]
+    hidden_navigation_items: list[str] = Field(default_factory=list)
 
 
 class RoleDefinition(BaseSchema):
@@ -41,3 +68,32 @@ class RoleCatalog(BaseSchema):
     all_permissions: list[str]
     resource_permissions: list[str]
     roles: list[RoleDefinition]
+
+
+class RoleNavigationRead(BaseSchema):
+    """Sidebar preferences for this organization, separate from authorization.
+
+    The UI intersects these preferences with the permission catalog. Showing an
+    entry never grants its permission; hiding it never revokes a resource grant.
+    """
+
+    hidden_items: dict[OrgRoleName, list[str]]
+    configurable_items: list[str]
+    editable_roles: list[OrgRoleName]
+
+
+class RoleNavigationUpdate(BaseSchema):
+    """Replace one role's hidden entries; an empty list restores its default sidebar."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    hidden_items: list[str] = Field(max_length=len(NAVIGATION_ITEM_IDS))
+
+    @field_validator("hidden_items")
+    @classmethod
+    def known_unique_items(cls, items: list[str]) -> list[str]:
+        if any(item not in NAVIGATION_ITEM_IDS for item in items):
+            raise ValueError("Choose only configurable sidebar entries")
+        if len(set(items)) != len(items):
+            raise ValueError("Each sidebar entry must appear only once")
+        return [item for item in NAVIGATION_ITEM_IDS if item in items]

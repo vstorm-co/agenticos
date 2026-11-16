@@ -13,6 +13,7 @@ import { CustomIconsProvider } from "@/components/icons/custom-icons";
 import { MobileHeader, Sidebar } from "@/components/layout";
 import { MainViewport } from "@/components/layout/main-viewport";
 import { AccountLocale } from "@/components/layout/account-locale";
+import { AccountAppearance } from "@/components/layout/account-appearance";
 import { AccountTimeZone } from "@/components/layout/account-time-zone";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
 import { OnScreenKeyboard } from "@/components/layout/on-screen-keyboard";
@@ -40,6 +41,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <AppUpdateBanner />
       {/* The language the account chose, here or on another device or by asking an agent. */}
       <AccountLocale />
+      <AccountAppearance />
       <AccountTimeZone />
       <DiagnosticsPresence />
       {/* Changes made through the API, MCP or the assistant reach open pages. */}

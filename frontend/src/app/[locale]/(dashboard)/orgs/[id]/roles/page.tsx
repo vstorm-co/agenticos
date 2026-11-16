@@ -4,6 +4,7 @@ import { use, useId } from "react";
 import { ShieldCheck } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { RoleNavigationEditor } from "@/components/orgs/role-navigation-editor";
 import { EmptyState, LoadingState } from "@/components/states";
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { usePermissions, useRoleCatalog } from "@/hooks";
@@ -94,6 +95,8 @@ export default function RolesPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       {breadcrumbHeader}
+
+      <RoleNavigationEditor key={orgId} organizationId={orgId} catalog={catalog} />
 
       <Card data-tour="org-roles">
         <CardHeader className="border-b px-5 py-4">

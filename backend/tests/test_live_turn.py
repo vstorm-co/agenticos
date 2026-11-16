@@ -661,7 +661,7 @@ class TestFollowingFromAnotherSocket:
         await self._attach(session, CONVERSATION)
 
         assert _sent_events(session) == [
-            ("turn_attached", {"conversation_id": CONVERSATION}),
+            ("turn_attached", {"conversation_id": CONVERSATION, "thread_root_message_id": None}),
             ("model_request_start", {}),
             ("text_delta", {"index": 0, "content": "Reading"}),
             (live_turn.END, {"conversation_id": CONVERSATION}),
@@ -674,6 +674,28 @@ class TestFollowingFromAnotherSocket:
         session = _session()
         await self._attach(session, conversation)
         assert _sent_events(session) == []
+
+    @pytest.mark.parametrize("first_kind", ["turn_prompt", "model_request_start", "text_delta"])
+    async def test_attachment_names_its_thread_before_even_a_trimmed_replay(
+        self, store: _Store, first_kind: str
+    ) -> None:
+        root_id = str(uuid4())
+        turn = await _begin()
+        await live_turn.publish(
+            turn, first_kind, {"thread_root_message_id": root_id, "content": "Thread answer"}
+        )
+        store.on_listen = lambda: live_turn.end(turn)
+        session = _session()
+
+        await self._attach(session, CONVERSATION)
+
+        first, replayed, *_rest = _sent_events(session)
+        assert first == (
+            "turn_attached",
+            {"conversation_id": CONVERSATION, "thread_root_message_id": root_id},
+        )
+        assert replayed[0] == first_kind
+        assert replayed[1]["thread_root_message_id"] == root_id
 
     async def test_a_conversation_with_no_turn_running_is_answered_with_nothing(
         self, store: _Store
@@ -1325,7 +1347,7 @@ class TestTheRoom:
         session = _session()
         with patch.object(session, "_still_reads", AsyncMock(return_value=False)):
             await session._follow(CONVERSATION, turn.token)
-        assert [kind for kind, _ in _sent_events(session)] == ["turn_attached", live_turn.END]
+        assert [kind for kind, _ in _sent_events(session)] == [live_turn.END]
 
     async def test_a_followed_turn_still_readable_goes_on(
         self, store: _Store, monkeypatch: pytest.MonkeyPatch

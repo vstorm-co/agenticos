@@ -100,6 +100,9 @@ export interface ConversationMessage {
   /** Authenticated author, paired with the submission correlation. */
   sender?: ChatPerson | null;
   client_message_id?: string | null;
+  thread_root_message_id?: string | null;
+  thread_reply_count?: number;
+  thread_last_activity_at?: string | null;
   id: string;
   conversation_id: string;
   role: "user" | "assistant" | "system";
