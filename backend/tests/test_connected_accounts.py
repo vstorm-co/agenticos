@@ -2049,8 +2049,9 @@ async def test_setup_does_not_hide_database_failures(monkeypatch, ctx):
 
 
 @pytest.mark.parametrize("for_organization", [False, True])
+@pytest.mark.parametrize("reconnecting", [False, True])
 async def test_managed_account_stages_pkce_without_any_organization_client(
-    ctx, repo, monkeypatch, for_organization
+    ctx, repo, monkeypatch, for_organization, reconnecting
 ):
     from app.services.integrations import bridge
 
@@ -2066,14 +2067,29 @@ async def test_managed_account_stages_pkce_without_any_organization_client(
     monkeypatch.setattr(service_module.OrganizationSecretService, "oauth_app_identity", local)
     staged = AsyncMock()
     service = McpConnectionService(AsyncMock())
+    row = _account(user_id=ctx.user_id, account_source_organization_id=ctx.organization_id)
+    row.oauth_payload = _sealed(
+        row,
+        _payload(
+            bridge_url="https://bridge.example",
+            client_secret=None,
+            account_source_secret_id=None,
+            account_source_generation=None,
+        ),
+    )
+    monkeypatch.setattr(
+        service, "_reconnect_account", AsyncMock(return_value=row if reconnecting else None)
+    )
     monkeypatch.setattr(service, "_stage_pending_oauth", staged)
     result = await service.account_start(
         ctx,
         browser_nonce=NONCE,
+        connection_id=row.id if reconnecting else None,
         credentials_source="agenticos",
         for_organization=for_organization,
         products=["gmail"],
     )
+    assert staged.await_args.kwargs["existing"] is (row if reconnecting else None)
     payload = staged.await_args.kwargs["payload"]
     assert payload.bridge_url == "https://bridge.example"
     assert payload.client_id == "shared-app" and payload.client_secret is None

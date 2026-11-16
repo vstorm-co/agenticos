@@ -721,6 +721,17 @@ class TestHeldAnswers:
         await _handle(world, world.store([world.held(run, message=uuid.uuid4())]))
         assert [m.text for m in world.sent] == ["Done."]
 
+    async def test_a_legacy_hold_without_a_message_does_not_send_the_runs_latest_answer(
+        self, world
+    ):
+        run = world.run(answer="a later answer to a different request")
+        store = world.store([replace(world.held(run), message_id=None)])
+
+        await _handle(world, store)
+
+        assert [m.text for m in world.sent] == ["Done."]
+        assert store.rows == []
+
     async def test_a_held_stop_notice_is_delivered_once_before_the_message_is_routed(self, world):
         run = world.run(status="cancelled")
         row = world.held(run, answer=False, notice="stopped")
@@ -2583,6 +2594,20 @@ class TestKeepingTheNumber:
         repo = await self._keep(admits=False)
 
         repo.set_phone.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_deleted_bot_does_not_keep_or_clear_a_customers_number(self):
+        repo, patches = self._world()
+        with contextlib.ExitStack() as stack:
+            for each in patches:
+                stack.enter_context(each)
+            stack.enter_context(
+                patch(f"{MODULE}.channel_bot_repo.get_for_org", AsyncMock(return_value=None))
+            )
+            await _KEEP_PHONE(BOT, ORG, CHAT, [replace(_text()[0], phone=NUMBER)])
+
+        repo.set_phone.assert_not_awaited()
+        repo.clear_phone.assert_not_awaited()
 
     @pytest.mark.security
     async def test_a_linked_sender_has_the_number_cleared_and_not_kept(self):
