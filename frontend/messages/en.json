@@ -8262,10 +8262,11 @@
           "odooKey": "Odoo API key",
           "connectDirect": "Connect account"
         },
-        "accountOwner": "Account owner",
+        "userAccountsTitle": "Each user’s connected accounts",
+        "accountOwner": "Whose accounts to use",
         "chooseAccount": "Choose a connected account",
-        "accountNameLabel": "Personal account name",
-        "accountNameHint": "Leave empty to let the agent use your connected accounts and ask which one you mean. Set a name or label to restrict it to that account.",
+        "accountNameLabel": "User account name (optional)",
+        "accountNameHint": "The agent uses the connected accounts of the user talking to it. Each user connects their own accounts in Chat → Tools → Your accounts. Leave empty to allow several accounts and ask when the choice is unclear. Enter a name or label to restrict access to a matching account for each user.",
         "manageAccounts": "Manage connected accounts",
         "chooseAccounts": "Choose connected accounts",
         "multipleAccountsHint": "Select every organization account this agent may use. With several accounts, it asks which one you mean when needed."

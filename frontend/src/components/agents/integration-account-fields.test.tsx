@@ -18,7 +18,13 @@ it("keeps a personal label portable across the people running an agent", async (
   render(
     <IntegrationAccountFields productId="gmail" provider="google" config={{}} onChange={change} />,
   );
-  await userEvent.type(screen.getByLabelText("Personal account name"), "W");
+  expect(screen.getByRole("combobox", { name: "Whose accounts to use" })).toHaveTextContent(
+    "Each user’s connected accounts",
+  );
+  expect(
+    screen.getByText(/The agent uses the connected accounts of the user talking to it/),
+  ).toHaveTextContent("Each user connects their own accounts in Chat → Tools → Your accounts");
+  await userEvent.type(screen.getByLabelText("User account name (optional)"), "W");
   expect(change).toHaveBeenLastCalledWith({ account_name: "W" });
   expect(accounts).toHaveBeenCalledWith("personal", { provider: "google", enabled: true });
   expect(screen.getByRole("link", { name: "Manage connected accounts" })).toHaveAttribute(
@@ -54,8 +60,8 @@ it("clears an account reference when its owner changes", async () => {
       onChange={change}
     />,
   );
-  await userEvent.click(screen.getByRole("combobox", { name: "Account owner" }));
-  await userEvent.click(screen.getByRole("option", { name: "Your connected accounts" }));
+  await userEvent.click(screen.getByRole("combobox", { name: "Whose accounts to use" }));
+  await userEvent.click(screen.getByRole("option", { name: "Each user’s connected accounts" }));
   expect(change).toHaveBeenCalledWith({
     account: "personal",
     account_name: "",
@@ -73,7 +79,7 @@ it("makes a read-only capability unable to change accounts", () => {
       disabled
     />,
   );
-  expect(screen.getByLabelText("Personal account name")).toBeDisabled();
+  expect(screen.getByLabelText("User account name (optional)")).toBeDisabled();
   expect(accounts).toHaveBeenCalledWith("personal", { provider: "google", enabled: false });
 });
 
@@ -109,7 +115,7 @@ it("submits the unique account name when two personal accounts share a label", (
     "google-account-two",
   ]);
   expect(options[1]).toHaveTextContent("Work — two@example.com");
-  fireEvent.change(screen.getByLabelText("Personal account name"), {
+  fireEvent.change(screen.getByLabelText("User account name (optional)"), {
     target: { value: "google-account-two" },
   });
   expect(change).toHaveBeenCalledWith({ account_name: "google-account-two" });

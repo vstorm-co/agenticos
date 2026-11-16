@@ -61,7 +61,7 @@ export function IntegrationAccountFields({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="personal">{t("personalTitle")}</SelectItem>
+            <SelectItem value="personal">{t("userAccountsTitle")}</SelectItem>
             <SelectItem value="organization">{t("organizationTitle")}</SelectItem>
           </SelectContent>
         </Select>

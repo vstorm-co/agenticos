@@ -329,34 +329,8 @@ const CHANNEL_ACTIONS =
   '<rect class="int" x="68" y="22" width="46" height="34" rx="6"/>' +
   '<path class="ln w2" d="M78 34H103M78 42H94M103 56V64L92 56"/></g></svg>';
 
-/** Connected products share the console's account-and-operation scene. */
-const INTEGRATION =
-  '<svg viewBox="0 0 240 135" aria-hidden="true"><polygon class="ishb" points="120,46 196,90 120,134 44,90"/><polygon class="ict" points="120,33 196,77 120,121 44,77"/><rect class="int" x="65" y="24" width="45" height="57" rx="5"/><path class="igrid2" d="M75 39H100M75 49H100M75 59H94"/><rect class="inr" x="139" y="46" width="38" height="42" rx="5"/><path class="ln w2 draw" d="M110 55H139M132 49L139 55L132 61"/></svg>';
-
 export const DRAWN_ART: Readonly<Record<string, string>> = {
   channel_actions: CHANNEL_ACTIONS,
-  word: INTEGRATION,
-  imap_mail: INTEGRATION,
-  odoo_contacts: INTEGRATION,
-  odoo_crm: INTEGRATION,
-  odoo_sales: INTEGRATION,
-  odoo_accounting: INTEGRATION,
-  odoo_inventory: INTEGRATION,
-  odoo_projects: INTEGRATION,
-
-  gmail: INTEGRATION,
-  google_calendar: INTEGRATION,
-  google_drive: INTEGRATION,
-  google_docs: INTEGRATION,
-  google_sheets: INTEGRATION,
-  google_slides: INTEGRATION,
-  outlook_mail: INTEGRATION,
-  outlook_calendar: INTEGRATION,
-  microsoft_files: INTEGRATION,
-  excel: INTEGRATION,
-  teams: INTEGRATION,
-  slack: INTEGRATION,
-
   visuals: VISUALS,
   background_tools: BACKGROUND_TOOLS,
   background_tasks: BACKGROUND_TASKS,

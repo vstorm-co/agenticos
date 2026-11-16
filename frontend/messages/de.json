@@ -7535,10 +7535,11 @@
           "odooKey": "Odoo-API-Schlüssel",
           "connectDirect": "Konto verbinden"
         },
-        "accountOwner": "Kontoinhaber",
+        "userAccountsTitle": "Verbundene Konten des jeweiligen Nutzers",
+        "accountOwner": "Wessen Konten soll der Agent verwenden",
         "chooseAccount": "Verbundenes Konto auswählen",
-        "accountNameLabel": "Name des persönlichen Kontos",
-        "accountNameHint": "Leer lassen, damit der Agent Ihre verbundenen Konten verwenden und bei Bedarf nachfragen kann. Ein Name oder Label beschränkt ihn auf dieses Konto.",
+        "accountNameLabel": "Kontoname des Nutzers (optional)",
+        "accountNameHint": "Der Agent verwendet die verbundenen Konten der Person, die mit ihm spricht. Jeder Nutzer verbindet seine eigenen Konten unter Chat → Werkzeuge → Ihre Konten. Leer lassen, um mehrere Konten zuzulassen und bei unklarer Auswahl nachzufragen. Ein Name oder Label beschränkt den Zugriff auf ein passendes Konto je Nutzer.",
         "manageAccounts": "Verbundene Konten verwalten",
         "chooseAccounts": "Verbundene Konten auswählen",
         "multipleAccountsHint": "Wählen Sie alle Organisationskonten aus, die dieser Agent verwenden darf. Bei Bedarf fragt er nach, welches Konto gemeint ist."

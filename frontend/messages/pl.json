@@ -4422,10 +4422,11 @@
           "odooKey": "Klucz API Odoo",
           "connectDirect": "Połącz konto"
         },
-        "accountOwner": "Właściciel konta",
+        "userAccountsTitle": "Podłączone konta użytkownika",
+        "accountOwner": "Z czyich kont ma korzystać agent",
         "chooseAccount": "Wybierz połączone konto",
-        "accountNameLabel": "Nazwa konta osobistego",
-        "accountNameHint": "Pozostaw puste, aby agent mógł używać Twoich podłączonych kont i dopytać o wybór. Podaj nazwę lub etykietę, aby ograniczyć dostęp do jednego konta.",
+        "accountNameLabel": "Nazwa konta użytkownika (opcjonalnie)",
+        "accountNameHint": "Agent korzysta z podłączonych kont osoby, która z nim rozmawia. Każdy użytkownik podłącza własne konta w Czat → Narzędzia → Twoje konta. Pozostaw puste, aby umożliwić korzystanie z kilku kont i dopytanie, gdy wybór jest niejasny. Podaj nazwę lub etykietę, aby ograniczyć dostęp do pasującego konta każdego użytkownika.",
         "manageAccounts": "Zarządzaj połączonymi kontami",
         "chooseAccounts": "Wybierz podłączone konta",
         "multipleAccountsHint": "Wybierz konta organizacji dostępne dla tego agenta. Przy wielu kontach agent w razie potrzeby dopyta, które masz na myśli."
