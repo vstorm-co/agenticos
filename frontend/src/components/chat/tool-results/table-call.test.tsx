@@ -355,6 +355,18 @@ describe("table tool results", () => {
     expect(screen.getByRole("cell", { name: "Evals at scale" })).toBeVisible();
   });
 
+  it("shows a value sent before its column became a select as it was sent", async () => {
+    // The status column was text when this write was parked; it holds options now,
+    // and "Not worth sharing" is no option id - the value must not read as empty.
+    shown(
+      call("agenticos_update_virtual_table_record", {
+        record_id: "r1",
+        update: { expected_revision: 1, values: { [STATUS]: "Not worth sharing" } },
+      }),
+    );
+    expect(await screen.findByText("Not worth sharing", { selector: "dd" })).toBeVisible();
+  });
+
   it("bounds a long written value, which the raw arguments keep whole", async () => {
     shown(call("agenticos_add_virtual_table_record", { values: { [CONTENT]: "x".repeat(5000) } }));
     const value = await screen.findByText(/^x+…$/);

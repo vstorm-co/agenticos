@@ -19,14 +19,25 @@ function preview(text: string): string {
   return text.length > PREVIEW ? `${text.slice(0, PREVIEW - 1)}…` : text;
 }
 
-/** A cell as the table's own views show it, given its column; the raw value without one. */
+function raw(value: CellValue): string {
+  return Array.isArray(value) ? value.join(", ") : String(value);
+}
+
+/**
+ * A cell as the table's own views show it, given its column; the raw value
+ * without one, or when the column cannot read it.
+ *
+ * A call is read through the table as it is now, not as it was: a value sent
+ * as text before its column became a select is no option id, and formatting
+ * it would show nothing where something was written.
+ */
 export function useCellText(): (column: ColumnDef | undefined, value: CellValue) => string {
   const t = useTranslations("tables.cells");
   const locale = useLocale();
   return (column, value) => {
-    if (column === undefined)
-      return preview(Array.isArray(value) ? value.join(", ") : String(value));
-    return preview(formatCellValue(column, value, (on) => t(on ? "true" : "false"), locale));
+    if (column === undefined) return preview(raw(value));
+    const text = formatCellValue(column, value, (on) => t(on ? "true" : "false"), locale);
+    return preview(text === "" && value !== null && value !== "" ? raw(value) : text);
   };
 }
 
