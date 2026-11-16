@@ -99,6 +99,37 @@ describe("FilterValueField", () => {
     expect(onChange).toHaveBeenLastCalledWith(["o1"]);
   });
 
+  it("shows an option stored by its label as that option, and saves an id from then on", async () => {
+    const onChange = mount({ columnId: "status", op: "in", value: [" worth SHARING", "o2"] });
+
+    expect(screen.getByRole("checkbox", { name: "Worth sharing" })).toBeChecked();
+    await userEvent.click(screen.getByRole("checkbox", { name: "Not worth sharing" }));
+    expect(onChange).toHaveBeenLastCalledWith(["o1"]);
+  });
+
+  it("keeps a chosen option archived since listed, so it can be removed", async () => {
+    const onChange = mount({ columnId: "status", op: "in", value: ["o1", "o3"] });
+
+    const archived = screen.getByRole("checkbox", { name: "Old (archived)" });
+    expect(archived).toBeChecked();
+    await userEvent.click(archived);
+    expect(onChange).toHaveBeenLastCalledWith(["o1"]);
+  });
+
+  it("shows a single choice archived since by its label", () => {
+    mount({ columnId: "status", op: "ne", value: "o3" });
+    expect(screen.getByRole("combobox", { name: "Value" })).toHaveTextContent("Old (archived)");
+  });
+
+  it.each([
+    ["a single operand", "eq", "Nonsense"],
+    ["a list", "in", ["o1", "Nonsense"]],
+    ["a number", "eq", 3],
+  ])("keeps the typed value when %s names no option", (_, op, value) => {
+    mount({ columnId: "status", op, value });
+    expect(screen.getByText("typed value")).toBeInTheDocument();
+  });
+
   it("keeps the typed value while the table is unknown", () => {
     useWorkflowTableMock.mockReturnValue({ table: null });
     mount({ columnId: "status", op: "eq" });

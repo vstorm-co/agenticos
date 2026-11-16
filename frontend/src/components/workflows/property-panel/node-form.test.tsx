@@ -1527,29 +1527,29 @@ describe("a record filter's column", () => {
     });
   });
 
-  it("is chosen by name from the step's table and saved as the column's id", async () => {
-    tableColumns.columns = [
-      { id: "email-col", label: "Email", type: "text", archived: false },
-      { id: "gone-col", label: "Retired", type: "text", archived: true },
-    ];
-    const { updateNodeConfig } = renderForm({
-      config: {
-        table: { table_id: "table-id", schema_version: 1, column_ids: null },
-        filters: [{ op: "eq" }],
-      },
-      definition: filterStep(),
-    });
+  it.each([
+    ["Email", { column_id: "email-col", op: "contains" }],
+    ["Done", { column_id: "done-col", op: "eq", value: true }],
+  ])(
+    "is chosen by name, saved as the column's id, and starts the row afresh for %s",
+    async (label, row) => {
+      tableColumns.columns = [
+        { id: "email-col", label: "Email", type: "text", archived: false },
+        { id: "done-col", label: "Done", type: "boolean", archived: false },
+      ];
+      const table = { table_id: "table-id", schema_version: 1, column_ids: null };
+      const { updateNodeConfig } = renderForm({
+        config: { table, filters: [{ column_id: "status-col", op: "in", value: ["o1"] }] },
+        definition: filterStep(),
+      });
 
-    expect(screen.queryByLabelText("Column Id")).toBeNull();
-    await userEvent.click(screen.getByRole("combobox", { name: "Column" }));
-    expect(screen.queryByRole("option", { name: "Retired" })).toBeNull();
-    await userEvent.click(screen.getByRole("option", { name: "Email" }));
+      expect(screen.queryByLabelText("Column Id")).toBeNull();
+      await userEvent.click(screen.getByRole("combobox", { name: "Column" }));
+      await userEvent.click(screen.getByRole("option", { name: label }));
 
-    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {
-      table: { table_id: "table-id", schema_version: 1, column_ids: null },
-      filters: [{ op: "eq", column_id: "email-col" }],
-    });
-  });
+      expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { table, filters: [row] });
+    },
+  );
 
   it("waits for a table before offering any column", () => {
     renderForm({

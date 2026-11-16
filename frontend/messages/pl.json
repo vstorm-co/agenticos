@@ -11366,6 +11366,7 @@
     "nodeFormFilterColumnNoTable": "Najpierw wybierz tabelę",
     "nodeFormFilterValue": "Wartość",
     "nodeFormFilterValuePlaceholder": "Wybierz opcję",
+    "nodeFormFilterOptionArchived": "{label} (zarchiwizowana)",
     "nodeFormRow": "Wiersz {index}",
     "nodeFormMoveUp": "Przesuń wiersz {index} w górę",
     "nodeFormMoveDown": "Przesuń wiersz {index} w dół",

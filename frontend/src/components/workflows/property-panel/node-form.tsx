@@ -74,6 +74,7 @@ import {
   McpToolField,
   useMcpToolSchema,
 } from "@/components/workflows/pickers/mcp-tool-picker";
+import { newFilter } from "@/components/tables/record-filters";
 import { FilterColumnField } from "./filter-column-field";
 import { FilterValueField } from "./filter-value-field";
 import { ReplyMailboxPicker } from "./reply-mailbox-picker";
@@ -517,19 +518,6 @@ function ConfigLeaf({
     );
   }
 
-  if (name === "column_id" && path[0] === "filters") {
-    return (
-      <FilterColumnField
-        id={`cfg-${field.replace(/[^a-zA-Z0-9]+/g, "-")}`}
-        tableId={strOrNull(record(ctx.node.config["table"])["table_id"])}
-        value={value}
-        error={error}
-        disabled={ctx.disabled}
-        onChange={onChange}
-      />
-    );
-  }
-
   const condition = schema["x-condition"];
   if (condition === "item" || condition === "value") {
     return (
@@ -853,13 +841,40 @@ function ConfigArray({
                 onChange={childChange}
               />
             );
-            if (child.name !== "value" || prefix.join("/") !== "filters") return node;
+            if (prefix.join("/") !== "filters") return node;
             const field = bindingFieldPath(childPath);
+            const fieldId = `cfg-${field.replace(/[^a-zA-Z0-9]+/g, "-")}`;
+            const tableId = strOrNull(record(ctx.node.config["table"])["table_id"]);
+            if (child.name === "column_id") {
+              return (
+                <FilterColumnField
+                  key={child.name}
+                  id={fieldId}
+                  tableId={tableId}
+                  value={childValue}
+                  error={ctx.errors.get(field)}
+                  disabled={ctx.disabled}
+                  // Another column starts the row afresh: the old operator or
+                  // operand may not suit it, and would stay where nobody sees it.
+                  onPick={(column) => {
+                    const { value: operand, ...fresh } = newFilter(column);
+                    onChange(
+                      replaceAt(
+                        rows,
+                        index,
+                        operand === null ? fresh : { ...fresh, value: operand },
+                      ),
+                    );
+                  }}
+                />
+              );
+            }
+            if (child.name !== "value") return node;
             return (
               <FilterValueField
                 key={child.name}
-                id={`cfg-${field.replace(/[^a-zA-Z0-9]+/g, "-")}`}
-                tableId={strOrNull(record(ctx.node.config["table"])["table_id"])}
+                id={fieldId}
+                tableId={tableId}
                 columnId={record(row)["column_id"]}
                 op={record(row)["op"]}
                 value={childValue}

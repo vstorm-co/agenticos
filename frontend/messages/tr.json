@@ -1279,6 +1279,7 @@
     "nodeFormFilterColumnNoTable": "Önce bir tablo seçin",
     "nodeFormFilterValue": "Değer",
     "nodeFormFilterValuePlaceholder": "Bir seçenek seçin",
+    "nodeFormFilterOptionArchived": "{label} (arşivlendi)",
     "nodeFormRow": "Satır {index}",
     "nodeFormMoveUp": "{index}. satırı yukarı taşı",
     "nodeFormMoveDown": "{index}. satırı aşağı taşı",
