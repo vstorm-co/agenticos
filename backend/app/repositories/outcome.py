@@ -158,7 +158,7 @@ async def settle_notifications(
     result = await db.execute(
         update(Notification).where(Notification.outcome_id == outcome_id).values(**values)
     )
-    return int(result.rowcount)  # ty: ignore[unresolved-attribute]
+    return int(result.rowcount)  # ty: ignore[missing-attribute]
 
 
 async def skip_unsent_deliveries(
@@ -184,7 +184,7 @@ async def skip_unsent_deliveries(
         )
         .values(status=DeliveryStatus.SKIPPED.value, retry_safe=False, last_error=reason)
     )
-    return int(result.rowcount)  # ty: ignore[unresolved-attribute]
+    return int(result.rowcount)  # ty: ignore[missing-attribute]
 
 
 async def for_watch_findings(

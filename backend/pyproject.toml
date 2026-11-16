@@ -281,7 +281,7 @@ dev = [
     "pytest-cov>=6.1.0",
     "httpx>=0.28.0",
     "ruff>=0.17.4",
-    "ty>=0.0.99",
+    "ty>=0.0.104",
     "pre-commit>=4.7.0",
     "pytest-xdist>=3.8.0",
     # Shuffles the suite every run and prints the seed, so an order-dependent
@@ -601,7 +601,7 @@ invalid-argument-type = "warn"
 # ORM models with Optional fields trigger on attribute assignment
 invalid-assignment = "warn"
 # Callable[..., Any] doesn't expose __name__ but function objects do
-unresolved-attribute = "warn"
+missing-attribute = "warn"
 # datetime.utcnow deprecation warnings
 deprecated = "warn"
 # Optional deps imported inside try/except (pymupdf, docx, faker) and
@@ -1469,7 +1469,7 @@ exclude = [
 invalid-parameter-default = "error"
 invalid-argument-type = "error"
 invalid-assignment = "error"
-unresolved-attribute = "error"
+missing-attribute = "error"
 deprecated = "error"
 no-matching-overload = "error"
 unused-type-ignore-comment = "error"
