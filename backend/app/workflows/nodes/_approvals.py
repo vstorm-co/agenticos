@@ -26,10 +26,10 @@ async def notify_approvers(
     """Tell whoever may decide the current step's approval that it waits on them.
 
     The named approvers and the deciding members of the named groups when the
-    step names either. Otherwise anyone may decide who holds `approvals:decide`
-    in the organization, so that is who is told: a step naming nobody used to
-    notify nobody, and waited where only Activity showed it. The row opens the
-    approvals queue, in the organization the run belongs to.
+    step names either. Otherwise anyone in the organization who holds
+    `approvals:decide` may decide, app admins among the members included, so
+    that is who is told. The row opens the approvals queue, in the organization
+    the run belongs to.
     """
     current = context.current()
     if approvers or approver_groups:
@@ -41,7 +41,10 @@ async def notify_approvers(
             recipients += sorted(in_groups.difference(recipients), key=str)
     else:
         recipients = await member_repo.list_member_ids_by_role(
-            db, organization_id=current.organization_id, roles=_DECIDING_ROLES
+            db,
+            organization_id=current.organization_id,
+            roles=_DECIDING_ROLES,
+            with_app_admins=True,
         )
     if not recipients:
         return
