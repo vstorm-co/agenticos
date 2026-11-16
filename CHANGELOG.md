@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Choosing an improvement helper requires view access as well as run access. Missing or inaccessible helpers return 404 before their settings are read (#2685).
+
 ## [1.76.1] - 2026-11-15
 
 ### Documentation
