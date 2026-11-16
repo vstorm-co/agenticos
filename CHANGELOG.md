@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- Apply `0332_channel_thread_context.py` before starting the new API and workers. Ordinary Slack, Mattermost, Telegram, Teams and Discord messages require the background worker. Legacy thread cursors are preserved so compacted conversations are not imported again. Queued runs are attempted once; after a lost worker or an unconfirmed reply, inspect existing actions before asking again.
+- Apply `0333_channel_thread_context.py` before starting the new API and workers. Ordinary Slack, Mattermost, Telegram, Teams and Discord messages require the background worker. Legacy thread cursors are preserved so compacted conversations are not imported again. Queued runs are attempted once; after a lost worker or an unconfirmed reply, inspect existing actions before asking again.
 
 - Unlinked channel senders no longer trigger an automatic approval for every MCP or Mirage call. Review agents exposed to unlinked participants: select Ask first for tools needing confirmation, or require linked accounts in the bot's access policy. Existing pending approvals still need a decision or a stopped run; this change does not approve them automatically.
 
@@ -40,6 +40,30 @@ Two things are versioned separately from this file and worth knowing about:
 - Admit Slack Socket Mode commands and message shortcuts durably before acknowledgement, preserve Telegram updates when job admission fails, and keep Discord metadata lookups off its Gateway receive loop.
 
 - Standardize fields, native and custom selects, buttons and switches across the console and authentication screens. Respect the chosen look at sign-in, stack connected accounts before appearance, restore fallback avatar colours and make working-day selection clear.
+
+
+## [1.78.1] - 2026-11-16
+
+### Added
+
+- Configure API webhook signature formats and headers in the routine editor, and find Linear webhooks from the event picker.
+
+### Changed
+
+- Update compatible backend runtime, sandbox, parsing, documentation and test dependencies from #3058, and refresh their third-party notices.
+- Update FastAPI, Logfire and Pydantic AI Skills, with refreshed third-party notices (#3043).
+
+### Fixed
+
+- Routine access reviews refresh their sources and action inventories after a personal or organization MCP connection is changed, checked or connected through OAuth, including live updates, without reloading the console (#3061).
+- Routine history clears the starting placeholder when the requested run appears, including runs already waiting for approval or finished before the first refresh. Older runs do not hide a new dispatch, and the exact queued activation keeps polling independent of concurrent fires, paginated history and browser/server clock differences (#3063). Waiting-for-answer runs have a translated status in every console language (#3064).
+- Run now returns an explicit conflict when no job or durable refusal can be recorded, instead of acknowledging work that will never run (#3069).
+- Preserve the cadence and run estimates of stored cron schedules by keeping croniter below 7 until its changed expression semantics can be migrated (#3067).
+- Choosing an improvement helper requires view access as well as run access. Missing or inaccessible helpers return 404 before their settings are read (#2685).
+
+### Upgrading
+
+- `0332_routine_activation_lookup.py` builds a partial index for exact routine-fire polling. Existing runs are preserved; writes to `agent_runs` wait briefly while the transactional index builds.
 
 ## [1.78.0] - 2026-11-16
 
@@ -21856,7 +21880,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.78.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.78.1...HEAD
+[1.78.1]: https://github.com/vstorm-co/agenticos/compare/v1.78.0...v1.78.1
 [1.78.0]: https://github.com/vstorm-co/agenticos/compare/v1.77.0...v1.78.0
 [1.77.0]: https://github.com/vstorm-co/agenticos/compare/v1.76.2...v1.77.0
 [1.76.2]: https://github.com/vstorm-co/agenticos/compare/v1.76.1...v1.76.2

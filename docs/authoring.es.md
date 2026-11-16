@@ -1,5 +1,5 @@
 ---
-source_sha: "0ec608602ddd"
+source_sha: "0184c2dd65d3"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -314,6 +314,10 @@ La retención de actividad conserva el coste total de los runs pagados eliminado
 
 Los grants cuentan: un miembro con un grant de edición sobre un agent puede
 mejorar ese agent.
+
+Si una petición de la API selecciona un agent auxiliar, necesitas permisos para
+verlo y ejecutarlo. Un auxiliar que no existe o al que no tienes acceso devuelve
+`404` antes de leer sus ajustes o llamar a un modelo, como al mejorar un skill.
 
 ## Disponibilidad y coste { #when-ai-assistance-is-off }
 

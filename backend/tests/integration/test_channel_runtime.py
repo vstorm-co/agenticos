@@ -24,6 +24,37 @@ from app.worker.jobs import (
 pytestmark = pytest.mark.anyio
 
 
+@pytest.mark.parametrize(
+    ("kind", "status", "submission_started", "updated"),
+    [
+        ("deliver-channel-reply", "queued", False, True),
+        ("deliver-channel-reply", "queued", True, False),
+        ("deliver-channel-reply", "running", False, False),
+        ("process-channel-message", "queued", False, False),
+    ],
+)
+async def test_rendered_reply_changes_only_an_unclaimed_delivery(
+    db: AsyncSession, kind: str, status: str, submission_started: bool, updated: bool
+) -> None:
+    row = BackgroundJob(
+        kind=kind,
+        pool="agent",
+        status=status,
+        max_attempts=1,
+        payload={"output": "Saved answer", "submission_started": submission_started},
+    )
+    db.add(row)
+    await db.flush()
+
+    await jobs.render_channel_reply(db, job_id=row.id, output="Saved answer with usage")
+    await db.refresh(row)
+
+    assert row.payload == {
+        "output": "Saved answer with usage" if updated else "Saved answer",
+        "submission_started": submission_started,
+    }
+
+
 async def test_thread_context_is_imported_once_and_replayed_by_the_shared_history(
     db: AsyncSession,
 ) -> None:
@@ -289,7 +320,7 @@ async def test_new_migration_matches_the_postgres_models(engine) -> None:
 
     from app.db.base import Base
 
-    path = Path(__file__).parents[2] / "alembic/versions/0332_channel_thread_context.py"
+    path = Path(__file__).parents[2] / "alembic/versions/0333_channel_thread_context.py"
     spec = importlib.util.spec_from_file_location("channel_pg_migration", path)
     assert spec is not None and spec.loader is not None
     migration = importlib.util.module_from_spec(spec)

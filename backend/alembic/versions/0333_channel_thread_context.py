@@ -9,8 +9,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "0332_channel_thread_context"
-down_revision = "0331_routine_overlap_attempt"
+revision = "0333_channel_thread_context"
+down_revision = "0332_routine_activation_lookup"
 branch_labels = None
 depends_on = None
 

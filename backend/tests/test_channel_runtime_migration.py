@@ -9,7 +9,7 @@ from sqlalchemy import create_engine, text
 
 
 def test_upgrade_preserves_legacy_progress_and_can_be_reversed() -> None:
-    path = Path(__file__).parents[1] / "alembic/versions/0332_channel_thread_context.py"
+    path = Path(__file__).parents[1] / "alembic/versions/0333_channel_thread_context.py"
     spec = importlib.util.spec_from_file_location("channel_runtime_migration", path)
     assert spec is not None and spec.loader is not None
     migration = importlib.util.module_from_spec(spec)

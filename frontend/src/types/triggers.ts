@@ -24,6 +24,12 @@ export type ScheduleKind = "interval" | "cron";
  */
 export type TriggerOverlap = "skip" | "queue" | "allow";
 
+/** The run-now 202 response identifies the exact queued activation. */
+export interface TriggerDispatch extends Trigger {
+  activation_id: string;
+  job_id: string | null;
+}
+
 /** Where an event trigger's fire comes from. Mirrors the backend's `EventSource`. */
 export type EventSource =
   | "github"
@@ -261,4 +267,8 @@ export interface TriggerAttempt {
 export interface TriggerAttemptList {
   items: TriggerAttempt[];
   total: number;
+}
+
+export interface TriggerActivationStatus {
+  state: "pending" | "recorded" | "not_started";
 }

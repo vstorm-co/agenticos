@@ -1,5 +1,5 @@
 ---
-source_sha: "0ec608602ddd"
+source_sha: "0184c2dd65d3"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -308,6 +308,10 @@ Retencja aktywności zachowuje łączny koszt usuniętych płatnych runów sesji
 
 Granty się liczą: członek z grantem edycji na jednym agencie może ulepszać tego
 agenta.
+
+Jeśli żądanie API wybiera agenta pomocniczego, potrzebujesz uprawnień do jego
+odczytu i uruchamiania. Brakujący lub niedostępny pomocnik zwraca `404` przed
+odczytaniem jego ustawień lub wywołaniem modelu, tak jak w ulepszaniu skilla.
 
 ## Dostępność i koszt { #when-ai-assistance-is-off }
 

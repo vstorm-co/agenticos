@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.78.0"
+version = "1.78.1"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -20,12 +20,12 @@ dependencies = [
     # is what makes the request's transaction commit before the response is sent
     # (#353), and an older FastAPI answers `TypeError` at import rather than
     # quietly reverting - but only 0.141.1 has been run against this suite.
-    "fastapi>=0.143.2",
+    "fastapi>=0.162.5",
     "uvicorn[standard]>=0.54.0",
     "pydantic[email]>=2.14.3",
-    "pydantic-settings>=2.16.2",
+    "pydantic-settings>=2.16.3",
     "python-multipart>=0.0.33",
-    "logfire[fastapi,asyncpg,redis,httpx]>=5.4.0",
+    "logfire[fastapi,asyncpg,redis,httpx]>=5.6.0",
     "sqlalchemy[asyncio]>=2.1.8",
     "asyncpg>=0.32.0",
     # Alembic's, not the application's. Every application URL is
@@ -80,7 +80,7 @@ dependencies = [
     # search all build and send their own requests.
     "mcp>=2.3.0",
     # The platform's own MCP server and its OAuth endpoints (#2058, #2059).
-    "fastmcp>=4.1.6",
+    "fastmcp>=4.1.8",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the
@@ -89,9 +89,9 @@ dependencies = [
     # freeze the detectors and the model registry they read. Every agent also
     # wraps RepairToolArguments, whose json-repair dependency is selected by
     # its capability extra in the 0.64 release.
-    "pydantic-ai-harness[e2b,opensandbox,repair-tool-arguments]>=0.66.0",
+    "pydantic-ai-harness[e2b,opensandbox,repair-tool-arguments]>=0.68.0",
     # The provider adapter uses SDK 1.2 retry and transport configuration explicitly.
-    "opensandbox>=1.2.0,<2",
+    "opensandbox>=1.2.1,<2",
     "websockets>=17.4",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
@@ -105,7 +105,7 @@ dependencies = [
     "python-docx>=1.1.0",
     "openpyxl>=3.1.0",
     "llama-cloud>=2.18.0",
-    "liteparse>=2.18.0",
+    "liteparse>=2.19.0",
     # `html.parse` reads markup with bs4's standard-library parser and picks
     # elements with soupsieve. Both already ship through `pydantic-ai-slim`'s
     # web-fetch extra; declared here so a release of it cannot drop them.
@@ -115,8 +115,8 @@ dependencies = [
     # Google Drive speaks plain REST through `app/services/rag/drive_api.py`;
     # `google-auth` only signs the service account's token, over `requests`.
     # `google-api-python-client` was 108 MB of discovery documents for four URLs.
-    "google-auth[requests]>=2.62.1",
-    "boto3>=1.43.126",
+    "google-auth[requests]>=2.62.2",
+    "boto3>=1.44.2",
     # Two HTTP libraries, deliberately. `httpx` is what fourteen modules build
     # and send their own requests with - the portals, the channels, the model
     # catalog, the web-research search - and `httpx2` is what the MCP SDK is
@@ -133,15 +133,15 @@ dependencies = [
     "tabulate>=0.9.0",
     # Renders a Markdown artifact into the page it is served as. Already here
     # through `rich`; declared because `app/services/artifact.py` imports it.
-    "markdown-it-py>=4.0.0",
+    "markdown-it-py>=4.3.0",
     "tqdm>=4.70.1",
     "tavily-python>=0.8.5",
-    "pydantic-monty>=1.5.0",
+    "pydantic-monty>=1.6.0",
     # Floors at 2.0, where each skill became its own deferred capability. The
     # platform's three skills tools collapsed to one: the catalog is the model's
     # own capability list, `load_capability` opens a skill, and only
     # `read_skill_resource` survives as a tool (#1658).
-    "pydantic-ai-skills>=2.1.1",
+    "pydantic-ai-skills>=2.1.2",
     # `console` for the tools, `workspaces` for the workspace capabilities,
     # `remote` for the Files panel's archive client and `daytona` for Daytona
     # connections (the `daytona` package; the old `daytona-sdk` never imported).
@@ -175,7 +175,7 @@ dependencies = [
     "subagents-pydantic-ai>=0.2.25",
     "cryptography>=50.0.2",
     "aiogram>=3.31.0,<4.0",
-    "slack-sdk>=3.46.0",
+    "slack-sdk>=3.47.0",
     # What Slack Socket Mode actually needs. `app/services/channels/slack.py`
     # imports `slack_sdk.socket_mode.aiohttp` - the transport a bot uses when the
     # deployment exposes nothing - and slack-sdk keeps aiohttp behind an extra, so
@@ -192,7 +192,8 @@ dependencies = [
     # expression. Interval schedules need no library, but "daily/weekly at HH:MM"
     # and any raw crontab do - and getting DST and month lengths right by hand is
     # the kind of arithmetic a dependency exists to own.
-    "croniter>=3.0.0",
+    # Version 7 changes persisted maximum-step expressions; migrate them first.
+    "croniter>=6.2.4,<7",
     "xlrd>=2.0.2",
     "odfpy>=1.4.1",
     "python-pptx>=1.0.2",
@@ -217,7 +218,7 @@ dependencies = [
     # lite build: the same `phonenumbers` module and numbering-plan metadata,
     # without the 20 MB of carrier, geocoding and time zone data nothing here reads.
     "phonenumberslite>=9.0.43",
-    "regex>=2026.9.10",
+    "regex>=2026.11.9",
     # The ingest pool's memory watchdog (#2219): the resident size of a job's child
     # process and of whatever it starts - LibreOffice for a conversion - so a parse
     # that grows past its limit is stopped and the parent says why. `/proc` alone
@@ -280,7 +281,7 @@ dev = [
     "anyio[trio]>=4.16.0",
     "pytest-cov>=6.1.0",
     "httpx>=0.28.0",
-    "ruff>=0.17.4",
+    "ruff>=0.17.5",
     "ty>=0.0.104",
     "pre-commit>=4.7.0",
     "pytest-xdist>=3.8.0",
@@ -289,7 +290,7 @@ dev = [
     # It carries its own xdist support (the controller's seed is handed to each
     # worker through `workerinput`), without which the workers would collect in
     # four different orders and `-n auto` would abort on the mismatch.
-    "pytest-randomly>=5.0.0",
+    "pytest-randomly>=5.1.0",
     "vulture>=2.14",
     # vulture reads the code and finds what is written but unused; deptry reads
     # the manifest and finds what is declared but unimported. Nothing noticed
@@ -298,7 +299,7 @@ dev = [
     "deptry>=0.23.0",
     # `ldap3` ships no annotations; typeshed's stubs are what lets the adapter
     # over it be held to the platform layer's type gate.
-    "types-ldap3>=2.9.13",
+    "types-ldap3>=2.9.13.20261107",
     # The public API's contract test validates real responses against the
     # schemas its OpenAPI document publishes (#1796). It already arrives
     # through the MCP SDK; declared so the test does not lean on that.
@@ -310,7 +311,7 @@ dev = [
 docs = [
     "mkdocs>=1.6.0",
     "mkdocs-glightbox>=0.5.2",
-    "mkdocs-material>=9.5.0",
+    "mkdocs-material>=9.8.1",
     "mkdocstrings[python]>=1.0.8",
     # One build per locale from `<page>.<locale>.md` files sitting beside the
     # English source, so `/install/` keeps its URL and `/pl/install/` is added

@@ -1006,6 +1006,50 @@ def routine_notices(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
 
 
 class TestRunningNow:
+    @pytest.mark.parametrize("blocked", [False, True])
+    async def test_a_fire_not_queued_needs_a_recorded_outcome(self, blocked: bool) -> None:
+        from app.core.exceptions import ConflictError
+
+        agent = _agent()
+        trigger = _trigger(agent_id=agent.id)
+        service = _service(agent)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch.object(service, "queue_fire", new=AsyncMock(return_value=None)),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            repo.attempt_for_activation = AsyncMock(return_value=object() if blocked else None)
+            if blocked:
+                accepted = await service.run_now(_ctx(), agent.id, trigger.id)
+                assert (
+                    accepted.activation_id
+                    == repo.attempt_for_activation.await_args.kwargs["activation_id"]
+                )
+            else:
+                with pytest.raises(ConflictError, match="could not be queued"):
+                    await service.run_now(_ctx(), agent.id, trigger.id)
+
+    async def test_concurrent_manual_dispatches_return_their_own_activation(self) -> None:
+        agent = _agent()
+        service = _service(agent)
+        trigger = _trigger(agent_id=agent.id)
+        queue = AsyncMock(return_value=uuid.uuid4())
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch.object(service, "queue_fire", new=queue),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            first, second = await asyncio.gather(
+                service.run_now(_ctx(), agent.id, trigger.id),
+                service.run_now(_ctx(), agent.id, trigger.id),
+            )
+        assert first.trigger is second.trigger is trigger
+        assert first.activation_id != second.activation_id
+        assert {call.kwargs["activation_id"] for call in queue.await_args_list} == {
+            first.activation_id,
+            second.activation_id,
+        }
+
     @pytest.mark.security
     async def test_running_now_demands_permission_to_run_the_agent(self, fired):
         """The same floor as scheduling it - `agents:run` on the agent, per row."""
@@ -1013,7 +1057,7 @@ class TestRunningNow:
         service = _service(agent)
         trigger = _trigger(agent_id=agent.id)
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
-            repo.get_by_id = AsyncMock(return_value=None)
+            repo.get_by_id = AsyncMock(return_value=trigger)
             repo.get = AsyncMock(return_value=trigger)
             await service.run_now(_ctx(), agent.id, trigger.id)
         assert service.agents.get.call_args.kwargs["perm"].value == "agents:run"
@@ -1045,11 +1089,11 @@ class TestRunningNow:
         original_next = datetime(2026, 1, 1, tzinfo=UTC)
         trigger = _trigger(agent_id=agent.id, next_fire_at=original_next)
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
-            repo.get_by_id = AsyncMock(return_value=None)
+            repo.get_by_id = AsyncMock(return_value=trigger)
             repo.get = AsyncMock(return_value=trigger)
             result = await service.run_now(_ctx(), agent.id, trigger.id)
         assert trigger.next_fire_at == original_next
-        assert result is trigger
+        assert result.trigger is trigger
 
     async def test_running_now_is_audited_under_the_caller_not_the_creator(self, fired):
         """The run runs as the creator, but who pressed the button - and spent the
@@ -1062,7 +1106,7 @@ class TestRunningNow:
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.record_audit", new=audit),
         ):
-            repo.get_by_id = AsyncMock(return_value=None)
+            repo.get_by_id = AsyncMock(return_value=trigger)
             repo.get = AsyncMock(return_value=trigger)
             await service.run_now(_ctx(), agent.id, trigger.id)
         assert audit.call_args.kwargs["action"] == "agent.trigger_run_now"
@@ -1446,6 +1490,7 @@ class TestFiring:
         assert "not runnable" not in detail
 
     async def test_a_fired_run_runs_as_the_creator_and_is_stamped_schedule(self):
+        activation_id = uuid.uuid4()
         agent = _agent()
         service = _service(agent)
         trigger = _trigger(agent_id=agent.id, conversation_id=None)
@@ -1463,9 +1508,10 @@ class TestFiring:
             conversations.create_conversation = AsyncMock(return_value=conversation)
             runner = runner_cls.return_value
             runner.execute = AsyncMock(return_value=("done", run))
-            await service.fire(trigger.id)
+            await service.fire(trigger.id, activation_id=activation_id)
 
         run_ctx = runner.execute.call_args.args[0]
+        assert run_ctx.routine_dispatch_id == activation_id
         assert run_ctx.user_id == _CALLER
         # The creator is the authority, not a memory end-user: an unattended fire
         # must not read the creator's private memory nor save facts there.

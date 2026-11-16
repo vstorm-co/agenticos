@@ -12,6 +12,8 @@ broken enough to notice.
 import uuid
 from decimal import Decimal
 
+import pytest
+
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.schemas.agent_run import AgentRunRead
 
@@ -79,3 +81,16 @@ def test_an_orphaned_delegation_reports_no_task_id() -> None:
 
     assert read.parent_run_id is None
     assert read.subagent_task_id is None
+
+
+def test_a_routine_run_reports_its_specific_activation_without_exposing_the_policy() -> None:
+    activation_id = uuid.uuid4()
+    read = AgentRunRead.model_validate(_row(routine_policy={"activation_id": str(activation_id)}))
+    assert read.routine_activation_id == activation_id
+    assert "routine_policy" not in read.model_dump()
+    assert AgentRunRead.model_validate(read.model_dump()).routine_activation_id == activation_id
+
+
+@pytest.mark.parametrize("policy", [None, {}, {"acts_as_creator": True}])
+def test_legacy_and_non_routine_runs_have_no_activation(policy: dict[str, object] | None) -> None:
+    assert AgentRunRead.model_validate(_row(routine_policy=policy)).routine_activation_id is None
