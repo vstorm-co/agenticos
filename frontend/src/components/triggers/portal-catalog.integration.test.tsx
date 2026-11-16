@@ -345,9 +345,19 @@ describe("PortalCatalog", () => {
     // others rather than as a ghost button in the filter row (#1071).
     await mount();
 
-    const card = within(screen.getByRole("group", { name: "API trigger" }));
+    const card = within(screen.getByRole("group", { name: "Webhook or API trigger" }));
 
     expect(card.getByRole("button", { name: "Create trigger" })).toBeInTheDocument();
+  });
+
+  it("names the provider webhooks available from the API card in the compact routine picker", async () => {
+    serve([]);
+    render(<PortalCatalog compact canRun canManageConnections />, { wrapper });
+
+    const card = within(await screen.findByRole("group", { name: "Webhook or API trigger" }));
+    expect(card.getByText("Signed webhooks")).toBeVisible();
+    expect(card.getByText(/Linear, HubSpot and Zendesk webhooks/)).toBeVisible();
+    expect(card.getByRole("button", { name: "Create trigger" })).toBeEnabled();
   });
 
   it("keeps the API trigger reachable when a search matches no portal", async () => {
@@ -361,13 +371,13 @@ describe("PortalCatalog", () => {
     );
 
     expect(await screen.findByText("No portals match")).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "API trigger" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Webhook or API trigger" })).toBeInTheDocument();
   });
 
   it("hides the API trigger from a caller who may not run an agent", async () => {
     await mount({ canRun: false });
 
-    expect(screen.queryByRole("group", { name: "API trigger" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Webhook or API trigger" })).toBeNull();
   });
 
   it("does not offer Connect at all when it could only fail", async () => {

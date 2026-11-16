@@ -211,12 +211,12 @@ describe("ConnectServerDialog", () => {
         spy.mockClear();
         window.dispatchEvent(new Event("focus"));
         window.dispatchEvent(new Event("focus"));
-        expect(spy).toHaveBeenCalledTimes(6);
+        expect(spy).toHaveBeenCalledTimes(8);
         // Fifteen minutes on, a return refetches nothing any more.
         const expire = timer.mock.calls.find(([, ms]) => ms === 15 * 60 * 1000)?.[0];
         (expire as () => void)();
         window.dispatchEvent(new Event("focus"));
-        expect(spy).toHaveBeenCalledTimes(6);
+        expect(spy).toHaveBeenCalledTimes(8);
       } finally {
         shell.desktop = false;
         spy.mockRestore();
@@ -376,9 +376,10 @@ describe("ConnectServerDialog", () => {
       window.dispatchEvent(new Event("focus"));
       // On every return while the consent may still finish; an earlier
       // consent's listener was replaced by this one.
-      expect(invalidate).toHaveBeenCalledTimes(3);
+      expect(invalidate).toHaveBeenCalledTimes(4);
       window.dispatchEvent(new Event("focus"));
-      expect(invalidate).toHaveBeenCalledTimes(6);
+      expect(invalidate).toHaveBeenCalledTimes(8);
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["triggers"] });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["mcp-connections"] });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["mcp-servers", "list"] });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["mcp-servers", "entry"] });

@@ -872,6 +872,10 @@ class ScoringService:
                 improvement_run_id=improvement_run_id,
                 knowledge_base_ids=await self._answering_bases(ctx, answer),
             )
+        except NotFoundError as exc:
+            return Evaluation(
+                not_graded(criteria, skipped=True, code="judge_missing", reason=exc.message)
+            )
         except SystemAgentUnavailableError as exc:
             skipped = not_graded(
                 criteria, skipped=True, code=f"judge_{exc.reason}", reason=exc.message

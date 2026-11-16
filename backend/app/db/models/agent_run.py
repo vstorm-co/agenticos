@@ -481,6 +481,12 @@ class AgentRun(Base, TimestampMixin):
         # Monthly spend, per organization. Read before *every* model request to
         # check the budget, so it is the most frequently served query here.
         Index("ix_agent_runs_org_started", "organization_id", "started_at"),
+        Index(
+            "ix_agent_runs_routine_activation",
+            "organization_id",
+            text("(routine_policy ->> 'activation_id')"),
+            postgresql_where=text("(routine_policy ->> 'activation_id') IS NOT NULL"),
+        ),
         # The same window broken down by provider - "what did we spend at OpenAI"
         # is the question a bill arrives with.
         Index(

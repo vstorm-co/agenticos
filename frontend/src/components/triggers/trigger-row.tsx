@@ -75,24 +75,21 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
   const [viewing, setViewing] = useState(false);
   const runDisabled =
     !trigger.is_active || runNow.isPending || (trigger.waiting_device_count ?? 0) > 0;
-  // When "Run now" was pressed, so the runs view can show a waiting animation
-  // until a reply recorded after this moment arrives. Null when the view was
-  // opened just to read the log.
-  const [pendingSince, setPendingSince] = useState<number | null>(null);
+  // Compare history identities rather than clocks from the browser and worker.
+  const [activationId, setActivationId] = useState<string | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
 
   function openRuns() {
-    setPendingSince(null);
+    setActivationId(null);
+    setJobId(null);
     setViewing(true);
   }
 
   function fireAndWatch() {
-    // The boundary is the press, not the response: a fast fire can record its
-    // reply before the 202 reaches the browser, and a boundary stamped after
-    // that reply would wait forever for a message "newer" than it.
-    const pressedAt = Date.now();
     runNow.mutate(trigger.id, {
-      onSuccess: () => {
-        setPendingSince(pressedAt);
+      onSuccess: (pending) => {
+        setActivationId(pending.activation_id);
+        setJobId(pending.job_id);
         setViewing(true);
       },
     });
@@ -282,11 +279,15 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
       />
       <TriggerRunsSheet
         trigger={trigger}
-        pendingSince={pendingSince}
+        activationId={activationId}
+        jobId={jobId}
         open={viewing}
         onOpenChange={(next) => {
           setViewing(next);
-          if (!next) setPendingSince(null);
+          if (!next) {
+            setActivationId(null);
+            setJobId(null);
+          }
         }}
       />
     </div>

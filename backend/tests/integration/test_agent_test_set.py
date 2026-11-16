@@ -28,6 +28,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
     AuthorizationError,
@@ -531,12 +532,23 @@ async def test_an_admin_configures_grading_without_creating_an_agent(db, monkeyp
     assert (await db.execute(select(Agent).where(Agent.kind == "judge"))).first() is None
 
 
-async def test_a_judge_that_would_not_run_grades_nothing(db, monkeypatch) -> None:
+@pytest.mark.parametrize(
+    "judge_error",
+    [
+        SystemAgentUnavailableError("Not published", key="eval_judge", reason="unpublished"),
+        NotFoundError(message="Agent not found"),
+    ],
+)
+async def test_a_judge_that_would_not_run_grades_nothing(
+    db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    judge_error: NotFoundError | SystemAgentUnavailableError,
+) -> None:
     org, owner, _, agent, _ = await _world(db)
 
     async def runnable(self, ctx, *, key: str, agent_id=None, model_profile_id=None):
         if key == "eval_judge":
-            raise SystemAgentUnavailableError("Not published", key=key, reason="unpublished")
+            raise judge_error
 
     monkeypatch.setattr(SystemAgentRunner, "require_runnable", runnable)
     await _rate(db, org, agent, owner, "How long do refunds take?", rating=1, minutes=1)
