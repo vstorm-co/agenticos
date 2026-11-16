@@ -1,5 +1,5 @@
 ---
-source_sha: "2f21d97c1afb"
+source_sha: "8d167fac78c1"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -55,6 +55,26 @@ erreichen die Antwort. `null` behält den ganzen Datensatz; `[]` liefert nur Met
 Berechnete Spalten werden vor der Projektion ausgewertet; ihre Abhängigkeiten müssen
 nicht ausgewählt sein. Dieselben Datensätze erscheinen sofort in der Konsole; die
 asynchrone Ausführung des Tabellen-Triggers verzögert die CRUD-Antwort nicht.
+
+## Mandantentrennung in der Datenbank { #database-tenant-isolation }
+
+Logische Tabellen bleiben in der PostgreSQL-Datenbank der Bereitstellung. Die
+RLS-Migration installiert Richtlinien, ohne sie zu aktivieren. Der Betreiber
+aktiviert sie, nachdem alle API- und Worker-Prozesse aktualisiert und ihre
+laufenden Arbeiten beendet wurden. Danach binden normale Tabellenoperationen die
+ID der authentifizierten Organisation an die aktuelle Transaktion. Ohne Kontext
+sind keine Tables-Zeilen sichtbar; eine Transaktion kann die Organisation nicht
+wechseln. Die Grenze umfasst Schemas, Datensätze, Verlauf, Medien, Ansichten,
+Operationsbestätigungen, Trigger, normalisierte Verknüpfungen und Tables-Freigaben.
+
+Read/Write-Berechtigungen für Tabellen und Zeilen prüft weiterhin der Service.
+Globale Kontoexporte und Kontolöschungen verwenden nach der Authentifizierung und
+einer erneuten Berechtigungsprüfung eine separat konfigurierte Wartungsverbindung.
+Beim Entfernen einer Organisationsmitgliedschaft werden die Tables-Freigaben der
+Person in derselben Transaktion gelöscht, auch bei Verzeichnisänderungen über
+mehrere Organisationen. Andere Ressourcentypen behalten ihre bisherigen
+Autorisierungsregeln. Das [Betriebshandbuch für die Umstellung](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md)
+beschreibt getrennte Zugangsdaten, Vorprüfung, Aktivierung und Rücknahme.
 
 ## Wie eine Tabelle aufgebaut ist { #how-a-table-is-built }
 
@@ -173,6 +193,31 @@ Berechtigte Benutzer können weiterhin Tabellenmetadaten mit
 `row_policy_valid: false` lesen. Ein berechtigter Tabelleneditor kann die Richtlinie
 über `PUT /tables/{id}/row-policy` reparieren. Bis dahin liefert ein Ziel mit
 ungültiger Richtlinie weder verknüpfte Datensätze noch geerbten Projektzugriff.
+
+### Beziehungsgrenzen und Rückverweise { #relationship-limits-and-backlinks }
+
+Ein Verknüpfungsfeld akzeptiert `link_limit` von 1 bis 100. Ohne Angabe bleibt die
+Grenze eines vorhandenen Feldes erhalten; ein neues Feld verwendet 100. Gezählt
+werden alle gültigen gespeicherten Ziele, auch die für den Schreibenden
+verborgenen. Eine Senkung wird abgelehnt, bis vorhandene Zeilen die Grenze
+einhalten. Bei 1 hat jede Quellzeile höchstens ein Ziel; mehrere Quellzeilen
+dürfen weiterhin dasselbe Ziel nennen.
+
+Verbindungen behalten ihre Reihenfolge und binden beide Endpunkte an die
+angegebenen Tabellen derselben Organisation. Aktuelle Lesevorgänge, Filter und
+geerbter Projektzugriff verwenden diese kanonischen Verbindungen. Ungültige
+Altdaten bleiben als Reparaturnachweis erhalten und gewähren keinen Zugriff.
+Archivieren bewahrt die Verbindungen; das Wiederherstellen desselben Feldes
+stellt sie wieder her. Das Löschen eines Ziels entfernt eingehende Verbindungen
+ohne neue Quellrevision; historische Momentaufnahmen behalten ihre Originaldaten.
+
+`GET /tables/{table_id}/records/{record_id}/backlinks` liest eingehende
+Verbindungen aus den erforderlichen Angaben `source_table_id` und `column_id`.
+`skip` liegt zwischen 0 und 10.000, `limit` zwischen 1 und 100 mit Standard 50.
+Das Ziel, die Quelltabelle und jede Quellzeile müssen lesbar sein; die Prüfung
+erfolgt vor der Paginierung. Ein archiviertes Verknüpfungsfeld kann nicht
+durchlaufen werden. Das Ergebnis enthält gewöhnliche Quelldatensätze, keine
+verborgene Gesamtzahl und keine zusätzliche Schreibberechtigung für die Endpunkte.
 
 ### Atomare Änderungen an Verknüpfungen { #atomic-link-changes }
 
@@ -787,9 +832,11 @@ die Nutzung eines Tenants nie auf einen anderen angerechnet wird, und wird mit
 | `TABLES_MAX_PER_ORGANIZATION` | 200 | Tabellen einer Organisation. Archivierte zählen mit, weil eine Tabelle nie gelöscht wird |
 | `TABLES_MAX_RECORDS_PER_TABLE` | 100.000 | Datensätze in einer Tabelle. Ein Update eines Datensatzes in einer vollen Tabelle ist erlaubt |
 | `TABLES_MAX_RECORD_BYTES` | 1.000.000 | Die serialisierten Werte eines Datensatzes in Bytes |
-| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Gespeicherte PostgreSQL-JSONB-Nutzdaten je Organisation über Datensätze, Historie, Quittungen und Outbox; Tabellen- und Index-Overhead zählt separat |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Gespeicherte JSONB-Bytes für Datensätze, Historie, Quittungen und Outbox, Bildbytes sowie Zeilen für Beziehungsdefinitionen, Kanten und aufbewahrte Quelldaten je Organisation; Indizes und sonstiger physischer Overhead zählen separat |
 
 Die Gesamtgrenze wird im Savepoint der Änderung unter einer Organisationssperre vor dem Commit geprüft. Eine Überschreitung rollt den Datensatz und alle Kopien zurück, auch eine Importzeile; übrige Zeilen werden als abgelehnt gemeldet. Quittungswiederholungen, unveränderte Schreibvorgänge, Lesen und Löschen bleiben nach einer Absenkung möglich. Die Aufbewahrungsbereinigung gibt entfernte Bytes frei.
+
+Das Erstellen von Tabellen und Schemaänderungen unterliegen derselben Speichergrenze. Eine Ablehnung rollt die neue Tabelle oder Schemaversion, Beziehungsdefinitionen, umgeschriebene Werte samt Historie und eine neue Erstellungsquittung gemeinsam zurück. Der normale Tabellenaudit wird erst nach der Speicherprüfung geschrieben; der separate Audit der Quotenablehnung bleibt nach dem Rollback erhalten.
 
 Die Ablehnung nennt das Limit und seine Obergrenze in `details` (`{"quota": "records",
 "limit": 100000}`), nie den Inhalt, und schreibt einen Eintrag `table.quota_refused` in das

@@ -56,6 +56,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.util import ClauseAdapter
 
 from app.core.resource_icons import ResourceIconName
+from app.db.base import Base
 from app.db.models.resource_grant import Visibility
 from app.db.models.virtual_table import (
     VirtualTable,
@@ -66,6 +67,12 @@ from app.db.models.virtual_table import (
     VirtualTableRecordHistory,
     VirtualTableSchemaVersion,
 )
+from app.db.models.virtual_table_relation import (
+    VirtualTableLinkEvidence,
+    VirtualTableRecordLink,
+    VirtualTableRelation,
+)
+from app.repositories import virtual_table_relation as relation_repo
 from app.repositories._search import contains_ci
 from app.repositories.resource_grant import readable_record_ids
 from app.schemas.virtual_table import CellValue, FilterOp, FilterValue, SortDirection
@@ -105,6 +112,36 @@ async def storage_bytes(db: AsyncSession, *, organization_id: UUID) -> int:
                 "bytes"
             )
         ).where(VirtualTableOutbox.organization_id == organization_id),
+        select(
+            func.coalesce(
+                func.sum(
+                    func.pg_column_size(
+                        Base.metadata.tables[VirtualTableRelation.__tablename__].table_valued()
+                    )
+                ),
+                0,
+            ).label("bytes")
+        ).where(VirtualTableRelation.organization_id == organization_id),
+        select(
+            func.coalesce(
+                func.sum(
+                    func.pg_column_size(
+                        Base.metadata.tables[VirtualTableRecordLink.__tablename__].table_valued()
+                    )
+                ),
+                0,
+            ).label("bytes")
+        ).where(VirtualTableRecordLink.organization_id == organization_id),
+        select(
+            func.coalesce(
+                func.sum(
+                    func.pg_column_size(
+                        Base.metadata.tables[VirtualTableLinkEvidence.__tablename__].table_valued()
+                    )
+                ),
+                0,
+            ).label("bytes")
+        ).where(VirtualTableLinkEvidence.organization_id == organization_id),
     ).subquery()
     held = await db.scalar(select(func.sum(totals.c.bytes)))
     return int(held or 0)
@@ -314,6 +351,7 @@ async def add_schema_version(
     db.add(row)
     await db.flush()
     await db.refresh(row)
+    await relation_repo.sync_schema(db, table_id=table_id, columns=columns)
     return row
 
 
@@ -652,7 +690,10 @@ async def insert_record(
         .execution_options(populate_existing=True)
     )
     result = await db.execute(statement)
-    return result.scalar_one_or_none()
+    record = result.scalar_one_or_none()
+    if record is not None:
+        await relation_repo.sync_record(db, record=record)
+    return record
 
 
 async def update_record(
@@ -671,6 +712,7 @@ async def update_record(
     record.updated_by = updated_by
     record.updated_source = source
     await db.flush()
+    await relation_repo.sync_record(db, record=record)
     await db.refresh(record)
     return record
 
@@ -732,10 +774,14 @@ def linked_filter_expression(
         visible = false()
     else:
         target = VirtualTableRecord.__table__.alias()
+        edge = VirtualTableRecordLink.__table__.alias()
         conditions = [
             target.c.organization_id == organization_id,
             target.c.table_id == target_table_id,
-            _cell(clause.column_id).contains(func.jsonb_build_array(cast(target.c.id, Text))),
+            edge.c.organization_id == VirtualTableRecord.organization_id,
+            edge.c.source_table_id == VirtualTableRecord.table_id,
+            edge.c.source_record_id == VirtualTableRecord.id,
+            edge.c.column_id == clause.column_id,
         ]
         if clause.op == "contains":
             conditions.append(target.c.id == UUID(str(clause.value)))
@@ -743,7 +789,16 @@ def linked_filter_expression(
             conditions.append(ClauseAdapter(target).traverse(target_policy))
         visible = (
             select(1)
-            .select_from(target)
+            .select_from(
+                target.join(
+                    edge,
+                    and_(
+                        edge.c.organization_id == target.c.organization_id,
+                        edge.c.target_table_id == target.c.table_id,
+                        edge.c.target_record_id == target.c.id,
+                    ),
+                )
+            )
             .where(*conditions)
             .correlate(VirtualTableRecord.__table__)
             .exists()
@@ -841,7 +896,7 @@ def policy_expression(
     if writer is not None:
         parts.append(_predicate(writer))
     if link_column_id is not None and project_ids:
-        parts.append(_cell(link_column_id).has_any(array([str(item) for item in project_ids])))
+        parts.append(relation_repo.contains_targets(link_column_id, project_ids))
     if not parts:
         return None
     return parts[0] if len(parts) == 1 else or_(*parts)
@@ -1096,11 +1151,13 @@ async def get_record_sizes_by_ids(
     table_id: UUID,
     organization_id: UUID,
     keys: Sequence[str],
+    extra: ColumnElement[bool] | None = None,
 ) -> dict[UUID, int]:
     """The size of each record's cells under `keys`; an id the table does not hold is left out."""
     result = await db.execute(
         select(VirtualTableRecord.id, _size(keys)).where(
-            _among(record_ids, table_id, organization_id)
+            _among(record_ids, table_id, organization_id),
+            *([] if extra is None else [extra]),
         )
     )
     return {row[0]: row[1] for row in result.all()}

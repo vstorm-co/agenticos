@@ -246,6 +246,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     # Without the claim `get_db_context` builds an engine per call, which is
     # correct but pays a connect per request (#1079).
     claim_pooled_engines()
+    from app.db.table_rls import verify_table_runtime
+
+    async with get_db_context() as preflight_db:
+        await verify_table_runtime(preflight_db)
     watchdog = EventLoopWatchdog(wedged_after=settings.EVENT_LOOP_WEDGED_AFTER)
     # Again, now that the server has configured its own loggers: uvicorn's access
     # log has a handler of its own, and in some launch modes it is created after

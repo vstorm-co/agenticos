@@ -90,6 +90,7 @@ PLATFORM_MODULES = (
     "app/services/notifications.py",
     "app/services/organization_secret.py",
     "app/services/secret_requests.py",
+    "app/services/role_navigation.py",
     "app/services/rag/remote_names.py",
     "app/services/rag/filters.py",
     "app/services/sharing.py",

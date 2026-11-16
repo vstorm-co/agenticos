@@ -76,6 +76,7 @@ from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext, Perm
+from app.db.table_rls import bind_table_access
 from app.repositories import virtual_table_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_file as workflow_file_repo
@@ -711,6 +712,7 @@ async def table_ref_problems(
     exist and be readable, its schema must not have moved since the reference was
     made, and every column it pins must still be live.
     """
+    await bind_table_access(db, ctx)
     table = await virtual_table_repo.get_table(
         db, ref.table_id, organization_id=ctx.organization_id
     )

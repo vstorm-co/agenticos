@@ -180,6 +180,12 @@ class ColumnDef(_Schema):
     link_table_id: UUID | None = Field(
         default=None, description="A link column: the table whose records it links to."
     )
+    link_limit: int | None = Field(
+        default=None,
+        ge=1,
+        le=100,
+        description="Maximum linked records; 1 is a single destination. Missing means 100.",
+    )
     link_column_id: UUID | None = Field(
         default=None,
         description="A lookup or rollup column: the link column of this table it reads through.",
@@ -228,6 +234,12 @@ class ColumnInput(_Request):
     archived: bool = False
     link_table_id: UUID | None = Field(
         default=None, description="A link column: the table whose records it links to."
+    )
+    link_limit: int | None = Field(
+        default=None,
+        ge=1,
+        le=100,
+        description="Maximum linked records. Omit to preserve an existing field's limit.",
     )
     link_column_id: UUID | None = Field(
         default=None,

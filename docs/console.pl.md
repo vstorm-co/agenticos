@@ -1,5 +1,5 @@
 ---
-source_sha: "8e1d955d9230"
+source_sha: "22b67b0bc732"
 ---
 
 # Konsola { #the-console }
@@ -784,7 +784,7 @@ Poświata wokół pola na hostowanej stronie, gdy mówisz, idzie za ustawieniem 
 dyktowania (Voice glow)** w **Ustawienia → Profil → Wygląd (Settings → Profile →
 Appearance)**, obok motywu i ustawienia **Animacje (Motion)**: **Wyrazista
 (Vivid)**, **Subtelna (Subtle)** (domyślnie) albo **Wyłączona (Off)**. Jest
-zapamiętywana dla każdej przeglądarki. **Animacje** decydują, ile ruchu pokazuje
+zapisywana na koncie po zastosowaniu. **Animacje** decydują, ile ruchu pokazuje
 cała konsola: **Systemowe (System)** (domyślnie) idą za ustawieniem ograniczenia
 ruchu w systemie operacyjnym, **Ograniczone (Reduce)** ograniczają ruch bez
 niego, a **Pełne (Full)** zachowują ruch niezależnie od systemu operacyjnego. Gdy ruch jest ograniczony, nie ma żadnej poświaty, pasek
@@ -793,7 +793,7 @@ pojawia się bez wysuwania, a poziom dźwięku to pięciostopniowy wskaźnik.
 **Kroki workflow** w tej samej karcie wybierają, jak kanwa workflow rysuje krok:
 **W kolorze (In colour)** (domyślnie) rysuje każdy krok w barwie jego rodziny,
 **Prosty (Simple)** zostawia kafelki neutralne, a minimapę szarą. Ustawienie jest
-zapamiętywane dla każdej przeglądarki; ten sam przełącznik jest na pasku narzędzi
+zapisywane na koncie; ten sam przełącznik jest na pasku narzędzi
 kanwy. Zobacz [Jak rysowany jest krok](workflows.md#how-a-step-is-drawn).
 
 ### Karta Głos (Voice) { #the-voice-card }
@@ -1030,6 +1030,28 @@ Skrzynka wymaga potwierdzenia adresu w bieżącej sesji: świeżego logowania pr
 Bursztynowe kropki oznaczają zakładki organizacji i odpowiadające im karty głosu, nocnych sugestii, utrzymania pamięci oraz Architecta, gdy brakuje konfiguracji lub sugestie są wyłączone. Najedź na kropkę lub ustaw na niej fokus, aby przeczytać wyjaśnienie; kliknij lub dotknij, aby je otworzyć. Wskaźniki korzystają z zapisanych ustawień, znikają po uzupełnieniu konfiguracji i respektują uprawnienia do jej zmiany. Wyłączone sugestie są opcją do uruchomienia, a nie błędem. Karta powiadomień iPhone oznacza też brak klucza Apple. Ograniczenie ruchu wyłącza pulsowanie.
 
 Zapisane logowania do stron mają zwarty panel ustawień na pełną szerokość, zamiast rozciągać jeden wpis na całą stronę. Znane usługi pokazują wbudowane logo marki; pozostałe strony korzystają z własnej favicony bez przesyłania odsyłacza, a gdy obraz jest niedostępny — z ikony globu.
+
+## Wygląd konta { #account-appearance }
+
+W **Settings → Profile → Appearance** wybierz motyw, styl, kolor akcentu,
+narożniki, rozmiar tekstu, animacje, poświatę głosu i kroki workflow. Podgląd
+zmienia się wraz z wyborem. **Zastosuj** zapisuje zmiany na koncie, a **Odrzuć
+podgląd** zachowuje zapisane ustawienia. **Przywróć domyślne** natychmiast
+przywraca motyw systemowy i standardowy wygląd konta.
+
+Ustawienia działają na wszystkich urządzeniach i w każdej organizacji. Motyw i
+styl z menu konta zapisują się od razu. Wylogowanie usuwa wygląd poprzedniego
+konta. Dawne ustawienia przeglądarki nie są automatycznie przypisywane do konta;
+wybierz je i zastosuj raz.
+
+Możesz poprosić agenta o zmianę lub reset we własnym, nieudostępnionym prywatnym
+czacie. Narzędzia `get_my_appearance`, `set_my_appearance` i
+`reset_my_appearance` używają uwierzytelnionego konta i wymagają `agents:run`.
+Zapisy zachowują zwykłe zasady zatwierdzania. Czaty współdzielone, projekty,
+kanały, podszywanie się i uruchomienia bez nadzoru są odrzucane. Dozwolone są
+tylko określone wartości, bez dowolnego CSS, adresów URL i identyfikatorów innych
+osób. Konsola odświeża się po wewnętrznym wywołaniu narzędzia, po uzyskaniu
+fokusu oraz w ciągu 30 sekund dla zmian z innych urządzeń.
 
 ## Języki { #languages }
 

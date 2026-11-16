@@ -303,6 +303,8 @@ with `KERBEROS_DISPLAY_NAME` (default `Kerberos`).
 | `POSTGRES_PORT` | `5432` | PostgreSQL port |
 | `POSTGRES_USER` | `postgres` | PostgreSQL user |
 | `POSTGRES_PASSWORD` | (empty) | PostgreSQL password |
+| `POSTGRES_MIGRATION_URL` | (unset) | Separate PostgreSQL owner credential for Alembic and Tables RLS preflight/activation. A provider URL is normalized to the installed driver. Ordinary application sessions keep using the runtime settings. |
+| `POSTGRES_MAINTENANCE_URL` | (unset) | Separate PostgreSQL maintenance login for authorized global account export/deletion after Tables RLS activation. It must reach the same database and be a member of the fixed maintenance group. Required for those actions once enforcement is active; see the [cutover procedure](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md). |
 | `POSTGRES_DB` | `agenticos` | Database name |
 | `POSTGRES_SSLMODE` | (empty) | Encrypt the connection: `require`, `verify-ca` or `verify-full`. Empty is plaintext. See [Encrypted connections](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Connection pool size |

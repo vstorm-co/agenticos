@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.permissions import AuthContext, Perm
 from app.db.models.virtual_table import VirtualTableRecord
 from app.repositories import resource_grant_repo, virtual_table_repo
+from app.repositories import virtual_table_relation as relation_repo
 from app.repositories.virtual_table import RecordCells
 from app.schemas.virtual_table import CellValue, ColumnDef, LinkedRecord, RecordRead, RowPolicy
 from app.services.access import TABLE, resolve_access
@@ -327,11 +328,33 @@ def _work_out(
     return min(dates) if column.aggregate == "min" else max(dates)
 
 
+def record_snapshot(
+    record: RecordRead | VirtualTableRecord | RecordCells,
+    links: Mapping[UUID, list[str]],
+) -> RecordRead:
+    """Build a read snapshot after projecting link cells, without mutating storage.
+
+    A legacy malformed link may not satisfy the public cell schema. Canonical
+    projection therefore precedes validation, while the original remains in
+    storage and repair evidence. Missing empty cells keep their previous shape.
+    """
+    values = dict(record.values)
+    values.update({str(key): ids for key, ids in links.items() if ids or str(key) in values})
+    return RecordRead.model_validate(
+        {
+            **{
+                key: getattr(record, key) for key in RecordRead.model_fields if hasattr(record, key)
+            },
+            "values": values,
+        }
+    )
+
+
 async def read_through(
     db: AsyncSession,
     ctx: AuthContext,
     columns: Sequence[ColumnDef],
-    records: list[RecordRead],
+    records: Sequence[RecordRead | VirtualTableRecord | RecordCells],
     *,
     linked_keys: Mapping[UUID, frozenset[UUID]] | None = None,
     linked_ids: Mapping[UUID, frozenset[UUID]] | None = None,
@@ -347,11 +370,23 @@ async def read_through(
     records' link cells name; `linked_tables` holds tables already checked for
     `ctx`, a `None` entry one they may not see; `deadline` arms each statement.
     """
-    records = await _with_links(
+    canonical: dict[UUID, dict[UUID, list[str]]] = {}
+    link_columns = [column.id for column in columns if column.type == "link"]
+    if records and link_columns:
+        await arm_if_set(db, deadline)
+        canonical = await relation_repo.linked_ids(
+            db,
+            organization_id=ctx.organization_id,
+            table_id=records[0].table_id,
+            revisions={record.id: record.revision for record in records},
+            column_ids=link_columns,
+        )
+    snapshots = [record_snapshot(record, canonical.get(record.id, {})) for record in records]
+    snapshots = await _with_links(
         db,
         ctx,
         columns,
-        records,
+        snapshots,
         linked_keys=linked_keys,
         linked_ids=linked_ids,
         linked_tables=linked_tables,
@@ -363,10 +398,10 @@ async def read_through(
         if column.type == "formula" and not column.archived and column.formula is not None
     ]
     if not formulas:
-        return records
+        return snapshots
     return [
         record.model_copy(update={"values": _with_formulas(record.values, formulas, columns)})
-        for record in records
+        for record in snapshots
     ]
 
 

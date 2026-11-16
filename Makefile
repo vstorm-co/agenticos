@@ -885,16 +885,18 @@ presentation:
 #
 # Locally this starts the throwaway test Postgres and cycles the chain in a
 # database it drops and creates first (`MIGRATIONS_TEST_DB`), so `downgrade base`
-# can never empty a database with your work in it. With `TEST_DB=external` (CI)
-# it runs against the database `POSTGRES_*` / `backend/.env` name, as before.
+# can never empty a database with your work in it. Override the optional owner
+# URL too: it otherwise takes precedence over these throwaway POSTGRES_* values.
+# With `TEST_DB=external` (CI), the configured migration URL or POSTGRES_* values
+# still select the explicitly supplied database.
 MIGRATIONS_TEST_DB ?= agenticos_migrations_test
 test-migrations:
 ifeq ($(TEST_DB),throwaway)
 	$(TEST_DB_START)
 	docker compose -p agenticos-test -f docker-compose.test.yml exec -T db psql -U postgres -v ON_ERROR_STOP=1 -c 'DROP DATABASE IF EXISTS $(MIGRATIONS_TEST_DB) WITH (FORCE)' -c 'CREATE DATABASE $(MIGRATIONS_TEST_DB)'
-	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) uv run --directory backend alembic upgrade head
-	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) uv run --directory backend alembic downgrade base
-	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) uv run --directory backend alembic upgrade head
+	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) POSTGRES_MIGRATION_URL=postgresql://postgres:postgres@localhost:$(TEST_DB_PORT)/$(MIGRATIONS_TEST_DB) uv run --directory backend alembic upgrade head
+	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) POSTGRES_MIGRATION_URL=postgresql://postgres:postgres@localhost:$(TEST_DB_PORT)/$(MIGRATIONS_TEST_DB) uv run --directory backend alembic downgrade base
+	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) POSTGRES_MIGRATION_URL=postgresql://postgres:postgres@localhost:$(TEST_DB_PORT)/$(MIGRATIONS_TEST_DB) uv run --directory backend alembic upgrade head
 else
 	uv run --directory backend alembic upgrade head
 	uv run --directory backend alembic downgrade base

@@ -1331,6 +1331,14 @@ export function useChat(options: UseChatOptions = {}) {
             if (chosen) adoptAccountLocale(chosen);
             const saved = name ? contextSavedBy(name, content) : null;
             if (saved) adoptAccountContext(saved);
+            if (
+              name === "agenticos_set_my_appearance" ||
+              name === "agenticos_reset_my_appearance"
+            ) {
+              // Re-read the authenticated account; a tool result never supplies CSS
+              // or chooses which account's cache to update.
+              window.dispatchEvent(new Event("account-appearance-changed"));
+            }
           }
           break;
         }

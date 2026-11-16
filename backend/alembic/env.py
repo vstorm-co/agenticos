@@ -3,11 +3,13 @@
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+from sqlalchemy.engine import URL
 
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.db.base import Base
 from app.db.vector_tables import is_runtime_vector_table
+from app.db.table_rls import sync_postgres_url
 
 # Import all models here to ensure they are registered with metadata
 from app.db.models.user import User  # noqa: F401
@@ -32,8 +34,10 @@ target_metadata = Base.metadata
 # Ensure SQLite data directory exists before connecting
 
 
-def get_url() -> str:
+def get_url() -> str | URL:
     """Get database URL from settings."""
+    if settings.POSTGRES_MIGRATION_URL is not None:
+        return sync_postgres_url(settings.POSTGRES_MIGRATION_URL.get_secret_value())
     return settings.DATABASE_URL_SYNC
 
 

@@ -24,7 +24,6 @@ import { useSidebarStore } from "@/stores/sidebar-store";
 import { qk } from "@/lib/query-keys";
 import { cn, isAppAdmin } from "@/lib/utils";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
-import { Perm } from "@/types/permissions";
 import type { AgentList } from "@/types/agents";
 import type { KnowledgeBaseList } from "@/types";
 
@@ -61,11 +60,21 @@ export function CommandPalette() {
   const router = useRouter();
   const t = useTranslations("nav");
   const { user, logout } = useAuth();
-  const { can } = usePermissions();
+  const { can, hiddenNavigationItems, isLoaded } = usePermissions();
   const { apiUrl } = usePublicConfig();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const admin = isAppAdmin(user);
+  const visibleGroups = NAV_GROUPS.filter((group) => !group.adminOnly || admin).map((group) => ({
+    ...group,
+    items: group.items.filter((item) => navItemVisible(item, can, hiddenNavigationItems, isLoaded)),
+  }));
+  const visibleHrefs = new Set(
+    visibleGroups.flatMap((group) => group.items.map((item) => item.href)),
+  );
+  const showAgents = visibleHrefs.has(ROUTES.AGENTS);
+  const showKnowledge = visibleHrefs.has(ROUTES.RAG);
+  const showChat = visibleHrefs.has(ROUTES.CHAT);
 
   // Global ⌘K / Ctrl+K shortcut + a custom event so UI buttons can open it.
   useEffect(() => {
@@ -91,12 +100,12 @@ export function CommandPalette() {
   const agents = useQuery({
     queryKey: qk.agents.list(),
     queryFn: () => apiClient.get<AgentList>("/agents"),
-    enabled: open && can(Perm.agentsView),
+    enabled: open && showAgents,
   });
   const kbs = useQuery({
     queryKey: qk.kb.list(),
     queryFn: async () => (await apiClient.get<KnowledgeBaseList>("/kb")).items,
-    enabled: open && can(Perm.collectionsView),
+    enabled: open && showKnowledge,
   });
   const conversations = useQuery({
     queryKey: qk.conversations.recent(RECENT_CONVERSATIONS),
@@ -104,12 +113,13 @@ export function CommandPalette() {
       apiClient.get<{ items: ConversationItem[] }>("/conversations", {
         params: { limit: String(RECENT_CONVERSATIONS) },
       }),
-    enabled: open,
+    enabled: open && showChat,
   });
 
-  const agentItems = agents.data?.items.slice(0, MAX_ENTITIES) ?? [];
-  const kbItems = kbs.data?.slice(0, MAX_ENTITIES) ?? [];
-  const conversationItems = conversations.data?.items ?? [];
+  // Disabled queries can still return cached data; mask the results as well as fetching.
+  const agentItems = showAgents ? (agents.data?.items.slice(0, MAX_ENTITIES) ?? []) : [];
+  const kbItems = showKnowledge ? (kbs.data?.slice(0, MAX_ENTITIES) ?? []) : [];
+  const conversationItems = showChat ? (conversations.data?.items ?? []) : [];
 
   const go = (href: string) => {
     useSidebarStore.getState().close();
@@ -167,7 +177,9 @@ export function CommandPalette() {
         </Command.Empty>
 
         <Group heading={t("quickActions")}>
-          <PaletteItem icon={Plus} label={t("startNewChat")} onSelect={() => go(ROUTES.CHAT)} />
+          {showChat && (
+            <PaletteItem icon={Plus} label={t("startNewChat")} onSelect={() => go(ROUTES.CHAT)} />
+          )}
           <PaletteItem
             icon={BookOpen}
             label={t("apiDocs")}
@@ -180,9 +192,8 @@ export function CommandPalette() {
           />
         </Group>
 
-        {NAV_GROUPS.map((group) => {
-          if (group.adminOnly && !admin) return null;
-          const items = group.items.filter((item) => navItemVisible(item, can));
+        {visibleGroups.map((group) => {
+          const items = group.items;
           if (items.length === 0) return null;
           return (
             <Group key={group.labelKey ?? "main"} heading={t(group.labelKey ?? "navigate")}>

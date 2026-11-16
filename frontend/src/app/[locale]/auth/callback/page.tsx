@@ -7,12 +7,12 @@ import { Spinner } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { invokeShell, readShellInfo, ShellError } from "@/lib/desktop/shell";
 import { useAdoptSession } from "@/hooks/use-auth";
-import type { MfaChallenge } from "@/hooks/use-auth";
 import { MfaCodeForm } from "@/components/auth/mfa-code-form";
 import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
 import { takeReturnTo } from "@/lib/oauth-return";
 import type { User } from "@/types";
 import { useTranslations } from "next-intl";
+import { createMfaChallengeStore } from "./mfa-challenge-store";
 
 type Adopted = { user: User; access_token: string };
 
@@ -23,34 +23,6 @@ type Adopted = { user: User; access_token: string };
 // code and held outside the component so it survives the remount; cleared when
 // the request settles.
 const exchanges = new Map<string, Promise<Adopted>>();
-
-export function createMfaChallengeStore() {
-  let snapshot: MfaChallenge | null | undefined;
-  return {
-    subscribe: () => () => {},
-    getSnapshot: (): MfaChallenge | null => {
-      if (snapshot !== undefined) return snapshot;
-      const mfaToken = new URLSearchParams(window.location.hash.slice(1)).get("mfa_token");
-      if (mfaToken) {
-        window.history.replaceState(
-          window.history.state,
-          "",
-          window.location.pathname + window.location.search,
-        );
-        snapshot = {
-          mfa_required: true,
-          mfa_token: mfaToken,
-          expires_in: 300,
-          return_to: takeReturnTo(),
-        };
-      } else {
-        snapshot = null;
-      }
-      return snapshot;
-    },
-    getServerSnapshot: () => null,
-  };
-}
 
 function exchangeCode(code: string): Promise<Adopted> {
   let pending = exchanges.get(code);

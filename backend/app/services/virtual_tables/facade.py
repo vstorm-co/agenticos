@@ -3,12 +3,13 @@
 from app.services.virtual_tables.media import MediaOperations
 from app.services.virtual_tables.record_grants import RecordAccessOperations
 from app.services.virtual_tables.records import RecordOperations
+from app.services.virtual_tables.relations import RelationOperations
 from app.services.virtual_tables.table_views import TableViewOperations
 from app.services.virtual_tables.tables import TableOperations
 
 
 class VirtualTableService(
-    TableOperations, RecordOperations, MediaOperations, RecordAccessOperations
+    TableOperations, RecordOperations, MediaOperations, RecordAccessOperations, RelationOperations
 ):
     """Tables, schemas and records for the caller's organization.
 

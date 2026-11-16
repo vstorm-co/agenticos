@@ -57,6 +57,7 @@ export { useMcpToolServers } from "./use-mcp-tool-servers";
 export { useMyMemory } from "./use-my-memory";
 export { useMyClaims } from "./use-my-claims";
 export { usePermissions, useRoleCatalog, useAssignableRoles } from "./use-permissions";
+export { useRoleNavigation, useUpdateRoleNavigation } from "./use-role-navigation";
 export { useRetention } from "./use-retention";
 export {
   useAddDepartments,

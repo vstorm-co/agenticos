@@ -272,7 +272,7 @@ class _World:
 
     async def consume(self) -> list[tuple[uuid.UUID, uuid.UUID]]:
         async with self.factory() as db:
-            pairs = await TableTriggerConsumer(db).consume()
+            pairs = await TableTriggerConsumer(db).consume(self.ctx)
             await db.commit()
         return pairs
 
@@ -731,7 +731,7 @@ async def test_a_chain_too_deep_or_too_long_is_blocked(world: _World):
         await db.execute(update(VirtualTableOutbox).values(dispatched_at=None))
         with patch("app.services.virtual_tables.triggers.MAX_RUNS_PER_ROOT", 1):
             assert MAX_RUNS_PER_ROOT > 1
-            await TableTriggerConsumer(db).consume()
+            await TableTriggerConsumer(db).consume(world.ctx)
         await db.commit()
     # The chain's root is its one run so far, the quota of this patched one.
     assert ("blocked", "quota") in _statuses(await world.admissions(trigger_id))

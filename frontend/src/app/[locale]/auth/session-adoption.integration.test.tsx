@@ -3,7 +3,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import CallbackPage, { createMfaChallengeStore } from "./callback/page";
+import CallbackPage from "./callback/page";
+import { createMfaChallengeStore } from "./callback/mfa-challenge-store";
 import MagicLinkPage from "./magic-link/page";
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { apiClient } from "@/lib/api-client";

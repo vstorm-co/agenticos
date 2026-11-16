@@ -9,6 +9,7 @@ import pytest
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.virtual_table import VirtualTable, VirtualTableRecord
+from app.repositories import virtual_table_relation as relation_repo
 from app.repositories import virtual_table_repo
 from app.schemas.virtual_table import (
     CellValue,
@@ -77,6 +78,15 @@ def record(values: dict[str, CellValue] | None = None) -> RecordRead:
         revision=1,
         created_at=datetime.now(UTC),
     )
+
+
+@pytest.fixture(autouse=True)
+def immutable_link_snapshots(monkeypatch: pytest.MonkeyPatch) -> None:
+    # These projection tests hold immutable snapshots without a current database
+    # row. Canonical current-row projection is covered by the PostgreSQL relation
+    # and link-privacy tests; an absent/currently different revision keeps its
+    # historical values and must still apply all destination visibility checks.
+    monkeypatch.setattr(relation_repo, "linked_ids", AsyncMock(return_value={}))
 
 
 @pytest.fixture
@@ -190,8 +200,12 @@ async def test_invalid_policy_refuses_batch_before_write_or_receipt(
     monkeypatch.setattr(service, "_load_table", AsyncMock(return_value=source))
     replay = AsyncMock()
     storage = AsyncMock()
+    mutation = AsyncMock()
+    metadata = AsyncMock()
     monkeypatch.setattr(records, "run_once", replay)
     monkeypatch.setattr(records.quotas, "lock_storage", storage)
+    monkeypatch.setattr(service, "_create_one", mutation)
+    monkeypatch.setattr(records.virtual_table_repo, "database_time", metadata)
     batch = RecordBatchCreate(records=[RecordCreate(values={})])
     action = service.create_records if operation == "create" else service.write_batch
 
@@ -199,7 +213,11 @@ async def test_invalid_policy_refuses_batch_before_write_or_receipt(
         await action(context("owner"), source.id, batch)
 
     replay.assert_not_awaited()
-    storage.assert_not_awaited()
+    mutation.assert_not_awaited()
+    metadata.assert_not_awaited()
+    # create_records reserves storage before its table SHARE lock. A receipt
+    # wrapper can reject the policy before acquiring either lock.
+    assert storage.await_count == (1 if operation == "create" else 0)
 
 
 async def test_batch_import_hides_conflict_metadata_for_an_unreadable_external_id(
@@ -357,6 +375,7 @@ async def test_explicit_hidden_ids_are_refused_even_when_the_update_would_be_a_n
     service = RecordOperations(MagicMock())
     monkeypatch.setattr(service, "_columns", AsyncMock(return_value=[LINK]))
     monkeypatch.setattr(records, "can_write_record", AsyncMock(return_value=True))
+    monkeypatch.setattr(relation_repo, "write_values", AsyncMock(return_value=before.copy()))
     monkeypatch.setattr(
         records, "normalize_task_cells", AsyncMock(return_value={KEY: [str(HIDDEN)]})
     )

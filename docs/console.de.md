@@ -1,5 +1,5 @@
 ---
-source_sha: "8e1d955d9230"
+source_sha: "22b67b0bc732"
 ---
 
 # Die Konsole { #the-console }
@@ -845,7 +845,7 @@ Das Leuchten um das Feld einer Hosted Page, während Sie sprechen, folgt
 **Diktieranimation (Voice glow)** unter **Einstellungen → Profil → Darstellung
 (Settings → Profile → Appearance)**, neben Design und **Bewegung (Motion)**:
 **Kräftig (Vivid)**, **Dezent (Subtle)** (der Standard) oder **Aus (Off)**. Es
-wird pro Browser gespeichert. **Bewegung** bestimmt, wie viel Bewegung die ganze
+wird mit Übernehmen im Konto gespeichert. **Bewegung** bestimmt, wie viel Bewegung die ganze
 Konsole zeigt: **System** (der Standard) folgt der Einstellung für reduzierte
 Bewegung im Betriebssystem, **Reduziert (Reduce)** reduziert die Bewegung auch
 ohne sie, und **Voll (Full)** behält sie, was auch immer das Betriebssystem
@@ -856,7 +856,7 @@ und der Pegel ist eine fünfstufige Anzeige.
 **Workflow-Schritte** in derselben Karte wählt, wie die Workflow-Canvas einen Schritt
 zeichnet: **Farbig (In colour)** (der Standard) zeichnet jeden Schritt in seiner
 Familie, **Schlicht (Simple)** lässt die Kacheln neutral und die Minikarte grau. Die
-Einstellung wird pro Browser gespeichert; denselben Schalter hat die Werkzeugleiste der
+Einstellung wird im Konto gespeichert; denselben Schalter hat die Werkzeugleiste der
 Canvas. Siehe [Wie ein Schritt gezeichnet wird](workflows.md#how-a-step-is-drawn).
 
 ### Die Karte Stimme (Voice) { #the-voice-card }
@@ -1113,6 +1113,28 @@ Der Posteingang erfordert einen Nachweis der E-Mail-Adresse in der aktuellen Sit
 Bernsteinfarbene Punkte markieren Organisationstabs und die zugehörigen Karten für Sprache, nächtliche Vorschläge, Gedächtnispflege und Architect bei unvollständiger Konfiguration oder ausgeschalteten Vorschlägen. Hover oder Tastaturfokus zeigt die Erklärung; Klicken oder Tippen hält sie geöffnet. Die Hinweise verwenden gespeicherte Einstellungen, verschwinden nach der Einrichtung und beachten Bearbeitungsrechte. Ausgeschaltete Vorschläge gelten als optionale Einrichtung, nicht als Fehler. Auch die iPhone-Push-Karte markiert einen fehlenden Apple-Schlüssel. Bei reduzierter Bewegung entfällt das Pulsieren.
 
 Gespeicherte Browser-Anmeldungen stehen in einem kompakten Einstellungsbereich über die volle Breite, statt einen Eintrag auf die ganze Seite zu strecken. Bekannte Dienste verwenden mitgelieferte Markenlogos; andere Seiten ihr eigenes Favicon ohne Referrer und bei fehlendem Bild ein Globussymbol.
+
+## Darstellung des Kontos { #account-appearance }
+
+Unter **Settings → Profile → Appearance** wählen Sie Design, Stil, Akzentfarbe,
+Ecken, Textgröße, Bewegung, Diktieranimation und Workflow-Schritte. Die Vorschau
+ändert sich mit Ihrer Auswahl. **Übernehmen** speichert die Änderungen im Konto;
+**Vorschau verwerfen** behält die gespeicherten Werte. **Auf Standard
+zurücksetzen** stellt sofort das Systemdesign und die Standarddarstellung wieder her.
+
+Die Auswahl gilt auf allen Geräten und in allen Organisationen. Design und Stil
+im Kontomenü werden sofort gespeichert. Beim Abmelden wird die Darstellung des
+vorherigen Kontos gelöscht. Bestehende Browsereinstellungen werden keinem Konto
+automatisch zugeordnet; wählen und übernehmen Sie sie einmal.
+
+Sie können einen Agenten in Ihrem eigenen, nicht geteilten privaten Chat um
+Änderungen bitten. `get_my_appearance`, `set_my_appearance` und
+`reset_my_appearance` verwenden das authentifizierte Konto und benötigen
+`agents:run`. Schreibzugriffe behalten ihre normale Freigaberichtlinie.
+Geteilte Chats, Projekte, Kanäle, Identitätswechsel und unbeaufsichtigte Läufe
+werden abgewiesen. Nur festgelegte Werte sind erlaubt, kein freies CSS, URLs
+oder fremde Nutzer-IDs. Die Konsole aktualisiert sich nach einem internen
+Werkzeugaufruf, beim Fokussieren und für andere Geräte innerhalb von 30 Sekunden.
 
 ## Sprachen { #languages }
 

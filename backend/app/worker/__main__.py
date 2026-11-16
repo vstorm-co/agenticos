@@ -79,9 +79,12 @@ def executors_for(pools: list[Pool]) -> dict[Pool, Executor]:
 
 
 async def serve(pools: list[Pool]) -> None:
+    from app.db.table_rls import verify_table_runtime
     from app.services import browse_plans, change_feed, live_browse, live_turn
 
     claim_pooled_engines()
+    async with get_db_context() as preflight_db:
+        await verify_table_runtime(preflight_db)
     # A fired routine publishes to an open Activity page, can be watched browsing
     # and replays its last plan - each needs a Redis this process opens once.
     await change_feed.connect_in_worker()

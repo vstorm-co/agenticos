@@ -46,6 +46,7 @@ from app.db.models.virtual_table_trigger import (
 )
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_run import WorkflowRun, WorkflowRunTrigger
+from app.db.table_rls import bind_table_access
 from app.repositories import member_repo, virtual_table_repo
 from app.repositories import user as user_repo
 from app.repositories import virtual_table_trigger as trigger_repo
@@ -235,6 +236,7 @@ class TableTriggerService(Operations):
 
         Runs it already started keep going.
         """
+        await bind_table_access(self.db, ctx)
         trigger = await trigger_repo.get_for_workflow(
             self.db, workflow_id=workflow.id, organization_id=ctx.organization_id
         )
@@ -472,7 +474,7 @@ class TableTriggerConsumer:
         self.db = db
         self.runs = WorkflowExecutionService(db)
 
-    async def consume(self, *, limit: int = 100) -> list[tuple[UUID, UUID]]:
+    async def consume(self, ctx: AuthContext, *, limit: int = 100) -> list[tuple[UUID, UUID]]:
         """Judge every claimed event against every active trigger on its table.
 
         One transaction for the claim, each trigger's decision in a savepoint of
@@ -483,9 +485,12 @@ class TableTriggerConsumer:
         Returns `(run_id, entry_node_run_id)` for every run admitted; each first
         dispatch job is queued in this transaction.
         """
+        await bind_table_access(self.db, ctx)
         admitted: list[tuple[UUID, UUID]] = []
         now = datetime.now(UTC)
-        for event in await trigger_repo.claim_pending(self.db, limit=limit):
+        for event in await trigger_repo.claim_pending(
+            self.db, organization_id=ctx.organization_id, limit=limit
+        ):
             name = trigger_repo.EVENTS[event.event_type]
             triggers = [
                 trigger

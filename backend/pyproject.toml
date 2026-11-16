@@ -647,6 +647,7 @@ include = [
     "app/commands/invite_members.py",
     "app/commands/data_protection.py",
     "app/commands/mcp_audit.py",
+    "app/commands/tables_rls.py",
     "app/core/permissions.py",
     "app/core/claude_subscription.py",
     "app/schemas/claude_subscription.py",
@@ -705,12 +706,15 @@ include = [
     # Which tables alembic owns and which the vector store makes at runtime. It is
     # two statements, and one of them decides whether `db-check` reports real drift.
     "app/db/vector_tables.py",
+    "app/db/table_tenant.py",
+    "app/db/table_rls.py",
     # Which explicit `null` on an update may reach a row. It is one function and
     # it stands between a legal request and a 500 naming a database constraint
     # (#637), which is the kind of thing a branch that never runs is exactly how
     # it comes back.
     "app/db/updates.py",
     "app/services/access.py",
+    "app/services/account_maintenance.py",
     # How often a stranger may reach a public surface. It was configured and
     # never applied for the whole life of the product (#39), which is the
     # argument for holding the replacement to the bar every other refusal is
@@ -883,6 +887,7 @@ include = [
     "app/services/model_outputs.py",
     "app/services/organization_secret.py",
     "app/services/secret_requests.py",
+    "app/services/role_navigation.py",
     "app/services/openai_codex.py",
     # Same shape and the same reason as `image_models`: what a picker offers is
     # decided by filtering a data file against what the platform can actually
@@ -979,6 +984,7 @@ include = [
     "app/repositories/intercepted_tool_call.py",
     "app/repositories/dashboard_layout.py",
     "app/services/dashboard_layout.py",
+    "app/services/user_appearance.py",
     "app/schemas/onboarding.py",
     "app/repositories/onboarding.py",
     "app/services/onboarding.py",
@@ -1344,8 +1350,11 @@ include = [
     # operation key, another tenant's table, an archived column - and a write path
     # that skipped one would overwrite or leak a tenant's rows silently (#1782).
     "app/db/models/virtual_table.py",
+    "app/db/models/virtual_table_relation.py",
     "app/repositories/virtual_table.py",
+    "app/repositories/virtual_table_relation.py",
     "app/schemas/virtual_table.py",
+    "app/schemas/virtual_table_relation.py",
     "app/services/virtual_tables/**",
     "app/api/routes/v1/virtual_tables.py",
     "app/api/routes/v1/_table_responses.py",
@@ -1562,6 +1571,7 @@ include = [
     "app/commands/invite_members.py",
     "app/commands/data_protection.py",
     "app/commands/mcp_audit.py",
+    "app/commands/tables_rls.py",
     "app/core/permissions.py",
     "app/core/claude_subscription.py",
     "app/schemas/claude_subscription.py",
@@ -1620,12 +1630,15 @@ include = [
     # Which tables alembic owns and which the vector store makes at runtime. It is
     # two statements, and one of them decides whether `db-check` reports real drift.
     "app/db/vector_tables.py",
+    "app/db/table_tenant.py",
+    "app/db/table_rls.py",
     # Which explicit `null` on an update may reach a row. It is one function and
     # it stands between a legal request and a 500 naming a database constraint
     # (#637), which is the kind of thing a branch that never runs is exactly how
     # it comes back.
     "app/db/updates.py",
     "app/services/access.py",
+    "app/services/account_maintenance.py",
     # How often a stranger may reach a public surface. It was configured and
     # never applied for the whole life of the product (#39), which is the
     # argument for holding the replacement to the bar every other refusal is
@@ -1831,6 +1844,7 @@ include = [
     "app/services/model_outputs.py",
     "app/services/organization_secret.py",
     "app/services/secret_requests.py",
+    "app/services/role_navigation.py",
     "app/services/openai_codex.py",
     # Same shape and the same reason as `image_models`: what a picker offers is
     # decided by filtering a data file against what the platform can actually
@@ -1927,6 +1941,7 @@ include = [
     "app/repositories/intercepted_tool_call.py",
     "app/repositories/dashboard_layout.py",
     "app/services/dashboard_layout.py",
+    "app/services/user_appearance.py",
     "app/schemas/onboarding.py",
     "app/repositories/onboarding.py",
     "app/services/onboarding.py",
@@ -2292,8 +2307,11 @@ include = [
     # operation key, another tenant's table, an archived column - and a write path
     # that skipped one would overwrite or leak a tenant's rows silently (#1782).
     "app/db/models/virtual_table.py",
+    "app/db/models/virtual_table_relation.py",
     "app/repositories/virtual_table.py",
+    "app/repositories/virtual_table_relation.py",
     "app/schemas/virtual_table.py",
+    "app/schemas/virtual_table_relation.py",
     "app/services/virtual_tables/**",
     "app/api/routes/v1/virtual_tables.py",
     "app/api/routes/v1/_table_responses.py",

@@ -87,6 +87,7 @@ from app.schemas.virtual_table import (
     TableRead,
     TableUpdate,
 )
+from app.schemas.virtual_table_relation import BacklinkQuery
 from app.services.virtual_tables.media import MAX_IMAGE_BYTES
 
 router = APIRouter(dependencies=[PUBLIC])
@@ -460,6 +461,28 @@ async def export_records(
 async def get_record(table_id: UUID, record_id: UUID, service: VirtualTableSvc, ctx: Auth) -> Any:
     """One record."""
     return await service.get_record(ctx, table_id, record_id)
+
+
+@router.get(
+    "/{table_id}/records/{record_id}/backlinks", response_model=RecordList, responses=_REFUSALS
+)
+async def list_backlinks(
+    table_id: UUID,
+    record_id: UUID,
+    source_table_id: UUID,
+    column_id: UUID,
+    service: VirtualTableSvc,
+    ctx: Auth,
+    skip: int = Query(default=0, ge=0, le=10_000),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> Any:
+    """Visible records from one source relationship that link to this record."""
+    return await service.list_backlinks(
+        ctx,
+        table_id,
+        record_id,
+        BacklinkQuery(source_table_id=source_table_id, column_id=column_id, skip=skip, limit=limit),
+    )
 
 
 @router.patch(

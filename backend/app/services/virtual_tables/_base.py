@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.virtual_table import VirtualTable
+from app.db.table_rls import bind_table_access
 from app.repositories import virtual_table_repo
 from app.schemas.resource_grant import as_visibility
 from app.schemas.virtual_table import ColumnDef, TableRead
@@ -42,6 +43,7 @@ class Operations:
         them off until the write commits. Table locks come first and the audit chain lock last,
         so the two never wait on each other. With a `deadline`, each statement is armed first.
         """
+        await bind_table_access(self.db, ctx)
         await arm_if_set(self.db, deadline)
         table = await virtual_table_repo.get_table(
             self.db,

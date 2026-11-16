@@ -1,5 +1,5 @@
 ---
-source_sha: "2f21d97c1afb"
+source_sha: "8d167fac78c1"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -55,6 +55,27 @@ llegan a la respuesta. `null` conserva el registro completo; `[]` devuelve solo
 metadatos. Las columnas calculadas se evalúan antes de la proyección, sin tener que
 seleccionar sus dependencias. Los mismos registros aparecen inmediatamente en la
 consola; el trigger de la tabla se ejecuta de forma asíncrona sin retrasar el CRUD.
+
+## Aislamiento de organizaciones en la base de datos { #database-tenant-isolation }
+
+Las tablas lógicas permanecen en la base de datos PostgreSQL del despliegue. La
+migración RLS instala las políticas sin activarlas; el operador las activa después
+de actualizar todos los procesos de API y workers y esperar a que terminen sus
+operaciones. Una vez activadas, las operaciones normales vinculan el ID de la
+organización autenticada a la transacción actual. Sin contexto no se muestran
+filas de Tables, y una transacción no puede cambiar de organización. El límite
+incluye esquemas, registros, historial, archivos multimedia, vistas, recibos de
+operaciones, triggers, enlaces normalizados y permisos compartidos de Tables.
+
+El servicio sigue aplicando los permisos Read/Write de tablas y filas. La
+exportación y eliminación global de una cuenta usan una conexión de mantenimiento
+configurada por separado, después de autenticar y comprobar de nuevo la autoridad.
+Eliminar una membresía de organización elimina en cascada los permisos de Tables
+de esa persona en la misma transacción, incluso durante cambios de directorio que
+abarcan varias organizaciones. Los demás tipos de recursos conservan sus reglas
+de autorización. La [guía de transición para operadores](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md)
+describe la separación de credenciales, la comprobación previa, la activación y
+la reversión.
 
 ## Cómo se construye una tabla { #how-a-table-is-built }
 
@@ -169,6 +190,30 @@ usuarios autorizados aún pueden leer los metadatos, que indican
 `row_policy_valid: false`, y un editor autorizado de la tabla puede repararla
 mediante `PUT /tables/{id}/row-policy`. Hasta entonces, un destino con una política
 inválida no proporciona registros enlazados ni acceso heredado de un proyecto.
+
+### Límites de relaciones y enlaces inversos { #relationship-limits-and-backlinks }
+
+Un campo de enlace acepta `link_limit` de 1 a 100. Omitirlo conserva el límite de
+un campo existente o usa 100 para uno nuevo. Se cuentan todos los destinos
+válidos almacenados, incluidos los ocultos para quien escribe. No se permite
+reducirlo hasta que las filas existentes cumplan el límite. Con 1, cada fila de
+origen admite un destino; varias filas pueden seguir apuntando al mismo destino.
+
+Las conexiones mantienen su orden y vinculan ambos extremos a las tablas
+declaradas de la misma organización. Las lecturas actuales, los filtros y el
+acceso heredado de proyectos usan esas conexiones canónicas. Los valores antiguos
+inválidos se conservan como evidencia para repararlos y no conceden acceso.
+Archivar un campo conserva sus conexiones; restaurar el mismo campo las recupera.
+Eliminar un destino quita las conexiones entrantes sin cambiar las revisiones de
+origen; las instantáneas históricas conservan sus datos originales.
+
+`GET /tables/{table_id}/records/{record_id}/backlinks` lee conexiones entrantes
+desde los parámetros obligatorios `source_table_id` y `column_id`. Admite `skip`
+de 0 a 10.000 y `limit` de 1 a 100, con 50 como valor predeterminado. El destino,
+la tabla de origen y cada fila de origen deben ser legibles; se comprueba antes
+de paginar. No se puede recorrer un campo de enlace archivado. El resultado
+contiene registros de origen normales, sin un total oculto ni permisos
+adicionales para editar ninguno de los extremos.
 
 ### Cambios atómicos de enlaces { #atomic-link-changes }
 
@@ -739,9 +784,11 @@ escritura lo superaría.
 | `TABLES_MAX_PER_ORGANIZATION` | 200 | Tablas de una organización. Las archivadas cuentan, porque una tabla nunca se borra |
 | `TABLES_MAX_RECORDS_PER_TABLE` | 100.000 | Registros en una tabla. Actualizar un registro en una tabla llena está permitido |
 | `TABLES_MAX_RECORD_BYTES` | 1.000.000 | Los valores serializados de un registro, en bytes |
-| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Bytes JSONB almacenados en PostgreSQL por organización entre registros, historial, recibos y outbox; el espacio de tablas e índices se cuenta aparte |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Bytes JSONB de registros, historial, recibos y outbox, bytes de imágenes y filas de definiciones de relaciones, enlaces y evidencia conservada por organización; los índices y demás sobrecarga física se cuentan aparte |
 
 El límite total se comprueba en el savepoint de la modificación, bajo un bloqueo de la organización, antes del commit. Superarlo revierte el registro y todas sus copias, también en una fila de importación; las filas restantes se informan como rechazadas. Repetir un recibo, escribir sin cambios, leer y borrar siguen funcionando tras reducir el límite. La retención libera los bytes eliminados.
+
+La creación de tablas y los cambios de esquema usan el mismo límite de almacenamiento. Un rechazo revierte conjuntamente la nueva tabla o versión del esquema, las definiciones de relaciones, los valores reescritos y su historial, y cualquier recibo nuevo de creación. La auditoría normal de la tabla se registra solo después de comprobar el almacenamiento; la auditoría independiente del rechazo por cuota permanece tras la reversión.
 
 El rechazo nombra el límite y su techo en `details` (`{"quota": "records", "limit":
 100000}`), nunca el contenido, y escribe una entrada `table.quota_refused` en el

@@ -239,8 +239,9 @@ def _link(value: object, column: ColumnDef, writing: bool) -> CellValue:
     """Record ids of the linked table. Whether each exists is the service's question."""
     if not isinstance(value, list):
         raise CellProblem("Expected a list of record ids")
-    if len(value) > MAX_LINKS:
-        raise CellProblem(f"A cell links at most {MAX_LINKS} records")
+    limit = column.link_limit or MAX_LINKS
+    if len(value) > limit:
+        raise CellProblem(f"A cell links at most {limit} records")
     linked = [_record_id(item) for item in value]
     if len(set(linked)) != len(linked):
         raise CellProblem("The same record is linked twice")

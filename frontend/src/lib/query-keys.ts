@@ -68,6 +68,7 @@ export const qk = {
   },
   auth: {
     me: () => ["auth", "me"] as const,
+    appearance: (owner: string | undefined) => ["auth", "appearance", owner] as const,
   },
   health: () => ["health"] as const,
   appVersion: (buildId: string | null) => ["app-version", buildId] as const,
@@ -110,6 +111,7 @@ export const qk = {
     members: (orgId: string) => ["organizations", orgId, "members"] as const,
     permissions: (orgId: string) => ["organizations", orgId, "permissions"] as const,
     roleCatalog: () => ["organizations", "role-catalog"] as const,
+    roleNavigation: (orgId: string) => ["organizations", orgId, "role-navigation"] as const,
     audit: (orgId: string) => ["organizations", orgId, "audit"] as const,
     retention: (orgId: string) => ["organizations", orgId, "retention"] as const,
     // One group's members sit beneath the list, so invalidating the list after a

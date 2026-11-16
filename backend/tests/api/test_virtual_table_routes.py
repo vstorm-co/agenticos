@@ -102,6 +102,9 @@ def service() -> MagicMock:
         set_row_policy=AsyncMock(return_value=_table()),
         list_schema_versions=AsyncMock(return_value={"items": []}),
         list_records=AsyncMock(return_value=RecordList(items=[], skip=0, limit=50, has_more=False)),
+        list_backlinks=AsyncMock(
+            return_value=RecordList(items=[], skip=0, limit=50, has_more=False)
+        ),
         count_records=AsyncMock(return_value=RecordCount(count=3, capped=False)),
         write_batch=AsyncMock(
             return_value=(RecordBatchResult(created=1, failed=[], as_of=_AS_OF), False)
@@ -169,6 +172,39 @@ async def test_a_table_is_created_with_201_and_listed_with_its_total(client, ser
         "skip": 0,
         "limit": 50,
     }
+
+
+async def test_backlinks_are_a_bounded_read_delegated_to_endpoint_authorization(client, service):
+    source, column_id = uuid.uuid4(), uuid.uuid4()
+    async with client() as http:
+        response = await http.get(
+            _records(f"/{_RECORD}/backlinks"),
+            params={
+                "source_table_id": str(source),
+                "column_id": str(column_id),
+                "skip": 2,
+                "limit": 10,
+            },
+        )
+        refused = await http.get(
+            _records(f"/{_RECORD}/backlinks"),
+            params={
+                "source_table_id": str(source),
+                "column_id": str(column_id),
+                "limit": 101,
+            },
+        )
+    assert response.status_code == 200
+    assert refused.status_code == 422
+    args = service.list_backlinks.await_args.args
+    assert args[1:3] == (_TABLE, _RECORD)
+    assert args[3].model_dump() == {
+        "source_table_id": source,
+        "column_id": column_id,
+        "skip": 2,
+        "limit": 10,
+    }
+    assert service.list_backlinks.await_count == 1
 
 
 async def test_the_listing_can_be_asked_to_sort_by_most_recently_changed(client, service):

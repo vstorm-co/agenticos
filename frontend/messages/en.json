@@ -6453,6 +6453,10 @@
         "title": "Row access rules",
         "body": "Choose who can read rows, then open a row to give a person or group Read or Write."
       },
+      "org-role-navigation": {
+        "body": "Preview a role's navigation and choose which links it sees. Save changes for this organization, or reset that role to its defaults. The permission matrix still governs access to data and actions.",
+        "title": "Choose each role's sidebar"
+      },
       "chat-room-thread": {
         "title": "Discuss one message",
         "body": "Open a thread to keep replies together without filling the main room. The reply count takes you back to the discussion; Reply still quotes a message."
@@ -7904,7 +7908,7 @@
       "usedOfMax": "{used} of {max} used",
       "usersRoles": "Users & Roles",
       "waitingOnResponse": "{count, plural, =1 {1 waiting on a response} other {# waiting on a response}}",
-      "whatEachRoleMay": "What each role may do. Permissions are defined in code and bundled into roles - a role can never hold a permission the platform does not define.",
+      "whatEachRoleMay": "Review role permissions and choose which sidebar links each role sees in this organization.",
       "workspaceAvatarUpdated": "Organization avatar updated",
       "workspaceName": "Organization name",
       "workspaceProfile": "Organization profile",
@@ -7916,7 +7920,39 @@
       "tabProactivity": "Proactivity",
       "tabAssistant": "AI & services",
       "workspaceSettingsHint": "Organization identity and the default voice experience inherited by agents and channel bots.",
-      "aiServicesHint": "Configure the organization’s Architect and the background services that maintain memory and build briefings. Suggestion and monitoring policies are under Proactivity."
+      "aiServicesHint": "Configure the organization’s Architect and the background services that maintain memory and build briefings. Suggestion and monitoring policies are under Proactivity.",
+      "navigation": {
+        "accessNotice": "These settings hide navigation links. Data access, direct links and actions still follow the permission matrix and resource sharing.",
+        "alwaysShown": "Always shown",
+        "controlsTitle": "Navigation items",
+        "description": "Choose which navigation items each role sees in this organization.",
+        "discard": "Discard changes",
+        "general": "General",
+        "hidden": "Hidden",
+        "loadError": "Sidebar settings could not be loaded.",
+        "ownerProtected": "The Owner sidebar stays available so organization settings can always be recovered.",
+        "permissionUnavailable": "Unavailable to this role",
+        "previewHint": "This preview uses the role's permissions. Pinned apps and projects appear only when accessible content exists.",
+        "previewTitle": "Sidebar preview",
+        "readOnly": "You can preview this role. Editing is available only for roles below your own.",
+        "reset": "Reset to defaults",
+        "retry": "Try again",
+        "role": "Role",
+        "roles": {
+          "admin": "Admin",
+          "builder": "Builder",
+          "member": "Member",
+          "operator": "Operator",
+          "owner": "Owner",
+          "viewer": "Viewer"
+        },
+        "save": "Save sidebar",
+        "saved": "Sidebar saved",
+        "showItem": "Show {item}",
+        "title": "Sidebar visibility",
+        "unsaved": "Unsaved changes. Save or discard before changing roles.",
+        "visible": "Visible"
+      }
     },
     "rag": {
       "active": "Active",
@@ -14980,7 +15016,7 @@
   },
   "appearance": {
     "colour": "In colour",
-    "description": "How the console looks and moves for you. Kept in this browser and applied at once.",
+    "description": "Choose your appearance, preview it, then apply it to your account on every device.",
     "full": "Full",
     "look": "Style",
     "lookHint": "Each style has a light and a dark side; the theme above picks which. In the desktop app Glass is see-through to your desktop.",
@@ -15014,7 +15050,40 @@
     "theme": "Theme",
     "voiceGlowHint": "How the chat box reacts to your voice while dictating",
     "workflowNodes": "Workflow steps",
-    "workflowNodesHint": "In colour draws each step by its family. Simple keeps the tiles neutral and the minimap grey."
+    "workflowNodesHint": "In colour draws each step by its family. Simple keeps the tiles neutral and the minimap grey.",
+    "accent": "Accent colour",
+    "radius": "Corners",
+    "textSize": "Text size",
+    "accents": {
+      "default": "Neutral",
+      "blue": "Blue",
+      "violet": "Violet",
+      "green": "Green",
+      "amber": "Amber",
+      "rose": "Rose"
+    },
+    "radii": {
+      "default": "Standard",
+      "square": "Subtle",
+      "rounded": "Rounded"
+    },
+    "textSizes": {
+      "default": "Standard",
+      "large": "Large"
+    },
+    "preview": "Live preview",
+    "previewTitle": "Your workspace",
+    "previewText": "A sample of your chosen colours, corners and text size.",
+    "previewAction": "Example action",
+    "previewHint": "Only this preview changes until you choose Apply. Reset restores the defaults on your account.",
+    "apply": "Apply",
+    "discard": "Discard preview",
+    "reset": "Reset to defaults",
+    "saved": "Appearance saved",
+    "resetDone": "Appearance reset",
+    "loading": "Loading your appearance…",
+    "loadError": "Your saved appearance could not be loaded.",
+    "retry": "Try again"
   },
   "answerFormat": {
     "addField": "Add a field",

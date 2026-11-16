@@ -175,7 +175,11 @@ for (const platform of ["ios", "android"] as const) {
     test("uses touch targets throughout settings and preserves the viewport", async ({ page }) => {
       test.setTimeout(60_000);
       await page.goto("/settings/profile");
-      await expectTouchTarget(page.getByRole("radio", { name: /^Standard/ }));
+      await expectTouchTarget(
+        page
+          .getByRole("radiogroup", { name: "Style", exact: true })
+          .getByRole("radio", { name: /^Standard/ }),
+      );
       const theme = page
         .locator('[data-tour="settings-appearance"]')
         .getByRole("radio", { name: "Dark", exact: true });
@@ -184,6 +188,10 @@ for (const platform of ["ios", "android"] as const) {
       await theme.tap();
       await expect(theme).toBeChecked();
       await expectContained(page);
+      await page.screenshot({
+        path: test.info().outputPath("appearance-phone-preview.png"),
+        animations: "disabled",
+      });
       await page.goto("/settings/notifications");
       const switches = page.getByRole("switch");
       await expect(switches.first()).toBeVisible();
@@ -354,6 +362,16 @@ for (const platform of ["ios", "android"] as const) {
         const floating = await controls.boundingBox();
         if (!floating) throw new Error("Expected the floating app controls");
         expect(floating.y).toBeGreaterThanOrEqual((platform === "ios" ? 54 : 28) + 12);
+        const preview = page.locator('iframe[title="Layout report"]');
+        await expect(
+          page.frameLocator('iframe[title="Layout report"]').getByRole("heading", {
+            name: "Layout report",
+            exact: true,
+          }),
+        ).toBeVisible();
+        const collapsedPreview = await preview.boundingBox();
+        if (!collapsedPreview) throw new Error("Expected the loaded app preview");
+        expect(collapsedPreview.y).toBeGreaterThanOrEqual(floating.y + floating.height);
         const share = page.getByRole("button", { name: "Share", exact: true });
         await expect(share).toBeHidden();
         await controls.tap();
@@ -368,7 +386,18 @@ for (const platform of ["ios", "android"] as const) {
         expect(action.y - bounds.y).toBeGreaterThanOrEqual(8);
         expect(bounds.y + bounds.height - action.y - action.height).toBeGreaterThanOrEqual(8);
         expect((await follow.boundingBox())?.height).toBe(action.height);
+        // The host reserves the actual expanded height. The unpadded app must
+        // remain readable; adding spacing to this fixture would hide the defect.
+        const expandedPreview = await preview.boundingBox();
+        if (!expandedPreview) throw new Error("Expected the expanded app preview");
+        expect(expandedPreview.y).toBeGreaterThanOrEqual(bounds.y + bounds.height);
+        expect(expandedPreview.y).toBeGreaterThan(collapsedPreview.y);
         await page.screenshot({ path: test.info().outputPath(`app-toolbar-${width}.png`) });
+        await controls.tap();
+        await expect(controls).toHaveAttribute("aria-expanded", "false");
+        expect((await preview.boundingBox())?.y).toBeCloseTo(collapsedPreview.y, 0);
+        await controls.tap();
+        await expect(controls).toHaveAttribute("aria-expanded", "true");
         await share.tap();
         await expect(page.getByRole("dialog")).toBeVisible();
         await page.keyboard.press("Escape");
@@ -411,9 +440,9 @@ for (const platform of ["ios", "android"] as const) {
     test("contains CSV exports inside every Activity tab header", async ({ page }) => {
       // This layout probe must not depend on a journey in another CI shard creating spend.
       const spend: CostSummary = {
-        period_days: 30,
+        period_days: null,
         from_date: "2026-11-01T00:00:00Z",
-        to_date: null,
+        to_date: "2026-11-02T00:00:00Z",
         month_to_date_usd: "1.25",
         partial_run_count: 0,
         by_agent: [
@@ -423,7 +452,7 @@ for (const platform of ["ios", "android"] as const) {
             agent_name: "E2E layout spend",
             model_label: null,
             cost_usd: "1.25",
-            run_count: 1,
+            run_count: 2,
             partial_run_count: 0,
             month_to_date_usd: "1.25",
             monthly_cap_usd: null,
@@ -431,7 +460,10 @@ for (const platform of ["ios", "android"] as const) {
         ],
         by_provider: [],
         by_key: [],
-        by_day: [],
+        by_day: [
+          { day: "2026-11-01", cost_usd: "0.50", run_count: 1 },
+          { day: "2026-11-02", cost_usd: "0.75", run_count: 1 },
+        ],
         cache_by_agent_model: [],
       };
       await page.route(/\/api\/spend(?:\?|$)/, (route) => route.fulfill({ json: spend }));
@@ -460,6 +492,37 @@ for (const platform of ["ios", "android"] as const) {
             expect(cost.x + cost.width).toBeLessThanOrEqual(width);
           }
         }
+        const chart = page
+          .getByText("Spend over time", { exact: true })
+          .locator("..")
+          .locator("..");
+        // The card survives the lazy render; Recharts replaces its animated SVG marks.
+        await chart.scrollIntoViewIfNeeded();
+        await expect(chart.locator("svg.recharts-surface")).toBeVisible();
+        const bars = chart.locator(".recharts-bar-rectangle");
+        await expect(bars).toHaveCount(2);
+        await expect(bars.first()).toBeVisible();
+        await expect(bars.last()).toBeVisible();
+        // Recharts renders tick labels in a separate SVG layer from the axis group.
+        await expect(
+          chart.locator("svg.recharts-surface").getByText("$0.75", { exact: true }),
+        ).toBeVisible();
+        // Capture the fixture's actual $0.50/$0.75 heights, after the entrance animation.
+        await expect
+          .poll(() =>
+            chart.evaluate((card) => {
+              const levels = Array.from(
+                card.querySelectorAll<SVGLineElement>(".recharts-cartesian-grid-horizontal line"),
+                (line) => Number(line.getAttribute("y1")),
+              );
+              const plotHeight = Math.max(...levels) - Math.min(...levels);
+              return Array.from(
+                card.querySelectorAll<SVGGraphicsElement>(".recharts-bar-rectangle"),
+                (bar) => Math.round((bar.getBBox().height / plotHeight) * 1000) / 1000,
+              );
+            }),
+          )
+          .toEqual([0.667, 1]);
         await page.screenshot({ path: test.info().outputPath(`activity-${width}.png`) });
       }
     });

@@ -372,6 +372,10 @@ class Settings(BaseSettings):
     # certificate against the CA file `PGSSLROOTCERT` names - asyncpg and libpq
     # both read that variable, and neither consults the OS trust store (#1418).
     POSTGRES_SSLMODE: str = ""
+    # Optional until the operator activates Tables RLS. These credentials never
+    # replace the ordinary runtime connection or travel in request input.
+    POSTGRES_MIGRATION_URL: SecretStr | None = None
+    POSTGRES_MAINTENANCE_URL: SecretStr | None = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property

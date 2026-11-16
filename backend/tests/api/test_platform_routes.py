@@ -19,7 +19,7 @@ gated on *this* permission, and nothing else" an assertion rather than a hope.
 
 import re
 from collections.abc import AsyncIterator, Callable, Iterator
-from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager, nullcontext
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -862,7 +862,10 @@ class TestPermissionIntrospectionIsOpenToEveryMember:
     async def test_every_role_can_read_its_own_permissions(
         self, role: OrgRoleName, as_role: ClientFactory
     ) -> None:
-        async with as_role(role) as client:
+        navigation = SimpleNamespace(for_caller=AsyncMock(return_value=[]))
+        async with as_role(
+            role, overrides={deps.get_role_navigation_service: lambda: navigation}
+        ) as client:
             response = await client.get(f"{settings.API_V1_STR}/me/permissions")
 
         assert response.status_code == 200
@@ -1285,11 +1288,17 @@ class _NoGrantsSession:
 
     def __init__(self, resource: _SomeoneElsesResource) -> None:
         self._resource = resource
+        self.no_autoflush = nullcontext()
+        self.statements: list[str] = []
+
+    def get_transaction(self) -> None:
+        return None
 
     async def get(self, model: Any, primary_key: Any) -> _SomeoneElsesResource:
         return self._resource
 
-    async def execute(self, statement: Any) -> _NoRows:
+    async def execute(self, statement: Any, parameters: dict[str, object] | None = None) -> _NoRows:
+        self.statements.append(str(statement))
         return _NoRows()
 
 
@@ -1308,6 +1317,7 @@ def _sharing_calls() -> list[tuple[str, str, dict[str, Any] | None]]:
     ]
 
 
+@pytest.mark.security
 class TestSharingRoutesRefuseWithoutAGrant:
     """What the missing `require()` on those routes is replaced by.
 
@@ -1335,6 +1345,9 @@ class TestSharingRoutesRefuseWithoutAGrant:
         # A row the caller cannot view is reported as missing, reading and
         # changing alike, so the sharing routes cannot be used to probe ids (#2619).
         assert response.status_code == 404
+        assert all(statement.lstrip().startswith("SELECT ") for statement in session.statements)
+        if path.startswith("/tables/"):
+            assert any("FROM pg_catalog.pg_class AS c " in sql for sql in session.statements)
 
     @pytest.mark.parametrize(
         ("method", "path", "body"),
@@ -1363,6 +1376,9 @@ class TestSharingRoutesRefuseWithoutAGrant:
             response = await client.request(method, _url(path), json=body)
 
         assert response.status_code == 403
+        assert all(statement.lstrip().startswith("SELECT ") for statement in session.statements)
+        if path.startswith("/tables/"):
+            assert any("FROM pg_catalog.pg_class AS c " in sql for sql in session.statements)
 
 
 class TestReadingWhatARunIsParkedOn:

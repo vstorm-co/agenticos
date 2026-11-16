@@ -50,7 +50,9 @@ TABLE_ID = UUID("00000000-0000-4000-8000-000000000016")
 
 ASSIGNEE_COL = ColumnDef(id=ASSIGNEE, label="Assignee", type="user")
 ASSIGNEES_COL = ColumnDef(id=ASSIGNEE, label="Assignees", type="multi_user")
-LINK_COL = ColumnDef(id=PROJECT_LINK, label="Project", type="link", link_table_id=PROJECTS_TABLE)
+PROJECT_LINK_DEF = ColumnDef(
+    id=PROJECT_LINK, label="Project", type="link", link_table_id=PROJECTS_TABLE
+)
 MEMBERS_COL = ColumnDef(id=MEMBERS, label="Members", type="multi_user")
 TEXT_COL = ColumnDef(id=UUID("00000000-0000-4000-8000-000000000017"), label="Title", type="text")
 ARCHIVED_COL = ColumnDef(
@@ -246,7 +248,7 @@ def test_a_policy_naming_a_gone_or_archived_or_wrong_typed_column_matches_nobody
 
 
 def test_view_widens_to_project_members_while_edit_stays_assignee_only():
-    columns = [ASSIGNEE_COL, LINK_COL]
+    columns = [ASSIGNEE_COL, PROJECT_LINK_DEF]
     values = {str(PROJECT_LINK): [str(PROJECT_A)]}
     assert (
         row_matches(values, PROJECT_POLICY, columns, MEMBER, kind="view", project_ids=[PROJECT_A])
@@ -379,7 +381,7 @@ async def test_a_bounded_project_lookup_refreshes_the_timeout_and_stops_on_expir
             db,
             _ctx(MEMBER),
             _table(PROJECT_POLICY),
-            [ASSIGNEE_COL, LINK_COL],
+            [ASSIGNEE_COL, PROJECT_LINK_DEF],
             deadline=deadline,
         )
 
@@ -534,12 +536,13 @@ async def test_a_multi_user_assignee_becomes_a_json_contains():
 async def test_the_project_half_is_an_or_over_the_callers_projects(monkeypatch):
     monkeypatch.setattr(row_policy, "visible_project_ids", AsyncMock(return_value=[PROJECT_A]))
     expression = await view_expression(
-        SimpleNamespace(), _ctx(MEMBER), _table(PROJECT_POLICY), [ASSIGNEE_COL, LINK_COL]
+        SimpleNamespace(), _ctx(MEMBER), _table(PROJECT_POLICY), [ASSIGNEE_COL, PROJECT_LINK_DEF]
     )
     assert expression is not None
     compiled = _sql(expression)
     assert " OR " in compiled
-    assert "?|" in compiled
+    assert "EXISTS" in compiled
+    assert "virtual_table_record_links" in compiled
     assert "@>" not in compiled
 
 
@@ -548,10 +551,46 @@ def test_policy_expression_builds_nothing_from_nothing():
     assert policy_expression(None, link_column_id=PROJECT_LINK, project_ids=[]) is None
 
 
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "link,value",
+    [
+        (PROJECT_LINK_DEF.model_copy(update={"link_limit": 1}), [str(PROJECT_A), str(PROJECT_A)]),
+        (PROJECT_LINK_DEF.model_copy(update={"archived": True}), [str(PROJECT_A)]),
+        (PROJECT_LINK_DEF.model_copy(update={"link_table_id": TABLE_ID}), [str(PROJECT_A)]),
+        (PROJECT_LINK_DEF.model_copy(update={"type": "text"}), [str(PROJECT_A)]),
+        (PROJECT_LINK_DEF, {"value": str(PROJECT_A)}),
+        (PROJECT_LINK_DEF, ["invalid", 3]),
+    ],
+)
+def test_quarantined_or_invalid_project_link_values_cannot_grant_read(link, value):
+    assert not row_matches(
+        {str(PROJECT_LINK): value},
+        PROJECT_POLICY,
+        [ASSIGNEE_COL, link],
+        MEMBER,
+        kind="view",
+        project_ids=[PROJECT_A],
+    )
+
+
+def test_project_membership_normalizes_uuid_spelling_like_the_backfill():
+    assert row_matches(
+        {str(PROJECT_LINK): ["invalid", PROJECT_A.hex]},
+        PROJECT_POLICY,
+        [ASSIGNEE_COL, PROJECT_LINK_DEF],
+        MEMBER,
+        kind="view",
+        project_ids=[PROJECT_A],
+    )
+
+
 def test_policy_expression_with_only_a_project_half_names_the_link():
     expression = policy_expression(None, link_column_id=PROJECT_LINK, project_ids=[PROJECT_A])
     assert expression is not None
-    assert "?|" in _sql(expression)
+    compiled = _sql(expression)
+    assert "EXISTS" in compiled
+    assert "virtual_table_record_links" in compiled
 
 
 @pytest.mark.security
@@ -633,6 +672,7 @@ LINK_COL = ColumnDef(
 def _row(values: dict, *, revision: int = 1, record_id: UUID | None = None):
     return SimpleNamespace(
         id=record_id or _uuid.uuid4(),
+        organization_id=ORG,
         table_id=TABLE_ID,
         external_id=None,
         schema_version=1,
@@ -678,6 +718,12 @@ def ops(monkeypatch):
     async def within_quota(*args, **kwargs):
         return None
 
+    async def canonical_baseline(db, *, record, column_ids):
+        return dict(record.values)
+
+    monkeypatch.setattr(records_module.relation_repo, "write_values", canonical_baseline)
+    monkeypatch.setattr(records_module.relation_repo, "definitions", AsyncMock(return_value=[]))
+    monkeypatch.setattr(records_module.relation_repo, "linked_ids", AsyncMock(return_value={}))
     monkeypatch.setattr(records_module, "source_for", source_for)
     monkeypatch.setattr(service, "_load_table", load)
     monkeypatch.setattr(service, "_columns", columns)

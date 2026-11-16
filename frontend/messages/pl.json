@@ -3031,7 +3031,7 @@
       "usedOfMax": "Wykorzystano {used} z {max}",
       "usersRoles": "Użytkownicy i role",
       "waitingOnResponse": "{count, plural, one {1 czeka na odpowiedź} few {# czekają na odpowiedź} many {# czeka na odpowiedź} other {# czeka na odpowiedź}}",
-      "whatEachRoleMay": "Co może każda rola. Uprawnienia są zdefiniowane w kodzie i zebrane w role - rola nigdy nie może mieć uprawnienia, którego platforma nie definiuje.",
+      "whatEachRoleMay": "Sprawdź uprawnienia ról i wybierz, które linki na pasku bocznym widzi każda rola w tej organizacji.",
       "workspaceAvatarUpdated": "Awatar organizacji zaktualizowany",
       "workspaceName": "Nazwa organizacji",
       "workspaceProfile": "Profil organizacji",
@@ -3043,7 +3043,39 @@
       "tabProactivity": "Proaktywność",
       "tabAssistant": "AI i usługi",
       "workspaceSettingsHint": "Nazwa i wygląd organizacji oraz domyślne ustawienia głosu dla agentów i botów kanałowych.",
-      "aiServicesHint": "Skonfiguruj Architecta organizacji i usługi utrzymujące pamięć oraz przygotowujące podsumowania. Zasady sugestii i monitorowania znajdziesz w Proaktywności."
+      "aiServicesHint": "Skonfiguruj Architecta organizacji i usługi utrzymujące pamięć oraz przygotowujące podsumowania. Zasady sugestii i monitorowania znajdziesz w Proaktywności.",
+      "navigation": {
+        "accessNotice": "Te ustawienia ukrywają linki nawigacji. Dostęp do danych, bezpośrednie linki i działania nadal podlegają macierzy uprawnień i zasadom udostępniania zasobów.",
+        "alwaysShown": "Zawsze widoczne",
+        "controlsTitle": "Elementy nawigacji",
+        "description": "Wybierz, które elementy nawigacji widzi każda rola w tej organizacji.",
+        "discard": "Odrzuć zmiany",
+        "general": "Ogólne",
+        "hidden": "Ukryte",
+        "loadError": "Nie udało się wczytać ustawień paska bocznego.",
+        "ownerProtected": "Pasek boczny Właściciela pozostaje dostępny, aby zawsze można było odzyskać dostęp do ustawień organizacji.",
+        "permissionUnavailable": "Niedostępne dla tej roli",
+        "previewHint": "Ten podgląd uwzględnia uprawnienia roli. Przypięte aplikacje i projekty pojawiają się tylko wtedy, gdy istnieje dostępna dla niej zawartość.",
+        "previewTitle": "Podgląd paska bocznego",
+        "readOnly": "Możesz wyświetlić podgląd tej roli. Edytować można tylko role niższe od własnej.",
+        "reset": "Przywróć domyślne",
+        "retry": "Spróbuj ponownie",
+        "role": "Rola",
+        "roles": {
+          "admin": "Administrator",
+          "builder": "Twórca",
+          "member": "Członek",
+          "operator": "Operator",
+          "owner": "Właściciel",
+          "viewer": "Obserwator"
+        },
+        "save": "Zapisz pasek boczny",
+        "saved": "Pasek boczny zapisany",
+        "showItem": "Pokaż: {item}",
+        "title": "Widoczność paska bocznego",
+        "unsaved": "Niezapisane zmiany. Zapisz je lub odrzuć przed zmianą roli.",
+        "visible": "Widoczne"
+      }
     },
     "rag": {
       "active": "Aktywne",
@@ -8023,6 +8055,10 @@
         "title": "Reguły dostępu do wierszy",
         "body": "Wybierz, kto może odczytywać wiersze, a następnie otwórz wiersz, aby nadać osobie lub grupie odczyt lub zapis."
       },
+      "org-role-navigation": {
+        "body": "Wyświetl podgląd nawigacji roli i wybierz widoczne dla niej linki. Zapisz zmiany dla tej organizacji lub przywróć ustawienia domyślne roli. Dostęp do danych i działań nadal określa macierz uprawnień.",
+        "title": "Wybierz pasek boczny dla każdej roli"
+      },
       "chat-room-thread": {
         "title": "Omów jedną wiadomość",
         "body": "Otwórz wątek, aby zebrać odpowiedzi w jednym miejscu bez zapełniania głównego pokoju. Liczba odpowiedzi prowadzi z powrotem do dyskusji; Odpowiedz nadal cytuje wiadomość."
@@ -11538,7 +11574,7 @@
   },
   "appearance": {
     "colour": "W kolorze",
-    "description": "Wygląd i animacje konsoli. Zapisywane w tej przeglądarce i stosowane od razu.",
+    "description": "Wybierz wygląd, sprawdź podgląd i zastosuj go na swoim koncie na wszystkich urządzeniach.",
     "full": "Pełne",
     "look": "Styl",
     "lookHint": "Każdy styl ma jasną i ciemną wersję; wybiera ją motyw powyżej. W aplikacji desktopowej Glass prześwituje do pulpitu.",
@@ -11572,7 +11608,40 @@
     "theme": "Motyw",
     "voiceGlowHint": "Jak pole czatu reaguje na Twój głos podczas dyktowania",
     "workflowNodes": "Kroki workflow",
-    "workflowNodesHint": "W kolorze każdy krok ma barwę swojej rodziny. Prosty zostawia neutralne kafelki i szarą minimapę."
+    "workflowNodesHint": "W kolorze każdy krok ma barwę swojej rodziny. Prosty zostawia neutralne kafelki i szarą minimapę.",
+    "accent": "Kolor akcentu",
+    "radius": "Narożniki",
+    "textSize": "Rozmiar tekstu",
+    "accents": {
+      "default": "Neutralny",
+      "blue": "Niebieski",
+      "violet": "Fioletowy",
+      "green": "Zielony",
+      "amber": "Bursztynowy",
+      "rose": "Różowy"
+    },
+    "radii": {
+      "default": "Standardowe",
+      "square": "Subtelne",
+      "rounded": "Zaokrąglone"
+    },
+    "textSizes": {
+      "default": "Standardowy",
+      "large": "Duży"
+    },
+    "preview": "Podgląd na żywo",
+    "previewTitle": "Twoja przestrzeń pracy",
+    "previewText": "Przykład wybranych kolorów, narożników i rozmiaru tekstu.",
+    "previewAction": "Przykładowe działanie",
+    "previewHint": "Do kliknięcia Zastosuj zmienia się tylko podgląd. Reset przywraca ustawienia domyślne na koncie.",
+    "apply": "Zastosuj",
+    "discard": "Odrzuć podgląd",
+    "reset": "Przywróć domyślne",
+    "saved": "Wygląd zapisany",
+    "resetDone": "Wygląd zresetowany",
+    "loading": "Wczytywanie wyglądu…",
+    "loadError": "Nie udało się wczytać zapisanego wyglądu.",
+    "retry": "Spróbuj ponownie"
   },
   "agentTemplates": {
     "alreadyInstalled": "Zainstalowany",

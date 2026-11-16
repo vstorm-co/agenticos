@@ -137,14 +137,14 @@ export function SidebarNav({
   onNavigate?: () => void;
   collapsed?: boolean;
 }) {
-  const { can } = usePermissions();
+  const { can, hiddenNavigationItems, isLoaded } = usePermissions();
   const { user } = useAuthStore();
   const t = useTranslations("nav");
   const admin = isAppAdmin(user);
 
   const groups = NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => navItemVisible(item, can)),
+    items: group.items.filter((item) => navItemVisible(item, can, hiddenNavigationItems, isLoaded)),
   })).filter((group) => group.items.length > 0 && (!group.adminOnly || admin));
 
   return (

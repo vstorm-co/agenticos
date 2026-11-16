@@ -154,11 +154,14 @@ async def delete(db: AsyncSession, *, trigger: VirtualTableTrigger) -> None:
     await db.flush()
 
 
-async def claim_pending(db: AsyncSession, *, limit: int) -> list[VirtualTableOutbox]:
+async def claim_pending(
+    db: AsyncSession, *, organization_id: UUID, limit: int
+) -> list[VirtualTableOutbox]:
     """Undelivered record events, oldest first, locked against a second consumer."""
     result = await db.execute(
         select(VirtualTableOutbox)
         .where(
+            VirtualTableOutbox.organization_id == organization_id,
             VirtualTableOutbox.dispatched_at.is_(None),
             VirtualTableOutbox.event_type.in_(list(EVENTS)),
         )

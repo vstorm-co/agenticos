@@ -35,6 +35,7 @@ from app.db.models.mcp_connection import McpConnection
 from app.db.models.resource_grant import Visibility
 from app.db.models.workflow import Workflow, WorkflowStatus
 from app.db.models.workflow_run import WorkflowRun
+from app.db.table_rls import bind_table_access
 from app.db.updates import writable
 from app.repositories import resource_grant_repo, virtual_table_repo
 from app.repositories import workflow as workflow_repo
@@ -505,6 +506,7 @@ class WorkflowRegistryService:
         """Create reviewed resources atomically; no execution or publication."""
         if not ctx.has(Perm.WORKFLOWS_EDIT):
             raise AuthorizationError(message="Preparing a workflow requires workflows:edit")
+        await bind_table_access(self.db, ctx)
         async with self.db.begin_nested():
             table = None
             graph = data.graph
@@ -1571,6 +1573,7 @@ class WorkflowRegistryService:
         both a 404: whether a private workflow exists is itself something the
         caller may not learn.
         """
+        await bind_table_access(self.db, ctx)
         if lock:
             await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
         workflow = (

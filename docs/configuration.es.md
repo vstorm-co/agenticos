@@ -1,5 +1,5 @@
 ---
-source_sha: "aa79e2a8a321"
+source_sha: "3e61bbb57271"
 ---
 
 # Configuración { #configuration }
@@ -315,6 +315,8 @@ El frontend muestra el botón con `kerberos` en `OAUTH_PROVIDERS`, y lo nombra c
 | `POSTGRES_PORT` | `5432` | Puerto de PostgreSQL |
 | `POSTGRES_USER` | `postgres` | Usuario de PostgreSQL |
 | `POSTGRES_PASSWORD` | (empty) | Contraseña de PostgreSQL |
+| `POSTGRES_MIGRATION_URL` | (unset) | Credencial separada del propietario de PostgreSQL para Alembic y la comprobación previa y activación de Tables RLS. Las URL del proveedor se normalizan al driver instalado. Las sesiones normales de la aplicación siguen usando la configuración de ejecución. |
+| `POSTGRES_MAINTENANCE_URL` | (unset) | Usuario separado de mantenimiento de PostgreSQL para exportaciones y eliminaciones globales de cuentas autorizadas después de activar Tables RLS. Debe acceder a la misma base de datos y pertenecer al grupo fijo de mantenimiento. Es obligatorio para esas acciones con la protección activa; consulta el [procedimiento de transición](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md). |
 | `POSTGRES_DB` | `agenticos` | Nombre de la base de datos |
 | `POSTGRES_SSLMODE` | (empty) | Cifra la conexión: `require`, `verify-ca` o `verify-full`. Vacío es texto plano. Ver [Conexiones cifradas](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Tamaño del pool de conexiones |

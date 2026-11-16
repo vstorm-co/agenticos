@@ -61,6 +61,7 @@ def linked(monkeypatch):
     target_columns = [ColumnDef(id=READER, label="Reader", type="user")]
     row = SimpleNamespace(
         id=uuid4(),
+        organization_id=ctx.organization_id,
         table_id=source.id,
         external_id=None,
         schema_version=1,
@@ -92,6 +93,13 @@ def linked(monkeypatch):
         record.values = values
         record.revision += 1
 
+    async def baseline(db, *, record, column_ids):
+        return dict(record.values)
+
+    # These service tests supply the internal canonical baseline themselves;
+    # edge hydration and malformed legacy repair have PostgreSQL coverage.
+    monkeypatch.setattr(records.relation_repo, "write_values", baseline)
+    monkeypatch.setattr(records.relation_repo, "definitions", AsyncMock(return_value=[]))
     monkeypatch.setattr(virtual_table_repo, "get_schema_version", schema)
     monkeypatch.setattr(virtual_table_repo, "get_table", AsyncMock(return_value=target))
     queried = AsyncMock(side_effect=found)
@@ -285,7 +293,7 @@ async def test_a_delta_cannot_change_a_source_row_the_writer_cannot_edit(linked)
     state.source.row_policy = RowPolicy(
         rule="assignee", view_column_id=READER, edit_column_id=READER
     ).model_dump(mode="json")
-    with pytest.raises(NotFoundError):
+    with pytest.raises(NotFoundError) as refused:
         await state.service._apply(
             state.ctx,
             state.source,
@@ -294,6 +302,7 @@ async def test_a_delta_cannot_change_a_source_row_the_writer_cannot_edit(linked)
             1,
             link_changes={LINK: RecordLinkChange(add=[ADDED])},
         )
+    assert refused.value.details == {"table_id": state.source.id}
     state.queried.assert_not_awaited()
     state.written.assert_not_awaited()
 

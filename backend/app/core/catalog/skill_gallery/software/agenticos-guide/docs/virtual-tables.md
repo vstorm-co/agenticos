@@ -50,6 +50,24 @@ columns are evaluated before projection, so their dependencies need not be selec
 The same records immediately appear in the console; table-trigger dispatch is
 asynchronous and never delays the CRUD response.
 
+## Database tenant isolation { #database-tenant-isolation }
+
+Logical tables remain in the deployment's PostgreSQL database. The tenant RLS
+migration installs policies without enabling them; the operator activates them
+after upgrading and draining all API and worker processes. Once activated, normal
+table operations bind the authenticated organization's ID to the current
+transaction. Missing context exposes no Tables rows, and a transaction cannot
+switch organizations. The boundary includes schemas, records, history, media,
+views, receipts, triggers, normalized links and Tables grants.
+
+Table and row Read/Write permissions still apply in the service. Global account
+export and deletion use a separately configured maintenance connection after
+authentication and a fresh authority check. Removing an organization membership
+cascades that person's Tables grants in the same transaction, including directory
+updates spanning organizations. Other resource grant families keep their existing
+authorization rules. See the [operator cutover procedure](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md)
+for credential separation, preflight, activation and rollback.
+
 ## How a table is built { #how-a-table-is-built }
 
 | Part | What it is | Identity |
@@ -159,6 +177,28 @@ still read table metadata, which reports `row_policy_valid: false`, and an
 authorized table editor can repair it through `PUT /tables/{id}/row-policy`.
 A destination with an invalid policy supplies no linked records or inherited
 project access until repaired.
+
+### Relationship limits and backlinks { #relationship-limits-and-backlinks }
+
+A link field accepts `link_limit` from 1 to 100. Omitting it keeps an existing
+field's limit, or uses 100 for a new field. The limit counts every valid stored
+destination, including those hidden from the writer. Reducing it is refused
+until existing rows fit. A limit of 1 allows one destination per source row;
+several source rows can still point to the same destination.
+
+Connections keep their order and bind both endpoints to the declared tables in
+the same organization. Current reads, filters and inherited project access use
+these canonical connections. Invalid legacy values remain as repair evidence and
+do not grant access. Archiving a field retains its connections, and restoring the
+same field restores them. Deleting a destination removes incoming connections
+without changing source revisions; historical snapshots keep their original data.
+
+`GET /tables/{table_id}/records/{record_id}/backlinks` reads incoming connections
+from the required `source_table_id` and `column_id`. It accepts `skip` from 0 to
+10,000 and `limit` from 1 to 100, defaulting to 50. The destination, source table
+and each source row must be readable; these checks happen before pagination.
+An archived link field cannot be traversed. The result contains ordinary source
+records, with no hidden total or additional permission to edit either endpoint.
 
 ### Atomic link changes { #atomic-link-changes }
 
@@ -698,9 +738,11 @@ against another's, and is refused with `QUOTA_EXCEEDED` (402) when a write would
 | `TABLES_MAX_PER_ORGANIZATION` | 200 | Tables an organization has. Archived ones count, because a table is never deleted |
 | `TABLES_MAX_RECORDS_PER_TABLE` | 100,000 | Records in one table. Updating a record in a full table is allowed |
 | `TABLES_MAX_RECORD_BYTES` | 1,000,000 | The serialized values of one record, in bytes |
-| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Stored PostgreSQL JSONB payload bytes per organization across records, history, receipts and outbox; physical table/index overhead is separate |
+| `TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION` | 1,073,741,824 | Stored record, history, receipt and outbox JSONB bytes, image bytes, and relationship definition, edge and evidence rows per organization; indexes and other physical overhead are separate |
 
 The aggregate ceiling is checked inside the mutation savepoint, under an organization lock, before commit. An over-limit write rolls back its record and every retained copy, including a batch row; remaining batch rows are reported as refused. Receipt replay, unchanged writes, reads and deletion remain available after a limit is lowered. Retention releases the bytes it removes.
+
+Table creation and schema changes use the same storage ceiling. A refusal rolls back the new table or schema version, relationship definitions, rewritten values and their history, and any new creation receipt together. The ordinary table audit is recorded only after storage admission; the separate quota-refusal audit survives the rollback.
 
 The refusal names the quota and its ceiling in `details` (`{"quota": "records", "limit":
 100000}`), never the content, and writes a `table.quota_refused` entry to the

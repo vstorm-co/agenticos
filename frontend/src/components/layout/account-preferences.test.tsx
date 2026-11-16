@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppearanceMenu, LanguageMenu } from "./account-preferences";
@@ -11,7 +12,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useThemeStore } from "@/stores/theme-store";
 
-const env = vi.hoisted(() => ({ mounted: true, push: vi.fn() }));
+const env = vi.hoisted(() => ({ mounted: true, push: vi.fn(), save: vi.fn() }));
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+
+vi.mock("@/hooks/use-user-appearance", () => ({
+  useUserAppearance: () => ({ preferences: {}, pending: false, save: env.save }),
+}));
 
 vi.mock("@/hooks/use-mounted", () => ({ useMounted: () => env.mounted }));
 vi.mock("@/lib/locale-navigation", () => ({
@@ -36,6 +43,8 @@ async function openSubmenu(name: RegExp) {
 beforeEach(() => {
   env.mounted = true;
   env.push.mockClear();
+  env.save.mockReset().mockResolvedValue({});
+  vi.mocked(toast.error).mockClear();
   useThemeStore.setState({ theme: "system", look: "standard" });
 });
 
@@ -47,7 +56,19 @@ describe("AppearanceMenu", () => {
 
     await userEvent.click(await screen.findByRole("menuitemradio", { name: "Dark" }));
 
-    expect(useThemeStore.getState().theme).toBe("dark");
+    expect(env.save).toHaveBeenCalledWith({ theme: "dark" });
+  });
+
+  it("reports a refused save and retains the acknowledged appearance", async () => {
+    env.save.mockRejectedValueOnce(new Error("appearance unavailable"));
+    useThemeStore.setState({ theme: "dark", look: "paper" });
+    inMenu(<AppearanceMenu />);
+    await openSubmenu(/Appearance/);
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "Glass" }));
+
+    expect(env.save).toHaveBeenCalledWith({ look: "glass" });
+    expect(toast.error).toHaveBeenCalledOnce();
+    expect(useThemeStore.getState()).toMatchObject({ theme: "dark", look: "paper" });
   });
 
   it("names no theme before mount", () => {
@@ -69,7 +90,7 @@ describe("AppearanceMenu", () => {
 
       await userEvent.click(screen.getByRole("menuitemradio", { name }));
 
-      expect(useThemeStore.getState().look).toBe(name.toLowerCase());
+      expect(env.save).toHaveBeenCalledWith({ look: name.toLowerCase() });
       expect(useThemeStore.getState().theme).toBe("dark");
     },
   );
@@ -79,7 +100,7 @@ describe("AppearanceMenu", () => {
     await openSubmenu(/Appearance/);
     screen.getByRole("menuitemradio", { name: "Standard" }).focus();
     await userEvent.keyboard("{ArrowDown}{Enter}");
-    expect(useThemeStore.getState().look).toBe("glass");
+    expect(env.save).toHaveBeenCalledWith({ look: "glass" });
   });
 
   it("checks no style before mount", async () => {

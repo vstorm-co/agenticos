@@ -136,6 +136,15 @@ from app.services.virtual_tables.computed import read_through as _read_through
 
 pytestmark = _pytest.mark.anyio
 
+
+@_pytest.fixture(autouse=True)
+def canonical_link_snapshot(monkeypatch):
+    # These tests exercise target authorization. Their source snapshots are not
+    # database rows; canonical hydration has its own integration coverage.
+    monkeypatch.setattr(_computed.relation_repo, "linked_ids", AsyncMock(return_value={}))
+    monkeypatch.setattr(_computed.resource_grant_repo, "record_levels", AsyncMock(return_value={}))
+
+
 _OTHER_TABLE = UUID("00000000-0000-4000-8000-0000000000a1")
 _ASSIGNEE = UUID("00000000-0000-4000-8000-0000000000a2")
 _NAME = UUID("00000000-0000-4000-8000-0000000000a3")
