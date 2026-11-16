@@ -2432,6 +2432,12 @@ class NotificationService:
             named.append(initiator_user_id)
         if AlertAudience.CHOSEN in alert.to:
             named.extend(alert.user_ids)
+            named.extend(
+                user_id
+                for user_id, _role in await group_repo.audience_members(
+                    self.db, organization_id=organization_id, group_ids=alert.group_ids
+                )
+            )
 
         if named:
             recipients.update(

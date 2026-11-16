@@ -1,5 +1,7 @@
 "use client";
 
+import { CatalogLoading } from "@/components/states/catalog-loading";
+
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -27,7 +29,6 @@ import {
   SelectTrigger,
   SelectValue,
   SearchInput,
-  Skeleton,
 } from "@/components/ui";
 import { useAgentAttention, useAgentCeiling, useAgents, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
@@ -257,25 +258,13 @@ export default function AgentsPage() {
           render inside the same frame. */}
       {isLoading ? (
         <AgentsCard visible={null} total={0} controls={galleryControls}>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {[0, 1, 2].map((row) => (
-              <div key={row} className="border-border rounded-xl border p-4">
-                <div className="flex items-start gap-3">
-                  <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <Skeleton className="h-4 w-32" />
-                    <Skeleton className="h-3 w-24" />
-                    <Skeleton className="h-3 w-full" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <CatalogLoading kind="agent" />
         </AgentsCard>
       ) : (
         <AgentsCard visible={visible.length} total={total} controls={galleryControls}>
           {visible.length === 0 ? (
             <ListCardEmpty
+              onClearFilters={filtersActive ? clearFilters : undefined}
               icon={Bot}
               title={filtersActive ? t("nothingMatches") : t("noAgentsYet")}
               description={

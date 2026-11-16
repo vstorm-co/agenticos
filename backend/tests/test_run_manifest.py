@@ -709,3 +709,42 @@ def test_oversized_standalone_transcript_obeys_the_same_size_limit():
     payload, truncated = fit({"messages": [], "transcript": [{"text": "x" * MAX_PAYLOAD_BYTES}]})
     assert truncated is True
     assert payload["transcript"] == []
+
+
+async def test_failed_provider_preparation_keeps_the_attempted_prompt_and_tools():
+    from pydantic_ai.messages import UserPromptPart
+
+    recorder = RunRecorder()
+    wrapped = FunctionModel(_one_word)
+    model = RecordingModel(wrapped, recorder)
+    parameters = ModelRequestParameters(function_tools=[ToolDefinition(name="lookup")])
+    with (
+        patch.object(
+            wrapped, "prepare_request", side_effect=ValueError("Invalid provider settings")
+        ),
+        pytest.raises(ValueError, match="Invalid provider settings"),
+    ):
+        await model.request(
+            [ModelRequest(parts=[UserPromptPart("Inspect this")])], None, parameters
+        )
+    assert [tool.name for tool in recorder.tools] == ["lookup"]
+    assert "Inspect this" in json.dumps(recorder.messages)
+    assert len(recorder.requests) == 1
+    assert recorder.requests[0].failed == "ValueError"
+
+
+def test_oversized_visible_names_do_not_erase_tool_counts_or_request_timing():
+    request = {
+        "index": 0,
+        "duration_ms": 12,
+        "tool_counts": {"visible": 10000},
+        "visible_tool_names": [f"lookup_{index:060d}" for index in range(10000)],
+    }
+    original = {"messages": [], "requests": [request, {"index": 1, "duration_ms": 7}]}
+    payload, truncated = fit(original)
+    assert truncated
+    assert payload["requests"][0]["visible_tool_names"] is None
+    assert payload["requests"][0]["tool_counts"] == {"visible": 10000}
+    assert [item["duration_ms"] for item in payload["requests"]] == [12, 7]
+    assert "visible_tool_names" not in payload["requests"][1]
+    assert _size(payload) <= MAX_PAYLOAD_BYTES

@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>From question to evidence — a browser presentation</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --paper: light-dark(#faf8f3, #191b20);
+        --ink: light-dark(#252b32, #e9eced);
+        --muted: light-dark(#535f69, #acb7bf);
+        --line: light-dark(#c9cfce, #46505b);
+        --accent: light-dark(#176654, #81d5bb);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font:
+          17px/1.55 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 1120px;
+        margin: auto;
+        padding: clamp(20px, 5vw, 64px);
+      }
+      h1 {
+        font:
+          clamp(36px, 6vw, 72px)/1.04 Georgia,
+          serif;
+        max-width: 18ch;
+        margin: 16px 0 24px;
+      }
+      h2 {
+        font-size: 24px;
+        line-height: 1.2;
+      }
+      p {
+        max-width: 70ch;
+      }
+      .eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--accent);
+      }
+      .muted,
+      small {
+        color: var(--muted);
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      button,
+      select,
+      input:not([type="range"]) {
+        min-height: 44px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 8px 12px;
+        background: var(--paper);
+        color: var(--ink);
+      }
+      button {
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: var(--accent);
+      }
+      :focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 3px;
+      }
+      label {
+        display: block;
+        font-size: 14px;
+        font-weight: 600;
+        margin-top: 16px;
+      }
+      input[type="range"] {
+        width: 100%;
+        min-height: 44px;
+        accent-color: var(--accent);
+      }
+      .split {
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr);
+        gap: 40px;
+      }
+      .rule {
+        border-top: 1px solid var(--line);
+        padding-top: 24px;
+        margin-top: 32px;
+      }
+      svg,
+      canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 14px;
+      }
+      th,
+      td {
+        text-align: left;
+        border-bottom: 1px solid var(--line);
+        padding: 12px 8px;
+      }
+      output {
+        font-variant-numeric: tabular-nums;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .error {
+        color: light-dark(#a32e29, #ffaaa5);
+      }
+      @media (max-width: 640px) {
+        .split {
+          grid-template-columns: 1fr;
+          gap: 20px;
+        }
+        h1 {
+          font-size: 40px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          scroll-behavior: auto !important;
+        }
+      }
+      @media print {
+        button,
+        input,
+        select,
+        .controls {
+          display: none;
+        }
+        body {
+          background: white;
+          color: black;
+        }
+        main {
+          padding: 0;
+        }
+      }
+      @media (max-width: 640px) {
+        svg text {
+          font-size: 26px;
+        }
+      }
+    </style>
+    <style>
+      html[data-theme="classroom"] {
+        --paper: #f3f7ff;
+        --ink: #142445;
+        --muted: #465d7c;
+        --line: #b8c9e2;
+        --accent: #235cbd;
+      }
+      html[data-theme="night"] {
+        --paper: #171e2b;
+        --ink: #edf4fa;
+        --muted: #a9bbcc;
+        --line: #435468;
+        --accent: #83d5d0;
+      }
+      html[data-theme="playful"] {
+        --paper: #fff3d9;
+        --ink: #3a2133;
+        --muted: #72556b;
+        --line: #c6a9a9;
+        --accent: #a63149;
+      }
+      body {
+        min-height: 100dvh;
+      }
+      main {
+        max-width: 1280px;
+        padding: clamp(16px, 3vw, 48px);
+      }
+      .deck-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+      }
+      .deck-heading p {
+        margin: 0;
+      }
+      .deck-heading label {
+        display: inline;
+        font-weight: 500;
+        margin: 0 8px 0 0;
+      }
+      .slide {
+        min-height: 560px;
+        aspect-ratio: 16/9;
+        padding: clamp(24px, 5vw, 72px);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 12px;
+        background: var(--paper);
+      }
+      .slide h1 {
+        margin: 0;
+        font-size: clamp(40px, 5.5vw, 76px);
+      }
+      .slide h2 {
+        font:
+          clamp(32px, 4vw, 56px)/1.1 Georgia,
+          serif;
+        margin: 0;
+        max-width: 22ch;
+      }
+      .slide p {
+        font-size: clamp(18px, 2vw, 26px);
+        margin: 8px 0;
+        max-width: 50ch;
+      }
+      .slide .eyebrow {
+        font:
+          700 12px system-ui,
+          sans-serif;
+      }
+      .slide ul {
+        font-size: clamp(18px, 2vw, 24px);
+        padding-left: 1.2em;
+      }
+      .slide li {
+        margin: 12px 0;
+      }
+      .slide small {
+        margin-top: auto;
+        font-size: 13px;
+      }
+      .deck-nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 16px;
+      }
+      .deck-nav output {
+        font-size: 14px;
+      }
+      .deck-nav button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .flow {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 12px;
+        margin: 16px 0;
+      }
+      .flow p {
+        border-left: 3px solid var(--accent);
+        padding: 14px;
+        font-size: 20px;
+      }
+      .all-slides .slide {
+        margin-bottom: 24px;
+      }
+      .slide details {
+        font-size: 15px;
+      }
+      .slide details p {
+        font-size: 16px;
+      }
+      html[data-theme="classroom"] .slide h1,
+      html[data-theme="classroom"] .slide h2,
+      html[data-theme="playful"] .slide h1,
+      html[data-theme="playful"] .slide h2 {
+        font-family: system-ui, sans-serif;
+        font-weight: 750;
+      }
+      .slide blockquote {
+        font:
+          clamp(26px, 3vw, 42px)/1.3 Georgia,
+          serif;
+        margin: 24px 0;
+        border-left: 4px solid var(--accent);
+        padding-left: 24px;
+      }
+      @media (max-width: 640px) {
+        .slide {
+          min-height: 480px;
+          aspect-ratio: auto;
+          border-radius: 8px;
+        }
+        .flow {
+          grid-template-columns: 1fr;
+        }
+        .flow p {
+          margin: 0;
+        }
+        .deck-nav {
+          flex-wrap: wrap;
+        }
+        .deck-heading select {
+          max-width: 100%;
+        }
+      }
+      @page {
+        size: 13.333in 7.5in;
+        margin: 0;
+      }
+      @media print {
+        html,
+        body {
+          margin: 0;
+          background: white !important;
+          color: #172330 !important;
+        }
+        main {
+          max-width: none;
+          padding: 0;
+        }
+        .deck-heading,
+        .deck-nav {
+          display: none !important;
+        }
+        #slides .slide,
+        #slides .slide[hidden] {
+          display: flex !important;
+          break-after: page;
+          width: 13.333in;
+          height: 7.5in;
+          min-height: 0;
+          aspect-ratio: auto;
+          padding: 0.6in;
+          border: 0;
+          border-radius: 0;
+          margin: 0;
+          overflow: visible;
+          print-color-adjust: exact;
+        }
+        #slides .slide:last-child {
+          break-after: auto;
+        }
+        .slide h1 {
+          font-size: 54pt;
+        }
+        .slide h2 {
+          font-size: 36pt;
+        }
+        .slide p,
+        .slide li {
+          font-size: 20pt;
+        }
+        .slide small {
+          font-size: 11pt;
+        }
+        .slide details {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header class="deck-heading">
+        <p class="eyebrow">Browser presentation · Original teaching example</p>
+        <div class="controls">
+          <label for="theme">Visual style</label
+          ><select id="theme">
+            <option value="editorial">Editorial</option>
+            <option value="classroom">Classroom</option>
+            <option value="night">Night desk</option>
+            <option value="playful">Playful</option>
+          </select>
+        </div>
+      </header>
+      <div id="slides">
+        <section class="slide" aria-label="Slide 1: title">
+          <p class="eyebrow">A short lesson in asking better questions</p>
+          <h1>From question<br />to evidence.</h1>
+          <p>
+            A useful model starts with something we can observe, not a
+            conclusion we hope to defend.
+          </p>
+          <small
+            >Five slides · Use Previous/Next or the arrow keys · Example
+            material</small
+          >
+        </section>
+        <section class="slide" aria-label="Slide 2: the question" hidden>
+          <p class="eyebrow">01 · Make the question concrete</p>
+          <h2>What would we actually notice?</h2>
+          <blockquote>
+            Does a short break help us solve the next task?
+          </blockquote>
+          <p>
+            Define the task, the length of the break and what “help” means
+            before collecting results.
+          </p>
+          <small
+            >Teaching example: not a claim that a particular break improves
+            performance.</small
+          >
+        </section>
+        <section class="slide" aria-label="Slide 3: comparison" hidden>
+          <p class="eyebrow">02 · Make a fair comparison</p>
+          <h2>Change one condition.<br />Keep the rest comparable.</h2>
+          <div class="flow">
+            <p><strong>Question</strong><br />A clear outcome</p>
+            <p><strong>Comparison</strong><br />Break / no break</p>
+            <p><strong>Observation</strong><br />Record the same measure</p>
+          </div>
+          <p>
+            Task difficulty, prior practice and interruptions can change the
+            result too.
+          </p>
+          <small
+            >This simplified lesson introduces comparison; it does not replace a
+            study design.</small
+          >
+        </section>
+        <section class="slide" aria-label="Slide 4: uncertainty" hidden>
+          <p class="eyebrow">03 · Keep the uncertainty visible</p>
+          <h2>A result is a clue.<br />It is not the whole story.</h2>
+          <ul>
+            <li>Show the sample and conditions.</li>
+            <li>Check for another explanation.</li>
+            <li>Separate an observation from an interpretation.</li>
+          </ul>
+          <small
+            >No fabricated measurements are needed to explain the method.</small
+          >
+        </section>
+        <section class="slide" aria-label="Slide 5: application" hidden>
+          <p class="eyebrow">04 · Try it yourself</p>
+          <h2>Choose a question you could test this week.</h2>
+          <p>
+            Write the outcome you would measure, one fair comparison and one
+            thing that could mislead you.
+          </p>
+          <details>
+            <summary>Speaker note</summary>
+            <p>
+              Invite one concrete example before discussing why the comparison
+              is imperfect. Keep the exercise short enough to complete during
+              the presentation.
+            </p>
+          </details>
+          <small
+            >Next step: adapt the example and include real, attributable sources
+            for factual claims.</small
+          >
+        </section>
+      </div>
+      <nav class="deck-nav controls" aria-label="Presentation controls">
+        <button type="button" id="previous">Previous</button
+        ><output id="position" aria-live="polite">1 / 5</output
+        ><button type="button" id="next">Next</button
+        ><button type="button" id="overview" aria-pressed="false">
+          Show all slides
+        </button>
+      </nav>
+    </main>
+    <script>
+      const slides = [...document.querySelectorAll(".slide")];
+      const previous = document.getElementById("previous");
+      const next = document.getElementById("next");
+      const overview = document.getElementById("overview");
+      let current = 0;
+      let all = false;
+      function render() {
+        slides.forEach(
+          (slide, index) => (slide.hidden = !all && index !== current),
+        );
+        document.getElementById("slides").classList.toggle("all-slides", all);
+        previous.disabled = all || current === 0;
+        next.disabled = all || current === slides.length - 1;
+        document.getElementById("position").value = all
+          ? `${slides.length} slides in overview`
+          : `${current + 1} / ${slides.length}`;
+        overview.textContent = all
+          ? "Return to presentation"
+          : "Show all slides";
+        overview.setAttribute("aria-pressed", String(all));
+      }
+      function move(delta) {
+        if (all) return;
+        current = Math.max(0, Math.min(slides.length - 1, current + delta));
+        render();
+      }
+      previous.addEventListener("click", () => move(-1));
+      next.addEventListener("click", () => move(1));
+      overview.addEventListener("click", () => {
+        all = !all;
+        render();
+      });
+      document.getElementById("theme").addEventListener("change", (event) => {
+        document.documentElement.dataset.theme = event.target.value;
+      });
+      document.addEventListener("keydown", (event) => {
+        if (
+          event.altKey ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.target.closest("input,textarea,select,[contenteditable]")
+        )
+          return;
+        if (event.key === "ArrowRight") {
+          event.preventDefault();
+          move(1);
+        }
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          move(-1);
+        }
+      });
+      render();
+    </script>
+  </body>
+</html>

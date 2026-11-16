@@ -50,6 +50,7 @@ from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.sandbox_operation import SandboxOperation
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
+from app.db.models.channel_observation import ChannelObservation, ChannelObservationReceipt
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
 from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerAttempt
 from app.db.models.run_manifest import RunManifest
@@ -306,6 +307,8 @@ __all__ = [
     "SandboxConnection",
     "SandboxOperation",
     "AgentExposure",
+    "ChannelObservation",
+    "ChannelObservationReceipt",
     "ExposureSurface",
     "AgentTrigger",
     "TriggerAttempt",

@@ -1,6 +1,7 @@
 "use client";
 
-import type { LucideIcon } from "lucide-react";
+import { Search, type LucideIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { HTMLAttributes, ReactNode } from "react";
 
 import { SectionGlyph } from "@/components/states/section-glyph";
@@ -38,10 +39,10 @@ export function ListCard({
    * The count line, already formatted through the caller's ICU plural
    * ("40 skills", "1 key stored") - the noun declines with the number, so no
    * parameter can carry it (#362). `null` while the request is in flight
-   * draws a skeleton: rendering "0 skills" before the answer would state
+   * draws a skeleton. Omit when the table needs no count line. Rendering "0 skills" before the answer would state
    * something about the organization nothing has said yet.
    */
-  counted: string | null;
+  counted?: string | null;
   /** The header's right side - a search box, a view toggle. */
   controls?: ReactNode;
   /**
@@ -51,7 +52,7 @@ export function ListCard({
    * and the title is kept for a screen reader only.
    */
   namedByPage?: boolean;
-  /** Card grids already provide their own surfaces; tables retain a panel. */
+  /** Grid content has gallery padding; flush tables can set contentClassName. */
   layout?: "panel" | "grid";
   /** Fill the remaining page area, including an empty list. */
   fill?: boolean;
@@ -72,20 +73,12 @@ export function ListCard({
 } & HTMLAttributes<HTMLDivElement>) {
   if (namedByPage) {
     return (
-      <Card
-        className={cn(
-          fill && "flex min-h-0 flex-1 flex-col",
-          layout === "grid" && "border-0 bg-transparent shadow-none",
-          className,
-        )}
-        {...rest}
-      >
+      <Card className={cn(fill && "flex min-h-0 flex-1 flex-col", className)} {...rest}>
         <CardHeader
-          hidden={empty}
+          hidden={empty || (counted === undefined && !controls)}
           data-tour={headerTour}
           className={cn(
             "shrink-0 flex-col gap-3 space-y-0 border-b px-4 py-3 sm:min-h-14 sm:flex-row sm:items-center sm:justify-between sm:px-5",
-            layout === "grid" && "border-0 px-0 pt-0 pb-4 sm:px-0",
           )}
         >
           <CardTitle className="sr-only">{title}</CardTitle>
@@ -94,13 +87,17 @@ export function ListCard({
               {controls}
             </div>
           )}
-          <div className="text-muted-foreground shrink-0 text-xs tabular-nums sm:ml-auto">
-            {counted === null ? <Skeleton className="h-4 w-24" /> : counted}
-          </div>
+          {counted !== undefined && (
+            <div className="text-muted-foreground shrink-0 text-xs tabular-nums sm:ml-auto">
+              {counted === null ? <Skeleton className="h-4 w-24" /> : counted}
+            </div>
+          )}
         </CardHeader>
         <CardContent
           className={cn(
-            layout === "grid" ? cn("p-0", contentClassName) : contentPadding(contentClassName),
+            layout === "grid"
+              ? cn("p-4 sm:p-5", contentClassName)
+              : contentPadding(contentClassName),
             fill && "flex min-h-0 flex-1 flex-col",
           )}
         >
@@ -110,14 +107,7 @@ export function ListCard({
     );
   }
   return (
-    <Card
-      className={cn(
-        fill && "flex min-h-0 flex-1 flex-col",
-        layout === "grid" && "border-0 bg-transparent shadow-none",
-        className,
-      )}
-      {...rest}
-    >
+    <Card className={cn(fill && "flex min-h-0 flex-1 flex-col", className)} {...rest}>
       {/* A column on a phone: beside a search box and three filters the title
           was squeezed to "Catalo", and it is the one thing in the header that
           says what the card is. */}
@@ -135,7 +125,7 @@ export function ListCard({
       </CardHeader>
       <CardContent
         className={cn(
-          layout === "grid" ? cn("p-0", contentClassName) : contentPadding(contentClassName),
+          layout === "grid" ? cn("p-4 sm:p-5", contentClassName) : contentPadding(contentClassName),
           fill && "flex min-h-0 flex-1 flex-col",
         )}
       >
@@ -225,25 +215,30 @@ export function ListCardFootRow({
  */
 export function ListCardEmpty({
   icon: Icon,
+  onClearFilters,
   title,
   description,
   cta,
 }: {
   icon: LucideIcon;
+  /** Filtered absence shares a search icon and a clear action across catalogs. */
+  onClearFilters?: () => void;
   title: string;
   description?: ReactNode;
   cta?: { label: ReactNode; onClick: () => void };
 }) {
+  const t = useTranslations("ui");
+  const action = onClearFilters ? { label: t("clearFilters"), onClick: onClearFilters } : cta;
   return (
-    <div className="flex min-h-48 flex-1 flex-col items-center justify-center px-5 py-6 text-center">
-      <SectionGlyph icon={Icon} className="mx-auto" />
+    <div className="flex min-h-56 shrink-0 flex-col items-center justify-center px-5 py-8 text-center">
+      <SectionGlyph icon={onClearFilters ? Search : Icon} className="mx-auto" />
       <p className="text-foreground mt-4 text-sm font-medium">{title}</p>
       {description && (
         <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-sm">{description}</p>
       )}
-      {cta && (
-        <Button variant="outline" size="sm" className="mt-5" onClick={cta.onClick}>
-          {cta.label}
+      {action && (
+        <Button variant="outline" size="sm" className="mt-5" onClick={action.onClick}>
+          {action.label}
         </Button>
       )}
     </div>

@@ -1,5 +1,5 @@
 ---
-source_sha: "a9b67bff9ee7"
+source_sha: "68ac0f7695b1"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -715,15 +715,9 @@ do jednego kroku zapisu.
 
 ## Decyzje { #decisions }
 
-Trzy kroki zadają Jev od TypeSafe typowane pytanie o powiązany `text`, z kluczem
-API TypeSafe z vaulta. Jev nie pisze tekstu: odpowiada na pytanie z pewnością od 0
-do 1, w jednym żądaniu, i może odpowiedzieć tylko jedną z odpowiedzi, na które krok
-pozwala. Poniżej `min_confidence` kroku wychodzi on portem `unsure`, więc to
-workflow decyduje, co człowiek albo agent zrobi z wątpliwym przypadkiem.
+Trzy kroki zadają natywnemu modelowi decyzyjnemu typowane pytanie o wejściowy `text`. Wybierz profil modelu z dostawcą, kluczem z sejfu i endpointem. Istniejące konfiguracje z kluczem TypeSafe i modelem Jev nadal wczytują się bez zmian. Możliwości dostawcy określają akceptowane rodzaje pytań.
 
-`decide.*` wywołuje wyłącznie hostowanego Jev od TypeSafe. Wątpliwe przypadki na
-modelu hostowanym u siebie kieruj przez `ai.classify` z `min_confidence`, który
-wychodzi portem `unsure` tak samo.
+Model zwraca odpowiedź i pewność. Poniżej `min_confidence` krok wybiera `unsure`; workflow może przekazać sprawę dalej lub wybrać inną ścieżkę. Profile natywne używają OpenAI, Google, OpenRouter, TypeSafe albo własnego endpointu System One przez Pydantic AI. Dostępność i różnicę względem ocen LLM opisują [modele decyzyjne](../models.md#decision-models).
 
 | Krok | Pyta | Wychodzi portem |
 |---|---|---|
@@ -731,12 +725,7 @@ wychodzi portem `unsure` tak samo.
 | `decide.choose` | która z maksymalnie 255 opcji pasuje | `out` z `choice` albo `unsure` |
 | `decide.score` | gdzie tekst leży na skali od 2 do 10 poziomów | `out` ze `score` albo `unsure` |
 
-Klucz jest sprawdzany przy publikacji i odczytywany ponownie przy każdym runie.
-Klucz, którego już nie ma albo nie jest udostępniony, kończy krok błędem
-`SECRET_NOT_USABLE`, model, który nie odpowiada, błędem `DECISION_FAILED`,
-ponawianym zgodnie z polityką kroku, a wdrożenie zbudowane bez extra `browser`
-błędem `DECISION_MODEL_UNAVAILABLE`. Merge może połączyć gałęzie decyzji tak jak
-gałęzie kroku If.
+Klucze i dostęp sprawdzamy przy publikacji i ponownie przy każdym wykonaniu. Usunięty dawny klucz daje `SECRET_NOT_USABLE`, a profil bez natywnego API — `DECISION_MODEL_REQUIRED`. Błędy dostawcy dają `DECISION_FAILED` zgodnie z polityką ponowień kroku. Koszt wchodzi do budżetu workflow i organizacji. Merge może połączyć gałęzie decyzji.
 
 ::: app.workflows.nodes._decide.DecisionConfig
 

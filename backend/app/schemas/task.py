@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
-TaskScope = Literal["private", "project", "group", "organization"]
+TaskScope = Literal["private", "agent", "project", "group", "organization"]
 TaskStatus = Literal["planned", "in_progress", "waiting_for_user", "blocked", "done", "cancelled"]
 
 

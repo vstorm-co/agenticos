@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.api.routes.v1 import knowledge_bases as kb_routes
 from app.api.routes.v1 import rag as rag_routes
 from app.core.background import discard_deferred
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import ConcurrentChangeError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.locks import LockScope, hold_name
 from app.db.models.knowledge_base import KnowledgeBase
@@ -305,19 +305,20 @@ class TestAMoveDuringTheCheck:
             with pytest.raises(NotFoundError):
                 await _while_committing(estate, deleter, lambda: act(estate, estate.owner))
 
-    async def test_a_source_moved_into_a_base_the_caller_writes_is_still_theirs(
+    async def test_a_source_changed_after_preflight_requires_a_fresh_authorized_attempt(
         self, estate: _Estate
     ) -> None:
-        """The wait re-reads the row; it refuses nothing the new base would allow."""
+        """An authorized move still invalidates network validation of the old target."""
         async with estate.factory() as mover:
             await sync_source_repo.update(
                 mover, estate.source_id, collection_name=estate.other_collection
             )
-            await _while_committing(estate, mover, lambda: _rag_update(estate, estate.owner))
+            with pytest.raises(ConcurrentChangeError):
+                await _while_committing(estate, mover, lambda: _rag_update(estate, estate.owner))
 
         stored = await estate.stored()
         assert stored is not None
-        assert stored.name == _RENAMED
+        assert stored.name == "Drive"
         assert stored.collection_name == estate.other_collection
 
 
@@ -350,7 +351,8 @@ class TestTheLockOrder:
             assert kb is not None
             await CollectionAccessService(teardown).detach_sources_targeting(kb)
             await teardown.commit()
-        await asyncio.wait_for(task, timeout=_SETTLED)
+        with pytest.raises(ConcurrentChangeError):
+            await asyncio.wait_for(task, timeout=_SETTLED)
 
     @pytest.mark.parametrize("act", [_rag_trigger, _kb_trigger], ids=["rag", "kb"])
     @pytest.mark.parametrize("held", ["organization", "user"])

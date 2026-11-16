@@ -51,6 +51,11 @@ function row() {
 }
 
 describe("a run history row", () => {
+  it("names the small channel decision model separately from the full agent", () => {
+    render(<RunTable runs={[run({ system_role: "channel_decision" })]} />);
+    expect(screen.getByText("Channel participation decision (system)")).toBeInTheDocument();
+  });
+
   it("says what each run was asked, and what a judge's run graded", () => {
     const link = {
       eval_run_id: "eval-1",
