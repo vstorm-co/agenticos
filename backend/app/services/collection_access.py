@@ -509,7 +509,7 @@ class CollectionAccessService:
         base that keeps it, or unfiled into none, and one left on a cleared
         default would refill it (#2551). An organization's purge does not: its
         sources go with it. The configuration is kept for an explicit
-        reassignment.
+        reassignment; the previous target's sync state and status are cleared.
 
         Under the name's teardown lock, which a queued sync takes and then
         re-reads its source under, so a run cannot start on a base being deleted.
@@ -523,6 +523,10 @@ class CollectionAccessService:
                 collection_name=None,
                 knowledge_base_id=None,
                 is_active=False,
+                sync_state=None,
+                last_sync_at=None,
+                last_sync_status=None,
+                last_error=None,
             )
 
     async def hold_source_target(self, kb: KnowledgeBase) -> None:

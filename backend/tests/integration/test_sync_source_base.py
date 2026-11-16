@@ -1012,3 +1012,24 @@ async def test_legacy_history_cannot_gain_authority_through_an_unmatched_old_nam
     await db.flush()
     with pytest.raises(NotFoundError):
         await CollectionAccessService(db).sync_log(estate.reader, str(estate.legacy_log.id))
+
+
+async def test_base_deletion_clears_private_status_before_making_its_source_unassigned(
+    db: AsyncSession, history_targets: _HistoryTargets
+) -> None:
+    estate = history_targets
+    assert estate.private.organization_id is not None
+    source = _source(estate.private.organization_id, kb=estate.private)
+    source.name = "Private sync"
+    source.last_sync_at = datetime.now(UTC)
+    source.last_sync_status = "error"
+    source.last_error = "private-file.pdf"
+    source.sync_state = {"version": "private-revision", "fingerprint": "private-target"}
+    db.add(source)
+    await db.flush()
+    await KnowledgeBaseService(db).delete(estate.private.id, ctx=estate.owner)
+    await db.refresh(source)
+    assert not source.is_active
+    assert source.knowledge_base_id is None and source.collection_name is None
+    assert source.sync_state is None and source.last_error is None
+    assert source.last_sync_at is None and source.last_sync_status is None
