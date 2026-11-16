@@ -110,7 +110,7 @@ names no author is in the evidence column below.
 | eval-type-backport | 0.4.0 | MIT | https://github.com/alexmojaki/eval_type_backport | License field |
 | exceptiongroup | 1.3.1 | MIT | https://github.com/agronholm/exceptiongroup | classifier |
 | executing | 2.3.0 | MIT | https://github.com/alexmojaki/executing | License field |
-| fastapi | 0.162.0 | MIT | https://github.com/fastapi/fastapi | License-Expression |
+| fastapi | 0.162.5 | MIT | https://github.com/fastapi/fastapi | License-Expression |
 | fastavro | 1.13.1 | MIT | https://github.com/fastavro/fastavro | License field |
 | fastmcp | 4.1.6 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression |
 | fastmcp-slim | 4.1.6 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression; no licence file, attributed to Jeremiah Lowin, Nate Nowack |
@@ -153,9 +153,9 @@ names no author is in the evidence column below.
 | ldap3 | 2.9.1 | LGPL-3.0-only | https://github.com/cannatag/ldap3 | classifier; review accepted |
 | liteparse | 2.18.0 | Apache-2.0 | https://github.com/run-llama/liteparse | License-Expression; no licence file, attributed to Logan Markewich |
 | llama-cloud | 2.19.0 | MIT | https://github.com/run-llama/llama-parse-py | License field |
-| logfire | 5.4.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
+| logfire | 5.6.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
 | logfire-api | 5.4.0 | MIT | https://pypi.org/project/logfire-api/5.4.0/ | License-Expression; no licence file, attributed to Pydantic Team, Samuel Colvin, Hasan Ramezani, Adrian Garcia Badaracco, David Montague, Marcelo Trylesinski, David Hewitt, Alex Hall |
-| logfire-sdk | 5.4.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
+| logfire-sdk | 5.6.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
 | lxml | 6.1.3 | BSD-3-Clause | https://github.com/lxml/lxml | License field |
 | magic-filter | 1.0.12 | MIT | https://github.com/aiogram/magic-filter | License-Expression |
 | mako | 1.4.3 | MIT | https://www.makotemplates.org/ | License-Expression |
@@ -212,7 +212,7 @@ names no author is in the evidence column below.
 | pydantic-ai-backend | 0.2.39 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
 | pydantic-ai-harness | 0.68.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-ai-otari | 0.1.0 | Apache-2.0 | https://github.com/mozilla-ai/otari | License-Expression |
-| pydantic-ai-skills | 2.1.1 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
+| pydantic-ai-skills | 2.1.2 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
 | pydantic-ai-slim | 2.68.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
 | pydantic-core | 2.50.4 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
 | pydantic-graph | 2.68.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |

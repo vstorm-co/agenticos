@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.15"
 
 [manifest]
@@ -133,7 +133,7 @@ requires-dist = [
     { name = "click", specifier = ">=8.5.1" },
     { name = "croniter", specifier = ">=3.0.0" },
     { name = "cryptography", specifier = ">=50.0.2" },
-    { name = "fastapi", specifier = ">=0.143.2" },
+    { name = "fastapi", specifier = ">=0.162.5" },
     { name = "fastmcp", specifier = ">=4.1.6" },
     { name = "genai-prices", specifier = ">=0.2.1" },
     { name = "google-auth", extras = ["requests"], specifier = ">=2.62.1" },
@@ -147,7 +147,7 @@ requires-dist = [
     { name = "ldap3", specifier = ">=2.9.1" },
     { name = "liteparse", specifier = ">=2.18.0" },
     { name = "llama-cloud", specifier = ">=2.18.0" },
-    { name = "logfire", extras = ["fastapi", "asyncpg", "redis", "httpx"], specifier = ">=5.4.0" },
+    { name = "logfire", extras = ["fastapi", "asyncpg", "redis", "httpx"], specifier = ">=5.6.0" },
     { name = "markdown-it-py", specifier = ">=4.0.0" },
     { name = "mcp", specifier = ">=2.3.0" },
     { name = "mirage-ai", extras = ["pydantic-ai", "ssh", "mongodb", "gridfs", "postgres", "redis", "email", "nextcloud", "hf-buckets", "chroma", "mem0", "langfuse", "qdrant", "lancedb"], marker = "extra == 'mirage'", specifier = "==0.0.8" },
@@ -163,7 +163,7 @@ requires-dist = [
     { name = "pydantic-ai-backend", extras = ["console", "remote", "workspaces", "daytona"], specifier = ">=0.2.39" },
     { name = "pydantic-ai-harness", extras = ["e2b", "opensandbox", "repair-tool-arguments"], specifier = ">=0.66.0" },
     { name = "pydantic-ai-otari", specifier = ">=0.1.0,<0.2" },
-    { name = "pydantic-ai-skills", specifier = ">=2.1.1" },
+    { name = "pydantic-ai-skills", specifier = ">=2.1.2" },
     { name = "pydantic-ai-slim", extras = ["mcp"], specifier = ">=2.68.0" },
     { name = "pydantic-ai-slim", extras = ["typesafe", "openrouter", "anthropic", "google", "duckduckgo", "web-fetch", "groq", "mistral", "cohere", "huggingface", "xai", "openai-realtime", "google-realtime", "xai-realtime", "elevenlabs-realtime"], specifier = ">=2.68.0" },
     { name = "pydantic-monty", specifier = ">=1.5.0" },
@@ -1357,19 +1357,20 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.162.0"
+version = "0.162.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
+    { name = "anyio" },
     { name = "opentelemetry-api" },
     { name = "pydantic", extra = ["email"] },
     { name = "starlette" },
     { name = "typing-extensions" },
     { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e9/eb/2cf8c80abf09b2800aef0a83b41066fbfda8ee5495b7a08b9d1af40f7046/fastapi-0.162.0.tar.gz", hash = "sha256:6a22c1e2e6e32e0633ee7e170f00009a29b8228b16feb219ee42f32fd8d88a8f", size = 527867, upload-time = "2026-10-23T18:47:33.264Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4e/7b/ae546e10f153fcf9a6afd8b9fe4730bdfeb8fdcb93178d54122973ef3f4c/fastapi-0.162.5.tar.gz", hash = "sha256:1ca37f64f61c99cebd38636e67525fb721c5e8c1169f07f2a35d73b0a63265d4", size = 531785, upload-time = "2026-11-11T22:29:53.177Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b4/4f/3f2c25c9b43970b5e9a08beb5e04776247edea684ddc0930f4f02f0bb6cb/fastapi-0.162.0-py3-none-any.whl", hash = "sha256:3785963de305dd09912426cb81f2d230fce98ab3521cdfe97265c8d14983128c", size = 148912, upload-time = "2026-10-23T18:47:31.734Z" },
+    { url = "https://files.pythonhosted.org/packages/10/19/5b9abfa67a29b862e509911eef40f4901f78aa48de32ad1f939b5c2b165e/fastapi-0.162.5-py3-none-any.whl", hash = "sha256:5303c67415fde762889ca337db79d27b755b8bd09cef314fa7a4340bb30bfd2b", size = 151782, upload-time = "2026-11-11T22:29:51.47Z" },
 ]
 
 [[package]]
@@ -2203,14 +2204,14 @@ wheels = [
 
 [[package]]
 name = "logfire"
-version = "5.4.0"
+version = "5.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "logfire-sdk" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/42/f8/91f1cad432053c3b738855b555d21cd63bc9a4baeae41c3eb82428524833/logfire-5.4.0.tar.gz", hash = "sha256:cdf55516ac34244a19dfe2dc9780c904839a2deb932d1b9676df2430583963eb", size = 3256, upload-time = "2026-10-26T15:17:53.151Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/75/74/9924a954e45fc69f1dfeef05307ce8afa22a3a2233cc80fdb0d1c341b61d/logfire-5.6.0.tar.gz", hash = "sha256:a28f9063eb0110b6c26240aa54e4313ce5953f0512a10d999660401db0ec37d0", size = 3276, upload-time = "2026-11-11T21:26:47.213Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/64/6d/527e1193306920d2d067f55175ebab00518bc1a70993a1bb6f21de4efb8a/logfire-5.4.0-py3-none-any.whl", hash = "sha256:62141324530af622271070627316a9c3aca2bfbd2467144db31ec481d15d56d1", size = 3087, upload-time = "2026-10-26T15:17:48.326Z" },
+    { url = "https://files.pythonhosted.org/packages/0b/6c/83f37b2d50214deb3410b3e32c31008ca9a10495c93fd07ac123c6ffb0bf/logfire-5.6.0-py3-none-any.whl", hash = "sha256:b9b874733f097c7526ccdb5f447ce0817cf1743ad2d5c3dc14afc428cdf96788", size = 3096, upload-time = "2026-11-11T21:26:42.01Z" },
 ]
 
 [package.optional-dependencies]
@@ -2238,7 +2239,7 @@ wheels = [
 
 [[package]]
 name = "logfire-sdk"
-version = "5.4.0"
+version = "5.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -2253,9 +2254,9 @@ dependencies = [
     { name = "rich" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0d/03/f55c252dfcf7b166f514ed8500da4a2e6492acb5210b7e5e8a6e8d479b9a/logfire_sdk-5.4.0.tar.gz", hash = "sha256:85556016008f824b3e72df85fd1ec7edab56f95394631eb88ed1bb7603862d14", size = 1461661, upload-time = "2026-10-26T15:17:55.754Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/99/80/903b3107a2ff2a0fc0f018207971098193dc2be7fa45dbcf2499f0fcb5b1/logfire_sdk-5.6.0.tar.gz", hash = "sha256:ecbf85377d355443087197e8301686eae5c44cdbf8eb39a9ab1c0571f9da2a56", size = 1498690, upload-time = "2026-11-11T21:26:49.71Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d8/1e/4cc2503ed7037bb21242900f078d6283c7c59ed0dae7ad2436f52c13c858/logfire_sdk-5.4.0-py3-none-any.whl", hash = "sha256:81901c0d7e44e1daaeec5b512e177d09489f35e52b6cc2ae717efa3250a061d1", size = 1001433, upload-time = "2026-10-26T15:17:51.662Z" },
+    { url = "https://files.pythonhosted.org/packages/9d/c7/35b8b204bf9e994b0a695e8abdd3e897b452497814fa9f11a690d38ef042/logfire_sdk-5.6.0-py3-none-any.whl", hash = "sha256:8d019474940b468331447709f7dd2ce7ab48e30d5bb656b2e67b78040c498320", size = 1031029, upload-time = "2026-11-11T21:26:45.548Z" },
 ]
 
 [package.optional-dependencies]
@@ -3722,7 +3723,7 @@ wheels = [
 
 [[package]]
 name = "pydantic-ai-skills"
-version = "2.1.1"
+version = "2.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -3730,9 +3731,9 @@ dependencies = [
     { name = "pydantic-ai-slim" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/04/54/c9fb0a051f8ab56036dbc32ff247725313888fec1a424f91b4a3d12c1178/pydantic_ai_skills-2.1.1.tar.gz", hash = "sha256:fcd0964f602998b44515878e71b7593d8e6172b27dcfefbf1f4c03cff294f60b", size = 9237395, upload-time = "2026-10-28T02:53:03.511Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ca/ba/2b87dc4cbee922611c6dedce259e0d5e28eae5073c7222f96b41c6402e90/pydantic_ai_skills-2.1.2.tar.gz", hash = "sha256:4690d86d09ded0da54ac630f8c3d1c70dff73a62651c649d67441cd53c66ae50", size = 9264373, upload-time = "2026-11-07T11:27:03.129Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1c/55/a97a0dbf75e3a07c1d9989ede1f55bc6a4d6b7dc8aaf3a8b228e78356d4a/pydantic_ai_skills-2.1.1-py3-none-any.whl", hash = "sha256:324a92aa59b11d5d5968bb204bf3bc42a75e5d81ecc0de7d11e64e5d72ed5d02", size = 74783, upload-time = "2026-10-28T02:53:01.616Z" },
+    { url = "https://files.pythonhosted.org/packages/60/cb/0b10e9bd139acddc08c6a1c881d57d777a186506c4eb5acb9e2bfefe6872/pydantic_ai_skills-2.1.2-py3-none-any.whl", hash = "sha256:3ab9f02a56f33af9c238fc2b76dcbedf2a0fb386a356920f35e07d4a39a03f63", size = 74990, upload-time = "2026-11-07T11:27:01.33Z" },
 ]
 
 [[package]]

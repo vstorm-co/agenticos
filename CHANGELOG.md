@@ -23,6 +23,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Configure API webhook signature formats and headers in the routine editor, and find Linear webhooks from the event picker.
 
+### Changed
+
+- Update FastAPI, Logfire and Pydantic AI Skills, with refreshed third-party notices (#3043).
+
 ### Fixed
 
 - Choosing an improvement helper requires view access as well as run access. Missing or inaccessible helpers return 404 before their settings are read (#2685).
