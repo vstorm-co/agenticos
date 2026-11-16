@@ -10855,6 +10855,8 @@
     "nodeFormFilterColumn": "Spalte",
     "nodeFormFilterColumnPlaceholder": "Spalte auswählen",
     "nodeFormFilterColumnNoTable": "Zuerst eine Tabelle auswählen",
+    "nodeFormFilterValue": "Wert",
+    "nodeFormFilterValuePlaceholder": "Option auswählen",
     "nodeFormRow": "Zeile {index}",
     "nodeFormMoveUp": "Zeile {index} nach oben",
     "nodeFormMoveDown": "Zeile {index} nach unten",

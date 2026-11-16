@@ -1482,6 +1482,7 @@ describe("a record filter's column", () => {
               properties: {
                 column_id: { type: "string", format: "uuid", title: "Column Id" },
                 op: { type: "string", enum: ["eq", "ne"], title: "Op" },
+                value: { type: "string", title: "Typed value" },
               },
               required: ["column_id", "op"],
             },
@@ -1489,6 +1490,42 @@ describe("a record filter's column", () => {
         },
       },
     });
+
+  it("offers a select column's options as the value, and leaves any other column typed", async () => {
+    tableColumns.columns = [
+      { id: "email-col", label: "Email", type: "text", archived: false, options: [] },
+      {
+        id: "status-col",
+        label: "Status",
+        type: "single_select",
+        archived: false,
+        options: [{ id: "o2", label: "Not worth sharing", archived: false }],
+      },
+    ];
+    const table = { table_id: "table-id", schema_version: 1, column_ids: null };
+    const { updateNodeConfig } = renderForm({
+      config: {
+        table,
+        filters: [
+          { column_id: "status-col", op: "eq" },
+          { column_id: "email-col", op: "eq" },
+        ],
+      },
+      definition: filterStep(),
+    });
+
+    expect(screen.getAllByLabelText("Typed value")).toHaveLength(1);
+    await userEvent.click(screen.getByRole("combobox", { name: "Value" }));
+    await userEvent.click(screen.getByRole("option", { name: "Not worth sharing" }));
+
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {
+      table,
+      filters: [
+        { column_id: "status-col", op: "eq", value: "o2" },
+        { column_id: "email-col", op: "eq" },
+      ],
+    });
+  });
 
   it("is chosen by name from the step's table and saved as the column's id", async () => {
     tableColumns.columns = [

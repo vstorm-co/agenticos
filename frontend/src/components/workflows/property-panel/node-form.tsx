@@ -75,6 +75,7 @@ import {
   useMcpToolSchema,
 } from "@/components/workflows/pickers/mcp-tool-picker";
 import { FilterColumnField } from "./filter-column-field";
+import { FilterValueField } from "./filter-value-field";
 import { ReplyMailboxPicker } from "./reply-mailbox-picker";
 import { NotificationChannels } from "./notification-channels";
 import { FormPageForm } from "./form-page-form";
@@ -834,21 +835,41 @@ function ConfigArray({
               </Button>
             </div>
           </div>
-          {fields.map((child) => (
-            <ConfigNode
-              key={child.name}
-              schema={child.schema}
-              name={child.name}
-              required={child.required}
-              path={[...path, index, child.name]}
-              defs={defs}
-              ctx={ctx}
-              value={record(row)[child.name]}
-              onChange={(next) =>
-                onChange(replaceAt(rows, index, setKey(record(row), child.name, next)))
-              }
-            />
-          ))}
+          {fields.map((child) => {
+            const childPath = [...path, index, child.name];
+            const childValue = record(row)[child.name];
+            const childChange = (next: unknown) =>
+              onChange(replaceAt(rows, index, setKey(record(row), child.name, next)));
+            const node = (
+              <ConfigNode
+                key={child.name}
+                schema={child.schema}
+                name={child.name}
+                required={child.required}
+                path={childPath}
+                defs={defs}
+                ctx={ctx}
+                value={childValue}
+                onChange={childChange}
+              />
+            );
+            if (child.name !== "value" || prefix.join("/") !== "filters") return node;
+            const field = bindingFieldPath(childPath);
+            return (
+              <FilterValueField
+                key={child.name}
+                id={`cfg-${field.replace(/[^a-zA-Z0-9]+/g, "-")}`}
+                tableId={strOrNull(record(ctx.node.config["table"])["table_id"])}
+                columnId={record(row)["column_id"]}
+                op={record(row)["op"]}
+                value={childValue}
+                error={ctx.errors.get(field)}
+                disabled={ctx.disabled}
+                fallback={node}
+                onChange={childChange}
+              />
+            );
+          })}
         </div>
       ))}
       <Button type="button" variant="outline" size="sm" disabled={ctx.disabled} onClick={add}>
