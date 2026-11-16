@@ -462,7 +462,7 @@ class AgentRun(Base, TimestampMixin):
     # memory: an erasure missing from it was still running, so what the run read may
     # predate it. Prefixed with the cluster, whose transaction ids alone it compares.
     # Null on runs from before it was recorded, and where the database does not say
-    # which cluster it is (0332_run_memory_snapshot.py).
+    # which cluster it is (0333_run_memory_snapshot.py).
     memory_snapshot: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
@@ -509,7 +509,7 @@ class AgentRun(Base, TimestampMixin):
 
 
 # The functions `memory_snapshot`'s default calls, for a schema built from the models;
-# 0332_run_memory_snapshot.py creates the same ones for a migrated database.
+# 0333_run_memory_snapshot.py creates the same ones for a migrated database.
 _MEMORY_CLUSTER_FUNCTION = DDL(
     """
 CREATE OR REPLACE FUNCTION agenticos_memory_cluster() RETURNS text

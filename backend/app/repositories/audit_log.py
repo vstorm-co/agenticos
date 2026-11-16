@@ -175,7 +175,7 @@ ERASURE_FINISHED = "finished_at"
 # Transaction ids and snapshots belong to one PostgreSQL cluster: a dump restored into
 # another numbers transactions afresh. Each is stored as `<cluster>/<value>` and only
 # compared with a value from the same cluster. Both are null where the database does
-# not say which cluster it is (0332_run_memory_snapshot.py), and time decides alone.
+# not say which cluster it is (0333_run_memory_snapshot.py), and time decides alone.
 
 
 async def erasure_marks(db: AsyncSession) -> dict[str, str]:
