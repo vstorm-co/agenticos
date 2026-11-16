@@ -38,9 +38,7 @@ export function CodingAccounts() {
 }
 
 /**
- * The one account a chat's agent needs: its coding agent runs as a private cloud
- * task on the person's own account, so the chat offers to connect that account and
- * no other.
+ * A chat may use only the signed-in person's private coding accounts.
  */
 export function PersonalCodingAccount({ harness }: { harness: CodingHarness }) {
   const t = useTranslations("codingAccounts");
@@ -75,56 +73,112 @@ function CodingAccountList({ harnesses }: { harnesses: readonly CodingHarness[] 
     <>
       <ul className="divide-border divide-y">
         {harnesses.map((harness) => {
-          const account = rows.find((item) => item.harness === harness);
+          const accounts = rows.filter((item) => item.harness === harness);
           return (
-            <li key={harness} className="flex flex-wrap items-center justify-between gap-3 py-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="bg-muted grid size-9 shrink-0 place-items-center rounded-lg">
-                  <BrandIcon name={harness} className="size-5" />
-                </span>
-                <div className="min-w-0">
+            <li key={harness} className="py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="bg-muted grid size-9 shrink-0 place-items-center rounded-lg">
+                    <BrandIcon name={harness} className="size-5" />
+                  </span>
                   <p className="text-sm font-medium">{t(harness)}</p>
-                  <p className="text-muted-foreground text-xs">
-                    {account?.label ?? t("notConnected")}
-                  </p>
-                  {account && (
-                    <Badge variant="outline" className="mt-1">
-                      {account.enabled ? t("enabled") : t("disabled")}
-                    </Badge>
-                  )}
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {account ? (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={actions.consent.isPending}
-                      onClick={() => void actions.consent.mutateAsync(account).catch(failure)}
+              <Button
+                className="mt-2"
+                size="sm"
+                variant="outline"
+                disabled={!actions.ready || actions.accounts.isLoading}
+                onClick={() => setConnecting(harness)}
+              >
+                {t("connect")}
+              </Button>
+              {accounts.length > 0 ? (
+                <ul className="divide-border ml-12 divide-y">
+                  {accounts.map((account) => (
+                    <li
+                      key={account.id}
+                      className="flex flex-wrap items-center justify-between gap-3 py-3"
                     >
-                      {account.enabled ? t("disable") : t("enable")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={actions.disconnect.isPending}
-                      onClick={() => void actions.disconnect.mutateAsync(account.id).catch(failure)}
-                    >
-                      {t("disconnect")}
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={!actions.ready || actions.accounts.isLoading}
-                    onClick={() => setConnecting(harness)}
-                  >
-                    {t("connect")}
-                  </Button>
-                )}
-              </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">{account.label}</p>
+                        <div className="mt-1 flex flex-wrap gap-2">
+                          <Badge variant="outline">
+                            {account.enabled ? t("enabled") : t("disabled")}
+                          </Badge>
+                          {account.is_default && <Badge variant="outline">{t("default")}</Badge>}
+                          {account.pool_member && <Badge variant="outline">{t("inPool")}</Badge>}
+                        </div>
+                        <p className="text-muted-foreground mt-1 text-xs">
+                          {account.usage.status === "unknown"
+                            ? t("quotaUnknown")
+                            : t("quotaStatus", { status: account.usage.status })}
+                          {` · ${t("usageSource", { source: account.usage.source })}`}
+                          {account.usage.observation_age_seconds !== null &&
+                            ` · ${t("observedSecondsAgo", {
+                              seconds: account.usage.observation_age_seconds,
+                            })}`}
+                        </p>
+                        {account.usage.windows.map((window) => (
+                          <p className="text-muted-foreground text-xs" key={window.name}>
+                            {window.name}: {window.used ?? t("unknownValue")} /{" "}
+                            {window.limit ?? t("unknownValue")} {window.unit ?? ""}
+                            {window.resets_at && ` · ${t("resetsAt", { time: window.resets_at })}`}
+                          </p>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {!account.is_default && account.enabled && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={actions.makeDefault.isPending}
+                            onClick={() =>
+                              void actions.makeDefault.mutateAsync(account).catch(failure)
+                            }
+                          >
+                            {t("makeDefault")}
+                          </Button>
+                        )}
+                        {account.secret_kind === "openai_codex" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={actions.poolMembership.isPending}
+                            onClick={() =>
+                              void actions.poolMembership
+                                .mutateAsync({ account, poolMember: !account.pool_member })
+                                .catch(failure)
+                            }
+                          >
+                            {account.pool_member ? t("removeFromPool") : t("addToPool")}
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={actions.consent.isPending}
+                          onClick={() => void actions.consent.mutateAsync(account).catch(failure)}
+                        >
+                          {account.enabled ? t("disable") : t("enable")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={actions.disconnect.isPending}
+                          onClick={() =>
+                            void actions.disconnect.mutateAsync(account.id).catch(failure)
+                          }
+                        >
+                          {t("disconnect")}
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted-foreground mt-1 ml-12 text-xs">{t("notConnected")}</p>
+              )}
             </li>
           );
         })}

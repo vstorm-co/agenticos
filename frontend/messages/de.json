@@ -5102,6 +5102,17 @@
       "verifying" : "Claude-Anmeldung wird abgeschlossen…"
    },
    "codingAccounts" : {
+      "default" : "Standard",
+      "makeDefault" : "Als Standard festlegen",
+      "inPool" : "Im Pool",
+      "addToPool" : "Zum Pool hinzufügen",
+      "removeFromPool" : "Aus Pool entfernen",
+      "quotaUnknown" : "Anbieternutzung: Unbekannt",
+      "quotaStatus" : "Anbieterstatus: {status}",
+      "usageSource" : "Quelle: {source}",
+      "observedSecondsAgo" : "vor {seconds} Sekunden geprüft",
+      "unknownValue" : "Unbekannt",
+      "resetsAt" : "wird zurückgesetzt um {time}",
       "apiKey" : "API-Schlüssel",
       "baseRevision" : "Arbeitsbereich-Snapshot: {revision}",
       "callback" : "Rückrufadresse",

@@ -1,7 +1,23 @@
 # Provider quota visibility and account pools
 
-**Status: proposal only.** No provider telemetry, new login, account selection,
-migration or automatic retry is implemented by this document.
+**Implementation state for issue #114:** coding account metadata includes a
+normalized usage snapshot, named accounts, an explicit default and opt-in pools.
+Only Codex OAuth accounts with a stored provider account id can join a pool.
+Claude API keys and other Codex API keys remain single-account selections because
+they do not provide a stable account identity.
+
+No provider quota adapter is enabled. Usage snapshots therefore report
+`unknown`, `unavailable`, no observation time and no windows. Synthetic tests
+exercise normalization rules; they do not establish provider support. The
+provider acceptance receipt remains outstanding. Model vendor compatibility is
+validated in the coding-agent spec, but account-specific provider entitlement
+has no verified adapter contract.
+
+Manual selection sets the account default in Profile or the private chat
+controls. Pool members are selected in stable order, with at most three lease
+attempts before admission. Only a busy lease permits another candidate. Once a
+task starts, errors do not select a replacement account. The run result stores
+the admitted account id and selection reason for replay and resume.
 
 Baseline: T3OS `080c12941ed06cce2e92b6b03910e94ace36469e`, inspected on
 14 November 2026. Benchmark:

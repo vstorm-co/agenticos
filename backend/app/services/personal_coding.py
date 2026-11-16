@@ -4,6 +4,7 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from typing import Literal
 from uuid import UUID, uuid4
 
 import anyio
@@ -18,7 +19,7 @@ from app.agents.deps import AgentDeps
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.clients.redis import RedisClient
 from app.core.audit import record_audit
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret, OpenAICodexSecret, SecretKind, unseal_secret
 from app.core.vault import VaultScope
@@ -34,6 +35,7 @@ from app.services.project_workspace_guard import project_for_workspace
 from app.services.sandbox_workspace import SandboxWorkspaceService
 
 logger = logging.getLogger(__name__)
+MAX_POOL_SELECTION_ATTEMPTS = 3
 
 
 @dataclass(frozen=True)
@@ -97,21 +99,34 @@ class PersonalCodingSessionFactory:
                 return False
         return True
 
-    async def _account(self, harness: Harness) -> CodingAccount:
+    async def _accounts(self, harness: Harness) -> list[CodingAccount]:
         async with get_db_context() as db:
-            row = await account_repo.get(
+            rows = await account_repo.list_for(
                 db,
                 organization_id=self.ctx.organization_id,
                 user_id=account_owner(self.ctx),
-                harness=harness,
             )
-            if row is None or not row.enabled:
+            owned = [row for row in rows if row.harness == harness]
+            pool = [row for row in owned if row.pool_member]
+            if pool:
+                candidates = [row for row in pool if row.enabled][:MAX_POOL_SELECTION_ATTEMPTS]
+                if not candidates:
+                    raise BadRequestError(
+                        message="Enable an account in your selected pool before starting a coding task",
+                        details={"harness": harness},
+                    )
+                for row in candidates:
+                    db.expunge(row)
+                return candidates
+
+            default = next((row for row in owned if row.is_default), None)
+            if default is None or not default.enabled:
                 raise BadRequestError(
-                    message="Connect and enable your own coding account in Settings → Profile first",
+                    message="Choose and enable a default coding account in Settings → Profile first",
                     details={"harness": harness},
                 )
-            db.expunge(row)
-            return row
+            db.expunge(default)
+            return [default]
 
     @asynccontextmanager
     async def session(
@@ -142,17 +157,33 @@ class PersonalCodingSessionFactory:
             raise AuthorizationError(
                 message="Personal coding accounts cannot use a conversation collaborators can edit"
             )
-        account = await self._account(harness)
-        lease_key = f"personal-coding:{self.ctx.organization_id}:{owner}:{account.id}"
-        async with (
-            account_lease(lease_key, timeout_seconds, redis=self.redis),
-            self._isolated(ctx, account, harness) as task,
-        ):
-            yield task
+        candidates = await self._accounts(harness)
+        for account in candidates:
+            lease_key = f"personal-coding:{self.ctx.organization_id}:{owner}:{account.id}"
+            acquired = False
+            try:
+                async with account_lease(lease_key, timeout_seconds, redis=self.redis):
+                    acquired = True
+                    reason = "opt_in_pool" if account.pool_member else "manual_default"
+                    async with self._isolated(
+                        ctx, account, harness, selection_reason=reason
+                    ) as task:
+                        yield task
+            except ConflictError:
+                if acquired:
+                    raise
+            else:
+                return
+        raise ConflictError(message="Every eligible coding account in this pool is busy")
 
     @asynccontextmanager
     async def _isolated(
-        self, ctx: RunContext[AgentDeps], account: CodingAccount, harness: Harness
+        self,
+        ctx: RunContext[AgentDeps],
+        account: CodingAccount,
+        harness: Harness,
+        *,
+        selection_reason: Literal["manual_default", "opt_in_pool"] = "manual_default",
     ) -> AsyncGenerator[PersonalCodingTask]:
         owner = account_owner(self.ctx)
         if not await self._active(account.id, account.generation, ctx.deps.conversation_id):
@@ -221,6 +252,7 @@ class PersonalCodingSessionFactory:
                     label=account.label,
                     base_revision=source.revision,
                     result_archive=f"coding-results/{task_id}.zip",
+                    selection_reason=selection_reason,
                     redactions=(value.api_key,)
                     if isinstance(value, ApiKeySecret)
                     else (value.access_token, value.refresh_token),

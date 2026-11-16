@@ -5152,6 +5152,17 @@
       "verifying" : "Completing Claude sign-in…"
    },
    "codingAccounts" : {
+      "default" : "Default",
+      "makeDefault" : "Make default",
+      "inPool" : "In pool",
+      "addToPool" : "Add to pool",
+      "removeFromPool" : "Remove from pool",
+      "quotaUnknown" : "Provider usage: Unknown",
+      "quotaStatus" : "Provider status: {status}",
+      "usageSource" : "source: {source}",
+      "observedSecondsAgo" : "checked {seconds} seconds ago",
+      "unknownValue" : "Unknown",
+      "resetsAt" : "resets at {time}",
       "apiKey" : "API key",
       "baseRevision" : "Workspace snapshot: {revision}",
       "callback" : "Callback address",
