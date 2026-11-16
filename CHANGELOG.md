@@ -29,13 +29,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Channel thread refresh shares web-chat history and compaction, with native-post deduplication, bounded imports and explicit missing-context notices. Durable message admission, same-sender queued additions, own-run status/stop commands and final-response receipts work across workers. Personal-service feedback names missing requirements; channel readiness and dashboard connection states distinguish configuration from confirmed access.
 
+### Changed
+
+- Channel runs now respect the agent's MCP and Mirage approval settings for unlinked senders too, including delegates and resumed calls. Personal MCP accounts still require the sender's linked identity and authorized connection; bot access controls and platform MCP write approvals remain enforced.
+
+### Fixed
+
+- Admit Slack Socket Mode commands and message shortcuts durably before acknowledgement, preserve Telegram updates when job admission fails, and keep Discord metadata lookups off its Gateway receive loop.
+
+- Standardize fields, native and custom selects, buttons and switches across the console and authentication screens. Respect the chosen look at sign-in, stack connected accounts before appearance, restore fallback avatar colours and make working-day selection clear.
+
+## [1.78.0] - 2026-11-16
+
+### Added
+
 - Add ElevenLabs Scribe v3/v2 transcription and Eleven Realtime Mini/Max voice conversations with explicit vault keys. Realtime audio costs remain a floor because token charges are unreported; calls with spending budgets are refused before connecting.
 
 - Select an accessible project's workspace for the current agent run from chat or channels, without moving conversation history. Access is rechecked for each operation; approval continuations retain the selection and routines keep their reviewed source ceiling.
 
 ### Changed
-
-- Channel runs now respect the agent's MCP and Mirage approval settings for unlinked senders too, including delegates and resumed calls. Personal MCP accounts still require the sender's linked identity and authorized connection; bot access controls and platform MCP write approvals remain enforced.
 
 - Add varied editorial slide compositions, an evidence-led report with reconciled filtering, and a detailed procedural product studio to the bundled Apps and Visuals skills.
 - Simplify the default Me dashboard, align Briefing rows, place Discover directly below Briefing and center visual previews. Settle answered questions when the server starts their continuation, and dismiss clicked toasts with a shorter exit.
@@ -57,10 +69,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Make evaluation optional when reviewing skill proposals: apply a reviewed update directly, or run a check before deciding. Edit permissions and proposal/version conflict checks still apply.
 
 ### Fixed
-
-- Admit Slack Socket Mode commands and message shortcuts durably before acknowledgement, preserve Telegram updates when job admission fails, and keep Discord metadata lookups off its Gateway receive loop.
-
-- Standardize fields, native and custom selects, buttons and switches across the console and authentication screens. Respect the chosen look at sign-in, stack connected accounts before appearance, restore fallback avatar colours and make working-day selection clear.
 
 - Prevent App deletion from deadlocking with workflow event writes. Release partial source locks before bounded retries, return a retryable 409 when busy, and preserve run history and commit-only file cleanup (#3021).
 
@@ -21846,7 +21854,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.77.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.78.0...HEAD
+[1.78.0]: https://github.com/vstorm-co/agenticos/compare/v1.77.0...v1.78.0
 [1.77.0]: https://github.com/vstorm-co/agenticos/compare/v1.76.2...v1.77.0
 [1.76.2]: https://github.com/vstorm-co/agenticos/compare/v1.76.1...v1.76.2
 [1.76.1]: https://github.com/vstorm-co/agenticos/compare/v1.76.0...v1.76.1
