@@ -29,6 +29,17 @@ test.describe("Review screenshots", () => {
         fullPage: false,
       });
     });
+
+    test(`captures coding accounts at ${size.name} width`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width: size.width, height: size.height });
+      await page.goto("/settings/profile");
+      const section = page.locator('[data-tour="personal-coding-accounts"]');
+      await expect(section).toBeVisible();
+      await section.scrollIntoViewIfNeeded();
+      await section.screenshot({
+        path: testInfo.outputPath(`coding-accounts-${size.name}.png`),
+      });
+    });
   }
 
   test("captures the selected agent's settings at desktop width", async ({ page }, testInfo) => {
