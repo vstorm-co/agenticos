@@ -121,6 +121,7 @@ async def _syncing(
         organization_id=uuid.uuid4(),
         secret_id=None,
     )
+    source.knowledge_base_id = KB_ID
     sources = MagicMock(
         get_source=AsyncMock(return_value=source),
         update_after_sync=AsyncMock(),
@@ -154,7 +155,7 @@ async def _syncing(
                 return_value=MagicMock(
                     collection_name=source.collection_name,
                     organization_id=source.organization_id,
-                    knowledge_base_id=None,
+                    knowledge_base_id=KB_ID,
                 )
             ),
         ),
@@ -625,6 +626,7 @@ class TestAListingTheStoreCannotAnswer:
             organization_id=uuid.uuid4(),
             secret_id=None,
         )
+        source.knowledge_base_id = KB_ID
         sources = MagicMock(
             get_source=AsyncMock(return_value=source),
             update_after_sync=AsyncMock(),
@@ -650,7 +652,7 @@ class TestAListingTheStoreCannotAnswer:
                     return_value=MagicMock(
                         collection_name=source.collection_name,
                         organization_id=source.organization_id,
-                        knowledge_base_id=None,
+                        knowledge_base_id=KB_ID,
                     )
                 ),
             ),
@@ -939,6 +941,7 @@ class TestASyncLogPassedInIsNotLeftRunning:
     @staticmethod
     @asynccontextmanager
     async def _refusing(*, source: MagicMock) -> Any:
+        source.knowledge_base_id = KB_ID
         sources = MagicMock(
             get_source=AsyncMock(return_value=source), update_after_sync=AsyncMock()
         )
@@ -958,7 +961,7 @@ class TestASyncLogPassedInIsNotLeftRunning:
                     return_value=MagicMock(
                         collection_name=source.collection_name,
                         organization_id=source.organization_id,
-                        knowledge_base_id=None,
+                        knowledge_base_id=KB_ID,
                     )
                 ),
             ),

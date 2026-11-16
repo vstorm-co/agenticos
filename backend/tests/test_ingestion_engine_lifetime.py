@@ -276,6 +276,7 @@ class TestAConnectorSyncsEngine:
             organization_id=uuid.uuid4(),
             secret_id=None,
         )
+        source.knowledge_base_id = _BASE.id
         sources = MagicMock(
             get_source=AsyncMock(return_value=source),
             update_after_sync=AsyncMock(),
@@ -297,7 +298,7 @@ class TestAConnectorSyncsEngine:
                         return_value=MagicMock(
                             collection_name=source.collection_name,
                             organization_id=source.organization_id,
-                            knowledge_base_id=None,
+                            knowledge_base_id=_BASE.id,
                         )
                     ),
                 ),
@@ -333,6 +334,7 @@ class TestAConnectorSyncsEngine:
             organization_id=uuid.uuid4(),
             secret_id=None,
         )
+        source.knowledge_base_id = _BASE.id
         sources = MagicMock(
             get_source=AsyncMock(return_value=source), update_after_sync=AsyncMock()
         )
@@ -352,7 +354,7 @@ class TestAConnectorSyncsEngine:
                         return_value=MagicMock(
                             collection_name=source.collection_name,
                             organization_id=source.organization_id,
-                            knowledge_base_id=None,
+                            knowledge_base_id=_BASE.id,
                         )
                     ),
                 ),

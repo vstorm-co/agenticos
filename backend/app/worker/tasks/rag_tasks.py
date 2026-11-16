@@ -1369,6 +1369,18 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             await hold_name(db, LockScope.COLLECTION_TEARDOWN, assigned_collection)
             await db.refresh(source)
         attempt_started_at = datetime.now(UTC)
+        if queued_log is not None and status_target_id is None:
+            # Teardown nullifies the log's target and clears the detached source's
+            # state. NULL is not an admitted target we may settle back onto it.
+            message = "This sync request no longer has a knowledge base. Run it again."
+            await _notify_sync_start_failure(
+                db,
+                source=source,
+                sync_log_id=sync_log_id,
+                started_at=attempt_started_at,
+                message=message,
+            )
+            return {"status": "error", "message": message}
         connector_cls = CONNECTOR_REGISTRY.get(source.connector_type)
         if not connector_cls:
             message = f"Unknown connector: {source.connector_type}"

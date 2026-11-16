@@ -93,6 +93,7 @@ async def _syncing(
         secret_id=None,
         organizational_unit=None,
     )
+    source.knowledge_base_id = _BASE.id
     sources = MagicMock(
         get_source=AsyncMock(return_value=source),
         update_after_sync=AsyncMock(),
@@ -149,7 +150,7 @@ async def _syncing(
                 return_value=MagicMock(
                     collection_name=source.collection_name,
                     organization_id=source.organization_id,
-                    knowledge_base_id=None,
+                    knowledge_base_id=_BASE.id,
                 )
             ),
         ),
