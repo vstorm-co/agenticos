@@ -1,5 +1,5 @@
 ---
-source_sha: "26b175343dc7"
+source_sha: "2f0c04055b6b"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2016,6 +2016,10 @@ para mostrar diferencias entre la consola y Mattermost.
     Los trabajos retenidos siguen contando hasta la limpieza, incluidos los completados, fallidos y cancelados. La retención de mensajes tiene un límite de 10 000 trabajos / 32 MiB por bot y 100 000 / 256 MiB por organización; los controles, de 1000 / 2 MiB y 10 000 / 16 MiB. Terminar un trabajo libera capacidad activa, pero no almacenamiento retenido. La limpieza habitual a los 14 días libera estos contadores y bytes.
 
     Los límites de retención incluyen las respuestas pendientes y los recibos terminales compactos. Los trabajos de respuesta terminados eliminan las copias del texto, argumentos y resultados de herramientas y listas de archivos; la ejecución y su transcripción conservan el registro. Una edición de Mattermost debe admitirse mientras exista el recibo del original ignorado. Esa admisión duradera sobrevive a una espera más larga. Distintas ediciones del mismo mensaje comparten una clave de idempotencia duradera.
+
+    La vinculación obligatoria de cuenta se comprueba antes de guardar un mensaje dirigido. La dirección de Telegram se resuelve antes de elegir la cola de control. Los rechazos de acceso y frecuencia siguen respondiendo al remitente dirigido. Cada remitente puede retener por bot como máximo 1000 mensajes / 4 MiB y 100 controles / 256 KiB, dejando espacio para los demás.
+
+    Los comandos slash y contextuales de Discord también usan admisión duradera. Las credenciales de respuesta diferida se cifran con el almacén de la organización, se rotan con los identificadores de adjuntos y se restauran solo durante el enrutamiento. Los archivos de respuesta solicitados se guardan bajo la cuota y retención de archivos generados de la organización antes de confirmar la instantánea final; recuperarlos no repite herramientas. Las respuestas terminales vacías usan el aviso de estado en lugar del error interno. Una solicitud de parada se confirma en la base antes de anunciarla y prioriza la tarea principal activa del remitente frente a una pregunta lateral posterior ya completada. La importación del hilo excluye preguntas `/btw`.
 
 - **El remitente puede añadir contexto durante el run.** Antes de la siguiente petición al modelo, el worker consume hasta ocho añadidos de texto pendientes de la misma persona en el mismo hilo. Vuelve a comprobar acceso y guardrails de entrada. Los mensajes de otra persona, archivos, otros comandos y añadidos tardíos esperan su propio turno. Solo se incorporan mensajes dirigidos al bot; también funciona entre workers. `/status` y `/stop` (o `status` y `stop`) afectan únicamente al último run principal del remitente en ese hilo. Stop actúa antes de la siguiente petición al modelo; una acción en curso puede terminar. `/btw` utiliza un trabajo independiente y siempre se ejecuta sin herramientas, incluso cuando otro worker ejecuta el turno principal.
 

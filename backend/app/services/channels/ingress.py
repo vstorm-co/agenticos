@@ -29,6 +29,7 @@ from app.worker.jobs import (
 
 logger = logging.getLogger(__name__)
 _JSON = TypeAdapter(JsonValue)
+_INTERACTION = TypeAdapter(tuple[str, str])
 
 
 def conversation_queue(bot_id: UUID, chat_id: str) -> str:
@@ -59,12 +60,22 @@ def normalize(bot: ChannelBot, incoming: IncomingMessage) -> ChannelMessage:
                 if isinstance(reply_id, int):
                     telegram_message["reply_to_message"] = {"from": {"id": reply_id}}
             metadata["message"] = telegram_message
+    interaction = (
+        None
+        if incoming.discord_interaction is None
+        else seal(
+            _INTERACTION.dump_json(incoming.discord_interaction).decode(),
+            scope=VaultScope.organization(bot.organization_id),
+        )
+    )
     return ChannelMessage.model_validate(
         {
             "receipt_id": uuid4(),
             "organization_id": bot.organization_id,
             "bot_id": bot.id,
             "authorization_generation": bot.authorization_generation,
+            "interaction_handle": None if interaction is None else interaction.ciphertext,
+            "interaction_key_version": 1 if interaction is None else interaction.key_version,
             **{
                 key: getattr(incoming, key)
                 for key in (
@@ -116,6 +127,15 @@ def restore(message: ChannelMessage) -> IncomingMessage:
             )
         },
         edit_admitted=message.edit_admitted,
+        discord_interaction=None
+        if message.interaction_handle is None
+        else _INTERACTION.validate_json(
+            unseal(
+                message.interaction_handle,
+                scope=VaultScope.organization(message.organization_id),
+                key_version=message.interaction_key_version,
+            )
+        ),
         bot_id=str(message.bot_id),
         raw=dict(message.metadata),
         attachments=[
@@ -138,7 +158,6 @@ async def queue_message(db: AsyncSession, bot: ChannelBot, incoming: IncomingMes
     from app.services.channels.steering import aside_question
 
     aside = aside_question(incoming.text) is not None
-    control = is_run_control(incoming.text) and incoming.addressed is not False
     # Edits have their own admission, but the router's observed-original receipt
     # still decides whether an edit may start a run. Persist no arbitrary raw envelope.
     native = incoming.message_id
@@ -158,6 +177,9 @@ async def queue_message(db: AsyncSession, bot: ChannelBot, incoming: IncomingMes
     from app.services.channels.router import ChannelMessageRouter
 
     router = ChannelMessageRouter()
+    await router.resolve_addressing(bot, incoming)
+    overheard = router._is_overheard(incoming)
+    control = is_run_control(incoming.text) and not overheard
     try:
         router._check_access(incoming, bot)
         await router._check_rate_limit(
@@ -165,16 +187,36 @@ async def queue_message(db: AsyncSession, bot: ChannelBot, incoming: IncomingMes
             incoming.platform_user_id,
             surface="channel-control-ingress" if control else "channel-ingress",
         )
-    except AuthorizationError, BadRequestError:
+    except (AuthorizationError, BadRequestError) as exc:
+        if not overheard:
+            await router._refuse_if_named(bot, incoming, exc.message)
         logger.info("channel_admission_refused", extra={"bot_id": str(bot.id)})
         return
+    if not overheard and not router._admits_unlinked(incoming, bot):
+        try:
+            identity = await router._resolve_identity(incoming, bot, db)
+            if incoming.platform == "discord":
+                await router._sync_discord_roles(bot, identity, incoming, db)
+        except (AuthorizationError, BadRequestError) as exc:
+            await router._refuse_if_named(bot, incoming, exc.message)
+            return
+        if not await router._sender_is_active_member(db, bot, identity):
+            # Link/help commands and the invitation remain available without
+            # retaining an unauthorised sender's payload in the shared queue.
+            await router.route(incoming, db)
+            return
     if len(incoming.text.encode()) > 64 * 1024 or len(incoming.attachments) > 10:
         logger.info("channel_admission_too_large", extra={"bot_id": str(bot.id)})
         return
     message = normalize(bot, incoming)
     size = len(message.model_dump_json().encode())
     if size > 128 * 1024 or not await job_repo.channel_queue_has_room(
-        db, organization_id=bot.organization_id, bot_id=bot.id, control=control, size=size
+        db,
+        organization_id=bot.organization_id,
+        bot_id=bot.id,
+        control=control,
+        size=size,
+        sender=incoming.platform_user_id,
     ):
         logger.warning("channel_admission_queue_full", extra={"bot_id": str(bot.id)})
         return

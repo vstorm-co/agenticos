@@ -27,6 +27,7 @@ from app.db.session import get_db_context
 from app.repositories import agent_run_repo, channel_bot_repo, channel_prompt_repo
 from app.services.access import decider_context
 from app.services.agent_runner import AgentRunnerService, RunSegment
+from app.services.channels.base import OutgoingAttachment
 from app.services.channels.handback import REFUSED_NOTICE, ChatNotice, chat_destination
 from app.services.channels.handback_jobs import queue_notices, queue_segment
 from app.services.channels.next_steps import incoming_for_run
@@ -44,6 +45,7 @@ class ChatDelivery:
     output: str
     tool_calls: tuple[RecordedToolCall, ...]
     generated_files: frozenset[str]
+    outbound: tuple[OutgoingAttachment, ...] = ()
 
     @classmethod
     def of(cls, segment: RunSegment) -> ChatDelivery:
@@ -51,6 +53,7 @@ class ChatDelivery:
             output=segment.output,
             tool_calls=tuple(segment.tool_calls),
             generated_files=segment.generated_files,
+            outbound=segment.outbound,
         )
 
 
@@ -269,6 +272,7 @@ async def _post_if_admitted(
         tool_calls=list(said.tool_calls),
         settled={},
         generated_files=said.generated_files,
+        outbound=said.outbound,
     )
     return await ChannelPrompts(db).deliver(
         bot,

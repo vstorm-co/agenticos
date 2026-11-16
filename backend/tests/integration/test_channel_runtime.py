@@ -397,6 +397,24 @@ async def test_native_turn_receipts_and_controls_are_bound_to_the_actual_sender(
         db, organization_id=org.id, conversation_id=conversation.id, identity_id=alice.id
     )
     assert found is not None and found.id == root.id
+    completed_aside = AgentRun(
+        organization_id=org.id,
+        agent_id=agent.id,
+        conversation_id=conversation.id,
+        channel_identity_id=alice.id,
+        status="completed",
+        created_at=now + timedelta(seconds=3),
+    )
+    db.add(completed_aside)
+    await db.flush()
+    active = await agent_run_repo.latest_for_channel_sender(
+        db,
+        organization_id=org.id,
+        conversation_id=conversation.id,
+        identity_id=alice.id,
+        prefer_running=True,
+    )
+    assert active is not None and active.id == root.id
     assert (
         await agent_run_repo.latest_for_channel_sender(
             db, organization_id=uuid4(), conversation_id=conversation.id, identity_id=alice.id
@@ -475,6 +493,7 @@ async def test_native_redeliveries_are_durable_and_thread_queues_stay_isolated(
         chat_type="group",
         text="Use Friday",
         message_id="native-1",
+        addressed=True,
         raw={"token": "must-not-persist", "guild_id": "123456789"},
     )
     await queue_message(db, bot, incoming)
@@ -832,4 +851,35 @@ async def test_recovered_reply_leaves_terminal_transition_to_the_fenced_worker(
         record.status == "succeeded"
         and record.worker_id == "recovery"
         and record.lease_until is None
+    )
+
+
+@pytest.mark.parametrize(
+    "control,by_bytes", [(False, False), (True, False), (False, True), (True, True)]
+)
+async def test_one_sender_cannot_spend_another_senders_retained_quota(
+    db: AsyncSession, control: bool, by_bytes: bool
+) -> None:
+    org, bot = uuid4(), uuid4()
+    count = 1 if by_bytes else (100 if control else 1000)
+    size = (256 * 1024 if control else 4 * 1024 * 1024) if by_bytes else 0
+    db.add_all(
+        [
+            BackgroundJob(
+                kind="process-channel-control" if control else "process-channel-message",
+                pool="system" if control else "agent",
+                status="succeeded",
+                max_attempts=1,
+                organization_id=org,
+                payload={"bot_id": str(bot), "platform_user_id": "alice", "text": "x" * size},
+            )
+            for _ in range(count)
+        ]
+    )
+    await db.flush()
+    assert not await jobs.channel_queue_has_room(
+        db, organization_id=org, bot_id=bot, control=control, size=1, sender="alice"
+    )
+    assert await jobs.channel_queue_has_room(
+        db, organization_id=org, bot_id=bot, control=control, size=1, sender="bob"
     )

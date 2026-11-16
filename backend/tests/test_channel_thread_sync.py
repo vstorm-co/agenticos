@@ -207,3 +207,16 @@ async def test_an_unidentified_current_message_never_imports_future_context(sync
     sync.save.assert_not_awaited()
     sync.update.assert_not_awaited()
     assert sync.session.thread_context_at == NOW - timedelta(seconds=20)
+
+
+async def test_transcript_free_asides_are_not_reimported_from_native_history(sync):
+    sync.directory.history_page.return_value = HistoryPage(
+        scanned=0,
+        posts=[
+            post("aside", text="/btw What is the weather?", when=NOW - timedelta(seconds=2)),
+            post("discussion", text="Friday works", when=NOW - timedelta(seconds=1)),
+            post("current"),
+        ],
+    )
+    await refresh(sync)
+    assert [call.kwargs["source_id"] for call in sync.save.await_args_list] == ["discussion"]

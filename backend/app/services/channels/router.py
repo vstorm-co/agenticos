@@ -1824,12 +1824,14 @@ class ChannelMessageRouter:
                     organization_id=bot.organization_id,
                     conversation_id=session.conversation_id,
                     identity_id=identity.id,
+                    prefer_running=cmd == "/stop",
                 )
                 if run is not None:
                     if cmd == "/status":
                         return f"Your latest task in this thread: {run.status}."
                     if run.status == RunStatus.RUNNING.value:
                         await agent_run_repo.request_channel_stop(db, run=run)
+                        await db.commit()
                         return "Stop requested. I will stop before the next model request; an action already in progress may still finish."
                     return f"That task is {run.status}; it is not actively running."
             return "You have no task in this thread."
@@ -2425,6 +2427,7 @@ class ChannelMessageRouter:
                 or not post.post_id
                 or post.post_id in known
                 or not admits(post)
+                or aside_question(post.text) is not None
             ):
                 continue
             identity = (

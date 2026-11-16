@@ -476,9 +476,12 @@ async def test_admission_refuses_before_enqueue(monkeypatch, reason):
             IncomingAttachment(filename="a", mime_type="text/plain", size=1, handle="id")
         ] * 11
     enqueue = AsyncMock()
+    refusal = AsyncMock()
+    monkeypatch.setattr(ChannelMessageRouter, "_refuse_if_named", refusal)
     monkeypatch.setattr(ingress, "enqueue", enqueue)
     await ingress.queue_message(MagicMock(), owner, incoming)
     enqueue.assert_not_awaited()
+    assert refusal.await_count == int(reason in {"access", "rate"})
 
 
 async def test_side_question_is_queued_without_the_active_threads_concurrency_key(monkeypatch):
@@ -491,3 +494,97 @@ async def test_side_question_is_queued_without_the_active_threads_concurrency_ke
     await ingress.queue_message(db, bot(), replace(message(), text="/btw status of the draft?"))
     assert enqueue.await_args.args[1] is PROCESS_CHANNEL_MESSAGE
     assert enqueue.await_args.kwargs["concurrency_key"] is None
+
+
+def test_deferred_discord_reply_handle_survives_only_as_vault_ciphertext():
+    incoming = replace(
+        message(), platform="discord", discord_interaction=("application", "private-token")
+    )
+    queued = ingress.normalize(bot(), incoming)
+    assert "private-token" not in queued.model_dump_json()
+    assert ingress.restore(queued).discord_interaction == incoming.discord_interaction
+
+
+@pytest.mark.parametrize("linked", [False, True])
+async def test_unlinked_senders_do_not_take_shared_retained_capacity(monkeypatch, linked):
+    owner, incoming = bot(), message()
+    owner.access_policy = {"mode": "jwt_linked"}
+    monkeypatch.setattr(ingress.job_repo, "get_by_idempotency_key", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        ChannelMessageRouter,
+        "_resolve_identity",
+        AsyncMock(return_value=SimpleNamespace(user_id=uuid4() if linked else None)),
+    )
+    monkeypatch.setattr(
+        ChannelMessageRouter, "_sender_is_active_member", AsyncMock(return_value=linked)
+    )
+    route = AsyncMock()
+    monkeypatch.setattr(ChannelMessageRouter, "route", route)
+    enqueue = AsyncMock()
+    monkeypatch.setattr(ingress, "enqueue", enqueue)
+    db = MagicMock()
+    await ingress.queue_message(db, owner, incoming)
+    assert enqueue.await_count == int(linked)
+    assert route.await_count == int(not linked)
+
+
+async def test_telegram_overheard_stop_does_not_take_the_control_lane(monkeypatch):
+    owner = bot()
+    incoming = replace(message(owner), platform="telegram", addressed=None, text="stop")
+
+    async def resolve(self, bot, incoming):
+        incoming.addressed = False
+
+    monkeypatch.setattr(ChannelMessageRouter, "resolve_addressing", resolve)
+    monkeypatch.setattr(ingress.job_repo, "get_by_idempotency_key", AsyncMock(return_value=None))
+    enqueue = AsyncMock()
+    monkeypatch.setattr(ingress, "enqueue", enqueue)
+    await ingress.queue_message(MagicMock(), owner, incoming)
+    assert enqueue.await_args.args[1] == PROCESS_CHANNEL_MESSAGE
+    assert not ingress.job_repo.channel_queue_has_room.await_args.kwargs["control"]
+
+
+@pytest.mark.parametrize("failure", [None, "identity", "roles", "overheard"])
+async def test_admission_preserves_link_refusals_and_discord_role_checks(monkeypatch, failure):
+    from app.core.exceptions import AuthorizationError, BadRequestError
+
+    owner = bot()
+    owner.access_policy = {"mode": "jwt_linked", "discord_guild_ids": ["123456789"]}
+    incoming = replace(
+        message(owner),
+        platform="discord",
+        addressed=failure != "overheard",
+        raw={"guild_id": "123456789"},
+    )
+    monkeypatch.setattr(ingress.job_repo, "get_by_idempotency_key", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        ChannelMessageRouter,
+        "_resolve_identity",
+        AsyncMock(
+            return_value=SimpleNamespace(user_id=uuid4()),
+            side_effect=AuthorizationError(message="Link required")
+            if failure == "identity"
+            else None,
+        ),
+    )
+    roles = AsyncMock(
+        side_effect=BadRequestError(message="Roles unavailable") if failure == "roles" else None
+    )
+    monkeypatch.setattr(ChannelMessageRouter, "_sync_discord_roles", roles)
+    monkeypatch.setattr(
+        ChannelMessageRouter, "_sender_is_active_member", AsyncMock(return_value=True)
+    )
+    if failure == "overheard":
+        monkeypatch.setattr(
+            ChannelMessageRouter,
+            "_check_access",
+            MagicMock(side_effect=AuthorizationError(message="Denied")),
+        )
+    refuse = AsyncMock()
+    monkeypatch.setattr(ChannelMessageRouter, "_refuse_if_named", refuse)
+    enqueue = AsyncMock()
+    monkeypatch.setattr(ingress, "enqueue", enqueue)
+    await ingress.queue_message(MagicMock(), owner, incoming)
+    assert enqueue.await_count == int(failure is None)
+    assert refuse.await_count == int(failure in {"identity", "roles"})
+    assert roles.await_count == int(failure in {None, "roles"})

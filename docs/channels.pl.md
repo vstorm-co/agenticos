@@ -1,5 +1,5 @@
 ---
-source_sha: "26b175343dc7"
+source_sha: "2f0c04055b6b"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1965,6 +1965,10 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
     Do czasu cleanupu liczą się też zachowane zadania, w tym zakończone sukcesem, błędem lub anulowaniem. Retencja wiadomości jest ograniczona do 10 000 zadań / 32 MiB na bota i 100 000 / 256 MiB na organizację; poleceń sterujących do 1000 / 2 MiB oraz 10 000 / 16 MiB. Zakończenie zadania zwalnia miejsce w aktywnej kolejce, lecz nie limit zapisanych danych. Zwykły cleanup po 14 dniach zwalnia zachowane liczniki i bajty.
 
     Limity retencji wiadomości obejmują oczekujące odpowiedzi i kompaktowe potwierdzenia zakończenia. Zakończone zadania odpowiedzi usuwają kopię treści, argumentów i wyników narzędzi oraz listy wygenerowanych plików; zapis wykonania pozostaje w uruchomieniu i transkrypcji. Edycja Mattermosta musi kwalifikować się, gdy istnieje jeszcze potwierdzenie zignorowania oryginału, a zapisane przyjęcie pozostaje ważne po dłuższym oczekiwaniu w kolejce. Różne edycje tego samego posta mają jeden trwały klucz idempotencji.
+
+    Wymagane powiązanie konta jest sprawdzane przed zapisaniem adresowanej wiadomości. Adresowanie Telegrama jest rozstrzygane przed wyborem kolejki sterowania. Odmowy polityki dostępu i limitu częstotliwości nadal odpowiadają adresowanemu nadawcy. Jeden nadawca może zachować na bota najwyżej 1000 wiadomości / 4 MiB i 100 poleceń sterujących / 256 KiB, pozostawiając miejsce innym.
+
+    Polecenia slash i polecenia kontekstowe Discorda również korzystają z trwałej kolejki. Dane odroczonej odpowiedzi są szyfrowane sejfem organizacji, rotowane razem z uchwytami załączników i odtwarzane tylko na czas routingu. Zamówione pliki odpowiedzi są zapisywane z limitem i retencją plików generowanych organizacji przed zatwierdzeniem końcowej migawki, więc odzyskanie nie powtarza narzędzi. Pusta odpowiedź końcowa używa komunikatu statusu zamiast wewnętrznego błędu. Żądanie zatrzymania jest zatwierdzane przed potwierdzeniem i wybiera trwające zadanie główne nadawcy przed nowszym zakończonym pytaniem pobocznym. Import wątku pomija pytania `/btw`.
 
 - **Nadawca może dopisać kontekst podczas pracy.** Przed następnym wywołaniem modelu worker pobiera do ośmiu oczekujących dopisków tekstowych tej samej osoby w tym samym wątku. Ponownie sprawdza dostęp i guardrails wejścia. Wiadomość innej osoby, plik, inne polecenie lub spóźniony dopisek pozostają w kolejce na własną turę. Pobierane są tylko wiadomości skierowane do bota. Działa to także między workerami. `/status` i `/stop` (także samo `status` i `stop`) dotyczą wyłącznie ostatniego głównego runa nadawcy w tym wątku. Stop działa przed kolejnym wywołaniem modelu; rozpoczęta akcja może się zakończyć. `/btw` korzysta z niezależnego zadania i zawsze działa bez narzędzi, także gdy główny run wykonuje inny worker.
 

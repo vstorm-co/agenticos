@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
 from app.db.session import get_db_context
-from app.services.channels.base import IncomingMessage
+from app.services import generated_media
+from app.services.channels.base import IncomingMessage, OutgoingAttachment
 from app.services.channels.continuation import ChatDelivery, deliver_in_chat
 from app.services.channels.discord_roles import sweep_discord_roles
 from app.services.channels.handback import ChatNotice, ensure_channel_adapters, send_notice
@@ -48,6 +49,18 @@ async def deliver_handback(job: ChannelHandback) -> bool:
                     for call in job.tool_calls
                 ),
                 generated_files=job.generated_files,
+                outbound=tuple(
+                    [
+                        OutgoingAttachment(
+                            filename=file.filename,
+                            mime_type=file.mime_type,
+                            content=await generated_media.load_generated_media(
+                                job.organization_id, file.stored_leaf
+                            ),
+                        )
+                        for file in job.attachments
+                    ]
+                ),
             ),
         )
 
@@ -188,8 +201,19 @@ async def process_channel_message(job: ChannelMessage) -> None:
             raise BadRequestError(
                 message="The channel connection changed after this message was received. Send a new message."
             )
+        incoming = restore(job)
         with queued_turn(job.receipt_id):
-            await _route_inbound(restore(job), db)
+            if incoming.platform == "discord" and incoming.discord_interaction is not None:
+                from app.services.channels import get_adapter
+                from app.services.channels.discord import DiscordAdapter
+
+                adapter = get_adapter("discord")
+                if not isinstance(adapter, DiscordAdapter):
+                    raise RuntimeError("Discord interaction requires the Discord adapter")
+                with adapter.restored_interaction(incoming):
+                    await _route_inbound(incoming, db)
+            else:
+                await _route_inbound(incoming, db)
 
 
 async def deliver_initial_reply(job: ChannelHandback) -> None:

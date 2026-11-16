@@ -1,5 +1,5 @@
 ---
-source_sha: "26b175343dc7"
+source_sha: "2f0c04055b6b"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2109,6 +2109,10 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
     Aufbewahrte Jobs zählen bis zur Bereinigung weiter, auch erfolgreiche, fehlgeschlagene und abgebrochene. Die Aufbewahrung ist für Nachrichten auf 10.000 Jobs / 32 MiB pro Bot und 100.000 / 256 MiB pro Organisation begrenzt; für Steuerbefehle auf 1.000 / 2 MiB und 10.000 / 16 MiB. Der Abschluss gibt aktive Kapazität frei, aber keinen aufbewahrten Speicher. Die reguläre Bereinigung nach 14 Tagen gibt diese Zähler und Bytes frei.
 
     Die Aufbewahrungsgrenzen für Nachrichten umfassen wartende Antwortkopien und kompakte Abschlussbelege. Beendete Antwortjobs entfernen duplizierte Antworttexte, Werkzeugargumente/-ergebnisse und Dateilisten; Lauf und Transkript behalten den Ausführungsnachweis. Eine Mattermost-Bearbeitung muss zugelassen werden, solange der Beleg des ignorierten Originals besteht. Die dauerhafte Zulassung übersteht längere Wartezeiten. Verschiedene Bearbeitungen desselben Posts teilen einen dauerhaften Idempotenzschlüssel.
+
+    Eine erforderliche Kontoverknüpfung wird geprüft, bevor eine adressierte Nachricht gespeichert wird. Telegram-Adressierung wird vor der Auswahl der Steuerungswarteschlange geklärt. Zugriffs- und Ratenlimit-Ablehnungen antworten weiterhin dem adressierten Absender. Pro Bot darf ein Absender höchstens 1.000 Nachrichten / 4 MiB und 100 Steuerbefehle / 256 KiB behalten, damit Platz für andere bleibt.
+
+    Discord-Slash- und Nachrichtenkontextbefehle nutzen ebenfalls die dauerhafte Aufnahme. Zugangsdaten für verzögerte Antworten sind im Organisations-Vault verschlüsselt, werden mit Anhang-Handles rotiert und nur während des Routings wiederhergestellt. Angeforderte Antwortdateien werden vor dem Abschluss-Snapshot unter Quote und Aufbewahrung der generierten Organisationsdateien gespeichert; die Wiederherstellung wiederholt keine Tools. Leere Abschlussantworten verwenden einen Statushinweis statt interner Fehler. Eine Stoppanforderung wird vor ihrer Bestätigung bestätigt und bevorzugt die laufende Hauptaufgabe des Absenders gegenüber einer neueren abgeschlossenen Nebenfrage. Der Thread-Import schließt `/btw`-Fragen aus.
 
 - **Der Absender kann während eines Laufs Kontext ergänzen.** Vor der nächsten Modellanfrage übernimmt der Worker bis zu acht wartende Textergänzungen derselben Person im selben Thread. Zugriff und Eingabe-Guardrails werden erneut geprüft. Andere Personen, Dateien, andere Befehle und zu spät eingegangene Ergänzungen bleiben für eine eigene Runde in der Warteschlange. Nur an den Bot gerichtete Nachrichten werden übernommen, auch über Worker-Grenzen hinweg. `/status` und `/stop` (auch `status` und `stop`) betreffen nur den letzten eigenen Hauptlauf in diesem Thread. Stop wirkt vor der nächsten Modellanfrage; eine laufende Aktion kann noch enden. `/btw` verwendet einen unabhängigen Job und läuft immer ohne Werkzeuge, auch wenn ein anderer Worker die Hauptrunde ausführt.
 

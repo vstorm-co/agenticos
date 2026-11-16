@@ -39,16 +39,19 @@ async def test_control_is_scoped_to_the_same_conversation_and_native_identity(
     stop = AsyncMock()
     monkeypatch.setattr(agent_run_repo, "latest_for_channel_sender", latest)
     monkeypatch.setattr(agent_run_repo, "request_channel_stop", stop)
+    db = MagicMock(commit=AsyncMock())
     result = await ChannelMessageRouter()._handle_command(
-        command, incoming, bot, MagicMock(), SimpleNamespace(id=identity, user_id=None), True
+        command, incoming, bot, db, SimpleNamespace(id=identity, user_id=None), True
     )
     assert result
     assert latest.await_args.kwargs == {
         "organization_id": org,
         "conversation_id": conversation,
         "identity_id": identity,
+        "prefer_running": command == "stop",
     }
     assert stop.await_count == int(command == "stop" and status == "running")
+    assert db.commit.await_count == stop.await_count
 
 
 async def test_offboarded_sender_cannot_read_or_stop_their_old_run(monkeypatch):

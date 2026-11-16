@@ -126,3 +126,27 @@ async def test_handler_only_sends_and_propagates_transport_failure_for_retry(not
             assert snapshot.output == job.output
             assert snapshot.tool_calls[0].result == "Sent"
             assert snapshot.generated_files == job.generated_files
+
+
+async def test_recovered_requested_file_is_loaded_in_the_jobs_organization(monkeypatch):
+    from app.worker.jobs import ChannelHandbackFile
+    from app.worker.tasks import channel_tasks
+
+    job = _job().model_copy(
+        update={
+            "attachments": [
+                ChannelHandbackFile(
+                    filename="report.csv", mime_type="text/csv", stored_leaf="receipt.csv"
+                )
+            ]
+        }
+    )
+    load = AsyncMock(return_value=b"a,b")
+    deliver = AsyncMock(return_value=True)
+    monkeypatch.setattr(channel_tasks.generated_media, "load_generated_media", load)
+    monkeypatch.setattr(channel_tasks, "ensure_channel_adapters", lambda: None)
+    monkeypatch.setattr(channel_tasks, "deliver_in_chat", deliver)
+    assert await deliver_handback(job)
+    load.assert_awaited_once_with(job.organization_id, "receipt.csv")
+    file = deliver.await_args.kwargs["said"].outbound[0]
+    assert (file.filename, file.content, file.mime_type) == ("report.csv", b"a,b", "text/csv")

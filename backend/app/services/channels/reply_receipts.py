@@ -11,13 +11,20 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import BadRequestError
 from app.db.models.channel_bot import ChannelBot
 from app.db.session import get_db_context
 from app.repositories import background_job as job_repo
 from app.repositories import conversation_repo
+from app.services import generated_media
 from app.services.background_jobs import enqueue
 from app.services.channels.base import IncomingMessage
-from app.worker.jobs import DELIVER_CHANNEL_REPLY, ChannelHandback, ChannelHandbackCall
+from app.worker.jobs import (
+    DELIVER_CHANNEL_REPLY,
+    ChannelHandback,
+    ChannelHandbackCall,
+    ChannelHandbackFile,
+)
 
 if TYPE_CHECKING:
     from app.services.agent_runner import RunSegment
@@ -36,8 +43,10 @@ class RequiredReply:
     rendered_output: str | None = None
 
     async def persist(self, segment: RunSegment) -> None:
+        from app.db.models.agent_run import RunStatus
         from app.services.channels.handback import STOPPED_NOTICE
-        from app.services.channels.router import ChannelMessageRouter
+        from app.services.channels.mentions import AnsweredTurn
+        from app.services.channels.router import ChannelMessageRouter, _empty_answer
         from app.services.channels.steering import current_receipt
 
         receipt = current_receipt()
@@ -53,6 +62,47 @@ class RequiredReply:
         self.rendered_output = (
             segment.output if self.renderer is None else await self.renderer(segment)
         )
+        if not self.rendered_output:
+            self.rendered_output = (
+                STOPPED_NOTICE
+                if segment.run.status == RunStatus.CANCELLED.value
+                else _empty_answer(
+                    AnsweredTurn(
+                        text="",
+                        status=segment.run.status,
+                        awaiting_approval_run_id=segment.run.id
+                        if segment.run.status == RunStatus.AWAITING_APPROVAL.value
+                        else None,
+                    )
+                )
+            )
+        attachments: list[ChannelHandbackFile] = []
+        for file in segment.outbound:
+            admission = await generated_media.admit_generated_media(
+                self.bot.organization_id, estimate_bytes=len(file.content)
+            )
+            if not admission.admitted:
+                raise BadRequestError(
+                    message="The requested reply file exceeds the organization's stored-file quota."
+                )
+            try:
+                leaf = await generated_media.keep_generated_media(
+                    self.bot.organization_id,
+                    file.content,
+                    filename=file.filename,
+                    conversation_id=segment.run.conversation_id,
+                    reservation_id=admission.reservation_id,
+                )
+            finally:
+                if admission.reservation_id is not None:
+                    await generated_media.release_generated_media(
+                        self.bot.organization_id, admission.reservation_id
+                    )
+            attachments.append(
+                ChannelHandbackFile(
+                    filename=file.filename, mime_type=file.mime_type, stored_leaf=leaf
+                )
+            )
         self.job_id = await enqueue(
             self.db,
             DELIVER_CHANNEL_REPLY,
@@ -74,6 +124,7 @@ class RequiredReply:
                     for call in segment.tool_calls
                 ],
                 generated_files=segment.generated_files,
+                attachments=attachments,
             ),
             organization_id=self.bot.organization_id,
             # Normally the live turn sends immediately. A worker only recovers an

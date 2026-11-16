@@ -271,11 +271,26 @@ async def _rotate_channel_files(
                 report.failures.append(f"background_jobs {row.id}: invalid channel owner")
                 continue
             changed = False
+            scope = VaultScope.organization(message.organization_id)
+            interaction = message.interaction_handle
+            interaction_version = message.interaction_key_version
+            if interaction is not None:
+                if dry_run:
+                    unseal(interaction, scope=scope, key_version=interaction_version)
+                if needs_rotation(interaction, key_version=interaction_version):
+                    if not dry_run:
+                        interaction = rewrap(
+                            interaction,
+                            scope=scope,
+                            from_version=interaction_version,
+                            to_version=target,
+                        )
+                        interaction_version = target
+                    changed = True
             attachments = list(message.attachments)
             for index, file in enumerate(message.attachments):
                 if file.handle_key_version is None:
                     continue
-                scope = VaultScope.organization(message.organization_id)
                 if dry_run:
                     unseal(file.handle, scope=scope, key_version=file.handle_key_version)
                 if needs_rotation(file.handle, key_version=file.handle_key_version):
@@ -293,14 +308,18 @@ async def _rotate_channel_files(
             if changed:
                 if not dry_run:
                     row.payload = message.model_copy(
-                        update={"attachments": attachments}
+                        update={
+                            "attachments": attachments,
+                            "interaction_handle": interaction,
+                            "interaction_key_version": interaction_version,
+                        }
                     ).model_dump(mode="json")
                 report.rotated += 1
             else:
                 report.current += 1
         except AppException, ValidationError:
             report.failures.append(
-                f"background_jobs {row.id}: channel attachment could not be rotated"
+                f"background_jobs {row.id}: channel credential could not be rotated"
             )
 
 

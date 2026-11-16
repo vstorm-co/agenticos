@@ -3373,6 +3373,7 @@ class RunSegment:
     generated_files: frozenset[str] = frozenset()
     """Leaf names actually stored by this run, never inferred from tool result text."""
     message_id: UUID | None = None
+    outbound: tuple[OutgoingAttachment, ...] = ()
 
 
 def failed_run_error(run: AgentRun, exc: Exception) -> RunFailedError:
@@ -8752,7 +8753,7 @@ class AgentRunnerService:
                     if on_segment is not None:
                         await on_segment(
                             RunSegment(
-                                output=output or error or "",
+                                output=output,
                                 channel_destination=prepared.channel_destination,
                                 run=prepared.run,
                                 tool_calls=called,
@@ -8760,6 +8761,7 @@ class AgentRunnerService:
                                 structured=structured,
                                 delegations=tuple(prepared.delegations),
                                 generated_files=frozenset(prepared.built.deps.generated_files),
+                                outbound=tuple(prepared.outbound),
                             )
                         )
                     await self.db.commit()
@@ -8781,6 +8783,7 @@ class AgentRunnerService:
             delegations=tuple(prepared.delegations),
             generated_files=frozenset(prepared.built.deps.generated_files),
             message_id=message_id,
+            outbound=tuple(prepared.outbound),
         )
 
     async def run_chat_askers(

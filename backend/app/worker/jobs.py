@@ -120,6 +120,8 @@ class ChannelMessage(Payload):
     broadcast_mention: bool = False
     addressed: bool | None = None
     edit_admitted: bool = False
+    interaction_handle: str | None = Field(default=None, repr=False)
+    interaction_key_version: int = 1
     platform_team_id: str | None = None
     attachments: list[ChannelMessageFile] = Field(default_factory=list)
     metadata: dict[str, JsonValue] = Field(default_factory=dict)
@@ -141,6 +143,12 @@ class ChannelHandbackCall(Payload):
     result: str | None = None
 
 
+class ChannelHandbackFile(Payload):
+    filename: str
+    mime_type: str
+    stored_leaf: str
+
+
 class ChannelHandback(Payload):
     initial_reply_id: UUID | None = None
     submission_started: bool = False
@@ -154,6 +162,7 @@ class ChannelHandback(Payload):
     tool_calls: list[ChannelHandbackCall] = Field(default_factory=list)
     generated_files: frozenset[str] = frozenset()
     notice: bool = False
+    attachments: list[ChannelHandbackFile] = Field(default_factory=list)
 
 
 class NoPayload(Payload):

@@ -313,6 +313,9 @@ class IncomingMessage:
     edit_admitted: bool = False
     """A durable queue receipt authorized this edit while its ignored-original receipt existed."""
 
+    discord_interaction: tuple[str, str] | None = field(default=None, repr=False)
+    """Application and token for a deferred response, encrypted before persistence."""
+
 
 @dataclass
 class OutgoingMessage:

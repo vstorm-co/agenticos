@@ -327,3 +327,78 @@ async def test_rendering_before_a_snapshot_keeps_native_placeholder_without_a_jo
     await reply.render("Answer", native_id="placeholder")
     assert reply.native_ids == {"placeholder"}
     write.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "status,notice",
+    [
+        ("budget_exceeded", "usage limit"),
+        ("loop_stopped", "repeating"),
+        ("guardrail_blocked", "could not produce"),
+        ("awaiting_approval", "approval"),
+        ("awaiting_answer", "question"),
+    ],
+)
+async def test_empty_terminal_segments_render_the_status_instead_of_an_internal_error(
+    monkeypatch, status, notice
+):
+    monkeypatch.setattr(module.conversation_repo, "bind_channel_source", AsyncMock())
+    enqueue = AsyncMock(return_value=uuid4())
+    monkeypatch.setattr(module, "enqueue", enqueue)
+    reply = receipt()
+    await reply.persist(
+        RunSegment(
+            output="", run=SimpleNamespace(id=uuid4(), status=status), tool_calls=[], settled={}
+        )
+    )
+    assert notice in enqueue.await_args.args[2].output.lower()
+    assert reply.rendered_output
+
+
+@pytest.mark.parametrize(
+    "quota,reservation,fails",
+    [(True, True, False), (True, False, False), (False, False, False), (True, True, True)],
+)
+async def test_requested_files_are_stored_before_the_terminal_handback(
+    monkeypatch, quota, reservation, fails
+):
+    from app.services.channels.base import OutgoingAttachment
+
+    monkeypatch.setattr(module.conversation_repo, "bind_channel_source", AsyncMock())
+    reservation_id = uuid4() if reservation else None
+    monkeypatch.setattr(
+        module.generated_media,
+        "admit_generated_media",
+        AsyncMock(return_value=SimpleNamespace(admitted=quota, reservation_id=reservation_id)),
+    )
+    store = AsyncMock(
+        return_value="stored-report.csv",
+        side_effect=RuntimeError("storage unavailable") if fails else None,
+    )
+    monkeypatch.setattr(module.generated_media, "keep_generated_media", store)
+    release = AsyncMock()
+    monkeypatch.setattr(module.generated_media, "release_generated_media", release)
+    enqueue = AsyncMock(return_value=uuid4())
+    monkeypatch.setattr(module, "enqueue", enqueue)
+    reply = receipt()
+    segment = RunSegment(
+        output="Report",
+        run=SimpleNamespace(id=uuid4(), status="completed", conversation_id=uuid4()),
+        tool_calls=[],
+        settled={},
+        outbound=(OutgoingAttachment("report.csv", b"a,b", "text/csv"),),
+    )
+    if not quota or fails:
+        with pytest.raises(RuntimeError if fails else BadRequestError):
+            await reply.persist(segment)
+        enqueue.assert_not_awaited()
+    else:
+        await reply.persist(segment)
+        file = enqueue.await_args.args[2].attachments[0]
+        assert (file.filename, file.mime_type, file.stored_leaf) == (
+            "report.csv",
+            "text/csv",
+            "stored-report.csv",
+        )
+        assert store.await_args.args == (reply.bot.organization_id, b"a,b")
+    assert release.await_count == int(quota and reservation)

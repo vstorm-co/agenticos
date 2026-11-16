@@ -195,3 +195,44 @@ async def test_message_worker_rechecks_frozen_admission_before_routing(worker, m
         await channel_tasks.process_channel_message(job)
     assert routed.await_count == int(change == "none")
     assert current_receipt() is None
+
+
+@pytest.mark.parametrize("adapter_ok", [False, True])
+async def test_discord_worker_restores_the_encrypted_interaction_reply_scope(
+    worker, monkeypatch, adapter_ok
+):
+    from dataclasses import replace
+
+    from app.services import channels
+    from app.services.channels.discord import DiscordAdapter
+    from app.services.channels.ingress import normalize
+
+    bot, db = worker
+    bot.platform = "discord"
+    bot.authorization_generation = uuid4()
+    incoming = IncomingMessage(
+        platform="discord",
+        bot_id=str(bot.id),
+        platform_user_id="alice",
+        platform_chat_id="room:thread",
+        chat_type="group",
+        text="/status",
+        message_id="interaction",
+        discord_interaction=("application", "private-token"),
+    )
+    adapter = DiscordAdapter() if adapter_ok else MagicMock()
+    monkeypatch.setattr(channels, "get_adapter", lambda _: adapter)
+
+    async def route(restored, session):
+        assert restored.discord_interaction == ("application", "private-token")
+        assert adapter._interactions.get("interaction") == ("application", "private-token")
+
+    monkeypatch.setattr(channel_tasks, "_route_inbound", route)
+    if adapter_ok:
+        await channel_tasks.process_channel_message(normalize(bot, incoming))
+        assert adapter._interactions.get("interaction") is None
+        with adapter.restored_interaction(replace(incoming, discord_interaction=None)):
+            assert adapter._interactions.get("interaction") is None
+    else:
+        with pytest.raises(RuntimeError, match="requires the Discord"):
+            await channel_tasks.process_channel_message(normalize(bot, incoming))

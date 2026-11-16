@@ -449,6 +449,7 @@ class ChannelPrompts:
                 [await with_preview_links(segment.output or "Done.", segment.run.id), *notices]
             ),
             image_png=picture,
+            attachments=list(segment.outbound),
             api_base_url=bot.api_base_url,
             reply_to_message_id=None
             if segment.channel_destination is None

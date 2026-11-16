@@ -627,7 +627,6 @@ def spawned() -> Iterator[list[Any]]:
     with (
         patch.object(discord, "spawn", spawn),
         patch("app.services.channels.ingress.admit_message", AsyncMock(side_effect=seen.append)),
-        patch.object(discord, "process_channel_event", lambda incoming: incoming),
         patch.object(discord, "process_channel_press", lambda press: press),
         patch.object(discord, "process_feedback_comment", lambda comment: comment),
     ):

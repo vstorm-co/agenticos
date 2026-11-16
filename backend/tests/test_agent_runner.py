@@ -10369,6 +10369,8 @@ async def test_required_segment_handback_is_persisted_before_the_terminal_commit
     assert "provider secret" not in seen[0].output
     if ending == "answer":
         assert seen[0].output == "Saved"
+    else:
+        assert seen[0].output == ""
 
 
 @pytest.mark.anyio

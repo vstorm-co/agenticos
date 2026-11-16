@@ -470,6 +470,7 @@ async def test_queued_channel_file_credentials_rotate_with_the_vault(monkeypatch
             platform_chat_id="thread",
             chat_type="group",
             text="Read file",
+            discord_interaction=("application", "private-token"),
             attachments=[
                 IncomingAttachment(
                     filename="a.pdf", mime_type="application/pdf", size=2, handle=url
@@ -493,12 +494,16 @@ async def test_queued_channel_file_credentials_rotate_with_the_vault(monkeypatch
     assert report.rotated == 1 and not report.failures
     restored = sweep.ChannelMessage.model_validate(row.payload)
     assert restored.attachments[0].handle_key_version == (1 if dry_run else 2)
+    assert restored.interaction_key_version == (1 if dry_run else 2)
     if not dry_run:
         monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {2: KEY_B})
     assert restore(restored).attachments[0].handle == url
+    assert restore(restored).discord_interaction == ("application", "private-token")
 
 
-@pytest.mark.parametrize("state", ["current", "legacy", "foreign_owner", "corrupt", "malformed"])
+@pytest.mark.parametrize(
+    "state", ["current", "legacy", "no_interaction", "foreign_owner", "corrupt", "malformed"]
+)
 async def test_channel_file_rotation_preserves_current_and_reports_invalid_rows(monkeypatch, state):
     from types import SimpleNamespace
 
@@ -519,6 +524,10 @@ async def test_channel_file_rotation_preserves_current_and_reports_invalid_rows(
         platform_chat_id="thread",
         chat_type="group",
         text="Read file",
+        interaction_handle=None
+        if state == "no_interaction"
+        else seal('["application","private-token"]', scope=VaultScope.organization(org)).ciphertext,
+        interaction_key_version=1,
         attachments=[
             ChannelMessageFile(
                 filename="a",
@@ -543,6 +552,6 @@ async def test_channel_file_rotation_preserves_current_and_reports_invalid_rows(
         _db_returning([row]), target=1, dry_run=state == "corrupt", report=report
     )
     assert bool(report.failures) is (state in {"foreign_owner", "corrupt", "malformed"})
-    assert report.current == int(state in {"current", "legacy"})
+    assert report.current == int(state in {"current", "legacy", "no_interaction"})
     assert "signature" not in str(report.failures)
     assert row.payload == ({} if state == "malformed" else payload)

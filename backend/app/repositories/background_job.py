@@ -1063,7 +1063,13 @@ async def get_channel_reply(db: AsyncSession, *, reply_id: UUID | None) -> Backg
 
 
 async def channel_queue_has_room(
-    db: AsyncSession, *, organization_id: UUID, bot_id: UUID, control: bool, size: int
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    bot_id: UUID,
+    control: bool,
+    size: int,
+    sender: str | None = None,
 ) -> bool:
     """Serialize active and retained channel quotas in the enqueue transaction."""
     await db.execute(select(func.pg_advisory_xact_lock(7319, func.hashtext(str(organization_id)))))
@@ -1073,6 +1079,7 @@ async def channel_queue_has_room(
         else ("process-channel-message", "deliver-channel-reply")
     )
     bot = BackgroundJob.payload["bot_id"].astext == str(bot_id)
+    sender_owned = bot & (BackgroundJob.payload["platform_user_id"].astext == sender)
     active = BackgroundJob.status.in_(ACTIVE_STATUSES) & (
         BackgroundJob.kind != "deliver-channel-reply"
     )
@@ -1087,19 +1094,32 @@ async def channel_queue_has_room(
             func.coalesce(func.sum(payload_size), 0),
             func.count().filter(bot),
             func.coalesce(func.sum(payload_size).filter(bot), 0),
+            func.count().filter(sender_owned),
+            func.coalesce(func.sum(payload_size).filter(sender_owned), 0),
         ).where(
             BackgroundJob.organization_id == organization_id,
             BackgroundJob.kind.in_(kinds),
         )
     )
-    count, total, bot_count, bot_total, retained, retained_size, bot_retained, bot_retained_size = (
-        result.one()
-    )
+    (
+        count,
+        total,
+        bot_count,
+        bot_total,
+        retained,
+        retained_size,
+        bot_retained,
+        bot_retained_size,
+        sender_retained,
+        sender_retained_size,
+    ) = result.one()
     return (
         count < (64 if control else 1000)
         and bot_count < (8 if control else 100)
         and total + size <= (256 * 1024 if control else 16 * 1024 * 1024)
         and bot_total + size <= (32 * 1024 if control else 2 * 1024 * 1024)
+        and sender_retained < (100 if control else 1_000)
+        and sender_retained_size + size <= (256 * 1024 if control else 4 * 1024 * 1024)
         and retained < (10_000 if control else 100_000)
         and bot_retained < (1_000 if control else 10_000)
         and retained_size + size <= (16 * 1024 * 1024 if control else 256 * 1024 * 1024)

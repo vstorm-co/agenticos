@@ -3306,6 +3306,7 @@ async def latest_for_channel_sender(
     organization_id: UUID,
     conversation_id: UUID | None,
     identity_id: UUID,
+    prefer_running: bool = False,
 ) -> AgentRun | None:
     if conversation_id is None:
         return None
@@ -3317,7 +3318,13 @@ async def latest_for_channel_sender(
             AgentRun.channel_identity_id == identity_id,
             AgentRun.parent_run_id.is_(None),
         )
-        .order_by(AgentRun.created_at.desc(), AgentRun.id)
+        .order_by(
+            (AgentRun.status == RunStatus.RUNNING.value).desc()
+            if prefer_running
+            else AgentRun.created_at.desc(),
+            AgentRun.created_at.desc(),
+            AgentRun.id,
+        )
         .limit(1)
     )
     return result.scalar_one_or_none()
