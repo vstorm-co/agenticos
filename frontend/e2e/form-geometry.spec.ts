@@ -19,6 +19,29 @@ async function activeOrganization(page: Page): Promise<string> {
   return read();
 }
 
+test.describe("voice provider catalog", () => {
+  test.use({ storageState: AUTH_STATE, viewport: { width: 1280, height: 900 } });
+
+  test("offers ElevenLabs Scribe without changing saved organization settings", async ({
+    page,
+  }, testInfo) => {
+    await page.goto("/dashboard");
+    const orgId = await activeOrganization(page);
+    await page.goto(`/orgs/${orgId}/members?tab=voice`);
+    const provider = page.getByRole("combobox", { name: "Provider", exact: true });
+    await expect(provider).toBeVisible();
+    const previous = await provider.innerText();
+    await provider.click();
+    await page.getByRole("option", { name: "ElevenLabs", exact: true }).click();
+    await expect(page.getByRole("combobox", { name: "Model", exact: true })).toContainText(
+      "Scribe v3",
+    );
+    await page.screenshot({ path: testInfo.outputPath("elevenlabs-scribe.png"), fullPage: true });
+    await page.getByRole("button", { name: "Discard changes", exact: true }).click();
+    await expect(provider).toHaveText(previous);
+  });
+});
+
 async function expectGeometry(first: Locator, second: Locator, touch: boolean): Promise<void> {
   await expect(first).toBeVisible();
   await expect(second).toBeVisible();
