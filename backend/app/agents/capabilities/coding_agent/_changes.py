@@ -33,7 +33,13 @@ import anyio
 from pydantic_ai.tools import RunContext
 
 from app.agents.capabilities.coding_agent._task import SANDBOX_FAILURES
-from app.schemas.coding_task_change import ChangedFile, ChangeSet, ChangeStatus
+from app.schemas.coding_task_change import (
+    MAX_REVERT_BYTES,
+    MAX_REVERT_FILE_BYTES,
+    ChangedFile,
+    ChangeSet,
+    ChangeStatus,
+)
 from app.services.sandbox_workspace import NOT_BROWSABLE, TOOLING_DIRS
 
 logger = logging.getLogger(__name__)
@@ -93,7 +99,7 @@ _PRUNED = " -o ".join(
 _SETUP = (
     f"command -v git > /dev/null 2>&1 || exit {NO_GIT}; "
     f'export GIT_DIR="${STORE_ENV}/git" GIT_INDEX_FILE="${STORE_ENV}/index" '
-    'GIT_WORK_TREE="$PWD" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null '
+    'GIT_WORK_TREE="$PWD" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_ATTR_NOSYSTEM=1 '
     "GIT_OPTIONAL_LOCKS=0 "
     # Defence in depth, not a closed channel: the store is the task's user's to
     # write, so its config can still name a clean filter or an include. These
@@ -117,7 +123,13 @@ _SNAPSHOT = (
     "&& git write-tree"
 )
 
-BEGIN = f'{_SETUP}set -e; umask 077; rm -rf "${STORE_ENV}"; mkdir -p "${STORE_ENV}"; git init -q; {_SNAPSHOT}'
+# The private info file outranks workspace attributes: these are byte snapshots,
+# not Git checkouts subject to clean filters, encodings or newline conversion.
+BEGIN = (
+    f'{_SETUP}set -e; umask 077; rm -rf "${STORE_ENV}"; mkdir -p "${STORE_ENV}"; git init -q; '
+    f"printf '%s\\n' '* -text -filter -ident -working-tree-encoding' > \"${STORE_ENV}/git/info/attributes\"; "
+    f"{_SNAPSHOT}"
+)
 """Make the task's store and snapshot the workspace into it; prints the tree."""
 
 _DIFF = (
@@ -130,7 +142,7 @@ FINISH = (
     f'{_DIFF} -z --numstat > "${STORE_ENV}/num"; '
     # Only as much of the patch as is kept is ever written: git stops on the
     # closed pipe (141), and any other exit is a diff that could not be made.
-    f'{{ if {_DIFF} -p --no-color; then echo 0 > "${STORE_ENV}/rc"; '
+    f'{{ if {_DIFF} -p --binary --full-index --no-color; then echo 0 > "${STORE_ENV}/rc"; '
     f'else echo $? > "${STORE_ENV}/rc"; fi; }} '
     f'| head -c {MAX_PATCH_BYTES + 1} > "${STORE_ENV}/patch"; '
     f'rc=$(cat "${STORE_ENV}/rc"); [ "$rc" = 0 ] || [ "$rc" = 141 ] || exit 1; '
@@ -139,10 +151,18 @@ FINISH = (
     f"{{ tr '\\000' '\\n' < \"${STORE_ENV}/raw\" | grep -c '^:[0-7]* [0-7]* ' || true; }}; "
     f"head -c {MAX_LIST_BYTES} \"${STORE_ENV}/raw\" | base64 | tr -d '\\n'; echo; "
     f"head -c {MAX_LIST_BYTES} \"${STORE_ENV}/num\" | base64 | tr -d '\\n'; echo; "
-    f'head -c {MAX_PATCH_BYTES} "${STORE_ENV}/patch"'
+    f"head -c {MAX_PATCH_BYTES} \"${STORE_ENV}/patch\" | base64 | tr -d '\\n'; echo; "
+    # Count both blob states, including mode-only changes and repeated blobs.
+    # A small compressed patch need not mean a small verification workload.
+    f"{_DIFF} --no-renames --raw "
+    "| awk '/^:/ {if ($3 !~ /^0+$/) print $3; if ($4 !~ /^0+$/) print $4}' "
+    "| git cat-file --batch-check='%(objectsize)' "
+    f"| awk '{{total += $1; if ($0 !~ /^[0-9]+$/ || $1 > {MAX_REVERT_FILE_BYTES}) bad=1}} "
+    f"END {{print (bad || total > {MAX_REVERT_BYTES}) ? 0 : 1}}'"
 )
 """Snapshot again and print the change, a line each: the sizes of the `--raw` list, the
-`--numstat` list and the patch, the file count, each list's head (base64), then the patch.
+`--numstat` list and the patch, the file count, each list's head (base64), the patch,
+and whether its before/after blobs fit the revert verification limits.
 
 The lists are written to the store first, so `set -e` sees `diff-tree` fail -
 piped straight out, a failing one printed nothing and read as a task that
@@ -240,10 +260,17 @@ def parse(stdout: str) -> ChangeSet | None:
     have sent, and no patch past `MAX_PATCH_BYTES` characters - the shell's
     bytes, as many or fewer once decoded.
     """
-    head = stdout.split("\n", 6)
+    head = stdout.split("\n", 7)
     if len(head) < 7:
         return None
-    *sizes, raw_text, num_text, patch = head
+    # Older capture output has seven lines; new captures append the workload flag.
+    bounded = True
+    if len(head) == 8:
+        bounds = head.pop().strip()
+        if bounds not in {"0", "1"}:
+            return None
+        bounded = bounds == "1"
+    *sizes, raw_text, num_text, encoded_patch = head
     if not all(size.strip().isdecimal() and len(size.strip()) <= MAX_SIZE_DIGITS for size in sizes):
         return None
     raw_size, num_size, patch_size, total = (int(size) for size in sizes)
@@ -251,17 +278,30 @@ def parse(stdout: str) -> ChangeSet | None:
     counts = _decoded(num_text)
     if raw is None or counts is None:
         return None
+    if len(encoded_patch) > (MAX_PATCH_BYTES + 2) // 3 * 4:
+        return None
+    try:
+        patch_bytes = base64.b64decode(encoded_patch, validate=True)
+    except binascii.Error, ValueError:
+        return None
+    patch = patch_bytes.decode("utf-8", errors="replace")
     listed = raw_size <= MAX_LIST_BYTES and num_size <= MAX_LIST_BYTES
     entries = _entries(raw, counts, complete=listed)
     if entries is None:
         return None
-    cut = patch_size > MAX_PATCH_BYTES or len(patch) > MAX_PATCH_BYTES
+    cut = patch_size > MAX_PATCH_BYTES or len(patch_bytes) > MAX_PATCH_BYTES
     sections = _sections(patch[:MAX_PATCH_BYTES].replace("\x00", ""), cut=cut)
     _attach(entries, sections, cut=cut, listed=listed)
     kept = [entry for entry, _ in entries[:MAX_FILES]]
     omitted = min(max(total if not listed else 0, len(entries)) - len(kept), MAX_COUNT)
     hunkless = any(entry.patch is None for entry in kept)
-    return ChangeSet(files=kept, omitted=omitted, truncated=cut or omitted > 0 or hunkless)
+    truncated = cut or omitted > 0 or hunkless
+    return ChangeSet(
+        files=kept,
+        omitted=omitted,
+        truncated=truncated,
+        revert_patch=encoded_patch if kept and not truncated and bounded else None,
+    )
 
 
 def _decoded(text: str) -> list[str] | None:
@@ -290,7 +330,13 @@ def _entries(
     while position < len(raw):
         if not raw[position].startswith(":"):
             return None
-        code = raw[position].rsplit(" ", 1)[-1][:1]
+        metadata = raw[position][1:].split(" ")
+        if len(metadata) != 5:
+            return None
+        before_mode, after_mode, before_blob, after_blob, status = metadata
+        if not _is_object_id(before_blob) or not _is_object_id(after_blob):
+            return None
+        code = status[:1]
         renamed = code in ("R", "C")
         width = 3 if renamed else 2
         if position + width > len(raw):
@@ -302,6 +348,10 @@ def _entries(
             path=names[-1],
             old_path=names[0] if renamed else None,
             status=_STATUS.get(code, "modified"),
+            before_blob=before_blob,
+            after_blob=after_blob,
+            before_mode=before_mode,
+            after_mode=after_mode,
         )
         files.append((entry, 2 if code == "T" else 1))
         position += width

@@ -88,7 +88,7 @@ describe("New agent at the organization's agent limit", () => {
     listing(limited(1, 1, true));
     render(<AgentsPage />, { wrapper });
 
-    const notice = await screen.findByRole("status");
+    const notice = (await screen.findByText(NOTICE)).closest('[role="status"]');
     expect(notice).toHaveTextContent(NOTICE);
     expect(notice).toHaveTextContent("allows 1 agent per organization, and this one has 1");
     const create = screen.getByRole("button", { name: "New agent" });
@@ -105,7 +105,7 @@ describe("New agent at the organization's agent limit", () => {
     listing(limited(3, null, true));
     render(<AgentsPage />, { wrapper });
 
-    const notice = await screen.findByRole("status");
+    const notice = (await screen.findByText(NOTICE)).closest('[role="status"]');
     expect(notice).toHaveTextContent(
       "allows 3 agents per organization, and this one has reached it",
     );
@@ -164,7 +164,7 @@ describe("New agent at the organization's agent limit", () => {
     );
     render(<AgentsPage />, { wrapper });
 
-    expect(await screen.findByRole("status")).toHaveTextContent(NOTICE);
+    expect((await screen.findByText(NOTICE)).closest('[role="status"]')).toHaveTextContent(NOTICE);
     expect(screen.getByRole("button", { name: "New agent" })).toBeDisabled();
   });
 

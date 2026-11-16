@@ -279,7 +279,10 @@ export interface RunTranscript {
  * nowhere else in the product: an agent that never calls a tool it has is
  * usually an agent whose tool describes itself badly.
  */
+export type ToolVisibility = "visible" | "deferred" | "withheld" | "via_history";
+
 export interface ManifestTool {
+  visibility?: ToolVisibility | null;
   name: string;
   description: string | null;
   parameters_json_schema: Record<string, unknown>;
@@ -289,6 +292,8 @@ export interface ManifestTool {
 
 /** One model request the run made, and what it cost in time. */
 export interface ManifestRequest {
+  tool_counts?: Record<ToolVisibility, number> | null;
+  visible_tool_names?: string[] | null;
   index: number;
   started_at: string | null;
   duration_ms: number;
@@ -298,6 +303,7 @@ export interface ManifestRequest {
   input_tokens: number;
   output_tokens: number;
   cache_read_tokens: number;
+  cache_write_tokens?: number | null;
   /** What the model asked to call next. Empty on the request that answered. */
   tool_calls: string[];
   finish_reason: string | null;
@@ -321,6 +327,15 @@ export interface ManifestRequest {
  * which is why the surface reading this must tell that from a failed request.
  */
 export interface RunManifest {
+  tool_search?: {
+    strategy: string;
+    max_results: number;
+    defer_capabilities: boolean;
+    defer_mcp_servers: boolean;
+    exclude_capabilities: string[];
+    exclude_mcp_servers: string[];
+    exclude_tools: string[];
+  } | null;
   run_id: string;
   recorded_at: string;
   instructions: string | null;

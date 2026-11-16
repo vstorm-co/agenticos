@@ -1,5 +1,5 @@
 ---
-source_sha: "65dcefce4721"
+source_sha: "3976c337d664"
 ---
 
 # Skills { #skills }
@@ -1009,3 +1009,15 @@ El asistente puede proponer **Worth creating a skill** cuando un procedimiento r
 Un procedimiento que procede de menos de tres respuestas distintas no se propone como sugerencia. Aparece con su texto completo bajo **more ideas need your decision**. **Create skill** abre una vista previa: el nombre, la descripción y el contenido se pueden editar, y un aviso indica en cuántas respuestas se basa. **Create skill** en la vista previa crea el skill en la biblioteca y lo vincula al borrador del agente, nunca a una versión publicada. Requiere los mismos permisos que Accept y no llama a ningún modelo. Un segundo clic devuelve el skill ya creado.
 
 La estimación reserva el contenido completo propuesto para cada respuesta candidata y sus repeticiones de confirmación, además del precio histórico por respuesta.
+
+## Recursos de diseño para Apps y Visuals { #design-resources }
+
+`artifact-pages` guía Apps reutilizables, informes con evidencias, herramientas de decisión y presentaciones web. `visual-design` guía explicaciones interactivas, comparaciones, diagramas y gráficos procedurales originales. Ambos adaptan composición, estilo e interacción a estudio, juego o trabajo, en lugar de repetir el mismo dashboard. Las guías detalladas y los ejemplos HTML completos solo se cargan cuando hacen falta.
+
+Los ejemplos incluyen un filtro de evidencias, criterios editables, una comparación transparente de costes, arte generativo reproducible y una presentación con teclado, vista general, cuatro temas visuales y un diseño de impresión completo. Se identifican datos de ejemplo y supuestos. La verificación incluye controles, errores, reinicio, móvil y movimiento reducido.
+
+Apps exporta páginas HTML/Markdown publicadas o presentaciones web mediante `export_artifact`. El operador configura `ARTIFACT_RENDER_CDP_URL` e instala el extra `browser`; el agente necesita un workspace para guardar el PDF real. Se aplican las reglas de acceso y audiencia de la vista previa y se rechazan datos vinculados no disponibles. Cada archivo admite hasta 50 páginas y 20 MB y recibe un nombre único. Revisa el PDF, los saltos y todas las diapositivas. No se añade un formato PowerPoint.
+
+Chat puede incrustar contenido interactivo. Mattermost y otros canales de texto reciben un enlace autorizado a la App, una imagen renderizada cuando se admite o un PDF solicitado mediante envío de archivos; HTML no se ejecuta en el mensaje. Un enlace no concede acceso público. Las instalaciones existentes usan la actualización normal de biblioteca: se actualizan copias intactas, los skills utilizados esperan su comprobación y las personalizaciones se protegen.
+
+Los skills de plataforma incluidos en la biblioteca y los que acompañan al AI Architect se leen y usan con los permisos normales del recurso. Cambiar su contenido, archivos, versiones o forks, eliminarlos o reservar su nombre requiere permiso para editar agentes en toda la organización (Owner/Admin en los roles integrados). Una concesión de edición del skill no evita esta protección. Los skills ordinarios de la organización conservan sus reglas de propiedad y uso compartido.

@@ -317,7 +317,9 @@ in instead, so nothing is written until every required value is there.
 
 Each edit is one `PATCH` against the revision on screen, so an edit that loses to a
 newer change is refused rather than written over it. The record then opens with the
-refused value kept beside **Reload and reapply**. Ticking rows offers **Delete** for
+refused value kept beside **Reload and reapply**, and the record read again: the field
+says what it holds now, who changed the record last and when, and the panel's title
+follows. Ticking rows offers **Delete** for
 all of them, each against its own revision: a record someone changed meanwhile is
 kept, and the console says how many were. The record panel deletes one record the same
 way.
@@ -337,6 +339,8 @@ with. A column's type changes in **Columns**, to the types its values convert to
 In **Columns**, **Required** makes a column need a
 value, and an archived column moves under **Archived columns**, where **Restore** brings
 it back with its values.
+
+Reading the comparison keeps unsaved edits in other fields and their original revision. A later conflict reads a new comparison; a response for a record you closed cannot close another record. Long values show a shortened preview.
 
 ### Import and export { #import-and-export }
 
@@ -777,10 +781,12 @@ When creating an empty table, required columns do not need defaults: every new r
 
 ## Durable tasks {#durable-tasks}
 
+An **agent** can also have a shared task board. Its audience follows current agent access; editing tasks additionally requires table edit access and permission to run that agent. The agent owner or an agent editor can manage the board. An agent assigned to a private task does not make that task shared. Through AgenticOS MCP, use `create_task` or `ensure_task_board`: the scope’s existing table is reused and a missing board is created on first use. Choose private for personal follow-ups, project for project deliverables, and agent for an explicitly requested agent backlog. Ask when scope is ambiguous; do not share personal content implicitly.
+
 You can create a project task from a private conversation outside that project. Leave the working conversation unspecified: the task opens its own conversation in the project, without linking your private transcript. Explicitly linking a conversation from another project is refused.
 
-**Background work** (`/work`) shows durable commitments beside running background
-chats. A task is a Virtual Table record, with a working-chat link and one Inbox
+**Tables** (`/tables`) is the task management destination. **Background work**
+(`/work`) shows running background conversations and their history. A task is a Virtual Table record, with a working-chat link and one Inbox
 case when attention is needed. Table and Kanban edits use the same revision as
 the task API; there is no separately synchronized TODO list.
 
@@ -824,7 +830,7 @@ checklist stays internal to a run and does not create scheduled commitments.
 
 Group membership permits reading the group’s task board; writes additionally require table-edit permission or an explicit edit grant. If a reminder’s assigned reviewer loses access, the task becomes blocked and its creator receives an Inbox case to arrange a handoff. New working conversations for project tasks stay in that project. A table quota can prevent the optional task projection of a routine finding, but its working chat, Inbox case and notification are still delivered.
 
-Project task-board writes require project access and table-edit permission or an explicit table Edit grant. Removing a project, group or private owner cancels queued task work, resolves task cases and purges that scope’s managed table, records, history and media in the same transaction. Other scopes remain intact. The tasks panel falls back to an accessible private board if the selected board disappears.
+Project task-board writes require project access and table-edit permission or an explicit table Edit grant. Removing a project, group or private owner cancels queued task work, resolves task cases and purges that scope’s managed table, records, history and media in the same transaction. Other scopes remain intact.
 
 Changing a task board itself is narrower than working on it. Renaming the board, changing
 its columns or default view, and archiving or restoring it need `tables:edit` at the `ALL`
@@ -851,3 +857,8 @@ same rich-text editor and preview as other document cells.
 An agent cannot be deleted while a managed task still depends on its scheduled execution. Reassign, complete or cancel those tasks first; deleting an agent must not silently discard its task work.
 
 Restoring an archived managed task board requeues its planned human reminders, including reminders whose time passed while the board was archived. Delivery still rechecks the original creator and recipient’s current access; restoring a board does not authorize new agent work. An archived board takes no writes from its tasks either: a case settled in the Inbox meanwhile leaves its task as it was, and restoring the board moves the task to done or cancelled then. Reopening a case whose task's board is archived is refused with `TABLE_ARCHIVED`.
+
+
+A member with table-creation permission gets their missing private task table on the first visit to **Tables**. Existing tables are reused; opening the page does not create an organization or agent backlog. Projects offer **Task table** to create or open theirs. Without creation permission, existing accessible tables remain available and the application does not attempt a refused creation.
+
+Inbox surfaces a task when a person needs to act or review its result; it is not a second task store. Watches, mail triggers and routines may produce Inbox cases without creating task records. Create a task for a concrete commitment that needs follow-through, not for every incoming event. An agreed table convention can be remembered with its verified table id; live task state remains in the table.

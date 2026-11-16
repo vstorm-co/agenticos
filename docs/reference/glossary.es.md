@@ -1,5 +1,5 @@
 ---
-source_sha: "840fe6e181cf"
+source_sha: "38183986d0d8"
 ---
 
 # Glosario { #glossary }
@@ -128,6 +128,7 @@ se describe en [Capabilities](capabilities.md).
 | Borradores | `drafts` |
 | Web browser | `browser_use` |
 | Chat channel lookup | `channel_tools` |
+| Aplicaciones de chat conectadas | `channel_actions` |
 | Llamadas telefónicas | `phone_calls` |
 | Charts | `charts` |
 | Date and time | `clock` |

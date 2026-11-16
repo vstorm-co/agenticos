@@ -530,6 +530,20 @@ async def get(db: AsyncSession, job_id: UUID) -> BackgroundJob | None:
     return await db.get(BackgroundJob, job_id)
 
 
+async def get_for_attempt(db: AsyncSession, job_id: UUID, *, fence: int) -> BackgroundJob | None:
+    """Fence a domain settlement against lease takeover until its transaction ends."""
+    return await db.scalar(
+        select(BackgroundJob)
+        .where(
+            BackgroundJob.id == job_id,
+            BackgroundJob.status == "running",
+            BackgroundJob.attempts == fence,
+        )
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+
+
 async def get_many(db: AsyncSession, job_ids: Sequence[UUID]) -> dict[UUID, BackgroundJob]:
     if not job_ids:
         return {}

@@ -44,9 +44,12 @@ export function useConversationWorkspace(
 
   const refresh = useCallback(async () => {
     if (conversationId === null) return;
-    await queryClient.invalidateQueries({
-      queryKey: qk.conversationWorkspace.files(conversationId),
-    });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: qk.conversationWorkspace.files(conversationId) }),
+      // The first turn records its container reference when it closes. A task
+      // panel opened during that turn must then recheck whether undo is available.
+      queryClient.invalidateQueries({ queryKey: qk.codingChanges.all() }),
+    ]);
   }, [queryClient, conversationId]);
 
   return {

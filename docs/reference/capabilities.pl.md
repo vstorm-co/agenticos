@@ -1,5 +1,5 @@
 ---
-source_sha: "815f7831bf7e"
+source_sha: "c62000d2cc6e"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -157,7 +157,7 @@ zatrzymania po przejściu przez granicę sandboxa.
 | `compaction` | Długie rozmowy | użytkowe | brak, celowo | — | — | bez efektu |
 | `media` | Odciążenie z obrazów | użytkowe | brak, celowo | — | — | bez efektu |
 | `tool_output_limits` | Limity wyników narzędzi | użytkowe | `read_tool_result` | — | — | bez zmian |
-| `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | bez zmian |
+| `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `export_artifact`, `share_artifact` | — | — | bez zmian |
 | `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | niedostępna |
 | `phone_calls` | [Połączenia telefoniczne](../voice.md#telephone-calls) | channels | `get_phone_contact_policy`, `call_me`, `list_phone_transfer_contacts`, `transfer_phone_call`, `end_phone_call` | `endpoint_id` | — | — |
 | `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — | na ekranie |
@@ -424,7 +424,7 @@ się pod `/api/v1/context`, a wiąże się je z agentem po id
 Notatki, które agent prowadzi sam dla siebie w poprzek rozmów, zindeksowane
 jedną, którą sam utrzymuje. Tam gdzie `context` jest biblioteką, którą pisze
 człowiek i wiąże z wieloma agentami, pamięć należy do agenta: pisze do niej
-narzędziami w trakcie runa i nikt inny nie pisze tu w ogóle. Nie wiąże się jej po
+narzędziami w trakcie runa. Użytkownik może poprawiać własne notatki w **Settings → Memory → Notes**, bez dostępu do notatek innych osób. Korekta zachowuje datę pierwotnego zapisu agenta i stan wyciszenia, sprawdza rewizję oraz zapisuje audyt bez treści notatki. Nie wiąże się jej po
 id — włączenie capability daje agentowi jego notatki.
 
 **`MEMORY.md` jest indeksem i jest pokazywany agentowi przy każdym żądaniu.** To
@@ -1763,8 +1763,31 @@ tam, gdzie został ucięty.
 **Kto czyta diff.** Jest zapisany razem z rozmową i czytany z takim samym dostępem
 jak jej transkrypcja, więc widzi go każdy, kto może czytać czat; usunięcie czatu
 usuwa też diff. W sandboxie, który dzieli kilka czatów, zadanie działające w tym
-samym czasie co inne widzi w swoim diffie także tamtego zmiany. Cofania zadania
-jeszcze nie ma, a zadanie na tym komputerze nie zapisuje diffu.
+samym czasie co inne widzi w swoim diffie także tamtego zmiany. Zadanie na tym komputerze nie zapisuje diffu.
+
+**Cofnij to zadanie.** Nowe zadanie może przywrócić zwykłe pliki tylko wtedy, gdy
+kompletny snapshot powstał w izolowanym workspace rozmowy. Snapshoty projektu,
+agenta, kanału i użytkownika pozostają tylko do odczytu, ponieważ mogą zawierać
+pracę innej rozmowy. Potrzebujesz bieżącego dostępu do edycji; żaden run nie może
+zapisywać workspace. Treść i tryb wykonywalny każdego pliku muszą odpowiadać
+stanowi po zadaniu. Konflikt odrzuca całe cofnięcie i wskazuje pliki. Pozostałe
+pliki oraz indeks i historia Git pozostają bez zmian.
+
+Akcja kolejkuje trwałe zadanie i rezerwuje workspace. Panel pokazuje postęp oraz
+jednoznaczne odmowy. Nieznany wynik zachowuje rezerwację; **Ponów cofnięcie**
+sprawdza przed zapisem, czy pliki zostały już przywrócone. Awaria lub utrata
+odpowiedzi nie powoduje więc ponownego zastosowania cofnięcia. Worker ponownie
+sprawdza dostęp i zapisuje sukces w audycie.
+
+Cofnięcie przywraca tylko pliki; rozmowa i raport zadania pozostają. Wymaga Git
+i Python 3. Odrzuca snapshoty ucięte, zredagowane, starsze przeznaczone tylko do
+wyświetlania lub zawierające dowiązania oraz bieżące pliki większe niż 2 MiB.
+Nie tworzy zastępstwa usuniętego ani przeniesionego workspace.
+
+**Liczba zmienionych plików.** Panel i stopka wiadomości korzystają z zapisanego
+zestawu zmian, w tym edycji przez shell i liczby plików pominiętych przez limit.
+Tylko zadanie bez zestawu zmian używa listy harnessu; nowe raporty podają te ścieżki
+względem workspace.
 
 **Zadania jednej rozmowy kontynuują jedną sesję.** Identyfikator sesji harnessu
 jest trzymany w sandboxie obok pracy, w `.agenticos/coding-agent/`, osobno dla każdej
@@ -1910,6 +1933,8 @@ teraz three.js, Mermaid i Leaflet, oraz własną ścieżką kafelków map deploy
 Zobacz [Wizualizacje](../artifacts.md#visuals).
 
 ## Aplikacje { #artifacts }
+
+`export_artifact` zapisuje bieżącą opublikowaną wersję jako prawdziwy PDF w workspace. Korzysta z izolowanego renderera, obsługuje raporty A4 i prezentacje przeglądarkowe 16:9, zachowuje kontrolę dostępu oraz odbiorców podglądu i odmawia przy niedostępnych danych powiązanych. Wymaga skonfigurowanego renderera i dodatku `browser`. Pliki mają unikalne nazwy oraz limit 50 stron i 20 MB. Zobacz [materiały projektowe](../skills.pl.md#design-resources).
 
 `publish_artifact` — _Opublikuj gotową stronę — raport, mały dashboard,
 podsumowanie — pod stałym linkiem._
@@ -3036,6 +3061,8 @@ dociera do modelu wyczyszczony, ale rozmowa przechowuje wiadomość tak, jak wpi
 osoba, łącznie z danymi osobowymi. Każdy, kto może czytać rozmowę, może przeczytać tę
 wiadomość.
 
+Transkrypt dla człowieka pozostaje oryginalnym zapisem audytowym. Osobna kopia po redakcji, wraz z briefingiem załącznika, jest zapisywana do odtwarzania przez model i cytowania. Kolejne tury zachowują tę kopię nawet po późniejszym wyłączeniu redakcji wejścia. Starsza historia jest sprawdzana przed zarządzaniem kontekstem runu; zablokowane tury nadal używają znacznika odmowy.
+
 **Krawędź wejścia sprawdza załącznik, zanim zostanie zapisany.** Załączony plik
 trafia do promptu jako nazwa, ścieżka i pierwsze 20 linii (najwyżej 2000 znaków), a
 krawędź wejścia czyta je razem z wiadomością osoby. Agent z workspace'em ma ten
@@ -3421,3 +3448,17 @@ Wybór lokalnego dostępu należy do wybranego agenta, a nie do globalnego ustaw
 Korekta `[session:api] Użyj danych z UE` trafia do sesji `api`. Przy jednej aktywnej sesji trafiają do niej także korekty bez adresu; przy wielu pozostają u agenta nadrzędnego, aby nie zmieniać innego zadania. Agent nadrzędny zapisuje korektę raz po wznowieniu pracy.
 
 Zadania coding w sandboxie w tym samym zestawie narzędzi wykonują się kolejno, aby ich migawki plików się nie nakładały; niezależne sesje lokalne nadal działają równolegle.
+
+
+## Podłączone komunikatory (`channel_actions`) { #connected-chat-apps-channel_actions }
+
+Jawne uprawnienia bota do znajdowania kanałów, wyszukiwania wiadomości i dostarczania raportów z dowolnego uruchomienia.
+
+| Narzędzie | Działanie |
+| --- | --- |
+| `list_chat_connections` | Identyfikatory botów, uprawnienia i bieżące miejsce rozmowy |
+| `find_chat_channels` | Metadane kanałów bota i stronicowanie |
+| `read_chat_messages` | Ograniczona historia z filtrami |
+| `send_chat_message` | Wiadomość lub raport w nowym wpisie albo istniejącym wątku |
+
+Przy każdej operacji usługa ponownie sprawdza członkostwo w organizacji, dostęp do agenta, aktywne powiązanie i bota, a następnie członkostwo bota w kanale i przynależność wątku. Nie dołącza do kanałów ani nie pożycza botów innych agentów. Wyszukiwanie i historia zwracają ograniczone strony; puste dopasowanie nie kończy przeglądania, jeśli istnieje kursor. Błąd dostawcy jest odmową, nie pustym wynikiem. Wysyłanie podlega zasadom akceptacji; niepotwierdzoną wysyłkę trzeba sprawdzić przed ponowieniem. Pozostałe platformy zachowują dotychczasowe narzędzia rozmowy; akcje między kanałami są dostępne tylko tam, gdzie adapter weryfikuje członkostwo.

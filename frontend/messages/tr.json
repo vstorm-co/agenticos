@@ -348,6 +348,7 @@
     }
   },
   "ui": {
+    "clearFilters": "Filtreleri temizle",
     "expandEditor": "{label} alanını genişlet",
     "cancel": "İptal",
     "checkConnection": "Bağlantınızı kontrol edip tekrar deneyin.",
@@ -362,14 +363,13 @@
     "jsonShowLess": "daha az göster",
     "labelPreview": "{label} önizlemesi",
     "markdown": "Markdown",
-    "matchedOfTotal": "{counted} içinden {matched}",
     "next": "İleri",
     "nextMonths": "Sonraki aylar",
     "nextPage": "Sonraki sayfa",
     "noResults": "Sonuç yok.",
     "nothingWrittenYet": "Henüz bir şey yazılmadı.",
-    "pagerAll": "{counted} · sayfa {page} / {pageCount}",
-    "pagerMatched": "{counted} içinden {matched} · sayfa {page} / {pageCount}",
+    "pagerAll": "{counted}",
+    "pagerMatched": "{counted} içinden {matched}",
     "preview": "Önizleme",
     "previousMonths": "Önceki aylar",
     "previousPage": "Önceki sayfa",
@@ -411,7 +411,12 @@
     },
     "clearAll": "Tümünü temizle",
     "dismissRow": "Kapat",
-    "triggerLabel": "Bildirimler{count, plural, =0 {} other {, # okunmamış}}"
+    "triggerLabel": "Bildirimler{count, plural, =0 {} other {, # okunmamış}}",
+    "kind": {
+      "approvalRequested": "{agent} onayınızı bekliyor",
+      "budgetExceeded": "{agent} durduruldu: {scope, select, agent {aylık budget'ı} group {bir departmanın aylık budget'ı} department {{department} departmanının aylık budget'ı} organization {organizasyonun aylık budget'ı} other {bir harcama sınırı}} tükendi ({limit} sınırın {spent} kadarı harcandı)",
+      "budgetWarning": "{group}, {limit} aylık budget'ının %{share} kadarını kullandı."
+    }
   },
   "billing": {
     "description": "{org} için aboneliğinizi yönetin.",
@@ -746,7 +751,7 @@
       "notification": "Bildirimler",
       "debug": "Hata ayıklama",
       "triggers": "Tetikleyiciler",
-      "decide": "Jev kararları",
+      "decide": "Karar modelleri",
       "people": "İnsanlar",
       "slack": "Slack",
       "mattermost": "Mattermost",
@@ -804,7 +809,7 @@
     "categoryHint": {
       "triggers": "run nasıl başlar?",
       "agent": "run temsilcilerinizden biri",
-      "decide": "TypeSafe'ten Jev'e yazılı bir soru sorun",
+      "decide": "Modele türlenmiş bir soru sorun ve sonuca göre yönlendirin",
       "knowledge": "Bir bilgi tabanında arama yapın veya birine ekleme yapın",
       "logic": "Bir yol seçin veya onlara tekrar katılın",
       "control": "Öğeler üzerinde döngü yapın, bekleyin veya run başka bir iş akışı",
@@ -1152,6 +1157,8 @@
     "versionRestored": "{version} sürümü yeniden taslak oldu",
     "versionRestoreConflict": "Geri yükleme sırasında taslak değişti. Çakışmayı çözün, sonra yeniden geri yükleyin.",
     "quickAdd": "{name} adımından sonra bir adım ekle ({port})",
+    "stepApprovalDecided": "{known, select, no {{status, select, approved {Onaylandı} other {Reddedildi}}} other {{status, select, approved {{name} tarafından onaylandı} other {{name} tarafından reddedildi}}}} · {time}",
+    "stepApprovalUndecided": "{status, select, expired {Süresi doldu: kimse zamanında karar vermedi} cancelled {Run ile birlikte iptal edildi} other {Karar bekleniyor}}",
     "paletteNoMatches": "Aramanızla eşleşen düğüm yok.",
     "canvasTitle": "Canvas",
     "canvasHint": "Workflow’u başlatmak için bir adım ekleyin.",
@@ -1338,6 +1345,9 @@
     "pickerMcpNeverTested": "Bu sunucuyu henüz kimse test etmediği için araçları listelenmiyor. Listelemek için yenileyin.",
     "pickerMcpNeverTestedEditor": "Bu sunucuyu henüz kimse test etmediği için araçları listelenmiyor. Kuruluş sunucularını yöneten birinden test etmesini isteyin.",
     "pickerSearch": "Adımlarda ara",
+    "pickerMoreApps": "{count, plural, other {Bağlanacak # uygulama daha}}",
+    "pickerFewerApps": "Bağlanacak uygulamaları gizle",
+    "pickerAppToConnect": "Bağlan",
     "pickerBack": "Tüm adımlar",
     "toolbarAddStep": "Adım ekle",
     "toolbarReady": "Sorun yok",
@@ -1660,6 +1670,10 @@
     "sheet": {
       "title": "Kayıt",
       "conflict": "Bu alanı başka biri değiştirdi.",
+      "conflictNow": "Şimdi: {value}, <who></who> tarafından {time} tarihinde değiştirildi. Sizin değeriniz alanda.",
+      "conflictNowUntimed": "Şimdi: {value}, <who></who> tarafından değiştirildi. Sizin değeriniz alanda.",
+      "conflictEmpty": "boş",
+      "conflictSomeone": "başka biri",
       "reloadAndReapply": "Yeniden yükle ve değişikliği uygula",
       "discard": "Değişikliği at",
       "conflictAfterClose": "Bu kaydı başka biri değiştirdiğinden son düzenlemeniz kaydedilmedi. Değişikliği yeniden uygulamak veya atmak için kaydı açın.",
@@ -2347,7 +2361,6 @@
     },
     "memory": {
       "showing": "{total} kayıttan {from}–{to} arası gösteriliyor",
-      "newer": "Daha yeni",
       "older": "Daha eski",
       "title": "Belleğiniz",
       "description": "Buradaki agentların sizin hakkınızda not ettikleri ve bu notlarla ilgili yapabilecekleriniz.",
@@ -2357,7 +2370,11 @@
       "suppressed": "Kullanım dışı",
       "suppress": "Bu notu kullanmayı bırak",
       "restore": "Bu notu yeniden kullan",
-      "delete": "Bu notu sil"
+      "delete": "Bu notu sil",
+      "browser": {
+        "editNoteHint": "Agent’ın sizin hakkınızda hatırladıklarını düzeltin. Düzenlemeleriniz ilk agent kaydından ayrı tutulur.",
+        "noteContent": "Not içeriği"
+      }
     },
     "agentDetail": {
       "perMonth": "Ayda ${amount}"
@@ -2729,6 +2746,8 @@
       "moreUploads": "Yükleme kuyruğunda {count, plural, one {# dosya daha} other {# dosya daha}}"
     },
     "orgs": {
+      "searchPermissions": "İzinlerde ara…",
+      "noPermissionsMatch": "Aramanızla eşleşen izin yok",
       "retention": "Saklama süresi",
       "active": "Etkin",
       "all": "tümü",
@@ -3019,8 +3038,9 @@
       "platform": "Platform",
       "polling": "Düzenli sorgulama",
       "register": "Kaydet",
-      "registeredCount": "{count, plural, =1 {1 kanal kaydedildi} other {# kanal kaydedildi}}",
       "removeBot": "{bot} kaldır",
+      "removeBotDescription": "Bu bot, bağlı tüm ajanlar için yanıt vermeyi durduracak. Yapılandırmasını korumak için bunun yerine duraklatabilirsin.",
+      "removeBotConfirm": "Botu kaldır",
       "replaceBotToken": "Bot tokenını değiştir",
       "resumeBot": "{bot} sürdür",
       "save": "Kaydet",
@@ -3399,7 +3419,6 @@
       "chatAccountsDescription": "Size bağlı Slack, Microsoft Teams, Telegram, Mattermost ve Discord hesapları. Bu hesaplardan birine ulaşan agent, sizin yetkilerinizle ve budgetınızla yanıt verir.",
       "confirmNewPassword": "Yeni parolayı onayla",
       "currentPassword": "Mevcut parola",
-      "customizeCommandPaletteChat": "Sohbetteki /komut paletini özelleştirin; yerleşik komutları devre dışı bırakın veya kendi hızlı promptlarınızı tanımlayın.",
       "deleteAccount": "Hesabı sil",
       "deleteMyAccount": "Hesabımı sil",
       "deleteYourAccount": "Hesabınız silinsin mi?",
@@ -3989,7 +4008,7 @@
       "runHint": "Yayımlanmış sürüm yerine taslağı çalıştırır (Ctrl veya Cmd + Enter)",
       "runNeedsSteps": "Önce bir adım ekleyin",
       "runBlockedByProblems": "{count, plural, one {Önce # sorunu çözün} other {Önce # sorunu çözün}}",
-      "liveRunTitle": "Test runı",
+      "liveRunTitle": "Deneme run'ı",
       "liveRunSteps": "{count, plural, one {# adım tamamlandı} other {# adım tamamlandı}}",
       "liveRunOpen": "Runı aç",
       "liveRunClose": "Runı gizle",
@@ -4478,7 +4497,6 @@
       "took": "Süre",
       "toolInput": "Girdi",
       "toolOutput": "Çıktı",
-      "toolsSent": "{count, plural, =0 {Araçlar} =1 {1 araç} other {# araç}}",
       "transcriptCouldNotBeRead": "Transkript okunamadı",
       "tryAgain": "Yeniden dene",
       "turnAgent": "Agent",
@@ -4554,7 +4572,42 @@
       "standaloneRequest": "Model isteği",
       "standaloneResponse": "Model yanıtı",
       "unverifiedSender": "Doğrulanmamış",
-      "anonymousRequester": "Anonim katılımcı"
+      "anonymousRequester": "Anonim katılımcı",
+      "inputPrompt": "Prompt",
+      "inputTools": "Araçlar",
+      "inputRequests": "İstekler",
+      "inputCatalog": "Araç kataloğu",
+      "inputCatalogHint": "Son istekte çalışma zamanına sunulan tanımlar. Yalnızca görünür araçlar modele doğrudan sunuldu.",
+      "inputVisibilityUnknown": "Bu eski kayıt araç görünürlüğünü içermiyor. Katalog boyutu, modele gönderilen şema sayısı değildir.",
+      "inputVisible": "Görünür",
+      "inputDeferred": "Ertelenmiş",
+      "inputWithheld": "Gizlenmiş",
+      "inputViaHistory": "Geçmişte",
+      "inputUnknown": "Kaydedilmedi",
+      "inputToolsSearch": "Araç adlarında ve açıklamalarında ara…",
+      "inputToolCount": "{total} araçtan {matched} tanesi",
+      "inputShowMore": "Daha fazla araç göster",
+      "inputNoMatches": "Aramanızla eşleşen araç yok.",
+      "inputSearchEnabled": "Tool Search etkin",
+      "inputSearchPolicy": "Arama başına en fazla {count} sonuç · {strategy}",
+      "inputAlwaysVisible": "Her zaman görünür istisnalar",
+      "inputNoExceptions": "Her zaman görünür istisna yok.",
+      "inputPromptHint": "Kaydedilen talimat ve sistem bloklarının okuma görünümü. Kaynak görünümü özgün sınırlarını gösterir.",
+      "inputRead": "Oku",
+      "inputSource": "Kaynak",
+      "inputInstructions": "Talimatlar",
+      "inputSystemBlock": "Sistem bloğu {index}",
+      "inputLastRequest": "Son istek",
+      "inputRequestTools": "Model isteğine göre araçlar",
+      "inputRequest": "İstek {index}",
+      "inputRequestHint": "Görünürlük, sağlayıcı Tool Search ayarını çözdükten sonra her model isteği için kaydedilir.",
+      "inputNoVisibleNames": "Görünür araç adları bu kayıtta saklanmadı.",
+      "inputTokenInput": "Girdi tokenları",
+      "inputTokenOutput": "Çıktı tokenları",
+      "inputTokenCacheRead": "Önbellekten okunan",
+      "inputTokenCacheWrite": "Önbelleğe yazılan",
+      "inputTokenHint": "Kaydedilen model isteklerinin toplamı. Önbellek tokenları girdiye dahildir, ayrıca eklenmez.",
+      "systemRoleChannelDecision": "Kanala katılım kararı (sistem)"
     },
     "adminSettingsLayout": {
       "title": "Dağıtım ayarları",
@@ -4873,7 +4926,7 @@
       "noContainerConnectionHint": "Çalışanlar yalnızca bir container service üzerinden listelenebilir. Connections altında bir tane kaydedin; Daytona sandbox'ları ücretlendirildikleri Daytona hesabından yönetilir.",
       "noOperationMatches": "Eşleşen işlem yok.",
       "noSessionMatches": "Eşleşen çalışan sandbox yok.",
-      "nothingRunningSandboxOpens": "Çalışan yok. Bir sandbox, Agent ilk dosya veya shell çağrısını yaptığında açılır. Sandbox'ı olup hiç kullanmayan Agent burada hiçbir maliyet oluşturmaz.",
+      "nothingRunningSandboxOpens": "Çalışan sandbox yok",
       "ok": "Başarılı",
       "operation": "İşlem",
       "reapedIn": "{time} içinde temizlendi",
@@ -4889,8 +4942,8 @@
       "searchOperations": "İşlemlerde ara",
       "searchSessions": "Oturumlarda ara",
       "session": "Oturum",
-      "sessionsCount": "Bu kuruluşun sandbox'larından {count} tanesi. On saniyede bir yenilenir.",
-      "sessionsOfLimit": "İzin verilen {limit} sandbox'tan bu kuruluşa ait {count} tanesi. On saniyede bir yenilenir.",
+      "sessionsCount": "Sandbox sayısı: {count}",
+      "sessionsOfLimit": "Sandbox sayısı: {count} / {limit}",
       "sharedBy": "Paylaşan",
       "show": "Göster",
       "state": "Durum",
@@ -4898,7 +4951,7 @@
       "stateRunningMeans": "Container mevcut ve çalışır durumda.",
       "target": "Hedef",
       "whatIsRecorded": "Bu sandbox'tan istenen her işlem kaydedilir: komut, yol, istekte bulunan Agent, başarılı olup olmadığı ve ne kadar sürdüğü. Sandbox silindikten sonra da yanıt vermesi için 30 gün saklanır. Dosya içeriği ve komut çıktısı asla kaydedilmez; böylece bu kayıt denetim içindir, Agent'ın çalışmalarını okumak için değil.",
-      "whatSessionsAre": "Her satır bir host'taki tek bir workspace'i gösterir. Oturum chat başladığında değil, Agent ilk tool çağrısını yaptığında açılır; yeterince uzun süre boşta kaldıktan sonra temizlenir.",
+      "whatSessionsAre": "Her satır bir host'taki tek bir workspace'i gösterir. Oturum chat başladığında değil, Agent ilk tool çağrısını yaptığında açılır; yeterince uzun süre boşta kaldıktan sonra temizlenir. 10 saniyede bir yenilenir.",
       "when": "Zaman"
     },
     "someUnreadable": "{count} öğe okunamadı; host'ları kapalı olabilir.",
@@ -5918,8 +5971,8 @@
     "channelCanOverrideScope": "Agent'ın yayınlandığı her kanal bu ayarı geçersiz kılabilir.",
     "channelLookupsHint": "Kanal adı, konusu ve görülebilen üyelerin sınırlı bir özeti otomatik eklenir. Bu anahtarlar ek işlemlere izin verir; dosya göndermek için kullanıcının isteği gerekir.",
     "channelLookupsOn": "Bu Agent'ın {platform} üzerinde yapabilecekleri",
-    "channelPromptHint": "Runtime her run'da platformu, gönderenin bağlantı durumunu ve geçerli kanal verilerini ekler. Düzenlenebilir bu metin, bu bağlantıya ilişkin talimatları ekler; yeni bağlantılar biçimlendirme ve kanal konuşması yönergelerini içerir.",
-    "channelPromptOn": "{bot} için ek talimatlar",
+    "channelPromptHint": "Varsayılan talimatlar otomatik görünür. Bu kanal için düzenleyin veya güncel varsayılanları geri yüklemek için temizleyip kaydedin. Kimlik, izinler ve çalışma bağlamı platform tarafından yönetilir.",
+    "channelPromptOn": "{bot} kanal talimatları",
     "channelPromptPlaceholder": "Agent'ın burada yanıt verirken bilmesi gerekenler.",
     "channelPromptVariables": "Ekle:",
     "choosePeople": "Kişi seçin",
@@ -6766,7 +6819,36 @@
     "otariEndpointHint": "Modelleri yüklemeden önce /api/v1 ile biten ağ geçidi URL’sini girin. Barındırılan hizmet: https://api.otari.ai/api/v1. AB: https://eu.api.otari.ai/api/v1.",
     "loadGatewayModels": "Modelleri yükle",
     "modelIdOtariHint": "Otari ağ geçidinizde tanımlanan provider:model biçimini veya bir takma ad/yönlendirme politikasını kullanın.",
-    "useDefaultModel": "Varsayılan modeli kullan"
+    "useDefaultModel": "Varsayılan modeli kullan",
+    "observationEngine": "Karar yöntemi",
+    "observationLlm": "LLM · yapılandırılmış değerlendirme",
+    "observationNative": "Karar modeli · yerel olasılıklar",
+    "observationThreshold": "Ajanı başlatma eşiği (%)",
+    "observationProbabilityHint": "Sağlayıcının katılma olasılığını kullanır. Eşiğe ulaşıldığında ana ajan çalışır.",
+    "observationScoreHint": "LLM, 0–100 arasında yapılandırılmış bir değerlendirme döndürür; bu kalibre edilmiş bir olasılık değildir.",
+    "modelApiDecisions": "Decisions API",
+    "modelApiNative": "Standart üretim",
+    "observationTitle": "Sohbetlere otomatik katıl",
+    "observationSummary": "Ayrı bir model ne zaman katkı sağlamanın yararlı olacağına karar verir.",
+    "observationOn": "Açık",
+    "observationOff": "Kapalı",
+    "observationConfigure": "Yapılandır",
+    "observationDescription": "Botun erişebildiği tüm kanallardaki yeni iletileri analiz et. Bahsetmeler anında yanıt alır.",
+    "observationEnable": "Otomatik katılımı etkinleştir",
+    "observationDecisionModel": "Karar modeli",
+    "observationDefaultInstructions": "Yanıtlanmamış bir soruyu yanıtlayabiliyor, ilgili bilgiler ekleyebiliyor, önemli bir yanlış anlaşılmayı düzeltebiliyor veya somut bir sonraki adım önerebiliyorsan konuşmaya katıl. Gündelik sohbetlerde, başkası zaten yanıt verdiyse veya yalnızca söylenenleri tekrarlayacaksan sessiz kal.\n\nKonuşmanın dilini ve tonunu kullan. Somut, yardımcı ve kısa yanıt ver; yararlı olduğunda daha ayrıntılı açıkla. İddiaları kullanabildiğin araçlarla doğrula ve doğrulayamadığın noktaları açıkça belirt. Görev kişisel bir bağlantı veya onay gerektiriyorsa devam edebilmek için birinden ileti dizisinde senden bahsetmesini iste.",
+    "observationUnmentionedHint": "Yeni bir konuşmaya katılmanın yararlı olup olmayacağını kontrol et.",
+    "observationMentionedHint": "Ajanın bahsedilerek davet edildiği ileti dizilerini daha sık kontrol et.",
+    "observationFocus": "Odak noktası ve katılma koşulları",
+    "observationTiming": "Dakika cinsinden kontrol aralıkları",
+    "observationUnmentioned": "Ajandan henüz bahsedilmemiş ileti dizileri",
+    "observationMentioned": "Ajandan daha önce bahsedilmiş ileti dizileri",
+    "observationTimingHint": "@Bahsetme, bu aralıklardan bağımsız olarak hemen yanıt başlatır. Zamanlanmış kontroller yalnızca yeni iletileri analiz eder; boş aralıklarda model çağrısı yapılmaz.",
+    "observationAllChannels": "Botun erişebildiği tüm kanallar",
+    "observationAuthorityHint": "Karar modelinin araçları yoktur. Otomatik yanıtlar ana modeli ve bağlı kuruluş MCP hesaplarını normal onay kurallarıyla kullanır. Kişisel hesaplar ve diğer eylem araçları için birinin konuda bottan bahsetmesi gerekir. Onay gerektiren çağrılar otomatik yürütülmez. Her iki modelin maliyeti Activity içinde görünür.",
+    "observationRequired": "Katılım kararını verecek modeli seçin.",
+    "observationSaveFailed": "Kaydedilemedi. Değişiklikler formda duruyor; yeniden deneyin.",
+    "observationSave": "Katılım ayarlarını kaydet"
   },
   "dashboard": {
     "edit": {
@@ -8578,6 +8660,10 @@
       "workflow-input-contract": {
         "title": "Beklenen girdiyi tanımlayın",
         "body": "Manuel, API veya Bir workflow tarafından çağrılan tetikleyicileri, basit alanları veya JSON Schema Draft 2020-12 sözleşmesini kullanabilir. Şema iç içe değerleri destekler ve run başlamadan önce doğrulanır."
+      },
+      "chat-coding-revert": {
+        "title": "Kodlama görevini incele ve geri al",
+        "body": "Değişen dosyaları incelemek için kodlama görevini aç. Görev yalnızca etkilenen dosyalar görev bittikten sonra değişmediyse geri alınır."
       }
     }
   },
@@ -8754,7 +8840,13 @@
       "waiverSettings": "Onay ayarlarını aç",
       "toolsTab": "Tool'lar ve dosyalar",
       "preferencesTab": "Tercihler",
-      "savedAutomatically": "Değişiklikler otomatik kaydedilir"
+      "savedAutomatically": "Değişiklikler otomatik kaydedilir",
+      "activeApprovalMode": "Onay modu: {mode}",
+      "compactMode": {
+        "follow_agent": "Agent kuralları",
+        "approve_all": "Tümünü onayla",
+        "ask_all": "Her zaman sor"
+      }
     },
     "conversationArchived": "Bu konuşma arşivlendi",
     "conversationDeleted": "Konuşma silindi",
@@ -9234,7 +9326,15 @@
         "binary": "ikili",
         "binaryFile": "İkili dosya: gösterilecek satır yok.",
         "patchOmitted": "Yama sınırının ötesinde: yalnızca adı saklandı.",
-        "noTextChanges": "İçerik değişmedi: dosya yeniden adlandırıldı ya da modu değişti."
+        "noTextChanges": "İçerik değişmedi: dosya yeniden adlandırıldı ya da modu değişti.",
+        "revertTask": "Bu görevi geri al",
+        "revertDescription": "Bu görevin değiştirdiği dosyaları önceki durumuna döndür. Etkilenen bir dosya daha sonra değiştiyse hiçbir değişiklik geri alınmaz.",
+        "taskReverted": "Bu görev geri alındı.",
+        "revertConflict": "Bu dosyalar görevden sonra değişti. Hiçbir değişiklik geri alınmadı.",
+        "revertFailed": "Görev geri alınamadı.",
+        "revertPending": "Bu görev geri alınıyor…",
+        "revertUnknown": "Önceki geri alma doğrulanamadı. Yeniden deneme dosyaları kontrol edene kadar workspace ayrılmış kalır.",
+        "retryRevert": "Geri almayı yeniden dene"
       },
       "runCodingAgent": "İşi kodlama Agent'ına devret",
       "runningCodingAgent": "Kodlama Agent'ı çalışıyor",
@@ -9304,7 +9404,9 @@
       "tablesCreating": "Tablo oluşturuluyor",
       "tablesDescribing": "Tablonun sütunları okunuyor",
       "tablesListing": "Kullanabileceği tablolar denetleniyor",
-      "viewsListing": "Tablonun kayıtlı görünümleri listeleniyor"
+      "viewsListing": "Tablonun kayıtlı görünümleri listeleniyor",
+      "exportingArtifact": "PDF dışa aktarılıyor…",
+      "exportArtifact": "Yayınlanan uygulamayı dışa aktar"
     },
     "turnWasStopped": "durduruldu",
     "unfavourite": "Favorilerden çıkar",
@@ -10070,10 +10172,11 @@
     "save2": "Kaydet",
     "saving4": "Kaydediliyor…",
     "sentAsRegularUserMessage": "Sohbette <cmd>/{name}</cmd> yazdığınızda normal kullanıcı mesajı olarak gönderilir.",
-    "slashShortcuts": "Sık kullandığınız promptlar için slash kısayolları. Sohbette <cmd>/name</cmd> yazınca kayıtlı prompt gönderilir.",
     "summarizeConversationAsChecklist": "Konuşmayı yapılacaklar kontrol listesi olarak özetle.",
     "todo": "yapılacak",
-    "yourCustomCommands": "Özel komutlarınız"
+    "commandCatalog": "Slash komutları",
+    "commandKind": "Tür",
+    "customKind": "Özel"
   },
   "apiKeys": {
     "title": "API anahtarları",
@@ -10135,7 +10238,6 @@
   },
   "kb": {
     "addIntegration": "Entegrasyon ekle",
-    "addKnowledgeBase": "Bilgi tabanına ekle",
     "adding": "Ekleniyor…",
     "appliesEachFileYou": "Bu ayar, bundan sonra ekleyeceğiniz her dosyaya uygulanır ve dosyanın kaydına eklenir. Koleksiyon kendi ayarlarını korur; sonraki yüklemeler o ayarları kullanır.",
     "applyChanges": "{count, plural, =1 {1 değişikliği uygula} other {# değişikliği uygula}}",
@@ -10159,7 +10261,6 @@
     "chunkingRecursiveHint": "Önce paragraflara, sonra cümlelere, ardından sözcüklere göre böler; sığanı kullanır.",
     "chunkingSummary": "{size, plural, =1 {1 karakter} other {# karakter}}, {overlap, number} örtüşme · {strategy}",
     "chunks": "Parçalar",
-    "configuredOnceUsedAs": "Bir kez yapılandırın, istediğiniz sayıda bilgi tabanında kullanın. Her kopya kendi zamanlamasına göre eşitlenir.",
     "create": "Oluştur",
     "createKnowledgeBase": "Bilgi tabanı oluştur",
     "creating": "Oluşturuluyor...",
@@ -10210,7 +10311,6 @@
     "liteparseReadsTextLayer": "LiteParse önce metin katmanını okur, yalnızca metin yoksa OCR uygular. Ayrıştırma maliyetinin çoğunu OCR oluşturur; belgelerin çoğu dijital üretilmiştir. Her sayfaya OCR uygulamak için bu seçeneği kapatın.",
     "llamaparseKey": "LlamaParse anahtarı",
     "llamaparseTier": "LlamaParse katmanı",
-    "loadingIntegrations": "Entegrasyonlar yükleniyor…",
     "loadingModels": "Modeller yükleniyor…",
     "manualSchedule": "elle",
     "maximumPages": "En fazla sayfa",
@@ -10267,7 +10367,12 @@
     "reasoning": "Akıl yürütme",
     "remove": "Kaldır",
     "removeNamed": "{name} kaldırılsın mı?",
-    "reusableIntegrations": "Yeniden kullanılabilir entegrasyonlar",
+    "integrationActions": "İşlemler",
+    "integrationDetails": "Bağlantı / zamanlama",
+    "integrationsDescription": "Yeniden kullanılabilir kaynaklar bilgi tabanlarını besler. Yerel hizmetler kendi ağınızda embedding ve OCR işlemleri sağlar.",
+    "integrationsEmpty": "Henüz entegrasyon yok",
+    "integrationsCount": "{count, plural, one {# entegrasyon} other {# entegrasyon}}",
+    "reusableIntegrations": "Entegrasyonlar",
     "save": "Kaydet",
     "saving": "Kaydediliyor…",
     "scannedPages": "Taranmış sayfalar",
@@ -10284,7 +10389,7 @@
     "tierCostEffectiveHint": "Orta düzey ayar.",
     "tierFast": "Hızlı",
     "tierFastHint": "En ucuz; yerleşim sadakati en düşük seçenek.",
-    "use": "Şurada kullan…",
+    "use": "Bilgi tabanında kullan",
     "useCollectionSettings": "Koleksiyonun ayarlarını kullan",
     "useSourceInCollection": "“{name}” kaynağını bilgi tabanında kullan",
     "useStandardPrompt": "Standart promptu kullan",
@@ -10298,11 +10403,8 @@
     "endpointModelsUnconfirmed": "Bu uç noktaya hangi modelleri sunduğu sorulamadığından tüm OpenRouter modelleri listeleniyor. Sunulmayan bir model ilk yüklemede hata verir.",
     "endpointServesNoModel": "Bu uç nokta AgenticOS’un sunduğu embedding modellerinden hiçbirini sunmuyor. Uç noktayı boş bırakın veya başka provider seçin.",
     "endpointLacksCollectionModel": "Bu uç nokta koleksiyonun vektörlerinin oluşturulduğu {model} modelini sunmuyor. Uç noktayı boş bırakın veya bu modeli sunan birini seçin.",
-    "localServices": "Yerel servisler",
     "localServicesHint": "Dağıtımın kendi ağındaki sunucular: embedding yapan Ollama veya LiteParse için OCR yan hizmeti gibi. Bir kez kaydedilip koleksiyon başına seçilir. Bu servislere gönderilen hiçbir şey dağıtım dışına çıkmaz.",
     "addServer": "Sunucu ekle",
-    "loadingLocalServices": "Sunucular yükleniyor…",
-    "noLocalServicesYet": "Henüz bir şey yok. Embedding ve OCR işlemlerini kendi ağınızda tutmak için Ollama veya OCR sunucusu kaydedin.",
     "failedLoadLocalServices": "Yerel servisler yüklenemedi",
     "localServiceKind": "Tür",
     "embeddingServer": "Embedding sunucusu (Ollama)",
@@ -11872,6 +11974,10 @@
       "computer": "Bilgisayar · dosyalarınız",
       "computerHint": "Sohbetleriniz için bu bilgisayardaki bir klasörü kullanın. Bu kişisel seçiminizdir; diğer proje üyeleri paylaşılan proje workspace’ini kullanmaya devam eder.",
       "sharedWorkspace": "Paylaşılan proje workspace’i"
+    },
+    "tracking": {
+      "title": "Otomatik proje takibi",
+      "openTracker": "Takip agentı"
     }
   },
   "vault": {
@@ -11971,6 +12077,7 @@
     "googleAccount": "Google hesabı"
   },
   "portals": {
+    "backToServices": "Hizmetlere dön",
     "mailboxInterval": {
       "label": "Yeni e-postaları kontrol etme sıklığı",
       "option": "{count, plural, =1 {1 dakika} other {# dakika}}",
@@ -12418,8 +12525,8 @@
     "openBuilder": "Agent Builder’da aç",
     "openOrganization": "Kuruluş ayarları",
     "suggestions": {
-      "title": "Size yönelik öneriler",
-      "description": "Haftalık durumunuza gece yapılan incelemenin önerileri ve bu incelemenin açık olup olmadığı.",
+      "title": "Otomatik öneriler",
+      "description": "AgenticOS’un Inbox ve brifing üzerinden proaktif öneriler gönderip göndermeyeceğini belirleyin. Burada geçmişi görebilir ve reddedilen önerileri geri getirebilirsiniz. Bu ayar konuşmalardaki yanıtları yönetmez.",
       "forMe": "Bana yönelik gece önerileri",
       "orgOff": "Kuruluşunuzda gece önerileri kapalı olduğundan henüz öneri oluşturulmadı.",
       "turnedOn": "Gece önerileri sizin için açıldı",
@@ -12431,7 +12538,8 @@
         "open": "Bekliyor",
         "accepted": "Kabul edildi",
         "dismissed": "Reddedildi"
-      }
+      },
+      "openInbox": "Inbox’u aç"
     }
   },
   "orgAssistant": {
@@ -12973,7 +13081,6 @@
     "tasks": "Görevler",
     "newTask": "Yeni görev",
     "hint": "Siz ve ajanlarınız için kalıcı görevler. Tablo, çalışma sohbeti ve gelen kutusu aynı göreve bağlıdır.",
-    "board": "Görev tablosu",
     "openTable": "Tabloyu aç",
     "title": "Görev",
     "description": "Talimatlar veya bağlam",
@@ -13001,7 +13108,8 @@
       "private": "Görevlerim",
       "project": "Proje görevleri",
       "group": "Grup görevleri",
-      "organization": "Kuruluş görevleri"
+      "organization": "Kuruluş görevleri",
+      "agent": "Agent görevleri"
     },
     "status": {
       "planned": "Planlandı",
@@ -13014,7 +13122,8 @@
     "nextActor": {
       "user": "Sonraki adım: kişi",
       "agent": "Sonraki adım: ajan"
-    }
+    },
+    "taskTable": "Görev tablosu"
   },
   "setupHints": {
     "title": "Yapılandırma mevcut",
@@ -13409,5 +13518,401 @@
     "contextTitle": "Bağlamı iyileştir",
     "contextBody": "Asistan, agentların bu bağlam dosyasını kullandığı konuşmalardaki geri bildirimleri kullanır. Uygulamadan önce her öneriyi inceleyin.",
     "costs": "Maliyetler ve sınırlar"
+  },
+  "workflowNodes": {
+    "node": {
+      "agent_run": {
+        "name": "Agent çalıştır",
+        "description": "Katalogdaki yayımlanmış bir agent’ı sabitlenmiş bir sürümde çalıştırın ve yanıtını kullanın."
+      },
+      "ai_classify": {
+        "name": "Sınıflandır",
+        "description": "Bir modelin metni kategorilerinizden birine yerleştirmesini sağlayın ve sonuca göre dallanın."
+      },
+      "ai_extract": {
+        "name": "Veri çıkar",
+        "description": "Bir modelin, adını verdiğiniz alanları metinden bir nesne olarak çıkarmasını sağlayın."
+      },
+      "ai_prompt": {
+        "name": "Modele sor",
+        "description": "Modellerinizden birine, adımın kendi talimatlarıyla bir şey sorun."
+      },
+      "ai_rewrite": {
+        "name": "Özetle veya çevir",
+        "description": "Bir modelin metni özetlemesini, çevirmesini veya yeniden yazmasını sağlayın."
+      },
+      "code_javascript_sandbox": {
+        "name": "Sandbox’ta JavaScript",
+        "description": "JavaScript’i Node üzerinde run’ın dosyalarıyla, kuruluşun sandbox sunucusunda kalıcı bir iş olarak çalıştırın; içinde hiçbir platform kimlik bilgisi bulunmaz."
+      },
+      "code_python_sandbox": {
+        "name": "Sandbox’ta Python",
+        "description": "Tam Python’u run’ın dosyalarıyla, kuruluşun sandbox sunucusunda kalıcı bir iş olarak çalıştırın; içinde hiçbir platform kimlik bilgisi bulunmaz."
+      },
+      "code_python_simple": {
+        "name": "Python betiği",
+        "description": "Monty sandbox’ında kısa bir Python betiğiyle bir JSON değeri hesaplayın - dosya yok, ağ yok, küçük bir standart kütüphane."
+      },
+      "control_foreach": {
+        "name": "Her öğe için",
+        "description": "Döngüdeki adımları bir listedeki her öğe için sırayla birer kez çalıştırın."
+      },
+      "convert_csv_to_json": {
+        "name": "CSV’den JSON’a",
+        "description": "Bir CSV dosyasını, satırları başlıklara göre anahtarlanmış bir JSON dosyasına dönüştürün."
+      },
+      "convert_json_to_csv": {
+        "name": "JSON’dan CSV’ye",
+        "description": "Düz nesnelerden oluşan bir JSON listesini CSV dosyasına dönüştürün."
+      },
+      "convert_pdf_to_png": {
+        "name": "PDF sayfalarından görsel",
+        "description": "Bir PDF’in seçilen sayfalarını, görsel piksel sınırı içinde PNG görsellerine dönüştürün."
+      },
+      "convert_text_to_file": {
+        "name": "Metinden dosyaya",
+        "description": "Metni run’ın bir UTF-8 TXT dosyası olarak saklayın."
+      },
+      "core_input": {
+        "name": "API isteği",
+        "description": "Bir HTTP isteğiyle veya WebSocket üzerinden, tanımladığınız girdiyle başlayın."
+      },
+      "core_output": {
+        "name": "Çıktı",
+        "description": "Workflow’un yanıtı: metin, kaynaklar, dosyalar ve yapılandırılmış bir değer."
+      },
+      "data_combine": {
+        "name": "Listeleri birleştir",
+        "description": "İki listeden tek bir liste oluşturun: art arda, konuma göre veya bir anahtara göre."
+      },
+      "data_filter": {
+        "name": "Listeyi filtrele",
+        "description": "Bir listenin koşulu sağlayan öğelerini tutun."
+      },
+      "data_map": {
+        "name": "Alanları eşle",
+        "description": "Önceki çıktılardan değerler seçin ve her birine bir tür verin."
+      },
+      "debug_echo": {
+        "name": "Yankı",
+        "description": "Girdisini değiştirmeden geri döndürür. Gerçek bir etkisi yoktur."
+      },
+      "debug_relay": {
+        "name": "Aktarıcı",
+        "description": "Yankılanan bir mesajı düz bir mesaj olarak iletir. Gerçek bir etkisi yoktur."
+      },
+      "decide_choose": {
+        "name": "Birini seç",
+        "description": "Karar modeline seçeneklerinizden hangisinin bir metne uyduğunu sorun - bir kategori, bir kuyruk, bir niyet."
+      },
+      "decide_score": {
+        "name": "Puanla",
+        "description": "Karar modeline bir metnin değerlendirme ölçütünüzde nerede durduğunu sorun - aciliyet, uygunluk, risk."
+      },
+      "decide_yes_no": {
+        "name": "Evet veya hayır",
+        "description": "Karar modeline bir metin hakkında evet veya hayır sorusu sorun ve yanıta göre dallanın."
+      },
+      "email_send": {
+        "name": "E-posta gönder",
+        "description": "Bir SMTP hesabı veya platform göndericisi üzerinden en fazla on adrese e-posta gönderin."
+      },
+      "error_handle": {
+        "name": "Hatayı işle",
+        "description": "Bir başarısızlığı, hata koduna göre seçilen bir dala yönlendirin."
+      },
+      "error_raise": {
+        "name": "Hata oluştur",
+        "description": "Bu dalı, tanımladığınız bir hatayla başarısız kılın."
+      },
+      "file_read": {
+        "name": "Dosya oku",
+        "description": "Run’ın dosyalarından birini UTF-8 metin, JSON değeri veya CSV satırları olarak okuyun."
+      },
+      "file_write": {
+        "name": "Dosya yaz",
+        "description": "Metni, bir JSON değerini veya satırları run’ın yeni bir UTF-8 dosyası olarak saklayın."
+      },
+      "flow_await_reply": {
+        "name": "E-posta yanıtını bekle",
+        "description": "Bir posta konusundaki tek bir göndericiden kimliği doğrulanmış bir yanıt gelmesini ya da son sürenin dolmasını bekleyin."
+      },
+      "flow_resume_link": {
+        "name": "Devam bağlantısı",
+        "description": "Bu run’ın bir çağrı bekleyen Bekle adımlarını sürdüren adres."
+      },
+      "flow_wait": {
+        "name": "Bekle",
+        "description": "Run’ı bir süre veya belirli bir zamana kadar bekletin, sonra devam edin."
+      },
+      "html_parse": {
+        "name": "HTML ayrıştır",
+        "description": "HTML’den metnini, bağlantılarını ve bir CSS seçicinin seçtiklerini okuyun - hiçbir şey indirilmez veya çalıştırılmaz."
+      },
+      "http_download": {
+        "name": "Dosya indir",
+        "description": "HTTP üzerinden bir dosyayı akışla ve boyut sınırıyla run’a indirin; türü kendi baytlarından okunur."
+      },
+      "http_request": {
+        "name": "HTTP isteği",
+        "description": "SSRF korumasıyla ve vault’taki bir kimlik bilgisiyle bir HTTP API’si çağırın."
+      },
+      "http_upload": {
+        "name": "Dosya yükle",
+        "description": "Run’ın dosyalarından birini depolamadan akışla bir HTTP uç noktasına gönderin."
+      },
+      "human_approval": {
+        "name": "Onay iste",
+        "description": "Bir kişi onaylayana veya reddedene kadar bekleyin, sonra yanıtına göre devam edin."
+      },
+      "image_transform": {
+        "name": "Görseli dönüştür",
+        "description": "PNG, JPEG, WebP veya GIF görselini kırpın, yeniden boyutlandırın, döndürün ya da dönüştürün; meta verileri kaldırılır ve çözülmeden önce boyutu sınırlanır."
+      },
+      "knowledge_add": {
+        "name": "Bilgi tabanına ekle",
+        "description": "Agent’ların bulabilmesi için bir metni veya dosyayı bilgi tabanlarına ekleyin."
+      },
+      "knowledge_search": {
+        "name": "Bilgi tabanında ara",
+        "description": "Bilgi tabanlarında, sonraki bir adımın kaynak olarak kullanabileceği bölümler bulun."
+      },
+      "logic_if": {
+        "name": "Eğer / değilse",
+        "description": "Bir koşula göre iki daldan biriyle devam edin."
+      },
+      "logic_merge": {
+        "name": "Birleştir",
+        "description": "Dalları yeniden tek bir yolda birleştirin."
+      },
+      "logic_split": {
+        "name": "Dallara ayır",
+        "description": "Run’ı aynı anda birkaç dala gönderin."
+      },
+      "logic_switch": {
+        "name": "Yönlendir",
+        "description": "Birçok dal arasından kuralı sağlanan ilk dalla devam edin."
+      },
+      "loop_item": {
+        "name": "Döngü öğesi",
+        "description": "Döngünün bu yinelemesinde üzerinde çalışılan öğe."
+      },
+      "loop_yield": {
+        "name": "Döngü sonucu",
+        "description": "Döngünün bu yinelemesini bitirin ve sonucunu geri verin."
+      },
+      "mattermost_channels_find": {
+        "name": "Kanalları bul",
+        "description": "Botun bulunduğu bir Mattermost ekibinde kanalları ada göre bulun."
+      },
+      "mattermost_members_list": {
+        "name": "Üyeleri listele",
+        "description": "Bir Mattermost kanalındaki kişileri, bahsetmek için gereken ID’lerle listeleyin."
+      },
+      "mattermost_message_send": {
+        "name": "Mesaj gönder",
+        "description": "Botlarınızdan biri olarak bir Mattermost kanalına veya içindeki bir konuya mesaj gönderin."
+      },
+      "mattermost_messages_read": {
+        "name": "Mesajları oku",
+        "description": "Bir Mattermost kanalındaki veya konusundaki en son mesajları okuyun."
+      },
+      "mcp_call": {
+        "name": "MCP aracı çağır",
+        "description": "Kuruluşun MCP sunucularından birinde bir araç çağırın; araç bir şeyi değiştirmeden önce bir kişiye sorulur."
+      },
+      "notification_send": {
+        "name": "Üyeleri bilgilendir",
+        "description": "Üyeleri, açmayı seçtikleri bildirim kanalları üzerinden bilgilendirin."
+      },
+      "slack_channels_find": {
+        "name": "Kanalları bul",
+        "description": "Slack kanallarını ada göre bulun."
+      },
+      "slack_members_list": {
+        "name": "Üyeleri listele",
+        "description": "Bir Slack kanalındaki kişileri, bahsetmek için gereken ID’lerle listeleyin."
+      },
+      "slack_message_send": {
+        "name": "Mesaj gönder",
+        "description": "Botlarınızdan biri olarak bir Slack kanalına veya içindeki bir konuya mesaj gönderin."
+      },
+      "slack_messages_read": {
+        "name": "Mesajları oku",
+        "description": "Bir Slack kanalındaki veya konusundaki en son mesajları okuyun."
+      },
+      "table_create": {
+        "name": "Tablo oluştur",
+        "description": "Verilen sütunlarla yeni bir Sanal Tablo oluşturun."
+      },
+      "table_describe": {
+        "name": "Tabloyu incele",
+        "description": "Sonraki adımlar için bir tablonun adını ve güncel sütunlarını okuyun."
+      },
+      "table_exists": {
+        "name": "Tablo var mı?",
+        "description": "Bu ada sahip bir tablonun var olup olmadığına göre dallanın."
+      },
+      "table_list": {
+        "name": "Tabloları listele",
+        "description": "Bu run’ın görebildiği tabloları, adın bir kısmına göre bulup listeleyin."
+      },
+      "table_record_create": {
+        "name": "Kayıt ekle",
+        "description": "Bir Sanal Tabloya kayıt ekleyin."
+      },
+      "table_record_delete": {
+        "name": "Kaydı sil",
+        "description": "Bir kaydı silin. Geçmişi korunur."
+      },
+      "table_record_exists": {
+        "name": "Kayıt var mı?",
+        "description": "Bir tablodaki herhangi bir kaydın filtrelerinize uyup uymadığına göre dallanın."
+      },
+      "table_record_get": {
+        "name": "Kayıt bul",
+        "description": "Bir kaydı ID’sine veya harici ID’sine göre okuyun."
+      },
+      "table_record_query": {
+        "name": "Kayıtları listele",
+        "description": "Bir tablonun kayıtlarını filtreleyip sıralayarak listeleyin."
+      },
+      "table_record_update": {
+        "name": "Kaydı güncelle",
+        "description": "Bir kaydın bazı hücrelerini değiştirin."
+      },
+      "table_record_upsert": {
+        "name": "Kaydı sakla",
+        "description": "Harici ID’si olan kaydı oluşturun veya güncelleyin."
+      },
+      "telegram_members_list": {
+        "name": "Yöneticileri listele",
+        "description": "Bir Telegram sohbetinin yöneticilerini listeleyin - bir bota bildirilen yalnızca budur."
+      },
+      "telegram_message_send": {
+        "name": "Mesaj gönder",
+        "description": "Botlarınızdan biri olarak bir Telegram sohbetine mesaj gönderin."
+      },
+      "text_compare": {
+        "name": "Metinleri karşılaştır",
+        "description": "İki metnin ne kadar benzediğini model kullanmadan puanlayın - 1 aynı, 0 hiç ortak yanı yok."
+      },
+      "text_extract": {
+        "name": "Metin çıkar",
+        "description": "TXT, JSON, CSV, metin tabanlı PDF veya DOCX dosyasının metnini okuyun. Taranmış bir sayfa adımı başarısız kılar ve OCR gerektiğini bildirir."
+      },
+      "transform_aggregate": {
+        "name": "Bir araya getir",
+        "description": "Bir alanın tüm öğelerdeki değerlerini tek bir listede toplayın."
+      },
+      "transform_crypto": {
+        "name": "Kripto",
+        "description": "Metni hash’leyin veya kodlayın ya da bir ID veya rastgele bir değer üretin."
+      },
+      "transform_date_time": {
+        "name": "Tarih ve saat",
+        "description": "Şu an ya da kaydırılıp bir saat diliminde yazılmış bir an."
+      },
+      "transform_edit_fields": {
+        "name": "Alanları düzenle",
+        "description": "Bir listenin her öğesinde alanları ayarlayın, yeniden adlandırın veya kaldırın."
+      },
+      "transform_limit": {
+        "name": "Sınırla",
+        "description": "Bir listenin ilk veya son öğelerini tutun."
+      },
+      "transform_remove_duplicates": {
+        "name": "Yinelenenleri kaldır",
+        "description": "Bazı alanlarda eşit olan öğelerin her grubundan yalnızca birini tutun."
+      },
+      "transform_sort": {
+        "name": "Sırala",
+        "description": "Bir listenin öğelerini bir veya daha fazla alana göre sıralayın."
+      },
+      "transform_split_out": {
+        "name": "Öğelere ayır",
+        "description": "Her öğenin içindeki listeyi ayrı öğelere dönüştürün."
+      },
+      "transform_summarize": {
+        "name": "Özetle",
+        "description": "Öğeleri gruplara göre sayın, toplayın veya ortalamasını alın."
+      },
+      "trigger_channel_message": {
+        "name": "Kanal mesajı",
+        "description": "Slack, Mattermost veya Telegram botlarınızdan birine gelen bir mesaj."
+      },
+      "trigger_chat": {
+        "name": "Sohbet mesajı",
+        "description": "Bir üye sohbette mesaj gönderir ve yanıt vermek için bu workflow seçilmiştir."
+      },
+      "trigger_form": {
+        "name": "Form",
+        "description": "Biri, workflow’un herkese açık adresindeki bir formu doldurur."
+      },
+      "trigger_github": {
+        "name": "GitHub",
+        "description": "Bir GitHub deposunda bir şey olur - bir issue, bir pull request, bir push."
+      },
+      "trigger_gmail": {
+        "name": "Gmail",
+        "description": "Kuruluşun bağlı Gmail posta kutusuna yeni bir e-posta gelir."
+      },
+      "trigger_manual": {
+        "name": "Elle",
+        "description": "Düzenleyicide veya workflow’un run sayfasında Run düğmesine tıklayarak başlatın."
+      },
+      "trigger_outlook": {
+        "name": "Outlook",
+        "description": "Kuruluşun bağlı Microsoft 365 posta kutusundaki bir klasöre yeni bir e-posta gelir."
+      },
+      "trigger_schedule": {
+        "name": "Zamanlama",
+        "description": "Saate göre çalışır: belirli aralıklarla veya UTC’de bir cron ifadesine göre."
+      },
+      "trigger_table_record": {
+        "name": "Tablo kaydı",
+        "description": "Bir tabloya kayıt eklenir, bir kayıt değiştirilir veya silinir ve filtrelere uyar."
+      },
+      "trigger_webhook": {
+        "name": "Webhook",
+        "description": "İmzalı bir HTTP teslimatı bu workflow’un kendi adresine ulaşır."
+      },
+      "trigger_workflow_call": {
+        "name": "Workflow’dan çağrıldığında",
+        "description": "Başka bir workflow’daki Workflow çalıştır adımı, bunu tanımladığı alanlarla başlatır."
+      },
+      "trigger_workflow_failed": {
+        "name": "Workflow başarısız olduğunda",
+        "description": "Bunu hata workflow’u olarak belirleyen bir workflow’un run’ı başarısız olur."
+      },
+      "webhook_respond": {
+        "name": "Webhook’a yanıt ver",
+        "description": "Run’ı başlatan webhook çağrısını yanıtlayın: bir durum kodu, header’lar ve bir gövde."
+      },
+      "workflow_run": {
+        "name": "Workflow çalıştır",
+        "description": "Başka bir workflow’u bir adım olarak çalıştırın ve yanıtını aktarın."
+      }
+    },
+    "port": {
+      "approved": "Onaylandı",
+      "chosen": "Seçildi",
+      "deadline_reached": "Süre doldu",
+      "default": "Varsayılan",
+      "done": "Tamamlandı",
+      "error": "Hata",
+      "false": "Yanlış",
+      "in": "Giriş",
+      "no": "Hayır",
+      "other": "Diğer",
+      "otherwise": "Aksi halde",
+      "out": "Çıkış",
+      "rejected": "Reddedildi",
+      "reply_received": "Yanıt geldi",
+      "scored": "Puanlandı",
+      "true": "Doğru",
+      "unsure": "Emin değil",
+      "yes": "Evet"
+    }
   }
 }

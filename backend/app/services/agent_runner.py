@@ -144,6 +144,7 @@ from app.agents.capabilities.budget import (
     SpendLimit,
     guarded_by,
     metered_by,
+    usd,
 )
 from app.agents.capabilities.channel_tools import (
     CHANNEL_DIRECTORY_RESOURCE,
@@ -242,6 +243,7 @@ from app.agents.spec import (
     ExternalAgentRef,
     McpServerRef,
     ObservabilitySpec,
+    OrgMcpServerRef,
     PersonalMcpServerRef,
     PlatformMcpServerRef,
     SkillBindingSpec,
@@ -418,6 +420,7 @@ from app.services.sandbox_workspace import (
     WorkspaceFlushFailure,
     project_sandbox,
 )
+from app.services.screened_replay import screen_history, screened_copy
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_workspace import SKILLS_ROOT, MaterialisedSkills, collect_changes
 from app.services.skill_workspace import materialise as materialise_skills
@@ -1324,8 +1327,10 @@ class ApprovalChannel:
     tool_consent: Callable[[ApprovalRequest], Awaitable[UUID | None]] | None = None
 
     requested: list[ParkedApproval] = field(default_factory=list)
-    """What was parked, in enough detail for a surface to put it to somebody and
-    for :meth:`AgentRunnerService._write_approvals` to write the row.
+    """Audit entries for pending and automatically granted calls.
+
+    Surfaces may ask for a decision only on entries also present in `parked`.
+    :meth:`AgentRunnerService._write_approvals` persists all entries.
 
     Kept here rather than read back from the rows afterwards for two reasons: the
     rows do not exist yet while the run is going, and re-reading them would be a
@@ -2181,16 +2186,20 @@ class LiveRunSurface:
 
 
 async def _with_exposure_prompt(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
-    """Append current surface defaults and the binding's custom additions.
+    """Keep legacy additions or apply an explicitly edited complete surface prompt.
 
-    Surface defaults are deployment-owned; the database stores only additions.
-    The published agent spec remains unchanged.
+    Empty prompts follow current deployment defaults. The agent's own instructions,
+    trusted runtime identity and authorization remain independent of this text.
     """
     if exposure is None:
         return spec
-    added = "\n\n".join(
-        part for part in (house_style(exposure.surface), (exposure.prompt or "").strip()) if part
+    custom = (exposure.prompt or "").strip()
+    defaults = (
+        ""
+        if custom and exposure.prompt_replaces_defaults is True
+        else house_style(exposure.surface)
     )
+    added = "\n\n".join(part for part in (defaults, custom) if part)
     if not added:
         return spec
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
@@ -2817,6 +2826,15 @@ def _answer_only(spec: AgentSpec) -> AgentSpec:
     )
 
 
+def _organization_mcp_only(spec: AgentSpec) -> AgentSpec:
+    """An unattended channel turn can use the agent's organization accounts only."""
+    return _answer_only(spec).model_copy(
+        update={
+            "mcp_servers": [ref for ref in spec.mcp_servers if isinstance(ref, OrgMcpServerRef)]
+        }
+    )
+
+
 def _with_channel_service_approval(
     spec: AgentSpec, surface: RunSurface, *, linked_sender: bool = False
 ) -> AgentSpec:
@@ -2880,7 +2898,10 @@ def _with_channel_tools(spec: AgentSpec, exposure: AgentExposure | None) -> Agen
     this run; `model_copy` leaves the stored spec alone, and publishing refuses
     a stored spec that tries to carry this capability itself.
     """
-    granted = [] if exposure is None else list(exposure.tools or [])
+    from app.agents.capabilities import get as get_capability
+
+    inbound = get_capability(CHANNEL_TOOLS_CAPABILITY_ID).tool_ids
+    granted = [] if exposure is None else [tool for tool in exposure.tools or [] if tool in inbound]
     if not granted:
         return spec
     binding = CapabilityBindingSpec(
@@ -3260,7 +3281,7 @@ class RoutineBudgetSpent(BudgetExceeded):
     def __init__(self, *, limit_usd: Decimal, spent_usd: Decimal) -> None:
         super().__init__(limit_usd=limit_usd, spent_usd=spent_usd, scope=BudgetScope.RUN)
         self.args = (
-            f"Routine monthly budget exhausted: ${spent_usd:.4f} spent of ${limit_usd:.2f} limit",
+            f"Routine monthly budget exhausted: ${spent_usd:.4f} spent of {usd(limit_usd)} limit",
         )
 
 
@@ -3351,6 +3372,7 @@ class RunSegment:
     structured: dict[str, Any] | None = None
     delegations: tuple[RecordedDelegation, ...] = ()
     """Published delegates settled in this segment, independent of the parent pause."""
+    channel_destination: ChannelDestination | None = None
     generated_files: frozenset[str] = frozenset()
     """Leaf names actually stored by this run, never inferred from tool result text."""
     message_id: UUID | None = None
@@ -3682,6 +3704,8 @@ class AgentRunnerService:
         draft: bool = False,
         test: bool = False,
         aside: bool = False,
+        organization_mcp_only: bool = False,
+        decision_model: bool = False,
         source_run: AgentRun | None = None,
         watch_receipt: WatchReadReceipt | None = None,
     ) -> PreparedRun:
@@ -3812,7 +3836,11 @@ class AgentRunnerService:
             )
         else:
             agent, spec, version_id = await self.registry.get_candidate_spec(
-                ctx, agent_id, candidate, environment_id=effective_environment_id
+                ctx,
+                agent_id,
+                candidate,
+                environment_id=effective_environment_id,
+                decision_model=decision_model,
             )
         if source_run is not None:
             _, spec = await self._parked_spec(ctx, source_run)
@@ -3831,6 +3859,8 @@ class AgentRunnerService:
             spec = without_voice_unavailable(spec)
         if aside:
             spec = _answer_only(spec)
+        if organization_mcp_only:
+            spec = _organization_mcp_only(spec)
         prepared = await self._assemble(
             ctx,
             agent=agent,
@@ -3855,6 +3885,8 @@ class AgentRunnerService:
             approval_mode=await self._allowed_approval_mode(ctx, approval_mode, surface=surface),
             local=local,
             answer_only=aside,
+            organization_mcp_only=organization_mcp_only,
+            decision_model=decision_model,
             # Passed in rather than set on the built deps like `on_compaction`:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
@@ -3996,6 +4028,8 @@ class AgentRunnerService:
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
         local: LocalTarget | None = None,
         answer_only: bool = False,
+        organization_mcp_only: bool = False,
+        decision_model: bool = False,
         specialists: Mapping[str | None, Sequence[RegisteredSpecialist]] | None = None,
         discovered_delegates: dict[str, list[SubagentRef]] | None = None,
         mirage_authorities: dict[str, str] | None = None,
@@ -4125,7 +4159,9 @@ class AgentRunnerService:
             local_model_choice = (local.model_service, profile.id)
         else:
             model_spec = await self.models.resolve(
-                models_ctx, profile_id=model_profile_id or spec.model_profile_id
+                models_ctx,
+                profile_id=model_profile_id or spec.model_profile_id,
+                decision=decision_model,
             )
             # The override arrives from a socket frame or an API body, past every
             # picker and past publish, so the catalogs' answer is checked here too
@@ -4235,6 +4271,37 @@ class AgentRunnerService:
         # here" are worse than none, because the model keeps trying.
         if channel_directory is not None:
             resources[CHANNEL_DIRECTORY_RESOURCE] = channel_directory
+        from app.services.channel_actions import ChannelActionService, with_actions
+
+        if (
+            models_ctx.user_id is not None
+            and (
+                not models_ctx.subject_is_publisher_fallback
+                or (channel_directory is not None and channel_directory.destination is not None)
+            )
+            and isolation is None
+            and not public_origin
+            and voice is None
+            and surface != RunSurface.EVAL
+            and watch_sources is None
+        ):
+            channel_actions = ChannelActionService(
+                models_ctx,
+                agent.id,
+                destination=None if channel_directory is None else channel_directory.destination,
+                current_directory=channel_directory,
+            )
+            reviewed_channels = (
+                None
+                if routine is None
+                else (
+                    {} if routine.source_policy is None else routine.source_policy.channel_sources
+                )
+            )
+            granted_actions = await channel_actions.tools(self.db, reviewed=reviewed_channels)
+            spec = with_actions(spec, granted_actions)
+            if granted_actions:
+                resources["channel_actions"] = channel_actions
         # Resolved here for the reason the browser's step model is: the vault and
         # the session are here, and the factory has neither. Handed to it apart
         # from `resources`, which every capability reads and a log line may carry:
@@ -4388,6 +4455,7 @@ class AgentRunnerService:
             surface.value,
             console_url=settings.FRONTEND_URL,
             linked_sender=personal_mcp_user_id is not None,
+            test_environment=settings.ENVIRONMENT in {"local", "development"},
         )
         if context:
             guidance = "" if CHANNEL_BEHAVIOR in spec.instructions else "\n\n" + CHANNEL_BEHAVIOR
@@ -5069,6 +5137,12 @@ class AgentRunnerService:
             on_use = None
             computer_on_use = None
 
+        if organization_mcp_only:
+            spec = _organization_mcp_only(spec)
+            extra_toolsets = []
+            on_use = None
+            computer_on_use = None
+
         built = build_agent(
             spoken_spec if voice is not None else spec,
             model_spec,
@@ -5101,7 +5175,7 @@ class AgentRunnerService:
             org_monthly_budget_usd=organization.monthly_budget_usd,
             run_limit_usd=run_limit_usd,
             group_limits=group_limits,
-            request_approval=channel,
+            request_approval=None if organization_mcp_only else channel,
             routine_action_check=None if routine is None else routine.action_policy,
             gate_every_tool=approval_mode is ApprovalMode.ASK_ALL,
             # Both from one read of the conversation (see
@@ -5114,6 +5188,7 @@ class AgentRunnerService:
             isolation=isolation,
             test_bindings=test_bindings,
             voice=None if voice is None else voice.options,
+            offer_setup_tools=not (answer_only or organization_mcp_only),
         )
 
         # Both only assignable now, and both before the run starts. The guard and
@@ -6605,6 +6680,7 @@ class AgentRunnerService:
         error: str | None = None,
         paused_state: PausedRunState | None = None,
         budget_scope: BudgetScope | None = None,
+        budget: BudgetExceeded | None = None,
     ) -> AgentRun:
         """Record what the run consumed and how it ended.
 
@@ -6632,7 +6708,8 @@ class AgentRunnerService:
         is carried from the `except` clause that caught the refusal rather than
         re-derived here, because the alternative is matching a prefix on the
         error message - and it decides who gets mailed: an agent's cap is its
-        author's to raise, the organization's is not.
+        author's to raise, the organization's is not. `budget` is the refusal
+        itself, for the limit and spend its notification states.
         """
         # Both before the workspace closes, because a run-scoped one is released
         # by `close` and its files are gone afterwards.
@@ -6754,6 +6831,7 @@ class AgentRunnerService:
                 status=status,
                 error=error,
                 budget_scope=budget_scope,
+                budget=budget,
             )
         except Exception:
             logger.exception("run_notification_failed", extra={"run_id": str(finished.id)})
@@ -6987,6 +7065,7 @@ class AgentRunnerService:
         status: RunStatus,
         error: str | None,
         budget_scope: BudgetScope | None,
+        budget: BudgetExceeded | None = None,
     ) -> None:
         """Tell somebody, when the run ended in a way nobody is watching for.
 
@@ -7014,6 +7093,9 @@ class AgentRunnerService:
                 # two - so an unknown scope tells fewer people rather than
                 # mailing the whole administration about somebody's draft.
                 scope=budget_scope or BudgetScope.AGENT,
+                limit_usd=budget.limit_usd if budget else None,
+                spent_usd=budget.spent_usd if budget else None,
+                subject=budget.subject if budget else None,
             )
         elif status is RunStatus.AWAITING_APPROVAL:
             approvals = await agent_run_repo.list_approvals_for_run(
@@ -7088,11 +7170,19 @@ class AgentRunnerService:
         watch_receipt: WatchReadReceipt | None = None,
         conversation_task_id: UUID | None = None,
         result_only: bool = False,
+        organization_mcp_only: bool = False,
+        decision_model: bool = False,
         on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
         check_model_request: Callable[[AsyncSession], Awaitable[None]] | None = None,
         on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
+
+        `organization_mcp_only` is an unattended channel turn: only organization
+        MCP bindings and answer-shaping capabilities survive. Personal/platform
+        credentials, implicit setup and action tools are unavailable. Gated calls
+        are refused without parking; the agent asks a person to mention it for
+        the normal identity and approval flow instead of approving itself.
 
         `check_model_request` validates additional trusted context before every
         provider request, including nested models. It receives a fresh, short-lived
@@ -7200,6 +7290,8 @@ class AgentRunnerService:
             run_limit_usd=run_limit_usd,
             public_origin=public_origin,
             aside=aside or result_only,
+            organization_mcp_only=organization_mcp_only,
+            decision_model=decision_model,
             draft=draft,
             watch_receipt=watch_receipt,
         )
@@ -8400,6 +8492,7 @@ class AgentRunnerService:
         structured: dict[str, Any] | None = None
         paused: PausedRunState | None = None
         budget_scope: BudgetScope | None = None
+        budget: BudgetExceeded | None = None
         called: list[RecordedToolCall] = []
         settled: dict[str, str] = {}
         summarized: list[dict[str, Any]] | None = None
@@ -8414,6 +8507,11 @@ class AgentRunnerService:
         # The opening commit: the row is visible mid-run and no connection is
         # held across the model call - the docstring carries the whole of it
         # (#12, #3).
+        input_edge = input_screen_for(prepared.spec)
+        model_content = (
+            None if said is None else screened_copy(said, attachment_context, input_edge)
+        )
+        message_history = screen_history(message_history, input_edge)
         prepared.model_context_check = model_context_check(
             prepared.run.conversation_id, message_history, check_model_request
         )
@@ -8500,6 +8598,7 @@ class AgentRunnerService:
             status = RunStatus.BUDGET_EXCEEDED
             error = str(exc)
             budget_scope = exc.scope
+            budget = exc
             logger.info("Run %s stopped by budget: %s", prepared.run.id, exc)
             finished_cleanly = True
         except GuardrailBlocked as exc:
@@ -8541,6 +8640,7 @@ class AgentRunnerService:
                     error=error,
                     paused_state=paused,
                     budget_scope=budget_scope,
+                    budget=budget,
                 )
                 if prepared.run.status == RunStatus.FAILED.value:
                     status = RunStatus.FAILED
@@ -8550,6 +8650,7 @@ class AgentRunnerService:
                 message_id = await self.transcript.record(
                     prepared.run,
                     prompt=said,
+                    model_content=model_content,
                     answer=output,
                     attachments=attachments,
                     # Replayed after the prompt on every later turn, where the input
@@ -8614,6 +8715,7 @@ class AgentRunnerService:
                     await on_segment(
                         RunSegment(
                             output=output or error or "",
+                            channel_destination=prepared.channel_destination,
                             run=prepared.run,
                             tool_calls=called,
                             settled=settled,
@@ -8631,6 +8733,7 @@ class AgentRunnerService:
 
         return RunSegment(
             output=output,
+            channel_destination=prepared.channel_destination,
             run=prepared.run,
             tool_calls=called,
             settled=settled,

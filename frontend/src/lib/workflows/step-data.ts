@@ -1,5 +1,11 @@
 import { entryGraph, entryNodes } from "./triggers";
-import { outputRefs, type Uuid, type WorkflowGraph, type WorkflowNodeRunRead } from "./types";
+import {
+  outputRefs,
+  type Uuid,
+  type WorkflowGraph,
+  type WorkflowNodeRunRead,
+  type WorkflowStepDecision,
+} from "./types";
 
 /** What one step did the last time a watched test run reached it. */
 export interface StepData {
@@ -7,6 +13,8 @@ export interface StepData {
   output: Record<string, unknown> | null;
   error: { code: string; message: string } | null;
   runId: string;
+  /** How an approval step was decided, when a run's own rows say so. */
+  approval?: WorkflowStepDecision;
 }
 
 /** How much data one step may have pinned, as compact UTF-8 JSON. Mirrors `MAX_PINNED_BYTES`. */
@@ -28,10 +36,21 @@ export function jsonBytes(value: unknown): number {
 /** What one row did: its output once it succeeded, its error once it failed. */
 function rowData(runId: string, row: WorkflowNodeRunRead): StepData | null {
   if (row.status === "succeeded" && row.output !== null) {
-    return { output: row.output, error: null, runId };
+    return row.approval
+      ? { output: row.output, error: null, runId, approval: row.approval }
+      : { output: row.output, error: null, runId };
+  }
+  // A run cancelled while a person was asked hands nothing on, but the request still says so.
+  if (row.status === "cancelled" && row.approval) {
+    return { output: null, error: null, runId, approval: row.approval };
   }
   if (row.status === "failed" && row.error !== null) {
-    return { output: null, error: { code: row.error.code, message: row.error.message }, runId };
+    return {
+      output: null,
+      error: { code: row.error.code, message: row.error.message },
+      runId,
+      ...(row.approval ? { approval: row.approval } : {}),
+    };
   }
   return null;
 }

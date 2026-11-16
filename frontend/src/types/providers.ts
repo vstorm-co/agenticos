@@ -13,7 +13,7 @@ import type { AgentUsage } from "./agents";
 import type { SecretKind } from "./secrets";
 
 /** Which of OpenAI's two APIs a profile's requests go to. */
-export type ModelApi = "chat" | "responses";
+export type ModelApi = "chat" | "responses" | "decisions";
 
 /** Where a profile's requests may run, for a provider that takes a region (Stav). */
 export type ModelRegion = "eu" | "eea" | "global";
@@ -88,6 +88,7 @@ export interface ModelProfile {
   base_url?: string | null;
   /** Which API the requests go to. Null on every provider that serves one. */
   api?: ModelApi | null;
+  decision_capable?: boolean;
   /** Where the requests may run. Null on every provider that takes no region. */
   region?: ModelRegion | null;
   params: Record<string, unknown>;

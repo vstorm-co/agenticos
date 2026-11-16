@@ -16,11 +16,12 @@ or edit it (to publish).
 """
 
 import logging
+import re
 from collections.abc import Mapping
 from datetime import datetime
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_ai.messages import BinaryContent, ToolReturn
@@ -375,9 +376,11 @@ def build_artifacts_toolset(
         `lib/agenticos-2.css`, `lib/agenticos-2.js`, `lib/agenticos-1.css` and `lib/agenticos-map-1.js` stay served for pages published
         against them; build new pages on version 3. Follow the page
         contract in your instructions: doctype and viewport, `main.ao-page`, the header,
-        only the kit's classes, tables with `<thead>`. Keep to the product's look: graphite,
-        no accent colour, green and red only for better and worse, icons rather than
-        emoji unless the person asked for emoji. Before building a page, load the
+        readable semantic sections and tables with `<thead>`. Use the kit for working
+        defaults, then choose a deliberate visual direction for the audience and supplied
+        brand. Custom CSS, palettes, typography and original illustrations are supported;
+        verify contrast, responsive layouts and every control. The console's neutral
+        appearance is not a mandatory theme for generated Apps. Before building a page, load the
         `artifact-pages` skill if it is listed - it has the templates and every
         component. Links to other sites work: the person is asked before one opens.
         For tabular numbers you only want shown in the chat, use `create_chart` instead.
@@ -765,6 +768,93 @@ def build_artifacts_toolset(
             )
         return " ".join(lines)
 
+    async def export_artifact(
+        ctx: RunContext[AgentDeps],
+        name: str,
+        filename: str | None = None,
+        paper: Literal["a4", "slides"] = "a4",
+    ) -> str:
+        """Export a published App or browser presentation to a PDF file in the workspace.
+
+        Use when the person requests a PDF report, handout or slide deck. Export
+        the final published version; HTML print styles must include every slide
+        and keep charts/labels legible. This is a fixed document, not editable
+        PowerPoint. It uses the operator's isolated renderer, no arbitrary network,
+        and the same viewer/audience access as preview_artifact. A room cannot
+        export private bound records. Use a private chat when needed.
+
+        Args:
+            name: The published App name, as returned by list_artifacts.
+            filename: A plain filename ending in .pdf; defaults to name.pdf. A unique suffix is added so existing work is never replaced.
+            paper: a4 for reports, slides for 16:9 presentations. CSS @page can
+                specify a page size. Exports contain 1 to 50 pages and at most 20 MB.
+
+
+        Returns:
+            The actual workspace filename, published version and byte size when
+            written, or a precise refusal/failure. Link the file in your reply.
+            In a channel, use send_channel_file when available and requested;
+            verify delivery instead of claiming an HTML link embeds a presentation.
+        """
+        from app.services import artifact as artifacts
+        from app.services import artifact_render as renderer
+
+        deps = ctx.deps
+        if deps.organization_id is None or deps.agent_id is None:
+            return _NO_AGENT
+        audience = deps.audience or RunAudience()
+        if audience.user_id is None:
+            return _NO_PREVIEWER
+        if not ctx.workspace.attached:
+            return "PDF export needs an attached workspace to save the file. Enable Sandbox for this agent, then retry."
+        target = filename or f"{name}.pdf"
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\.pdf", target, re.IGNORECASE) is None:
+            return "Use a plain filename ending in .pdf, with letters, numbers, hyphens or underscores; no directories."
+        target = f"{target[:-4]}-{uuid4().hex}.pdf"
+        try:
+            preview = await artifacts.preview_source(
+                organization_id=deps.organization_id,
+                agent_id=deps.agent_id,
+                reader_user_id=audience.user_id,
+                run_id=deps.run_id,
+                name=name,
+                room=not audience.private,
+                has_person=deps.run_person is not None,
+            )
+            if preview.binding_names and (
+                preview.bindings is None
+                or set(preview.bindings) != set(preview.binding_names)
+                or any(binding.status != "ok" for binding in preview.bindings.values())
+            ):
+                return "PDF not exported: the page's bound data is unavailable on this surface. Open it in an authorized private chat and retry."
+            drawn = await renderer.render(
+                renderer.RenderRequest(
+                    document=preview.document,
+                    nonce=preview.nonce,
+                    bindings=preview.bindings,
+                    injected_lines=preview.injected_lines,
+                    output="pdf",
+                    paper=paper,
+                )
+            )
+            if drawn.timed_out or drawn.pdf is None:
+                return "PDF not exported: the renderer did not complete. Retry or simplify the document."
+            if drawn.errors or drawn.blocked or drawn.policy:
+                return "PDF not exported: fix the errors or blocked resources shown by preview_artifact, then retry."
+            await ctx.workspace.write_bytes(target, drawn.pdf)
+        except NotFoundError as missing:
+            return missing.message
+        except (ConfigurationError, ExternalServiceError) as failure:
+            return f"PDF not exported: {failure.message}"
+        except PermissionError, WorkspaceError, IsADirectoryError, NotADirectoryError:
+            return "PDF not saved: the workspace refused the file operation. Check the workspace and filename, then retry."
+        note = (
+            " Bound records are truncated; the PDF covers the same bounded data as the App."
+            if any(binding.truncated for binding in (preview.bindings or {}).values())
+            else ""
+        )
+        return f"Exported {preview.title!r}, published version {preview.version_number}, to {target!r} ({len(drawn.pdf):,} bytes, PDF).{note}"
+
     async def preview_artifact(ctx: RunContext[AgentDeps], name: str) -> str | ToolReturn:
         """See a page you published as somebody opening it would: a picture, and what went wrong.
 
@@ -850,6 +940,7 @@ def build_artifacts_toolset(
     toolset.add_function(read_artifact, takes_ctx=True)
     toolset.add_function(list_artifacts, takes_ctx=True)
     toolset.add_function(preview_artifact, takes_ctx=True)
+    toolset.add_function(export_artifact, takes_ctx=True)
     toolset.add_function(share_artifact, takes_ctx=True)
     return toolset
 

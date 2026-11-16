@@ -28,6 +28,7 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
 interface ChannelBotsTableProps {
   bots: readonly ChannelBot[];
   busy: boolean;
+  loading?: boolean;
   onEdit: (bot: ChannelBot) => void;
   onToggleActive: (bot: ChannelBot) => void;
   onDelete: (bot: ChannelBot) => void;
@@ -89,6 +90,7 @@ function paused(bot: ChannelBot): string | false {
 export function ChannelBotsTable({
   bots,
   busy,
+  loading = false,
   onEdit,
   onToggleActive,
   onDelete,
@@ -174,9 +176,9 @@ export function ChannelBotsTable({
         key: "actions",
         header: t("columnActions"),
         align: "right",
-        className: "w-40 pr-5",
+        className: "w-40 pr-5 @max-md/table:text-left",
         cell: (bot) => (
-          <div className={cn("flex justify-end gap-1", paused(bot))}>
+          <div className={cn("flex justify-end gap-1 @max-md/table:justify-start", paused(bot))}>
             <Button
               variant="ghost"
               size="icon"
@@ -229,6 +231,9 @@ export function ChannelBotsTable({
     <DataTable
       columns={columns}
       rows={rows}
+      loading={loading}
+      skeletonRows={3}
+      stackOnNarrow
       getRowKey={(bot) => bot.id}
       className="rounded-none border-0 bg-transparent"
     />

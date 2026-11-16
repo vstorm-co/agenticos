@@ -31,6 +31,15 @@ def _page(body: str, *, kit: int = 3, head: str | None = None) -> bytes:
     ).encode()
 
 
+def test_custom_table_style_does_not_require_the_library_class():
+    body = "<style>table { border-collapse: collapse; width: 100% }</style><table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>Value</td></tr></tbody></table>"
+    assert lint_page(_page(body)) == []
+    without_style = body.replace(
+        "table { border-collapse: collapse; width: 100% }", "/* table { } */"
+    )
+    assert any("ao-table" in problem for problem in lint_page(_page(without_style)))
+
+
 GOOD_BODY = """<main class="ao-page">
 <header class="ao-header"><div><h1>Open tickets</h1><p class="ao-subtitle">Seven.</p></div></header>
 <div class="ao-table-wrap"><table class="ao-table">

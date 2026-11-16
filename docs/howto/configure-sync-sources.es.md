@@ -1,5 +1,5 @@
 ---
-source_sha: "68bc85353023"
+source_sha: "da255c277e13"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
@@ -615,28 +615,11 @@ fuente exige `collections:edit`. No interviene ningún rol de administrador. Los
 párrafos siguientes dicen a qué fuentes llega cada operación. Consulta
 [quién puede llegar a una colección](../file-processing.md#who-may-reach-a-collection).
 
-`GET /api/v1/rag/sync/sources` lista todas las fuentes de tu organización,
-también las sin asignar, solo con `connections:manage`, igual que
-`/org/integrations`. Sin él, la lista tiene solo las fuentes que alimentan una
-base que puedes leer, y `collection_name` debe nombrar una colección que puedas
-leer, o la respuesta es 404. Si creas o desvinculas una fuente sin asignar sin el
-permiso, guarda su id de la respuesta, porque ninguna lista te la muestra. La lista de integraciones existentes que el asistente de la
-base de conocimiento ofrece reutilizar también exige `connections:manage`.
-Consulta [Permisos](../permissions.md).
+`GET /api/v1/rag/sync/sources` lista todas las fuentes, incluidas las plantillas sin asignar, solo con `connections:manage`. En otro caso lista fuentes de bases legibles. Crear, desvincular, editar, eliminar o clonar una plantilla sin asignar requiere **Manage connections**. Las fuentes asignadas requieren edición de su base, también mediante `/org/integrations`; el permiso de organización no evita ese control. La clonación comprueba origen y destino por separado.
 
-Para actualizar, eliminar o lanzar una fuente a través de
-`/api/v1/rag/sync/sources/{id}`, también debes poder escribir en la base que esa
-fuente alimenta. Esto incluye un `PATCH` que pone `collection_name` a `null`. Una fuente
-sin asignar solo necesita tu organización. `/org/integrations` gestiona las
-fuentes a nivel de organización y exige `connections:manage` en su lugar.
+Las modificaciones validan las direcciones remotas antes de adquirir bloqueos de escritura. La escritura bloqueada comprueba la revisión validada y rechaza cambios obsoletos. Las sincronizaciones en cola vuelven a verificar su destino original antes de ingerir datos. El borrado de cuentas y organizaciones usa las mismas reglas de propiedad y bloqueos que borrar una base; la ingesta CLI también registra procedencia y respeta estos bloqueos.
 
-El historial de sincronización y el registro de ejecuciones de una fuente
-muestran las ejecuciones de las fuentes de tu organización, también a través de
-una base de ámbito de aplicación que lee toda organización. Un administrador de
-la plataforma ve también las fuentes de otras organizaciones en las bases que
-lee. Una ejecución sin fuente, como una sincronización local o una ejecución cuya
-fuente se eliminó, se lista por el nombre de su colección a todo el que lea esa
-colección.
+El historial conserva la organización iniciadora y la base destino tras eliminar la fuente. Una ejecución sin fuente solo es visible con propiedad demostrada y acceso a esa base. Los registros antiguos sin fuente ni propietario demostrado se ocultan; compartir un nombre de colección no los atribuye a una organización.
 
 ### CRUD de fuentes de sincronización { #sync-sources-crud }
 

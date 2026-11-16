@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
@@ -152,6 +152,7 @@ async def test_a_manifest_written_after_an_erasure_mid_call_keeps_only_the_spec(
     )
     db.add(run)
     await db.flush()
+    await db.refresh(run)
     if erased == "forgotten":
         ctx = await member_context(db, organization_id=org.id, user_id=person.id)
         assert ctx is not None
@@ -164,9 +165,10 @@ async def test_a_manifest_written_after_an_erasure_mid_call_keeps_only_the_spec(
     )
 
     thinker = ProactiveThinker(db)
-    await thinker._record(
-        run, recorder, None, erased=await thinker._erased_during(run, since=run.started_at)
+    erased_during = await thinker._erased_during(
+        run, since=run.started_at, snapshot=run.memory_snapshot
     )
+    await thinker._record(run, recorder, None, erased=erased_during)
 
     manifest = await db.scalar(select(RunManifest).where(RunManifest.run_id == run.id))
     assert manifest is not None
@@ -191,6 +193,7 @@ async def test_an_erasure_before_the_run_but_after_its_material_still_trims_it(
     ctx = await member_context(db, organization_id=org.id, user_id=person.id)
     assert ctx is not None
     await MemoryService(db).forget_person(ctx, person.id)
+    await db.commit()
     run = AgentRun(
         organization_id=org.id,
         agent_id=agent.id,
@@ -201,8 +204,47 @@ async def test_an_erasure_before_the_run_but_after_its_material_still_trims_it(
     )
     db.add(run)
     await db.flush()
+    await db.refresh(run)
     thinker = ProactiveThinker(db)
 
-    # Dated after the erasure, the run alone would not see it; its material predates it.
-    assert not await thinker._erased_during(run, since=run.started_at)
-    assert await thinker._erased_during(run, since=read_from)
+    # Begun after the erasure committed, the run alone would not see it; its material
+    # predates it.
+    assert not await thinker._erased_during(run, since=run.started_at, snapshot=run.memory_snapshot)
+    assert await thinker._erased_during(run, since=read_from, snapshot=run.memory_snapshot)
+
+
+async def test_a_look_admitted_while_an_erasure_commits_is_still_trimmed(
+    db: AsyncSession, engine: AsyncEngine
+) -> None:
+    from app.services.proactive._thinker import ProactiveThinker
+
+    person, colleague = await _user(db), await _user(db)
+    org, agent = await _org(db, colleague, person)
+    await db.commit()
+    org_id, agent_id, person_id = org.id, agent.id, person.id
+
+    async with AsyncSession(engine) as erasing:
+        ctx = await member_context(erasing, organization_id=org_id, user_id=person_id)
+        assert ctx is not None
+        await MemoryService(erasing).forget_person(ctx, person_id)
+        async with AsyncSession(engine) as admitting:
+            run = AgentRun(
+                organization_id=org_id,
+                agent_id=agent_id,
+                user_id=person_id,
+                surface="proactive",
+                system_role=MEMORY_MAINTENANCE,
+                started_at=datetime.now(UTC),
+            )
+            admitting.add(run)
+            await admitting.flush()
+            run_id = run.id
+            await admitting.commit()
+        await erasing.commit()
+
+    look = await db.get(AgentRun, run_id)
+    assert look is not None and look.memory_snapshot is not None
+    thinker = ProactiveThinker(db)
+    assert await thinker._erased_during(look, since=look.started_at, snapshot=look.memory_snapshot)
+    # By time alone the erasure is dated before the run and would be read past.
+    assert not await thinker._erased_during(look, since=look.started_at, snapshot=None)

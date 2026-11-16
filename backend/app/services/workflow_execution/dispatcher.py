@@ -283,9 +283,8 @@ async def claim(
     """
     token = uuid4()
     seconds = settings.WORKFLOW_DISPATCH_LEASE_SECONDS if lease_seconds is None else lease_seconds
-    lease_expires_at = datetime.now(UTC) + timedelta(seconds=seconds)
     return await workflow_run_repo.claim_outbox(
-        db, node_run_id=node_run_id, token=token, lease_expires_at=lease_expires_at
+        db, node_run_id=node_run_id, token=token, lease_seconds=seconds
     )
 
 

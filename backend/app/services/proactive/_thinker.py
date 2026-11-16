@@ -192,6 +192,7 @@ class ProactiveThinker:
         source_agent_id: UUID | None = None,
         started_at: datetime | None = None,
         erased_since: datetime | None = None,
+        erased_snapshot: str | None = None,
     ) -> OutputT | None:
         """Ask the configured model using platform instructions and role attribution.
 
@@ -201,6 +202,8 @@ class ProactiveThinker:
         `erased_since` is when that material was written, for the check that keeps
         an erased person's words out of the manifest: an erasure committed after it
         trims the manifest even when it was recorded before `started_at`.
+        `erased_snapshot` is the transactions committed when that material was read,
+        so an erasure still committing then trims it too.
 
         Maintenance records its originating agent and needs no starter agent.
         Returns `None` - having spent nothing - without its attribution agent or past a
@@ -300,7 +303,14 @@ class ProactiveThinker:
             # terminal write here, and drain it even if shutdown cancels again.
             settlement = asyncio.create_task(
                 self._finish(
-                    run, ledger, status, error, recorder, transcript, erased_since=erased_since
+                    run,
+                    ledger,
+                    status,
+                    error,
+                    recorder,
+                    transcript,
+                    erased_since=erased_since,
+                    erased_snapshot=erased_snapshot,
                 )
             )
             cancelled = False
@@ -434,10 +444,15 @@ class ProactiveThinker:
         transcript: list[ModelMessage] | None,
         *,
         erased_since: datetime | None = None,
+        erased_snapshot: str | None = None,
     ) -> None:
         # Before the run row is locked: account deletion holds the erasure lock while
         # its SET NULL waits for that row, so the other order deadlocks.
-        erased = await self._erased_during(run, since=erased_since or run.started_at)
+        erased = await self._erased_during(
+            run,
+            since=erased_since or run.started_at,
+            snapshot=erased_snapshot or run.memory_snapshot,
+        )
         await agent_run_repo.finish_run(
             self.db,
             run=run,
@@ -452,7 +467,9 @@ class ProactiveThinker:
         await self._record(run, recorder, transcript, erased=erased)
         await self.db.commit()
 
-    async def _erased_during(self, run: AgentRun, *, since: datetime | None) -> bool:
+    async def _erased_during(
+        self, run: AgentRun, *, since: datetime | None, snapshot: str | None
+    ) -> bool:
         """Whether the person this run read about was erased after `since`.
 
         The run is committed before the provider call, so an erasure can finish in
@@ -471,6 +488,7 @@ class ProactiveThinker:
             user_id=run.user_id,
             agent_id=run.agent_id,
             since=since,
+            snapshot=snapshot,
         )
 
     async def _record(

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -158,8 +158,10 @@ describe("what the model was told", () => {
 
     renderManifest();
 
-    expect(screen.getByText("1 tool")).toBeVisible();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Tools/ }), { button: 0, ctrlKey: false });
+    expect(screen.getByText("1 of 1 tools")).toBeVisible();
     expect(screen.getByText("Look up how many of one item are in the warehouse.")).toBeVisible();
+    fireEvent.click(screen.getByText("check_stock"));
     expect(screen.getByText(/"sku"/)).toBeInTheDocument();
   });
 
@@ -168,6 +170,7 @@ describe("what the model was told", () => {
 
     renderManifest();
 
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Tools/ }), { button: 0, ctrlKey: false });
     expect(screen.getByText("The model was given no tools.")).toBeVisible();
   });
 

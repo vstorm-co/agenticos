@@ -14,7 +14,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  ListCard,
   Skeleton,
   Spinner,
 } from "@/components/ui";
@@ -205,35 +204,29 @@ export function VersionHistory({
   const [selected, setSelected] = useState<WorkflowVersionRead | null>(null);
 
   return (
-    <ListCard
-      namedByPage
-      empty={!isLoading && versions.length === 0}
-      className="border-0 bg-transparent shadow-none"
-      title={t("versionsTitle")}
-      counted={
-        isLoading
-          ? null
-          : t(hasMore ? "versionsLoadedCount" : "versionsCount", { count: versions.length })
-      }
-      contentClassName="p-0"
-    >
+    <section aria-label={t("versionsTitle")}>
+      {!isLoading && (
+        <p className="sr-only">
+          {t(hasMore ? "versionsLoadedCount" : "versionsCount", { count: versions.length })}
+        </p>
+      )}
       {isLoading ? (
-        <div className="space-y-3 p-5">
+        <div className="space-y-3 py-3">
           <Skeleton className="h-6 w-full" />
           <Skeleton className="h-6 w-full" />
         </div>
       ) : error && versions.length === 0 ? (
         <ErrorState
-          className="m-5"
+          className="my-3"
           cta={{ label: tCommon("retry"), onClick: () => void retry() }}
         />
       ) : versions.length === 0 ? (
-        <div className="space-y-2 px-5 py-6">
+        <div className="space-y-2 py-3">
           <p className="text-sm font-medium">{t("versionsEmpty")}</p>
           <p className="text-muted-foreground text-sm">{t("versionsEmptyDetail")}</p>
         </div>
       ) : (
-        <ul className="divide-border divide-y px-5">
+        <ul className="divide-border divide-y">
           {versions.map((version) => (
             <VersionRow
               key={version.id}
@@ -247,7 +240,7 @@ export function VersionHistory({
 
       {error && versions.length > 0 ? (
         <ErrorState
-          className="m-5"
+          className="my-3"
           cta={{ label: tCommon("retry"), onClick: () => void retry() }}
         />
       ) : (
@@ -278,6 +271,6 @@ export function VersionHistory({
           )}
         </DialogContent>
       </Dialog>
-    </ListCard>
+    </section>
   );
 }
