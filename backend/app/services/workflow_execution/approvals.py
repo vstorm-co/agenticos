@@ -45,7 +45,10 @@ from app.schemas.workflow_approval import (
 )
 from app.services import text_similarity
 from app.services.workflow_execution import dispatch_queue
-from app.services.workflow_execution.approval_audience import group_approvers
+from app.services.workflow_execution.approval_audience import (
+    group_approvers,
+    groups_deciding_through,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +121,10 @@ class WorkflowApprovalService:
         Oldest first, as the queue drains; newest first reads the record of
         decisions. `created_from` and `created_to` narrow it to a window.
         `decidable` keeps only the requests the caller may decide, and `total`
-        then counts those across every page.
+        then counts those across every page. It reads every request in
+        `statuses` on purpose: the audience is decided per row, so no page can be
+        cut before it. The caller's groups are read once rather than per row,
+        because the console polls this for every decider.
         """
         if decidable:
             every, _ = await approval_repo.list_with_workflow(
@@ -131,7 +137,17 @@ class WorkflowApprovalService:
                 created_to=created_to,
                 oldest_first=oldest_first,
             )
-            mine = [(row, name) for row, name in every if await self._eligible(ctx, row)]
+            my_groups = await groups_deciding_through(
+                self.db, organization_id=ctx.organization_id, user_id=ctx.subject_id
+            )
+            me = str(ctx.subject_id)
+            mine = [
+                (row, name)
+                for row, name in every
+                if not (row.approver_user_ids or row.approver_group_ids)
+                or me in {str(user_id) for user_id in row.approver_user_ids}
+                or not my_groups.isdisjoint(row.approver_group_ids or [])
+            ]
             return WorkflowApprovalList(
                 items=[
                     _read(row, name, can_decide=True) for row, name in mine[skip : skip + limit]

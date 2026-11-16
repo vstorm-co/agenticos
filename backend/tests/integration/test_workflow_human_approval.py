@@ -911,6 +911,53 @@ class TestTheCallersOwnQueue:
         assert {item.workflow_run_id for item in mine} == {seeded.run.id, second.run.id}
         assert all(item.can_decide for item in mine)
 
+    async def test_it_agrees_with_who_may_decide_each_request(self, engine: AsyncEngine):
+        """Read once for the caller, the groups pick the same requests the per-row
+        check does: the caller's group alone, a person or the caller's group, and
+        neither a group nor a person of the caller's."""
+        seeded = await seed_run(engine, Graph().graph)
+        other = await _another_member(seeded)
+        mine, theirs = uuid.uuid4(), uuid.uuid4()
+        async with seeded.factory() as db:
+            db.add_all(
+                [
+                    Group(id=mine, organization_id=seeded.org.id, name="Finance"),
+                    Group(id=theirs, organization_id=seeded.org.id, name="Legal"),
+                ]
+            )
+            await db.flush()
+            db.add_all(
+                [
+                    GroupMember(
+                        id=uuid.uuid4(), group_id=mine, user_id=seeded.ctx.user_id, source="manual"
+                    ),
+                    GroupMember(
+                        id=uuid.uuid4(), group_id=theirs, user_id=other.user_id, source="manual"
+                    ),
+                ]
+            )
+            await db.commit()
+        member = (seeded.principal, seeded.org)
+        shapes = [
+            Graph(approver_groups=[str(mine)]),
+            Graph(approvers=[str(other.user_id)], approver_groups=[str(mine)]),
+            Graph(approver_groups=[str(theirs)]),
+            Graph(approvers=[str(other.user_id)]),
+        ]
+        runs = [seeded, *[await seed_run(engine, shape.graph, member=member) for shape in shapes]]
+        for run in runs:
+            await drive(run)
+
+        async with seeded.factory() as db:
+            service = WorkflowApprovalService(db)
+            everyone = await service.queue(seeded.ctx, statuses=[])
+            decidable = await service.queue(seeded.ctx, statuses=[], decidable=True)
+        expected = {item.id for item in everyone.items if item.can_decide}
+        assert {item.id for item in decidable.items} == expected
+        assert {item.workflow_run_id for item in decidable.items} == {
+            run.run.id for run in runs[:3]
+        }
+
 
 _CHOICES = [{"id": "draft", "label": "Keep a draft"}, {"id": "send_now", "label": "Send now"}]
 
