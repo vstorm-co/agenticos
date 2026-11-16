@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,6 +11,7 @@ import { YourSuggestions } from "./your-suggestions";
 
 const state = vi.hoisted(() => ({
   optedOut: false,
+  signedIn: true,
   orgOn: true as boolean | undefined,
   saveOptOut: vi.fn(),
 }));
@@ -24,13 +25,14 @@ vi.mock("@/hooks", () => ({
 }));
 vi.mock("@/hooks/use-account-profile", () => ({ useSaveProactiveOptOut: () => state.saveOptOut }));
 vi.mock("@/stores", () => ({
-  useAuthStore: (pick: (store: { user: { proactive_opt_out: boolean } }) => unknown) =>
-    pick({ user: { proactive_opt_out: state.optedOut } }),
+  useAuthStore: (pick: (store: { user: { proactive_opt_out: boolean } | null }) => unknown) =>
+    pick({ user: state.signedIn ? { proactive_opt_out: state.optedOut } : null }),
 }));
 vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
 
 beforeEach(() => {
   state.optedOut = false;
+  state.signedIn = true;
   state.orgOn = true;
   state.saveOptOut.mockReset().mockResolvedValue(undefined);
   toastSuccess.mockReset();
@@ -38,6 +40,30 @@ beforeEach(() => {
 });
 
 describe("YourSuggestions", () => {
+  it("blocks another preference change while its write is pending", async () => {
+    let finish: (() => void) | undefined;
+    state.saveOptOut.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    render(<YourSuggestions />);
+    const toggle = screen.getByRole("switch");
+    await userEvent.click(toggle);
+    expect(toggle).toBeDisabled();
+    await userEvent.click(toggle);
+    expect(state.saveOptOut).toHaveBeenCalledTimes(1);
+    await act(async () => finish?.());
+    expect(toggle).toBeEnabled();
+  });
+
+  it("handles an account still loading without claiming an opt-out", () => {
+    state.signedIn = false;
+    render(<YourSuggestions />);
+    expect(screen.getByRole("switch")).toBeChecked();
+  });
+
   it("lets a person leave themselves out, and back in", async () => {
     render(<YourSuggestions />);
     const mine = screen.getByRole("switch", { name: "Nightly suggestions for me" });

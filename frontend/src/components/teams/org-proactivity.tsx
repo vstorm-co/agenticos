@@ -190,10 +190,6 @@ function NightlyForm({ org }: { org: Organization }) {
       setErrors({ [LIMIT_FIELD]: t("invalid") });
       return;
     }
-    if (form.enabled && form.modelId === null) {
-      setErrors({ [MODEL_FIELD]: t("modelRequired") });
-      return;
-    }
     setSaving(true);
     try {
       await setProactivity(org.id, {

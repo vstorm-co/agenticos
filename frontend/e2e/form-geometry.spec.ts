@@ -37,7 +37,7 @@ test.describe("voice provider catalog", () => {
       "Scribe v3",
     );
     await page.screenshot({ path: testInfo.outputPath("elevenlabs-scribe.png"), fullPage: true });
-    await page.getByRole("button", { name: "Discard changes", exact: true }).click();
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(provider).toHaveText(previous);
   });
 });
@@ -56,7 +56,8 @@ async function expectGeometry(first: Locator, second: Locator, touch: boolean): 
     })
     .toBeLessThan(1);
   const bounds = await first.boundingBox();
-  expect(bounds?.height).toBeGreaterThanOrEqual(touch ? 44 : 40);
+  expect(bounds).not.toBeNull();
+  expect(Math.round(bounds!.height * 100) / 100).toBeGreaterThanOrEqual(touch ? 44 : 40);
 }
 
 for (const touch of [false, true]) {

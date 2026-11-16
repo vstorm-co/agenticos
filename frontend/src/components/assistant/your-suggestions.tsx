@@ -19,7 +19,6 @@ export function YourSuggestions() {
   const { activeOrg } = useOrganizations();
   const [saving, setSaving] = useState(false);
   const save = async (enabled: boolean) => {
-    if (saving) return;
     setSaving(true);
     try {
       await saveOptOut(!enabled);

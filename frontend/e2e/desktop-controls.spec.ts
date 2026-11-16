@@ -316,7 +316,7 @@ test.describe("desktop pointer controls", () => {
       await page.goto(`/chat?id=${encodeURIComponent(id)}`);
       const composer = page.getByRole("textbox", { name: "Type a message...", exact: true });
       await expect(composer).toBeVisible();
-      const before = await composer.boundingBox();
+      await settleEntrances(page);
       await page.getByRole("button", { name: /^Show the files/ }).click();
       const panel = page
         .getByRole("complementary")
@@ -325,6 +325,7 @@ test.describe("desktop pointer controls", () => {
       await expect(panel.getByRole("treeitem")).toHaveCount(120);
       await settleEntrances(page);
       const initialClose = await close.boundingBox();
+      const before = await composer.boundingBox();
       const scrollport = panel.locator(".overflow-y-auto");
       const geometry = await panel.evaluate((element) => ({
         bottom: element.getBoundingClientRect().bottom,

@@ -1221,6 +1221,7 @@ async def test_telephone_uses_the_admitted_pin_relay_and_narrower_call_cap(world
     registry.assert_awaited_once()
 
 
+@pytest.mark.security
 @pytest.mark.parametrize("headroom", [Decimal("50"), None])
 async def test_elevenlabs_unreported_token_cost_never_bypasses_a_budget(
     world, monkeypatch, headroom

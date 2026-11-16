@@ -455,6 +455,23 @@ describe("OrgProactivity", () => {
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Nightly suggestions saved"));
   });
 
+  it("normalizes legacy enabled suggestions without a model before saving", async () => {
+    render(<OrgProactivity org={org({ ...ON, proactive_model_profile_id: null })} />);
+    expect(screen.getByRole("switch", { name: "Nightly suggestions" })).not.toBeChecked();
+    expect(screen.getByRole("switch", { name: "Nightly suggestions" })).toBeDisabled();
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Allow read-only monitoring routines" }),
+    );
+    await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
+    expect(state.setProactivity).toHaveBeenCalledWith(
+      "o1",
+      expect.objectContaining({
+        proactive_enabled: false,
+        proactive_model_profile_id: null,
+      }),
+    );
+  });
+
   it("enables monitoring without a conversation-suggestions model", async () => {
     render(<OrgProactivity org={org()} />);
     await userEvent.click(
