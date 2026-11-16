@@ -28,6 +28,7 @@ from app.db.models.artifact import (
 )
 from app.db.models.conversation import Conversation
 from app.db.models.resource_grant import Visibility
+from app.db.models.workflow_run import WorkflowRun
 from app.repositories._search import contains_ci
 
 
@@ -380,6 +381,27 @@ async def update(db: AsyncSession, *, artifact: Artifact, update_data: dict[str,
 
 
 async def delete_artifact(db: AsyncSession, artifact: Artifact) -> None:
+    """Lock source runs in the sweeper's order before the FK cascade.
+
+    PostgreSQL's SET NULL scan need not follow run IDs. A sweep holding the
+    first run can otherwise wait on a later run already held by the cascade.
+    Locking the page first also closes admission through its foreign key, so
+    the ordered set cannot gain new source runs before the DELETE.
+    """
+    await db.execute(
+        select(Artifact.id)
+        .where(Artifact.id == artifact.id, Artifact.organization_id == artifact.organization_id)
+        .with_for_update()
+    )
+    await db.execute(
+        select(WorkflowRun.id)
+        .where(
+            WorkflowRun.source_artifact_id == artifact.id,
+            WorkflowRun.organization_id == artifact.organization_id,
+        )
+        .order_by(WorkflowRun.id)
+        .with_for_update()
+    )
     await db.delete(artifact)
     await db.flush()
 
