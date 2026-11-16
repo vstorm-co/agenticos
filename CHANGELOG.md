@@ -23,16 +23,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Pin each sync source to its knowledge base instead of resolving its collection name again. Sources, logs and ingested documents stay with the selected base, including same-named personal, organization and deployment bases. Deleting or clearing a base detaches and deactivates exactly its sources; another base does not inherit them. Deleting a base archives its historical source links so its logs cannot fall back to a reassigned source (#2551).
 
+
+- **Deleting an account.** Deleting a person whose runs belong to their own conversations no longer fails on `agent_runs_conversation_id_fkey`, whichever order the database runs the delete cascades in.
+- **Memory writes after "forget me".** A run that began before a person's memory or an agent's memory was erased, one waiting for an approval included, saves nothing more to that memory and tells the model why. Memory extraction holds off clearing an agent's memory while it writes.
+- **Memory-maintenance and daily-briefing manifests.** Erasing a person's memory, or deleting their account, trims the conversation text, facts, notes and requests these runs kept to what the spec decided, including a run that finishes after the erasure.
+- **Task board receipts.** Removing a group, a project or an account purges its task board's table together with every idempotency receipt that holds its records, expired receipts included.
+- **Decision episodes sent to Improve.** **Add as an Improve case** adds the reviewed episode to a dataset you choose, as a case that records who asked it and links its run and conversation, so erasing that person anonymises it like any other case.
+
 ### Added
 
 - Select an organization knowledge base explicitly with `rag-source-add --knowledge-base <id>` when several bases share a collection name. Sync source responses include `knowledge_base_id`.
 
 ### Upgrading
 
+- After a PostgreSQL restart or restore, start a new run before writing memory. Memory erasure fences use transaction visibility on unprivileged database accounts too; runs without a recorded snapshot cannot write after a relevant erasure.
+
 - **Breaking:** Apply `0334_sync_source_knowledge_base.py` before starting the API and worker. The migration preserves the current resolver's target, including its ID tie-break for equal creation times. Sources with no eligible base are deactivated and listed in migration logs; configuration is retained, and no separate console notification is created. Reassign these sources to a knowledge base and reactivate them before syncing again.
 - Review migration log entries for sources kept on a member's personal base beside an organization base of the same name. They keep their previous target; move them explicitly if they belong to the organization base.
 - Add `--knowledge-base <id>` to `rag-source-add` scripts when the organization has several bases with that collection name. A source with no assigned base cannot sync.
 - Downgrade deactivates and logs sources whose pinned target would change under the older name resolver. It retains existing pauses; reassign and reactivate affected sources before syncing again.
+
+
+`POST /api/v1/memory/claims/mine/{claim_id}/improve-case` now adds the reviewed decision episode to a dataset instead of returning a JSONL record to download. Send the target `dataset_id` with `confirmed`, `input` and `reference_answer`; the caller needs `datasets:edit` on that dataset, and the response is `201` with the created dataset case. A script that saved the old response to a file and imported it should call the endpoint with the dataset instead. The migrations make one foreign key on `agent_runs` deferrable and add a nullable `agent_runs.memory_snapshot` column without rewriting the table; every row is kept.
 
 ## [1.79.0] - 2026-11-16
 
