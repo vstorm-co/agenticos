@@ -32,6 +32,7 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
@@ -2068,4 +2069,86 @@ def test_opensandbox_upgrade_and_guarded_downgrade_preserve_connection_settings(
         drift = _alembic("check")
         assert drift.returncode == 0, drift.stderr
     finally:
+        engine.dispose()
+
+
+def test_routine_overlap_history_round_trip_preserves_runs_and_other_attempts() -> None:
+    from app.db.models.agent import Agent
+    from app.db.models.agent_run import AgentRun
+    from app.db.models.agent_trigger import AgentTrigger, TriggerAttempt
+    from app.db.models.organization import Organization
+
+    upgraded = _alembic("upgrade", "head")
+    assert upgraded.returncode == 0, upgraded.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    owner_id, org_id = uuid4(), uuid4()
+    try:
+        with DatabaseSession(engine) as db:
+            owner = User(id=owner_id, email=f"{owner_id}@example.com", hashed_password="x")
+            db.add(owner)
+            db.flush()
+            org = Organization(
+                id=org_id, name="Overlap", slug=f"overlap-{org_id}", created_by_user_id=owner_id
+            )
+            db.add(org)
+            db.flush()
+            agent = Agent(organization_id=org_id, name="Worker", slug=f"worker-{uuid4()}")
+            db.add(agent)
+            db.flush()
+            trigger = AgentTrigger(
+                organization_id=org_id,
+                agent_id=agent.id,
+                created_by_user_id=owner_id,
+                prompt="Report",
+                interval_seconds=300,
+                next_fire_at=datetime.now(UTC),
+            )
+            db.add(trigger)
+            db.flush()
+            run = AgentRun(
+                organization_id=org_id,
+                agent_id=agent.id,
+                user_id=owner_id,
+                trigger_id=trigger.id,
+                surface="schedule",
+                status="awaiting_approval",
+                cost_usd=Decimal("0.42"),
+            )
+            db.add(run)
+            db.add_all(
+                [
+                    TriggerAttempt(
+                        organization_id=org_id,
+                        trigger_id=trigger.id,
+                        activation_id=uuid4(),
+                        status="blocked",
+                        stage="preparation",
+                        reason=reason,
+                    )
+                    for reason in ("previous_run_active", "agent_unavailable")
+                ]
+            )
+            db.commit()
+            trigger_id, run_id = trigger.id, run.id
+        downgraded = _alembic("downgrade", "0330_linear_trigger")
+        assert downgraded.returncode == 0, downgraded.stderr
+        with engine.connect() as connection:
+            assert connection.execute(
+                text("SELECT reason FROM trigger_attempts WHERE trigger_id=:id"), {"id": trigger_id}
+            ).scalars().all() == ["agent_unavailable"]
+            status, cost = connection.execute(
+                text("SELECT status, cost_usd FROM agent_runs WHERE id=:id"), {"id": run_id}
+            ).one()
+            assert status == "awaiting_approval" and cost == Decimal("0.42")
+        restored = _alembic("upgrade", "head")
+        assert restored.returncode == 0, restored.stderr
+        drift = _alembic("check")
+        assert drift.returncode == 0, drift.stderr
+    finally:
+        with engine.begin() as connection:
+            connection.execute(
+                text("DELETE FROM agent_runs WHERE organization_id=:id"), {"id": org_id}
+            )
+            connection.execute(text("DELETE FROM organizations WHERE id=:id"), {"id": org_id})
+            connection.execute(text("DELETE FROM users WHERE id=:id"), {"id": owner_id})
         engine.dispose()
