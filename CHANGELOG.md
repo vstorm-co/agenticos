@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.76.2] - 2026-11-16
+
 ### Fixed
 
 - Restore dependency freshness checks with ty 0.0.104 by updating renamed diagnostic rules and the minimum checker version, and allow the full backend CI runtime for the upgrade canary.
@@ -21767,7 +21769,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.76.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.76.2...HEAD
+[1.76.2]: https://github.com/vstorm-co/agenticos/compare/v1.76.1...v1.76.2
 [1.76.1]: https://github.com/vstorm-co/agenticos/compare/v1.76.0...v1.76.1
 [1.76.0]: https://github.com/vstorm-co/agenticos/compare/v1.75.0...v1.76.0
 [1.75.0]: https://github.com/vstorm-co/agenticos/compare/v1.74.0...v1.75.0
