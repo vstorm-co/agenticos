@@ -545,6 +545,8 @@ two long names stay two tools. The server is still called by its real name.
 
 !!! warning "An unreachable server is skipped with a warning, not raised"
 
+    Initialization is retried once before any tool executes. This guard covers freshly probed servers, cached connections and the built-in platform MCP. A discovery failure leaves the remaining tools available. A transport failure during a tool request is reported to the model as a failed request with an unknown outcome; writes are never automatically replayed. Local platform initialization has a 15-second deadline for authentication and cold setup, while remote connections retain their 3-second deadline.
+
     Pydantic AI enters every toolset when a run starts, so a dead server would
     otherwise abort the whole turn: one expired token on one connection would take
     down every agent that names it, including the ones that never needed it.

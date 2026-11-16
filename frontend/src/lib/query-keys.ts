@@ -218,6 +218,8 @@ export const qk = {
     // The decisions workflow steps wait on. Under "workflows" so a decision's
     // invalidation of every run refreshes the queue with them.
     approvals: () => ["workflows", "approvals"] as const,
+    // The requests the reader may decide, under the queue's key so a decision refreshes it.
+    approvalsWaitingOnMe: () => ["workflows", "approvals", "waiting-on-me"] as const,
     // The record of what was decided over a window: its own question, so its own key.
     approvalHistory: (from: string, to: string) =>
       ["workflows", "approvals", "history", from, to] as const,
@@ -418,6 +420,8 @@ export const qk = {
     // Keyed on the page, because the queue is server-paged: one key for every
     // page would show page one's rows under page three's pager (#1336).
     approvals: (skip = 0) => ["runs", "approvals", skip] as const,
+    // The calls the console may decide, without those a live voice call is deciding.
+    approvalsWaitingOnMe: () => ["runs", "approvals", "waiting-on-me"] as const,
     // The decided record over a window - a different question from the queue,
     // so a different key: the queue must refresh on a decision, the record on
     // a window change.

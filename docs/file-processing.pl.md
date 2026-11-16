@@ -1,5 +1,5 @@
 ---
-source_sha: "1555844ea407"
+source_sha: "1f9d4ae97fcd"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -7,12 +7,6 @@ source_sha: "1555844ea407"
 Ten dokument opisuje, jak traktowane są pliki w dwóch kontekstach: uploady
 plików w czacie, które należą do osoby, która je zrobiła, oraz ingestia
 dokumentów RAG, która należy do kolekcji i jest uzależniona od tego,
-Usunięcie bazy odłącza i dezaktywuje źródła synchronizacji, których celem była ta baza.
-Zachowują konfigurację konektora, ale przed kolejną synchronizacją wymagają jawnego
-przypisania; inna baza o tej samej nazwie ich nie przejmuje. Czyszczenie domyślnej bazy
-zachowuje jej źródła, bo wiersz celu pozostaje. Ingest z CLI odrzuca nazwę zarezerwowaną
-przez oczekujące usunięcie, dopóki cleanup jej nie zwolni.
-
 [kto może do niej sięgnąć](#who-may-reach-a-collection).
 
 ## Uploady plików w czacie { #chat-file-uploads }
@@ -706,15 +700,26 @@ Rozwiązaniem zapasowym jest wyłącznie baza o zasięgu app: baza osobista poza
 jakąkolwiek organizacją też nie ma organizacji, ale należy do jednej osoby
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
-Źródło synchronizacji zapisuje organizację i nazwę kolekcji, a nie bazę wiedzy,
-więc jego synchronizacja pisze do bazy, którą wybiera to rozwiązywanie - najstarszej
-bazy organizacji o tej nazwie - i tylko ta baza je wyświetla i uruchamia. Każdy
-route API, który kieruje źródło do kolekcji, sprawdza prawo zapisu do tej bazy, a
-dodanie źródła do innej bazy o tej samej nazwie jest odrzucane z kodem 400.
+Źródło synchronizacji zapisuje bazę wiedzy, do której synchronizuje
+(`knowledge_base_id`), a nie tylko nazwę kolekcji, i tylko ta baza je wyświetla,
+uruchamia i pokazuje jego historię. Źródło dodane z zakładki **Sync** bazy zapisuje
+tę bazę, więc dwie bazy o tej samej nazwie zachowują własne źródła. Route, który
+kieruje źródło do kolekcji po nazwie, zapisuje bazę, do której ta nazwa rozwiązuje
+się dla organizacji wywołującego (rozwiązywanie opisane wyżej), i sprawdza prawo
+zapisu do tej bazy.
 
-Gdy osobista baza członka jest starsza niż baza organizacji o tej samej nazwie,
-synchronizacje organizacji o tej nazwie trafiają więc do bazy osobistej, a baza
-organizacji nie przyjmuje źródła: utwórz ją pod własną nazwą.
+`rag-source-add` zapisuje sprawdzoną bazę organizacji, a
+`--knowledge-base` wskazuje jedną, gdy nazwę ma kilka baz organizacji
+([#2551](https://github.com/vstorm-co/agenticos/issues/2551)).
+
+Źródło bez bazy wiedzy nie synchronizuje. Aktualizacja, która dodała kolumnę, dała
+każdemu istniejącemu źródłu bazę, do której wcześniej pisała jego synchronizacja, a
+źródło, którego kolekcji nie ma żadna baza jego organizacji ani wdrożenia,
+dezaktywowała i zapisała jego id w logu: wskaż mu bazę wiedzy i ustaw z powrotem
+`is_active` na true, aby znowu synchronizowało.
+Zapisała w logu także każde źródło pozostawione w osobistej bazie członka, gdy
+organizacja ma bazę organizacji o tej samej nazwie - tam to źródło synchronizowało
+wcześniej: przenieś je, jeśli należy do bazy organizacji.
 
 !!! warning "Jedna nazwa kolekcji to jedna przestrzeń embeddingów"
 
@@ -966,6 +971,14 @@ nazwą, zanim to weszło, nadal istnieje i nadal da się ją usunąć, ale nie d
 do niej nic wciągnąć — usuń ją i utwórz nową pod inną nazwą. Nic się przy tym nie
 traci: ingestia do tamtej kolekcji nigdy się nie powiodła, bo zbudowanie indeksu
 wektorowego na tabeli bez kolumny `embedding` kończy się błędem.
+
+Usunięcie bazy odłącza i dezaktywuje dokładnie te źródła synchronizacji, które ją
+zapisują, niezależnie od tego, kto jeszcze ma tę nazwę. Zachowują konfigurację
+konektora, ale przed kolejną synchronizacją wymagają jawnego przypisania i ponownej
+aktywacji; inna baza o tej samej nazwie ich nie przejmuje. Czyszczenie domyślnej bazy też
+odłącza i dezaktywuje jej źródła: jej wiersz zostaje, ale źródło pozostawione na niej
+zsynchronizowałoby usuniętą treść z powrotem. Ingest z CLI odrzuca nazwę zarezerwowaną
+przez oczekujące usunięcie, dopóki cleanup jej nie zwolni.
 
 ### Kto może sięgnąć po kolekcję { #who-may-reach-a-collection }
 
@@ -1483,15 +1496,18 @@ zostawiał kolekcję bez żadnego z dwóch dokumentów — na stałe, bo nieudan
 ingestia jest zwracana, a nie rzucana, i nic jej nie ponawia. Oba dokumenty przez
 czas trwania wstawienia to stan, który wyszukiwanie przeżyje; żaden — nie.
 
-Własną historią jednego source'a jest
-`GET /kb/{kb_id}/sync-sources/{source_id}/logs`. Source jest najpierw rozwiązywany
-względem tej bazy wiedzy, więc source należący do innej bazy odpowiada **404**, a
-nie pustą listą — inaczej oba renderują ten sam ekran, a jedno z nich jest
-requestem, który powinien był zawieść. Jego przebiegi czytane są następnie po id
-source'a, co utrzymuje `limit` i `total` w opisie tego samego zbioru wierszy:
-source przecelowany na inną bazę zachowuje swoje wcześniejsze przebiegi pod
-nazwą kolekcji, którą miał wtedy, a te wypadały kiedyś ze strony już po tym, jak
-`limit` ją przyciął.
+Historia źródła jest dostępna pod `GET /kb/{kb_id}/sync-sources/{source_id}/logs`.
+Źródło musi należeć do tej bazy; w przeciwnym razie trasa zwraca **404**.
+Każdy zapisany przebieg zachowuje swoją pierwotną bazę i organizację jako granicę
+dostępu: przepięcie źródła nie udostępnia nowej bazie wcześniejszych prywatnych
+przebiegów. Filtrowanie następuje przed limitem strony. Starsze przebiegi bez
+zapisanej bazy pozostają przypisane przez swoje źródło.
+Usunięcie zapisanej bazy archiwizuje historyczne powiązanie ze źródłem przed wyczyszczeniem identyfikatora bazy, więc historia nie staje się widoczna przez przepięte źródło.
+
+Uzgadnianie dokumentów, przypisywanie niezmienionych dokumentów i śledzenie
+wektorów używają zakresu dokumentów bazy docelowej. Przepięcie źródła czyści jego
+stan pamięci synchronizacji i ostatni status; zakończenie przebiegu przyjętego dla
+starej bazy nie może ich przywrócić.
 
 ### Czego source synchronizacji nie może rozstrzygać { #what-a-sync-source-is-not-allowed-to-decide }
 

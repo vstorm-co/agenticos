@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import func, literal_column, or_, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.sync_source import SyncSource
@@ -41,15 +42,18 @@ async def get_all(
     *,
     organization_id: UUID | None = None,
     collection_name: str | None = None,
+    knowledge_base_id: UUID | None = None,
     is_active: bool | None = None,
     for_update: bool = False,
 ) -> list[SyncSource]:
-    """List sync sources with optional org, collection, and active filters."""
+    """List sync sources with optional org, collection, base and active filters."""
     query = select(SyncSource)
     if organization_id is not None:
         query = query.where(SyncSource.organization_id == organization_id)
     if collection_name is not None:
         query = query.where(SyncSource.collection_name == collection_name)
+    if knowledge_base_id is not None:
+        query = query.where(SyncSource.knowledge_base_id == knowledge_base_id)
     if is_active is not None:
         query = query.where(SyncSource.is_active == is_active)
     query = query.order_by(SyncSource.created_at.desc())
@@ -59,17 +63,19 @@ async def get_all(
     return list(result.scalars().all())
 
 
-async def list_for_collections(db: AsyncSession, collection_names: list[str]) -> list[SyncSource]:
-    """Every organization's sync sources writing into any of these collections.
+async def list_for_knowledge_bases(
+    db: AsyncSession, knowledge_base_ids: list[UUID]
+) -> list[SyncSource]:
+    """Every organization's sync sources syncing into any of these knowledge bases.
 
-    Unfiltered by organization on purpose: the caller decides which of them
-    feed a base it may read (`CollectionAccessService`), by the base each
-    source's sync resolves to.
+    Unfiltered by organization on purpose: the caller has already decided which
+    bases it may read (`CollectionAccessService`), and a source is that base's
+    by the id it records (#2551).
     """
-    if not collection_names:
+    if not knowledge_base_ids:
         return []
     result = await db.execute(
-        select(SyncSource).where(SyncSource.collection_name.in_(collection_names))
+        select(SyncSource).where(SyncSource.knowledge_base_id.in_(knowledge_base_ids))
     )
     return list(result.scalars().all())
 
@@ -81,6 +87,7 @@ async def get_due_for_sync(db: AsyncSession) -> list[SyncSource]:
         SyncSource.is_active == True,  # noqa: E712
         SyncSource.schedule_minutes.isnot(None),
         SyncSource.collection_name.isnot(None),
+        SyncSource.knowledge_base_id.isnot(None),
     )
     result = await db.execute(query)
     sources = list(result.scalars().all())
@@ -113,6 +120,7 @@ async def any_due_for_sync(db: AsyncSession) -> bool:
             SyncSource.is_active == True,  # noqa: E712
             SyncSource.schedule_minutes.isnot(None),
             SyncSource.collection_name.isnot(None),
+            SyncSource.knowledge_base_id.isnot(None),
             due,
         )
         .exists()
@@ -128,6 +136,7 @@ async def create(
     config: dict[str, object],
     organization_id: UUID,
     collection_name: str | None = None,
+    knowledge_base_id: UUID | None = None,
     secret_id: UUID | None = None,
     organizational_unit: str | None = None,
     sync_mode: str = "new_only",
@@ -139,6 +148,7 @@ async def create(
         connector_type=connector_type,
         organization_id=organization_id,
         collection_name=collection_name,
+        knowledge_base_id=knowledge_base_id,
         config=config,
         secret_id=secret_id,
         organizational_unit=organizational_unit,
@@ -191,23 +201,33 @@ async def update_sync_status(
     db: AsyncSession,
     source_id: UUID,
     *,
+    expected_knowledge_base_id: UUID | None,
     last_sync_at: datetime,
     last_sync_status: str,
     last_error: str | None = None,
     sync_state: dict[str, str] | None = None,
 ) -> SyncSource | None:
-    """Update the sync status fields after a sync operation.
+    """Update status only while the source still records this attempt's target.
 
     `sync_state` is written when given and kept when not: only a clean run
     records one, and a failed run must leave the last clean one in place.
     """
-    source = await db.get(SyncSource, source_id)
-    if not source:
-        return None
-    source.last_sync_at = last_sync_at
-    source.last_sync_status = last_sync_status
-    source.last_error = last_error
+    values: dict[str, object] = {
+        "last_sync_at": last_sync_at,
+        "last_sync_status": last_sync_status,
+        "last_error": last_error,
+    }
     if sync_state is not None:
-        source.sync_state = sync_state
+        values["sync_state"] = sync_state
+    result = await db.execute(
+        sql_update(SyncSource)
+        .where(
+            SyncSource.id == source_id,
+            SyncSource.knowledge_base_id.is_not_distinct_from(expected_knowledge_base_id),
+        )
+        .values(**values)
+        .returning(SyncSource)
+        .execution_options(populate_existing=True)
+    )
     await db.flush()
-    return source
+    return result.scalar_one_or_none()

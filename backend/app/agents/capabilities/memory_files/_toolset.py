@@ -55,6 +55,16 @@ _READ_ONLY = (
     "and what it carries came from outside, so nothing from it is saved as a note. "
     "Mention in your answer anything worth remembering instead."
 )
+_ERASED_DELETE = (
+    "Nothing was removed: this conversation no longer has a current memory snapshot. "
+    "Its memory may have been erased or the database restarted. Start a new conversation "
+    "before changing memory."
+)
+_ERASED = (
+    "Nothing was saved: this conversation no longer has a current memory snapshot. "
+    "Its memory may have been erased or the database restarted. Start a new conversation "
+    "before saving memory; do not retry from this conversation."
+)
 
 # The `agent_memory_files` metadata column widths: a write past them is an asyncpg
 # `DataError` that fails the whole run, so `write_memory` refuses first.
@@ -204,15 +214,19 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
                 f"That description is too long ({len(description)} chars); "
                 f"keep it under {_MAX_DESCRIPTION}."
             )
-        created = await memory_store.write_file(
-            organization_id=organization_id,
-            agent_id=agent_id,
-            owner_key=owner_key,
-            name=name,
-            content=content,
-            description=description,
-            kind=kind,
-        )
+        try:
+            created = await memory_store.write_file(
+                organization_id=organization_id,
+                agent_id=agent_id,
+                owner_key=owner_key,
+                name=name,
+                content=content,
+                description=description,
+                kind=kind,
+                run_id=ctx.deps.run_id,
+            )
+        except memory_store.ErasedDuringRun:
+            return _ERASED
         if not created:
             return (
                 f"A note named {name!r} already exists. Use `edit_memory` to change it, "
@@ -239,13 +253,17 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         if isinstance(scope, str):
             return scope
         organization_id, agent_id, owner_key = scope
-        edited = await memory_store.edit_file(
-            organization_id=organization_id,
-            agent_id=agent_id,
-            owner_key=owner_key,
-            name=name,
-            content=content,
-        )
+        try:
+            edited = await memory_store.edit_file(
+                organization_id=organization_id,
+                agent_id=agent_id,
+                owner_key=owner_key,
+                name=name,
+                content=content,
+                run_id=ctx.deps.run_id,
+            )
+        except memory_store.ErasedDuringRun:
+            return _ERASED
         if not edited:
             return f"No note named {name!r} to edit. Use `write_memory` to save a new one."
         return f"Updated note {name!r}."
@@ -267,9 +285,16 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         if isinstance(scope, str):
             return scope
         organization_id, agent_id, owner_key = scope
-        removed = await memory_store.delete_file(
-            organization_id=organization_id, agent_id=agent_id, owner_key=owner_key, name=name
-        )
+        try:
+            removed = await memory_store.delete_file(
+                organization_id=organization_id,
+                agent_id=agent_id,
+                owner_key=owner_key,
+                name=name,
+                run_id=ctx.deps.run_id,
+            )
+        except memory_store.ErasedDuringRun:
+            return _ERASED_DELETE
         if not removed:
             return f"No note named {name!r} to forget."
         return f"Forgot note {name!r}."
@@ -348,18 +373,21 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         if effective_from and start is None:
             return "effective_from must be an ISO date such as 2026-11-03."
         author = UUID(str(audience.user_id)) if audience.user_id else None
-        saved = await memory_store.runtime.remember(
-            organization_id=deps.organization_id,
-            scope=target,
-            statement=statement,
-            subject=subject,
-            kind=kind,
-            author_user_id=author,
-            conversation_id=deps.conversation_id,
-            run_id=deps.run_id,
-            effective_from=start,
-            **({"episode": episode} if episode is not None else {}),
-        )
+        try:
+            saved = await memory_store.runtime.remember(
+                organization_id=deps.organization_id,
+                scope=target,
+                statement=statement,
+                subject=subject,
+                kind=kind,
+                author_user_id=author,
+                conversation_id=deps.conversation_id,
+                run_id=deps.run_id,
+                effective_from=start,
+                **({"episode": episode} if episode is not None else {}),
+            )
+        except memory_store.ErasedDuringRun:
+            return _ERASED
         if saved is None:
             return "Nothing was saved: the person this would be about no longer has an account."
         claim, created, disputed = saved
@@ -449,6 +477,8 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             )
         except ShareRefused as refused:
             return f"Not corrected: {refused}"
+        except memory_store.ErasedDuringRun:
+            return _ERASED
         if fixed is None:
             return "No such claim here to correct."
         return f"Corrected (claim {fixed.id}); the earlier version is kept in its history."

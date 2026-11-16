@@ -1,5 +1,5 @@
 ---
-source_sha: "7d56de6cfe78"
+source_sha: "34fa5b94abdb"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -348,7 +348,9 @@ wyszukiwaniem, więc wymieniają opóźnienie i niewielki koszt na lepszą pełn
 rozmytych pytaniach. `multi_query` dodatkowo wyszukuje raz na każde zapytanie,
 jedno po drugim, a każde wyszukiwanie osobno tworzy embedding swojego zapytania —
 warianty nie są łączone w jedno wywołanie embeddingu — więc trzymaj
-`query_analysis_max_variants` nisko, aby ograniczyć rozgałęzienie.
+`query_analysis_max_variants` nisko, aby ograniczyć rozgałęzienie. Czy któryś z
+trybów się opłaca na danym korpusie, rozstrzyga pomiar, a nie wartość domyślna:
+[ewaluacja wyszukiwania](../retrieval-eval.md) porównuje je na tej dokumentacji.
 
 Oba tryby używają własnego modelu agenta — nie ma osobnego modelu do
 skonfigurowania — a ich koszt jest mierzony względem budżetu runu jak każde inne
@@ -3443,7 +3445,7 @@ Wpis decyzji może przechowywać ustrukturyzowane dowody: sytuację, wybór, alt
 
 W **Ustawienia → Pamięć** przeczytaj dowody i zapisz zaobserwowany wynik przez korektę. Korekta dopisuje nowy wpis; wcześniejszy epizod i jego pochodzenie pozostają w historii. Konsolidacja deterministyczna nie zamienia epizodów w ogólne reguły. Usuwanie pamięci usuwa ich treść razem z wpisami; eksport danych osobistych ją uwzględnia.
 
-**Przygotuj przypadek Improve** otwiera edytowalne wejście i oczekiwaną odpowiedź. Sprawdź tekst, usuń informacje, które muszą pozostać prywatne, i jawnie zatwierdź pobranie jednego rekordu JSONL. Pola `input`, `reference_answer`, `tags` i `note` odpowiadają importerowi zbiorów w [PR Improve #2172](https://github.com/vstorm-co/agenticos/pull/2172). Zaimportuj plik do zbioru Improve po instalacji tej funkcji, przeprowadź ocenę i tam zaakceptuj/opublikuj zmiany. Ten eksport nie tworzy zbioru, nie uruchamia optymalizatora ani nie publikuje instrukcji automatycznie.
+**Dodaj jako przypadek do Improve** otwiera edytowalne wejście i oczekiwaną odpowiedź oraz pyta, do którego datasetu je dodać; przycisk widzi członek, który może edytować datasety. Przejrzyj tekst, usuń to, co ma zostać prywatne, i wyraźnie zatwierdź dodanie. Przypadek dostaje tag `decision-episode`, zapisuje Ciebie jako osobę, która zadała pytanie, i łączy run oraz rozmowę, z których pochodzi epizod, dopóki istnieją, więc wymazanie Ciebie anonimizuje go jak każdy przypadek wzięty z Twoich rozmów. Oceń go oraz zaakceptuj lub opublikuj zmiany w Improve. Samo dodanie nie uruchamia optymalizatora ani nie publikuje automatycznie instrukcji.
 
 Wybór lokalnego dostępu należy do wybranego agenta, a nie do globalnego ustawienia dziedziczonego przez innych agentów. Cofnięcie dostępu do folderu usuwa także zapamiętane wybory i zgody coding agentów dla jego podfolderów. Starsze aplikacje desktopowe zachowują zgodę na cały komputer tylko w jednej rozmowie; aktualizacja pozwala zapamiętać ją we wszystkich rozmowach agenta.
 

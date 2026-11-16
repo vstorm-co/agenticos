@@ -1557,6 +1557,32 @@
       "scrollAttachmentsRight": "Spätere Anhänge",
       "send": "Nachricht senden",
       "speechError": "Fehler bei der Spracherkennung",
+      "speech": {
+        "micDenied": {
+          "title": "Mikrofon für diese Website blockiert",
+          "body": "Klicken Sie auf das Symbol links neben der Adressleiste, stellen Sie Mikrofon auf Zulassen und versuchen Sie es erneut."
+        },
+        "micInsecure": {
+          "title": "Diese Seite kann das Mikrofon nicht verwenden",
+          "body": "Browser geben das Mikrofon nur über HTTPS oder auf localhost frei. Bitten Sie Ihren Administrator, die Konsole über HTTPS bereitzustellen."
+        },
+        "micNotFound": {
+          "title": "Kein Mikrofon gefunden",
+          "body": "Schließen Sie ein Mikrofon an oder prüfen Sie, ob Ihr System dem Browser den Zugriff erlaubt, und versuchen Sie es erneut."
+        },
+        "unavailable": {
+          "title": "Die Spracherkennung Ihres Browsers ist nicht verfügbar",
+          "body": "Dieser Agent hat keinen Speech-to-Text-Anbieter fürs Diktieren, deshalb transkribiert der Browser, und sein Dienst hat abgelehnt. Bitten Sie einen Administrator, Diktieren für diesen Agent einzurichten, oder verwenden Sie einen anderen Browser."
+        },
+        "network": {
+          "title": "Der Spracherkennungsdienst war nicht erreichbar",
+          "body": "Ihr Browser sendet, was Sie sagen, an seinen Spracherkennungsdienst, und die Verbindung ist fehlgeschlagen. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut."
+        },
+        "noSpeech": {
+          "title": "Nichts Gesprochenes gehört",
+          "body": "Prüfen Sie, ob das Mikrofon stummgeschaltet ist, und versuchen Sie es erneut."
+        }
+      },
       "stopGenerating": "Erzeugen stoppen",
       "stopRecording": "Aufnahme stoppen",
       "uploadFailed": "Upload fehlgeschlagen",
@@ -1671,6 +1697,7 @@
       "sortTitleAsc": "Titel A–Z",
       "sortTitleDesc": "Titel Z–A",
       "apiBadge": "API",
+      "forkOf": "Abgezweigt aus {title}",
       "hideApi": "Über die API eröffnete Unterhaltungen ausblenden",
       "filters": "Filtern und sortieren",
       "show": "Anzeigen",
@@ -3852,7 +3879,11 @@
         "rateLimitedBody": "Zu viele Aufnahmen in einer Minute.",
         "keptBody": "Ihre Aufnahme ({duration}) bleibt erhalten, bis Sie sie erneut senden oder verwerfen.",
         "notSetUpTitle": "Spracheingabe ist gerade nicht verfügbar.",
-        "notSetUpBody": "Bitte tippen Sie Ihre Nachricht stattdessen ein."
+        "notSetUpBody": "Bitte tippen Sie Ihre Nachricht stattdessen ein.",
+        "browserUnavailable": "<strong>Spracheingabe ist in diesem Browser nicht verfügbar.</strong> Bitte tippen Sie Ihre Nachricht stattdessen ein oder verwenden Sie einen anderen Browser.",
+        "browserNetwork": "<strong>Der Spracherkennungsdienst war nicht erreichbar.</strong> Prüfen Sie Ihre Verbindung und versuchen Sie es erneut oder tippen Sie Ihre Nachricht ein.",
+        "browserNoSpeech": "<strong>Nichts Gesprochenes gehört.</strong> Prüfen Sie, ob das Mikrofon stummgeschaltet ist, und versuchen Sie es erneut.",
+        "browserFailed": "<strong>Die Spracheingabe wurde unterbrochen.</strong> Versuchen Sie es erneut oder tippen Sie Ihre Nachricht ein."
       }
     },
     "voice": {
@@ -6090,12 +6121,12 @@
           "expected": "Erwartetes Ergebnis",
           "actual": "Beobachtetes Ergebnis",
           "correction": "Korrektur",
-          "export": "Improve-Fall vorbereiten",
-          "review": "Prüfe den Text vor dem Export aus dem persönlichen Gedächtnis. Importiere die JSONL-Datei in einen Improve-Datensatz, evaluiere sie und bestätige Änderungen dort ausdrücklich. Der Export veröffentlicht keine Regel.",
+          "export": "Als Improve-Fall hinzufügen",
+          "review": "Prüfe den Text, bevor er das persönliche Gedächtnis verlässt. Er wird als Fall zum gewählten Dataset hinzugefügt, wo du ihn bewerten und jede Änderung ausdrücklich annehmen kannst. Dabei wird keine Regel veröffentlicht.",
           "input": "Zu prüfende Eingabe",
           "reference": "Erwartete Antwort",
-          "consent": "Ich habe diese Felder geprüft und stimme ihrem Export als Datensatzdatei zu.",
-          "download": "Geprüften Fall herunterladen"
+          "consent": "Ich habe diese Felder geprüft und stimme zu, sie zu diesem Dataset hinzuzufügen.",
+          "add": "Geprüften Fall hinzufügen"
         }
       },
       "browser": {
@@ -10751,7 +10782,8 @@
     "kind": {
       "approvalRequested": "{agent} wartet auf Ihre Freigabe",
       "budgetExceeded": "{agent} wurde gestoppt: {scope, select, agent {sein Monatsbudget} group {das Monatsbudget einer Abteilung} department {das Monatsbudget der Abteilung {department}} organization {das Monatsbudget der Organisation} other {ein Ausgabenlimit}} ist aufgebraucht ({spent} von {limit} ausgegeben)",
-      "budgetWarning": "{group} hat {share} % des Monatsbudgets von {limit} verbraucht."
+      "budgetWarning": "{group} hat {share} % des Monatsbudgets von {limit} verbraucht.",
+      "workflowApproval": "Freigabe nötig: {title}"
     },
     "needsAttention": "Aufmerksamkeit erforderlich"
   },
@@ -10790,6 +10822,11 @@
     "quickAdd": "Einen Schritt nach {name} ({port}) hinzufügen",
     "stepApprovalDecided": "{known, select, no {{status, select, approved {Genehmigt} other {Abgelehnt}}} other {{status, select, approved {Genehmigt von {name}} other {Abgelehnt von {name}}}}} · {time}",
     "stepApprovalUndecided": "{status, select, expired {Abgelaufen: Niemand hat rechtzeitig entschieden} cancelled {Mit dem Run abgebrochen} other {Wartet auf eine Entscheidung}}",
+    "quickAddWired": "Einen Schritt oder Zweig nach {name} ({port}) hinzufügen",
+    "quickAddPlacement": "Wohin der neue Schritt kommt",
+    "quickAddInsertBefore": "Vor {name} einfügen",
+    "quickAddBranch": "Parallelen Zweig hinzufügen",
+    "quickAddBranchBeside": "{count, plural, other {Dieser Ausgang führt bereits zu # Schritten. Der neue Schritt läuft als weiterer Zweig daneben.}}",
     "paletteNoMatches": "Kein Knoten passt zu Ihrer Suche.",
     "canvasTitle": "Arbeitsfläche",
     "canvasHint": "Füge einen Schritt hinzu, um den Workflow zu beginnen.",
@@ -10829,6 +10866,11 @@
     "validationErrorHandlerShared": "Zwei Zweige, die gemeinsam laufen, senden ihre Fehler hierher. Geben Sie jedem Zweig einen eigenen Fehlerhandler.",
     "validationErrorHandlerDefaultUnwired": "Der Standardzweig eines Fehlerhandlers muss irgendwohin führen.",
     "validationErrorPortUnwired": "Dieser Schritt leitet seine Fehler weiter, aber sein Fehlerausgang führt ins Leere.",
+    "validationApprovalOutcomeUnwired": "Das Ergebnis {outcome} führt ins Leere, der Run endet also hier, wenn es gewählt wird. Wenn das so gewollt ist, ignorieren Sie diesen Hinweis.",
+    "validationBranchOutputsUnwired": "Keines der Ergebnisse dieses Schritts führt weiter, der Run endet also nach seiner Entscheidung. Wenn das so gewollt ist, ignorieren Sie diesen Hinweis.",
+    "warningBadge": "{count, plural, =1 {1 Hinweis} other {# Hinweise}}",
+    "publishWarnings": "Einen Blick wert - das verhindert die Veröffentlichung nicht:",
+    "publishWarningAt": "{step}: {warning}",
     "validationOutputsBothRun": "Dieser Output-Schritt und ein weiterer können im selben Run laufen, und ein Run antwortet nur einmal.",
     "validationRespondBothRun": "Dieser Respond-to-webhook-Schritt und ein weiterer können im selben Run laufen, und ein Webhook wird nur einmal beantwortet.",
     "validationSplitRoutesErrors": "Ein Split kann seine Fehler nicht weiterleiten. Leiten Sie die Fehler jedes Zweigs einzeln weiter.",
@@ -11610,6 +11652,7 @@
     "deleteWhy": "Alle Versionen und der öffentliche Link werden mitgelöscht, und niemand, mit dem es geteilt wurde, kann es noch öffnen. Der Agent legt ein neues an, wenn er das nächste Mal unter diesem Namen veröffentlicht.",
     "deleted": "App gelöscht",
     "publicLink": "Öffentlicher Link",
+    "publicLinkAddress": "Adresse des öffentlichen Links",
     "publicLinkOn": "Jeder mit diesem Link kann die neueste Version ohne Konto öffnen.",
     "publicLinkNone": "Nur Personen, mit denen diese App geteilt wurde, können sie öffnen.",
     "createPublicLink": "Öffentlichen Link erstellen",
@@ -11717,9 +11760,9 @@
     "archivedWhy": "Niemand kann diese Seite öffnen, und der Agent kann sie nicht erneut veröffentlichen. Nach dem Wiederherstellen bleibt ihr öffentlicher Link aus, bis Sie ihn einschalten.",
     "unarchive": "Wiederherstellen",
     "archivedBadge": "Archiviert",
-    "shownFilter": "Welche Artefakte",
+    "shownFilter": "Welche Apps",
     "shown": {
-      "live": "Aktive Artefakte",
+      "live": "Aktive Apps",
       "all": "Auch archivierte"
     },
     "consent": {
@@ -12195,9 +12238,26 @@
     },
     "formula": {
       "label": "Formel",
-      "placeholder": "'{Price}' * '{Quantity}'",
+      "placeholder": "'{Preis}' * '{Menge}'",
       "columns": "Verwendbare Spalten",
-      "hint": "Nennen Sie eine Spalte in geschweiften Klammern. Möglich sind + - * / %, = <> < > and, or, not sowie IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY."
+      "hint": "Nennen Sie eine Spalte in geschweiften Klammern. Möglich sind + - * / %, = <> < > and, or, not sowie IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY. Schreiben Sie Dezimalzahlen mit Punkt, etwa 1.23.",
+      "problem": {
+        "syntax": "Die Formel ist nicht korrekt geschrieben.",
+        "too_deep": "Die Formel ist zu tief verschachtelt.",
+        "constant": "Eine Formel enthält Zahlen, Text und true oder false.",
+        "unknown_name": "{name} bedeutet hier nichts: Nennen Sie eine Spalte in geschweiften Klammern, etwa '{'{name}'}'.",
+        "arithmetic": "Eine Formel rechnet nur mit + - * / und %.",
+        "operator": "Diesen Operator verwendet eine Formel nicht.",
+        "comparison": "Eine Formel vergleicht nur mit = <> < <= > >=.",
+        "function": "Eine Formel ruft nur diese Funktionen auf: {functions}.",
+        "decimal_comma": "Schreiben Sie Dezimalzahlen mit Punkt, etwa 1.23. Ein Komma trennt die Argumente einer Funktion.",
+        "unsupported": "Das kann eine Formel nicht enthalten.",
+        "empty": "Eine Formelspalte braucht eine Formel.",
+        "too_long": "Eine Formel hat höchstens {limit} Zeichen.",
+        "not_a_column": "'{'{label}'}' ist keine aktive Spalte dieser Tabelle.",
+        "not_a_value": "'{'{label}'}' ist {type, select, link {eine Verknüpfungsspalte} other {eine Formelspalte}}: Eine Formel liest Spalten mit Werten.",
+        "arity": "{name} nimmt {kind, select, exact {{fewest, plural, one {# Wert} other {# Werte}}} range {{fewest} bis {most} Werte} other {mindestens {fewest, plural, one {# Wert} other {# Werte}}}}. Ein Komma trennt sie, schreiben Sie Dezimalzahlen also mit Punkt, etwa 1.23."
+      }
     },
     "markdown": {
       "library": "Dokumentvorlagen",
@@ -14340,7 +14400,15 @@
     },
     "openWorkingChat": "Gespräch öffnen",
     "preferences": "Inbox-Einstellungen",
-    "preferencesDescription": "Wähle, welche automatischen Vorschläge deinen Inbox erreichen."
+    "preferencesDescription": "Wähle, welche automatischen Vorschläge deinen Inbox erreichen.",
+    "approvals": {
+      "title": "Zur Genehmigung",
+      "open": "Freigaben öffnen",
+      "fromWorkflow": "Workflow {workflow}",
+      "fromAgent": "Agent {agent}",
+      "anAgent": "Ein Agent",
+      "actionBy": "{source} · {action}"
+    }
   },
   "datasets": {
     "scoring": {
@@ -16967,34 +17035,34 @@
   },
   "start": {
     "administration": {
-      "title": "Bereiten Sie den Workspace für Ihr Team vor",
+      "title": "Bereiten Sie die Organisation für Ihr Team vor",
       "intro": "Erstellen Sie eine Firmenorganisation, laden Sie Personen ein und konfigurieren Sie die Installation. Alle Einstellungen bleiben später verfügbar.",
       "applicationAdmin": "Anwendungsadministrator",
       "organizationAdmin": "Organisationsadministrator",
       "openApp": "App öffnen",
-      "steps": "Workspace-Einrichtung",
-      "workspace": "Workspace",
+      "steps": "Einrichtung der Organisation",
+      "workspace": "Organisation",
       "team": "Personen",
       "deployment": "Installation",
       "organization": "Organisationseinstellungen",
       "task": "Erster Agent",
       "workspaceTitle": "Wo wird Ihr Team arbeiten?",
-      "workspaceHint": "Erstellen Sie einen Firmen-Workspace oder wählen Sie eine bestehende Organisation. Ein persönlicher Workspace ist optional.",
-      "createCompany": "Firmen-Workspace erstellen",
+      "workspaceHint": "Erstellen Sie eine Firmenorganisation oder wählen Sie eine bestehende. Eine persönliche Organisation ist optional.",
+      "createCompany": "Firmenorganisation erstellen",
       "createCompanyHint": "Geben Sie den Firmen- oder Teamnamen ein. Sie werden Eigentümer und können sofort Personen einladen.",
-      "existingCompany": "Bestehenden Firmen-Workspace verwenden",
+      "existingCompany": "Bestehende Firmenorganisation verwenden",
       "existingCompanyHint": "Setzen Sie die Einrichtung einer Ihrer Organisationen fort.",
-      "personalExplanation": "Personal ist ein Workspace für Ihr Konto. Sie müssen ihn nicht für die Firma verwenden. Der Anwendungsadministrator legt fest, ob neue Konten persönliche Workspaces erhalten.",
-      "usePersonal": "Ich möchte einen persönlichen Workspace verwenden",
-      "personalChoice": "Persönlicher Workspace",
-      "selectWorkspace": "Workspace auswählen",
-      "continuePersonal": "Mit diesem Workspace fortfahren",
+      "personalExplanation": "Personal ist eine Organisation für Ihr Konto. Sie müssen sie nicht für die Firma verwenden. Der Anwendungsadministrator legt fest, ob neue Konten persönliche Organisationen erhalten.",
+      "usePersonal": "Ich möchte eine persönliche Organisation verwenden",
+      "personalChoice": "Persönliche Organisation",
+      "selectWorkspace": "Organisation auswählen",
+      "continuePersonal": "Mit dieser Organisation fortfahren",
       "teamTitle": "Laden Sie Ihr Team ein",
       "teamIntro": "Einladungen und Rollen gelten für {workspace}. Sie können Personen einladen, bevor ein Modell oder Agent eingerichtet ist.",
       "reachableAddress": "Diese Installation ist unter einer lokalen Adresse geöffnet. Einladungslinks funktionieren auf anderen Computern nicht. Verwenden Sie vor dem Versand eine für das Team erreichbare Serveradresse.",
       "inviteEmail": "Per E-Mail einladen",
       "inviteLink": "Einladungslink erstellen",
-      "cannotInvite": "Sie dürfen keine Personen in diesen Workspace einladen. Fragen Sie den Eigentümer.",
+      "cannotInvite": "Sie dürfen keine Personen in diese Organisation einladen. Fragen Sie den Eigentümer.",
       "manageMembers": "Mitglieder und Einladungen",
       "manageRoles": "Rollen und Berechtigungen",
       "manageGroups": "Gruppen und Abteilungen",
@@ -17007,21 +17075,21 @@
       "retention": "Datenaufbewahrung",
       "directory": "Verzeichnis und Anmeldung",
       "taskTitle": "Die erste nützliche Aufgabe vorbereiten",
-      "taskHint": "Workspace und Personen stehen bereit. Wählen Sie jetzt ein gemeinsames Modell, bereiten Sie einen Agenten vor und testen Sie eine Aufgabe. Beispiele allein rufen kein Modell auf.",
-      "loadFailed": "Workspaces konnten nicht geladen werden",
+      "taskHint": "Organisation und Personen stehen bereit. Probieren Sie jetzt ein Beispiel aus und verbinden Sie ein Modell, wenn ein Agent Ihre eigene Aufgabe beantworten soll. Beispiele allein rufen kein Modell auf.",
+      "loadFailed": "Organisationen konnten nicht geladen werden",
       "retry": "Erneut versuchen",
-      "preview": "Workspace-Vorschau",
-      "previewName": "Ihr Workspace",
+      "preview": "Vorschau der Organisation",
+      "previewName": "Ihre Organisation",
       "previewTitle": "Ein Ort für Ihr Team.\nUnd seine Agenten.",
       "previewTeam": "Ihr Team",
       "previewAgents": "Ihre Agenten",
-      "previewHint": "Ein Workspace. Gemeinsame Agenten, Wissen und Gespräche.",
+      "previewHint": "Eine Organisation. Gemeinsame Agenten, Wissen und Gespräche.",
       "profile": "Ihr Profil",
       "saveContinue": "Speichern und weiter",
       "skipOptional": "Vorerst überspringen",
       "stepPosition": "Schritt {current} von {total}",
       "teamBenefitTitle": "Ihr Team, gemeinsam",
-      "teamBenefitBody": "Laden Sie Kollegen in diesen Workspace ein. Rollen bestimmen Nutzung und Verwaltung.",
+      "teamBenefitBody": "Laden Sie Kollegen in diese Organisation ein. Rollen bestimmen Nutzung und Verwaltung.",
       "deploymentBenefitTitle": "Ihr Deployment. Ihre Regeln.",
       "deploymentBenefitBody": "Bestimmen Sie, wie Personen beitreten und wo sie starten. Diese Einstellungen gelten für die gesamte Installation.",
       "organizationBenefitTitle": "Gemeinsamer Raum, klare Grenzen",
@@ -17030,25 +17098,25 @@
       "profileBenefitBody": "Rolle, Zeitzone und Arbeitszeiten helfen Agenten, Ihre Anfragen ohne Wiederholungen zu verstehen.",
       "changeLater": "Sie können diese Einstellungen später ändern.",
       "finishSetup": "Einrichtung abschließen und App öffnen",
-      "identity": "Workspace-Identität",
-      "identityTitle": "Geben Sie Ihrem Workspace eine Identität",
+      "identity": "Identität der Organisation",
+      "identityTitle": "Geben Sie Ihrer Organisation eine Identität",
       "identityHint": "Fügen Sie Ihr Firmenlogo hinzu. Ihr Team sieht es in der gesamten App.",
       "context": "Ihr Kontext",
       "contextTitle": "Was sollen Ihre Agenten über Sie wissen?",
       "contextHint": "Rolle, aktuelle Arbeit und Zeitzone helfen Agenten, Ihren Bedarf zu verstehen.",
       "backStep": "Zurück",
-      "createInstead": "Neuen Workspace erstellen",
-      "chooseExisting": "Bestehenden Workspace wählen",
-      "identityBenefitTitle": "Ihr Workspace. Ihre Identität.",
-      "identityBenefitBody": "Ihr Logo hilft Ihrem Team, den richtigen Workspace in Chats und gemeinsamen Ressourcen zu erkennen.",
+      "createInstead": "Neue Organisation erstellen",
+      "chooseExisting": "Bestehende Organisation wählen",
+      "identityBenefitTitle": "Ihre Organisation. Ihre Identität.",
+      "identityBenefitBody": "Ihr Logo hilft Ihrem Team, die richtige Organisation in Chats und gemeinsamen Ressourcen zu erkennen.",
       "identityProfileTitle": "Mach es zu deinem Profil",
       "identityProfileHint": "Füge dein Foto und den Namen hinzu, den dein Team sieht. Rolle und Arbeitszeiten folgen im nächsten Schritt.",
-      "identityProfileBenefitTitle": "Ein vertrautes Gesicht in jedem Workspace",
+      "identityProfileBenefitTitle": "Ein vertrautes Gesicht in jeder Organisation",
       "identityProfileBenefitBody": "Dein Foto und Anzeigename helfen dem Team, dich in gemeinsamen Gesprächen zu erkennen.",
-      "teamHint": "Hole dein Team in den Workspace. Lade es jetzt ein oder fahre fort und komme später zurück."
+      "teamHint": "Hole dein Team in die Organisation. Lade es jetzt ein oder fahre fort und komme später zurück."
     },
     "workbench": {
-      "memberHint": "Der Workspace-Eigentümer kann einen Agenten für Sie freigeben. Sie benötigen keinen eigenen API-Schlüssel.",
+      "memberHint": "Der Eigentümer der Organisation kann einen Agenten für Sie freigeben. Sie benötigen keinen eigenen API-Schlüssel.",
       "title": "Wobei kann Ihnen ein Agent helfen?",
       "intro": "Entdecken Sie ein Beispiel und probieren Sie dann eigenes Material aus.",
       "openApp": "App öffnen",
@@ -17059,18 +17127,18 @@
         "compare": "Optionen vergleichen"
       },
       "menuHint": "Fiktive Beispiele. Keine Dateien hochladen, keine Konten verbinden.",
-      "saved": "Auswahl in diesem Workspace gespeichert",
+      "saved": "Auswahl in dieser Organisation gespeichert",
       "saving": "Auswahl wird gespeichert…",
       "demoLabel": "Interaktive Vorschau",
       "views": "Beispielansichten",
       "result": "Beispielantwort",
       "source": "Was der Agent erhält",
       "demoNotice": "Vorbereitetes Beispiel. Kein KI-Aufruf, kein Material wird an ein Modell gesendet.",
-      "connect": "Meinen Agenten vorbereiten",
+      "connect": "Modell verbinden",
       "getAccess": "Zugriff auf einen Agenten erhalten",
       "connectionHint": "Möchten Sie eigenes Material ausprobieren? Verbinden Sie ein Modell, wenn Sie bereit sind.",
       "setupChat": "Chat mit {agent} öffnen",
-      "setupChatHint": "Du kannst den Chat bereits öffnen. Der Administrator deines Workspace muss die KI-Einrichtung abschließen, bevor der Agent deine Aufgabe beantworten kann.",
+      "setupChatHint": "Du kannst den Chat bereits öffnen. Der Administrator deiner Organisation muss die KI-Einrichtung abschließen, bevor der Agent deine Aufgabe beantworten kann.",
       "actionPlan": "Ein Aktionsplan mit erkennbaren Lücken",
       "task": "Aufgabe",
       "owner": "Verantwortlich",
@@ -17110,11 +17178,11 @@
     "returnTitle": "Setzen Sie Ihre Arbeit fort",
     "intro": "Probieren Sie ein fiktives Beispiel oder Ihr eigenes Material aus. Weitere Funktionen können Sie später entdecken.",
     "ready": "Ein Agent steht Ihnen zur Verfügung. Wählen Sie ein Beispiel, prüfen Sie das Material und starten Sie die Aufgabe.",
-    "loadFailed": "Ihr Arbeitsbereich konnte nicht geprüft werden",
+    "loadFailed": "Ihre Organisation konnte nicht geprüft werden",
     "retry": "Erneut versuchen",
-    "noOrganization": "Wählen Sie Ihren Arbeitsbereich",
-    "noOrganizationHint": "Sie sind angemeldet, aber keinem Arbeitsbereich zugeordnet. Öffnen Sie Ihre Einladung oder fragen Sie die zuständige Person.",
-    "organizations": "Ihre Arbeitsbereiche",
+    "noOrganization": "Wählen Sie Ihre Organisation",
+    "noOrganizationHint": "Sie sind angemeldet, aber keiner Organisation zugeordnet. Öffnen Sie Ihre Einladung oder fragen Sie die zuständige Person.",
+    "organizations": "Ihre Organisationen",
     "agent": "Wer antwortet",
     "tryExample": "Aufgabe ausprobieren",
     "exampleHint": "Dies sind fiktive Materialien. Sie können sie vor dem Start bearbeiten.",
@@ -17123,15 +17191,15 @@
     "recordedExample": "Aufgezeichnetes Beispielergebnis",
     "demoNotRun": "Dieses Beispiel wurde vorab erstellt. Es wurde keine KI aufgerufen, Ihre Änderungen wurden nicht verarbeitet und kein erfolgreicher Lauf gespeichert.",
     "run": "Aufgabe starten",
-    "runNotice": "Der Start sendet dieses Material an das für den gewählten Agenten konfigurierte Modell und kann Kosten verursachen. Es gelten die Ausgabenlimits von Agent und Arbeitsbereich.",
+    "runNotice": "Der Start sendet dieses Material an das für den gewählten Agenten konfigurierte Modell und kann Kosten verursachen. Es gelten die Ausgabenlimits von Agent und Organisation.",
     "back": "Zurück zu den ersten Schritten",
     "connectTitle": "KI verbinden und erste Aufgabe vorbereiten",
     "connectHint": "Wählen Sie ein gemeinsames Chatmodell oder fügen Sie einen Anbieter hinzu. Ein Verbraucherabonnement umfasst nicht automatisch die API. Der Anbieter bestimmt den Preis.",
-    "localPrivacy": "Ein lokales AgenticOS speichert den Arbeitsbereich auf diesem Computer. Ein entferntes KI-Modell erhält weiterhin das gesendete Material. Lokale Modelle benötigen einen separat laufenden kompatiblen Modellserver.",
+    "localPrivacy": "Ein lokales AgenticOS speichert die Daten der Organisation auf diesem Computer. Ein entferntes KI-Modell erhält weiterhin das gesendete Material. Lokale Modelle benötigen einen separat laufenden kompatiblen Modellserver.",
     "prepare": "Textassistent vorbereiten",
     "preparing": "Wird vorbereitet…",
-    "prepareHint": "Erstellt einen gemeinsamen Textassistenten mit einem monatlichen Limit von 5 USD innerhalb des Arbeitsbereichsbudgets. Die Vorbereitung ruft kein Modell auf und benötigt weder Sandbox noch Computerberechtigungen oder externe Konten. Ihre erste Aufgabe prüft die Antwort.",
-    "askOwner": "Ihr Arbeitsbereich muss vorbereitet werden",
+    "prepareHint": "Erstellt einen gemeinsamen Textassistenten mit einem monatlichen Limit von 5 USD innerhalb des Budgets der Organisation. Die Vorbereitung ruft kein Modell auf und benötigt weder Sandbox noch Computerberechtigungen oder externe Konten. Ihre erste Aufgabe prüft die Antwort.",
+    "askOwner": "Ihre Organisation muss vorbereitet werden",
     "askOwnerHint": "Die zuständige Person muss einen ausführbaren Agenten mit Ihnen teilen. Sie benötigen keinen eigenen API-Schlüssel. Kontaktieren Sie den Eigentümer oder prüfen Sie später erneut.",
     "checkAgain": "Erneut prüfen",
     "lastResult": "Letzten abgeschlossenen Chat fortsetzen",
@@ -17177,10 +17245,10 @@
     "previewMissing": "Kein veröffentlichter Agent ist für Sie beide ausführbar. Prüfen Sie Freigabe und Berechtigungen.",
     "previewHint": "Die Prüfung erfolgt ohne Anmeldung als Teammitglied und ohne Modellaufruf. Erst eine echte Aufgabe prüft Anbieter und Anforderungen.",
     "invite": "Teammitglied einladen",
-    "loadHint": "Prüfen Sie die Verbindung oder wählen Sie einen anderen Arbeitsbereich, dem Sie angehören. Eine fehlgeschlagene Prüfung löscht keine Daten.",
+    "loadHint": "Prüfen Sie die Verbindung oder wählen Sie eine andere Organisation, der Sie angehören. Eine fehlgeschlagene Prüfung löscht keine Daten.",
     "choiceNotSaved": "Ihre Auswahl wurde nicht gespeichert. Bitte versuchen Sie es erneut.",
     "offer": {
-      "adminTitle": "Richten Sie den Workspace für Ihr Team ein",
+      "adminTitle": "Richten Sie die Organisation für Ihr Team ein",
       "adminHint": "Organisation, Team und KI — Schritt für Schritt.",
       "adminAction": "Einrichtung fortsetzen",
       "memberTitle": "Probieren wir Ihre erste Aufgabe",
@@ -17200,9 +17268,9 @@
       "loadFailed": "Einstellungen konnten nicht geladen werden",
       "retry": "Erneut versuchen",
       "saveFailed": "Änderungen wurden nicht gespeichert. Bitte hier erneut versuchen.",
-      "workspaceGuide": "Geben wir Ihrem Team ein Zuhause. Wählen Sie einen Workspace oder erstellen Sie einen für Ihre Firma.",
-      "identityGuide": "Ein Logo macht den richtigen Workspace erkennbar. Jetzt hinzufügen oder das aktuelle Erscheinungsbild beibehalten.",
-      "profileGuide": "Jetzt zu Ihnen: Foto und Name helfen dem Team, Sie zu erkennen. Dieses Profil gilt in allen Ihren Workspaces.",
+      "workspaceGuide": "Geben wir Ihrem Team ein Zuhause. Wählen Sie eine Organisation oder erstellen Sie eine für Ihre Firma.",
+      "identityGuide": "Ein Logo macht die richtige Organisation erkennbar. Jetzt hinzufügen oder das aktuelle Erscheinungsbild beibehalten.",
+      "profileGuide": "Jetzt zu Ihnen: Foto und Name helfen dem Team, Sie zu erkennen. Dieses Profil gilt in allen Ihren Organisationen.",
       "contextGuide": "Erzählen Sie etwas über Ihre Arbeit. Agenten lesen diesen Kontext am Gesprächsanfang. Alle Felder sind optional.",
       "teamGuide": "Gemeinsam lässt es sich leichter ausprobieren. Laden Sie Ihr Team ein oder erledigen Sie das später.",
       "taskGuide": "Probieren wir etwas Nützliches aus. Wählen Sie ein Beispiel. Die Einrichtung lässt sich ohne Modell oder KI-Aufruf abschließen.",
@@ -17216,12 +17284,12 @@
       "closedBody": "Neue Registrierungen pausieren. Bestehende Konten behalten ihren Zugang.",
       "domainsPreserved": "Bestehende erlaubte E-Mail-Domains und Kontolimits bleiben unverändert.",
       "destinationTitle": "Wo sollen neue Konten starten?",
-      "destinationGuide": "Neue Personen können direkt in diesem Firmen-Workspace starten. Bestehende Personen werden nicht verschoben und ihre Rollen nicht geändert.",
-      "destinationBody": "Diesen Workspace für neue Konten verwenden. Eingestellte Startrolle: {role}.",
+      "destinationGuide": "Neue Personen können direkt in dieser Firmenorganisation starten. Bestehende Personen werden nicht verschoben und ihre Rollen nicht geändert.",
+      "destinationBody": "Diese Organisation für neue Konten verwenden. Eingestellte Startrolle: {role}.",
       "destinationHint": "Firmenkarte auswählen oder das aktuelle Startziel beibehalten.",
       "otherDestination": "Derzeit ist eine andere Organisation voreingestellt. Diese Auswahl ersetzt sie nur für zukünftige Konten.",
-      "personalTitle": "Auch persönliche Workspaces erstellen",
-      "personalBody": "Zukünftigen Konten zusätzlich einen persönlichen Bereich geben. Für reine Firmennutzung ausschalten.",
+      "personalTitle": "Auch persönliche Organisationen erstellen",
+      "personalBody": "Zukünftigen Konten zusätzlich eine persönliche Organisation geben. Für reine Firmennutzung ausschalten.",
       "announcementTitle": "Eine erste Begrüßung fürs Team?",
       "announcementGuide": "Optional: Eine kurze Begrüßung oder ein hilfreicher Link erscheint über der App. Die Vorschau zeigt die Nachricht vor dem Speichern.",
       "welcomeMessage": "Teammitteilung",
@@ -17234,9 +17302,9 @@
       "extrasTitle": "Der Rest kann warten",
       "extrasGuide": "Für den Start müssen nicht alle Funktionen eingerichtet sein. Diese Werkzeuge sind optional. Einstellungen öffnen sich separat, der Ablauf bleibt hier erhalten.",
       "brandingTitle": "Das Erscheinungsbild Ihrer App",
-      "brandingBody": "App-Name, Logo und rechtliche Links. Das zuvor gewählte Firmenlogo gehört zum Workspace.",
+      "brandingBody": "App-Name, Logo und rechtliche Links. Das zuvor gewählte Firmenlogo gehört zur Organisation.",
       "voiceTitle": "Sprache und Diktat",
-      "voiceBody": "Hier wählen Sie Aufnahmeoptionen für Diktate. Sprachmodelle lassen sich später in den Workspace-Einstellungen konfigurieren.",
+      "voiceBody": "Hier wählen Sie Aufnahmeoptionen für Diktate. Sprachmodelle lassen sich später in den Einstellungen der Organisation konfigurieren.",
       "mobileTitle": "Mobile Benachrichtigungen",
       "mobileBody": "Push für Ihren eigenen iOS-Build benötigt Apple-Zugangsdaten. Diese müssen nicht in der ersten Sitzung hinterlegt werden.",
       "maintenanceTitle": "Zustand und Wartung",
@@ -17247,20 +17315,20 @@
       "budgetGuide": "Sie kontrollieren die KI-Nutzung. Wählen Sie einen Startbetrag oder bewegen Sie den Regler. Gespeichert wird erst beim Weitergehen.",
       "unlimited": "Ohne Limit",
       "unlimitedHint": "Unten einen Betrag für die Obergrenze wählen",
-      "perMonth": "USD pro Monat, für den gesamten Workspace",
+      "perMonth": "USD pro Monat, für die gesamte Organisation",
       "budgetSlider": "Monatsbudget in US-Dollar",
       "budgetInvalid": "Wähle einen positiven Betrag oder kein Limit.",
-      "budgetHint": "Begrenzt die erfasste KI-Nutzung der Agenten im Workspace. Kein Abo und kein Guthaben. Der Anbieter rechnet separat ab.",
+      "budgetHint": "Begrenzt die erfasste KI-Nutzung der Agenten in der Organisation. Kein Abo und kein Guthaben. Der Anbieter rechnet separat ab.",
       "workspaceReadyTitle": "Bereit für die erste Aufgabe",
       "workspaceReadyGuide": "Das Wichtigste ist bereit. Jetzt können wir eine erste Aufgabe ausprobieren. Erweiterte Regeln und Sprache sind bei Bedarf unten verfügbar; das Öffnen ändert nichts.",
-      "readyForPeople": "Der Team-Workspace nimmt Gestalt an",
+      "readyForPeople": "Die Organisation Ihres Teams nimmt Gestalt an",
       "readyForPeopleBody": "{workspace} hat eine eigene Identität und Einstellungen. Bestehende Agenten, Gespräche und Regeln bleiben erhalten.",
       "advancedOptional": "Optional: Nur bei Bedarf öffnen. Jeder Bereich nutzt seine eigenen Speicheraktionen.",
       "advancedSafety": "Freigaben und öffentliche Daten",
-      "advancedAssistants": "Workspace-Assistenten und Automatisierung",
+      "advancedAssistants": "Assistenten und Automatisierung der Organisation",
       "advancedVoice": "Sprachgespräche",
       "openOrganizationSettings": "Alle Organisationseinstellungen ↗",
-      "memberReturningGuide": "Willkommen im neuen Workspace. Ihr persönliches Profil existiert bereits. Sie können es behalten und direkt starten, ohne die Organisation einzurichten.",
+      "memberReturningGuide": "Willkommen in der neuen Organisation. Ihr persönliches Profil existiert bereits. Sie können es behalten und direkt starten, ohne die Organisation einzurichten.",
       "memberNewGuide": "Hallo! Ich helfe beim Einstieg: kurz vorstellen, etwas Kontext, dann die erste Aufgabe. Persönliche Angaben sind optional. Die Organisation richtet Ihr Administrator ein.",
       "memberWelcome": "Willkommen bei {workspace}",
       "memberWelcomeBody": "Hier sind Ihr Team, Agenten und gemeinsames Wissen. Machen wir den ersten Besuch nützlich, Schritt für Schritt.",
@@ -17969,6 +18037,2407 @@
       "true": "Wahr",
       "unsure": "Unsicher",
       "yes": "Ja"
+    },
+    "field": {
+      "agent_run": {
+        "config": {
+          "agent": {
+            "description": "Ein Agent aus dem Katalog und die veröffentlichte Version, die dieser Schritt ausführt."
+          },
+          "inline": {
+            "description": "Ein in diesem Schritt konfigurierter Agent - Modell, Instruktionen, Capabilities, Wissen und MCP-Server -, versioniert mit dem Workflow."
+          },
+          "max_cost_usd": {
+            "title": "Max. Kosten (USD)",
+            "description": "Höchstbetrag, den eine Ausführung dieses Schritts für Modellanfragen ausgeben darf, in USD. Wenn leer, gelten nur die Limits des Agents, des Workflows und der Organisation."
+          },
+          "structured_output_schema": {
+            "title": "Schema der strukturierten Ausgabe",
+            "description": "Das JSON Schema eines Objekts, mit dem der Agent statt in seinem eigenen Antwortformat antwortet. Wenn leer, bleibt das Format des Agents."
+          }
+        },
+        "input": {
+          "prompt": {
+            "title": "Prompt"
+          },
+          "sources": {
+            "title": "Quellen"
+          },
+          "attachments": {
+            "title": "Anhänge",
+            "description": "Bilder aus den Dateien des Runs, die dem Agent als Bilder gezeigt werden."
+          }
+        }
+      },
+      "ai_classify": {
+        "config": {
+          "model_profile_id": {
+            "title": "Modell",
+            "description": "Eines der Modelle der Organisation."
+          },
+          "temperature": {
+            "title": "Temperatur",
+            "description": "Variation der Antworten. Bei Modellen, die keine Temperatur unterstützen, nicht setzen."
+          },
+          "effort": {
+            "title": "Denkaufwand",
+            "description": "Wie gründlich das Modell nachdenkt. Wenn leer, gilt die Voreinstellung des Providers."
+          },
+          "max_cost_usd": {
+            "title": "Max. Kosten (USD)",
+            "description": "Höchstbetrag, den eine Ausführung dieses Schritts ausgeben darf. Wenn leer, gelten die Limits des Workflows und der Organisation."
+          },
+          "categories": {
+            "title": "Kategorien"
+          },
+          "instructions": {
+            "title": "Instruktionen",
+            "description": "Alles Weitere, was das Modell abwägen soll, etwa welche Kategorie bei Gleichstand gewinnt."
+          },
+          "min_confidence": {
+            "title": "Mindestkonfidenz",
+            "description": "Darunter geht der Schritt über seinen Unsicher-Port statt über die Kategorie weiter. Wenn leer, immer über die Kategorie."
+          },
+          "categories__items__name": {
+            "title": "Name",
+            "description": "Die Port-ID des Zweigs"
+          },
+          "categories__items__description": {
+            "title": "Beschreibung",
+            "description": "Was in diese Kategorie gehört"
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Text"
+          }
+        }
+      },
+      "ai_extract": {
+        "config": {
+          "model_profile_id": {
+            "title": "Modell",
+            "description": "Eines der Modelle der Organisation."
+          },
+          "temperature": {
+            "title": "Temperatur",
+            "description": "Variation der Antworten. Bei Modellen, die keine Temperatur unterstützen, nicht setzen."
+          },
+          "effort": {
+            "title": "Denkaufwand",
+            "description": "Wie gründlich das Modell nachdenkt. Wenn leer, gilt die Voreinstellung des Providers."
+          },
+          "max_cost_usd": {
+            "title": "Max. Kosten (USD)",
+            "description": "Höchstbetrag, den eine Ausführung dieses Schritts ausgeben darf. Wenn leer, gelten die Limits des Workflows und der Organisation."
+          },
+          "output_schema": {
+            "title": "Zu extrahierende Felder",
+            "description": "Das JSON Schema des zu extrahierenden Objekts."
+          },
+          "instructions": {
+            "title": "Instruktionen",
+            "description": "Alles Weitere, was das Modell wissen sollte, etwa ein Datumsformat."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Text"
+          }
+        }
+      },
+      "ai_prompt": {
+        "config": {
+          "model_profile_id": {
+            "title": "Modell",
+            "description": "Eines der Modelle der Organisation."
+          },
+          "temperature": {
+            "title": "Temperatur",
+            "description": "Variation der Antworten. Bei Modellen, die keine Temperatur unterstützen, nicht setzen."
+          },
+          "effort": {
+            "title": "Denkaufwand",
+            "description": "Wie gründlich das Modell nachdenkt. Wenn leer, gilt die Voreinstellung des Providers."
+          },
+          "max_cost_usd": {
+            "title": "Max. Kosten (USD)",
+            "description": "Höchstbetrag, den eine Ausführung dieses Schritts ausgeben darf. Wenn leer, gelten die Limits des Workflows und der Organisation."
+          },
+          "instructions": {
+            "title": "Instruktionen",
+            "description": "Was das Modell mit jedem Prompt tun soll - seine Rolle und seine Regeln."
+          },
+          "structured_output_schema": {
+            "title": "Schema der strukturierten Ausgabe",
+            "description": "Das JSON Schema eines Objekts, mit dem geantwortet wird. Wenn leer, wird als Text geantwortet."
+          }
+        },
+        "input": {
+          "prompt": {
+            "title": "Prompt"
+          }
+        }
+      },
+      "ai_rewrite": {
+        "config": {
+          "model_profile_id": {
+            "title": "Modell",
+            "description": "Eines der Modelle der Organisation."
+          },
+          "temperature": {
+            "title": "Temperatur",
+            "description": "Variation der Antworten. Bei Modellen, die keine Temperatur unterstützen, nicht setzen."
+          },
+          "effort": {
+            "title": "Denkaufwand",
+            "description": "Wie gründlich das Modell nachdenkt. Wenn leer, gilt die Voreinstellung des Providers."
+          },
+          "max_cost_usd": {
+            "title": "Max. Kosten (USD)",
+            "description": "Höchstbetrag, den eine Ausführung dieses Schritts ausgeben darf. Wenn leer, gelten die Limits des Workflows und der Organisation."
+          },
+          "task": {
+            "title": "Aufgabe",
+            "description": "Was mit dem Text geschehen soll."
+          },
+          "language": {
+            "title": "Sprache",
+            "description": "Die Sprache der Antwort - zum Übersetzen erforderlich, sonst optional."
+          },
+          "length": {
+            "title": "Länge",
+            "description": "Wie lang eine Zusammenfassung sein soll."
+          },
+          "style": {
+            "title": "Stil",
+            "description": "Wie es sich lesen soll, etwa „förmlich“ oder „für einen Kunden“."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Text"
+          }
+        }
+      },
+      "code_javascript_sandbox": {
+        "config": {
+          "code": {
+            "title": "Code",
+            "description": "Der Rumpf einer async-Funktion: Lesen Sie die gebundenen Werte als `args` und Eingabedateien aus dem Ordner `inputs`, schreiben Sie Dateien nach `outputs` und geben Sie die Antwort mit `return` zurück."
+          },
+          "timeout_seconds": {
+            "title": "Zeitlimit (Sekunden)"
+          },
+          "connection_id": {
+            "title": "Sandbox-Host",
+            "description": "Der Sandbox-Host, auf dem ausgeführt wird. Wenn leer, der Standard der Organisation."
+          },
+          "runtime": {
+            "title": "Runtime",
+            "description": "Die Runtime des Hosts, in der ausgeführt wird, eine mit Node. Wenn leer, der Standard der Verbindung."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argumente"
+          },
+          "files": {
+            "title": "Dateien"
+          },
+          "files__items__kind": {
+            "title": "Art"
+          },
+          "files__items__file_id": {
+            "title": "Datei-ID"
+          },
+          "files__items__content_type": {
+            "title": "Inhaltstyp"
+          },
+          "files__items__byte_size": {
+            "title": "Größe in Bytes"
+          }
+        }
+      },
+      "code_python_sandbox": {
+        "config": {
+          "code": {
+            "title": "Code",
+            "description": "Lesen Sie die gebundenen Werte als `args` und Eingabedateien aus dem Ordner `inputs`, und schreiben Sie Dateien nach `outputs`. Setzen Sie `result` auf die Antwort."
+          },
+          "timeout_seconds": {
+            "title": "Zeitlimit (Sekunden)"
+          },
+          "connection_id": {
+            "title": "Sandbox-Host",
+            "description": "Der Sandbox-Host, auf dem ausgeführt wird. Wenn leer, der Standard der Organisation."
+          },
+          "runtime": {
+            "title": "Runtime",
+            "description": "Die Runtime des Hosts, in der ausgeführt wird. Wenn leer, der Standard der Verbindung."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argumente"
+          },
+          "files": {
+            "title": "Dateien"
+          },
+          "files__items__kind": {
+            "title": "Art"
+          },
+          "files__items__file_id": {
+            "title": "Datei-ID"
+          },
+          "files__items__content_type": {
+            "title": "Inhaltstyp"
+          },
+          "files__items__byte_size": {
+            "title": "Größe in Bytes"
+          }
+        }
+      },
+      "code_python_simple": {
+        "config": {
+          "code": {
+            "title": "Code",
+            "description": "Lesen Sie die gebundenen Werte als `args`; der letzte Ausdruck ist das Ergebnis."
+          },
+          "timeout_seconds": {
+            "title": "Timeout (Sekunden)"
+          },
+          "max_memory_mb": {
+            "title": "Max. Speicher (MB)"
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argumente"
+          }
+        }
+      },
+      "control_foreach": {
+        "config": {
+          "item_error_policy": {
+            "title": "Wenn ein Element fehlschlägt",
+            "description": "Anhalten lässt die Schleife beim ersten fehlgeschlagenen Element fehlschlagen. Sammeln hält den Fehler an der Stelle dieses Elements fest und macht mit den übrigen weiter.",
+            "options": {
+              "collect": "Sammeln und weitermachen",
+              "stop": "Schleife anhalten"
+            }
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Elemente"
+          }
+        }
+      },
+      "convert_csv_to_json": {
+        "config": {
+          "max_bytes": {
+            "title": "Max. Bytes",
+            "description": "Höchstzahl an Bytes der Eingabedatei und der kodierten Ausgabe"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Art"
+          },
+          "file__file_id": {
+            "title": "Datei-ID"
+          },
+          "file__content_type": {
+            "title": "Inhaltstyp"
+          },
+          "file__byte_size": {
+            "title": "Größe in Bytes"
+          }
+        }
+      },
+      "convert_json_to_csv": {
+        "config": {
+          "max_bytes": {
+            "title": "Max. Bytes",
+            "description": "Höchstzahl an Bytes der Eingabedatei und der kodierten Ausgabe"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Art"
+          },
+          "file__file_id": {
+            "title": "Datei-ID"
+          },
+          "file__content_type": {
+            "title": "Inhaltstyp"
+          },
+          "file__byte_size": {
+            "title": "Größe in Bytes"
+          }
+        }
+      },
+      "convert_pdf_to_png": {
+        "config": {
+          "pages": {
+            "title": "Seiten",
+            "description": "Welche Seiten gerendert werden, ab 1 gezählt."
+          },
+          "dpi": {
+            "title": "DPI"
+          },
+          "max_bytes": {
+            "title": "Max. Bytes"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Art"
+          },
+          "file__file_id": {
+            "title": "Datei-ID"
+          },
+          "file__content_type": {
+            "title": "Inhaltstyp"
+          },
+          "file__byte_size": {
+            "title": "Größe in Bytes"
+          }
+        }
+      },
+      "convert_text_to_file": {
+        "config": {
+          "filename": {
+            "title": "Dateiname"
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Text"
+          }
+        }
+      },
+      "core_input": {
+        "config": {
+          "fields": {
+            "title": "Felder"
+          },
+          "input_schema": {
+            "description": "Vertrag nach JSON Schema Draft 2020-12 für eine Eingabe als JSON-Objekt; Referenzen müssen lokal auf dieses Dokument verweisen"
+          },
+          "fields__items__name": {
+            "title": "Name",
+            "description": "Der Schlüssel in der Eingabe des Runs und in payload für eine Bindung"
+          },
+          "fields__items__label": {
+            "title": "Bezeichnung",
+            "description": "Im Run-Formular angezeigt"
+          },
+          "fields__items__type": {
+            "title": "Typ"
+          },
+          "fields__items__required": {
+            "title": "Pflichtfeld"
+          },
+          "fields__items__description": {
+            "title": "Beschreibung"
+          },
+          "fields__items__options": {
+            "title": "Optionen",
+            "description": "Was eine Auswahl anbietet"
+          }
+        }
+      },
+      "core_output": {
+        "input": {
+          "text": {
+            "title": "Text"
+          },
+          "sources": {
+            "title": "Quellen"
+          },
+          "artifacts": {
+            "title": "Artefakte"
+          },
+          "structured": {
+            "title": "Strukturiert"
+          },
+          "sources__items__document_id": {
+            "title": "Dokument-ID"
+          },
+          "sources__items__filename": {
+            "title": "Dateiname"
+          },
+          "sources__items__collection": {
+            "title": "Collection"
+          },
+          "sources__items__page": {
+            "title": "Seite"
+          },
+          "sources__items__chunk": {
+            "title": "Chunk"
+          },
+          "sources__items__score": {
+            "title": "Relevanz"
+          },
+          "sources__items__content": {
+            "title": "Inhalt"
+          },
+          "artifacts__items__kind": {
+            "title": "Art"
+          },
+          "artifacts__items__file_id": {
+            "title": "Datei-ID"
+          },
+          "artifacts__items__content_type": {
+            "title": "Inhaltstyp"
+          },
+          "artifacts__items__byte_size": {
+            "title": "Größe in Bytes"
+          }
+        }
+      },
+      "data_combine": {
+        "config": {
+          "mode": {
+            "title": "Modus"
+          },
+          "key": {
+            "title": "Schlüssel",
+            "description": "Das Feld, über das die Objekte beider Listen abgeglichen werden, für by_key"
+          }
+        },
+        "input": {
+          "first": {
+            "title": "Erste"
+          },
+          "second": {
+            "title": "Zweite"
+          }
+        }
+      },
+      "data_filter": {
+        "config": {
+          "condition": {
+            "title": "Bedingung",
+            "description": "Ein JMESPath-Ausdruck über jedes Element, etwa item.score > `50`"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Elemente"
+          }
+        }
+      },
+      "data_map": {
+        "config": {
+          "mappings": {
+            "title": "Zuordnungen"
+          },
+          "mappings__items__target_field": {
+            "title": "Zielfeld"
+          },
+          "mappings__items__source_path": {
+            "title": "Quellpfad",
+            "description": "Ein JMESPath-Ausdruck über die Eingabe, zum Beispiel source.payload.email."
+          },
+          "mappings__items__coerce_to": {
+            "title": "Umwandeln in"
+          },
+          "mappings__items__default": {
+            "title": "Standardwert"
+          }
+        },
+        "input": {
+          "source": {
+            "title": "Quelle"
+          }
+        }
+      },
+      "debug_echo": {
+        "config": {
+          "message": {
+            "title": "Nachricht"
+          }
+        },
+        "input": {
+          "message": {
+            "title": "Nachricht"
+          }
+        }
+      },
+      "debug_relay": {
+        "input": {
+          "echoed": {
+            "title": "Wiedergegeben"
+          },
+          "received_at": {
+            "title": "Empfangen am"
+          }
+        }
+      },
+      "decide_choose": {
+        "config": {
+          "question": {
+            "title": "Frage",
+            "description": "Was über den Text entschieden wird, so gefragt, wie ein Mensch es fragen würde"
+          },
+          "secret_id": {
+            "title": "Älterer TypeSafe-Schlüssel",
+            "description": "Ein TypeSafe-API-Schlüssel aus dem Vault"
+          },
+          "model": {
+            "title": "Modell",
+            "description": "Welcher Jev antwortet: das fortlaufende Release, die Vorschau oder eine festgelegte Version",
+            "options": {
+              "jev_latest": "Jev (neueste)",
+              "jev_preview": "Jev (Vorschau)"
+            }
+          },
+          "min_confidence": {
+            "title": "Mindestkonfidenz (%)",
+            "description": "Darunter geht der Schritt über seinen Unsicher-Port weiter, statt nach der Antwort zu handeln"
+          },
+          "options": {
+            "title": "Optionen"
+          },
+          "model_profile_id": {
+            "title": "Entscheidungsmodell",
+            "description": "Ein natives Entscheidungsmodellprofil. Bestehende Konfigurationen mit TypeSafe-Schlüssel werden weiterhin unterstützt."
+          },
+          "options__items__value": {
+            "title": "Wert"
+          },
+          "options__items__description": {
+            "title": "Beschreibung",
+            "description": "Was diese Option bedeutet, in einer Zeile - Jev liest es zusammen mit der Option"
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Text"
+          }
+        }
+      },
+      "decide_score": {
+        "config": {
+          "question": {
+            "title": "Frage",
+            "description": "Was über den Text entschieden wird, so gefragt, wie ein Mensch es fragen würde"
+          },
+          "secret_id": {
+            "title": "Älterer TypeSafe-Schlüssel",
+            "description": "Ein TypeSafe-API-Schlüssel aus dem Vault"
+          },
+          "model": {
+            "title": "Modell",
+            "description": "Welcher Jev antwortet: das fortlaufende Release, die Vorschau oder eine festgelegte Version",
+            "options": {
+              "jev_latest": "Jev (neueste)",
+              "jev_preview": "Jev (Vorschau)"
+            }
+          },
+          "min_confidence": {
+            "title": "Mindestkonfidenz (%)",
+            "description": "Darunter geht der Schritt über seinen Unsicher-Port weiter, statt nach der Antwort zu handeln"
+          },
+          "levels": {
+            "title": "Stufen",
+            "description": "Was jede Stufe bedeutet, ab 0 aufwärts - „nicht dringend“, „dringend“, ..."
+          },
+          "model_profile_id": {
+            "title": "Entscheidungsmodell",
+            "description": "Ein natives Entscheidungsmodellprofil. Bestehende Konfigurationen mit TypeSafe-Schlüssel werden weiterhin unterstützt."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Text"
+          }
+        }
+      },
+      "decide_yes_no": {
+        "config": {
+          "question": {
+            "title": "Frage",
+            "description": "Was über den Text entschieden wird, so gefragt, wie ein Mensch es fragen würde"
+          },
+          "secret_id": {
+            "title": "Älterer TypeSafe-Schlüssel",
+            "description": "Ein TypeSafe-API-Schlüssel aus dem Vault"
+          },
+          "model": {
+            "title": "Modell",
+            "description": "Welcher Jev antwortet: das fortlaufende Release, die Vorschau oder eine festgelegte Version",
+            "options": {
+              "jev_latest": "Jev (neueste)",
+              "jev_preview": "Jev (Vorschau)"
+            }
+          },
+          "min_confidence": {
+            "title": "Mindestkonfidenz (%)",
+            "description": "Darunter geht der Schritt über seinen Unsicher-Port weiter, statt nach der Antwort zu handeln"
+          },
+          "model_profile_id": {
+            "title": "Entscheidungsmodell",
+            "description": "Ein natives Entscheidungsmodellprofil. Bestehende Konfigurationen mit TypeSafe-Schlüssel werden weiterhin unterstützt."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Text"
+          }
+        }
+      },
+      "email_send": {
+        "config": {
+          "smtp_secret_id": {
+            "title": "SMTP-Konto",
+            "description": "Wählen Sie ein SMTP-Konto aus dem Vault, oder lassen Sie das Feld leer, um den Plattformabsender zu verwenden."
+          },
+          "reply_to": {
+            "title": "Antwort an",
+            "description": "Wohin eine Antwort geht. Wenn leer, die Standard-Antwortadresse des Absenders."
+          }
+        },
+        "input": {
+          "to": {
+            "title": "An",
+            "description": "Bis zu zehn Adressen. Jede erhält eine eigene Kopie."
+          },
+          "subject": {
+            "title": "Betreff"
+          },
+          "body": {
+            "title": "Nachrichtentext",
+            "description": "Reiner Text."
+          }
+        }
+      },
+      "error_handle": {
+        "config": {
+          "branches": {
+            "title": "Zweige"
+          },
+          "branches__items__name": {
+            "title": "Name",
+            "description": "Die Port-ID des Zweigs."
+          },
+          "branches__items__code": {
+            "title": "Code"
+          },
+          "branches__items__retryable": {
+            "title": "Wiederholbar"
+          }
+        }
+      },
+      "error_raise": {
+        "config": {
+          "code": {
+            "title": "Code",
+            "description": "Ein Code in Großbuchstaben, auf den ein error.handle-Zweig passen kann, etwa ORDER_REJECTED."
+          },
+          "message": {
+            "title": "Nachricht"
+          },
+          "details": {
+            "title": "Details"
+          },
+          "retryable": {
+            "title": "Wiederholbar",
+            "description": "Ob die Wiederholungsrichtlinie des Schritts es erneut versuchen darf."
+          }
+        }
+      },
+      "file_read": {
+        "config": {
+          "parse_as": {
+            "title": "Parsen als"
+          },
+          "max_bytes": {
+            "title": "Max. Bytes"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Art"
+          },
+          "file__file_id": {
+            "title": "Datei-ID"
+          },
+          "file__content_type": {
+            "title": "Inhaltstyp"
+          },
+          "file__byte_size": {
+            "title": "Größe in Bytes"
+          }
+        }
+      },
+      "file_write": {
+        "config": {
+          "format": {
+            "title": "Format"
+          },
+          "filename": {
+            "title": "Dateiname",
+            "description": "Wie die Datei heißen soll. Wenn leer, `output` mit der Endung des Formats, etwa `output.csv`."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Text"
+          },
+          "json_value": {
+            "title": "JSON-Wert"
+          },
+          "rows": {
+            "title": "Zeilen"
+          }
+        }
+      },
+      "flow_await_reply": {
+        "config": {
+          "provider": {
+            "title": "Postfach-Anbieter"
+          },
+          "connection_id": {
+            "title": "Verbundenes Postfach der Organisation"
+          },
+          "mailbox": {
+            "title": "Freigegebenes Outlook-Postfach"
+          },
+          "poll_seconds": {
+            "title": "Prüfen alle (Sekunden)"
+          }
+        },
+        "input": {
+          "thread_id": {
+            "title": "Thread-ID"
+          },
+          "expected_sender": {
+            "title": "Erwarteter Absender"
+          },
+          "not_before": {
+            "title": "Nicht vor"
+          },
+          "deadline": {
+            "title": "Frist"
+          },
+          "anchor_message_id": {
+            "title": "ID der Ankernachricht"
+          }
+        }
+      },
+      "flow_wait": {
+        "config": {
+          "seconds": {
+            "title": "Wartezeit (Sekunden)",
+            "description": "Wie lange nach Erreichen des Schritts es weitergeht; höchstens dreißig Tage. Beim Warten auf einen Aufruf: wie lange höchstens darauf gewartet wird"
+          },
+          "until_called": {
+            "title": "Auf einen Aufruf des Fortsetzungslinks des Runs warten",
+            "description": "Weitermachen, wenn die Adresse aufgerufen wird, die ein Schritt Fortsetzungslink liefert, und weitergeben, was an sie gesendet wurde"
+          }
+        },
+        "input": {
+          "until": {
+            "title": "Bis"
+          }
+        }
+      },
+      "html_parse": {
+        "config": {
+          "selector": {
+            "title": "CSS-Selektor",
+            "description": "Die auszuwählenden Elemente, wie in einem Stylesheet - zum Beispiel `table.prices td` oder `a.download`. Wenn leer, wird nichts ausgewählt."
+          },
+          "max_matches": {
+            "title": "Max. Treffer",
+            "description": "Wie viele ausgewählte Elemente zurückgegeben werden"
+          },
+          "base_url": {
+            "title": "Basisadresse",
+            "description": "Relative Links werden relativ zu ihr aufgelöst. Sie wird nie abgerufen."
+          },
+          "max_chars": {
+            "title": "Max. Textzeichen",
+            "description": "Der lesbare Text wird bei dieser Länge abgeschnitten"
+          }
+        },
+        "input": {
+          "html": {
+            "title": "HTML",
+            "description": "Das HTML, höchstens 2.000.000 Zeichen"
+          },
+          "file": {
+            "description": "Eine Datei mit dem HTML, höchstens 5.000.000 Bytes"
+          },
+          "file__kind": {
+            "title": "Art"
+          },
+          "file__file_id": {
+            "title": "Datei-ID"
+          },
+          "file__content_type": {
+            "title": "Inhaltstyp"
+          },
+          "file__byte_size": {
+            "title": "Größe in Bytes"
+          }
+        }
+      },
+      "http_download": {
+        "config": {
+          "url": {
+            "title": "URL",
+            "description": "Eine http- oder https-URL. Kann aus einem früheren Schritt gebunden werden."
+          },
+          "headers": {
+            "title": "Header"
+          },
+          "auth__kind": {
+            "title": "Art"
+          },
+          "auth__secret_id": {
+            "title": "Secret",
+            "description": "HTTP-Zugangsdaten aus dem Vault, gebunden an die Origins, an die sie gesendet werden dürfen."
+          },
+          "auth__header_name": {
+            "title": "Header-Name",
+            "description": "Für `header`: der Header, in dem das Token gesendet wird, z. B. X-Api-Key."
+          },
+          "auth__header_prefix": {
+            "title": "Header-Präfix",
+            "description": "Optionales Schema für einen eigenen Header, z. B. Token, das vor dem Schlüssel gesendet wird, wie in Authorization: Token abc123."
+          },
+          "auth__query_name": {
+            "title": "Query-Parameter",
+            "description": "Für `query`: der URL-Parameter, in dem das Token gesendet wird, z. B. api_key."
+          },
+          "timeout_seconds": {
+            "title": "Timeout (Sekunden)"
+          },
+          "max_bytes": {
+            "title": "Max. Bytes",
+            "description": "Eine größere Datei ablehnen, ganz gleich, wie der Server sie beschreibt."
+          },
+          "expected_content_types": {
+            "title": "Erwartete Inhaltstypen",
+            "description": "Nur diese Medientypen annehmen, so wie die Bytes der Datei selbst sie zeigen - `application/pdf`, `image/png`. Wenn leer, wird jeder angenommen."
+          },
+          "filename": {
+            "title": "Dateiname",
+            "description": "Wie die gespeicherte Datei heißen soll. Wenn leer, aus der URL übernommen."
+          }
+        }
+      },
+      "http_request": {
+        "config": {
+          "method": {
+            "title": "Methode"
+          },
+          "url": {
+            "title": "URL",
+            "description": "Eine http- oder https-URL. Kann aus einem früheren Schritt gebunden werden."
+          },
+          "headers": {
+            "title": "Header"
+          },
+          "auth__kind": {
+            "title": "Art"
+          },
+          "auth__secret_id": {
+            "title": "Secret",
+            "description": "HTTP-Zugangsdaten aus dem Vault, gebunden an die Origins, an die sie gesendet werden dürfen."
+          },
+          "auth__header_name": {
+            "title": "Header-Name",
+            "description": "Für `header`: der Header, in dem das Token gesendet wird, z. B. X-Api-Key."
+          },
+          "auth__header_prefix": {
+            "title": "Header-Präfix",
+            "description": "Optionales Schema für einen eigenen Header, z. B. Token, das vor dem Schlüssel gesendet wird, wie in Authorization: Token abc123."
+          },
+          "auth__query_name": {
+            "title": "Query-Parameter",
+            "description": "Für `query`: der URL-Parameter, in dem das Token gesendet wird, z. B. api_key."
+          },
+          "timeout_seconds": {
+            "title": "Timeout (Sekunden)"
+          },
+          "max_response_bytes": {
+            "title": "Max. Antwort-Bytes"
+          },
+          "idempotency_key_header": {
+            "title": "Header für Idempotenzschlüssel",
+            "description": "Den stabilen Operationsschlüssel dieses Schritts in diesem Header senden (z. B. Idempotency-Key), damit eine Wiederholung, die die Gegenseite erkennt, sicher ist."
+          },
+          "on_error_status": {
+            "title": "Bei Fehlerstatus",
+            "description": "Ob ein Status außerhalb von 2xx den Schritt fehlschlagen lässt oder als seine Ausgabe zurückgegeben wird."
+          },
+          "pagination__mode": {
+            "title": "Modus"
+          },
+          "pagination__items_path": {
+            "title": "Pfad der Elemente",
+            "description": "Wo die Elemente jeder Seite stehen, zum Beispiel data oder results."
+          },
+          "pagination__next_path": {
+            "title": "Pfad zur nächsten Seite",
+            "description": "Für next_url und cursor: wo die URL oder der Cursor der nächsten Seite steht, zum Beispiel links.next oder meta.next_cursor."
+          },
+          "pagination__param": {
+            "title": "Parameter",
+            "description": "Für cursor und page: der Query-Parameter, der den Wert überträgt."
+          },
+          "pagination__first_page": {
+            "title": "Erste Seite"
+          },
+          "pagination__max_pages": {
+            "title": "Max. Seiten",
+            "description": "Höchstzahl abgerufener Seiten."
+          }
+        },
+        "input": {
+          "body": {
+            "title": "Body"
+          }
+        }
+      },
+      "http_upload": {
+        "config": {
+          "method": {
+            "title": "Methode"
+          },
+          "url": {
+            "title": "URL",
+            "description": "Eine http- oder https-URL. Kann aus einem früheren Schritt gebunden werden."
+          },
+          "headers": {
+            "title": "Header"
+          },
+          "auth__kind": {
+            "title": "Art"
+          },
+          "auth__secret_id": {
+            "title": "Secret",
+            "description": "HTTP-Zugangsdaten aus dem Vault, gebunden an die Origins, an die sie gesendet werden dürfen."
+          },
+          "auth__header_name": {
+            "title": "Header-Name",
+            "description": "Für `header`: der Header, in dem das Token gesendet wird, z. B. X-Api-Key."
+          },
+          "auth__header_prefix": {
+            "title": "Header-Präfix",
+            "description": "Optionales Schema für einen eigenen Header, z. B. Token, das vor dem Schlüssel gesendet wird, wie in Authorization: Token abc123."
+          },
+          "auth__query_name": {
+            "title": "Query-Parameter",
+            "description": "Für `query`: der URL-Parameter, in dem das Token gesendet wird, z. B. api_key."
+          },
+          "timeout_seconds": {
+            "title": "Timeout (Sekunden)"
+          },
+          "max_response_bytes": {
+            "title": "Max. Antwort-Bytes"
+          },
+          "idempotency_key_header": {
+            "title": "Header für Idempotenzschlüssel",
+            "description": "Den stabilen Operationsschlüssel dieses Schritts in diesem Header senden (z. B. Idempotency-Key), damit eine Wiederholung, die die Gegenseite erkennt, sicher ist."
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Art"
+          },
+          "file__file_id": {
+            "title": "Datei-ID"
+          },
+          "file__content_type": {
+            "title": "Inhaltstyp"
+          },
+          "file__byte_size": {
+            "title": "Größe in Bytes"
+          }
+        }
+      },
+      "human_approval": {
+        "config": {
+          "title": {
+            "title": "Titel",
+            "description": "Die Frage, die der Freigebende beantwortet, etwa Erstattung auszahlen?"
+          },
+          "approvers": {
+            "title": "Freigebende",
+            "description": "Wer entscheiden darf. Wenn leer, jeder, der über Freigaben entscheidet."
+          },
+          "timeout_hours": {
+            "title": "Zeitlimit (Stunden)",
+            "description": "Wie lange der Run wartet, bevor die Anfrage abläuft. Wenn leer, unbegrenzt."
+          },
+          "editable": {
+            "title": "Bearbeitung durch den Freigebenden erlauben",
+            "description": "Den gebundenen Vorschlag in einem Editor zeigen; die Version, die der Freigebende freigibt, geht als endgültige weiter."
+          },
+          "proposal_label": {
+            "title": "Bezeichnung des Vorschlags",
+            "description": "Wie der Vorschlag heißt, etwa Antwort. Wenn leer, Vorschlag."
+          },
+          "proposal_format": {
+            "title": "Format des Vorschlags",
+            "description": "Ob der Vorschlag reiner Text oder Markdown ist."
+          },
+          "choices": {
+            "title": "Freigabeoptionen",
+            "description": "Diese statt eines einfachen Freigeben anbieten: je eine Schaltfläche und ein Ausgangsport, in dieser Reihenfolge, und der Schritt hat keinen Freigegeben-Port. Wenn leer, gibt der Schritt frei oder lehnt ab."
+          },
+          "approver_groups": {
+            "title": "Freigebende Gruppen",
+            "description": "Jedes aktuelle Mitglied mit Freigabeberechtigung darf entscheiden. Leere oder gelöschte Gruppen gewähren keinen Zugriff."
+          },
+          "choices__items__id": {
+            "title": "Port-ID",
+            "description": "Benennt den Ausgangsport und das, was spätere Schritte als choice lesen. Kleinbuchstaben, Ziffern und Unterstriche; nicht in, approved oder rejected."
+          },
+          "choices__items__label": {
+            "title": "Beschriftung der Schaltfläche",
+            "description": "Was der Freigebende auf der Schaltfläche liest, etwa Jetzt senden."
+          }
+        },
+        "input": {
+          "details": {
+            "title": "Details"
+          },
+          "proposal": {
+            "title": "Vorschlag",
+            "description": "Der Text, den der Freigebende prüft und, wenn der Schritt bearbeitbar ist, bearbeitet."
+          }
+        }
+      },
+      "image_transform": {
+        "config": {
+          "crop__left": {
+            "title": "Links"
+          },
+          "crop__top": {
+            "title": "Oben"
+          },
+          "crop__width": {
+            "title": "Breite"
+          },
+          "crop__height": {
+            "title": "Höhe"
+          },
+          "resize__width": {
+            "title": "Breite"
+          },
+          "resize__height": {
+            "title": "Höhe"
+          },
+          "resize__mode": {
+            "title": "Modus"
+          },
+          "rotate_degrees": {
+            "title": "Drehung (Grad)",
+            "description": "Im Uhrzeigersinn"
+          },
+          "output_format": {
+            "title": "Ausgabeformat"
+          },
+          "quality": {
+            "title": "Qualität",
+            "description": "Für JPEG und WebP"
+          },
+          "max_bytes": {
+            "title": "Max. Bytes"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Art"
+          },
+          "file__file_id": {
+            "title": "Datei-ID"
+          },
+          "file__content_type": {
+            "title": "Inhaltstyp"
+          },
+          "file__byte_size": {
+            "title": "Größe in Bytes"
+          }
+        }
+      },
+      "knowledge_add": {
+        "config": {
+          "collection_ids": {
+            "title": "Collections",
+            "description": "Die Wissens-Collections, zu denen das Dokument hinzugefügt wird."
+          }
+        },
+        "input": {
+          "title": {
+            "title": "Titel",
+            "description": "Der Name des Dokuments. Bei einem Text erforderlich; eine Datei behält ohne ihn ihren eigenen Namen."
+          },
+          "text": {
+            "title": "Text"
+          },
+          "file__kind": {
+            "title": "Art"
+          },
+          "file__file_id": {
+            "title": "Datei-ID"
+          },
+          "file__content_type": {
+            "title": "Inhaltstyp"
+          },
+          "file__byte_size": {
+            "title": "Größe in Bytes"
+          }
+        }
+      },
+      "knowledge_search": {
+        "config": {
+          "collection_ids": {
+            "title": "Collections",
+            "description": "Die zu durchsuchenden Wissens-Collections."
+          },
+          "top_k": {
+            "title": "Top K",
+            "description": "Höchstzahl zurückgegebener Passagen."
+          }
+        },
+        "input": {
+          "query": {
+            "title": "Suchanfrage"
+          }
+        }
+      },
+      "logic_if": {
+        "config": {
+          "condition": {
+            "title": "Bedingung",
+            "description": "Ein JMESPath-Ausdruck über die Eingabe, ausgewertet als wahr oder falsch - zum Beispiel value.status == 'approved'."
+          }
+        },
+        "input": {
+          "value": {
+            "title": "Wert"
+          }
+        }
+      },
+      "logic_merge": {
+        "config": {
+          "wait_for": {
+            "title": "Warten auf",
+            "description": "`one`: der Zweig, der gelaufen ist, weitergegeben als `value`. `all`: jeder Zweig, nach Namen weitergegeben als `branches`"
+          },
+          "branch_keys": {
+            "title": "Zweignamen",
+            "description": "Ein Name für jeden eingehenden Zweig. Ein Zweig ohne Namen wird nach dem Schritt benannt, den er verlässt, oder nach dem Zweig von Aufteilen"
+          },
+          "branch_keys__items__source_node_id": {
+            "title": "ID des Quellschritts",
+            "description": "Der Schritt, den der Zweig verlässt"
+          },
+          "branch_keys__items__source_port": {
+            "title": "Quellport",
+            "description": "Der Port, über den er ihn verlässt"
+          },
+          "branch_keys__items__key": {
+            "title": "Schlüssel",
+            "description": "Der Name des Zweigs in `branches`"
+          }
+        }
+      },
+      "logic_split": {
+        "config": {
+          "branches": {
+            "title": "Zweige",
+            "description": "Die Zweige, jeder ein benannter Ausgangsport; mindestens zwei, jeder mit eigenem Namen"
+          },
+          "branches__items__name": {
+            "title": "Name",
+            "description": "Die Port-ID des Zweigs"
+          }
+        }
+      },
+      "logic_switch": {
+        "config": {
+          "rules": {
+            "title": "Regeln"
+          },
+          "rules__items__name": {
+            "title": "Name",
+            "description": "Die Port-ID des Zweigs"
+          },
+          "rules__items__condition": {
+            "title": "Bedingung",
+            "description": "Ein JMESPath-Ausdruck über die Eingabe, etwa value.country == 'PL'"
+          }
+        },
+        "input": {
+          "value": {
+            "title": "Wert"
+          }
+        }
+      },
+      "loop_yield": {
+        "input": {
+          "value": {
+            "title": "Wert"
+          }
+        }
+      },
+      "mattermost_channels_find": {
+        "config": {
+          "bot_id": {
+            "title": "Mattermost-Bot",
+            "description": "Als welcher der Mattermost-Bots der Organisation dieser Schritt handelt"
+          },
+          "limit": {
+            "title": "Aufzulistende Kanäle",
+            "description": "Höchstens so viele"
+          }
+        },
+        "input": {
+          "query": {
+            "title": "Name enthält",
+            "description": "Teil des Kanalnamens"
+          },
+          "channel_id": {
+            "title": "Ein Kanal, in dem der Bot ist",
+            "description": "Auf Mattermost wird daraus das zu durchsuchende Team gelesen"
+          }
+        }
+      },
+      "mattermost_members_list": {
+        "config": {
+          "bot_id": {
+            "title": "Mattermost-Bot",
+            "description": "Als welcher der Mattermost-Bots der Organisation dieser Schritt handelt"
+          },
+          "limit": {
+            "title": "Aufzulistende Personen",
+            "description": "Höchstens so viele"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanal"
+          }
+        }
+      },
+      "mattermost_message_send": {
+        "config": {
+          "bot_id": {
+            "title": "Mattermost-Bot",
+            "description": "Als welcher der Mattermost-Bots der Organisation dieser Schritt handelt"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanal",
+            "description": "Die Kanal-ID der Plattform"
+          },
+          "text": {
+            "title": "Nachricht"
+          },
+          "thread_id": {
+            "title": "Thread",
+            "description": "Der Thread, in dem geantwortet wird: der Zeitstempel eines Slack-Threads, die ID eines Mattermost-Root-Posts, ein Telegram-Forenthema"
+          }
+        }
+      },
+      "mattermost_messages_read": {
+        "config": {
+          "bot_id": {
+            "title": "Mattermost-Bot",
+            "description": "Als welcher der Mattermost-Bots der Organisation dieser Schritt handelt"
+          },
+          "limit": {
+            "title": "Zu lesende Nachrichten",
+            "description": "Höchstens so viele"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanal"
+          },
+          "thread_id": {
+            "title": "Thread",
+            "description": "Stattdessen diesen Thread lesen"
+          }
+        }
+      },
+      "mcp_call": {
+        "config": {
+          "connection_id": {
+            "title": "Server",
+            "description": "Einer der MCP-Server der Organisation."
+          },
+          "tool": {
+            "title": "Tool",
+            "description": "Das aufzurufende Tool, so wie der Server es benennt."
+          },
+          "idempotency_key_argument": {
+            "title": "Argument für Idempotenzschlüssel",
+            "description": "Den stabilen Operationsschlüssel dieses Schritts als dieses Tool-Argument senden, wenn das Tool es deklariert, damit eine Wiederholung, die der Server erkennt, sicher ist."
+          },
+          "approval": {
+            "title": "Freigabe anfordern",
+            "description": "Vor einem Tool, das der Server nicht als nur lesend kennzeichnet, vor jedem Aufruf oder nie.",
+            "options": {
+              "all": "Vor jedem Aufruf",
+              "none": "Nie",
+              "writes": "Vor einem Tool, das etwas ändern kann"
+            }
+          },
+          "approvers": {
+            "title": "Freigebende",
+            "description": "Wer den Aufruf freigeben darf. Wenn leer, jeder, der über Freigaben entscheidet."
+          },
+          "timeout_seconds": {
+            "title": "Timeout (Sekunden)",
+            "description": "Wie lange das Tool für die Antwort brauchen darf."
+          },
+          "on_tool_error": {
+            "title": "Wenn das Tool mit einem Fehler antwortet",
+            "description": "Ob ein Fehler, mit dem das Tool antwortet, den Schritt fehlschlagen lässt oder seine Ausgabe ist.",
+            "options": {
+              "complete": "Fehler weitergeben",
+              "fail": "Schritt fehlschlagen lassen"
+            }
+          },
+          "approver_groups": {
+            "title": "Freigebende Gruppen",
+            "description": "Jedes aktuelle Mitglied mit Freigabeberechtigung darf entscheiden. Leere oder gelöschte Gruppen gewähren keinen Zugriff."
+          }
+        },
+        "input": {
+          "arguments": {
+            "title": "Argumente",
+            "description": "Ein Objekt, das dem Eingabeschema des Tools entspricht."
+          }
+        }
+      },
+      "notification_send": {
+        "config": {
+          "recipients": {
+            "title": "Empfänger",
+            "description": "Zu benachrichtigende Mitglieder der Organisation."
+          },
+          "subject": {
+            "title": "Betreff",
+            "description": "Die Überschrift der Benachrichtigung."
+          },
+          "channels": {
+            "title": "Kanäle",
+            "description": "Wo sie die Empfänger erreichen darf. Die Einstellungen jeder Person und ihre ausdrückliche Zustimmung zu privaten Kanälen gelten weiterhin; ein Workflow kann kein Chat-Ziel für sie wählen."
+          }
+        },
+        "input": {
+          "message": {
+            "title": "Nachricht"
+          }
+        }
+      },
+      "slack_channels_find": {
+        "config": {
+          "bot_id": {
+            "title": "Slack-Bot",
+            "description": "Als welcher der Slack-Bots der Organisation dieser Schritt handelt"
+          },
+          "limit": {
+            "title": "Aufzulistende Kanäle",
+            "description": "Höchstens so viele"
+          }
+        },
+        "input": {
+          "query": {
+            "title": "Name enthält",
+            "description": "Teil des Kanalnamens"
+          },
+          "channel_id": {
+            "title": "Ein Kanal, in dem der Bot ist",
+            "description": "Auf Mattermost wird daraus das zu durchsuchende Team gelesen"
+          }
+        }
+      },
+      "slack_members_list": {
+        "config": {
+          "bot_id": {
+            "title": "Slack-Bot",
+            "description": "Als welcher der Slack-Bots der Organisation dieser Schritt handelt"
+          },
+          "limit": {
+            "title": "Aufzulistende Personen",
+            "description": "Höchstens so viele"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanal"
+          }
+        }
+      },
+      "slack_message_send": {
+        "config": {
+          "bot_id": {
+            "title": "Slack-Bot",
+            "description": "Als welcher der Slack-Bots der Organisation dieser Schritt handelt"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanal",
+            "description": "Die Kanal-ID der Plattform"
+          },
+          "text": {
+            "title": "Nachricht"
+          },
+          "thread_id": {
+            "title": "Thread",
+            "description": "Der Thread, in dem geantwortet wird: der Zeitstempel eines Slack-Threads, die ID eines Mattermost-Root-Posts, ein Telegram-Forenthema"
+          }
+        }
+      },
+      "slack_messages_read": {
+        "config": {
+          "bot_id": {
+            "title": "Slack-Bot",
+            "description": "Als welcher der Slack-Bots der Organisation dieser Schritt handelt"
+          },
+          "limit": {
+            "title": "Zu lesende Nachrichten",
+            "description": "Höchstens so viele"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanal"
+          },
+          "thread_id": {
+            "title": "Thread",
+            "description": "Stattdessen diesen Thread lesen"
+          }
+        }
+      },
+      "table_create": {
+        "config": {
+          "name": {
+            "title": "Name"
+          },
+          "description": {
+            "title": "Beschreibung"
+          },
+          "columns": {
+            "title": "Spalten"
+          },
+          "visibility": {
+            "title": "Sichtbarkeit"
+          },
+          "columns__items__id": {
+            "title": "ID"
+          },
+          "columns__items__label": {
+            "title": "Bezeichnung"
+          },
+          "columns__items__type": {
+            "title": "Typ"
+          },
+          "columns__items__nullable": {
+            "title": "Leer erlaubt"
+          },
+          "columns__items__default": {
+            "title": "Standardwert"
+          },
+          "columns__items__document_templates": {
+            "title": "Dokumentvorlagen"
+          },
+          "columns__items__document_templates__items__id": {
+            "title": "ID"
+          },
+          "columns__items__document_templates__items__name": {
+            "title": "Name"
+          },
+          "columns__items__document_templates__items__body": {
+            "title": "Inhalt"
+          },
+          "columns__items__default_template_id": {
+            "title": "ID der Standardvorlage"
+          },
+          "columns__items__options": {
+            "title": "Optionen"
+          },
+          "columns__items__options__items__id": {
+            "title": "ID"
+          },
+          "columns__items__options__items__label": {
+            "title": "Bezeichnung"
+          },
+          "columns__items__options__items__color": {
+            "title": "Farbe",
+            "description": "Anzeigefarbe; leer verwendet die automatische Palette"
+          },
+          "columns__items__options__items__archived": {
+            "title": "Archiviert"
+          },
+          "columns__items__archived": {
+            "title": "Archiviert"
+          },
+          "columns__items__link_table_id": {
+            "title": "ID der verknüpften Tabelle",
+            "description": "Eine Verknüpfungsspalte: die Tabelle, mit deren Datensätzen sie verknüpft."
+          },
+          "columns__items__link_column_id": {
+            "title": "ID der Verknüpfungsspalte",
+            "description": "Eine Nachschlagen- oder Zusammenfassungsspalte: die Verknüpfungsspalte dieser Tabelle, über die sie liest."
+          },
+          "columns__items__target_column_id": {
+            "title": "ID der Zielspalte",
+            "description": "Eine Nachschlagen- oder Zusammenfassungsspalte: die Spalte der verknüpften Tabelle, die sie liest. Eine Zusammenfassung, die die Verknüpfungen zählt, liest keine."
+          },
+          "columns__items__aggregate": {
+            "title": "Aggregation",
+            "description": "Eine Zusammenfassungsspalte: was sie aus den gelesenen Werten macht."
+          },
+          "columns__items__formula": {
+            "title": "Formel",
+            "description": "Eine Formelspalte: ein Ausdruck über die anderen Spalten des Datensatzes, jede mit ihrer Bezeichnung in geschweiften Klammern benannt, etwa '{'Price'}' * '{'Quantity'}'."
+          }
+        }
+      },
+      "table_describe": {
+        "config": {
+          "table": {
+            "description": "Die Tabelle, mit der dieser Schritt arbeitet, festgelegt beim Veröffentlichen des Workflows."
+          },
+          "table__kind": {
+            "title": "Art"
+          },
+          "table__table_id": {
+            "title": "Tabellen-ID"
+          },
+          "table__column_ids": {
+            "title": "Spalten-IDs"
+          },
+          "table__schema_version": {
+            "title": "Schemaversion"
+          }
+        }
+      },
+      "table_exists": {
+        "input": {
+          "name": {
+            "title": "Name"
+          }
+        }
+      },
+      "table_list": {
+        "config": {
+          "limit": {
+            "title": "Limit",
+            "description": "Höchstzahl aufgelisteter Tabellen"
+          }
+        },
+        "input": {
+          "search": {
+            "title": "Suche"
+          }
+        }
+      },
+      "table_record_create": {
+        "config": {
+          "table": {
+            "description": "Die Tabelle, mit der dieser Schritt arbeitet, festgelegt beim Veröffentlichen des Workflows."
+          },
+          "table__kind": {
+            "title": "Art"
+          },
+          "table__table_id": {
+            "title": "Tabellen-ID"
+          },
+          "table__column_ids": {
+            "title": "Spalten-IDs"
+          },
+          "table__schema_version": {
+            "title": "Schemaversion"
+          }
+        },
+        "input": {
+          "values": {
+            "title": "Werte",
+            "description": "Zellwerte nach Spalten-ID oder Bezeichnung"
+          },
+          "external_id": {
+            "title": "Externe ID"
+          }
+        }
+      },
+      "table_record_delete": {
+        "config": {
+          "table": {
+            "description": "Die Tabelle, mit der dieser Schritt arbeitet, festgelegt beim Veröffentlichen des Workflows."
+          },
+          "table__kind": {
+            "title": "Art"
+          },
+          "table__table_id": {
+            "title": "Tabellen-ID"
+          },
+          "table__column_ids": {
+            "title": "Spalten-IDs"
+          },
+          "table__schema_version": {
+            "title": "Schemaversion"
+          }
+        },
+        "input": {
+          "record_id": {
+            "title": "Datensatz-ID"
+          },
+          "expected_revision": {
+            "title": "Erwartete Revision"
+          }
+        }
+      },
+      "table_record_exists": {
+        "config": {
+          "table": {
+            "description": "Die Tabelle, mit der dieser Schritt arbeitet, festgelegt beim Veröffentlichen des Workflows."
+          },
+          "table__kind": {
+            "title": "Art"
+          },
+          "table__table_id": {
+            "title": "Tabellen-ID"
+          },
+          "table__column_ids": {
+            "title": "Spalten-IDs"
+          },
+          "table__schema_version": {
+            "title": "Schemaversion"
+          },
+          "filters": {
+            "title": "Filter"
+          },
+          "filters__items__column_id": {
+            "title": "Spalten-ID"
+          },
+          "filters__items__op": {
+            "title": "Operator"
+          },
+          "filters__items__value": {
+            "title": "Wert",
+            "description": "Der Operand. Eine Liste für `in`, ein Boolean für `is_null` (true bedeutet, dass die Zelle leer ist), sonst ein Wert vom Typ der Spalte."
+          }
+        }
+      },
+      "table_record_get": {
+        "config": {
+          "table": {
+            "description": "Die Tabelle, mit der dieser Schritt arbeitet, festgelegt beim Veröffentlichen des Workflows."
+          },
+          "table__kind": {
+            "title": "Art"
+          },
+          "table__table_id": {
+            "title": "Tabellen-ID"
+          },
+          "table__column_ids": {
+            "title": "Spalten-IDs"
+          },
+          "table__schema_version": {
+            "title": "Schemaversion"
+          }
+        },
+        "input": {
+          "record_id": {
+            "title": "Datensatz-ID"
+          },
+          "external_id": {
+            "title": "Externe ID"
+          }
+        }
+      },
+      "table_record_query": {
+        "config": {
+          "table": {
+            "description": "Die Tabelle, mit der dieser Schritt arbeitet, festgelegt beim Veröffentlichen des Workflows."
+          },
+          "table__kind": {
+            "title": "Art"
+          },
+          "table__table_id": {
+            "title": "Tabellen-ID"
+          },
+          "table__column_ids": {
+            "title": "Spalten-IDs"
+          },
+          "table__schema_version": {
+            "title": "Schemaversion"
+          },
+          "filters": {
+            "title": "Filter"
+          },
+          "sort__by": {
+            "title": "Nach",
+            "description": "`created_at`, `updated_at` oder eine Spalten-ID. Bei Gleichstand entscheidet immer die Datensatz-ID."
+          },
+          "sort__direction": {
+            "title": "Richtung"
+          },
+          "limit": {
+            "title": "Limit"
+          },
+          "skip": {
+            "title": "Überspringen"
+          },
+          "filters__items__column_id": {
+            "title": "Spalten-ID"
+          },
+          "filters__items__op": {
+            "title": "Operator"
+          },
+          "filters__items__value": {
+            "title": "Wert",
+            "description": "Der Operand. Eine Liste für `in`, ein Boolean für `is_null` (true bedeutet, dass die Zelle leer ist), sonst ein Wert vom Typ der Spalte."
+          }
+        }
+      },
+      "table_record_update": {
+        "config": {
+          "table": {
+            "description": "Die Tabelle, mit der dieser Schritt arbeitet, festgelegt beim Veröffentlichen des Workflows."
+          },
+          "table__kind": {
+            "title": "Art"
+          },
+          "table__table_id": {
+            "title": "Tabellen-ID"
+          },
+          "table__column_ids": {
+            "title": "Spalten-IDs"
+          },
+          "table__schema_version": {
+            "title": "Schemaversion"
+          }
+        },
+        "input": {
+          "record_id": {
+            "title": "Datensatz-ID"
+          },
+          "values": {
+            "title": "Werte",
+            "description": "Nur die zu ändernden Zellen, nach Spalten-ID oder Bezeichnung"
+          },
+          "expected_revision": {
+            "title": "Erwartete Revision"
+          }
+        }
+      },
+      "table_record_upsert": {
+        "config": {
+          "table": {
+            "description": "Die Tabelle, mit der dieser Schritt arbeitet, festgelegt beim Veröffentlichen des Workflows."
+          },
+          "table__kind": {
+            "title": "Art"
+          },
+          "table__table_id": {
+            "title": "Tabellen-ID"
+          },
+          "table__column_ids": {
+            "title": "Spalten-IDs"
+          },
+          "table__schema_version": {
+            "title": "Schemaversion"
+          }
+        },
+        "input": {
+          "external_id": {
+            "title": "Externe ID"
+          },
+          "values": {
+            "title": "Werte",
+            "description": "Zellwerte nach Spalten-ID oder Bezeichnung"
+          }
+        }
+      },
+      "telegram_members_list": {
+        "config": {
+          "bot_id": {
+            "title": "Telegram-Bot",
+            "description": "Als welcher der Telegram-Bots der Organisation dieser Schritt handelt"
+          },
+          "limit": {
+            "title": "Aufzulistende Personen",
+            "description": "Höchstens so viele"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanal"
+          }
+        }
+      },
+      "telegram_message_send": {
+        "config": {
+          "bot_id": {
+            "title": "Telegram-Bot",
+            "description": "Als welcher der Telegram-Bots der Organisation dieser Schritt handelt"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanal",
+            "description": "Die Kanal-ID der Plattform"
+          },
+          "text": {
+            "title": "Nachricht"
+          },
+          "thread_id": {
+            "title": "Thread",
+            "description": "Der Thread, in dem geantwortet wird: der Zeitstempel eines Slack-Threads, die ID eines Mattermost-Root-Posts, ein Telegram-Forenthema"
+          }
+        }
+      },
+      "text_compare": {
+        "config": {
+          "method": {
+            "title": "Methode",
+            "description": "Was gezählt wird: Zeichen, gemeinsame Wörter oder unveränderte Zeilen"
+          },
+          "ignore_case": {
+            "title": "Groß-/Kleinschreibung ignorieren",
+            "description": "Groß- und Kleinbuchstaben gleich behandeln"
+          },
+          "ignore_whitespace": {
+            "title": "Leerraum ignorieren",
+            "description": "Leerraum innerhalb einer Zeile zusammenfassen, jede Zeile kürzen und leere Zeilen entfernen; Zeilenumbrüche zählen weiterhin"
+          },
+          "ignore_punctuation": {
+            "title": "Satzzeichen ignorieren",
+            "description": "Satzzeichen weglassen"
+          },
+          "strip_quoted": {
+            "title": "Zitierte Mails und Signaturen weglassen",
+            "description": "Zitierte Antwortzeilen, die Zitateinleitung und alles nach einer Signatur entfernen"
+          }
+        },
+        "input": {
+          "a": {
+            "title": "A",
+            "description": "Der erste Text, etwa das Original"
+          },
+          "b": {
+            "title": "B",
+            "description": "Der zweite Text, etwa die Bearbeitung"
+          }
+        }
+      },
+      "text_extract": {
+        "config": {
+          "max_bytes": {
+            "title": "Max. Bytes"
+          },
+          "max_chars": {
+            "title": "Max. Zeichen"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Art"
+          },
+          "file__file_id": {
+            "title": "Datei-ID"
+          },
+          "file__content_type": {
+            "title": "Inhaltstyp"
+          },
+          "file__byte_size": {
+            "title": "Größe in Bytes"
+          }
+        }
+      },
+      "transform_aggregate": {
+        "config": {
+          "fields": {
+            "title": "Felder"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Elemente"
+          }
+        }
+      },
+      "transform_crypto": {
+        "config": {
+          "operation": {
+            "title": "Operation"
+          },
+          "length": {
+            "title": "Länge",
+            "description": "Bytes an Zufallsdaten, für random_hex"
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Text"
+          }
+        }
+      },
+      "transform_date_time": {
+        "config": {
+          "operation": {
+            "title": "Operation"
+          },
+          "amount": {
+            "title": "Anzahl"
+          },
+          "unit": {
+            "title": "Einheit"
+          },
+          "format": {
+            "title": "Format",
+            "description": "Wie es ausgegeben wird, etwa %d.%m.%Y"
+          },
+          "timezone": {
+            "title": "Zeitzone",
+            "description": "Eine IANA-Zeitzone, etwa Europe/Warsaw. Wenn leer: die des Workflows"
+          }
+        },
+        "input": {
+          "value": {
+            "title": "Wert"
+          }
+        }
+      },
+      "transform_edit_fields": {
+        "config": {
+          "set": {
+            "title": "Setzen"
+          },
+          "remove": {
+            "title": "Entfernen"
+          },
+          "only_set": {
+            "title": "Nur gesetzte",
+            "description": "Nur die hier gesetzten Felder behalten und alle anderen verwerfen"
+          },
+          "set__items__name": {
+            "title": "Name"
+          },
+          "set__items__expression": {
+            "title": "Ausdruck",
+            "description": "Ein JMESPath-Ausdruck über das Element, etwa item.first_name"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Elemente"
+          }
+        }
+      },
+      "transform_limit": {
+        "config": {
+          "count": {
+            "title": "Anzahl",
+            "description": "Wie viele Elemente behalten werden"
+          },
+          "from_end": {
+            "title": "Vom Ende",
+            "description": "Die letzten Elemente statt der ersten behalten"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Elemente"
+          }
+        }
+      },
+      "transform_remove_duplicates": {
+        "config": {
+          "fields": {
+            "title": "Felder",
+            "description": "Die Felder, die zwei Elemente gemeinsam haben müssen, um Duplikate zu sein; wenn leer, das ganze Element"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Elemente"
+          }
+        }
+      },
+      "transform_sort": {
+        "config": {
+          "by": {
+            "title": "Nach"
+          },
+          "by__items__field": {
+            "title": "Feld"
+          },
+          "by__items__descending": {
+            "title": "Absteigend"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Elemente"
+          }
+        }
+      },
+      "transform_split_out": {
+        "config": {
+          "field": {
+            "title": "Feld"
+          },
+          "keep_other_fields": {
+            "title": "Andere Felder behalten",
+            "description": "Die übrigen Felder des Elements in jedes neue Element kopieren"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Elemente"
+          }
+        }
+      },
+      "transform_summarize": {
+        "config": {
+          "group_by": {
+            "title": "Gruppieren nach"
+          },
+          "summaries": {
+            "title": "Zusammenfassungen"
+          },
+          "summaries__items__operation": {
+            "title": "Operation"
+          },
+          "summaries__items__field": {
+            "title": "Feld",
+            "description": "Zum Zählen nicht nötig"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Elemente"
+          }
+        }
+      },
+      "trigger_channel_message": {
+        "config": {
+          "bot_id": {
+            "title": "Bot",
+            "description": "Welcher der Slack-, Mattermost- oder Telegram-Bots der Organisation den Workflow startet"
+          },
+          "chat_types": {
+            "title": "Wo",
+            "description": "Direktnachrichten, Kanäle und Gruppen oder beides",
+            "options": {
+              "group": "Kanäle und Gruppen",
+              "private": "Direktnachrichten"
+            }
+          },
+          "text_contains": {
+            "title": "Nur wenn die Nachricht enthält",
+            "description": "Ein Wort oder eine Wendung, ohne Beachtung der Groß-/Kleinschreibung; wenn leer, jede Nachricht"
+          }
+        }
+      },
+      "trigger_form": {
+        "config": {
+          "fields": {
+            "title": "Felder"
+          },
+          "input_schema": {
+            "title": "Eingabeschema"
+          },
+          "title": {
+            "title": "Titel",
+            "description": "Die Überschrift der Seite"
+          },
+          "description": {
+            "title": "Beschreibung",
+            "description": "Unter dem Titel angezeigt: wofür das Formular gedacht ist"
+          },
+          "submit_label": {
+            "title": "Beschriftung der Senden-Schaltfläche",
+            "description": "Der Text der Schaltfläche"
+          },
+          "success_message": {
+            "title": "Erfolgsmeldung",
+            "description": "Was die Seite anzeigt, sobald die Antworten eingegangen sind"
+          },
+          "appearance__accent": {
+            "title": "Akzentfarbe"
+          },
+          "appearance__width": {
+            "title": "Breite"
+          },
+          "appearance__layout": {
+            "title": "Layout"
+          },
+          "fields__items__name": {
+            "title": "Name",
+            "description": "Der Schlüssel in der Eingabe des Runs und in payload für eine Bindung"
+          },
+          "fields__items__label": {
+            "title": "Bezeichnung",
+            "description": "Im Run-Formular angezeigt"
+          },
+          "fields__items__type": {
+            "title": "Typ"
+          },
+          "fields__items__required": {
+            "title": "Pflichtfeld"
+          },
+          "fields__items__description": {
+            "title": "Beschreibung"
+          },
+          "fields__items__options": {
+            "title": "Optionen",
+            "description": "Was eine Auswahl anbietet"
+          }
+        }
+      },
+      "trigger_github": {
+        "config": {
+          "repository": {
+            "title": "Repository",
+            "description": "Das Repository, als owner/name"
+          },
+          "events": {
+            "title": "Startet bei",
+            "description": "Die GitHub-Ereignisse, die ihn starten",
+            "options": {
+              "issue_comment": "Kommentare zu Issues und Pull Requests",
+              "issues": "Issues",
+              "pull_request": "Pull Requests",
+              "pull_request_review": "Pull-Request-Reviews",
+              "push": "Pushes",
+              "release": "Releases",
+              "workflow_run": "Runs von Actions-Workflows"
+            }
+          },
+          "actions": {
+            "title": "Nur diese Aktionen",
+            "description": "Etwa opened oder closed; wenn leer, jede Aktion. Ein Push hat keine"
+          },
+          "register_with_account": {
+            "title": "Webhook für mich einrichten",
+            "description": "Ihn über das verbundene GitHub-Konto der Organisation im Repository registrieren, wenn eines mit der Berechtigung zum Verwalten von Webhooks verbunden ist"
+          }
+        }
+      },
+      "trigger_gmail": {
+        "config": {
+          "subject_contains": {
+            "title": "Betreff enthält",
+            "description": "Ein Wort oder eine Wendung im Betreff, ohne Beachtung der Groß-/Kleinschreibung"
+          },
+          "sender_contains": {
+            "title": "Absender enthält",
+            "description": "Nur mit der Adresse des Absenders abgeglichen, nie mit dem Anzeigenamen, ohne Beachtung der Groß-/Kleinschreibung: @acme.com ist genau diese Domain (nicht ihre Subdomains), eine vollständige Adresse ist genau diese Adresse, anderer Text ist ein Teil der Adresse. Erfordert Mails, die die Absenderdomain authentifiziert hat"
+          },
+          "label": {
+            "title": "Label",
+            "description": "Eines der Labels des Postfachs, exakt geschrieben, etwa INBOX oder IMPORTANT. Mails mit dem Label SENT, DRAFT, SPAM oder TRASH werden übersprungen, außer dieses Feld nennt genau dieses Label"
+          }
+        }
+      },
+      "trigger_manual": {
+        "config": {
+          "fields": {
+            "title": "Felder"
+          },
+          "input_schema": {
+            "description": "Vertrag nach JSON Schema Draft 2020-12 für eine Eingabe als JSON-Objekt; Referenzen müssen lokal auf dieses Dokument verweisen"
+          },
+          "fields__items__name": {
+            "title": "Name",
+            "description": "Der Schlüssel in der Eingabe des Runs und in payload für eine Bindung"
+          },
+          "fields__items__label": {
+            "title": "Bezeichnung",
+            "description": "Im Run-Formular angezeigt"
+          },
+          "fields__items__type": {
+            "title": "Typ"
+          },
+          "fields__items__required": {
+            "title": "Pflichtfeld"
+          },
+          "fields__items__description": {
+            "title": "Beschreibung"
+          },
+          "fields__items__options": {
+            "title": "Optionen",
+            "description": "Was eine Auswahl anbietet"
+          }
+        }
+      },
+      "trigger_outlook": {
+        "config": {
+          "folder": {
+            "title": "Ordner",
+            "description": "Ein bekannter Ordner (inbox, archive, junkemail) oder der Anzeigename eines Ordners der obersten Ebene, in den eine E-Mail-Regel die zu lesenden Mails ablegt"
+          },
+          "mailbox": {
+            "title": "Freigegebenes Postfach",
+            "description": "Ein freigegebenes Postfach, das das verbundene Konto lesen kann; leer für sein eigenes. Wer eines angibt, braucht die Berechtigung zum Verwalten von Verbindungen"
+          },
+          "subject_contains": {
+            "title": "Betreff enthält",
+            "description": "Ein Wort oder eine Wendung im Betreff, ohne Beachtung der Groß-/Kleinschreibung"
+          },
+          "sender_contains": {
+            "title": "Absender enthält",
+            "description": "Nur mit der Adresse des Absenders abgeglichen, nie mit dem Anzeigenamen, ohne Beachtung der Groß-/Kleinschreibung: @acme.com ist genau diese Domain (nicht ihre Subdomains), eine vollständige Adresse ist genau diese Adresse, anderer Text ist ein Teil der Adresse. Erfordert Mails, die die Absenderdomain authentifiziert hat"
+          },
+          "has_attachments": {
+            "title": "Hat Anhänge",
+            "description": "Nur Mails mit (oder ohne) Anhänge"
+          },
+          "importance": {
+            "title": "Wichtigkeit",
+            "description": "Die vom Absender gesetzte Wichtigkeit"
+          },
+          "category": {
+            "title": "Kategorie",
+            "description": "Eine der Outlook-Kategorien der Nachricht, ohne Beachtung der Groß-/Kleinschreibung"
+          }
+        }
+      },
+      "trigger_schedule": {
+        "config": {
+          "schedule_kind": {
+            "title": "Art des Zeitplans"
+          },
+          "interval_seconds": {
+            "title": "Intervall (Sekunden)",
+            "description": "Sekunden zwischen Runs, mindestens eine Minute"
+          },
+          "cron_expression": {
+            "title": "Cron-Ausdruck",
+            "description": "Fünf Felder, in der Zeitzone des Workflows (UTC, sofern seine Einstellungen keine andere nennen), etwa 0 9 * * 1-5"
+          },
+          "input": {
+            "title": "Eingabe",
+            "description": "Womit jeder Run startet, als JSON"
+          }
+        }
+      },
+      "trigger_table_record": {
+        "config": {
+          "table": {
+            "description": "Die Tabelle und die Spalten, deren Änderung ihn startet - die Änderung jeder Spalte, wenn keine gewählt ist."
+          },
+          "table__kind": {
+            "title": "Art"
+          },
+          "table__table_id": {
+            "title": "Tabellen-ID"
+          },
+          "table__column_ids": {
+            "title": "Spalten-IDs"
+          },
+          "table__schema_version": {
+            "title": "Schemaversion"
+          },
+          "events": {
+            "title": "Startet bei diesen Datensatz-Ereignissen",
+            "description": "Hinzugefügt, geändert oder gelöscht. Sind Spalten gewählt, startet eine Änderung ihn nur, wenn sich eine der gewählten Spalten der Tabelle geändert hat.",
+            "options": {
+              "created": "Hinzugefügt",
+              "deleted": "Gelöscht",
+              "updated": "Geändert"
+            }
+          },
+          "filters": {
+            "title": "Filter",
+            "description": "Jeder muss auf den Datensatz zutreffen - so, wie er hinzugefügt oder geändert wurde, oder so, wie er vor dem Löschen war"
+          },
+          "filters__items__column_id": {
+            "title": "Spalten-ID"
+          },
+          "filters__items__op": {
+            "title": "Operator"
+          },
+          "filters__items__value": {
+            "title": "Wert",
+            "description": "Der Operand. Eine Liste für `in`, ein Boolean für `is_null` (true bedeutet, dass die Zelle leer ist), sonst ein Wert vom Typ der Spalte."
+          }
+        }
+      },
+      "trigger_workflow_call": {
+        "config": {
+          "fields": {
+            "title": "Felder"
+          },
+          "input_schema": {
+            "description": "Vertrag nach JSON Schema Draft 2020-12 für eine Eingabe als JSON-Objekt; Referenzen müssen lokal auf dieses Dokument verweisen"
+          },
+          "fields__items__name": {
+            "title": "Name",
+            "description": "Der Schlüssel in der Eingabe des Runs und in payload für eine Bindung"
+          },
+          "fields__items__label": {
+            "title": "Bezeichnung",
+            "description": "Im Run-Formular angezeigt"
+          },
+          "fields__items__type": {
+            "title": "Typ"
+          },
+          "fields__items__required": {
+            "title": "Pflichtfeld"
+          },
+          "fields__items__description": {
+            "title": "Beschreibung"
+          },
+          "fields__items__options": {
+            "title": "Optionen",
+            "description": "Was eine Auswahl anbietet"
+          }
+        }
+      },
+      "webhook_respond": {
+        "config": {
+          "status_code": {
+            "title": "Statuscode",
+            "description": "Der HTTP-Status, 200 bis 599."
+          },
+          "headers": {
+            "title": "Header"
+          }
+        },
+        "input": {
+          "body": {
+            "title": "Body"
+          }
+        }
+      },
+      "workflow_run": {
+        "config": {
+          "workflow_id": {
+            "title": "Workflow",
+            "description": "Ein veröffentlichter Workflow, der mit Von einem Workflow aufgerufen startet"
+          },
+          "wait": {
+            "title": "Auf sein Ende warten",
+            "description": "Weitergeben, was er antwortet. Wenn aus, geht der Schritt weiter, sobald er gestartet ist"
+          }
+        },
+        "input": {
+          "input": {
+            "title": "Eingabe"
+          }
+        }
+      }
     }
   }
 }

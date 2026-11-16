@@ -19,6 +19,55 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep a run alive when an MCP server fails during initialization, discovery or a tool request. Retry initialization once, report unavailable services and uncertain tool outcomes explicitly, and never replay tool writes. Give the built-in platform MCP its own bounded initialization deadline so cold worker startup does not abort Mattermost turns before the model runs (#3077).
+
+- Pin each sync source to its knowledge base instead of resolving its collection name again. Sources, logs and ingested documents stay with the selected base, including same-named personal, organization and deployment bases. Deleting or clearing a base detaches and deactivates exactly its sources; another base does not inherit them. Deleting a base archives its historical source links so its logs cannot fall back to a reassigned source (#2551).
+
+- **Deleting an account.** Deleting a person whose runs belong to their own conversations no longer fails on `agent_runs_conversation_id_fkey`, whichever order the database runs the delete cascades in.
+- **Memory writes after "forget me".** A run that began before a person's memory or an agent's memory was erased, one waiting for an approval included, saves nothing more to that memory and tells the model why. Memory extraction holds off clearing an agent's memory while it writes.
+- **Memory-maintenance and daily-briefing manifests.** Erasing a person's memory, or deleting their account, trims the conversation text, facts, notes and requests these runs kept to what the spec decided, including a run that finishes after the erasure.
+- **Task board receipts.** Removing a group, a project or an account purges its task board's table together with every idempotency receipt that holds its records, expired receipts included.
+- **Decision episodes sent to Improve.** **Add as an Improve case** adds the reviewed episode to a dataset you choose, as a case that records who asked it and links its run and conversation, so erasing that person anonymises it like any other case.
+
+- **Workflow approvals reach the people who decide them.** A workflow step asking for approval now notifies its named approvers and the members of its approver groups who hold `approvals:decide`, or, when it names neither, every member of the run's organization holding `approvals:decide`. The notification opens the approvals queue. Pending workflow steps and tool calls the reader may decide lead the Inbox among urgent items, counted with the rest. Approval previews show the action context and requester in compact rows, and a populated Inbox fits its contents instead of stretching an empty panel across the page.
+- **Onboarding offers an owner a model to connect.** An owner who may prepare an agent sees **Connect a model** on the first-task step instead of being told an administrator must finish setting up AI. Onboarding calls the tenant an organization throughout, and a step asked as questions shows one Back, also while it loads or when it fails to.
+- **Dates in the reader's time zone.** Apps, their public pages and every other date the console formats through next-intl follow the browser's time zone, as Chat and Tables do, instead of the server's UTC.
+- **Public link settings appear with the link.** An app's Share dialog shows the link's expiry, version, embedding and password settings only once the link exists, and its address sits in a labelled read-only field.
+- **Forks and the conversation menu.** A forked conversation carries a mark naming its source in the chat list, and the conversation actions are a menu with roles, arrow keys and Escape; Rename keeps the focus in the title field.
+- **Dictation says why it failed.** With the browser's own speech recognition, a blocked microphone, a page that may not ask for one, a missing microphone, a refusing or unreachable speech service and silence each get the step that fixes them, in the console and on hosted chat pages.
+- **One Polish name per concept, and actions in empty lists.** Polish calls a run a run throughout, the skills gallery and the Apps capability read as the product names them, and the Apps filter says apps in every locale. Empty Workflows and Routines lists offer their create action, and a table made from a workflow template takes the workflow's name, with a number when the name is taken, instead of an id suffix.
+
+- Let the "+" on a workflow output that already leads to a step insert the new step before it or add a parallel branch, keeping the connection when the step cannot carry it on, and mark an approval outcome or a deciding step that leads nowhere with a non-blocking warning.
+- Explain a decimal comma in a Virtual Table formula with a translated error that shows the dot, translate every formula refusal by a stable `details.formula.reason`, and show numbers in tables with the reader's decimal separator. A function given the wrong number of values is refused when its formula is saved; one saved before keeps working until it is edited.
+- Translate workflow step settings - labels, help text and placeholders, including fields inside lists - into the console's language, checked against the registry by a guard.
+
+- Workflow **knowledge.search** citations omit page numbers for formats without
+  pages, including Markdown, text, HTML and `.docx`. PDF pages and presentation
+  slides keep their locations (#2482).
+
+### Added
+
+- Select an organization knowledge base explicitly with `rag-source-add --knowledge-base <id>` when several bases share a collection name. Sync source responses include `knowledge_base_id`.
+
+- A retrieval benchmark over 34 documentation questions, including negative and
+  cross-language answers. `make eval-retrieval` compares retrieval depth, query
+  expansion and chunk settings, with per-question results and reproducible run
+  metadata. [Retrieval evaluation](docs/retrieval-eval.md) records the measured
+  comparison and the decision on knowledge-agent defaults (#2482).
+
+### Upgrading
+
+- After a PostgreSQL restart or restore, start a new run before writing memory. Memory erasure fences use transaction visibility on unprivileged database accounts too; runs without a recorded snapshot cannot write after a relevant erasure.
+
+- **Breaking:** Apply `0334_sync_source_knowledge_base.py` before starting the API and worker. The migration preserves the current resolver's target, including its ID tie-break for equal creation times. Sources with no eligible base are deactivated and listed in migration logs; configuration is retained, and no separate console notification is created. Reassign these sources to a knowledge base and reactivate them before syncing again.
+- Review migration log entries for sources kept on a member's personal base beside an organization base of the same name. They keep their previous target; move them explicitly if they belong to the organization base.
+- Add `--knowledge-base <id>` to `rag-source-add` scripts when the organization has several bases with that collection name. A source with no assigned base cannot sync.
+- Downgrade deactivates and logs sources whose pinned target would change under the older name resolver. It retains existing pauses; reassign and reactivate affected sources before syncing again.
+
+`POST /api/v1/memory/claims/mine/{claim_id}/improve-case` now adds the reviewed decision episode to a dataset instead of returning a JSONL record to download. Send the target `dataset_id` with `confirmed`, `input` and `reference_answer`; the caller needs `datasets:edit` on that dataset, and the response is `201` with the created dataset case. A script that saved the old response to a file and imported it should call the endpoint with the dataset instead. The migrations make one foreign key on `agent_runs` deferrable and add a nullable `agent_runs.memory_snapshot` column without rewriting the table; every row is kept.
+
 ## [1.79.0] - 2026-11-16
 
 ### Upgrading

@@ -46,6 +46,19 @@ class SyncSource(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     connector_type: Mapped[str] = mapped_column(String(20), nullable=False)
     collection_name: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    # The knowledge base this source syncs into, recorded when the source is
+    # pointed at one. `collection_name` is not unique, so re-resolving the base
+    # from the name filed one base's syncs under another of the same name and
+    # let a source outlive its base (#2551). `SET NULL` is a backstop only:
+    # deleting a base detaches and deactivates its sources first
+    # (`CollectionAccessService.detach_sources_targeting`), and a sync refuses a
+    # source with no base rather than writing anywhere.
+    knowledge_base_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("knowledge_bases.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     config: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, server_default="{}")
     # Nullable, and `SET NULL` rather than `RESTRICT`, for the same reason
     # `KnowledgeBase.embedding_secret_id` is: deleting a credential from the

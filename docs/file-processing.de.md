@@ -1,5 +1,5 @@
 ---
-source_sha: "1555844ea407"
+source_sha: "1f9d4ae97fcd"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -7,12 +7,6 @@ source_sha: "1555844ea407"
 Dieses Dokument beschreibt, wie Dateien in zwei Zusammenhängen behandelt werden:
 Datei-Uploads im Chat, die der Person gehören, die sie gemacht hat, und die
 Ingestion von RAG-Dokumenten, die zu einer Collection gehört und daran gebunden
-Beim Löschen einer Basis werden die Sync-Quellen getrennt und deaktiviert, deren Ziel diese
-Basis war. Ihre Connector-Konfiguration bleibt erhalten; vor dem nächsten Sync ist eine
-ausdrückliche Neuzuordnung nötig. Eine gleichnamige Basis übernimmt sie nicht. Beim Leeren
-der Standardbasis bleiben die Quellen erhalten, weil die Zielzeile bestehen bleibt.
-Der CLI-Import verweigert Namen, die bis zur Bereinigung für einen ausstehenden Drop reserviert sind.
-
 ist, [wer sie erreichen darf](#who-may-reach-a-collection).
 
 ## Datei-Uploads im Chat { #chat-file-uploads }
@@ -747,17 +741,28 @@ Der Rückfall ist ausschließlich eine app-weite Basis: Eine persönliche Basis
 außerhalb jeder Organisation hat ebenfalls keine Organisation, gehört aber einer
 einzelnen Person ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
-Eine Sync-Quelle hält eine Organisation und einen Collection-Namen fest, keine
-Wissensbasis, also schreibt ihr Sync in die Basis, die diese Auflösung wählt - die
-älteste Basis der Organisation mit diesem Namen -, und nur diese Basis listet und
-startet sie. Jede API-Route, die eine Quelle auf eine Collection richtet, prüft
-Schreibrechte auf diese Basis, und eine Quelle einer anderen Basis desselben
-Namens hinzuzufügen, wird mit 400 abgelehnt.
+Eine Sync-Quelle hält die Wissensbasis fest, in die sie synchronisiert
+(`knowledge_base_id`), nicht nur einen Collection-Namen, und nur diese Basis listet
+sie, startet sie und zeigt ihren Verlauf. Eine Quelle, die im **Sync**-Tab einer
+Basis angelegt wird, hält diese Basis fest, sodass zwei Basen mit demselben Namen
+jeweils ihre eigenen Quellen behalten. Eine Route, die eine Quelle über den Namen auf
+eine Collection richtet, hält die Basis fest, zu der der Name für die Organisation
+des Aufrufers aufgelöst wird (die Auflösung oben), und prüft Schreibrechte auf diese
+Basis.
 
-Ist die persönliche Basis eines Mitglieds älter als die gleichnamige Basis der
-Organisation, landen die Syncs der Organisation unter diesem Namen deshalb in der
-persönlichen Basis, und die Basis der Organisation nimmt keine Quelle an: Lege sie
-unter einem eigenen Namen an.
+`rag-source-add` hält die geprüfte Basis der Organisation fest, und
+`--knowledge-base` wählt eine aus, wenn mehrere Basen der Organisation den Namen
+tragen ([#2551](https://github.com/vstorm-co/agenticos/issues/2551)).
+
+Eine Quelle ohne Wissensbasis synchronisiert nicht. Das Upgrade, das die Spalte
+hinzufügte, gab jeder bestehenden Quelle die Basis, in die ihr Sync bisher schrieb,
+und deaktivierte eine Quelle, deren Collection keine Basis ihrer Organisation oder
+des Deployments trägt, und protokollierte ihre ID: Richte sie auf eine Wissensbasis
+und setze `is_active` wieder auf true, damit sie wieder synchronisiert.
+Es protokollierte auch jede Quelle, die es in der persönlichen Basis eines Mitglieds
+beließ, während die Organisation eine Organisationsbasis desselben Namens hat - dort
+synchronisierte die Quelle bisher: Verschiebe sie, wenn sie zur Basis der
+Organisation gehört.
 
 !!! warning "Ein Collection-Name ist ein Embedding-Raum"
 
@@ -1034,6 +1039,16 @@ eingelesen werden — löschen Sie sie und legen Sie eine unter einem anderen Na
 an. Dabei geht nichts verloren: eine Ingestion in diese Collection war nie
 erfolgreich, denn den Vektorindex auf einer Tabelle ohne `embedding`-Spalte zu
 bauen scheitert.
+
+Beim Löschen einer Basis werden genau die Sync-Quellen getrennt und deaktiviert, die diese
+Basis festhalten, gleich wer den Namen sonst noch trägt. Ihre Connector-Konfiguration bleibt erhalten; vor dem nächsten Sync sind eine
+ausdrückliche Neuzuordnung und Reaktivierung nötig. Eine gleichnamige Basis übernimmt sie
+nicht.
+
+Auch beim Leeren der Standardbasis werden ihre Quellen getrennt und deaktiviert:
+Ihre Zeile bleibt, aber eine dort belassene Quelle würde den gelöschten Inhalt zurück
+synchronisieren.
+Der CLI-Import verweigert Namen, die bis zur Bereinigung für einen ausstehenden Drop reserviert sind.
 
 ### Wer eine Collection erreichen darf { #who-may-reach-a-collection }
 
@@ -1582,16 +1597,19 @@ denn eine gescheiterte Ingestion wird zurückgegeben statt geworfen, und nichts
 versucht sie erneut. Beide für die Dauer eines Einfügens ist ein Zustand, den eine
 Suche übersteht; keines nicht.
 
-Die eigene Historie einer Source ist
-`GET /kb/{kb_id}/sync-sources/{source_id}/logs`. Die Source wird zuerst gegen
-diese Wissensdatenbank aufgelöst, eine Source, die zu einer anderen
-Wissensdatenbank gehört, antwortet also mit **404** statt mit einer leeren Liste —
-die beiden stellen sonst denselben Bildschirm dar, und eine davon ist eine
-Anfrage, die hätte scheitern sollen. Ihre Durchläufe werden dann nach Source-Id
-gelesen, und das ist es, was `limit` und `total` dieselbe Menge von Zeilen
-beschreiben lässt: eine auf eine andere Wissensdatenbank umgehängte Source behält
-ihre früheren Durchläufe unter dem Collection-Namen, den sie damals hatte, und die
-fielen früher von der Seite, nachdem `limit` sie bereits beschnitten hatte.
+Die Historie einer Source ist unter `GET /kb/{kb_id}/sync-sources/{source_id}/logs`
+verfügbar. Die Source muss zu dieser Wissensdatenbank gehören, sonst antwortet die
+Route mit **404**. Jeder gespeicherte Lauf behält seine ursprüngliche Datenbank
+und Organisation als Zugriffsgrenze: Eine Neuzuordnung gibt der neuen Datenbank
+keinen Zugriff auf frühere private Läufe. Die Filterung erfolgt vor dem
+Seitenlimit. Ältere Läufe ohne gespeicherte Datenbank bleiben über ihre Source
+zuordenbar.
+Beim Löschen einer gespeicherten Datenbank wird die historische Source-Verknüpfung archiviert, bevor ihre Datenbank-ID gelöscht wird. So wird die Historie nicht über eine neu zugeordnete Source sichtbar.
+
+Dokumentabgleich, Ansprüche auf unveränderte Dokumente und Vektorverfolgung
+verwenden den Dokumentbereich der Zieldatenbank. Eine Neuzuordnung löscht den
+zwischengespeicherten Sync-Zustand und letzten Status; der Abschluss eines für
+das alte Ziel zugelassenen Laufs kann sie nicht wiederherstellen.
 
 ### Was eine Sync-Source nicht entscheiden darf { #what-a-sync-source-is-not-allowed-to-decide }
 

@@ -18,7 +18,7 @@ import {
 } from "@/components/ui";
 import { nodeNames, ProblemsFooter } from "@/components/workflows/property-panel/problems";
 import type { ValidationProblem } from "@/components/workflows/validation";
-import { validateGraph } from "@/components/workflows/validation";
+import { graphWarnings, validateGraph } from "@/components/workflows/validation";
 import { ApiError, fieldProblems } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
@@ -33,7 +33,8 @@ import type {
 import { useWorkflowVersions } from "@/hooks";
 import { WebhookSecretDialog } from "@/components/workflows/triggers";
 import { triggerNodeOf } from "@/lib/workflows/triggers";
-import { resolveDefinitions } from "@/components/workflows/validation/topology";
+import { deriveScopes, resolveDefinitions } from "@/components/workflows/validation/topology";
+import { scopePathTo } from "@/components/workflows/canvas/scope-view";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { useLiveChanges } from "./workflow-status";
@@ -86,6 +87,8 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
   const expectedRevision = useWorkflowEditorStore((state) => state.expectedRevision);
   const isDirty = useWorkflowEditorStore((state) => state.isDirty);
   const focusNode = useWorkflowEditorStore((state) => state.focusNode);
+  const editNode = useWorkflowEditorStore((state) => state.editNode);
+  const setScopePath = useWorkflowEditorStore((state) => state.setScopePath);
   const setConflict = useWorkflowEditorStore((state) => state.setConflict);
   const revealProblems = useWorkflowEditorStore((state) => state.revealProblems);
 
@@ -114,8 +117,30 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
       : (catalog.find((definition) => definition.id === node.definition_id)?.name ?? null);
   }, [graph, nodeCatalog, catalog]);
 
+  const warnings = useMemo(
+    () => (graph === null ? [] : graphWarnings(graph, nodeCatalog, t)),
+    [graph, nodeCatalog, t],
+  );
+
+  const names = useMemo(() => nodeNames(graph, nodeCatalog), [graph, nodeCatalog]);
   const blocked = clientProblems.length > 0;
   const problems = clientProblems.length > 0 ? clientProblems : serverProblems;
+
+  // A warning is read where the step is set up: in its loop, with its settings open.
+  const openStep = (nodeId: Uuid) => {
+    // The loops as the draft holds them now: the graph's stored scopes are the ones
+    // last loaded, and a step moved into a loop since would open outside it.
+    if (graph !== null) {
+      const live = {
+        ...graph,
+        scopes: deriveScopes(graph, resolveDefinitions(graph, nodeCatalog)),
+      };
+      setScopePath(scopePathTo(live, nodeId));
+    }
+    focusNode(nodeId);
+    editNode(nodeId);
+    setOpen(false);
+  };
 
   const selectNode = (nodeId: Uuid) => {
     focusNode(nodeId);
@@ -216,12 +241,28 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
             <p className="text-muted-foreground text-xs">{t("publishBlocked")}</p>
           )}
           {isDirty && <p className="text-muted-foreground text-xs">{t("publishSaving")}</p>}
-          <ProblemsFooter
-            problems={problems}
-            names={nodeNames(graph, nodeCatalog)}
-            onSelectNode={selectNode}
-            defaultOpen
-          />
+          {!blocked && warnings.length > 0 && (
+            <div className="text-warning space-y-1 text-xs">
+              <p>{t("publishWarnings")}</p>
+              <ul className="space-y-1">
+                {warnings.map((warning, index) => (
+                  <li key={index}>
+                    <button
+                      type="button"
+                      className="text-left underline-offset-2 hover:underline"
+                      onClick={() => openStep(warning.nodeId!)}
+                    >
+                      {t("publishWarningAt", {
+                        step: names.get(warning.nodeId!) ?? "",
+                        warning: warning.message,
+                      })}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <ProblemsFooter problems={problems} names={names} onSelectNode={selectNode} defaultOpen />
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>

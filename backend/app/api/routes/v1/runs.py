@@ -601,6 +601,9 @@ async def list_approvals(
     created_from: datetime | None = Query(None, description="Parked at or after this instant"),
     created_to: datetime | None = Query(None, description="Parked at or before this instant"),
     oldest_first: bool = Query(True, description="The queue drains from the top"),
+    outside_live_calls: bool = Query(
+        False, description="Leave out the calls a live voice call is deciding"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -623,6 +626,7 @@ async def list_approvals(
             triggered_by_user_id=triggered_by_user_id,
             created_from=created_from,
             created_to=created_to,
+            outside_live_calls=outside_live_calls,
         ),
         oldest_first=oldest_first,
         skip=skip,

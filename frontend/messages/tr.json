@@ -416,7 +416,8 @@
     "kind": {
       "approvalRequested": "{agent} onayınızı bekliyor",
       "budgetExceeded": "{agent} durduruldu: {scope, select, agent {aylık budget'ı} group {bir departmanın aylık budget'ı} department {{department} departmanının aylık budget'ı} organization {organizasyonun aylık budget'ı} other {bir harcama sınırı}} tükendi ({limit} sınırın {spent} kadarı harcandı)",
-      "budgetWarning": "{group}, {limit} aylık budget'ının %{share} kadarını kullandı."
+      "budgetWarning": "{group}, {limit} aylık budget'ının %{share} kadarını kullandı.",
+      "workflowApproval": "Onay gerekiyor: {title}"
     }
   },
   "billing": {
@@ -1178,6 +1179,11 @@
     "quickAdd": "{name} adımından sonra bir adım ekle ({port})",
     "stepApprovalDecided": "{known, select, no {{status, select, approved {Onaylandı} other {Reddedildi}}} other {{status, select, approved {{name} tarafından onaylandı} other {{name} tarafından reddedildi}}}} · {time}",
     "stepApprovalUndecided": "{status, select, expired {Süresi doldu: kimse zamanında karar vermedi} cancelled {Run ile birlikte iptal edildi} other {Karar bekleniyor}}",
+    "quickAddWired": "{name} adımından sonra bir adım veya dal ekle ({port})",
+    "quickAddPlacement": "Yeni adımın yeri",
+    "quickAddInsertBefore": "{name} adımından önce ekle",
+    "quickAddBranch": "Paralel dal ekle",
+    "quickAddBranchBeside": "{count, plural, other {Bu çıkış zaten # adıma gidiyor. Yeni adım bunların yanında başka bir dal olarak çalışır.}}",
     "paletteNoMatches": "Aramanızla eşleşen düğüm yok.",
     "canvasTitle": "Canvas",
     "canvasHint": "Workflow’u başlatmak için bir adım ekleyin.",
@@ -1217,6 +1223,11 @@
     "validationErrorHandlerShared": "Birlikte çalışan iki dal hatalarını buraya gönderiyor. Her dala ayrı bir hata işleyici verin.",
     "validationErrorHandlerDefaultUnwired": "Hata işleyicinin varsayılan dalı bir yere bağlanmalıdır.",
     "validationErrorPortUnwired": "Bu adım hatalarını yönlendiriyor ancak hata bağlantı noktası hiçbir yere bağlı değil.",
+    "validationApprovalOutcomeUnwired": "{outcome} sonucu hiçbir yere gitmiyor; seçildiğinde run burada biter. Bu bilerek yapıldıysa yok sayın.",
+    "validationBranchOutputsUnwired": "Bu adımın hiçbir sonucu bir yere gitmiyor; run karar verildikten sonra biter. Bu bilerek yapıldıysa yok sayın.",
+    "warningBadge": "{count, plural, =1 {Bakılması gereken 1 şey} other {Bakılması gereken # şey}}",
+    "publishWarnings": "Göz atmaya değer - bunlar yayınlamayı engellemez:",
+    "publishWarningAt": "{step}: {warning}",
     "validationOutputsBothRun": "Bu Output adımı ile başka bir adım aynı run’da çalışabilir; ancak her run yalnızca bir kez yanıt verir.",
     "validationRespondBothRun": "Bu Respond to webhook adımı ile başka bir adım aynı run’da çalışabilir; ancak webhook yalnızca bir kez yanıtlanır.",
     "validationSplitRoutesErrors": "Split hataları yönlendiremez. Her dalın hatasını kendi içinde yönlendirin.",
@@ -1855,9 +1866,26 @@
     },
     "formula": {
       "label": "Formül",
-      "placeholder": "'{Price}' * '{Quantity}'",
+      "placeholder": "'{Fiyat}' * '{Miktar}'",
       "columns": "Kullanılacak sütunlar",
-      "hint": "Sütun adını süslü parantez içinde yazın. + - * / %, = <> < > işleçlerini ve, or, not ile IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY işlevlerini kullanın."
+      "hint": "Sütun adını süslü parantez içinde yazın. + - * / %, = <> < > işleçlerini ve, or, not ile IF, ROUND, ABS, MIN, MAX, CONCAT, LEN, UPPER, LOWER, DAYS, TODAY işlevlerini kullanın. Ondalık sayıları nokta ile yazın, örneğin 1.23.",
+      "problem": {
+        "syntax": "Formül doğru yazılmamış.",
+        "too_deep": "Formül çok derin iç içe geçmiş.",
+        "constant": "Bir formül sayı, metin ve true ya da false içerir.",
+        "unknown_name": "{name} burada bir anlam taşımıyor: sütunu süslü parantez içinde yazın, örneğin '{'{name}'}'.",
+        "arithmetic": "Bir formül yalnızca + - * / ve % ile hesaplar.",
+        "operator": "Bu işleç formüllerde kullanılmaz.",
+        "comparison": "Bir formül yalnızca = <> < <= > >= ile karşılaştırır.",
+        "function": "Bir formül yalnızca şu işlevleri çağırır: {functions}.",
+        "decimal_comma": "Ondalık sayıları nokta ile yazın, örneğin 1.23. Virgül bir işlevin bağımsız değişkenlerini ayırır.",
+        "unsupported": "Bir formül bunu içeremez.",
+        "empty": "Formül sütunu bir formül gerektirir.",
+        "too_long": "Bir formül en fazla {limit} karakterdir.",
+        "not_a_column": "'{'{label}'}' bu tablonun etkin bir sütunu değil.",
+        "not_a_value": "'{'{label}'}' {type, select, link {bir bağlantı sütunu} other {bir formül sütunu}}: formül değer içeren sütunları okur.",
+        "arity": "{name} {kind, select, exact {{fewest, plural, one {# değer} other {# değer}}} range {{fewest} ile {most} arasında değer} other {en az {fewest, plural, one {# değer} other {# değer}}}} alır. Değerleri virgül ayırır, bu yüzden ondalık sayıları nokta ile yazın, örneğin 1.23."
+      }
     },
     "defaults": {
       "value": "Varsayılan değer",
@@ -2182,6 +2210,7 @@
     "deleteWhy": "Tüm sürümler ve herkese açık bağlantı da silinir; paylaşılan kişiler artık uygulamayı açamaz. Agent, bu adla yeniden yayımladığında yeni bir uygulama oluşturur.",
     "deleted": "Uygulama silindi",
     "publicLink": "Herkese açık bağlantı",
+    "publicLinkAddress": "Herkese açık bağlantının adresi",
     "publicLinkOn": "Bu bağlantıya sahip herkes, hesap açmadan en yeni sürümü görüntüleyebilir.",
     "publicLinkNone": "Yalnızca bu uygulamanın paylaşıldığı kişiler açabilir.",
     "createPublicLink": "Herkese açık bağlantı oluştur",
@@ -2275,9 +2304,9 @@
     "archivedWhy": "Kimse bu sayfayı açamaz ve agent yeniden yayımlayamaz. Geri yükledikten sonra siz etkinleştirene kadar herkese açık bağlantısı kapalı kalır.",
     "unarchive": "Geri yükle",
     "archivedBadge": "Arşivlendi",
-    "shownFilter": "Gösterilecek artifact’lar",
+    "shownFilter": "Gösterilecek uygulamalar",
     "shown": {
-      "live": "Etkin artifact’lar",
+      "live": "Etkin uygulamalar",
       "all": "Arşivlenenler dâhil"
     },
     "publicData": {
@@ -9028,6 +9057,32 @@
       "scrollAttachmentsRight": "Sonraki ekler",
       "send": "Mesajı gönder",
       "speechError": "Konuşma tanıma hatası",
+      "speech": {
+        "micDenied": {
+          "title": "Bu site için mikrofon engellenmiş",
+          "body": "Adres çubuğunun solundaki simgeye tıklayın, Mikrofon'u İzin ver olarak ayarlayıp yeniden deneyin."
+        },
+        "micInsecure": {
+          "title": "Bu sayfa mikrofonu kullanamıyor",
+          "body": "Browser'lar mikrofonu yalnızca HTTPS veya localhost üzerinden açar. Yöneticinizden console'u HTTPS üzerinden sunmasını isteyin."
+        },
+        "micNotFound": {
+          "title": "Mikrofon bulunamadı",
+          "body": "Mikrofon bağlayın veya sisteminizin browser'a izin verdiğini denetleyin; sonra yeniden deneyin."
+        },
+        "unavailable": {
+          "title": "Browser'ın konuşma tanıması kullanılamıyor",
+          "body": "Bu Agent'ın dikte için speech-to-text provider'ı yok, bu nedenle metne browser çeviriyor ve hizmeti reddetti. Bir yöneticiden bu Agent için dikteyi ayarlamasını isteyin veya başka bir browser deneyin."
+        },
+        "network": {
+          "title": "Konuşma tanıma hizmetine ulaşılamadı",
+          "body": "Browser'ınız söylediklerinizi konuşma tanıma hizmetine gönderir ve bağlantı başarısız oldu. Bağlantınızı kontrol edip yeniden deneyin."
+        },
+        "noSpeech": {
+          "title": "Konuşma duyulmadı",
+          "body": "Mikrofonun kapalı olmadığını denetleyip yeniden deneyin."
+        }
+      },
       "stopGenerating": "Oluşturmayı durdur",
       "stopRecording": "Kaydı durdur",
       "uploadFailed": "Yükleme başarısız oldu",
@@ -9142,6 +9197,7 @@
       "sortTitleAsc": "Başlık A–Z",
       "sortTitleDesc": "Başlık Z–A",
       "apiBadge": "API",
+      "forkOf": "{title} konuşmasından dallandırıldı",
       "hideApi": "API üzerinden açılan konuşmaları gizle",
       "filters": "Filtrele ve sırala",
       "show": "Göster",
@@ -10149,7 +10205,11 @@
         "rateLimitedBody": "Bir dakika içinde çok fazla kayıt yapıldı.",
         "keptBody": "{duration} uzunluğundaki kaydınız yeniden deneyene veya atana kadar saklanır.",
         "notSetUpTitle": "Sesli giriş şu anda kullanılamıyor.",
-        "notSetUpBody": "Lütfen mesajınızı yazarak gönderin."
+        "notSetUpBody": "Lütfen mesajınızı yazarak gönderin.",
+        "browserUnavailable": "<strong>Sesli giriş bu browser'da kullanılamıyor.</strong> Lütfen mesajınızı yazarak gönderin veya başka bir browser deneyin.",
+        "browserNetwork": "<strong>Konuşma tanıma hizmetine ulaşılamadı.</strong> Bağlantınızı kontrol edip yeniden deneyin veya mesajınızı yazarak gönderin.",
+        "browserNoSpeech": "<strong>Konuşma duyulmadı.</strong> Mikrofonun sessizde olmadığını kontrol edip yeniden deneyin.",
+        "browserFailed": "<strong>Sesli giriş durdu.</strong> Yeniden deneyin veya mesajınızı yazarak gönderin."
       }
     },
     "voice": {
@@ -12906,7 +12966,15 @@
     },
     "openWorkingChat": "Sohbeti aç",
     "preferences": "Gelen kutusu tercihleri",
-    "preferencesDescription": "Gelen kutuna hangi otomatik önerilerin ulaşacağını seç."
+    "preferencesDescription": "Gelen kutuna hangi otomatik önerilerin ulaşacağını seç.",
+    "approvals": {
+      "title": "Onay bekleyenler",
+      "open": "Onayları aç",
+      "fromWorkflow": "Workflow {workflow}",
+      "fromAgent": "Agent {agent}",
+      "anAgent": "Bir agent",
+      "actionBy": "{source} · {action}"
+    }
   },
   "agentLimit": {
     "title": "Bu kuruluş agent sınırına ulaştı",
@@ -13257,34 +13325,34 @@
   },
   "start": {
     "administration": {
-      "title": "Workspace alanını ekibiniz için hazırlayın",
+      "title": "Organizasyonu ekibiniz için hazırlayın",
       "intro": "Şirket organizasyonu oluşturun, kişileri davet edin ve kurulumu yapılandırın. Her ayara daha sonra dönebilirsiniz.",
       "applicationAdmin": "Uygulama yöneticisi",
       "organizationAdmin": "Organizasyon yöneticisi",
       "openApp": "Uygulamayı aç",
-      "steps": "Workspace kurulumu",
-      "workspace": "Workspace",
+      "steps": "Organizasyon kurulumu",
+      "workspace": "Organizasyon",
       "team": "Kişiler",
       "deployment": "Kurulum",
       "organization": "Organizasyon ayarları",
       "task": "İlk agent",
       "workspaceTitle": "Ekibiniz nerede çalışacak?",
-      "workspaceHint": "Bir şirket workspace alanı oluşturun veya üyesi olduğunuz bir organizasyonu seçin. Kişisel workspace isteğe bağlıdır.",
-      "createCompany": "Şirket workspace alanı oluştur",
+      "workspaceHint": "Bir şirket organizasyonu oluşturun veya üyesi olduğunuz birini seçin. Kişisel organizasyon isteğe bağlıdır.",
+      "createCompany": "Şirket organizasyonu oluştur",
       "createCompanyHint": "Şirket veya ekip adını girin. Sahibi olursunuz ve hemen kişileri davet edebilirsiniz.",
-      "existingCompany": "Mevcut şirket workspace alanını kullan",
+      "existingCompany": "Mevcut şirket organizasyonunu kullan",
       "existingCompanyHint": "Organizasyonlarınızdan birinin kurulumuna devam edin.",
-      "personalExplanation": "Personal, hesabınız için oluşturulan workspace alanıdır. Şirket için kullanmanız gerekmez. Yeni hesapların kişisel workspace alıp almayacağını uygulama yöneticisi belirler.",
-      "usePersonal": "Kişisel workspace kullanmak istiyorum",
-      "personalChoice": "Kişisel workspace",
-      "selectWorkspace": "Workspace seçin",
-      "continuePersonal": "Bu workspace ile devam et",
+      "personalExplanation": "Personal, hesabınız için oluşturulan bir organizasyondur. Şirket için kullanmanız gerekmez. Yeni hesapların kişisel organizasyon alıp almayacağını uygulama yöneticisi belirler.",
+      "usePersonal": "Kişisel organizasyon kullanmak istiyorum",
+      "personalChoice": "Kişisel organizasyon",
+      "selectWorkspace": "Organizasyon seçin",
+      "continuePersonal": "Bu organizasyonla devam et",
       "teamTitle": "Ekibinizi davet edin",
       "teamIntro": "Davetler ve roller {workspace} için geçerlidir. Model veya agent yapılandırmadan önce kişileri davet edebilirsiniz.",
       "reachableAddress": "Bu kurulum yerel bir adreste açık. Davet bağlantıları başka bilgisayarlarda çalışmaz. Davet göndermeden önce ekibin erişebildiği bir sunucu adresi kullanın.",
       "inviteEmail": "E-posta ile davet et",
       "inviteLink": "Davet bağlantısı oluştur",
-      "cannotInvite": "Bu workspace alanına kişi davet etme izniniz yok. Sahibine başvurun.",
+      "cannotInvite": "Bu organizasyona kişi davet etme izniniz yok. Sahibine başvurun.",
       "manageMembers": "Üyeler ve davetler",
       "manageRoles": "Roller ve izinler",
       "manageGroups": "Gruplar ve departmanlar",
@@ -13297,15 +13365,15 @@
       "retention": "Veri saklama",
       "directory": "Dizin ve oturum açma",
       "taskTitle": "İlk yararlı görevi hazırlayın",
-      "taskHint": "Workspace ve kişiler hazır. Şimdi paylaşılan bir model seçin, bir agent hazırlayın ve görev deneyin. Örnekler tek başına model çağrısı yapmaz.",
-      "loadFailed": "Workspace alanları yüklenemedi",
+      "taskHint": "Organizasyon ve kişiler hazır. Şimdi bir örnek deneyin; bir agent'ın kendi görevinizi yanıtlamasını istediğinizde bir model bağlayın. Örnekler tek başına model çağrısı yapmaz.",
+      "loadFailed": "Organizasyonlar yüklenemedi",
       "retry": "Tekrar dene",
-      "preview": "Çalışma alanı önizlemesi",
-      "previewName": "Çalışma alanınız",
+      "preview": "Organizasyon önizlemesi",
+      "previewName": "Organizasyonunuz",
       "previewTitle": "Ekibiniz için bir yer.\nVe ajanları için.",
       "previewTeam": "Ekibiniz",
       "previewAgents": "Ajanlarınız",
-      "previewHint": "Tek çalışma alanı. Ortak ajanlar, bilgi ve sohbetler.",
+      "previewHint": "Tek organizasyon. Ortak ajanlar, bilgi ve sohbetler.",
       "profile": "Profiliniz",
       "saveContinue": "Kaydet ve devam et",
       "skipOptional": "Şimdilik atla",
@@ -13320,25 +13388,25 @@
       "profileBenefitBody": "Rolünüz, saat diliminiz ve çalışma saatleriniz ajanların isteklerinizi tekrar gerektirmeden anlamasına yardımcı olur.",
       "changeLater": "Bu ayarları daha sonra değiştirebilirsiniz.",
       "finishSetup": "Kurulumu tamamla ve uygulamayı aç",
-      "identity": "Çalışma alanı kimliği",
-      "identityTitle": "Çalışma alanınıza kimlik kazandırın",
+      "identity": "Organizasyon kimliği",
+      "identityTitle": "Organizasyonunuza kimlik kazandırın",
       "identityHint": "Şirket logonuzu ekleyin. Ekibiniz bunu uygulama genelinde görür.",
       "context": "Bağlamınız",
       "contextTitle": "Ajanlarınız sizin hakkınızda ne bilmeli?",
       "contextHint": "Rolünüz, işiniz ve saat diliminiz ajanların ihtiyaçlarınızı anlamasına yardımcı olur.",
       "backStep": "Geri",
-      "createInstead": "Yeni çalışma alanı oluştur",
-      "chooseExisting": "Mevcut çalışma alanını seç",
-      "identityBenefitTitle": "Çalışma alanınız. Kimliğiniz.",
-      "identityBenefitBody": "Logonuz, ekibinizin sohbetlerde ve ortak kaynaklarda doğru çalışma alanını tanımasına yardımcı olur.",
+      "createInstead": "Yeni organizasyon oluştur",
+      "chooseExisting": "Mevcut organizasyonu seç",
+      "identityBenefitTitle": "Organizasyonunuz. Kimliğiniz.",
+      "identityBenefitBody": "Logonuz, ekibinizin sohbetlerde ve ortak kaynaklarda doğru organizasyonu tanımasına yardımcı olur.",
       "identityProfileTitle": "Profilini kişiselleştir",
       "identityProfileHint": "Fotoğrafını ve ekibinin göreceği adını ekle. Rolünü ve çalışma saatlerini sonraki adımda doldurabilirsin.",
-      "identityProfileBenefitTitle": "Her çalışma alanında tanıdık bir yüz",
+      "identityProfileBenefitTitle": "Her organizasyonda tanıdık bir yüz",
       "identityProfileBenefitBody": "Fotoğrafın ve görünen adın, ekip arkadaşlarının ortak sohbetlerde seni tanımasını sağlar.",
-      "teamHint": "Ekibini çalışma alanına davet et. Bunu şimdi yapabilir veya devam edip daha sonra dönebilirsin."
+      "teamHint": "Ekibini organizasyona davet et. Bunu şimdi yapabilir veya devam edip daha sonra dönebilirsin."
     },
     "workbench": {
-      "memberHint": "Workspace sahibi sizinle bir agent paylaşabilir. Kendi API anahtarınıza ihtiyacınız yoktur.",
+      "memberHint": "Organizasyon sahibi sizinle bir agent paylaşabilir. Kendi API anahtarınıza ihtiyacınız yoktur.",
       "title": "Bir agent size nasıl yardımcı olabilir?",
       "intro": "Bir örneği inceleyin, ardından kendi materyalinizle gerçek bir görev deneyin.",
       "openApp": "Uygulamayı aç",
@@ -13349,18 +13417,18 @@
         "compare": "Seçenekleri karşılaştır"
       },
       "menuHint": "Kurgusal örnekler. Dosya yüklemek veya hesap bağlamak gerekmez.",
-      "saved": "Seçim bu workspace için kaydedildi",
+      "saved": "Seçim bu organizasyon için kaydedildi",
       "saving": "Seçiminiz kaydediliyor…",
       "demoLabel": "Etkileşimli önizleme",
       "views": "Örnek görünümleri",
       "result": "Örnek yanıt",
       "source": "Agent ne alır?",
       "demoNotice": "Hazır örnek. AI çağrısı yapılmaz, modele materyal gönderilmez.",
-      "connect": "Agentımı hazırla",
+      "connect": "Model bağla",
       "getAccess": "Bir agenta erişim al",
       "connectionHint": "Kendi materyalinizle denemek ister misiniz? Hazır olduğunuzda bir model bağlayın.",
       "setupChat": "{agent} ile sohbeti aç",
-      "setupChatHint": "Sohbeti şimdi açabilirsin. Ajanın görevini yanıtlayabilmesi için çalışma alanı yöneticisinin AI kurulumunu tamamlaması gerekir.",
+      "setupChatHint": "Sohbeti şimdi açabilirsin. Ajanın görevini yanıtlayabilmesi için organizasyon yöneticisinin AI kurulumunu tamamlaması gerekir.",
       "actionPlan": "Eksikleri açıkça gösteren eylem planı",
       "task": "Görev",
       "owner": "Sorumlu",
@@ -13400,11 +13468,11 @@
     "returnTitle": "Çalışmanıza devam edin",
     "intro": "Kurgusal bir örnek deneyin veya kendi içeriğinizi kullanın. Diğer özellikleri ihtiyaç duyduğunuzda keşfedebilirsiniz.",
     "ready": "Kullanabileceğiniz bir ajan var. Bir örnek seçin, içeriği gözden geçirin ve görevi çalıştırın.",
-    "loadFailed": "Çalışma alanı kontrol edilemedi",
+    "loadFailed": "Organizasyon kontrol edilemedi",
     "retry": "Yeniden deneyin",
-    "noOrganization": "Çalışma alanınızı seçin",
-    "noOrganizationHint": "Oturum açtınız ancak bir alan atanmadı. Davetinizi açın veya kurulumu yöneten kişiye sorun.",
-    "organizations": "Çalışma alanlarınız",
+    "noOrganization": "Organizasyonunuzu seçin",
+    "noOrganizationHint": "Oturum açtınız ancak bir organizasyon atanmadı. Davetinizi açın veya kurulumu yöneten kişiye sorun.",
+    "organizations": "Organizasyonlarınız",
     "agent": "Kim yanıtlasın",
     "tryExample": "Görevi deneyin",
     "exampleHint": "Bunlar kurgusal içeriklerdir. Düzenleyip görevi çalıştırabilirsiniz.",
@@ -13413,16 +13481,16 @@
     "recordedExample": "Önceden hazırlanmış örnek sonuç",
     "demoNotRun": "Bu örnek önceden yazılmıştır. Yapay zekâ çağrılmadı, düzenlemeleriniz işlenmedi ve başarılı bir çalıştırma kaydedilmedi.",
     "run": "Görevi çalıştırın",
-    "runNotice": "Çalıştırma bu içeriği seçili ajanın modeline gönderir ve sağlayıcı ücreti doğurabilir. Ajanın ve kurumun harcama sınırları geçerlidir.",
+    "runNotice": "Çalıştırma bu içeriği seçili ajanın modeline gönderir ve sağlayıcı ücreti doğurabilir. Ajanın ve organizasyonun harcama sınırları geçerlidir.",
     "back": "İlk adımlara dönün",
     "connectTitle": "Yapay zekâyı bağlayıp ilk görevi hazırlayın",
     "connectHint": "Paylaşılan bir sohbet modeli seçin veya bir sağlayıcı ekleyin. Bireysel uygulama aboneliği API kullanımını otomatik olarak kapsamaz. Fiyatı sağlayıcı belirler.",
-    "localPrivacy": "Yerel AgenticOS çalışma alanını bu bilgisayarda tutar. Uzak yapay zekâ modeli gönderilen içeriği yine alır. Yerel modeller ayrıca çalışan uyumlu bir model sunucusu gerektirir.",
+    "localPrivacy": "Yerel AgenticOS organizasyonun verilerini bu bilgisayarda tutar. Uzak yapay zekâ modeli gönderilen içeriği yine alır. Yerel modeller ayrıca çalışan uyumlu bir model sunucusu gerektirir.",
     "prepare": "Metin asistanını hazırlayın",
     "preparing": "Hazırlanıyor…",
-    "prepareHint": "Alan bütçesi içinde aylık 5 USD sınırı olan paylaşılan bir metin asistanı oluşturur. Hazırlık model çağrısı, sandbox, bilgisayar izni veya harici hesap gerektirmez. İlk görev yanıtı doğrular.",
-    "askOwner": "Alanınızın hazırlanması gerekiyor",
-    "askOwnerHint": "Alanı yöneten kişi çalıştırabileceğiniz bir ajan paylaşmalıdır. Kendi API anahtarınızı eklemeniz gerekmez. Alan sahibiyle iletişime geçin veya daha sonra yeniden kontrol edin.",
+    "prepareHint": "Organizasyon bütçesi içinde aylık 5 USD sınırı olan paylaşılan bir metin asistanı oluşturur. Hazırlık model çağrısı, sandbox, bilgisayar izni veya harici hesap gerektirmez. İlk görev yanıtı doğrular.",
+    "askOwner": "Organizasyonunuzun hazırlanması gerekiyor",
+    "askOwnerHint": "Organizasyonu yöneten kişi çalıştırabileceğiniz bir ajan paylaşmalıdır. Kendi API anahtarınızı eklemeniz gerekmez. Organizasyon sahibiyle iletişime geçin veya daha sonra yeniden kontrol edin.",
     "checkAgain": "Yeniden kontrol edin",
     "lastResult": "Son tamamlanan sohbete devam edin",
     "tour": "Uygulamayı keşfedin",
@@ -13467,10 +13535,10 @@
     "previewMissing": "İkinizin de çalıştırabildiği yayımlanmış ajan yok. Paylaşımı ve üyenin izinlerini kontrol edin.",
     "previewHint": "Bu kontrol ekip üyesi olarak oturum açmaz ve modeli çağırmaz. Gerçek görev sağlayıcıyı ve gereksinimleri doğrular.",
     "invite": "Ekip üyesi davet edin",
-    "loadHint": "Bağlantıyı kontrol edin veya üyesi olduğunuz başka bir alan seçin. Başarısız kontrol verilerinizi silmez.",
+    "loadHint": "Bağlantıyı kontrol edin veya üyesi olduğunuz başka bir organizasyon seçin. Başarısız kontrol verilerinizi silmez.",
     "choiceNotSaved": "Seçiminiz kaydedilemedi. Lütfen yeniden deneyin.",
     "offer": {
-      "adminTitle": "Ekibinizin çalışma alanını kurun",
+      "adminTitle": "Ekibinizin organizasyonunu kurun",
       "adminHint": "Organizasyon, ekip ve AI — adım adım.",
       "adminAction": "Kuruluma devam et",
       "memberTitle": "İlk görevinizi deneyelim",
@@ -13490,9 +13558,9 @@
       "loadFailed": "Ayarlar yüklenemedi",
       "retry": "Tekrar dene",
       "saveFailed": "Değişiklikler kaydedilmedi. Burada kalıp tekrar dene.",
-      "workspaceGuide": "Ekibin için bir yer hazırlayalım. Bir çalışma alanı seç veya şirketin için yeni bir tane oluştur.",
-      "identityGuide": "Logo, doğru çalışma alanını tanımayı kolaylaştırır. Şimdi ekle veya mevcut görünümle devam et.",
-      "profileGuide": "Şimdi sıra sende. Fotoğrafın ve adın, ekibinin seni tanımasına yardımcı olur. Profilin tüm çalışma alanlarında geçerlidir.",
+      "workspaceGuide": "Ekibin için bir yer hazırlayalım. Bir organizasyon seç veya şirketin için yeni bir tane oluştur.",
+      "identityGuide": "Logo, doğru organizasyonu tanımayı kolaylaştırır. Şimdi ekle veya mevcut görünümle devam et.",
+      "profileGuide": "Şimdi sıra sende. Fotoğrafın ve adın, ekibinin seni tanımasına yardımcı olur. Profilin tüm organizasyonlarda geçerlidir.",
       "contextGuide": "İşinden biraz bahset. Ajanların bu bağlamı görüşme başında okur. Buradaki her alan isteğe bağlıdır.",
       "teamGuide": "Birlikte denemek daha kolay. Ekibini şimdi davet et veya davetleri sonraya bırak.",
       "taskGuide": "Yararlı bir şey deneyelim. Bir örnek seçip sonucu incele. Model bağlamadan veya AI çalıştırmadan kurulumu bitirebilirsin.",
@@ -13506,12 +13574,12 @@
       "closedBody": "Yeni kayıtları durdur. Mevcut hesaplar erişimlerini korur.",
       "domainsPreserved": "İzin verilen e-posta alan adları ve hesap sınırları değişmez.",
       "destinationTitle": "Yeni hesaplar nerede başlasın?",
-      "destinationGuide": "Yeni kişileri doğrudan bu şirket alanında başlatabilirsin. Bu, gelecekteki hesaplar içindir; mevcut kişiler taşınmaz ve rolleri değişmez.",
-      "destinationBody": "Yeni hesaplar bu alanda başlasın. Yapılandırılmış başlangıç rolü: {role}.",
-      "destinationHint": "Bu alanı kullanmak için şirket kartını seç veya mevcut başlangıç yerini koru.",
+      "destinationGuide": "Yeni kişileri doğrudan bu şirket organizasyonunda başlatabilirsin. Bu, gelecekteki hesaplar içindir; mevcut kişiler taşınmaz ve rolleri değişmez.",
+      "destinationBody": "Yeni hesaplar bu organizasyonda başlasın. Yapılandırılmış başlangıç rolü: {role}.",
+      "destinationHint": "Bu organizasyonu kullanmak için şirket kartını seç veya mevcut başlangıç yerini koru.",
       "otherDestination": "Şu anda başka bir kuruluş varsayılan. Bu kartı seçmek yalnızca gelecekteki hesaplar için onu değiştirir.",
-      "personalTitle": "Kişisel alanlar da oluştur",
-      "personalBody": "Gelecekteki hesaplara kişisel alan da ver. Yalnızca şirket alanı için kapat.",
+      "personalTitle": "Kişisel organizasyonlar da oluştur",
+      "personalBody": "Gelecekteki hesaplara kişisel organizasyon da ver. Yalnızca şirket organizasyonu için kapat.",
       "announcementTitle": "Ekibin için bir karşılama mesajı?",
       "announcementGuide": "İsteğe bağlı. Kısa bir karşılama veya yararlı bir bağlantı uygulamanın üstünde görünür. Kaydetmeden önce önizlemeyi görebilirsin.",
       "welcomeMessage": "Ekip duyurusu",
@@ -13524,9 +13592,9 @@
       "extrasTitle": "Diğerleri bekleyebilir",
       "extrasGuide": "Başlamak için her özelliği yapılandırman gerekmiyor. Bunlar isteğe bağlı araçlar. Ayarları ayrı açarsan bu rehber burada kalır.",
       "brandingTitle": "Uygulamanın görünümü",
-      "brandingBody": "Uygulama adı, logo ve yasal bağlantılar. Önceki şirket logosu çalışma alanına aittir.",
+      "brandingBody": "Uygulama adı, logo ve yasal bağlantılar. Önceki şirket logosu organizasyona aittir.",
       "voiceTitle": "Ses ve dikte",
-      "voiceBody": "Dikte kayıt tercihlerini burada seç. Ses modellerini daha sonra çalışma alanı ayarlarından yapılandırabilirsin.",
+      "voiceBody": "Dikte kayıt tercihlerini burada seç. Ses modellerini daha sonra organizasyon ayarlarından yapılandırabilirsin.",
       "mobileTitle": "Mobil bildirimler",
       "mobileBody": "Kendi iOS derlemen için push bildirimleri Apple kimlik bilgileri gerektirir. İlk oturumda eklemek zorunda değilsin.",
       "maintenanceTitle": "Durum ve bakım",
@@ -13537,22 +13605,22 @@
       "budgetGuide": "AI kullanımını sen kontrol edersin. Başlangıç tutarını seç veya kaydırıcıyı hareket ettir. Yalnızca devam ettiğinde kaydedeceğim.",
       "unlimited": "Sınırsız",
       "unlimitedHint": "Sınır koymak için aşağıdan bir tutar seç",
-      "perMonth": "Çalışma alanının tamamı için aylık USD",
+      "perMonth": "Organizasyonun tamamı için aylık USD",
       "budgetSlider": "ABD doları olarak aylık bütçe",
       "budgetInvalid": "Pozitif bir tutar veya limitsiz seçeneğini seç.",
-      "budgetHint": "Bu alandaki ajanların izlenen AI kullanımını sınırlar. Abonelik veya ön ödemeli kredi değildir. Sağlayıcı ayrı faturalandırır.",
+      "budgetHint": "Bu organizasyondaki ajanların izlenen AI kullanımını sınırlar. Abonelik veya ön ödemeli kredi değildir. Sağlayıcı ayrı faturalandırır.",
       "workspaceReadyTitle": "İlk görevin için hazır",
       "workspaceReadyGuide": "Temel hazırlıklar tamam. İlk görevi deneyebiliriz. Gelişmiş kurallar ve ses özellikleri gerekirse aşağıda; bir bölümü açmak ayarları değiştirmez.",
-      "readyForPeople": "Ekibinin alanı şekilleniyor",
+      "readyForPeople": "Ekibinin organizasyonu şekilleniyor",
       "readyForPeopleBody": "{workspace} kendi kimliğine ve ayarlarına sahip. Mevcut ajanlar, görüşmeler ve kurallar korunur.",
       "advancedOptional": "İsteğe bağlı: Yalnızca ihtiyaç duyduğunda incele. Her bölüm kendi kayıt kontrollerini kullanır.",
       "advancedSafety": "Onaylar ve herkese açık veriler",
-      "advancedAssistants": "Çalışma alanı asistanları ve otomasyon",
+      "advancedAssistants": "Organizasyon asistanları ve otomasyon",
       "advancedVoice": "Sesli görüşmeler",
       "openOrganizationSettings": "Tüm kuruluş ayarları ↗",
-      "memberReturningGuide": "Yeni çalışma alanına hoş geldin. Kişisel profilin zaten var; koruyup ilk göreve geçebilirsin. Kuruluşu yapılandırman istenmez.",
+      "memberReturningGuide": "Yeni organizasyona hoş geldin. Kişisel profilin zaten var; koruyup ilk göreve geçebilirsin. Organizasyonu yapılandırman istenmez.",
       "memberNewGuide": "Merhaba! Başlamana yardımcı olacağım: kısa tanışma, biraz bağlam ve ilk görev. Kişisel bilgileri atlayabilirsin. Kuruluşu yöneticin yapılandırır.",
-      "memberWelcome": "{workspace} alanına hoş geldin",
+      "memberWelcome": "{workspace} organizasyonuna hoş geldin",
       "memberWelcomeBody": "Ekibin, ajanların ve paylaşılan bilgi burada. İlk ziyaretini adım adım yararlı hale getirelim.",
       "memberExistingProfile": "Adın, fotoğrafın ve iş bağlamın hesabına bağlıdır. Burada kullanabilir veya devam etmeden inceleyebilirsin.",
       "useSavedProfile": "Kayıtlı profilimi kullan",
@@ -13996,6 +14064,2407 @@
       "true": "Doğru",
       "unsure": "Emin değil",
       "yes": "Evet"
+    },
+    "field": {
+      "agent_run": {
+        "config": {
+          "agent": {
+            "description": "Katalogdan bir agent ve bu adımın çalıştırdığı yayımlanmış sürümü."
+          },
+          "inline": {
+            "description": "Bu adımda yapılandırılan bir agent - model, talimatlar, capability’ler, bilgi ve MCP sunucuları - workflow ile birlikte sürümlenir."
+          },
+          "max_cost_usd": {
+            "title": "En yüksek maliyet (USD)",
+            "description": "Bu adımın tek bir yürütmesinin model isteklerine harcayabileceği en yüksek tutar (USD). Boşsa yalnızca agent’ın, workflow’un ve kuruluşun sınırları geçerli olur."
+          },
+          "structured_output_schema": {
+            "title": "Yapılandırılmış çıktı şeması",
+            "description": "Agent’ın kendi yanıt biçimi yerine yanıt olarak verdiği nesnenin JSON Schema’sı. Boşsa agent’ınki korunur."
+          }
+        },
+        "input": {
+          "prompt": {
+            "title": "Prompt"
+          },
+          "sources": {
+            "title": "Kaynaklar"
+          },
+          "attachments": {
+            "title": "Ekler",
+            "description": "Run’ın dosyalarındaki görseller; agent’a resim olarak gösterilir."
+          }
+        }
+      },
+      "ai_classify": {
+        "config": {
+          "model_profile_id": {
+            "title": "Model",
+            "description": "Kuruluşun modellerinden biri."
+          },
+          "temperature": {
+            "title": "Temperature",
+            "description": "Yanıtların çeşitliliği. Temperature desteklemeyen modeller için boş bırakın."
+          },
+          "effort": {
+            "title": "Akıl yürütme düzeyi",
+            "description": "Modelin ne kadar yoğun akıl yürüteceği. Boşsa provider’ın varsayılanı kullanılır."
+          },
+          "max_cost_usd": {
+            "title": "En yüksek maliyet (USD)",
+            "description": "Bu adımın tek bir yürütmesinin harcayabileceği en yüksek tutar. Boşsa workflow’un ve kuruluşun sınırları geçerli olur."
+          },
+          "categories": {
+            "title": "Kategoriler"
+          },
+          "instructions": {
+            "title": "Talimatlar",
+            "description": "Modelin göz önünde bulundurması gereken diğer her şey; örneğin eşitlik durumunda hangi kategorinin kazanacağı."
+          },
+          "min_confidence": {
+            "title": "En düşük güven",
+            "description": "Bunun altında adım, kategoriden değil Emin değil bağlantı noktasından çıkar. Boşsa her zaman kategoriden çıkar."
+          },
+          "categories__items__name": {
+            "title": "Ad",
+            "description": "Dalın bağlantı noktası kimliği"
+          },
+          "categories__items__description": {
+            "title": "Açıklama",
+            "description": "Bu kategoriye neler girer"
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Metin"
+          }
+        }
+      },
+      "ai_extract": {
+        "config": {
+          "model_profile_id": {
+            "title": "Model",
+            "description": "Kuruluşun modellerinden biri."
+          },
+          "temperature": {
+            "title": "Temperature",
+            "description": "Yanıtların çeşitliliği. Temperature desteklemeyen modeller için boş bırakın."
+          },
+          "effort": {
+            "title": "Akıl yürütme düzeyi",
+            "description": "Modelin ne kadar yoğun akıl yürüteceği. Boşsa provider’ın varsayılanı kullanılır."
+          },
+          "max_cost_usd": {
+            "title": "En yüksek maliyet (USD)",
+            "description": "Bu adımın tek bir yürütmesinin harcayabileceği en yüksek tutar. Boşsa workflow’un ve kuruluşun sınırları geçerli olur."
+          },
+          "output_schema": {
+            "title": "Çıkarılacak alanlar",
+            "description": "Çıkarılacak nesnenin JSON Schema’sı."
+          },
+          "instructions": {
+            "title": "Talimatlar",
+            "description": "Modelin bilmesi gereken diğer her şey; örneğin bir tarih biçimi."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Metin"
+          }
+        }
+      },
+      "ai_prompt": {
+        "config": {
+          "model_profile_id": {
+            "title": "Model",
+            "description": "Kuruluşun modellerinden biri."
+          },
+          "temperature": {
+            "title": "Temperature",
+            "description": "Yanıtların çeşitliliği. Temperature desteklemeyen modeller için boş bırakın."
+          },
+          "effort": {
+            "title": "Akıl yürütme düzeyi",
+            "description": "Modelin ne kadar yoğun akıl yürüteceği. Boşsa provider’ın varsayılanı kullanılır."
+          },
+          "max_cost_usd": {
+            "title": "En yüksek maliyet (USD)",
+            "description": "Bu adımın tek bir yürütmesinin harcayabileceği en yüksek tutar. Boşsa workflow’un ve kuruluşun sınırları geçerli olur."
+          },
+          "instructions": {
+            "title": "Talimatlar",
+            "description": "Modelin her prompt ile ne yapacağı - rolü ve kuralları."
+          },
+          "structured_output_schema": {
+            "title": "Yapılandırılmış çıktı şeması",
+            "description": "Yanıt olarak verilecek nesnenin JSON Schema’sı. Boşsa yanıt metin olarak verilir."
+          }
+        },
+        "input": {
+          "prompt": {
+            "title": "Prompt"
+          }
+        }
+      },
+      "ai_rewrite": {
+        "config": {
+          "model_profile_id": {
+            "title": "Model",
+            "description": "Kuruluşun modellerinden biri."
+          },
+          "temperature": {
+            "title": "Temperature",
+            "description": "Yanıtların çeşitliliği. Temperature desteklemeyen modeller için boş bırakın."
+          },
+          "effort": {
+            "title": "Akıl yürütme düzeyi",
+            "description": "Modelin ne kadar yoğun akıl yürüteceği. Boşsa provider’ın varsayılanı kullanılır."
+          },
+          "max_cost_usd": {
+            "title": "En yüksek maliyet (USD)",
+            "description": "Bu adımın tek bir yürütmesinin harcayabileceği en yüksek tutar. Boşsa workflow’un ve kuruluşun sınırları geçerli olur."
+          },
+          "task": {
+            "title": "Görev",
+            "description": "Metinle ne yapılacağı."
+          },
+          "language": {
+            "title": "Dil",
+            "description": "Yanıtın dili - çeviri için zorunlu, diğer durumlarda isteğe bağlı."
+          },
+          "length": {
+            "title": "Uzunluk",
+            "description": "Özetin ne kadar uzun olacağı."
+          },
+          "style": {
+            "title": "Üslup",
+            "description": "Metnin nasıl okunacağı; örneğin 'resmî' veya 'müşteri için'."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Metin"
+          }
+        }
+      },
+      "code_javascript_sandbox": {
+        "config": {
+          "code": {
+            "title": "Kod",
+            "description": "Bir async fonksiyonun gövdesi: bağlanan değerleri `args` olarak, girdi dosyalarını `inputs` klasöründen okuyun, dosyaları `outputs` klasörüne yazın ve yanıtı `return` ile döndürün."
+          },
+          "timeout_seconds": {
+            "title": "Süre sınırı (saniye)"
+          },
+          "connection_id": {
+            "title": "Sandbox host’u",
+            "description": "Kodun çalışacağı sandbox host’u. Boşsa kuruluşun varsayılanı."
+          },
+          "runtime": {
+            "title": "Runtime",
+            "description": "Host’un, kodun içinde çalışacağı ve Node içeren runtime’ı. Boşsa bağlantının varsayılanı."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argümanlar"
+          },
+          "files": {
+            "title": "Dosyalar"
+          },
+          "files__items__kind": {
+            "title": "Tür"
+          },
+          "files__items__file_id": {
+            "title": "Dosya kimliği"
+          },
+          "files__items__content_type": {
+            "title": "İçerik türü"
+          },
+          "files__items__byte_size": {
+            "title": "Bayt cinsinden boyut"
+          }
+        }
+      },
+      "code_python_sandbox": {
+        "config": {
+          "code": {
+            "title": "Kod",
+            "description": "Bağlanan değerleri `args` olarak, girdi dosyalarını `inputs` klasöründen okuyun ve dosyaları `outputs` klasörüne yazın. Yanıtı `result` değişkenine atayın."
+          },
+          "timeout_seconds": {
+            "title": "Süre sınırı (saniye)"
+          },
+          "connection_id": {
+            "title": "Sandbox host’u",
+            "description": "Kodun çalışacağı sandbox host’u. Boşsa kuruluşun varsayılanı."
+          },
+          "runtime": {
+            "title": "Runtime",
+            "description": "Host’un, kodun içinde çalışacağı runtime’ı. Boşsa bağlantının varsayılanı."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argümanlar"
+          },
+          "files": {
+            "title": "Dosyalar"
+          },
+          "files__items__kind": {
+            "title": "Tür"
+          },
+          "files__items__file_id": {
+            "title": "Dosya kimliği"
+          },
+          "files__items__content_type": {
+            "title": "İçerik türü"
+          },
+          "files__items__byte_size": {
+            "title": "Bayt cinsinden boyut"
+          }
+        }
+      },
+      "code_python_simple": {
+        "config": {
+          "code": {
+            "title": "Kod",
+            "description": "Bağlanan değerleri `args` olarak okuyun; son ifade sonuçtur."
+          },
+          "timeout_seconds": {
+            "title": "Zaman aşımı (saniye)"
+          },
+          "max_memory_mb": {
+            "title": "En fazla bellek (MB)"
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argümanlar"
+          }
+        }
+      },
+      "control_foreach": {
+        "config": {
+          "item_error_policy": {
+            "title": "Bir öğe başarısız olduğunda",
+            "description": "Durdur, başarısız olan ilk öğede döngüyü başarısız kılar. Topla, hatayı o öğenin yerine kaydeder ve kalan öğelerle devam eder.",
+            "options": {
+              "collect": "Topla ve devam et",
+              "stop": "Döngüyü durdur"
+            }
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Öğeler"
+          }
+        }
+      },
+      "convert_csv_to_json": {
+        "config": {
+          "max_bytes": {
+            "title": "En fazla bayt",
+            "description": "Girdi dosyasının ve kodlanmış çıktının en fazla bayt sayısı"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Tür"
+          },
+          "file__file_id": {
+            "title": "Dosya kimliği"
+          },
+          "file__content_type": {
+            "title": "İçerik türü"
+          },
+          "file__byte_size": {
+            "title": "Bayt cinsinden boyut"
+          }
+        }
+      },
+      "convert_json_to_csv": {
+        "config": {
+          "max_bytes": {
+            "title": "En fazla bayt",
+            "description": "Girdi dosyasının ve kodlanmış çıktının en fazla bayt sayısı"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Tür"
+          },
+          "file__file_id": {
+            "title": "Dosya kimliği"
+          },
+          "file__content_type": {
+            "title": "İçerik türü"
+          },
+          "file__byte_size": {
+            "title": "Bayt cinsinden boyut"
+          }
+        }
+      },
+      "convert_pdf_to_png": {
+        "config": {
+          "pages": {
+            "title": "Sayfalar",
+            "description": "Görsele dönüştürülecek sayfalar; sayım 1’den başlar."
+          },
+          "dpi": {
+            "title": "DPI"
+          },
+          "max_bytes": {
+            "title": "En fazla bayt"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Tür"
+          },
+          "file__file_id": {
+            "title": "Dosya kimliği"
+          },
+          "file__content_type": {
+            "title": "İçerik türü"
+          },
+          "file__byte_size": {
+            "title": "Bayt cinsinden boyut"
+          }
+        }
+      },
+      "convert_text_to_file": {
+        "config": {
+          "filename": {
+            "title": "Dosya adı"
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Metin"
+          }
+        }
+      },
+      "core_input": {
+        "config": {
+          "fields": {
+            "title": "Alanlar"
+          },
+          "input_schema": {
+            "description": "JSON nesnesi girdisi için JSON Schema Draft 2020-12 sözleşmesi; referanslar bu belgenin içinde olmalıdır"
+          },
+          "fields__items__name": {
+            "title": "Ad",
+            "description": "run’ın girdisindeki ve bir bağlama için payload içindeki anahtar"
+          },
+          "fields__items__label": {
+            "title": "Etiket",
+            "description": "Run formunda gösterilir"
+          },
+          "fields__items__type": {
+            "title": "Tür"
+          },
+          "fields__items__required": {
+            "title": "Gerekli"
+          },
+          "fields__items__description": {
+            "title": "Açıklama"
+          },
+          "fields__items__options": {
+            "title": "Seçenekler",
+            "description": "Bir seçimin sunduğu seçenekler"
+          }
+        }
+      },
+      "core_output": {
+        "input": {
+          "text": {
+            "title": "Metin"
+          },
+          "sources": {
+            "title": "Kaynaklar"
+          },
+          "artifacts": {
+            "title": "Artifact’ler"
+          },
+          "structured": {
+            "title": "Yapılandırılmış"
+          },
+          "sources__items__document_id": {
+            "title": "Belge kimliği"
+          },
+          "sources__items__filename": {
+            "title": "Dosya adı"
+          },
+          "sources__items__collection": {
+            "title": "Koleksiyon"
+          },
+          "sources__items__page": {
+            "title": "Sayfa"
+          },
+          "sources__items__chunk": {
+            "title": "Parça"
+          },
+          "sources__items__score": {
+            "title": "Puan"
+          },
+          "sources__items__content": {
+            "title": "İçerik"
+          },
+          "artifacts__items__kind": {
+            "title": "Tür"
+          },
+          "artifacts__items__file_id": {
+            "title": "Dosya kimliği"
+          },
+          "artifacts__items__content_type": {
+            "title": "İçerik türü"
+          },
+          "artifacts__items__byte_size": {
+            "title": "Bayt cinsinden boyut"
+          }
+        }
+      },
+      "data_combine": {
+        "config": {
+          "mode": {
+            "title": "Mod"
+          },
+          "key": {
+            "title": "Anahtar",
+            "description": "by_key için, iki listenin nesnelerinin eşleştirildiği alan"
+          }
+        },
+        "input": {
+          "first": {
+            "title": "Birinci"
+          },
+          "second": {
+            "title": "İkinci"
+          }
+        }
+      },
+      "data_filter": {
+        "config": {
+          "condition": {
+            "title": "Koşul",
+            "description": "Her öğe üzerinde çalışan bir JMESPath ifadesi; örneğin item.score > `50`"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Öğeler"
+          }
+        }
+      },
+      "data_map": {
+        "config": {
+          "mappings": {
+            "title": "Eşlemeler"
+          },
+          "mappings__items__target_field": {
+            "title": "Hedef alan"
+          },
+          "mappings__items__source_path": {
+            "title": "Kaynak yolu",
+            "description": "Girdi üzerinde çalışan bir JMESPath ifadesi; örneğin source.payload.email."
+          },
+          "mappings__items__coerce_to": {
+            "title": "Dönüştürülecek tür"
+          },
+          "mappings__items__default": {
+            "title": "Varsayılan"
+          }
+        },
+        "input": {
+          "source": {
+            "title": "Kaynak"
+          }
+        }
+      },
+      "debug_echo": {
+        "config": {
+          "message": {
+            "title": "Mesaj"
+          }
+        },
+        "input": {
+          "message": {
+            "title": "Mesaj"
+          }
+        }
+      },
+      "debug_relay": {
+        "input": {
+          "echoed": {
+            "title": "Yansıtılan"
+          },
+          "received_at": {
+            "title": "Alınma zamanı"
+          }
+        }
+      },
+      "decide_choose": {
+        "config": {
+          "question": {
+            "title": "Soru",
+            "description": "Metin hakkında neye karar verileceği; bir insanın soracağı biçimde"
+          },
+          "secret_id": {
+            "title": "Eski TypeSafe anahtarı",
+            "description": "Vault’taki bir TypeSafe API key’i"
+          },
+          "model": {
+            "title": "Model",
+            "description": "Hangi Jev’in yanıt vereceği: sürekli güncellenen sürüm, önizleme veya sabitlenmiş bir sürüm",
+            "options": {
+              "jev_latest": "Jev (en yeni)",
+              "jev_preview": "Jev (önizleme)"
+            }
+          },
+          "min_confidence": {
+            "title": "Minimum güven (%)",
+            "description": "Bunun altında adım, yanıta göre işlem yapmak yerine Emin değil bağlantı noktasından devam eder"
+          },
+          "options": {
+            "title": "Seçenekler"
+          },
+          "model_profile_id": {
+            "title": "Karar modeli",
+            "description": "Yerel bir karar modeli profili. Mevcut TypeSafe anahtarı yapılandırmaları desteklenmeye devam eder."
+          },
+          "options__items__value": {
+            "title": "Değer"
+          },
+          "options__items__description": {
+            "title": "Açıklama",
+            "description": "Bu seçeneğin anlamı, tek satırda - Jev bunu seçenekle birlikte okur"
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Metin"
+          }
+        }
+      },
+      "decide_score": {
+        "config": {
+          "question": {
+            "title": "Soru",
+            "description": "Metin hakkında neye karar verileceği; bir insanın soracağı biçimde"
+          },
+          "secret_id": {
+            "title": "Eski TypeSafe anahtarı",
+            "description": "Vault’taki bir TypeSafe API key’i"
+          },
+          "model": {
+            "title": "Model",
+            "description": "Hangi Jev’in yanıt vereceği: sürekli güncellenen sürüm, önizleme veya sabitlenmiş bir sürüm",
+            "options": {
+              "jev_latest": "Jev (en yeni)",
+              "jev_preview": "Jev (önizleme)"
+            }
+          },
+          "min_confidence": {
+            "title": "Minimum güven (%)",
+            "description": "Bunun altında adım, yanıta göre işlem yapmak yerine Emin değil bağlantı noktasından devam eder"
+          },
+          "levels": {
+            "title": "Düzeyler",
+            "description": "0’dan başlayarak her düzeyin anlamı - 'acil değil', 'acil', ..."
+          },
+          "model_profile_id": {
+            "title": "Karar modeli",
+            "description": "Yerel bir karar modeli profili. Mevcut TypeSafe anahtarı yapılandırmaları desteklenmeye devam eder."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Metin"
+          }
+        }
+      },
+      "decide_yes_no": {
+        "config": {
+          "question": {
+            "title": "Soru",
+            "description": "Metin hakkında neye karar verileceği; bir insanın soracağı biçimde"
+          },
+          "secret_id": {
+            "title": "Eski TypeSafe anahtarı",
+            "description": "Vault’taki bir TypeSafe API key’i"
+          },
+          "model": {
+            "title": "Model",
+            "description": "Hangi Jev’in yanıt vereceği: sürekli güncellenen sürüm, önizleme veya sabitlenmiş bir sürüm",
+            "options": {
+              "jev_latest": "Jev (en yeni)",
+              "jev_preview": "Jev (önizleme)"
+            }
+          },
+          "min_confidence": {
+            "title": "Minimum güven (%)",
+            "description": "Bunun altında adım, yanıta göre işlem yapmak yerine Emin değil bağlantı noktasından devam eder"
+          },
+          "model_profile_id": {
+            "title": "Karar modeli",
+            "description": "Yerel bir karar modeli profili. Mevcut TypeSafe anahtarı yapılandırmaları desteklenmeye devam eder."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Metin"
+          }
+        }
+      },
+      "email_send": {
+        "config": {
+          "smtp_secret_id": {
+            "title": "SMTP hesabı",
+            "description": "Vault’tan bir SMTP hesabı seçin veya platform göndereni kullanmak için boş bırakın."
+          },
+          "reply_to": {
+            "title": "Yanıt adresi",
+            "description": "Yanıtın gideceği adres. Boşsa gönderenin varsayılan yanıt adresi."
+          }
+        },
+        "input": {
+          "to": {
+            "title": "Alıcı",
+            "description": "En fazla on adres. Her biri kendi kopyasını alır."
+          },
+          "subject": {
+            "title": "Konu"
+          },
+          "body": {
+            "title": "Gövde",
+            "description": "Düz metin."
+          }
+        }
+      },
+      "error_handle": {
+        "config": {
+          "branches": {
+            "title": "Dallar"
+          },
+          "branches__items__name": {
+            "title": "Ad",
+            "description": "Dalın bağlantı noktası kimliği."
+          },
+          "branches__items__code": {
+            "title": "Kod"
+          },
+          "branches__items__retryable": {
+            "title": "Yeniden denenebilir"
+          }
+        }
+      },
+      "error_raise": {
+        "config": {
+          "code": {
+            "title": "Kod",
+            "description": "Bir error.handle dalının eşleştirebileceği büyük harfli kod; örneğin ORDER_REJECTED."
+          },
+          "message": {
+            "title": "Mesaj"
+          },
+          "details": {
+            "title": "Ayrıntılar"
+          },
+          "retryable": {
+            "title": "Yeniden denenebilir",
+            "description": "Adımın yeniden deneme politikasının tekrar deneyip deneyemeyeceği."
+          }
+        }
+      },
+      "file_read": {
+        "config": {
+          "parse_as": {
+            "title": "Ayrıştırma biçimi"
+          },
+          "max_bytes": {
+            "title": "En fazla bayt"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Tür"
+          },
+          "file__file_id": {
+            "title": "Dosya kimliği"
+          },
+          "file__content_type": {
+            "title": "İçerik türü"
+          },
+          "file__byte_size": {
+            "title": "Bayt cinsinden boyut"
+          }
+        }
+      },
+      "file_write": {
+        "config": {
+          "format": {
+            "title": "Biçim"
+          },
+          "filename": {
+            "title": "Dosya adı",
+            "description": "Dosyanın adı. Boş bırakılırsa biçimin uzantısıyla `output`; örneğin `output.csv`."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Metin"
+          },
+          "json_value": {
+            "title": "JSON değeri"
+          },
+          "rows": {
+            "title": "Satırlar"
+          }
+        }
+      },
+      "flow_await_reply": {
+        "config": {
+          "provider": {
+            "title": "Posta kutusu sağlayıcısı"
+          },
+          "connection_id": {
+            "title": "Bağlı kuruluş posta kutusu"
+          },
+          "mailbox": {
+            "title": "Paylaşılan Outlook posta kutusu"
+          },
+          "poll_seconds": {
+            "title": "Kontrol aralığı (saniye)"
+          }
+        },
+        "input": {
+          "thread_id": {
+            "title": "İleti dizisi kimliği"
+          },
+          "expected_sender": {
+            "title": "Beklenen gönderen"
+          },
+          "not_before": {
+            "title": "En erken"
+          },
+          "deadline": {
+            "title": "Son tarih"
+          },
+          "anchor_message_id": {
+            "title": "Referans mesaj kimliği"
+          }
+        }
+      },
+      "flow_wait": {
+        "config": {
+          "seconds": {
+            "title": "Bekleme süresi (saniye)",
+            "description": "Adıma ulaşıldıktan ne kadar sonra devam edileceği; en fazla otuz gün. Bir çağrı beklenirken, çağrı için beklenecek en uzun süre"
+          },
+          "until_called": {
+            "title": "Run’ın devam bağlantısının çağrılmasını bekle",
+            "description": "Bir Devam bağlantısı adımının verdiği adres çağrıldığında, adrese gönderileni aktararak devam et"
+          }
+        },
+        "input": {
+          "until": {
+            "title": "Şu zamana kadar"
+          }
+        }
+      },
+      "html_parse": {
+        "config": {
+          "selector": {
+            "title": "CSS seçici",
+            "description": "Seçilecek öğeler, bir stil sayfasındaki gibi - örneğin `table.prices td` veya `a.download`. Boşsa hiçbir şey seçilmez."
+          },
+          "max_matches": {
+            "title": "En fazla eşleşme",
+            "description": "Döndürülecek seçili öğe sayısı"
+          },
+          "base_url": {
+            "title": "Temel adres",
+            "description": "Göreli bağlantılar bu adrese göre çözümlenir. Adresin kendisi hiçbir zaman getirilmez."
+          },
+          "max_chars": {
+            "title": "En fazla metin karakteri",
+            "description": "Okunabilir metin bu uzunlukta kesilir"
+          }
+        },
+        "input": {
+          "html": {
+            "title": "HTML",
+            "description": "HTML, en fazla 2.000.000 karakter"
+          },
+          "file": {
+            "description": "HTML’i içeren dosya, en fazla 5.000.000 bayt"
+          },
+          "file__kind": {
+            "title": "Tür"
+          },
+          "file__file_id": {
+            "title": "Dosya kimliği"
+          },
+          "file__content_type": {
+            "title": "İçerik türü"
+          },
+          "file__byte_size": {
+            "title": "Bayt cinsinden boyut"
+          }
+        }
+      },
+      "http_download": {
+        "config": {
+          "url": {
+            "title": "URL",
+            "description": "Bir http veya https URL’si. Önceki bir adımdan bağlanabilir."
+          },
+          "headers": {
+            "title": "Header’lar"
+          },
+          "auth__kind": {
+            "title": "Tür"
+          },
+          "auth__secret_id": {
+            "title": "Secret kimliği",
+            "description": "Vault’taki bir HTTP kimlik bilgisi; gönderilebileceği origin’lere bağlıdır."
+          },
+          "auth__header_name": {
+            "title": "Header adı",
+            "description": "`header` için: token’ın gönderildiği header, ör. X-Api-Key."
+          },
+          "auth__header_prefix": {
+            "title": "Header öneki",
+            "description": "Özel bir header için isteğe bağlı şema, ör. Token; Authorization: Token abc123 örneğindeki gibi key’den önce gönderilir."
+          },
+          "auth__query_name": {
+            "title": "Query parametresinin adı",
+            "description": "`query` için: token’ın gönderildiği URL parametresi, ör. api_key."
+          },
+          "timeout_seconds": {
+            "title": "Zaman aşımı (saniye)"
+          },
+          "max_bytes": {
+            "title": "En fazla bayt",
+            "description": "Sunucu nasıl tanımlarsa tanımlasın, bundan büyük bir dosyayı reddet."
+          },
+          "expected_content_types": {
+            "title": "Beklenen içerik türleri",
+            "description": "Yalnızca, dosyanın kendi baytlarının gösterdiği şekliyle bu medya türlerini kabul et - `application/pdf`, `image/png`. Boşsa her türü kabul eder."
+          },
+          "filename": {
+            "title": "Dosya adı",
+            "description": "Saklanan dosyanın adı. Boş bırakılırsa URL’den alınır."
+          }
+        }
+      },
+      "http_request": {
+        "config": {
+          "method": {
+            "title": "Yöntem"
+          },
+          "url": {
+            "title": "URL",
+            "description": "Bir http veya https URL’si. Önceki bir adımdan bağlanabilir."
+          },
+          "headers": {
+            "title": "Header’lar"
+          },
+          "auth__kind": {
+            "title": "Tür"
+          },
+          "auth__secret_id": {
+            "title": "Secret kimliği",
+            "description": "Vault’taki bir HTTP kimlik bilgisi; gönderilebileceği origin’lere bağlıdır."
+          },
+          "auth__header_name": {
+            "title": "Header adı",
+            "description": "`header` için: token’ın gönderildiği header, ör. X-Api-Key."
+          },
+          "auth__header_prefix": {
+            "title": "Header öneki",
+            "description": "Özel bir header için isteğe bağlı şema, ör. Token; Authorization: Token abc123 örneğindeki gibi key’den önce gönderilir."
+          },
+          "auth__query_name": {
+            "title": "Query parametresinin adı",
+            "description": "`query` için: token’ın gönderildiği URL parametresi, ör. api_key."
+          },
+          "timeout_seconds": {
+            "title": "Zaman aşımı (saniye)"
+          },
+          "max_response_bytes": {
+            "title": "En fazla yanıt baytı"
+          },
+          "idempotency_key_header": {
+            "title": "Idempotency key header’ı",
+            "description": "Bu adımın sabit işlem anahtarını bu header’da gönderin (ör. Idempotency-Key); böylece karşı tarafın tanıdığı bir yeniden deneme güvenli olur."
+          },
+          "on_error_status": {
+            "title": "Hata durum kodunda",
+            "description": "2xx dışındaki bir durum kodunun adımı başarısız kılıp kılmayacağı ya da adımın çıktısı olarak döndürülüp döndürülmeyeceği."
+          },
+          "pagination__mode": {
+            "title": "Mod"
+          },
+          "pagination__items_path": {
+            "title": "Öğelerin yolu",
+            "description": "Her sayfadaki öğelerin bulunduğu yer; örneğin data veya results."
+          },
+          "pagination__next_path": {
+            "title": "Sonraki sayfanın yolu",
+            "description": "next_url ve cursor için: sonraki sayfanın URL’sinin veya cursor’ının bulunduğu yer; örneğin links.next veya meta.next_cursor."
+          },
+          "pagination__param": {
+            "title": "Parametre",
+            "description": "cursor ve page için: bu değeri taşıyan query parametresi."
+          },
+          "pagination__first_page": {
+            "title": "İlk sayfa"
+          },
+          "pagination__max_pages": {
+            "title": "En fazla sayfa",
+            "description": "Getirilecek en fazla sayfa sayısı."
+          }
+        },
+        "input": {
+          "body": {
+            "title": "Gövde"
+          }
+        }
+      },
+      "http_upload": {
+        "config": {
+          "method": {
+            "title": "Yöntem"
+          },
+          "url": {
+            "title": "URL",
+            "description": "Bir http veya https URL’si. Önceki bir adımdan bağlanabilir."
+          },
+          "headers": {
+            "title": "Header’lar"
+          },
+          "auth__kind": {
+            "title": "Tür"
+          },
+          "auth__secret_id": {
+            "title": "Secret kimliği",
+            "description": "Vault’taki bir HTTP kimlik bilgisi; gönderilebileceği origin’lere bağlıdır."
+          },
+          "auth__header_name": {
+            "title": "Header adı",
+            "description": "`header` için: token’ın gönderildiği header, ör. X-Api-Key."
+          },
+          "auth__header_prefix": {
+            "title": "Header öneki",
+            "description": "Özel bir header için isteğe bağlı şema, ör. Token; Authorization: Token abc123 örneğindeki gibi key’den önce gönderilir."
+          },
+          "auth__query_name": {
+            "title": "Query parametresinin adı",
+            "description": "`query` için: token’ın gönderildiği URL parametresi, ör. api_key."
+          },
+          "timeout_seconds": {
+            "title": "Zaman aşımı (saniye)"
+          },
+          "max_response_bytes": {
+            "title": "En fazla yanıt baytı"
+          },
+          "idempotency_key_header": {
+            "title": "Idempotency key header’ı",
+            "description": "Bu adımın sabit işlem anahtarını bu header’da gönderin (ör. Idempotency-Key); böylece karşı tarafın tanıdığı bir yeniden deneme güvenli olur."
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Tür"
+          },
+          "file__file_id": {
+            "title": "Dosya kimliği"
+          },
+          "file__content_type": {
+            "title": "İçerik türü"
+          },
+          "file__byte_size": {
+            "title": "Bayt cinsinden boyut"
+          }
+        }
+      },
+      "human_approval": {
+        "config": {
+          "title": {
+            "title": "Başlık",
+            "description": "Onaylayanın yanıtladığı soru; örneğin İade gönderilsin mi?"
+          },
+          "approvers": {
+            "title": "Onaylayanlar",
+            "description": "Kimlerin karar verebileceği. Boşsa onaylar hakkında karar veren herkes."
+          },
+          "timeout_hours": {
+            "title": "Süre sınırı (saat)",
+            "description": "İsteğin süresi dolmadan önce run’ın ne kadar bekleyeceği. Boşsa süresiz."
+          },
+          "editable": {
+            "title": "Onaylayan düzenleyebilsin",
+            "description": "Bağlanan öneriyi bir düzenleyicide göster; onaylayanın onayladığı sürüm nihai hâl olarak çıkar."
+          },
+          "proposal_label": {
+            "title": "Öneri etiketi",
+            "description": "Önerinin adı; örneğin Yanıt. Boşsa Öneri."
+          },
+          "proposal_format": {
+            "title": "Öneri biçimi",
+            "description": "Önerinin düz metin mi yoksa Markdown mı olduğu."
+          },
+          "choices": {
+            "title": "Onaylama seçenekleri",
+            "description": "Düz bir Onayla yerine bunları sunun: bu sırayla her biri için bir düğme ve bir çıkış bağlantı noktası; adımın Onaylandı bağlantı noktası olmaz. Boşsa adım onaylar veya reddeder."
+          },
+          "approver_groups": {
+            "title": "Onaylayıcı grupları",
+            "description": "Onay yetkisi olan her mevcut üye karar verebilir. Boş veya silinmiş gruplar erişim vermez."
+          },
+          "choices__items__id": {
+            "title": "Bağlantı noktası kimliği",
+            "description": "Çıkış bağlantı noktasını ve sonraki adımların choice olarak okuduğu değeri adlandırır. Küçük harfler, rakamlar ve alt çizgiler; in, approved veya rejected olamaz."
+          },
+          "choices__items__label": {
+            "title": "Düğme etiketi",
+            "description": "Onaylayanın düğmede okuduğu metin; örneğin Şimdi gönder."
+          }
+        },
+        "input": {
+          "details": {
+            "title": "Ayrıntılar"
+          },
+          "proposal": {
+            "title": "Öneri",
+            "description": "Onaylayanın incelediği ve adım düzenlenebilir olduğunda düzenlediği metin."
+          }
+        }
+      },
+      "image_transform": {
+        "config": {
+          "crop__left": {
+            "title": "Sol"
+          },
+          "crop__top": {
+            "title": "Üst"
+          },
+          "crop__width": {
+            "title": "Genişlik"
+          },
+          "crop__height": {
+            "title": "Yükseklik"
+          },
+          "resize__width": {
+            "title": "Genişlik"
+          },
+          "resize__height": {
+            "title": "Yükseklik"
+          },
+          "resize__mode": {
+            "title": "Mod"
+          },
+          "rotate_degrees": {
+            "title": "Döndürme (derece)",
+            "description": "Saat yönünde"
+          },
+          "output_format": {
+            "title": "Çıktı biçimi"
+          },
+          "quality": {
+            "title": "Kalite",
+            "description": "JPEG ve WebP için"
+          },
+          "max_bytes": {
+            "title": "En fazla bayt"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Tür"
+          },
+          "file__file_id": {
+            "title": "Dosya kimliği"
+          },
+          "file__content_type": {
+            "title": "İçerik türü"
+          },
+          "file__byte_size": {
+            "title": "Bayt cinsinden boyut"
+          }
+        }
+      },
+      "knowledge_add": {
+        "config": {
+          "collection_ids": {
+            "title": "Koleksiyon kimlikleri",
+            "description": "Belgenin ekleneceği bilgi koleksiyonları."
+          }
+        },
+        "input": {
+          "title": {
+            "title": "Başlık",
+            "description": "Belgenin adı. Metinle birlikte zorunludur; belirtilmezse dosya kendi adını korur."
+          },
+          "text": {
+            "title": "Metin"
+          },
+          "file__kind": {
+            "title": "Tür"
+          },
+          "file__file_id": {
+            "title": "Dosya kimliği"
+          },
+          "file__content_type": {
+            "title": "İçerik türü"
+          },
+          "file__byte_size": {
+            "title": "Bayt cinsinden boyut"
+          }
+        }
+      },
+      "knowledge_search": {
+        "config": {
+          "collection_ids": {
+            "title": "Koleksiyon kimlikleri",
+            "description": "Aranacak bilgi koleksiyonları."
+          },
+          "top_k": {
+            "title": "Top K",
+            "description": "Döndürülecek en fazla pasaj sayısı."
+          }
+        },
+        "input": {
+          "query": {
+            "title": "Sorgu"
+          }
+        }
+      },
+      "logic_if": {
+        "config": {
+          "condition": {
+            "title": "Koşul",
+            "description": "Girdi üzerinde çalışan ve doğruluk değeri olarak okunan bir JMESPath ifadesi - örneğin value.status == 'approved'."
+          }
+        },
+        "input": {
+          "value": {
+            "title": "Değer"
+          }
+        }
+      },
+      "logic_merge": {
+        "config": {
+          "wait_for": {
+            "title": "Bekleme ölçütü",
+            "description": "`one`: çalışan dal, `value` olarak aktarılır. `all`: tüm dallar, adlarıyla `branches` olarak aktarılır"
+          },
+          "branch_keys": {
+            "title": "Dal adları",
+            "description": "Gelen her dal için bir ad. Adı olmayan dal, çıktığı adımın veya Dallara ayır adımındaki dalın adını alır"
+          },
+          "branch_keys__items__source_node_id": {
+            "title": "Kaynak adım kimliği",
+            "description": "Dalın çıktığı adım"
+          },
+          "branch_keys__items__source_port": {
+            "title": "Kaynak bağlantı noktası",
+            "description": "Dalın çıktığı bağlantı noktası"
+          },
+          "branch_keys__items__key": {
+            "title": "Anahtar",
+            "description": "Dalın `branches` içindeki adı"
+          }
+        }
+      },
+      "logic_split": {
+        "config": {
+          "branches": {
+            "title": "Dallar",
+            "description": "Dallar; her biri adlandırılmış bir çıkış bağlantı noktasıdır. En az iki dal olmalı ve her birinin kendi adı olmalı"
+          },
+          "branches__items__name": {
+            "title": "Ad",
+            "description": "Dalın bağlantı noktası kimliği"
+          }
+        }
+      },
+      "logic_switch": {
+        "config": {
+          "rules": {
+            "title": "Kurallar"
+          },
+          "rules__items__name": {
+            "title": "Ad",
+            "description": "Dalın bağlantı noktası kimliği"
+          },
+          "rules__items__condition": {
+            "title": "Koşul",
+            "description": "Girdi üzerinde çalışan bir JMESPath ifadesi; örneğin value.country == 'PL'"
+          }
+        },
+        "input": {
+          "value": {
+            "title": "Değer"
+          }
+        }
+      },
+      "loop_yield": {
+        "input": {
+          "value": {
+            "title": "Değer"
+          }
+        }
+      },
+      "mattermost_channels_find": {
+        "config": {
+          "bot_id": {
+            "title": "Mattermost botu",
+            "description": "Bu adımın kuruluşun hangi Mattermost botu olarak işlem yapacağı"
+          },
+          "limit": {
+            "title": "Listelenecek kanal sayısı",
+            "description": "En fazla bu kadar"
+          }
+        },
+        "input": {
+          "query": {
+            "title": "Ad şunu içerir",
+            "description": "Kanal adının bir bölümü"
+          },
+          "channel_id": {
+            "title": "Botun bulunduğu bir kanal",
+            "description": "Mattermost’ta aranacak ekip bu kanaldan okunur"
+          }
+        }
+      },
+      "mattermost_members_list": {
+        "config": {
+          "bot_id": {
+            "title": "Mattermost botu",
+            "description": "Bu adımın kuruluşun hangi Mattermost botu olarak işlem yapacağı"
+          },
+          "limit": {
+            "title": "Listelenecek kişi sayısı",
+            "description": "En fazla bu kadar"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanal"
+          }
+        }
+      },
+      "mattermost_message_send": {
+        "config": {
+          "bot_id": {
+            "title": "Mattermost botu",
+            "description": "Bu adımın kuruluşun hangi Mattermost botu olarak işlem yapacağı"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanal",
+            "description": "Platformdaki kanal kimliği"
+          },
+          "text": {
+            "title": "Mesaj"
+          },
+          "thread_id": {
+            "title": "İleti dizisi",
+            "description": "Yanıtın verileceği ileti dizisi: bir Slack ileti dizisinin zaman damgası, bir Mattermost kök gönderisinin kimliği, bir Telegram forum konusu"
+          }
+        }
+      },
+      "mattermost_messages_read": {
+        "config": {
+          "bot_id": {
+            "title": "Mattermost botu",
+            "description": "Bu adımın kuruluşun hangi Mattermost botu olarak işlem yapacağı"
+          },
+          "limit": {
+            "title": "Okunacak mesaj sayısı",
+            "description": "En fazla bu kadar"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanal"
+          },
+          "thread_id": {
+            "title": "İleti dizisi",
+            "description": "Bunun yerine bu ileti dizisini oku"
+          }
+        }
+      },
+      "mcp_call": {
+        "config": {
+          "connection_id": {
+            "title": "Sunucu",
+            "description": "Kuruluşun MCP sunucularından biri."
+          },
+          "tool": {
+            "title": "Araç",
+            "description": "Çağrılacak araç; sunucunun verdiği adla."
+          },
+          "idempotency_key_argument": {
+            "title": "Idempotency key argümanı",
+            "description": "Araç bu argümanı tanımlıyorsa bu adımın sabit işlem anahtarını bu araç argümanı olarak gönderin; böylece sunucunun tanıdığı bir yeniden deneme güvenli olur."
+          },
+          "approval": {
+            "title": "Onay iste",
+            "description": "Sunucunun salt okunur olarak işaretlemediği bir araçtan önce, her çağrıdan önce veya hiçbir zaman.",
+            "options": {
+              "all": "Her çağrıdan önce",
+              "none": "Hiçbir zaman",
+              "writes": "Bir şeyi değiştirebilecek bir araçtan önce"
+            }
+          },
+          "approvers": {
+            "title": "Onaylayanlar",
+            "description": "Çağrıyı kimlerin onaylayabileceği. Boşsa onaylar hakkında karar veren herkes."
+          },
+          "timeout_seconds": {
+            "title": "Zaman aşımı (saniye)",
+            "description": "Aracın yanıt vermek için kullanabileceği en uzun süre."
+          },
+          "on_tool_error": {
+            "title": "Araç hatayla yanıt verdiğinde",
+            "description": "Aracın hatayla verdiği yanıtın adımı başarısız kılıp kılmayacağı ya da adımın çıktısı olup olmayacağı.",
+            "options": {
+              "complete": "Hatayı ilet",
+              "fail": "Adımı başarısız say"
+            }
+          },
+          "approver_groups": {
+            "title": "Onaylayıcı grupları",
+            "description": "Onay yetkisi olan her mevcut üye karar verebilir. Boş veya silinmiş gruplar erişim vermez."
+          }
+        },
+        "input": {
+          "arguments": {
+            "title": "Argümanlar",
+            "description": "Aracın kendi girdi şemasına uyan bir nesne."
+          }
+        }
+      },
+      "notification_send": {
+        "config": {
+          "recipients": {
+            "title": "Alıcılar",
+            "description": "Bilgilendirilecek kuruluş üyeleri."
+          },
+          "subject": {
+            "title": "Konu",
+            "description": "Bildirimin başlığı."
+          },
+          "channels": {
+            "title": "Kanallar",
+            "description": "Bildirimin onlara ulaşabileceği yerler. Her kişinin tercihleri ve özel kanallar için açıkça verdiği onay geçerliliğini korur; bir workflow onlar adına sohbet hedefi seçemez."
+          }
+        },
+        "input": {
+          "message": {
+            "title": "Mesaj"
+          }
+        }
+      },
+      "slack_channels_find": {
+        "config": {
+          "bot_id": {
+            "title": "Slack botu",
+            "description": "Bu adımın kuruluşun hangi Slack botu olarak işlem yapacağı"
+          },
+          "limit": {
+            "title": "Listelenecek kanal sayısı",
+            "description": "En fazla bu kadar"
+          }
+        },
+        "input": {
+          "query": {
+            "title": "Ad şunu içerir",
+            "description": "Kanal adının bir bölümü"
+          },
+          "channel_id": {
+            "title": "Botun bulunduğu bir kanal",
+            "description": "Mattermost’ta aranacak ekip bu kanaldan okunur"
+          }
+        }
+      },
+      "slack_members_list": {
+        "config": {
+          "bot_id": {
+            "title": "Slack botu",
+            "description": "Bu adımın kuruluşun hangi Slack botu olarak işlem yapacağı"
+          },
+          "limit": {
+            "title": "Listelenecek kişi sayısı",
+            "description": "En fazla bu kadar"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanal"
+          }
+        }
+      },
+      "slack_message_send": {
+        "config": {
+          "bot_id": {
+            "title": "Slack botu",
+            "description": "Bu adımın kuruluşun hangi Slack botu olarak işlem yapacağı"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanal",
+            "description": "Platformdaki kanal kimliği"
+          },
+          "text": {
+            "title": "Mesaj"
+          },
+          "thread_id": {
+            "title": "İleti dizisi",
+            "description": "Yanıtın verileceği ileti dizisi: bir Slack ileti dizisinin zaman damgası, bir Mattermost kök gönderisinin kimliği, bir Telegram forum konusu"
+          }
+        }
+      },
+      "slack_messages_read": {
+        "config": {
+          "bot_id": {
+            "title": "Slack botu",
+            "description": "Bu adımın kuruluşun hangi Slack botu olarak işlem yapacağı"
+          },
+          "limit": {
+            "title": "Okunacak mesaj sayısı",
+            "description": "En fazla bu kadar"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanal"
+          },
+          "thread_id": {
+            "title": "İleti dizisi",
+            "description": "Bunun yerine bu ileti dizisini oku"
+          }
+        }
+      },
+      "table_create": {
+        "config": {
+          "name": {
+            "title": "Ad"
+          },
+          "description": {
+            "title": "Açıklama"
+          },
+          "columns": {
+            "title": "Sütunlar"
+          },
+          "visibility": {
+            "title": "Görünürlük"
+          },
+          "columns__items__id": {
+            "title": "Kimlik"
+          },
+          "columns__items__label": {
+            "title": "Etiket"
+          },
+          "columns__items__type": {
+            "title": "Tür"
+          },
+          "columns__items__nullable": {
+            "title": "Boş bırakılabilir"
+          },
+          "columns__items__default": {
+            "title": "Varsayılan"
+          },
+          "columns__items__document_templates": {
+            "title": "Belge şablonları"
+          },
+          "columns__items__document_templates__items__id": {
+            "title": "Kimlik"
+          },
+          "columns__items__document_templates__items__name": {
+            "title": "Ad"
+          },
+          "columns__items__document_templates__items__body": {
+            "title": "Gövde"
+          },
+          "columns__items__default_template_id": {
+            "title": "Varsayılan şablon kimliği"
+          },
+          "columns__items__options": {
+            "title": "Seçenekler"
+          },
+          "columns__items__options__items__id": {
+            "title": "Kimlik"
+          },
+          "columns__items__options__items__label": {
+            "title": "Etiket"
+          },
+          "columns__items__options__items__color": {
+            "title": "Renk",
+            "description": "Görüntüleme rengi; boş bırakılırsa otomatik palet kullanılır"
+          },
+          "columns__items__options__items__archived": {
+            "title": "Arşivlendi"
+          },
+          "columns__items__archived": {
+            "title": "Arşivlendi"
+          },
+          "columns__items__link_table_id": {
+            "title": "Bağlantılı tablo kimliği",
+            "description": "Bağlantı sütunu için: kayıtlarına bağlandığı tablo."
+          },
+          "columns__items__link_column_id": {
+            "title": "Bağlantı sütunu kimliği",
+            "description": "Arama veya toplama sütunu için: bu tablonun, üzerinden okuduğu bağlantı sütunu."
+          },
+          "columns__items__target_column_id": {
+            "title": "Hedef sütun kimliği",
+            "description": "Arama veya toplama sütunu için: bağlantılı tablodan okuduğu sütun. Bağlantıları sayan bir toplama hiçbir sütun okumaz."
+          },
+          "columns__items__aggregate": {
+            "title": "Hesaplanan değer",
+            "description": "Toplama sütunu için: okuduğu değerlerden ne hesapladığı."
+          },
+          "columns__items__formula": {
+            "title": "Formül",
+            "description": "Formül sütunu için: kaydın diğer sütunları üzerinde bir ifade; her sütun süslü parantez içindeki etiketiyle adlandırılır; örneğin '{'Price'}' * '{'Quantity'}'."
+          }
+        }
+      },
+      "table_describe": {
+        "config": {
+          "table": {
+            "description": "Bu adımın üzerinde çalıştığı tablo; workflow yayımlandığında sabitlenir."
+          },
+          "table__kind": {
+            "title": "Tür"
+          },
+          "table__table_id": {
+            "title": "Tablo kimliği"
+          },
+          "table__column_ids": {
+            "title": "Sütun kimlikleri"
+          },
+          "table__schema_version": {
+            "title": "Şema sürümü"
+          }
+        }
+      },
+      "table_exists": {
+        "input": {
+          "name": {
+            "title": "Ad"
+          }
+        }
+      },
+      "table_list": {
+        "config": {
+          "limit": {
+            "title": "Sınır",
+            "description": "Listelenecek en fazla tablo sayısı"
+          }
+        },
+        "input": {
+          "search": {
+            "title": "Ara"
+          }
+        }
+      },
+      "table_record_create": {
+        "config": {
+          "table": {
+            "description": "Bu adımın üzerinde çalıştığı tablo; workflow yayımlandığında sabitlenir."
+          },
+          "table__kind": {
+            "title": "Tür"
+          },
+          "table__table_id": {
+            "title": "Tablo kimliği"
+          },
+          "table__column_ids": {
+            "title": "Sütun kimlikleri"
+          },
+          "table__schema_version": {
+            "title": "Şema sürümü"
+          }
+        },
+        "input": {
+          "values": {
+            "title": "Değerler",
+            "description": "Sütun kimliğine veya etiketine göre anahtarlanmış hücre değerleri"
+          },
+          "external_id": {
+            "title": "Harici kimlik"
+          }
+        }
+      },
+      "table_record_delete": {
+        "config": {
+          "table": {
+            "description": "Bu adımın üzerinde çalıştığı tablo; workflow yayımlandığında sabitlenir."
+          },
+          "table__kind": {
+            "title": "Tür"
+          },
+          "table__table_id": {
+            "title": "Tablo kimliği"
+          },
+          "table__column_ids": {
+            "title": "Sütun kimlikleri"
+          },
+          "table__schema_version": {
+            "title": "Şema sürümü"
+          }
+        },
+        "input": {
+          "record_id": {
+            "title": "Kayıt kimliği"
+          },
+          "expected_revision": {
+            "title": "Beklenen revizyon"
+          }
+        }
+      },
+      "table_record_exists": {
+        "config": {
+          "table": {
+            "description": "Bu adımın üzerinde çalıştığı tablo; workflow yayımlandığında sabitlenir."
+          },
+          "table__kind": {
+            "title": "Tür"
+          },
+          "table__table_id": {
+            "title": "Tablo kimliği"
+          },
+          "table__column_ids": {
+            "title": "Sütun kimlikleri"
+          },
+          "table__schema_version": {
+            "title": "Şema sürümü"
+          },
+          "filters": {
+            "title": "Filtreler"
+          },
+          "filters__items__column_id": {
+            "title": "Sütun kimliği"
+          },
+          "filters__items__op": {
+            "title": "Operatör"
+          },
+          "filters__items__value": {
+            "title": "Değer",
+            "description": "İşlenen değer. `in` için bir liste, `is_null` için bir boolean (true hücrenin boş olduğu anlamına gelir), aksi hâlde sütunun türünde bir değer."
+          }
+        }
+      },
+      "table_record_get": {
+        "config": {
+          "table": {
+            "description": "Bu adımın üzerinde çalıştığı tablo; workflow yayımlandığında sabitlenir."
+          },
+          "table__kind": {
+            "title": "Tür"
+          },
+          "table__table_id": {
+            "title": "Tablo kimliği"
+          },
+          "table__column_ids": {
+            "title": "Sütun kimlikleri"
+          },
+          "table__schema_version": {
+            "title": "Şema sürümü"
+          }
+        },
+        "input": {
+          "record_id": {
+            "title": "Kayıt kimliği"
+          },
+          "external_id": {
+            "title": "Harici kimlik"
+          }
+        }
+      },
+      "table_record_query": {
+        "config": {
+          "table": {
+            "description": "Bu adımın üzerinde çalıştığı tablo; workflow yayımlandığında sabitlenir."
+          },
+          "table__kind": {
+            "title": "Tür"
+          },
+          "table__table_id": {
+            "title": "Tablo kimliği"
+          },
+          "table__column_ids": {
+            "title": "Sütun kimlikleri"
+          },
+          "table__schema_version": {
+            "title": "Şema sürümü"
+          },
+          "filters": {
+            "title": "Filtreler"
+          },
+          "sort__by": {
+            "title": "Ölçüt",
+            "description": "`created_at`, `updated_at` veya bir sütun kimliği. Eşitlikler her zaman kayıt kimliğine göre çözülür."
+          },
+          "sort__direction": {
+            "title": "Yön"
+          },
+          "limit": {
+            "title": "Sınır"
+          },
+          "skip": {
+            "title": "Atla"
+          },
+          "filters__items__column_id": {
+            "title": "Sütun kimliği"
+          },
+          "filters__items__op": {
+            "title": "Operatör"
+          },
+          "filters__items__value": {
+            "title": "Değer",
+            "description": "İşlenen değer. `in` için bir liste, `is_null` için bir boolean (true hücrenin boş olduğu anlamına gelir), aksi hâlde sütunun türünde bir değer."
+          }
+        }
+      },
+      "table_record_update": {
+        "config": {
+          "table": {
+            "description": "Bu adımın üzerinde çalıştığı tablo; workflow yayımlandığında sabitlenir."
+          },
+          "table__kind": {
+            "title": "Tür"
+          },
+          "table__table_id": {
+            "title": "Tablo kimliği"
+          },
+          "table__column_ids": {
+            "title": "Sütun kimlikleri"
+          },
+          "table__schema_version": {
+            "title": "Şema sürümü"
+          }
+        },
+        "input": {
+          "record_id": {
+            "title": "Kayıt kimliği"
+          },
+          "values": {
+            "title": "Değerler",
+            "description": "Yalnızca değişecek hücreler; sütun kimliğine veya etiketine göre"
+          },
+          "expected_revision": {
+            "title": "Beklenen revizyon"
+          }
+        }
+      },
+      "table_record_upsert": {
+        "config": {
+          "table": {
+            "description": "Bu adımın üzerinde çalıştığı tablo; workflow yayımlandığında sabitlenir."
+          },
+          "table__kind": {
+            "title": "Tür"
+          },
+          "table__table_id": {
+            "title": "Tablo kimliği"
+          },
+          "table__column_ids": {
+            "title": "Sütun kimlikleri"
+          },
+          "table__schema_version": {
+            "title": "Şema sürümü"
+          }
+        },
+        "input": {
+          "external_id": {
+            "title": "Harici kimlik"
+          },
+          "values": {
+            "title": "Değerler",
+            "description": "Sütun kimliğine veya etiketine göre anahtarlanmış hücre değerleri"
+          }
+        }
+      },
+      "telegram_members_list": {
+        "config": {
+          "bot_id": {
+            "title": "Telegram botu",
+            "description": "Bu adımın kuruluşun hangi Telegram botu olarak işlem yapacağı"
+          },
+          "limit": {
+            "title": "Listelenecek kişi sayısı",
+            "description": "En fazla bu kadar"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanal"
+          }
+        }
+      },
+      "telegram_message_send": {
+        "config": {
+          "bot_id": {
+            "title": "Telegram botu",
+            "description": "Bu adımın kuruluşun hangi Telegram botu olarak işlem yapacağı"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanal",
+            "description": "Platformdaki kanal kimliği"
+          },
+          "text": {
+            "title": "Mesaj"
+          },
+          "thread_id": {
+            "title": "İleti dizisi",
+            "description": "Yanıtın verileceği ileti dizisi: bir Slack ileti dizisinin zaman damgası, bir Mattermost kök gönderisinin kimliği, bir Telegram forum konusu"
+          }
+        }
+      },
+      "text_compare": {
+        "config": {
+          "method": {
+            "title": "Yöntem",
+            "description": "Neyin sayılacağı: karakterler, ortak kelimeler veya değişmeyen satırlar"
+          },
+          "ignore_case": {
+            "title": "Büyük/küçük harfi yok say",
+            "description": "Büyük ve küçük harfleri eşit say"
+          },
+          "ignore_whitespace": {
+            "title": "Boşlukları yok say",
+            "description": "Satır içindeki boşlukları teke indir, her satırın başındaki ve sonundaki boşlukları kırp ve boş satırları at; satır sonları yine sayılır"
+          },
+          "ignore_punctuation": {
+            "title": "Noktalama işaretlerini yok say",
+            "description": "Noktalama işaretlerini hesaba katma"
+          },
+          "strip_quoted": {
+            "title": "Alıntılanan postaları ve imzaları hariç tut",
+            "description": "Alıntılanan yanıt satırlarını, alıntı başlığını ve imzadan sonraki her şeyi at"
+          }
+        },
+        "input": {
+          "a": {
+            "title": "A",
+            "description": "Birinci metin; örneğin özgün metin"
+          },
+          "b": {
+            "title": "B",
+            "description": "İkinci metin; örneğin düzenlenmiş hâli"
+          }
+        }
+      },
+      "text_extract": {
+        "config": {
+          "max_bytes": {
+            "title": "En fazla bayt"
+          },
+          "max_chars": {
+            "title": "En fazla karakter"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Tür"
+          },
+          "file__file_id": {
+            "title": "Dosya kimliği"
+          },
+          "file__content_type": {
+            "title": "İçerik türü"
+          },
+          "file__byte_size": {
+            "title": "Bayt cinsinden boyut"
+          }
+        }
+      },
+      "transform_aggregate": {
+        "config": {
+          "fields": {
+            "title": "Alanlar"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Öğeler"
+          }
+        }
+      },
+      "transform_crypto": {
+        "config": {
+          "operation": {
+            "title": "İşlem"
+          },
+          "length": {
+            "title": "Uzunluk",
+            "description": "random_hex için rastgele bayt sayısı"
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Metin"
+          }
+        }
+      },
+      "transform_date_time": {
+        "config": {
+          "operation": {
+            "title": "İşlem"
+          },
+          "amount": {
+            "title": "Miktar"
+          },
+          "unit": {
+            "title": "Birim"
+          },
+          "format": {
+            "title": "Biçim",
+            "description": "Nasıl yazılacağı; örneğin %d.%m.%Y"
+          },
+          "timezone": {
+            "title": "Saat dilimi",
+            "description": "Bir IANA saat dilimi; örneğin Europe/Warsaw. Boşsa workflow’un kendi saat dilimi"
+          }
+        },
+        "input": {
+          "value": {
+            "title": "Değer"
+          }
+        }
+      },
+      "transform_edit_fields": {
+        "config": {
+          "set": {
+            "title": "Ayarla"
+          },
+          "remove": {
+            "title": "Kaldır"
+          },
+          "only_set": {
+            "title": "Yalnızca ayarlananlar",
+            "description": "Yalnızca burada ayarlanan alanları tut, diğerlerinin hepsini at"
+          },
+          "set__items__name": {
+            "title": "Ad"
+          },
+          "set__items__expression": {
+            "title": "İfade",
+            "description": "Öğe üzerinde çalışan bir JMESPath ifadesi; örneğin item.first_name"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Öğeler"
+          }
+        }
+      },
+      "transform_limit": {
+        "config": {
+          "count": {
+            "title": "Adet",
+            "description": "Kaç öğenin tutulacağı"
+          },
+          "from_end": {
+            "title": "Sondan",
+            "description": "İlk öğeler yerine son öğeleri tut"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Öğeler"
+          }
+        }
+      },
+      "transform_remove_duplicates": {
+        "config": {
+          "fields": {
+            "title": "Alanlar",
+            "description": "İki öğenin yinelenen sayılması için aynı olması gereken alanlar; boşsa öğenin tamamı"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Öğeler"
+          }
+        }
+      },
+      "transform_sort": {
+        "config": {
+          "by": {
+            "title": "Ölçüt"
+          },
+          "by__items__field": {
+            "title": "Alan"
+          },
+          "by__items__descending": {
+            "title": "Azalan"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Öğeler"
+          }
+        }
+      },
+      "transform_split_out": {
+        "config": {
+          "field": {
+            "title": "Alan"
+          },
+          "keep_other_fields": {
+            "title": "Diğer alanları koru",
+            "description": "Öğenin diğer alanlarını her yeni öğeye kopyala"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Öğeler"
+          }
+        }
+      },
+      "transform_summarize": {
+        "config": {
+          "group_by": {
+            "title": "Gruplama ölçütü"
+          },
+          "summaries": {
+            "title": "Özetler"
+          },
+          "summaries__items__operation": {
+            "title": "İşlem"
+          },
+          "summaries__items__field": {
+            "title": "Alan",
+            "description": "Saymak için gerekmez"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Öğeler"
+          }
+        }
+      },
+      "trigger_channel_message": {
+        "config": {
+          "bot_id": {
+            "title": "Bot",
+            "description": "Workflow’u kuruluşun hangi Slack, Mattermost veya Telegram botunun başlatacağı"
+          },
+          "chat_types": {
+            "title": "Nerede",
+            "description": "Doğrudan mesajlar, kanallar ve gruplar ya da her ikisi",
+            "options": {
+              "group": "Kanallar ve gruplar",
+              "private": "Doğrudan mesajlar"
+            }
+          },
+          "text_contains": {
+            "title": "Yalnızca mesaj şunu içerdiğinde",
+            "description": "Büyük/küçük harf ayrımı yapılmadan bir kelime veya ifade; boşsa her mesaj"
+          }
+        }
+      },
+      "trigger_form": {
+        "config": {
+          "fields": {
+            "title": "Alanlar"
+          },
+          "input_schema": {
+            "title": "Girdi şeması"
+          },
+          "title": {
+            "title": "Başlık",
+            "description": "Sayfanın başlığı"
+          },
+          "description": {
+            "title": "Açıklama",
+            "description": "Başlığın altında gösterilir: formun amacı"
+          },
+          "submit_label": {
+            "title": "Gönder düğmesinin metni",
+            "description": "Düğmede yazan metin"
+          },
+          "success_message": {
+            "title": "Başarı mesajı",
+            "description": "Yanıtlar gönderildikten sonra sayfada görünen metin"
+          },
+          "appearance__accent": {
+            "title": "Vurgu rengi"
+          },
+          "appearance__width": {
+            "title": "Genişlik"
+          },
+          "appearance__layout": {
+            "title": "Düzen"
+          },
+          "fields__items__name": {
+            "title": "Ad",
+            "description": "run’ın girdisindeki ve bir bağlama için payload içindeki anahtar"
+          },
+          "fields__items__label": {
+            "title": "Etiket",
+            "description": "Run formunda gösterilir"
+          },
+          "fields__items__type": {
+            "title": "Tür"
+          },
+          "fields__items__required": {
+            "title": "Gerekli"
+          },
+          "fields__items__description": {
+            "title": "Açıklama"
+          },
+          "fields__items__options": {
+            "title": "Seçenekler",
+            "description": "Bir seçimin sunduğu seçenekler"
+          }
+        }
+      },
+      "trigger_github": {
+        "config": {
+          "repository": {
+            "title": "Depo",
+            "description": "Depo, owner/name biçiminde"
+          },
+          "events": {
+            "title": "Başlatan olaylar",
+            "description": "Workflow’u başlatan GitHub olayları",
+            "options": {
+              "issue_comment": "Issue ve pull request yorumları",
+              "issues": "Issue'lar",
+              "pull_request": "Pull request'ler",
+              "pull_request_review": "Pull request incelemeleri",
+              "push": "Push'lar",
+              "release": "Sürümler",
+              "workflow_run": "Actions workflow run'ları"
+            }
+          },
+          "actions": {
+            "title": "Yalnızca bu eylemler",
+            "description": "Örneğin opened veya closed; boşsa her eylem. Push olayının eylemi yoktur"
+          },
+          "register_with_account": {
+            "title": "Webhook’u benim için kur",
+            "description": "Webhook yönetme izniyle bağlanmış bir hesap varsa, webhook’u kuruluşun bağlı GitHub hesabı üzerinden depoya kaydet"
+          }
+        }
+      },
+      "trigger_gmail": {
+        "config": {
+          "subject_contains": {
+            "title": "Konu şunu içerir",
+            "description": "Konudaki bir kelime veya ifade; büyük/küçük harf ayrımı yapılmaz"
+          },
+          "sender_contains": {
+            "title": "Gönderen şunu içerir",
+            "description": "Büyük/küçük harf ayrımı yapılmadan yalnızca gönderenin adresiyle eşleştirilir, görünen adla asla: @acme.com tam olarak o alan adıdır (alt alan adları değil), tam bir adres o adrestir, diğer metinler adresin bir bölümüdür. Gönderen alan adının kimliğini doğruladığı posta gerekir"
+          },
+          "label": {
+            "title": "Etiket",
+            "description": "Posta kutusunun etiketlerinden biri, birebir yazılmış; örneğin INBOX veya IMPORTANT. SENT, DRAFT, SPAM veya TRASH etiketli postalar, burada o etiket belirtilmedikçe atlanır"
+          }
+        }
+      },
+      "trigger_manual": {
+        "config": {
+          "fields": {
+            "title": "Alanlar"
+          },
+          "input_schema": {
+            "description": "JSON nesnesi girdisi için JSON Schema Draft 2020-12 sözleşmesi; referanslar bu belgenin içinde olmalıdır"
+          },
+          "fields__items__name": {
+            "title": "Ad",
+            "description": "run’ın girdisindeki ve bir bağlama için payload içindeki anahtar"
+          },
+          "fields__items__label": {
+            "title": "Etiket",
+            "description": "Run formunda gösterilir"
+          },
+          "fields__items__type": {
+            "title": "Tür"
+          },
+          "fields__items__required": {
+            "title": "Gerekli"
+          },
+          "fields__items__description": {
+            "title": "Açıklama"
+          },
+          "fields__items__options": {
+            "title": "Seçenekler",
+            "description": "Bir seçimin sunduğu seçenekler"
+          }
+        }
+      },
+      "trigger_outlook": {
+        "config": {
+          "folder": {
+            "title": "Klasör",
+            "description": "Bilinen bir klasör (inbox, archive, junkemail) veya en üst düzeydeki bir klasörün görünen adı; okunacak postalar bir posta kuralıyla buraya taşınır"
+          },
+          "mailbox": {
+            "title": "Paylaşılan posta kutusu",
+            "description": "Bağlı hesabın okuyabildiği paylaşılan bir posta kutusu; hesabın kendi posta kutusu için boş bırakın. Bir posta kutusu belirtmek bağlantıları yönetme izni gerektirir"
+          },
+          "subject_contains": {
+            "title": "Konu şunu içerir",
+            "description": "Konudaki bir kelime veya ifade; büyük/küçük harf ayrımı yapılmaz"
+          },
+          "sender_contains": {
+            "title": "Gönderen şunu içerir",
+            "description": "Büyük/küçük harf ayrımı yapılmadan yalnızca gönderenin adresiyle eşleştirilir, görünen adla asla: @acme.com tam olarak o alan adıdır (alt alan adları değil), tam bir adres o adrestir, diğer metinler adresin bir bölümüdür. Gönderen alan adının kimliğini doğruladığı posta gerekir"
+          },
+          "has_attachments": {
+            "title": "Ek içerir",
+            "description": "Yalnızca ekli (veya eksiz) postalar"
+          },
+          "importance": {
+            "title": "Önem",
+            "description": "Gönderenin belirlediği önem düzeyi"
+          },
+          "category": {
+            "title": "Kategori",
+            "description": "Mesajın Outlook kategorilerinden biri; büyük/küçük harf ayrımı yapılmaz"
+          }
+        }
+      },
+      "trigger_schedule": {
+        "config": {
+          "schedule_kind": {
+            "title": "Zamanlama türü"
+          },
+          "interval_seconds": {
+            "title": "Aralık (saniye)",
+            "description": "Run’lar arasındaki saniye; en az bir dakika"
+          },
+          "cron_expression": {
+            "title": "Cron ifadesi",
+            "description": "Workflow’un saat diliminde beş alan (ayarlarında başkası belirtilmedikçe UTC); örneğin 0 9 * * 1-5"
+          },
+          "input": {
+            "title": "Girdi",
+            "description": "Her run’ın başlangıç verisi, JSON olarak"
+          }
+        }
+      },
+      "trigger_table_record": {
+        "config": {
+          "table": {
+            "description": "Tablo ve değişikliği workflow’u başlatan sütunlar - hiçbiri seçilmezse herhangi bir sütundaki değişiklik."
+          },
+          "table__kind": {
+            "title": "Tür"
+          },
+          "table__table_id": {
+            "title": "Tablo kimliği"
+          },
+          "table__column_ids": {
+            "title": "Sütun kimlikleri"
+          },
+          "table__schema_version": {
+            "title": "Şema sürümü"
+          },
+          "events": {
+            "title": "Kayıt şu durumda başlatır",
+            "description": "Eklendi, değiştirildi veya silindi. Sütun seçildiyse, bir değişiklik yalnızca tablonun seçilen sütunlarından biri değiştiğinde workflow’u başlatır.",
+            "options": {
+              "created": "Eklendi",
+              "deleted": "Silindi",
+              "updated": "Değiştirildi"
+            }
+          },
+          "filters": {
+            "title": "Filtreler",
+            "description": "Her biri kayıtta sağlanmalıdır - kaydın eklendiği veya değiştirildiği hâliyle ya da silinmeden önceki hâliyle"
+          },
+          "filters__items__column_id": {
+            "title": "Sütun kimliği"
+          },
+          "filters__items__op": {
+            "title": "Operatör"
+          },
+          "filters__items__value": {
+            "title": "Değer",
+            "description": "İşlenen değer. `in` için bir liste, `is_null` için bir boolean (true hücrenin boş olduğu anlamına gelir), aksi hâlde sütunun türünde bir değer."
+          }
+        }
+      },
+      "trigger_workflow_call": {
+        "config": {
+          "fields": {
+            "title": "Alanlar"
+          },
+          "input_schema": {
+            "description": "JSON nesnesi girdisi için JSON Schema Draft 2020-12 sözleşmesi; referanslar bu belgenin içinde olmalıdır"
+          },
+          "fields__items__name": {
+            "title": "Ad",
+            "description": "run’ın girdisindeki ve bir bağlama için payload içindeki anahtar"
+          },
+          "fields__items__label": {
+            "title": "Etiket",
+            "description": "Run formunda gösterilir"
+          },
+          "fields__items__type": {
+            "title": "Tür"
+          },
+          "fields__items__required": {
+            "title": "Gerekli"
+          },
+          "fields__items__description": {
+            "title": "Açıklama"
+          },
+          "fields__items__options": {
+            "title": "Seçenekler",
+            "description": "Bir seçimin sunduğu seçenekler"
+          }
+        }
+      },
+      "webhook_respond": {
+        "config": {
+          "status_code": {
+            "title": "Durum kodu",
+            "description": "HTTP durum kodu, 200 ile 599 arası."
+          },
+          "headers": {
+            "title": "Header’lar"
+          }
+        },
+        "input": {
+          "body": {
+            "title": "Gövde"
+          }
+        }
+      },
+      "workflow_run": {
+        "config": {
+          "workflow_id": {
+            "title": "Workflow",
+            "description": "“Workflow’dan çağrıldığında” ile başlayan yayımlanmış bir workflow"
+          },
+          "wait": {
+            "title": "Bitmesini bekle",
+            "description": "Verdiği yanıtı aktar. Kapalıysa adım, çağrılan workflow başlar başlamaz devam eder"
+          }
+        },
+        "input": {
+          "input": {
+            "title": "Girdi"
+          }
+        }
+      }
     }
   }
 }

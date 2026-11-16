@@ -105,7 +105,7 @@ class TestBasesTiedOnCreatedAt:
         sibling = _kb(organization.id, uuid.UUID(int=2), "tied", None)
         db.add_all([sibling, older])
         await db.flush()
-        source = await _source(db, organization, collection_name="tied")
+        source = await _source(db, organization, collection_name="tied", knowledge_base_id=older.id)
         access = CollectionAccessService(db)
 
         await access.detach_sources_targeting(sibling)
@@ -132,12 +132,10 @@ class TestBasesTiedOnCreatedAt:
         await db.flush()
 
         listed = await knowledge_base_repo.list_by_collection_name(db, "tied")
-        by_name = await knowledge_base_repo.list_by_collection_names(db, ["tied"])
         chosen = await knowledge_base_repo.get_for_collection(db, "tied", organization.id)
 
         assert listed[0].created_at == listed[1].created_at
         assert [kb.id for kb in listed] == [low, high]
-        assert [kb.id for kb in by_name["tied"]] == [low, high]
         assert chosen is not None and chosen.id == low
 
 
@@ -160,7 +158,7 @@ class TestAManualTriggerOfAPausedSource:
         kb = _kb(organization.id, uuid.uuid4(), "docs", datetime(2026, 1, 1, tzinfo=UTC))
         db.add(kb)
         await db.flush()
-        source = await _source(db, organization, is_active=is_active)
+        source = await _source(db, organization, is_active=is_active, knowledge_base_id=kb.id)
         ctx = AuthContext(
             user_id=owner, organization_id=organization.id, role=OrgRoleName.OWNER.value
         )
@@ -218,7 +216,10 @@ async def test_a_job_that_finds_its_source_paused_ends_without_syncing(
     factory = async_sessionmaker(engine, expire_on_commit=False)
     async with factory() as db:
         organization = await _org(db)
-        source = await _source(db, organization)
+        kb = _kb(organization.id, uuid.uuid4(), "docs", None)
+        db.add(kb)
+        await db.flush()
+        source = await _source(db, organization, knowledge_base_id=kb.id)
         log = await SyncSourceService(db).trigger_sync(str(source.id)) if has_log else None
         source.is_active = False
         await db.commit()
@@ -233,7 +234,6 @@ async def test_a_job_that_finds_its_source_paused_ends_without_syncing(
     credential = AsyncMock()
     monkeypatch.setattr(rag_tasks, "get_worker_db_context", worker_db)
     monkeypatch.setattr(rag_tasks, "_connector_credential", credential)
-    monkeypatch.setattr(rag_tasks, "_knowledge_base_for", AsyncMock(return_value=None))
     monkeypatch.setattr(rag_tasks.NotificationService, "sync_failed", AsyncMock())
 
     answer = await rag_tasks._sync_source(source_id, log_id)

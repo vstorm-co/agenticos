@@ -53,7 +53,7 @@ probe before the turn; failures log a warning and the turn proceeds without thos
 tools. Pydantic AI enters every toolset when a run starts, so raising would let one
 expired token abort every agent that names the connection. The trade is real: a
 skipped server means the model answers *without* the tools. It is briefed, though:
-`UnavailableUnreachableServer` for a failed probe, and `AnsweredRecently` for a
+`UnavailableUnreachableServer` for a failed probe, and `ResilientMcpToolset` for a
 server that answered within two minutes and fails on connect, both through
 `unreachable_briefing` in `app/agents/mcp.py`. `/test` and `last_status` are how you
 find out.

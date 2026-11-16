@@ -1,5 +1,5 @@
 ---
-source_sha: "1555844ea407"
+source_sha: "1f9d4ae97fcd"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -7,12 +7,6 @@ source_sha: "1555844ea407"
 Este documento cubre cómo se tratan los archivos en dos contextos: las subidas
 de archivos en el chat, que pertenecen a la persona que las hizo, y la ingesta
 de documentos RAG, que pertenece a una colección y depende de
-Al eliminar una base se desvinculan y desactivan las fuentes de sincronización cuyo destino
-era esa base. Conservan la configuración del conector, pero requieren una reasignación
-explícita antes de sincronizar de nuevo; otra base del mismo nombre no las hereda. Vaciar
-una base predeterminada conserva sus fuentes porque la fila de destino permanece. La
-ingesta por CLI rechaza un nombre reservado para un borrado pendiente hasta que se libere.
-
 [quién puede llegar a ella](#who-may-reach-a-collection).
 
 ## Subidas de archivos en el chat { #chat-file-uploads }
@@ -717,17 +711,26 @@ El recurso es solo una base de ámbito app: una base personal fuera de toda
 organización tampoco tiene organización, pero es de una sola persona
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
-Una fuente de sincronización registra una organización y un nombre de colección,
-no una base de conocimiento, así que su sincronización escribe en la base que elige
-esa resolución - la base más antigua de la organización con ese nombre - y solo esa
-base la lista y la ejecuta. Cada ruta de la API que dirige una fuente a una
-colección comprueba el permiso de escritura sobre esa base, y añadir una fuente a
-otra base del mismo nombre se rechaza con 400.
+Una fuente de sincronización registra la base de conocimiento en la que sincroniza
+(`knowledge_base_id`), no solo un nombre de colección, y solo esa base la lista, la
+ejecuta y muestra su historial. Una fuente añadida desde la pestaña **Sync** de una
+base registra esa base, así que dos bases con el mismo nombre conservan cada una sus
+fuentes. Una ruta que dirige una fuente a una colección por su nombre registra la base
+a la que ese nombre se resuelve para la organización de quien llama (la resolución de
+arriba) y comprueba el permiso de escritura sobre esa base.
 
-Cuando la base personal de un miembro es más antigua que la base de la organización
-del mismo nombre, las sincronizaciones de la organización con ese nombre acaban en
-la base personal, y la base de la organización no admite fuentes: créala con un
-nombre propio.
+`rag-source-add` registra la base de la organización que comprobó, y
+`--knowledge-base` elige una cuando varias bases de la organización tienen el nombre
+([#2551](https://github.com/vstorm-co/agenticos/issues/2551)).
+
+Una fuente sin base de conocimiento no sincroniza. La actualización que añadió la
+columna dio a cada fuente existente la base en la que escribía su sincronización, y
+desactivó, registrando su id, cada fuente cuya colección no tiene ninguna base de su
+organización ni del despliegue: apúntala a una base de conocimiento y vuelve a poner
+`is_active` en true para que vuelva a sincronizar.
+También registró cada fuente que dejó en la base personal de un miembro mientras la
+organización tiene una base de organización con el mismo nombre, que es donde esa
+fuente sincronizaba antes: muévela si pertenece a la base de la organización.
 
 !!! warning "Un nombre de colección es un espacio de embeddings"
 
@@ -989,6 +992,15 @@ cambio sigue existiendo y se puede seguir borrando, pero no se puede ingerir nad
 en ella — bórrala y crea una con otro nombre. Al hacerlo no se pierde nada: una
 ingesta en esa colección nunca ha funcionado, porque construir el índice de
 vectores sobre una tabla sin columna `embedding` falla.
+
+Al eliminar una base se desvinculan y desactivan exactamente las fuentes de sincronización
+que la registran, tenga quien tenga el nombre además. Conservan la configuración del conector, pero requieren una reasignación
+y una reactivación explícitas antes de sincronizar de nuevo; otra base del mismo nombre no
+las hereda.
+
+Vaciar una base predeterminada también desvincula y desactiva sus fuentes: su
+fila permanece, pero una fuente que siguiera en ella volvería a sincronizar el contenido
+borrado. La ingesta por CLI rechaza un nombre reservado para un borrado pendiente hasta que se libere.
 
 ### Quién puede llegar a una colección { #who-may-reach-a-collection }
 
@@ -1512,15 +1524,18 @@ permanente, porque una ingesta fallida se devuelve en vez de lanzarse y nada la
 reintenta. Tener los dos durante lo que dura una inserción es un estado que una
 búsqueda sobrevive; no tener ninguno, no.
 
-El historial propio de una fuente está en
-`GET /kb/{kb_id}/sync-sources/{source_id}/logs`. La fuente se resuelve primero
-contra esa base de conocimiento, así que una fuente que pertenece a otra base
-responde **404** en vez de una lista vacía — por lo demás las dos pintan la misma
-pantalla, y una de ellas es una petición que debería haber fallado. Sus ejecuciones
-se leen por id de fuente, que es lo que mantiene a `limit` y `total` describiendo
-el mismo conjunto de filas: una fuente reapuntada a otra base conserva sus
-ejecuciones anteriores bajo el nombre de colección que tenía entonces, y antes se
-caían de la página después de que `limit` ya la hubiera recortado.
+El historial de una fuente está en `GET /kb/{kb_id}/sync-sources/{source_id}/logs`.
+La fuente debe pertenecer a esa base; de lo contrario, la ruta devuelve **404**.
+Cada ejecución guardada conserva su base y organización originales como límite
+de acceso: reasignar una fuente no concede a la nueva base acceso a ejecuciones
+privadas anteriores. El filtrado se aplica antes del límite de página. Las
+ejecuciones antiguas sin una base guardada siguen atribuyéndose mediante su fuente.
+Al eliminar una base registrada se archiva el vínculo histórico con la fuente antes de borrar el identificador de la base, para que el historial no quede visible mediante una fuente reasignada.
+
+La reconciliación, las reclamaciones de documentos sin cambios y el seguimiento
+de vectores usan el ámbito documental de la base de destino. Reasignar una fuente
+borra su estado de sincronización en caché y su último estado; la finalización de
+una ejecución admitida para el destino anterior no puede restaurarlos.
 
 ### Qué no le corresponde decidir a una fuente de sincronización { #what-a-sync-source-is-not-allowed-to-decide }
 

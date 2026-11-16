@@ -13,22 +13,24 @@ import {
   OrgAssistant,
   OrgSystemAgents,
 } from "@/components/teams";
-import { ErrorState } from "@/components/states";
 import { usePermissions } from "@/hooks/use-permissions";
 import type { Organization } from "@/types";
 import { Perm } from "@/types/permissions";
 import { StartSkeleton } from "./start-skeleton";
 import { StartBudget } from "./start-budget";
-import { StartQuestion } from "./start-question";
+import { StartQuestion, StartStepFailed, StartStepPending } from "./start-question";
 import styles from "./guided-start.module.css";
 
 export function StartOrganizationSettings({
   org,
   onContinue,
+  onBack,
   active = true,
 }: {
   org: Organization;
   onContinue: () => void;
+  /** Back to the wizard's previous step, from this step's first question. */
+  onBack?: () => void;
   active?: boolean;
 }) {
   const t = useTranslations("start.guided");
@@ -44,23 +46,22 @@ export function StartOrganizationSettings({
     if (active && isLoaded)
       rememberStartQuestion("admin.organization", org.id, showBudget ? "budget" : "advanced");
   }, [active, isLoaded, org.id, showBudget]);
-  if (error)
-    return (
-      <ErrorState
-        title={t("loadFailed")}
-        cta={{ label: t("retry"), onClick: () => void refetch() }}
-      />
-    );
+  if (error) return <StartStepFailed onRetry={() => void refetch()} onBack={onBack} />;
   if (!isLoaded)
-    return <StartSkeleton fullPage={false} view={budgetDone ? "organization" : "budget"} />;
-  if (showBudget) return <StartBudget org={org} onContinue={() => setBudgetDone(true)} />;
+    return (
+      <StartStepPending onBack={onBack}>
+        <StartSkeleton fullPage={false} view={budgetDone ? "organization" : "budget"} />
+      </StartStepPending>
+    );
+  if (showBudget)
+    return <StartBudget org={org} onBack={onBack} onContinue={() => setBudgetDone(true)} />;
   return (
     <StartQuestion
       index={can(Perm.budgetsManage) ? 1 : 0}
       total={can(Perm.budgetsManage) ? 2 : 1}
       title={t("workspaceReadyTitle")}
       message={t("workspaceReadyGuide")}
-      onBack={can(Perm.budgetsManage) ? () => setBudgetDone(false) : undefined}
+      onBack={can(Perm.budgetsManage) ? () => setBudgetDone(false) : onBack}
       onContinue={onContinue}
     >
       <div className={styles.preview}>

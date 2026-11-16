@@ -1,5 +1,5 @@
 ---
-source_sha: "7d56de6cfe78"
+source_sha: "34fa5b94abdb"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -358,7 +358,9 @@ búsqueda, así que cambian latencia y un poco de gasto por recuperación en
 preguntas difusas. `multi_query` además recupera una vez por consulta, una tras
 otra, y cada recuperación genera el embedding de su propia consulta —las
 variantes no se agrupan en una sola llamada de embedding—, así que mantén
-`query_analysis_max_variants` bajo para acotar la ramificación.
+`query_analysis_max_variants` bajo para acotar la ramificación. Si alguno de los
+modos compensa en un corpus lo decide una medición, no un valor por defecto: la
+[evaluación de recuperación](../retrieval-eval.md) los compara sobre esta documentación.
 
 Ambos modos usan el propio modelo del agente —no hay un modelo aparte que
 configurar— y su coste se mide contra el presupuesto del run como cualquier otra
@@ -3542,7 +3544,7 @@ Una decisión puede guardar pruebas estructuradas: situación, elección, altern
 
 En **Ajustes → Memoria**, lee las pruebas y registra un resultado observado mediante una corrección. La corrección añade un registro; el episodio anterior y su procedencia permanecen en el historial. La consolidación determinista no convierte episodios en reglas generales. El borrado elimina su contenido junto con los registros; la exportación de datos personales lo incluye.
 
-**Preparar caso Improve** abre una entrada y una respuesta esperada editables. Revisa el texto, elimina lo que deba permanecer privado y aprueba expresamente la descarga de un registro JSONL. Los campos `input`, `reference_answer`, `tags` y `note` corresponden al importador de [Improve PR #2172](https://github.com/vstorm-co/agenticos/pull/2172). Importa el archivo en un conjunto Improve cuando esa función esté instalada, evalúalo y acepta/publica los cambios allí. Esta exportación no crea un conjunto, no ejecuta un optimizador ni publica instrucciones automáticamente.
+**Añadir como caso de Improve** abre una entrada y una respuesta esperada editables y pregunta a qué dataset añadirlas; se ofrece a un miembro que puede editar datasets. Revisa el texto, quita lo que deba seguir siendo privado y aprueba explícitamente añadirlo. El caso lleva la etiqueta `decision-episode`, te registra como la persona que preguntó y enlaza el run y la conversación de los que procede el episodio mientras existan, así que borrarte lo anonimiza como cualquier caso tomado de tus conversaciones. Evalúalo y acepta o publica los cambios en Improve. Añadirlo no ejecuta un optimizador ni publica instrucciones automáticamente.
 
 La elección de acceso local pertenece al agente seleccionado, no a un valor global heredado por otros agentes. Revocar una carpeta también elimina las elecciones guardadas y los consentimientos de programación de sus subcarpetas. Las aplicaciones de escritorio antiguas conservan el consentimiento para todo el equipo solo en una conversación; actualiza la aplicación para reutilizarlo en las conversaciones del mismo agente.
 

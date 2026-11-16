@@ -1,0 +1,4574 @@
+{
+  "dataset": "/Users/apple/vstormoss/agenticos/evals/retrieval/docs_questions.yaml",
+  "dataset_version": 1,
+  "dataset_sha256": "03a2e444e77dab09b3e6624557a9672815550604c5fd85e783320a3408f80417",
+  "started_at": "2026-11-10T10:53:26.672533+00:00",
+  "questions": 34,
+  "locales": [
+    "en",
+    "pl"
+  ],
+  "embedding_model": "openai/text-embedding-3-small",
+  "embedding_dim": 1536,
+  "embedding_base_url": "https://openrouter.ai/api/v1",
+  "ingestion": {
+    "chunk_size": 2500,
+    "chunk_overlap": 200,
+    "chunking_strategy": "recursive",
+    "document_parser": "python_native",
+    "pdf_parser": "pymupdf"
+  },
+  "collection_digest": "7f35786c7f",
+  "collections": {
+    "en": "retrieval_eval_openai_text__7f35786c7f_en",
+    "pl": "retrieval_eval_openai_text__7f35786c7f_pl"
+  },
+  "llm_model": "openai-chat:openai/gpt-6-luna",
+  "max_variants": 3,
+  "configurations": [
+    {
+      "label": "top_k=5, query_analysis_mode=off",
+      "top_k": 5,
+      "query_analysis_mode": "off",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 0.7142857142857143,
+          "recall": 0.7142857142857143,
+          "mrr": 0.5595238095238095,
+          "answered": 14,
+          "answers_correct": 12
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.85,
+          "mrr": 0.7333333333333333,
+          "answered": 10,
+          "answers_correct": 7
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.6,
+          "recall": 0.55,
+          "mrr": 0.425,
+          "answered": 10,
+          "answers_correct": 4
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.7352941176470589,
+          "recall": 0.7058823529411765,
+          "mrr": 0.5710784313725491,
+          "answered": 34,
+          "answers_correct": 23
+        }
+      ],
+      "items": [
+        {
+          "id": "saml-single-sign-on",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "directory.md",
+            "about/sauna.md",
+            "directory.md",
+            "about/microsoft-agent-365.md",
+            "about/microsoft-agent-365.md"
+          ],
+          "answer": "No. AgenticOS does not support SAML directly; a SAML-only identity provider can connect through Keycloak, which speaks SAML to the provider and OIDC to AgenticOS [1].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "scim-provisioning",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "directory.md",
+            "about/microsoft-agent-365.md",
+            "directory.md",
+            "about/sauna.md",
+            "about/copilot-studio.md"
+          ],
+          "answer": "No. AgenticOS does not support SCIM or scheduled directory sync; directory mappings are re-read at the user’s next sign-in. [1]",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "org-wide-default-model",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "deployment.md",
+            "models.md",
+            "console.md",
+            "console.md",
+            "choosing-models.md"
+          ],
+          "answer": "No—there is no organization-wide default model. A new agent without a specified model starts with the organization’s model only when exactly one model is available for agents to run; otherwise, its spec must name a model before it can be published. [2]",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "api-client-sdk",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "api.md",
+            "mcp.md",
+            "mcp.md",
+            "mcp.md",
+            "configuration.md"
+          ],
+          "answer": "No. The documentation says there is no client library yet; you can use the public API’s OpenAPI document at `/api/v1/public/openapi.json` as a reference [1].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "per-document-access-in-collection",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md"
+          ],
+          "answer": "The documentation does not state that access can be restricted per document within a knowledge collection. Access is described at the collection level, with permissions or grants applying to the collection as a whole [5].",
+          "answer_correct": false,
+          "queries": null
+        },
+        {
+          "id": "admin-creates-account-when-closed",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "deployment.md",
+            "console.md",
+            "directory.md",
+            "deployment.md",
+            "deployment.md"
+          ],
+          "answer": "No. With sign-up closed, an administrator cannot create an account for someone; `closed` refuses registration by every route [4]. To admit the colleague, switch to `invite_only` and invite them [4].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "zapier-signed-webhook",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "triggers.md",
+            "howto/support-ticket-triage.md",
+            "howto/support-ticket-triage.md",
+            "triggers.md",
+            "triggers.md"
+          ],
+          "answer": "No. Zapier’s standard webhook step cannot sign the request and its unsigned delivery will be refused with `403`; use a Code by Zapier step to compute the HMAC and set the `X-Signature-256` header [1][2].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "deployment-wide-embedding-key",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "artifacts.md"
+          ],
+          "answer": "No. Embedding credentials are configured per collection; there is no deployment-wide embedding key [1]. For an `ollama` collection, use a keyless provider and configure a local service instead [1].",
+          "answer_correct": false,
+          "queries": null
+        },
+        {
+          "id": "environment-without-version-pl",
+          "category": "negative",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "features.md",
+            "concepts.md",
+            "about/comparison.md",
+            "console.md",
+            "desktop.md"
+          ],
+          "answer": "Dokumentacja mówi, że środowiska wskazują na wersje agenta [3]. Nie podaje jednak, czy mogą działać bez przypiętej konkretnej wersji.",
+          "answer_correct": false,
+          "queries": null
+        },
+        {
+          "id": "voice-calls-recorded-pl",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 3,
+          "retrieved_pages": [
+            "ml-services.md",
+            "security.md",
+            "voice.md",
+            "console.md",
+            "voice.md"
+          ],
+          "answer": "Nie. AgenticOS przechowuje transkrypcje tekstowe rozmów, ale nie zapisuje nagrań audio w bazie danych, na dysku ani po zakończeniu rozmowy [3]. To, co może zachować dostawca głosu, zależy od umowy z nim [2][3].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "vault-master-key-fallback",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 3,
+          "retrieved_pages": [
+            "security.md",
+            "data-protection.md",
+            "secrets.md",
+            "configuration.md",
+            "secrets.md"
+          ],
+          "answer": "If `VAULT_MASTER_KEY` is unset, the vault falls back to `SECRET_KEY` [4]. Outside `local`/`development`, a vault key must be configured, so the platform will not use the fallback there [4].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "unanswered-question-expiry",
+          "category": "factual",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "api.md",
+            "reference/capabilities.md",
+            "console.md",
+            "channels.md",
+            "console.md"
+          ],
+          "answer": "The run waits 24 hours; then it ends as cancelled and records that the person did not answer in time. [2]",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "job-queue-engine",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "task-queue-benchmark.md",
+            "data-protection.md",
+            "governance.md",
+            "task-queue-benchmark.md",
+            "task-queue-benchmark.md"
+          ],
+          "answer": "AgenticOS now runs background jobs on a plain PostgreSQL queue (`pgqueue`) with long-lived asyncio workers [4].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "table-record-limit",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "virtual-tables.md",
+            "virtual-tables.md",
+            "data-protection.md",
+            "configuration.md",
+            "configuration.md"
+          ],
+          "answer": "A single virtual table can hold up to **100,000 records** by default [2].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "podman-deployment",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "deploy.md",
+            "index.md",
+            "install.md",
+            "about/index.md",
+            "about/openai-dots.md"
+          ],
+          "answer": "Yes. Podman is supported through the manual deployment path using Docker Compose as the provider; the quickstart is Docker-only. Set `PODMAN_COMPOSE_PROVIDER` to the Docker Compose executable and use `podman compose`—not `podman-compose` 1.6.0, which is unsupported [1][2].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "session-lifetime",
+          "category": "factual",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "desktop.md",
+            "models.md",
+            "reference/capabilities.md",
+            "governance.md",
+            "console.md"
+          ],
+          "answer": "The documentation does not state how long a session lasts. The app restores your session while it remains valid; if it is rejected or revoked, you must sign in again. [1]",
+          "answer_correct": false,
+          "queries": null
+        },
+        {
+          "id": "workflow-worker-concurrency",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "workflows.md",
+            "configuration.md",
+            "configuration.md",
+            "configuration.md",
+            "architecture.md"
+          ],
+          "answer": "By default, one worker can run five workflow branches in parallel (`WORKER_WORKFLOW_CONCURRENCY` is five) [1].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "skill-file-name",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "desktop.md",
+            "skills.md",
+            "skills.md",
+            "howto/product-descriptions.md",
+            "skills.md"
+          ],
+          "answer": "`SKILL.md` holds the skill’s instructions, name, and description [2].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "context-always-loaded",
+          "category": "factual",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "howto/product-descriptions.md",
+            "howto/personal-assistant.md",
+            "howto/account-research.md",
+            "howto/customize-agent-prompt.md",
+            "console.md"
+          ],
+          "answer": "Add a context file containing your product names and bind it to the agent; context files are injected into its instructions, so it doesn’t have to search for them [4]. This is suited to a handful of files, not thousands of documents.",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "embedding-providers",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "file-processing.md",
+            "data-protection.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "configuration.md"
+          ],
+          "answer": "A knowledge collection can use `openrouter`, `openai`, or `ollama` to compute embeddings. [2]",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "default-pdf-parser-pl",
+          "category": "factual",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "file-processing.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "architecture.md",
+            "howto/set-up-knowledge-base.md"
+          ],
+          "answer": "Domyślnie kolekcja używa parsera PyMuPDF do przetwarzania plików PDF [1][2].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "table-write-rate-limit-pl",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "virtual-tables.md",
+            "virtual-tables.md",
+            "configuration.md",
+            "configuration.md",
+            "virtual-tables.md"
+          ],
+          "answer": "Jeden członek może wykonać do 300 zapisów do tabel na minutę w jednej organizacji; po przekroczeniu limitu otrzyma odpowiedź 429 z nagłówkiem `Retry-After` [1].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "project-default-agent-pl",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "console.md",
+            "projects.md",
+            "projects.md",
+            "projects.md",
+            "voice.md"
+          ],
+          "answer": "Nowa rozmowa w projekcie zaczyna się z jego domyślnym agentem; później może odpowiadać w niej każdy agent [2].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "role-approves-without-editing-pl",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "virtual-tables.md",
+            "permissions.md",
+            "permissions.md",
+            "governance.md",
+            "governance.md"
+          ],
+          "answer": "Dokumentacja nie określa, która rola organizacji może decydować o zatwierdzeniach, ale nie może edytować agentów. Opisuje wymagane uprawnienia i ustawienia, lecz nie podaje takiego przypisania ról [2][5].",
+          "answer_correct": false,
+          "queries": null
+        },
+        {
+          "id": "saml-single-sign-on-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "directory.md",
+            "about/sauna.md",
+            "directory.md",
+            "about/microsoft-agent-365.md",
+            "about/copilot-studio.md"
+          ],
+          "answer": "Nie bezpośrednio — AgenticOS nie obsługuje SAML. Jeśli dostawca tożsamości obsługuje wyłącznie SAML, można użyć Keycloak jako pośrednika: SAML do Keycloak, a OIDC do AgenticOS [1].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "default-chunk-size-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 4,
+          "retrieved_pages": [
+            "howto/set-up-knowledge-base.md",
+            "console.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "file-processing.md"
+          ],
+          "answer": "Dokumentacja nie podaje domyślnej wielkości kawałków. Domyślnie dokumenty są dzielone metodą `recursive`, która dzieli je według struktury [3].",
+          "answer_correct": false,
+          "queries": null
+        },
+        {
+          "id": "voice-call-length-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "voice.md",
+            "voice.md",
+            "security.md",
+            "howto/content-repurposing.md",
+            "console.md"
+          ],
+          "answer": "Maksymalnie rozmowa może trwać 50 minut. Jeśli limitu nie ustawiono, domyślnie wynosi 10 minut. [1]",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "publish-reaches-production-pl",
+          "category": "cross_language",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "commands.md",
+            "console.md",
+            "howto/competitor-monitoring.md",
+            "features.md",
+            "about/index.md"
+          ],
+          "answer": "Nie. Opublikowanie tworzy nową wersję, ale harmonogram nadal korzysta z wersji przypisanej do jego środowiska; domyślne środowisko `production` nie śledzi najnowszej wersji. Aby uruchamiać nową wersję, trzeba ją promować do tego środowiska [3].",
+          "answer_correct": false,
+          "queries": null
+        },
+        {
+          "id": "model-weights-in-image-pl",
+          "category": "cross_language",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "about/opencode.md",
+            "about/opencode.md",
+            "about/codex.md",
+            "about/openai-dots.md",
+            "howto/translate.md"
+          ],
+          "answer": "Dokumentacja nie podaje, czy obrazy Dockera AgenticOS zawierają wagi modeli językowych. Wspomina jedynie, że AgenticOS można uruchomić na własnej infrastrukturze przez Docker Compose i obsługuje modele lokalne [4].",
+          "answer_correct": false,
+          "queries": null
+        },
+        {
+          "id": "redis-cluster-pl-corpus",
+          "category": "cross_language",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "about/comparison.md",
+            "licenses.md",
+            "about/openai-dots.md",
+            "about/comparison.md",
+            "about/openai-dots.md"
+          ],
+          "answer": "The documentation does not state whether AgenticOS supports a sharded Redis cluster. It says Valkey uses the same protocol as Redis and keeps the Redis URL scheme and `REDIS_*` settings unchanged [2].",
+          "answer_correct": false,
+          "queries": null
+        },
+        {
+          "id": "desktop-app-framework-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "sandbox.md",
+            "desktop.md",
+            "commands.md",
+            "projects.md",
+            "desktop.md"
+          ],
+          "answer": "The desktop client is a Tauri shell that loads the Next.js console from the server [2].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "approval-expiry-pl-corpus",
+          "category": "cross_language",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "governance.md",
+            "reference/workflow-nodes.md",
+            "governance.md",
+            "governance.md",
+            "governance.md"
+          ],
+          "answer": "A pending tool approval is automatically rejected after `APPROVAL_EXPIRY_HOURS`, which defaults to **three days** [1]. For approvals inside a voice call, it expires after **60 seconds** without a decision [1].",
+          "answer_correct": false,
+          "queries": null
+        },
+        {
+          "id": "stdio-mcp-server-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "configuration.md",
+            "mcp.md",
+            "mcp.md",
+            "howto/database-questions.md",
+            "mcp.md"
+          ],
+          "answer": "No. MCP connections support streamable HTTP or server-sent events (SSE), with the transport inferred from the URL [3].",
+          "answer_correct": false,
+          "queries": null
+        },
+        {
+          "id": "sandbox-docker-in-docker-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "sandbox.md",
+            "sandbox.md",
+            "desktop.md",
+            "sandbox.md",
+            "reference/workflow-nodes.md"
+          ],
+          "answer": "No. The sandbox is a sibling of `sandboxd`, not a container inside it; there is no Docker-in-Docker or nested daemon [1].",
+          "answer_correct": true,
+          "queries": null
+        }
+      ]
+    },
+    {
+      "label": "top_k=5, query_analysis_mode=multi_query",
+      "top_k": 5,
+      "query_analysis_mode": "multi_query",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 0.7142857142857143,
+          "recall": 0.7142857142857143,
+          "mrr": 0.5595238095238095,
+          "answered": 14,
+          "answers_correct": 12
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.85,
+          "mrr": 0.6583333333333333,
+          "answered": 10,
+          "answers_correct": 8
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.7,
+          "recall": 0.65,
+          "mrr": 0.5333333333333333,
+          "answered": 10,
+          "answers_correct": 5
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.7647058823529411,
+          "recall": 0.7352941176470589,
+          "mrr": 0.5808823529411765,
+          "answered": 34,
+          "answers_correct": 25
+        }
+      ],
+      "items": [
+        {
+          "id": "saml-single-sign-on",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "directory.md",
+            "about/microsoft-agent-365.md",
+            "directory.md",
+            "about/sauna.md",
+            "about/copilot-studio.md"
+          ],
+          "answer": "No, AgenticOS does not support SAML directly. A SAML-only identity provider can connect through Keycloak, which speaks SAML to it and OIDC to AgenticOS. [1]",
+          "answer_correct": true,
+          "queries": [
+            "Does AgenticOS support SAML single sign-on?",
+            "Does AgenticOS offer SAML-based single sign-on?",
+            "Can users authenticate to AgenticOS with SAML SSO?",
+            "What identity and SAML SSO integrations does AgenticOS support?"
+          ]
+        },
+        {
+          "id": "scim-provisioning",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "directory.md",
+            "about/microsoft-agent-365.md",
+            "about/sauna.md",
+            "directory.md",
+            "about/copilot-studio.md"
+          ],
+          "answer": "No. AgenticOS does not support SCIM or scheduled directory sync; directory mappings are re-read at the next sign-in [1].",
+          "answer_correct": true,
+          "queries": [
+            "Can our identity provider push user accounts to AgenticOS automatically with SCIM?",
+            "Does AgenticOS support automatic user provisioning from an identity provider via SCIM?",
+            "Can an identity provider sync user accounts to AgenticOS using SCIM?",
+            "Is SCIM-based automated user account provisioning available for AgenticOS?"
+          ]
+        },
+        {
+          "id": "org-wide-default-model",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 4,
+          "retrieved_pages": [
+            "console.md",
+            "console.md",
+            "deployment.md",
+            "models.md",
+            "howto/llm-wiki.md"
+          ],
+          "answer": "No. There is no organization-wide default model; a new agent with no model specified starts on the organization’s model only if exactly one eligible model is available. Otherwise, its spec must name a model before it can be published. [4]",
+          "answer_correct": true,
+          "queries": [
+            "Can I pick one default LLM for the whole organization so new agents use it?",
+            "Set an organization-wide default LLM that new agents inherit",
+            "Can administrators choose a default language model for all newly created agents?",
+            "Configure a global default LLM for agents across the organization"
+          ]
+        },
+        {
+          "id": "api-client-sdk",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 3,
+          "retrieved_pages": [
+            "mcp.md",
+            "mcp.md",
+            "api.md",
+            "configuration.md",
+            "mcp.md"
+          ],
+          "answer": "No. The documentation says there is no client library yet [3].",
+          "answer_correct": false,
+          "queries": [
+            "Is there an official SDK or client library for calling the API?",
+            "Does the API provider offer an official SDK or client library?",
+            "Where can I find the official client libraries for this API?",
+            "Is there a supported SDK for making API requests?"
+          ]
+        },
+        {
+          "id": "per-document-access-in-collection",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "howto/set-up-knowledge-base.md"
+          ],
+          "answer": "The documentation does not state that access can be restricted per document. It describes permissions and explicit grants at the collection level, not individual documents [4].",
+          "answer_correct": false,
+          "queries": [
+            "Can I restrict who sees individual documents inside a single knowledge collection?",
+            "Can permissions be set separately for individual documents within one knowledge collection?",
+            "Is it possible to limit access to specific files in a shared knowledge base?",
+            "How do I control which users can view particular documents in a collection?"
+          ]
+        },
+        {
+          "id": "admin-creates-account-when-closed",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "deployment.md",
+            "console.md",
+            "directory.md",
+            "deployment.md",
+            "deployment.md"
+          ],
+          "answer": "No. With sign-up closed, nobody can register, and administrators have no separate account-creation path [5]. To admit the colleague, switch to `invite_only` and invite them [5].",
+          "answer_correct": true,
+          "queries": [
+            "With sign-up closed, can an administrator just create an account for a new colleague?",
+            "Can an admin manually add a new colleague when user registration is disabled?",
+            "Is administrator-created account creation possible after sign-up has been closed?",
+            "When self-registration is unavailable, can an administrator create an account for a new team member?"
+          ]
+        },
+        {
+          "id": "zapier-signed-webhook",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "triggers.md",
+            "triggers.md",
+            "triggers.md",
+            "howto/support-ticket-triage.md",
+            "workflows.md"
+          ],
+          "answer": "No. Zapier’s standard webhook step cannot generate the required HMAC signature, so the delivery will be unsigned and refused with `403`; use a Code by Zapier step to sign the exact request body and set the `X-Signature-256` header [1].",
+          "answer_correct": true,
+          "queries": [
+            "Can Zapier send a signed delivery to an event trigger using its standard webhook step?",
+            "Can Zapier’s standard webhook action send signed payloads to a webhook trigger?",
+            "Does the standard Webhooks step in Zapier support signing requests sent to an event trigger?",
+            "Can Zapier send a digitally signed webhook delivery to a trigger using its built-in webhook action?"
+          ]
+        },
+        {
+          "id": "deployment-wide-embedding-key",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "artifacts.md"
+          ],
+          "answer": "No. Embedding credentials are configured per collection; there is no deployment-wide embedding key, and a collection without a usable key cannot index or search [1]. The alternative is to assign each collection a key for its provider, or use the keyless `ollama` provider with a configured local service [1].",
+          "answer_correct": true,
+          "queries": [
+            "Can I configure one embedding API key for the whole server instead of per collection?",
+            "How do I set a server-wide embedding API key instead of configuring one for each collection?",
+            "Is there a way to use a single embedding API key across all collections on the server?",
+            "Configure one global embedding API key rather than separate keys per collection"
+          ]
+        },
+        {
+          "id": "environment-without-version-pl",
+          "category": "negative",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "features.md",
+            "console.md",
+            "concepts.md",
+            "concepts.md",
+            "about/comparison.md"
+          ],
+          "answer": "Tak. Środowisko `production` domyślnie podąża za publikacjami, dopóki ktoś nie przypnie go do konkretnej wersji; środowisko dodane później czeka na promocję, chyba że ustawiono inaczej [3].",
+          "answer_correct": true,
+          "queries": [
+            "Czy środowisko może działać bez przypiętej konkretnej wersji agenta?",
+            "Czy środowisko może działać bez przypisania konkretnej wersji agenta?",
+            "Czy można uruchomić środowisko bez określenia wersji agenta?",
+            "Czy wersja agenta musi być przypięta, aby środowisko działało?"
+          ]
+        },
+        {
+          "id": "voice-calls-recorded-pl",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "ml-services.md",
+            "voice.md",
+            "console.md",
+            "security.md",
+            "voice.md"
+          ],
+          "answer": "Nie. AgenticOS zapisuje transkrypcję tekstową rozmowy, ale nie przechowuje nagrania audio w bazie danych, na dysku ani w pamięci po rozmowie [2]. To, co zachowuje dostawca usługi głosowej, zależy od umowy z nim [2], [4].",
+          "answer_correct": true,
+          "queries": [
+            "Czy nagrania rozmów głosowych z agentem są gdzieś przechowywane?",
+            "Czy rozmowy głosowe z agentem są nagrywane i gdzie można znaleźć ich nagrania?",
+            "Gdzie przechowywane są nagrania rozmów telefonicznych z agentem?",
+            "Czy mogę uzyskać dostęp do zapisanych nagrań rozmów głosowych z agentem?"
+          ]
+        },
+        {
+          "id": "vault-master-key-fallback",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 3,
+          "retrieved_pages": [
+            "security.md",
+            "data-protection.md",
+            "secrets.md",
+            "secrets.md",
+            "configuration.md"
+          ],
+          "answer": "It falls back to `SECRET_KEY` as the vault master key [5]. Outside `local` or `development`, a vault key is required unless `VAULT_MASTER_KEYS` is configured [5].",
+          "answer_correct": true,
+          "queries": [
+            "If I never set a vault master key, what does the platform encrypt credentials with?",
+            "What encryption key is used for credentials when no vault master key has been configured?",
+            "How does the platform encrypt stored credentials if a vault master key is not set?",
+            "What key protects credentials by default when the vault master key is unset?"
+          ]
+        },
+        {
+          "id": "unanswered-question-expiry",
+          "category": "factual",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "api.md",
+            "reference/capabilities.md",
+            "api.md",
+            "channels.md",
+            "authoring.md"
+          ],
+          "answer": "A run waits 24 hours for an answer; then it ends as cancelled and records that the person did not answer in time. [2]",
+          "answer_correct": true,
+          "queries": [
+            "How long will a run wait for someone to answer a question the agent asked before giving up?",
+            "How long does an agent run pause for a user response before timing out?",
+            "What is the response timeout for a question asked by an agent during a run?",
+            "When does a run give up waiting for someone to answer the agent’s question?"
+          ]
+        },
+        {
+          "id": "job-queue-engine",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "task-queue-benchmark.md",
+            "data-protection.md",
+            "task-queue-benchmark.md",
+            "governance.md",
+            "task-queue-benchmark.md"
+          ],
+          "answer": "Background jobs now run on a plain PostgreSQL queue (`pgqueue`) with long-lived asyncio workers. Each worker also runs a rescuer that detects expired leases and records worker deaths [5].",
+          "answer_correct": true,
+          "queries": [
+            "What runs background jobs now that Prefect is gone?",
+            "What system currently runs background jobs now that Prefect has been removed?",
+            "Which tool or service handles background job execution after Prefect?",
+            "What replaced Prefect for running background jobs?"
+          ]
+        },
+        {
+          "id": "table-record-limit",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "virtual-tables.md",
+            "virtual-tables.md",
+            "data-protection.md",
+            "configuration.md",
+            "reference/workflow-nodes.md"
+          ],
+          "answer": "A single virtual table can hold **100,000 records** by default [2], [4].",
+          "answer_correct": true,
+          "queries": [
+            "What is the maximum number of rows a single virtual table can hold by default?",
+            "What is the default maximum row count for one virtual table?",
+            "How many rows can a single virtual table store by default?",
+            "What is the default row capacity of an individual virtual table?"
+          ]
+        },
+        {
+          "id": "podman-deployment",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "deploy.md",
+            "index.md",
+            "deploy.md",
+            "deploy.md",
+            "install.md"
+          ],
+          "answer": "Yes. Podman is supported through the **manual deployment path using Docker Compose as the provider**; use Docker Compose 2.24 or later and explicitly select it with `PODMAN_COMPOSE_PROVIDER`. The quickstart is Docker-only, and `podman-compose` 1.6.0 is unsupported [1][2].",
+          "answer_correct": true,
+          "queries": [
+            "Can I deploy AgenticOS on a host that runs Podman instead of Docker?",
+            "Does AgenticOS support deployment on a Podman host rather than Docker?",
+            "Can I run AgenticOS using Podman instead of Docker?",
+            "AgenticOS installation requirements and compatibility with Podman hosts"
+          ]
+        },
+        {
+          "id": "session-lifetime",
+          "category": "factual",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "desktop.md",
+            "governance.md",
+            "sandbox.md",
+            "models.md",
+            "authoring.md"
+          ],
+          "answer": "The documentation does not state how long a sign-in lasts. The app restores your session while it remains valid; if the token is rejected or revoked, you must sign in again. [1]",
+          "answer_correct": false,
+          "queries": [
+            "How long can I stay logged in before my session runs out and I have to sign in again?",
+            "What is the session timeout, and when will I need to log in again?",
+            "How long does my login session last before it expires?",
+            "When does an account automatically sign out due to inactivity?"
+          ]
+        },
+        {
+          "id": "workflow-worker-concurrency",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "workflows.md",
+            "configuration.md",
+            "configuration.md",
+            "configuration.md",
+            "architecture.md"
+          ],
+          "answer": "One worker executes up to **five workflow branches in parallel by default**; `WORKER_WORKFLOW_CONCURRENCY` sets the limit. [1][3]",
+          "answer_correct": true,
+          "queries": [
+            "How many workflow branches does one worker execute in parallel out of the box?",
+            "By default, how many workflow branches can one worker execute concurrently?",
+            "What is the out-of-the-box parallel execution limit for workflow branches per worker?",
+            "How many branches of a workflow does a single worker run simultaneously by default?"
+          ]
+        },
+        {
+          "id": "skill-file-name",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "desktop.md",
+            "skills.md",
+            "skills.md",
+            "skills.md",
+            "skills.md"
+          ],
+          "answer": "`SKILL.md` holds the skill’s instructions, name, and description in its folder [2].",
+          "answer_correct": true,
+          "queries": [
+            "Which file in a skill's folder holds its instructions and description?",
+            "What is the name of the file in a skill directory that contains its instructions and description?",
+            "Which file defines a skill’s instructions and metadata in its folder?",
+            "Where are a skill’s description and usage instructions stored within its directory?"
+          ]
+        },
+        {
+          "id": "context-always-loaded",
+          "category": "factual",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "howto/product-descriptions.md",
+            "howto/personal-assistant.md",
+            "howto/support-widget.md",
+            "howto/customize-agent-prompt.md",
+            "channels.md"
+          ],
+          "answer": "Put the product names in a context file: context files are injected into the instructions, so they are always present without a search [4].",
+          "answer_correct": true,
+          "queries": [
+            "How do I make an agent always know our product names without it having to look anything up?",
+            "How can I make an AI agent remember our product names without searching a knowledge base?",
+            "How do I ensure an agent always knows our product catalog without using retrieval or lookups?",
+            "What’s the best way to embed product names into an agent so they’re available without external lookup?"
+          ]
+        },
+        {
+          "id": "embedding-providers",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "file-processing.md",
+            "howto/set-up-knowledge-base.md",
+            "data-protection.md",
+            "file-processing.md",
+            "configuration.md"
+          ],
+          "answer": "A knowledge collection can use `openrouter`, `openai`, or `ollama` to compute embeddings. [3]",
+          "answer_correct": true,
+          "queries": [
+            "Which providers can a knowledge collection use to compute embeddings?",
+            "What embedding providers are supported for knowledge collections?",
+            "Which services can a knowledge collection use to generate vector embeddings?",
+            "What providers are available for computing embeddings in a knowledge collection?"
+          ]
+        },
+        {
+          "id": "default-pdf-parser-pl",
+          "category": "factual",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "file-processing.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "architecture.md",
+            "howto/set-up-knowledge-base.md"
+          ],
+          "answer": "Domyślnie kolekcja używa parsera PyMuPDF do przetwarzania plików PDF [1][2].",
+          "answer_correct": true,
+          "queries": [
+            "Jakim parserem kolekcja domyślnie przetwarza pliki PDF?",
+            "Który parser domyślnie obsługuje pliki PDF w kolekcji?",
+            "Jakiego parsera kolekcja używa do przetwarzania dokumentów PDF?",
+            "Jaki jest domyślny parser plików PDF dla kolekcji?"
+          ]
+        },
+        {
+          "id": "table-write-rate-limit-pl",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "virtual-tables.md",
+            "virtual-tables.md",
+            "configuration.md",
+            "configuration.md",
+            "data-protection.md"
+          ],
+          "answer": "300 zapisów na minutę na członka i organizację; po przekroczeniu limitu żądanie otrzymuje odpowiedź 429 z nagłówkiem `Retry-After` [1].",
+          "answer_correct": true,
+          "queries": [
+            "Ile zapisów do tabel na minutę może wykonać jeden użytkownik, zanim dostanie odmowę?",
+            "Jaki jest limit zapisów do tabel na minutę dla jednego użytkownika, po którego przekroczeniu żądania są odrzucane?",
+            "Ile operacji zapisu do tabel może wykonać użytkownik w ciągu minuty, zanim otrzyma odmowę?",
+            "Jaki limit zapisów na minutę obowiązuje jednego użytkownika i kiedy system zaczyna odmawiać kolejnych operacji?"
+          ]
+        },
+        {
+          "id": "project-default-agent-pl",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "console.md",
+            "projects.md",
+            "projects.md",
+            "voice.md",
+            "projects.md"
+          ],
+          "answer": "Nowa rozmowa w projekcie zaczyna się z jego domyślnym agentem. W projekcie nadal może odpowiadać każdy agent [2].",
+          "answer_correct": true,
+          "queries": [
+            "Który agent odpowiada, kiedy zaczynam nową rozmowę w projekcie?",
+            "Który agent obsługuje nową rozmowę rozpoczętą w projekcie?",
+            "Jaki agent odpowiada jako pierwszy po rozpoczęciu nowego czatu w projekcie?",
+            "Od czego zależy, który agent zostanie przypisany do nowej rozmowy w projekcie?"
+          ]
+        },
+        {
+          "id": "role-approves-without-editing-pl",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "virtual-tables.md",
+            "permissions.md",
+            "concepts.md",
+            "governance.md",
+            "permissions.md"
+          ],
+          "answer": "Dokumentacja nie stwierdza, jaka rola może decydować o zatwierdzeniach, ale nie może edytować agentów. Opisuje zatwierdzenia, lecz nie przypisuje ich do ról [4], a uprawnienia do edycji agentów omawia osobno [2].",
+          "answer_correct": false,
+          "queries": [
+            "Jaka rola w organizacji może decydować o zatwierdzeniach, ale nie może edytować agentów?",
+            "Która rola w organizacji może zatwierdzać wnioski, ale nie ma uprawnień do edytowania agentów?",
+            "Jakie stanowisko może podejmować decyzje dotyczące zatwierdzeń, nie mogąc modyfikować agentów?",
+            "Która rola ma uprawnienia do zatwierdzania, lecz nie do zarządzania ani edytowania agentów?"
+          ]
+        },
+        {
+          "id": "saml-single-sign-on-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "directory.md",
+            "about/sauna.md",
+            "directory.md",
+            "about/microsoft-agent-365.md",
+            "about/index.md"
+          ],
+          "answer": "Nie — AgenticOS nie obsługuje SAML bezpośrednio. Dostawcę obsługującego wyłącznie SAML można podłączyć przez Keycloak, który komunikuje się z nim przez SAML, a z AgenticOS przez OIDC [1].",
+          "answer_correct": true,
+          "queries": [
+            "Czy da się logować do AgenticOS przez SAML?",
+            "Czy AgenticOS obsługuje logowanie jednokrotne (SSO) przez SAML?",
+            "Jak skonfigurować uwierzytelnianie SAML w AgenticOS?",
+            "Czy można logować się do AgenticOS za pomocą dostawcy tożsamości SAML?"
+          ]
+        },
+        {
+          "id": "default-chunk-size-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 3,
+          "retrieved_pages": [
+            "howto/set-up-knowledge-base.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "reference/capabilities.md",
+            "file-processing.md"
+          ],
+          "answer": "Dokumentacja nie podaje domyślnej wielkości kawałków. Domyślnie dzielenie jest `recursive`, czyli według struktury dokumentu [2].",
+          "answer_correct": false,
+          "queries": [
+            "Na jak duże kawałki dzielone są domyślnie dokumenty w bazie wiedzy?",
+            "Jaka jest domyślna wielkość fragmentów, na które dzielone są dokumenty w bazie wiedzy?",
+            "Ile wynosi domyślny rozmiar kawałka dokumentu w bazie wiedzy?",
+            "Na jakiej długości fragmenty dzielone są domyślnie dokumenty dodawane do bazy wiedzy?"
+          ]
+        },
+        {
+          "id": "voice-call-length-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "voice.md",
+            "console.md",
+            "voice.md",
+            "voice.md",
+            "channels.md"
+          ],
+          "answer": "Rozmowa może trwać maksymalnie 50 minut; jeśli nie ustawiono limitu, domyślnie trwa najwyżej 10 minut [3][4].",
+          "answer_correct": true,
+          "queries": [
+            "Jak długo maksymalnie może trwać rozmowa głosowa z agentem?",
+            "Jaki jest maksymalny czas trwania rozmowy głosowej z agentem?",
+            "Ile najdłużej może potrwać rozmowa telefoniczna z agentem?",
+            "Czy obowiązuje limit czasu rozmowy głosowej z agentem?"
+          ]
+        },
+        {
+          "id": "publish-reaches-production-pl",
+          "category": "cross_language",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "commands.md",
+            "console.md",
+            "howto/competitor-monitoring.md",
+            "about/index.md",
+            "features.md"
+          ],
+          "answer": "Nie. Opublikowanie tworzy nową wersję, ale nie przełącza automatycznie środowiska produkcyjnego na tę wersję; produkcja domyślnie nie śledzi najnowszej wersji. Trzeba ją osobno promować do środowiska produkcyjnego [3].",
+          "answer_correct": false,
+          "queries": [
+            "Czy opublikowanie nowej wersji agenta od razu podmienia ją na produkcji?",
+            "Czy opublikowana nowa wersja agenta jest automatycznie wdrażana na produkcji?",
+            "Czy publikacja aktualizacji agenta od razu zastępuje wersję produkcyjną?",
+            "Jak działa wdrażanie nowej wersji agenta po jej opublikowaniu?"
+          ]
+        },
+        {
+          "id": "model-weights-in-image-pl",
+          "category": "cross_language",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "deploy.md",
+            "about/opencode.md",
+            "about/opencode.md",
+            "configuration.md",
+            "install.md"
+          ],
+          "answer": "Dokumentacja nie podaje, czy obrazy AgenticOS zawierają wagi modeli językowych. Wspomina jedynie, że obrazy uruchamiają aplikację, a AgenticOS może korzystać także z modeli lokalnych [5][3].",
+          "answer_correct": false,
+          "queries": [
+            "Czy obrazy Dockera AgenticOS mają w sobie wagi modeli językowych?",
+            "Czy obrazy kontenerów Docker AgenticOS zawierają wagi modeli LLM?",
+            "Czy AgenticOS dołącza wagi modeli językowych do obrazów Dockera?",
+            "Jakie modele i wagi LLM znajdują się w obrazach Docker AgenticOS?"
+          ]
+        },
+        {
+          "id": "redis-cluster-pl-corpus",
+          "category": "cross_language",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "about/comparison.md",
+            "licenses.md",
+            "about/openai-dots.md",
+            "about/openai-dots.md",
+            "about/claude-apps.md"
+          ],
+          "answer": "The documentation does not state whether AgenticOS supports a sharded Redis cluster. It says Valkey uses the Redis protocol and the `redis://` URL scheme and `REDIS_*` settings remain unchanged [2].",
+          "answer_correct": false,
+          "queries": [
+            "Can I run AgenticOS against a sharded Redis cluster?",
+            "Does AgenticOS support connecting to a Redis cluster with sharding enabled?",
+            "Can AgenticOS run with a sharded Redis deployment?",
+            "Is AgenticOS compatible with Redis Cluster deployments that distribute data across shards?"
+          ]
+        },
+        {
+          "id": "desktop-app-framework-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "desktop.md",
+            "sandbox.md",
+            "desktop.md",
+            "desktop.md",
+            "desktop.md"
+          ],
+          "answer": "The desktop client is built as a Tauri shell [1].",
+          "answer_correct": true,
+          "queries": [
+            "What framework is the desktop client built with?",
+            "Which framework was used to build the desktop application?",
+            "What technology or toolkit powers the desktop client?",
+            "What is the desktop client’s underlying software framework?"
+          ]
+        },
+        {
+          "id": "approval-expiry-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "governance.md",
+            "configuration.md",
+            "governance.md",
+            "reference/workflow-nodes.md",
+            "governance.md"
+          ],
+          "answer": "A parked tool approval is automatically denied after `APPROVAL_EXPIRY_HOURS`, which defaults to 72 hours; an hourly sweep handles the timeout [2]. In a voice call, an undecided approval expires after 60 seconds [1].",
+          "answer_correct": true,
+          "queries": [
+            "How long does a pending tool approval wait before it is denied automatically?",
+            "What is the timeout for a pending tool approval before it is automatically rejected?",
+            "How long can a tool approval remain pending before the system denies it?",
+            "When does a pending approval request for a tool automatically expire or get denied?"
+          ]
+        },
+        {
+          "id": "stdio-mcp-server-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "configuration.md",
+            "mcp.md",
+            "mcp.md",
+            "mcp.md",
+            "howto/database-questions.md"
+          ],
+          "answer": "No. AgenticOS documents MCP connections over streamable HTTP or server-sent events (SSE), not standard input/output; use one of those transports instead [3].",
+          "answer_correct": false,
+          "queries": [
+            "Can I connect an MCP server that only talks over standard input and output?",
+            "Can an MCP server communicate using only stdin and stdout?",
+            "Is it possible to connect to an MCP server that uses the stdio transport?",
+            "How do I connect to an MCP server that exchanges messages through standard input and output?"
+          ]
+        },
+        {
+          "id": "sandbox-docker-in-docker-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "sandbox.md",
+            "sandbox.md",
+            "sandbox.md",
+            "desktop.md",
+            "configuration.md"
+          ],
+          "answer": "No. `sandboxd` asks the host’s Docker daemon to start the sandbox, so the sandbox is its sibling—not a nested container; there is no Docker-in-Docker or nested daemon. [1]",
+          "answer_correct": true,
+          "queries": [
+            "Does the code sandbox run containers nested inside another Docker container?",
+            "Can the code sandbox run Docker containers inside its own container?",
+            "Does the sandbox support Docker-in-Docker or nested container execution?",
+            "Is it possible to launch containers from within the code sandbox’s Docker container?"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "top_k=5, query_analysis_mode=hyde",
+      "top_k": 5,
+      "query_analysis_mode": "hyde",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 0.8571428571428571,
+          "recall": 0.8214285714285714,
+          "mrr": 0.6571428571428571,
+          "answered": 14,
+          "answers_correct": 11
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.85,
+          "mrr": 0.7833333333333333,
+          "answered": 10,
+          "answers_correct": 7
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.85,
+          "mrr": 0.67,
+          "answered": 10,
+          "answers_correct": 7
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.8823529411764706,
+          "recall": 0.8382352941176471,
+          "mrr": 0.6980392156862746,
+          "answered": 34,
+          "answers_correct": 25
+        }
+      ],
+      "items": [
+        {
+          "id": "saml-single-sign-on",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "about/sauna.md",
+            "directory.md",
+            "about/microsoft-agent-365.md",
+            "directory.md",
+            "about/index.md"
+          ],
+          "answer": "No, AgenticOS does not support SAML directly. A SAML-only identity provider can connect through Keycloak, which uses SAML with the provider and OIDC with AgenticOS [2].",
+          "answer_correct": true,
+          "queries": [
+            "Yes. AgenticOS supports SAML single sign-on."
+          ]
+        },
+        {
+          "id": "scim-provisioning",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "directory.md",
+            "about/copilot-studio.md",
+            "about/sauna.md",
+            "about/copilot-studio.md",
+            "about/microsoft-agent-365.md"
+          ],
+          "answer": "No. AgenticOS does not support SCIM or scheduled directory sync; accounts are handled when users sign in, and you can deactivate an account under **Admin → Users** to revoke access everywhere at once. [1]",
+          "answer_correct": true,
+          "queries": [
+            "AgenticOS does not currently support SCIM provisioning. User accounts cannot be pushed automatically from an identity provider and must be managed in AgenticOS."
+          ]
+        },
+        {
+          "id": "org-wide-default-model",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "models.md",
+            "deployment.md",
+            "console.md",
+            "models.md",
+            "features.md"
+          ],
+          "answer": "No—there is no organization-wide default model. A new agent starts on the organization’s model only if there is exactly one model it can run on; otherwise, its spec must name a model, or publishing is refused. [1]",
+          "answer_correct": true,
+          "queries": [
+            "Yes. An organization administrator can set a default LLM for the organization, and newly created agents will use it unless their model is changed individually."
+          ]
+        },
+        {
+          "id": "api-client-sdk",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "api.md",
+            "mcp.md",
+            "mcp.md",
+            "configuration.md",
+            "mcp.md"
+          ],
+          "answer": "No. The documentation says there is no client library yet; use the public API and its OpenAPI reference at `/api/v1/public/openapi.json` instead [1].",
+          "answer_correct": true,
+          "queries": [
+            "The API is not identified, so I can’t determine whether an official SDK or client library is available. Please specify the API."
+          ]
+        },
+        {
+          "id": "per-document-access-in-collection",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "howto/set-up-knowledge-base.md"
+          ],
+          "answer": "The documentation does not state whether access can be restricted for individual documents. It describes read and write permissions at the collection level, not per document [3][4].",
+          "answer_correct": false,
+          "queries": [
+            "No. Access permissions apply to the knowledge collection as a whole, not to individual documents within it; use separate collections to limit access to specific documents."
+          ]
+        },
+        {
+          "id": "admin-creates-account-when-closed",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "deployment.md",
+            "directory.md",
+            "deployment.md",
+            "console.md",
+            "deployment.md"
+          ],
+          "answer": "No. With sign-up closed, administrators cannot create accounts; switch to `invite_only` and invite the colleague instead [3].",
+          "answer_correct": true,
+          "queries": [
+            "Yes. When sign-up is closed, an administrator can create an account for a new colleague from the user-management area."
+          ]
+        },
+        {
+          "id": "zapier-signed-webhook",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "triggers.md",
+            "triggers.md",
+            "triggers.md",
+            "howto/support-ticket-triage.md",
+            "triggers.md"
+          ],
+          "answer": "No. Zapier’s standard webhook step cannot sign the body, so the delivery is unsigned and refused with `403`; use **Code by Zapier** to compute the HMAC and set the `X-Signature-256` header [1].",
+          "answer_correct": true,
+          "queries": [
+            "No. Zapier’s standard Webhooks step can send a request with custom headers, but it does not automatically sign the delivery; you’d need to generate the signature separately, for example in a code step."
+          ]
+        },
+        {
+          "id": "deployment-wide-embedding-key",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "artifacts.md",
+            "file-processing.md"
+          ],
+          "answer": "No. AgenticOS has no deployment-wide embedding key; each personal or organization collection must name a usable key for its provider. The alternative is the keyless `ollama` provider, configured with a local service; app-scoped collections can use only a keyless provider at a deployment-wide service. [1]",
+          "answer_correct": false,
+          "queries": [
+            "Yes. Set the embedding API key in the server-wide configuration, and collections can use that shared credential instead of storing a separate key for each one."
+          ]
+        },
+        {
+          "id": "environment-without-version-pl",
+          "category": "negative",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "features.md",
+            "desktop.md",
+            "about/comparison.md",
+            "console.md",
+            "concepts.md"
+          ],
+          "answer": "Nie — środowiska wskazują na konkretne wersje agenta [3]. Dokumentacja nie opisuje alternatywy bez wskazanej wersji.",
+          "answer_correct": false,
+          "queries": [
+            "Tak, środowisko może działać bez przypiętej konkretnej wersji agenta. W takim przypadku używana jest wersja domyślna dostępna dla danego środowiska."
+          ]
+        },
+        {
+          "id": "voice-calls-recorded-pl",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 3,
+          "retrieved_pages": [
+            "ml-services.md",
+            "console.md",
+            "voice.md",
+            "data-protection.md",
+            "voice.md"
+          ],
+          "answer": "Nie. Wdrożenie nie przechowuje dźwięku rozmów głosowych — zapisuje tylko transkrypcję tekstową; to, czy dostawca zachowuje dźwięk, zależy od umowy z nim [5].",
+          "answer_correct": true,
+          "queries": [
+            "Nie da się tego potwierdzić bez informacji o konkretnej usłudze. Zasady nagrywania i przechowywania rozmów zależą od jej dostawcy."
+          ]
+        },
+        {
+          "id": "vault-master-key-fallback",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "security.md",
+            "secrets.md",
+            "configuration.md",
+            "data-protection.md",
+            "security.md"
+          ],
+          "answer": "If `VAULT_MASTER_KEY` is unset, the vault falls back to `SECRET_KEY` [3]. In production, `SECRET_KEY` must be changed from its insecure default; outside local/development, a vault key is required, so the platform cannot boot without one configured [3].",
+          "answer_correct": true,
+          "queries": [
+            "If you do not set a vault master key, the platform uses its automatically generated default encryption key to encrypt credentials."
+          ]
+        },
+        {
+          "id": "unanswered-question-expiry",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "api.md",
+            "configuration.md",
+            "api.md",
+            "concepts.md",
+            "api.md"
+          ],
+          "answer": "The documentation does not state how long a run waits for an answer to an agent’s question before giving up. It does say such runs have `awaiting_answer` status [3].",
+          "answer_correct": false,
+          "queries": [
+            "A run will wait up to 10 minutes for someone to answer the agent’s question. If no response arrives within that time, the run expires."
+          ]
+        },
+        {
+          "id": "job-queue-engine",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "task-queue-benchmark.md",
+            "data-protection.md",
+            "task-queue-benchmark.md",
+            "governance.md",
+            "console.md"
+          ],
+          "answer": "Since version 1.9.0, background jobs run on a plain PostgreSQL queue (`pgqueue`) with long-lived asyncio workers [3].",
+          "answer_correct": true,
+          "queries": [
+            "The available information doesn’t specify what runs background jobs now that Prefect is gone."
+          ]
+        },
+        {
+          "id": "table-record-limit",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "virtual-tables.md",
+            "data-protection.md",
+            "virtual-tables.md",
+            "reference/workflow-nodes.md",
+            "configuration.md"
+          ],
+          "answer": "A single virtual table can hold up to **100,000 records by default**. [3]",
+          "answer_correct": true,
+          "queries": [
+            "A virtual table has no fixed maximum row count by default; its capacity depends on the underlying data source and the system’s limits."
+          ]
+        },
+        {
+          "id": "podman-deployment",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "deploy.md",
+            "index.md",
+            "deploy.md",
+            "deploy.md",
+            "deploy.md"
+          ],
+          "answer": "Yes. Podman is supported via the manual deployment path using Docker Compose as its provider; the quickstart is Docker-only. Use the actual Docker Compose executable with `podman compose`, and do not use `podman-compose` 1.6.0 [1][2].",
+          "answer_correct": true,
+          "queries": [
+            "AgenticOS’s documented deployment uses Docker, and Podman is not listed as a supported runtime. Podman’s Docker-compatible interface may work, but that setup is not guaranteed."
+          ]
+        },
+        {
+          "id": "session-lifetime",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "directory.md",
+            "governance.md",
+            "console.md",
+            "sandbox.md",
+            "models.md"
+          ],
+          "answer": "The documentation does not state how long a logged-in session lasts or when it expires. The 15-minute limit in [5] applies to the one-time sign-in code, not your session.",
+          "answer_correct": false,
+          "queries": [
+            "How long you can stay logged in depends on the service’s session settings. Check its sign-in or security documentation for the exact timeout; sessions may also expire after a period of inactivity."
+          ]
+        },
+        {
+          "id": "workflow-worker-concurrency",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "workflows.md",
+            "configuration.md",
+            "configuration.md",
+            "architecture.md",
+            "workflows.md"
+          ],
+          "answer": "Five workflow nodes can run in parallel per worker by default, limited by `WORKER_WORKFLOW_CONCURRENCY`; there is no per-run branch limit. [1][3]",
+          "answer_correct": true,
+          "queries": [
+            "Out of the box, one worker executes one workflow branch at a time. Parallel execution requires increasing the worker’s concurrency."
+          ]
+        },
+        {
+          "id": "skill-file-name",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "desktop.md",
+            "skills.md",
+            "skills.md",
+            "skills.md",
+            "skills.md"
+          ],
+          "answer": "`SKILL.md` holds the skill’s instructions and description. [2]",
+          "answer_correct": true,
+          "queries": [
+            "A skill’s instructions and description are stored in the `SKILL.md` file in its folder."
+          ]
+        },
+        {
+          "id": "context-always-loaded",
+          "category": "factual",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "howto/product-descriptions.md",
+            "howto/customize-agent-prompt.md",
+            "howto/product-descriptions.md",
+            "howto/product-descriptions.md",
+            "howto/customize-agent-prompt.md"
+          ],
+          "answer": "Put the product names in a context file and bind it through `context_ids`; context files are injected into the instructions, so they are always present without a lookup. This is suited to a handful of small files; knowledge collections are retrieved by semantic search instead [5].",
+          "answer_correct": true,
+          "queries": [
+            "Add your product names to the agent’s system instructions or other context included with every request. The agent can then use that information directly without looking it up; update the list whenever product names change."
+          ]
+        },
+        {
+          "id": "embedding-providers",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "file-processing.md",
+            "howto/set-up-knowledge-base.md",
+            "data-protection.md",
+            "about/comparison.md",
+            "about/comparison.md"
+          ],
+          "answer": "A collection can use **OpenRouter, OpenAI, or Ollama** for embeddings. Ollama is keyless and uses a configured local service; OpenRouter and OpenAI require a provider-specific key. [1][3]",
+          "answer_correct": true,
+          "queries": [
+            "A knowledge collection can use OpenAI, Azure OpenAI, Cohere, Google Vertex AI, or Amazon Bedrock to compute embeddings."
+          ]
+        },
+        {
+          "id": "default-pdf-parser-pl",
+          "category": "factual",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "file-processing.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "architecture.md",
+            "file-processing.md"
+          ],
+          "answer": "Kolekcja domyślnie używa parsera PyMuPDF do przetwarzania PDF-ów [1][2].",
+          "answer_correct": true,
+          "queries": [
+            "Kolekcja domyślnie używa parsera PyMuPDF do przetwarzania plików PDF."
+          ]
+        },
+        {
+          "id": "table-write-rate-limit-pl",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "virtual-tables.md",
+            "virtual-tables.md",
+            "configuration.md",
+            "virtual-tables.md",
+            "data-protection.md"
+          ],
+          "answer": "Jeden użytkownik może wykonać 300 zapisów na minutę na członka i organizację; po przekroczeniu limitu zapis jest odrzucany błędem 429 z nagłówkiem `Retry-After` [1].",
+          "answer_correct": true,
+          "queries": [
+            "Jeden użytkownik może wykonać maksymalnie 60 zapisów do tabel na minutę. Po przekroczeniu limitu kolejne żądania są odrzucane."
+          ]
+        },
+        {
+          "id": "project-default-agent-pl",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "console.md",
+            "projects.md",
+            "projects.md",
+            "voice.md",
+            "console.md"
+          ],
+          "answer": "Nowa rozmowa w projekcie zaczyna się z jego domyślnym agentem. Później może odpowiadać dowolny agent [3].",
+          "answer_correct": true,
+          "queries": [
+            "Nową rozmowę obsługuje agent przypisany do projektu. Jeśli nie przypisano konkretnego agenta, odpowiada agent domyślny."
+          ]
+        },
+        {
+          "id": "role-approves-without-editing-pl",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 5,
+          "retrieved_pages": [
+            "governance.md",
+            "governance.md",
+            "voice.md",
+            "governance.md",
+            "permissions.md"
+          ],
+          "answer": "Dokumentacja nie podaje, która rola organizacyjna ma `approvals:decide`, ale nie ma uprawnienia do edycji agentów. Zatwierdzać może osoba z `approvals:decide` [2], a edycja agenta wymaga poziomu dostępu `edit` [5].",
+          "answer_correct": false,
+          "queries": [
+            "Rolą tą jest zatwierdzający (Approver). Może podejmować decyzje dotyczące zatwierdzeń, ale nie może edytować agentów."
+          ]
+        },
+        {
+          "id": "saml-single-sign-on-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "directory.md",
+            "directory.md",
+            "about/sauna.md",
+            "about/microsoft-agent-365.md",
+            "about/dify.md"
+          ],
+          "answer": "Nie, AgenticOS nie obsługuje SAML. Alternatywnie możesz użyć Keycloak, który łączy się z dostawcą SAML i udostępnia AgenticOS logowanie przez OIDC. [1]",
+          "answer_correct": true,
+          "queries": [
+            "Tak, AgenticOS obsługuje logowanie jednokrotne (SSO) przez SAML. Konfigurację połączenia z dostawcą tożsamości przeprowadza administrator."
+          ]
+        },
+        {
+          "id": "default-chunk-size-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "howto/translate.md",
+            "file-processing.md",
+            "howto/translate.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md"
+          ],
+          "answer": "Domyślnie dokumenty dzielone są na kawałki o maksymalnej wielkości 2500 znaków [5].",
+          "answer_correct": true,
+          "queries": [
+            "Domyślnie dokumenty w bazie wiedzy są dzielone na fragmenty po 1 000 znaków."
+          ]
+        },
+        {
+          "id": "voice-call-length-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "voice.md",
+            "voice.md",
+            "channels.md",
+            "security.md",
+            "console.md"
+          ],
+          "answer": "Maksymalnie rozmowa może trwać 50 minut. Jeśli agent nie ma ustawionego limitu, domyślnie trwa najwyżej 10 minut [1][2].",
+          "answer_correct": true,
+          "queries": [
+            "Rozmowa głosowa z agentem może trwać maksymalnie 60 minut."
+          ]
+        },
+        {
+          "id": "publish-reaches-production-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "commands.md",
+            "environments.md",
+            "concepts.md",
+            "features.md",
+            "console.md"
+          ],
+          "answer": "Nie — samo opublikowanie tworzy nową wersję, a wdrożenie jej na produkcję to osobna decyzja. Produkcja zmieni wersję tylko wtedy, gdy jest ustawiona na śledzenie najnowszej; w przeciwnym razie trzeba ją ręcznie promować na nową wersję [2][3].",
+          "answer_correct": false,
+          "queries": [
+            "Nie. Opublikowanie nowej wersji agenta nie podmienia automatycznie wersji działającej na produkcji — trzeba ją osobno wdrożyć lub przełączyć na nią środowisko produkcyjne."
+          ]
+        },
+        {
+          "id": "model-weights-in-image-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "licenses.md",
+            "about/comparison.md",
+            "models.md",
+            "about/copilot-studio.md",
+            "configuration.md"
+          ],
+          "answer": "Nie. W obrazach AgenticOS nie ma wag modeli; wdrożenie wybiera modele, a wagi otwartego modelu pobiera osobno na warunkach licencji jego wydawcy [1].",
+          "answer_correct": true,
+          "queries": [
+            "Nie — obrazy Dockera AgenticOS nie zawierają wag modeli językowych. Wagi są udostępniane osobno przez skonfigurowany model lub jego dostawcę."
+          ]
+        },
+        {
+          "id": "redis-cluster-pl-corpus",
+          "category": "cross_language",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "about/comparison.md",
+            "configuration.md",
+            "licenses.md",
+            "reference/glossary.md",
+            "about/claude-apps.md"
+          ],
+          "answer": "The documentation does not state whether AgenticOS supports a sharded Redis cluster. It documents configuring a Redis host and port, but does not mention sharding [2].",
+          "answer_correct": false,
+          "queries": [
+            "No. AgenticOS expects a standalone Redis instance and does not support Redis Cluster’s sharded mode; use a non-sharded Redis deployment."
+          ]
+        },
+        {
+          "id": "desktop-app-framework-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "desktop.md",
+            "sandbox.md",
+            "desktop.md",
+            "desktop.md",
+            "projects.md"
+          ],
+          "answer": "The desktop client is built with Tauri [1].",
+          "answer_correct": true,
+          "queries": [
+            "The desktop client is built with Electron, a framework for creating desktop applications with web technologies."
+          ]
+        },
+        {
+          "id": "approval-expiry-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 5,
+          "retrieved_pages": [
+            "governance.md",
+            "reference/workflow-nodes.md",
+            "governance.md",
+            "governance.md",
+            "configuration.md"
+          ],
+          "answer": "A pending tool approval waits up to 72 hours (three days); an hourly sweep then denies it by timeout. [5]",
+          "answer_correct": true,
+          "queries": [
+            "A pending tool approval waits for five minutes. If it is not approved within that time, it is denied automatically."
+          ]
+        },
+        {
+          "id": "stdio-mcp-server-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "configuration.md",
+            "mcp.md",
+            "mcp.md",
+            "mcp.md",
+            "reference/workflow-nodes.md"
+          ],
+          "answer": "No. MCP connections support streamable HTTP or server-sent events (SSE); the transport is inferred from the URL. [4]",
+          "answer_correct": false,
+          "queries": [
+            "Yes. MCP supports the standard input/output (stdio) transport, so a client can launch the server as a subprocess and communicate with it through stdin and stdout."
+          ]
+        },
+        {
+          "id": "sandbox-docker-in-docker-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "sandbox.md",
+            "desktop.md",
+            "sandbox.md",
+            "sandbox.md",
+            "reference/workflow-nodes.md"
+          ],
+          "answer": "No. `sandboxd` asks the host’s Docker daemon to start the sandbox, which runs as its sibling—not inside another container; there is no Docker-in-Docker or nested daemon [1].",
+          "answer_correct": true,
+          "queries": [
+            "No. The code sandbox runs in an isolated environment and does not support launching containers nested inside a Docker container."
+          ]
+        }
+      ]
+    },
+    {
+      "label": "top_k=10, query_analysis_mode=off",
+      "top_k": 10,
+      "query_analysis_mode": "off",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 0.7857142857142857,
+          "recall": 0.7857142857142857,
+          "mrr": 0.5714285714285714,
+          "answered": 14,
+          "answers_correct": 13
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.9,
+          "mrr": 0.7333333333333333,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.85,
+          "mrr": 0.46416666666666667,
+          "answered": 10,
+          "answers_correct": 6
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.8529411764705882,
+          "recall": 0.8382352941176471,
+          "mrr": 0.5875,
+          "answered": 34,
+          "answers_correct": 28
+        }
+      ],
+      "items": [
+        {
+          "id": "saml-single-sign-on",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "directory.md",
+            "about/sauna.md",
+            "directory.md",
+            "about/microsoft-agent-365.md",
+            "about/dify.md",
+            "about/microsoft-agent-365.md",
+            "about/index.md",
+            "about/dify.md",
+            "about/copilot-studio.md",
+            "about/sauna.md"
+          ],
+          "answer": "No, AgenticOS does not support SAML directly. A SAML-only identity provider can connect through Keycloak, which uses SAML with the provider and OIDC with AgenticOS [1].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "scim-provisioning",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "directory.md",
+            "about/microsoft-agent-365.md",
+            "directory.md",
+            "about/sauna.md",
+            "about/copilot-studio.md",
+            "about/claude-apps.md",
+            "about/openai-dots.md",
+            "about/viktor.md",
+            "about/claude-duet.md",
+            "about/chatgpt.md"
+          ],
+          "answer": "No. AgenticOS does not support SCIM or scheduled directory sync; directory mappings are re-read at the user’s next sign-in [1].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "org-wide-default-model",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "deployment.md",
+            "models.md",
+            "console.md",
+            "console.md",
+            "choosing-models.md",
+            "console.md",
+            "models.md",
+            "features.md",
+            "channels.md",
+            "howto/onboarding-helpdesk.md"
+          ],
+          "answer": "No. There is no organization-wide default model; choose a model for each agent. If the organization has exactly one model an agent can run on, a new agent without a specified model starts with it automatically. [2]",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "api-client-sdk",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "api.md",
+            "mcp.md",
+            "mcp.md",
+            "mcp.md",
+            "configuration.md",
+            "mcp.md",
+            "mcp.md",
+            "mcp.md",
+            "api.md",
+            "mobile.md"
+          ],
+          "answer": "No—there is no client library yet. You can call the API directly; its public endpoints and their details are documented in `/api/v1/public/openapi.json` [1].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "per-document-access-in-collection",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "howto/set-up-knowledge-base.md",
+            "artifacts.md",
+            "file-processing.md",
+            "file-processing.md"
+          ],
+          "answer": "No. Access is controlled at the collection level; there is no per-document isolation within a collection, so everyone who can read it can read all its documents [10]. Use separate collections to give documents different access boundaries [10].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "admin-creates-account-when-closed",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "deployment.md",
+            "console.md",
+            "directory.md",
+            "deployment.md",
+            "deployment.md",
+            "deployment.md",
+            "deployment.md",
+            "console.md",
+            "console.md",
+            "console.md"
+          ],
+          "answer": "No. In `closed` mode, nobody can register, and administrators have no separate account-creation path; switch to `invite_only` and invite the colleague instead. [4]",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "zapier-signed-webhook",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "triggers.md",
+            "howto/support-ticket-triage.md",
+            "howto/support-ticket-triage.md",
+            "triggers.md",
+            "triggers.md",
+            "triggers.md",
+            "triggers.md",
+            "workflows.md",
+            "triggers.md",
+            "triggers.md"
+          ],
+          "answer": "No. Zapier’s standard webhook step cannot sign the request, so the delivery is refused with `403`; use **Code by Zapier** to compute the HMAC and set the `X-Signature-256` header [1][2].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "deployment-wide-embedding-key",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "artifacts.md",
+            "configuration.md",
+            "file-processing.md",
+            "file-processing.md",
+            "data-protection.md",
+            "howto/set-up-knowledge-base.md"
+          ],
+          "answer": "No. Embedding credentials are configured per collection; there is no deployment-wide embedding key [1][6]. The alternative is to assign each collection a provider-compatible vault key, or use keyless Ollama with a local service [1].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "environment-without-version-pl",
+          "category": "negative",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "features.md",
+            "concepts.md",
+            "about/comparison.md",
+            "console.md",
+            "desktop.md",
+            "concepts.md",
+            "index.md",
+            "about/chatgpt.md",
+            "howto/agent-api.md",
+            "reference/capabilities.md"
+          ],
+          "answer": "Tak. Środowisko może podążać za publikacjami agenta, dopóki ktoś go nie przypnie do konkretnej wersji [6].",
+          "answer_correct": false,
+          "queries": null
+        },
+        {
+          "id": "voice-calls-recorded-pl",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 3,
+          "retrieved_pages": [
+            "ml-services.md",
+            "security.md",
+            "voice.md",
+            "console.md",
+            "voice.md",
+            "ml-services.md",
+            "console.md",
+            "console.md",
+            "howto/knowledge-base-assistant.md",
+            "ml-services.md"
+          ],
+          "answer": "Nie. AgenticOS nie przechowuje nagrań audio — ani w bazie danych, ani na dysku, ani po zakończeniu rozmowy; w konwersacji zapisuje się transkrypcja tekstowa. To, czy audio zachowuje dostawca, zależy od umowy z nim [3].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "vault-master-key-fallback",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 3,
+          "retrieved_pages": [
+            "security.md",
+            "data-protection.md",
+            "secrets.md",
+            "configuration.md",
+            "secrets.md",
+            "security.md",
+            "security.md",
+            "secrets.md",
+            "secrets.md",
+            "secrets.md"
+          ],
+          "answer": "If `VAULT_MASTER_KEY` is unset, the vault falls back to `SECRET_KEY` to encrypt credentials [4].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "unanswered-question-expiry",
+          "category": "factual",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "api.md",
+            "reference/capabilities.md",
+            "console.md",
+            "channels.md",
+            "console.md",
+            "channels.md",
+            "api.md",
+            "authoring.md",
+            "knowledge-gaps.md",
+            "howto/deep-research-subagents.md"
+          ],
+          "answer": "The run waits 24 hours for an answer; then it ends as cancelled and records that the person did not answer in time. [2]",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "job-queue-engine",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "task-queue-benchmark.md",
+            "data-protection.md",
+            "governance.md",
+            "task-queue-benchmark.md",
+            "task-queue-benchmark.md",
+            "howto/add-background-task.md",
+            "console.md",
+            "howto/add-background-task.md",
+            "task-queue-benchmark.md",
+            "architecture.md"
+          ],
+          "answer": "Background jobs now run on the plain PostgreSQL queue (`pgqueue`) with long-lived asyncio workers. A worker (`python -m app.worker`) claims each job, runs it, and records how it ended [4][8].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "table-record-limit",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "virtual-tables.md",
+            "virtual-tables.md",
+            "data-protection.md",
+            "configuration.md",
+            "configuration.md",
+            "reference/workflow-nodes.md",
+            "governance.md",
+            "virtual-tables.md",
+            "virtual-tables.md",
+            "virtual-tables.md"
+          ],
+          "answer": "By default, a single virtual table can hold up to **100,000 records**. [2]",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "podman-deployment",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "deploy.md",
+            "index.md",
+            "install.md",
+            "about/index.md",
+            "about/openai-dots.md",
+            "deploy.md",
+            "deploy.md",
+            "about/comparison.md",
+            "about/openai-dots.md",
+            "rollout.md"
+          ],
+          "answer": "Yes. Podman is supported through the manual deployment path using Docker Compose as its provider; use Docker Compose 2.24 or later and follow the Podman-specific setup. The quickstart is Docker-only, and `podman-compose` 1.6.0 is unsupported [1][2].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "session-lifetime",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 6,
+          "retrieved_pages": [
+            "desktop.md",
+            "models.md",
+            "reference/capabilities.md",
+            "governance.md",
+            "console.md",
+            "configuration.md",
+            "sandbox.md",
+            "directory.md",
+            "directory.md",
+            "api.md"
+          ],
+          "answer": "The documentation does not state a general session duration. The console restores your session while it remains valid and renews its refresh cookie as you use it; a rejected or revoked token requires signing in again [1]. For directory sign-ins specifically, the session lasts until the refresh token expires—seven days by default [8].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "workflow-worker-concurrency",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "workflows.md",
+            "configuration.md",
+            "configuration.md",
+            "configuration.md",
+            "architecture.md",
+            "task-queue-benchmark.md",
+            "configuration.md",
+            "task-queue-benchmark.md",
+            "workflows.md",
+            "configuration.md"
+          ],
+          "answer": "One worker can execute up to **five workflow nodes at once by default** (`WORKER_WORKFLOW_CONCURRENCY`); parallel branches use those slots [1][2].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "skill-file-name",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "desktop.md",
+            "skills.md",
+            "skills.md",
+            "howto/product-descriptions.md",
+            "skills.md",
+            "skills.md",
+            "skills.md",
+            "reference/capabilities.md",
+            "skills.md",
+            "skills.md"
+          ],
+          "answer": "`SKILL.md` holds the skill’s instructions (body), along with its name and description. [2]",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "context-always-loaded",
+          "category": "factual",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "howto/product-descriptions.md",
+            "howto/personal-assistant.md",
+            "howto/account-research.md",
+            "howto/customize-agent-prompt.md",
+            "console.md",
+            "howto/support-widget.md",
+            "features.md",
+            "howto/first-document-agent.md",
+            "howto/product-descriptions.md",
+            "howto/notion-agent.md"
+          ],
+          "answer": "Put the product names in a context file and bind it to the agent. Context files are injected into the instructions, so the agent has them without searching; they’re intended for a handful of small files [4].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "embedding-providers",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "file-processing.md",
+            "data-protection.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "configuration.md",
+            "file-processing.md",
+            "choosing-models.md",
+            "features.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md"
+          ],
+          "answer": "A knowledge collection can use **OpenRouter, OpenAI, or Ollama** for embeddings [2].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "default-pdf-parser-pl",
+          "category": "factual",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "file-processing.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "architecture.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "ml-services.md",
+            "file-processing.md",
+            "architecture.md",
+            "workflows.md"
+          ],
+          "answer": "Domyślnym parserem kolekcji jest PyMuPDF (`pymupdf`) [1][2].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "table-write-rate-limit-pl",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "virtual-tables.md",
+            "virtual-tables.md",
+            "configuration.md",
+            "configuration.md",
+            "virtual-tables.md",
+            "virtual-tables.md",
+            "data-protection.md",
+            "configuration.md",
+            "virtual-tables.md",
+            "workflows.md"
+          ],
+          "answer": "Jeden użytkownik może wykonać do 300 zapisów do Virtual Tables na minutę w jednej organizacji; limit obejmuje m.in. tworzenie, edycję i usuwanie rekordów. Po przekroczeniu limitu zapis zostaje odrzucony kodem 429 z nagłówkiem `Retry-After` [1][8].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "project-default-agent-pl",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "console.md",
+            "projects.md",
+            "projects.md",
+            "projects.md",
+            "voice.md",
+            "desktop.md",
+            "console.md",
+            "console.md",
+            "index.md",
+            "authoring.md"
+          ],
+          "answer": "Nowy czat w projekcie zaczyna się z jego domyślnym agentem. Później w czacie może odpowiadać dowolny agent [2][3].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "role-approves-without-editing-pl",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "virtual-tables.md",
+            "permissions.md",
+            "permissions.md",
+            "governance.md",
+            "governance.md",
+            "governance.md",
+            "concepts.md",
+            "reference/capabilities.md",
+            "reference/capabilities.md",
+            "concepts.md"
+          ],
+          "answer": "Dokumentacja nie podaje, która rola organizacji może decydować o zatwierdzeniach, ale nie może edytować agentów. Wskazuje jedynie wymagane uprawnienia, m.in. `approvals:decide` dla zgód rutyny oraz `agents:edit` przy zmianach agentów systemowych [2][6].",
+          "answer_correct": false,
+          "queries": null
+        },
+        {
+          "id": "saml-single-sign-on-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "directory.md",
+            "about/sauna.md",
+            "directory.md",
+            "about/microsoft-agent-365.md",
+            "about/copilot-studio.md",
+            "about/dify.md",
+            "about/copilot-studio.md",
+            "about/index.md",
+            "about/sauna.md",
+            "about/sauna.md"
+          ],
+          "answer": "Nie bezpośrednio — AgenticOS nie obsługuje SAML. Alternatywnie dostawca tożsamości obsługujący wyłącznie SAML może połączyć się przez Keycloak, który używa SAML wobec dostawcy i OIDC wobec AgenticOS [1].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "default-chunk-size-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 4,
+          "retrieved_pages": [
+            "howto/set-up-knowledge-base.md",
+            "console.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "file-processing.md",
+            "console.md",
+            "file-processing.md",
+            "data-protection.md",
+            "data-protection.md",
+            "architecture.md"
+          ],
+          "answer": "Dokumentacja nie podaje domyślnego rozmiaru kawałków. Domyślną metodą dzielenia jest `recursive`, która dzieli tekst według struktury [3].",
+          "answer_correct": false,
+          "queries": null
+        },
+        {
+          "id": "voice-call-length-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "voice.md",
+            "voice.md",
+            "security.md",
+            "howto/content-repurposing.md",
+            "console.md",
+            "voice.md",
+            "voice.md",
+            "howto/meeting-summary.md",
+            "channels.md",
+            "console.md"
+          ],
+          "answer": "Rozmowa trwa maksymalnie tyle, ile wynosi limit ustawiony dla agenta: domyślnie 10 minut, a najwięcej 50 minut [1][7].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "publish-reaches-production-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 8,
+          "retrieved_pages": [
+            "commands.md",
+            "console.md",
+            "about/index.md",
+            "howto/competitor-monitoring.md",
+            "features.md",
+            "about/copilot-studio.md",
+            "howto/meeting-summary.md",
+            "environments.md",
+            "concepts.md",
+            "about/comparison.md"
+          ],
+          "answer": "Nie. Publikacja tworzy nową wersję, ale nie zmienia automatycznie wersji obsługującej produkcję; trzeba ją osobno promować. [8][9]",
+          "answer_correct": false,
+          "queries": null
+        },
+        {
+          "id": "model-weights-in-image-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 10,
+          "retrieved_pages": [
+            "about/opencode.md",
+            "about/opencode.md",
+            "about/codex.md",
+            "about/openai-dots.md",
+            "howto/translate.md",
+            "howto/translate.md",
+            "about/index.md",
+            "index.md",
+            "about/wonderful.md",
+            "licenses.md"
+          ],
+          "answer": "Nie. Wagi modeli nie są dołączane do obrazów — wybiera się je dla wdrożenia w profilu modelu [10].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "redis-cluster-pl-corpus",
+          "category": "cross_language",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "about/comparison.md",
+            "licenses.md",
+            "about/openai-dots.md",
+            "about/comparison.md",
+            "about/openai-dots.md",
+            "about/index.md",
+            "about/claude-apps.md",
+            "about/claude-managed-agents.md",
+            "about/openai-frontier.md",
+            "about/chatgpt.md"
+          ],
+          "answer": "The documentation does not state whether AgenticOS supports a sharded Redis cluster. It says Valkey speaks the same protocol as Redis and keeps the Redis URL scheme and `REDIS_*` settings unchanged, but does not address sharding [2].",
+          "answer_correct": false,
+          "queries": null
+        },
+        {
+          "id": "desktop-app-framework-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "sandbox.md",
+            "desktop.md",
+            "commands.md",
+            "projects.md",
+            "desktop.md",
+            "desktop.md",
+            "reference/components.md",
+            "desktop.md",
+            "desktop.md",
+            "console.md"
+          ],
+          "answer": "The desktop client is a Tauri shell around the Next.js console, which it loads from the server [2].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "approval-expiry-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 6,
+          "retrieved_pages": [
+            "governance.md",
+            "reference/workflow-nodes.md",
+            "governance.md",
+            "governance.md",
+            "governance.md",
+            "configuration.md",
+            "reference/capabilities.md",
+            "governance.md",
+            "reference/capabilities.md",
+            "reference/workflow-nodes.md"
+          ],
+          "answer": "A pending tool approval normally waits 72 hours by default, after which the hourly sweep denies it; this period is configurable via `APPROVAL_EXPIRY_HOURS` [6]. In a voice call, it expires after 60 seconds without a decision [1].",
+          "answer_correct": true,
+          "queries": null
+        },
+        {
+          "id": "stdio-mcp-server-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "configuration.md",
+            "mcp.md",
+            "mcp.md",
+            "howto/database-questions.md",
+            "mcp.md",
+            "reference/workflow-nodes.md",
+            "howto/database-questions.md",
+            "features.md",
+            "mcp.md",
+            "file-processing.md"
+          ],
+          "answer": "The documentation does not state explicitly whether a server that only uses standard input and output can connect. It documents MCP connections over streamable HTTP or server-sent events [3].",
+          "answer_correct": false,
+          "queries": null
+        },
+        {
+          "id": "sandbox-docker-in-docker-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "sandbox.md",
+            "sandbox.md",
+            "desktop.md",
+            "sandbox.md",
+            "reference/workflow-nodes.md",
+            "configuration.md",
+            "deploy.md",
+            "configuration.md",
+            "sandbox.md",
+            "sandbox.md"
+          ],
+          "answer": "No. `sandboxd` asks the host’s Docker daemon to start the sandbox as its sibling, not inside the `sandboxd` container; there is no Docker-in-Docker or nested daemon. [1]",
+          "answer_correct": true,
+          "queries": null
+        }
+      ]
+    },
+    {
+      "label": "top_k=10, query_analysis_mode=multi_query",
+      "top_k": 10,
+      "query_analysis_mode": "multi_query",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 0.7857142857142857,
+          "recall": 0.7857142857142857,
+          "mrr": 0.5738095238095238,
+          "answered": 14,
+          "answers_correct": 13
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.9,
+          "mrr": 0.7083333333333333,
+          "answered": 10,
+          "answers_correct": 6
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.7,
+          "recall": 0.65,
+          "mrr": 0.6,
+          "answered": 10,
+          "answers_correct": 5
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.7941176470588235,
+          "recall": 0.7794117647058824,
+          "mrr": 0.621078431372549,
+          "answered": 34,
+          "answers_correct": 24
+        }
+      ],
+      "items": [
+        {
+          "id": "saml-single-sign-on",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "directory.md",
+            "about/microsoft-agent-365.md",
+            "directory.md",
+            "about/sauna.md",
+            "about/dify.md",
+            "about/dify.md",
+            "about/index.md",
+            "about/copilot-studio.md",
+            "about/copilot-studio.md",
+            "about/microsoft-agent-365.md"
+          ],
+          "answer": "No. A SAML-only identity provider can connect through Keycloak, which speaks SAML to the provider and OIDC to AgenticOS [1].",
+          "answer_correct": true,
+          "queries": [
+            "Does AgenticOS support SAML single sign-on?",
+            "Does AgenticOS offer SAML-based single sign-on?",
+            "Can users authenticate to AgenticOS with SAML SSO?",
+            "What identity and SAML SSO integrations does AgenticOS support?"
+          ]
+        },
+        {
+          "id": "scim-provisioning",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "directory.md",
+            "about/microsoft-agent-365.md",
+            "about/sauna.md",
+            "about/claude-apps.md",
+            "directory.md",
+            "about/copilot-studio.md",
+            "about/claude-duet.md",
+            "about/chatgpt.md",
+            "about/copilot-studio.md",
+            "about/openai-dots.md"
+          ],
+          "answer": "No. AgenticOS has no SCIM or scheduled directory sync; directory mappings are re-read when a user next signs in. [1]",
+          "answer_correct": false,
+          "queries": [
+            "Can our identity provider push user accounts to AgenticOS automatically with SCIM?",
+            "Does AgenticOS support automatic user provisioning from an identity provider via SCIM?",
+            "Can an identity provider sync user accounts to AgenticOS using SCIM?",
+            "Is SCIM-based automated user account provisioning available for AgenticOS?"
+          ]
+        },
+        {
+          "id": "org-wide-default-model",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 4,
+          "retrieved_pages": [
+            "console.md",
+            "console.md",
+            "deployment.md",
+            "models.md",
+            "features.md",
+            "howto/onboarding-helpdesk.md",
+            "howto/llm-wiki.md",
+            "models.md",
+            "choosing-models.md",
+            "howto/knowledge-base-assistant.md"
+          ],
+          "answer": "No. There is no organization-wide default model; each agent’s spec must name one. If the organization has exactly one model an agent can run on, a new agent starts with it automatically; otherwise, choose a model for the agent before publishing. [4]",
+          "answer_correct": true,
+          "queries": [
+            "Can I pick one default LLM for the whole organization so new agents use it?",
+            "Set an organization-wide default LLM that new agents inherit",
+            "Can administrators choose a default language model for all newly created agents?",
+            "Configure a global default LLM for agents across the organization"
+          ]
+        },
+        {
+          "id": "api-client-sdk",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 3,
+          "retrieved_pages": [
+            "mcp.md",
+            "mcp.md",
+            "api.md",
+            "mcp.md",
+            "mcp.md",
+            "configuration.md",
+            "mcp.md",
+            "mcp.md",
+            "models.md",
+            "reference/capabilities.md"
+          ],
+          "answer": "No. The documentation says there is no client library yet; use the public API endpoints and their OpenAPI reference instead [3].",
+          "answer_correct": true,
+          "queries": [
+            "Is there an official SDK or client library for calling the API?",
+            "Does the API provider offer an official SDK or client library?",
+            "Where can I find the official client libraries for this API?",
+            "Is there a supported SDK for making API requests?"
+          ]
+        },
+        {
+          "id": "per-document-access-in-collection",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "file-processing.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "file-processing.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "artifacts.md",
+            "data-protection.md",
+            "reference/permissions.md",
+            "file-processing.md"
+          ],
+          "answer": "The documentation does not state that you can restrict visibility for individual documents within one collection. It describes access permissions at the collection level; document-level isolation described here is by tenant and knowledge base, not individual document grants. [1][3]",
+          "answer_correct": false,
+          "queries": [
+            "Can I restrict who sees individual documents inside a single knowledge collection?",
+            "Can permissions be set separately for individual documents within one knowledge collection?",
+            "Is it possible to limit access to specific files in a shared knowledge base?",
+            "How do I control which users can view particular documents in a collection?"
+          ]
+        },
+        {
+          "id": "admin-creates-account-when-closed",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "deployment.md",
+            "console.md",
+            "directory.md",
+            "deployment.md",
+            "deployment.md",
+            "deployment.md",
+            "deployment.md",
+            "deployment.md",
+            "console.md",
+            "departments.md"
+          ],
+          "answer": "No. A closed deployment has no administrator-created-account path; switch to `invite_only` and invite the colleague [6].",
+          "answer_correct": true,
+          "queries": [
+            "With sign-up closed, can an administrator just create an account for a new colleague?",
+            "Can an admin manually add a new colleague when user registration is disabled?",
+            "Is administrator-created account creation possible after sign-up has been closed?",
+            "When self-registration is unavailable, can an administrator create an account for a new team member?"
+          ]
+        },
+        {
+          "id": "zapier-signed-webhook",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "triggers.md",
+            "triggers.md",
+            "howto/support-ticket-triage.md",
+            "triggers.md",
+            "workflows.md",
+            "howto/support-ticket-triage.md",
+            "triggers.md",
+            "triggers.md",
+            "triggers.md",
+            "triggers.md"
+          ],
+          "answer": "No. Zapier’s standard webhook step cannot sign the request, so the delivery is unsigned and refused with `403`; use a Code by Zapier step to compute the HMAC and set the `X-Signature-256` header [1].",
+          "answer_correct": true,
+          "queries": [
+            "Can Zapier send a signed delivery to an event trigger using its standard webhook step?",
+            "Can Zapier’s standard webhook action send signed payloads to a webhook trigger?",
+            "Does the standard Webhooks step in Zapier support signing requests sent to an event trigger?",
+            "Can Zapier send a digitally signed webhook delivery to a trigger using its built-in webhook action?"
+          ]
+        },
+        {
+          "id": "deployment-wide-embedding-key",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "artifacts.md",
+            "configuration.md",
+            "file-processing.md",
+            "data-protection.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md"
+          ],
+          "answer": "No. Embedding keys are configured per collection; there is no deployment-wide embedding key, and collections using keyed providers need a usable key to index or search [1]. For keyless Ollama, configure a local service instead [1].",
+          "answer_correct": false,
+          "queries": [
+            "Can I configure one embedding API key for the whole server instead of per collection?",
+            "How do I set a server-wide embedding API key instead of configuring one for each collection?",
+            "Is there a way to use a single embedding API key across all collections on the server?",
+            "Configure one global embedding API key rather than separate keys per collection"
+          ]
+        },
+        {
+          "id": "environment-without-version-pl",
+          "category": "negative",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "features.md",
+            "concepts.md",
+            "console.md",
+            "concepts.md",
+            "about/comparison.md",
+            "index.md",
+            "howto/agent-api.md",
+            "desktop.md",
+            "about/chatgpt.md",
+            "api.md"
+          ],
+          "answer": "Tak. Środowisko może podążać za publikacjami agenta, dopóki ktoś nie przypnie go do konkretnej wersji [2].",
+          "answer_correct": false,
+          "queries": [
+            "Czy środowisko może działać bez przypiętej konkretnej wersji agenta?",
+            "Czy środowisko może działać bez przypisania konkretnej wersji agenta?",
+            "Czy można uruchomić środowisko bez określenia wersji agenta?",
+            "Czy wersja agenta musi być przypięta, aby środowisko działało?"
+          ]
+        },
+        {
+          "id": "voice-calls-recorded-pl",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "ml-services.md",
+            "voice.md",
+            "console.md",
+            "security.md",
+            "console.md",
+            "voice.md",
+            "ml-services.md",
+            "console.md",
+            "howto/knowledge-base-assistant.md",
+            "console.md"
+          ],
+          "answer": "Nie. AgenticOS nie przechowuje nagrań audio rozmów — zachowuje transkrypcje tekstowe; to, co zatrzymuje dostawca głosu, zależy od umowy z nim [2][4].",
+          "answer_correct": true,
+          "queries": [
+            "Czy nagrania rozmów głosowych z agentem są gdzieś przechowywane?",
+            "Czy rozmowy głosowe z agentem są nagrywane i gdzie można znaleźć ich nagrania?",
+            "Gdzie przechowywane są nagrania rozmów telefonicznych z agentem?",
+            "Czy mogę uzyskać dostęp do zapisanych nagrań rozmów głosowych z agentem?"
+          ]
+        },
+        {
+          "id": "vault-master-key-fallback",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 3,
+          "retrieved_pages": [
+            "security.md",
+            "data-protection.md",
+            "secrets.md",
+            "secrets.md",
+            "configuration.md",
+            "security.md",
+            "security.md",
+            "secrets.md",
+            "secrets.md",
+            "secrets.md"
+          ],
+          "answer": "It falls back to `SECRET_KEY` as the vault master key, which is then used to seal credentials. Outside `local`/`development`, the platform requires a vault key configuration, though `SECRET_KEY` can supply the fallback [5][10].",
+          "answer_correct": true,
+          "queries": [
+            "If I never set a vault master key, what does the platform encrypt credentials with?",
+            "What encryption key is used for credentials when no vault master key has been configured?",
+            "How does the platform encrypt stored credentials if a vault master key is not set?",
+            "What key protects credentials by default when the vault master key is unset?"
+          ]
+        },
+        {
+          "id": "unanswered-question-expiry",
+          "category": "factual",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "api.md",
+            "reference/capabilities.md",
+            "api.md",
+            "channels.md",
+            "authoring.md",
+            "console.md",
+            "channels.md",
+            "channels.md",
+            "concepts.md",
+            "console.md"
+          ],
+          "answer": "A run waits 24 hours for an answer; then it ends as cancelled and records that the person did not answer in time. [2]",
+          "answer_correct": true,
+          "queries": [
+            "How long will a run wait for someone to answer a question the agent asked before giving up?",
+            "How long does an agent run pause for a user response before timing out?",
+            "What is the response timeout for a question asked by an agent during a run?",
+            "When does a run give up waiting for someone to answer the agent’s question?"
+          ]
+        },
+        {
+          "id": "job-queue-engine",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "task-queue-benchmark.md",
+            "data-protection.md",
+            "task-queue-benchmark.md",
+            "task-queue-benchmark.md",
+            "howto/add-background-task.md",
+            "console.md",
+            "howto/add-background-task.md",
+            "governance.md",
+            "governance.md",
+            "task-queue-benchmark.md"
+          ],
+          "answer": "Since AgenticOS 1.9.0, background jobs run on a plain PostgreSQL queue (`pgqueue`) with long-lived asyncio workers; Prefect was replaced [4]. Each worker counts an attempt when it claims a job, and workers rescue expired leases when another worker dies [4].",
+          "answer_correct": true,
+          "queries": [
+            "What runs background jobs now that Prefect is gone?",
+            "What system currently runs background jobs now that Prefect has been removed?",
+            "Which tool or service handles background job execution after Prefect?",
+            "What replaced Prefect for running background jobs?"
+          ]
+        },
+        {
+          "id": "table-record-limit",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "virtual-tables.md",
+            "virtual-tables.md",
+            "data-protection.md",
+            "configuration.md",
+            "reference/workflow-nodes.md",
+            "configuration.md",
+            "governance.md",
+            "virtual-tables.md",
+            "virtual-tables.md",
+            "virtual-tables.md"
+          ],
+          "answer": "A single virtual table can hold **100,000 records by default**. [2]",
+          "answer_correct": true,
+          "queries": [
+            "What is the maximum number of rows a single virtual table can hold by default?",
+            "What is the default maximum row count for one virtual table?",
+            "How many rows can a single virtual table store by default?",
+            "What is the default row capacity of an individual virtual table?"
+          ]
+        },
+        {
+          "id": "podman-deployment",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "deploy.md",
+            "index.md",
+            "deploy.md",
+            "install.md",
+            "about/index.md",
+            "deploy.md",
+            "about/openai-dots.md",
+            "rollout.md",
+            "about/openai-dots.md",
+            "deploy.md"
+          ],
+          "answer": "Yes. Podman is supported through the manual deployment path using Docker Compose as its provider; configure the actual Docker Compose executable and follow the manual instructions in `deploy.md` [1]. The quickstart is Docker-only, and `podman-compose` 1.6.0 is unsupported [1][2].",
+          "answer_correct": true,
+          "queries": [
+            "Can I deploy AgenticOS on a host that runs Podman instead of Docker?",
+            "Does AgenticOS support deployment on a Podman host rather than Docker?",
+            "Can I run AgenticOS using Podman instead of Docker?",
+            "AgenticOS installation requirements and compatibility with Podman hosts"
+          ]
+        },
+        {
+          "id": "session-lifetime",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 5,
+          "retrieved_pages": [
+            "desktop.md",
+            "governance.md",
+            "sandbox.md",
+            "reference/capabilities.md",
+            "directory.md",
+            "models.md",
+            "configuration.md",
+            "architecture.md",
+            "deployment.md",
+            "directory.md"
+          ],
+          "answer": "An access token lasts 30 minutes, but the refresh token lasts 7 days by default; while the session remains valid, it can be renewed without signing in again [8]. For a directory account, an open session lasts until that refresh token expires—7 days by default [5].",
+          "answer_correct": true,
+          "queries": [
+            "How long can I stay logged in before my session runs out and I have to sign in again?",
+            "What is the session timeout, and when will I need to log in again?",
+            "How long does my login session last before it expires?",
+            "When does an account automatically sign out due to inactivity?"
+          ]
+        },
+        {
+          "id": "workflow-worker-concurrency",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "workflows.md",
+            "configuration.md",
+            "configuration.md",
+            "configuration.md",
+            "configuration.md",
+            "configuration.md",
+            "architecture.md",
+            "configuration.md",
+            "workflows.md",
+            "workflows.md"
+          ],
+          "answer": "Five, by default: `WORKER_WORKFLOW_CONCURRENCY` sets how many workflow nodes run at once on a worker, and its default is five. [1][3]",
+          "answer_correct": true,
+          "queries": [
+            "How many workflow branches does one worker execute in parallel out of the box?",
+            "By default, how many workflow branches can one worker execute concurrently?",
+            "What is the out-of-the-box parallel execution limit for workflow branches per worker?",
+            "How many branches of a workflow does a single worker run simultaneously by default?"
+          ]
+        },
+        {
+          "id": "skill-file-name",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "desktop.md",
+            "skills.md",
+            "skills.md",
+            "reference/capabilities.md",
+            "skills.md",
+            "skills.md",
+            "howto/product-descriptions.md",
+            "skills.md",
+            "skills.md",
+            "skills.md"
+          ],
+          "answer": "The file is `SKILL.md`; it contains the skill’s body, including its name and description. [2]",
+          "answer_correct": true,
+          "queries": [
+            "Which file in a skill's folder holds its instructions and description?",
+            "What is the name of the file in a skill directory that contains its instructions and description?",
+            "Which file defines a skill’s instructions and metadata in its folder?",
+            "Where are a skill’s description and usage instructions stored within its directory?"
+          ]
+        },
+        {
+          "id": "context-always-loaded",
+          "category": "factual",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "howto/product-descriptions.md",
+            "howto/support-widget.md",
+            "howto/product-descriptions.md",
+            "features.md",
+            "howto/personal-assistant.md",
+            "howto/customize-agent-prompt.md",
+            "howto/account-research.md",
+            "reference/capabilities.md",
+            "howto/first-document-agent.md",
+            "howto/product-descriptions.md"
+          ],
+          "answer": "Put the product names in a **context file** and bind it to the agent; context files are injected into its instructions, so they’re available without a search. They’re intended for a handful of small files, unlike knowledge collections, which are retrieved by semantic search [6].",
+          "answer_correct": true,
+          "queries": [
+            "How do I make an agent always know our product names without it having to look anything up?",
+            "How can I make an AI agent remember our product names without searching a knowledge base?",
+            "How do I ensure an agent always knows our product catalog without using retrieval or lookups?",
+            "What’s the best way to embed product names into an agent so they’re available without external lookup?"
+          ]
+        },
+        {
+          "id": "embedding-providers",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "file-processing.md",
+            "howto/set-up-knowledge-base.md",
+            "data-protection.md",
+            "configuration.md",
+            "file-processing.md",
+            "file-processing.md",
+            "howto/set-up-knowledge-base.md",
+            "features.md",
+            "choosing-models.md",
+            "data-protection.md"
+          ],
+          "answer": "A knowledge collection can use **OpenRouter, OpenAI, or Ollama** to compute embeddings [3].",
+          "answer_correct": true,
+          "queries": [
+            "Which providers can a knowledge collection use to compute embeddings?",
+            "What embedding providers are supported for knowledge collections?",
+            "Which services can a knowledge collection use to generate vector embeddings?",
+            "What providers are available for computing embeddings in a knowledge collection?"
+          ]
+        },
+        {
+          "id": "default-pdf-parser-pl",
+          "category": "factual",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "file-processing.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "architecture.md",
+            "file-processing.md",
+            "ml-services.md",
+            "architecture.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "file-processing.md"
+          ],
+          "answer": "Domyślnym parserem PDF w kolekcji jest PyMuPDF (`pymupdf`). [1]",
+          "answer_correct": true,
+          "queries": [
+            "Jakim parserem kolekcja domyślnie przetwarza pliki PDF?",
+            "Który parser domyślnie obsługuje pliki PDF w kolekcji?",
+            "Jakiego parsera kolekcja używa do przetwarzania dokumentów PDF?",
+            "Jaki jest domyślny parser plików PDF dla kolekcji?"
+          ]
+        },
+        {
+          "id": "table-write-rate-limit-pl",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "virtual-tables.md",
+            "virtual-tables.md",
+            "configuration.md",
+            "configuration.md",
+            "data-protection.md",
+            "configuration.md",
+            "workflows.md",
+            "channels.md",
+            "virtual-tables.md",
+            "virtual-tables.md"
+          ],
+          "answer": "Jeden członek może wykonać do 300 zapisów do Virtual Tables na minutę w jednej organizacji; po przekroczeniu limitu dostaje odpowiedź 429 z nagłówkiem `Retry-After` [1], [6].",
+          "answer_correct": true,
+          "queries": [
+            "Ile zapisów do tabel na minutę może wykonać jeden użytkownik, zanim dostanie odmowę?",
+            "Jaki jest limit zapisów do tabel na minutę dla jednego użytkownika, po którego przekroczeniu żądania są odrzucane?",
+            "Ile operacji zapisu do tabel może wykonać użytkownik w ciągu minuty, zanim otrzyma odmowę?",
+            "Jaki limit zapisów na minutę obowiązuje jednego użytkownika i kiedy system zaczyna odmawiać kolejnych operacji?"
+          ]
+        },
+        {
+          "id": "project-default-agent-pl",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "console.md",
+            "projects.md",
+            "projects.md",
+            "voice.md",
+            "voice.md",
+            "projects.md",
+            "voice.md",
+            "index.md",
+            "api.md",
+            "console.md"
+          ],
+          "answer": "Domyślnie odpowiada agent ustawiony dla projektu; w projekcie może jednak odpowiadać też każdy inny agent. [2]",
+          "answer_correct": true,
+          "queries": [
+            "Który agent odpowiada, kiedy zaczynam nową rozmowę w projekcie?",
+            "Który agent obsługuje nową rozmowę rozpoczętą w projekcie?",
+            "Jaki agent odpowiada jako pierwszy po rozpoczęciu nowego czatu w projekcie?",
+            "Od czego zależy, który agent zostanie przypisany do nowej rozmowy w projekcie?"
+          ]
+        },
+        {
+          "id": "role-approves-without-editing-pl",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "virtual-tables.md",
+            "permissions.md",
+            "concepts.md",
+            "governance.md",
+            "governance.md",
+            "permissions.md",
+            "reference/capabilities.md",
+            "governance.md",
+            "governance.md",
+            "voice.md"
+          ],
+          "answer": "Dokumentacja nie wskazuje, która rola organizacyjna ma `approvals:decide`, ale nie ma uprawnień do edycji agentów. Decydowanie o zatwierdzeniach wymaga `approvals:decide`, a edycja agentów — odpowiednich uprawnień, takich jak `agents:edit` [2][8].",
+          "answer_correct": false,
+          "queries": [
+            "Jaka rola w organizacji może decydować o zatwierdzeniach, ale nie może edytować agentów?",
+            "Która rola w organizacji może zatwierdzać wnioski, ale nie ma uprawnień do edytowania agentów?",
+            "Jakie stanowisko może podejmować decyzje dotyczące zatwierdzeń, nie mogąc modyfikować agentów?",
+            "Która rola ma uprawnienia do zatwierdzania, lecz nie do zarządzania ani edytowania agentów?"
+          ]
+        },
+        {
+          "id": "saml-single-sign-on-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "directory.md",
+            "about/sauna.md",
+            "directory.md",
+            "about/microsoft-agent-365.md",
+            "about/dify.md",
+            "about/copilot-studio.md",
+            "about/copilot-studio.md",
+            "about/index.md",
+            "about/sauna.md",
+            "about/dify.md"
+          ],
+          "answer": "Nie — AgenticOS nie obsługuje logowania przez SAML. Alternatywnie możesz użyć Keycloak jako pośrednika: łączy się z dostawcą tożsamości przez SAML, a z AgenticOS przez OIDC. [1]",
+          "answer_correct": true,
+          "queries": [
+            "Czy da się logować do AgenticOS przez SAML?",
+            "Czy AgenticOS obsługuje logowanie jednokrotne (SSO) przez SAML?",
+            "Jak skonfigurować uwierzytelnianie SAML w AgenticOS?",
+            "Czy można logować się do AgenticOS za pomocą dostawcy tożsamości SAML?"
+          ]
+        },
+        {
+          "id": "default-chunk-size-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "file-processing.md",
+            "howto/set-up-knowledge-base.md",
+            "howto/set-up-knowledge-base.md",
+            "reference/capabilities.md",
+            "file-processing.md",
+            "file-processing.md",
+            "configuration.md",
+            "file-processing.md",
+            "architecture.md",
+            "architecture.md"
+          ],
+          "answer": "Dokumentacja nie podaje domyślnego rozmiaru kawałka. Podaje jedynie, że domyślną metodą dzielenia jest `recursive`, a rozmiar kawałków można konfigurować [3].",
+          "answer_correct": false,
+          "queries": [
+            "Na jak duże kawałki dzielone są domyślnie dokumenty w bazie wiedzy?",
+            "Jaka jest domyślna wielkość fragmentów, na które dzielone są dokumenty w bazie wiedzy?",
+            "Ile wynosi domyślny rozmiar kawałka dokumentu w bazie wiedzy?",
+            "Na jakiej długości fragmenty dzielone są domyślnie dokumenty dodawane do bazy wiedzy?"
+          ]
+        },
+        {
+          "id": "voice-call-length-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "voice.md",
+            "console.md",
+            "voice.md",
+            "channels.md",
+            "voice.md",
+            "channels.md",
+            "console.md",
+            "security.md",
+            "voice.md",
+            "howto/content-repurposing.md"
+          ],
+          "answer": "Rozmowa może trwać maksymalnie 50 minut. Jeśli agent nie ma ustawionego limitu, domyślnie obowiązuje 10 minut [5].",
+          "answer_correct": true,
+          "queries": [
+            "Jak długo maksymalnie może trwać rozmowa głosowa z agentem?",
+            "Jaki jest maksymalny czas trwania rozmowy głosowej z agentem?",
+            "Ile najdłużej może potrwać rozmowa telefoniczna z agentem?",
+            "Czy obowiązuje limit czasu rozmowy głosowej z agentem?"
+          ]
+        },
+        {
+          "id": "publish-reaches-production-pl",
+          "category": "cross_language",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "commands.md",
+            "console.md",
+            "howto/competitor-monitoring.md",
+            "features.md",
+            "about/index.md",
+            "about/copilot-studio.md",
+            "howto/meeting-summary.md",
+            "about/comparison.md",
+            "howto/translation-glossary.md",
+            "configuration.md"
+          ],
+          "answer": "Nie. Samo opublikowanie tworzy nową wersję, ale harmonogram nadal korzysta ze środowiska, na które wskazywał wcześniej; wersję trzeba osobno promować do tego środowiska, chyba że śledzi ono najnowszą wersję [3].",
+          "answer_correct": false,
+          "queries": [
+            "Czy opublikowanie nowej wersji agenta od razu podmienia ją na produkcji?",
+            "Czy opublikowana nowa wersja agenta jest automatycznie wdrażana na produkcji?",
+            "Czy publikacja aktualizacji agenta od razu zastępuje wersję produkcyjną?",
+            "Jak działa wdrażanie nowej wersji agenta po jej opublikowaniu?"
+          ]
+        },
+        {
+          "id": "model-weights-in-image-pl",
+          "category": "cross_language",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "index.md",
+            "about/comparison.md",
+            "deploy.md",
+            "about/opencode.md",
+            "about/opencode.md",
+            "desktop.md",
+            "configuration.md",
+            "install.md",
+            "about/openai-dots.md",
+            "reference/components.md"
+          ],
+          "answer": "Dokumentacja nie stwierdza, czy obrazy Dockera AgenticOS zawierają wagi modeli językowych. Wymienia ich zawartość, ale nie wspomina o wagach modeli [10].",
+          "answer_correct": false,
+          "queries": [
+            "Czy obrazy Dockera AgenticOS mają w sobie wagi modeli językowych?",
+            "Czy obrazy kontenerów Docker AgenticOS zawierają wagi modeli LLM?",
+            "Czy AgenticOS dołącza wagi modeli językowych do obrazów Dockera?",
+            "Jakie modele i wagi LLM znajdują się w obrazach Docker AgenticOS?"
+          ]
+        },
+        {
+          "id": "redis-cluster-pl-corpus",
+          "category": "cross_language",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "about/comparison.md",
+            "licenses.md",
+            "about/openai-dots.md",
+            "about/chatgpt.md",
+            "about/claude-apps.md",
+            "about/openai-dots.md",
+            "about/comparison.md",
+            "about/claude-managed-agents.md",
+            "about/claude-code.md",
+            "about/claude-apps.md"
+          ],
+          "answer": "The documentation does not state whether AgenticOS supports a sharded Redis cluster. It says Valkey uses the Redis protocol and keeps the Redis-related settings unchanged, but does not address sharding [2].",
+          "answer_correct": false,
+          "queries": [
+            "Can I run AgenticOS against a sharded Redis cluster?",
+            "Does AgenticOS support connecting to a Redis cluster with sharding enabled?",
+            "Can AgenticOS run with a sharded Redis deployment?",
+            "Is AgenticOS compatible with Redis Cluster deployments that distribute data across shards?"
+          ]
+        },
+        {
+          "id": "desktop-app-framework-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "desktop.md",
+            "sandbox.md",
+            "desktop.md",
+            "projects.md",
+            "desktop.md",
+            "desktop.md",
+            "desktop.md",
+            "desktop.md",
+            "console.md",
+            "desktop.md"
+          ],
+          "answer": "The desktop client is a Tauri shell that loads the server’s Next.js console [1].",
+          "answer_correct": true,
+          "queries": [
+            "What framework is the desktop client built with?",
+            "Which framework was used to build the desktop application?",
+            "What technology or toolkit powers the desktop client?",
+            "What is the desktop client’s underlying software framework?"
+          ]
+        },
+        {
+          "id": "approval-expiry-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "governance.md",
+            "configuration.md",
+            "governance.md",
+            "governance.md",
+            "reference/workflow-nodes.md",
+            "governance.md",
+            "reference/capabilities.md",
+            "reference/workflow-nodes.md",
+            "reference/workflow-nodes.md",
+            "governance.md"
+          ],
+          "answer": "A pending tool approval is automatically denied after 72 hours by default, when the hourly sweep times it out [2]. During a voice call, it expires after 60 seconds without a decision [1].",
+          "answer_correct": true,
+          "queries": [
+            "How long does a pending tool approval wait before it is denied automatically?",
+            "What is the timeout for a pending tool approval before it is automatically rejected?",
+            "How long can a tool approval remain pending before the system denies it?",
+            "When does a pending approval request for a tool automatically expire or get denied?"
+          ]
+        },
+        {
+          "id": "stdio-mcp-server-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "configuration.md",
+            "mcp.md",
+            "mcp.md",
+            "mcp.md",
+            "howto/database-questions.md",
+            "features.md",
+            "reference/workflow-nodes.md",
+            "mcp.md",
+            "reference/workflow-nodes.md",
+            "desktop.md"
+          ],
+          "answer": "No. AgenticOS does not support launching MCP servers over stdio; the desktop-local MCP option requires a running Streamable HTTP server [10].",
+          "answer_correct": false,
+          "queries": [
+            "Can I connect an MCP server that only talks over standard input and output?",
+            "Can an MCP server communicate using only stdin and stdout?",
+            "Is it possible to connect to an MCP server that uses the stdio transport?",
+            "How do I connect to an MCP server that exchanges messages through standard input and output?"
+          ]
+        },
+        {
+          "id": "sandbox-docker-in-docker-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "sandbox.md",
+            "sandbox.md",
+            "sandbox.md",
+            "desktop.md",
+            "configuration.md",
+            "sandbox.md",
+            "deploy.md",
+            "reference/workflow-nodes.md",
+            "configuration.md",
+            "configuration.md"
+          ],
+          "answer": "No. The sandbox container is a sibling of `sandboxd`, started by the host’s Docker daemon; there is no Docker-in-Docker or nested daemon. [1]",
+          "answer_correct": true,
+          "queries": [
+            "Does the code sandbox run containers nested inside another Docker container?",
+            "Can the code sandbox run Docker containers inside its own container?",
+            "Does the sandbox support Docker-in-Docker or nested container execution?",
+            "Is it possible to launch containers from within the code sandbox’s Docker container?"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "top_k=10, query_analysis_mode=hyde",
+      "top_k": 10,
+      "query_analysis_mode": "hyde",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 0.9285714285714286,
+          "recall": 0.9285714285714286,
+          "mrr": 0.6642857142857144,
+          "answered": 14,
+          "answers_correct": 12
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.9,
+          "mrr": 0.7833333333333333,
+          "answered": 10,
+          "answers_correct": 8
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 1.0,
+          "recall": 0.95,
+          "mrr": 0.6825,
+          "answered": 10,
+          "answers_correct": 7
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.9411764705882353,
+          "recall": 0.9264705882352942,
+          "mrr": 0.704656862745098,
+          "answered": 34,
+          "answers_correct": 27
+        }
+      ],
+      "items": [
+        {
+          "id": "saml-single-sign-on",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "about/sauna.md",
+            "directory.md",
+            "about/microsoft-agent-365.md",
+            "directory.md",
+            "about/index.md",
+            "about/dify.md",
+            "about/microsoft-agent-365.md",
+            "about/dify.md",
+            "about/sauna.md",
+            "about/viktor.md"
+          ],
+          "answer": "No, AgenticOS does not support SAML directly. A SAML-only identity provider can connect through Keycloak, which speaks SAML to it and OIDC to AgenticOS [2].",
+          "answer_correct": true,
+          "queries": [
+            "Yes. AgenticOS supports SAML single sign-on."
+          ]
+        },
+        {
+          "id": "scim-provisioning",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "directory.md",
+            "about/copilot-studio.md",
+            "about/sauna.md",
+            "about/copilot-studio.md",
+            "about/microsoft-agent-365.md",
+            "about/claude-apps.md",
+            "about/comparison.md",
+            "directory.md",
+            "about/chatgpt.md",
+            "about/viktor.md"
+          ],
+          "answer": "No. AgenticOS does not support SCIM or scheduled directory sync; directory mappings are re-read at the user’s next sign-in [1].",
+          "answer_correct": true,
+          "queries": [
+            "AgenticOS does not currently support SCIM provisioning. User accounts cannot be pushed automatically from an identity provider and must be managed in AgenticOS."
+          ]
+        },
+        {
+          "id": "org-wide-default-model",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "models.md",
+            "deployment.md",
+            "console.md",
+            "models.md",
+            "features.md",
+            "console.md",
+            "concepts.md",
+            "models.md",
+            "models.md",
+            "models.md"
+          ],
+          "answer": "No. AgenticOS has no organization-wide default model; instead, a new agent with no model specified starts on the organization’s model only when there is exactly one model it can run on. [1]",
+          "answer_correct": true,
+          "queries": [
+            "Yes. An organization administrator can set a default LLM for the organization, and newly created agents will use it unless their model is changed individually."
+          ]
+        },
+        {
+          "id": "api-client-sdk",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "api.md",
+            "mcp.md",
+            "mcp.md",
+            "configuration.md",
+            "mcp.md",
+            "mcp.md",
+            "mcp.md",
+            "api.md",
+            "mcp.md",
+            "reference/components.md"
+          ],
+          "answer": "No. The documentation says there is no client library yet; use the HTTP API directly, with its reference at Settings → API → API reference. [1]",
+          "answer_correct": true,
+          "queries": [
+            "The API is not identified, so I can’t determine whether an official SDK or client library is available. Please specify the API."
+          ]
+        },
+        {
+          "id": "per-document-access-in-collection",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "howto/set-up-knowledge-base.md",
+            "permissions.md",
+            "file-processing.md",
+            "reference/permissions.md",
+            "file-processing.md",
+            "file-processing.md"
+          ],
+          "answer": "No. Access is controlled at the collection level, so anyone who can reach it can access every document in it [7]. To limit the audience, put documents in a separately scoped collection; for synced sources, also scope the credential to the intended content [9].",
+          "answer_correct": true,
+          "queries": [
+            "No. Access permissions apply to the knowledge collection as a whole, not to individual documents within it; use separate collections to limit access to specific documents."
+          ]
+        },
+        {
+          "id": "admin-creates-account-when-closed",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "deployment.md",
+            "directory.md",
+            "deployment.md",
+            "console.md",
+            "deployment.md",
+            "console.md",
+            "deployment.md",
+            "departments.md",
+            "deployment.md",
+            "deployment.md"
+          ],
+          "answer": "No. With sign-up closed, there is no administrator-created-account path, and invitations do not override `closed`; switch to `invite_only` and invite the colleague [3].",
+          "answer_correct": true,
+          "queries": [
+            "Yes. When sign-up is closed, an administrator can create an account for a new colleague from the user-management area."
+          ]
+        },
+        {
+          "id": "zapier-signed-webhook",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "triggers.md",
+            "triggers.md",
+            "triggers.md",
+            "howto/support-ticket-triage.md",
+            "triggers.md",
+            "triggers.md",
+            "howto/support-ticket-triage.md",
+            "channels.md",
+            "channels.md",
+            "workflows.md"
+          ],
+          "answer": "No. Zapier’s standard webhook step cannot sign the request, so the unsigned delivery is refused with `403`; use Code by Zapier to compute the HMAC over the exact body and set `X-Signature-256` [1].",
+          "answer_correct": true,
+          "queries": [
+            "No. Zapier’s standard Webhooks step can send a request with custom headers, but it does not automatically sign the delivery; you’d need to generate the signature separately, for example in a code step."
+          ]
+        },
+        {
+          "id": "deployment-wide-embedding-key",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "artifacts.md",
+            "file-processing.md",
+            "data-protection.md",
+            "configuration.md",
+            "data-protection.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md"
+          ],
+          "answer": "No. Embedding credentials are configured per collection; for `ollama`, use a keyless local service instead [1][7].",
+          "answer_correct": false,
+          "queries": [
+            "Yes. Set the embedding API key in the server-wide configuration, and collections can use that shared credential instead of storing a separate key for each one."
+          ]
+        },
+        {
+          "id": "environment-without-version-pl",
+          "category": "negative",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "features.md",
+            "desktop.md",
+            "about/comparison.md",
+            "console.md",
+            "concepts.md",
+            "desktop.md",
+            "skills.md",
+            "concepts.md",
+            "howto/agent-api.md",
+            "reference/capabilities.md"
+          ],
+          "answer": "Nie. Środowisko wskazuje na konkretną wersję agenta; `production` podąża za publikacjami, dopóki ktoś go nie przypnie [8].",
+          "answer_correct": false,
+          "queries": [
+            "Tak, środowisko może działać bez przypiętej konkretnej wersji agenta. W takim przypadku używana jest wersja domyślna dostępna dla danego środowiska."
+          ]
+        },
+        {
+          "id": "voice-calls-recorded-pl",
+          "category": "negative",
+          "hit": true,
+          "first_hit_rank": 3,
+          "retrieved_pages": [
+            "ml-services.md",
+            "console.md",
+            "voice.md",
+            "data-protection.md",
+            "voice.md",
+            "ml-services.md",
+            "ml-services.md",
+            "ml-services.md",
+            "voice.md",
+            "channels.md"
+          ],
+          "answer": "Nie. Wdrożenie nie przechowuje dźwięku rozmów głosowych — zachowuje transkrypcję tekstową każdej tury [5].",
+          "answer_correct": true,
+          "queries": [
+            "Nie da się tego potwierdzić bez informacji o konkretnej usłudze. Zasady nagrywania i przechowywania rozmów zależą od jej dostawcy."
+          ]
+        },
+        {
+          "id": "vault-master-key-fallback",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "security.md",
+            "secrets.md",
+            "configuration.md",
+            "data-protection.md",
+            "security.md",
+            "secrets.md",
+            "secrets.md",
+            "secrets.md",
+            "configuration.md",
+            "models.md"
+          ],
+          "answer": "If `VAULT_MASTER_KEY` is unset, the vault falls back to `SECRET_KEY` [3]. Outside `local`/`development`, a vault key must be configured, so the platform won’t start relying on the fallback there [3].",
+          "answer_correct": true,
+          "queries": [
+            "If you do not set a vault master key, the platform uses its automatically generated default encryption key to encrypt credentials."
+          ]
+        },
+        {
+          "id": "unanswered-question-expiry",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "api.md",
+            "configuration.md",
+            "api.md",
+            "concepts.md",
+            "api.md",
+            "channels.md",
+            "console.md",
+            "architecture.md",
+            "channels.md",
+            "channels.md"
+          ],
+          "answer": "The documentation does not state the duration; it says a question expires after `QUESTION_EXPIRY_HOURS` but gives no value for that setting [10].",
+          "answer_correct": false,
+          "queries": [
+            "A run will wait up to 10 minutes for someone to answer the agent’s question. If no response arrives within that time, the run expires."
+          ]
+        },
+        {
+          "id": "job-queue-engine",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "task-queue-benchmark.md",
+            "data-protection.md",
+            "task-queue-benchmark.md",
+            "governance.md",
+            "console.md",
+            "task-queue-benchmark.md",
+            "howto/add-background-task.md",
+            "howto/add-background-task.md",
+            "task-queue-benchmark.md",
+            "branching.md"
+          ],
+          "answer": "AgenticOS replaced Prefect in version 1.9.0 with a plain PostgreSQL queue (`pgqueue`) and long-lived asyncio workers [3]. Each worker claims and runs jobs from the queue [8].",
+          "answer_correct": true,
+          "queries": [
+            "The available information doesn’t specify what runs background jobs now that Prefect is gone."
+          ]
+        },
+        {
+          "id": "table-record-limit",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "virtual-tables.md",
+            "data-protection.md",
+            "virtual-tables.md",
+            "reference/workflow-nodes.md",
+            "configuration.md",
+            "virtual-tables.md",
+            "configuration.md",
+            "virtual-tables.md",
+            "virtual-tables.md",
+            "virtual-tables.md"
+          ],
+          "answer": "A virtual table can hold up to 100,000 records by default. [3]",
+          "answer_correct": true,
+          "queries": [
+            "A virtual table has no fixed maximum row count by default; its capacity depends on the underlying data source and the system’s limits."
+          ]
+        },
+        {
+          "id": "podman-deployment",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "deploy.md",
+            "index.md",
+            "deploy.md",
+            "deploy.md",
+            "deploy.md",
+            "install.md",
+            "install.md",
+            "desktop.md",
+            "about/index.md",
+            "about/openai-dots.md"
+          ],
+          "answer": "Yes. Podman is supported through the **manual deployment path**, using Docker Compose as its provider; the quickstart remains Docker-only [1][2]. Do not use `podman-compose` 1.6.0; configure `PODMAN_COMPOSE_PROVIDER` to point to Docker Compose and run `podman compose` [1].",
+          "answer_correct": true,
+          "queries": [
+            "AgenticOS’s documented deployment uses Docker, and Podman is not listed as a supported runtime. Podman’s Docker-compatible interface may work, but that setup is not guaranteed."
+          ]
+        },
+        {
+          "id": "session-lifetime",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "directory.md",
+            "governance.md",
+            "console.md",
+            "sandbox.md",
+            "models.md",
+            "security.md",
+            "directory.md",
+            "governance.md",
+            "desktop.md",
+            "configuration.md"
+          ],
+          "answer": "For directory sign-in, an open session lasts until its refresh token expires; the default is seven days, and the duration is controlled by `REFRESH_TOKEN_EXPIRE_MINUTES` [7]. The documentation doesn’t state a single duration for all sign-in methods. In the desktop app, the session is renewed as you use it and restored while it remains valid [9].",
+          "answer_correct": true,
+          "queries": [
+            "How long you can stay logged in depends on the service’s session settings. Check its sign-in or security documentation for the exact timeout; sessions may also expire after a period of inactivity."
+          ]
+        },
+        {
+          "id": "workflow-worker-concurrency",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "workflows.md",
+            "configuration.md",
+            "configuration.md",
+            "architecture.md",
+            "workflows.md",
+            "configuration.md",
+            "task-queue-benchmark.md",
+            "task-queue-benchmark.md",
+            "reference/workflow-nodes.md",
+            "configuration.md"
+          ],
+          "answer": "By default, one worker executes up to **5 workflow nodes in parallel** (`WORKER_WORKFLOW_CONCURRENCY`); a run has no separate branch limit. [1]",
+          "answer_correct": true,
+          "queries": [
+            "Out of the box, one worker executes one workflow branch at a time. Parallel execution requires increasing the worker’s concurrency."
+          ]
+        },
+        {
+          "id": "skill-file-name",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "desktop.md",
+            "skills.md",
+            "skills.md",
+            "skills.md",
+            "skills.md",
+            "skills.md",
+            "skills.md",
+            "skills.md",
+            "skills.md",
+            "skills.md"
+          ],
+          "answer": "The file is `SKILL.md`; it holds the skill’s body, including its name and description. [2]",
+          "answer_correct": true,
+          "queries": [
+            "A skill’s instructions and description are stored in the `SKILL.md` file in its folder."
+          ]
+        },
+        {
+          "id": "context-always-loaded",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 10,
+          "retrieved_pages": [
+            "howto/product-descriptions.md",
+            "howto/customize-agent-prompt.md",
+            "howto/product-descriptions.md",
+            "howto/product-descriptions.md",
+            "howto/customize-agent-prompt.md",
+            "howto/customize-agent-prompt.md",
+            "use-cases.md",
+            "reference/capabilities.md",
+            "console.md",
+            "context.md"
+          ],
+          "answer": "Put the product names in a short context file and set it to **inject**. Its contents are added to the agent’s instructions on every turn, so the agent knows them without looking them up [10]. Enable the **Context** capability and bind the file to the agent [10].",
+          "answer_correct": true,
+          "queries": [
+            "Add your product names to the agent’s system instructions or other context included with every request. The agent can then use that information directly without looking it up; update the list whenever product names change."
+          ]
+        },
+        {
+          "id": "embedding-providers",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "file-processing.md",
+            "howto/set-up-knowledge-base.md",
+            "data-protection.md",
+            "about/comparison.md",
+            "about/comparison.md",
+            "about/comparison.md",
+            "configuration.md",
+            "file-processing.md",
+            "data-protection.md",
+            "models.md"
+          ],
+          "answer": "A knowledge collection can use **OpenRouter, OpenAI, or Ollama** to compute embeddings [3].",
+          "answer_correct": true,
+          "queries": [
+            "A knowledge collection can use OpenAI, Azure OpenAI, Cohere, Google Vertex AI, or Amazon Bedrock to compute embeddings."
+          ]
+        },
+        {
+          "id": "default-pdf-parser-pl",
+          "category": "factual",
+          "hit": false,
+          "first_hit_rank": null,
+          "retrieved_pages": [
+            "file-processing.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "architecture.md",
+            "file-processing.md",
+            "file-processing.md",
+            "file-processing.md",
+            "ml-services.md",
+            "architecture.md",
+            "reference/workflow-nodes.md"
+          ],
+          "answer": "Domyślnym parserem jest PyMuPDF (`pymupdf`). [1][2]",
+          "answer_correct": true,
+          "queries": [
+            "Kolekcja domyślnie używa parsera PyMuPDF do przetwarzania plików PDF."
+          ]
+        },
+        {
+          "id": "table-write-rate-limit-pl",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "virtual-tables.md",
+            "virtual-tables.md",
+            "configuration.md",
+            "virtual-tables.md",
+            "data-protection.md",
+            "configuration.md",
+            "configuration.md",
+            "virtual-tables.md",
+            "security.md",
+            "artifacts.md"
+          ],
+          "answer": "Jeden użytkownik może wykonać do 300 zapisów do tabel na minutę na organizację; po przekroczeniu limitu dostaje odpowiedź 429 z nagłówkiem `Retry-After` [1], [6].",
+          "answer_correct": true,
+          "queries": [
+            "Jeden użytkownik może wykonać maksymalnie 60 zapisów do tabel na minutę. Po przekroczeniu limitu kolejne żądania są odrzucane."
+          ]
+        },
+        {
+          "id": "project-default-agent-pl",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "console.md",
+            "projects.md",
+            "projects.md",
+            "voice.md",
+            "console.md",
+            "projects.md",
+            "desktop.md",
+            "howto/meeting-summary.md",
+            "voice.md",
+            "authoring.md"
+          ],
+          "answer": "Nowa rozmowa w projekcie zaczyna się z jego domyślnym agentem. W czacie projektu nadal może odpowiadać dowolny agent; domyślny określa tylko, z kim czat się zaczyna. [3]",
+          "answer_correct": true,
+          "queries": [
+            "Nową rozmowę obsługuje agent przypisany do projektu. Jeśli nie przypisano konkretnego agenta, odpowiada agent domyślny."
+          ]
+        },
+        {
+          "id": "role-approves-without-editing-pl",
+          "category": "factual",
+          "hit": true,
+          "first_hit_rank": 5,
+          "retrieved_pages": [
+            "governance.md",
+            "governance.md",
+            "voice.md",
+            "governance.md",
+            "permissions.md",
+            "permissions.md",
+            "virtual-tables.md",
+            "about/dify.md",
+            "governance.md",
+            "permissions.md"
+          ],
+          "answer": "Dokumentacja nie podaje, która rola organizacji ma `approvals:decide`, ale nie może edytować agentów. Wskazuje jedynie, że decyzje o zatwierdzeniach wymagają tego uprawnienia [2][3].",
+          "answer_correct": false,
+          "queries": [
+            "Rolą tą jest zatwierdzający (Approver). Może podejmować decyzje dotyczące zatwierdzeń, ale nie może edytować agentów."
+          ]
+        },
+        {
+          "id": "saml-single-sign-on-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "directory.md",
+            "directory.md",
+            "about/sauna.md",
+            "about/microsoft-agent-365.md",
+            "about/dify.md",
+            "security.md",
+            "about/index.md",
+            "about/dify.md",
+            "about/dify.md",
+            "about/copilot-studio.md"
+          ],
+          "answer": "Nie, AgenticOS nie obsługuje SAML. Alternatywnie można użyć Keycloak jako pośrednika: łączy się z dostawcą SAML, a do AgenticOS loguje przez OIDC [1].",
+          "answer_correct": true,
+          "queries": [
+            "Tak, AgenticOS obsługuje logowanie jednokrotne (SSO) przez SAML. Konfigurację połączenia z dostawcą tożsamości przeprowadza administrator."
+          ]
+        },
+        {
+          "id": "default-chunk-size-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "howto/translate.md",
+            "file-processing.md",
+            "howto/translate.md",
+            "howto/set-up-knowledge-base.md",
+            "file-processing.md",
+            "architecture.md",
+            "howto/set-up-knowledge-base.md",
+            "sandbox.md",
+            "file-processing.md",
+            "howto/translation-glossary.md"
+          ],
+          "answer": "Domyślny rozmiar kawałka to **2500 znaków**; to maksymalna liczba znaków na kawałek. [5]",
+          "answer_correct": true,
+          "queries": [
+            "Domyślnie dokumenty w bazie wiedzy są dzielone na fragmenty po 1 000 znaków."
+          ]
+        },
+        {
+          "id": "voice-call-length-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "voice.md",
+            "voice.md",
+            "channels.md",
+            "security.md",
+            "console.md",
+            "voice.md",
+            "ml-services.md",
+            "security.md",
+            "howto/meeting-summary.md",
+            "console.md"
+          ],
+          "answer": "Rozmowa może trwać maksymalnie 50 minut. Jeśli agent nie ma ustawionego limitu, domyślnie trwa najwyżej 10 minut [1][2].",
+          "answer_correct": true,
+          "queries": [
+            "Rozmowa głosowa z agentem może trwać maksymalnie 60 minut."
+          ]
+        },
+        {
+          "id": "publish-reaches-production-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "commands.md",
+            "environments.md",
+            "concepts.md",
+            "console.md",
+            "features.md",
+            "howto/competitor-monitoring.md",
+            "concepts.md",
+            "skills.md",
+            "release-notes.md",
+            "about/index.md"
+          ],
+          "answer": "Nie. Publikacja tworzy nową wersję, ale nie przełącza jej automatycznie na produkcję; środowisko produkcyjne trzeba osobno promować na tę wersję, chyba że jest skonfigurowane, by śledzić najnowszą publikację [2][3].",
+          "answer_correct": false,
+          "queries": [
+            "Nie. Opublikowanie nowej wersji agenta nie podmienia automatycznie wersji działającej na produkcji — trzeba ją osobno wdrożyć lub przełączyć na nią środowisko produkcyjne."
+          ]
+        },
+        {
+          "id": "model-weights-in-image-pl",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "licenses.md",
+            "about/comparison.md",
+            "models.md",
+            "about/copilot-studio.md",
+            "configuration.md",
+            "about/opencode.md",
+            "licenses.md",
+            "choosing-models.md",
+            "index.md",
+            "about/n8n.md"
+          ],
+          "answer": "Nie. Obrazy AgenticOS nie zawierają wag modeli; wdrożenie wybiera model osobno, a otwarte wagi pobiera na warunkach licencji ich wydawcy [1][7].",
+          "answer_correct": true,
+          "queries": [
+            "Nie — obrazy Dockera AgenticOS nie zawierają wag modeli językowych. Wagi są udostępniane osobno przez skonfigurowany model lub jego dostawcę."
+          ]
+        },
+        {
+          "id": "redis-cluster-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 8,
+          "retrieved_pages": [
+            "about/comparison.md",
+            "configuration.md",
+            "licenses.md",
+            "reference/glossary.md",
+            "about/claude-apps.md",
+            "about/openai-dots.md",
+            "about/chatgpt.md",
+            "scaling.md",
+            "install.md",
+            "about/claude-managed-agents.md"
+          ],
+          "answer": "No. AgenticOS does not yet support Redis Cluster [8]. The documentation says a managed Redis instance is acceptable, but does not state that it can be sharded [2].",
+          "answer_correct": false,
+          "queries": [
+            "No. AgenticOS expects a standalone Redis instance and does not support Redis Cluster’s sharded mode; use a non-sharded Redis deployment."
+          ]
+        },
+        {
+          "id": "desktop-app-framework-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "desktop.md",
+            "sandbox.md",
+            "desktop.md",
+            "desktop.md",
+            "projects.md",
+            "desktop.md",
+            "reference/capabilities.md",
+            "desktop.md",
+            "desktop.md",
+            "desktop.md"
+          ],
+          "answer": "The desktop client is built as a Tauri shell [1].",
+          "answer_correct": true,
+          "queries": [
+            "The desktop client is built with Electron, a framework for creating desktop applications with web technologies."
+          ]
+        },
+        {
+          "id": "approval-expiry-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 5,
+          "retrieved_pages": [
+            "governance.md",
+            "reference/workflow-nodes.md",
+            "governance.md",
+            "governance.md",
+            "configuration.md",
+            "governance.md",
+            "channels.md",
+            "channels.md",
+            "reference/workflow-nodes.md",
+            "governance.md"
+          ],
+          "answer": "A pending tool approval is automatically denied after **72 hours by default**; the hourly sweep uses `APPROVAL_EXPIRY_HOURS` to determine the timeout [5]. During a voice call, an approval instead expires after **60 seconds** without a decision [1].",
+          "answer_correct": true,
+          "queries": [
+            "A pending tool approval waits for five minutes. If it is not approved within that time, it is denied automatically."
+          ]
+        },
+        {
+          "id": "stdio-mcp-server-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 2,
+          "retrieved_pages": [
+            "configuration.md",
+            "mcp.md",
+            "mcp.md",
+            "mcp.md",
+            "reference/workflow-nodes.md",
+            "mcp.md",
+            "howto/database-questions.md",
+            "features.md",
+            "mcp.md",
+            "about/comparison.md"
+          ],
+          "answer": "No. AgenticOS connects to MCP servers by URL using streamable HTTP or server-sent events; stdio is not listed as a supported transport. Expose the server over streamable HTTP or SSE instead. [4]",
+          "answer_correct": false,
+          "queries": [
+            "Yes. MCP supports the standard input/output (stdio) transport, so a client can launch the server as a subprocess and communicate with it through stdin and stdout."
+          ]
+        },
+        {
+          "id": "sandbox-docker-in-docker-pl-corpus",
+          "category": "cross_language",
+          "hit": true,
+          "first_hit_rank": 1,
+          "retrieved_pages": [
+            "sandbox.md",
+            "desktop.md",
+            "sandbox.md",
+            "sandbox.md",
+            "reference/workflow-nodes.md",
+            "configuration.md",
+            "sandbox.md",
+            "sandbox.md",
+            "deploy.md",
+            "configuration.md"
+          ],
+          "answer": "No. The host’s Docker daemon starts sandbox containers as siblings of `sandboxd`; they are not nested inside it, and there is no Docker-in-Docker. [1]",
+          "answer_correct": true,
+          "queries": [
+            "No. The code sandbox runs in an isolated environment and does not support launching containers nested inside a Docker container."
+          ]
+        }
+      ]
+    }
+  ],
+  "measurement_environment": {
+    "source_revision": "e8e782562ccd88b44e34e3054572cd37da1f12cc",
+    "python": "3.15.0",
+    "pydantic_ai": "2.66.0",
+    "corpus": {
+      "en": {
+        "pages": 128,
+        "sha256": "c4075bab678506d63314579c1411b9081cfd9786197ea18d08157213cd61490b",
+        "chunks": 1452
+      },
+      "pl": {
+        "pages": 128,
+        "sha256": "7d286b71159d38cb7a9db8095c9adbf2a21e6b2544ccf9e45ca78ee3406d7d8c",
+        "chunks": 1553
+      }
+    },
+    "finished_at": "2026-11-10T11:20:46.208935+00:00",
+    "duration_seconds": 1639.54,
+    "model_usage": {
+      "requests": 272,
+      "input_tokens": 872567,
+      "output_tokens": 41553
+    }
+  }
+}

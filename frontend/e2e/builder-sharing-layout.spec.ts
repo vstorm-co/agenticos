@@ -125,10 +125,12 @@ test("context overrides persist and compact app sharing preserves optional setti
     const options = share
       .locator("details")
       .filter({ has: page.locator("summary", { hasText: "Link settings" }) });
-    await expect(options).not.toHaveAttribute("open");
+    // A link that does not exist yet has no settings to show.
+    await expect(options).toHaveCount(0);
     await expect(share.getByLabel("Sites that may embed it")).toBeHidden();
     await share.getByRole("button", { name: "Create a public link", exact: true }).click();
-    await expect(share.getByLabel("Public link", { exact: true })).toBeVisible();
+    await expect(share.getByLabel("Public link address", { exact: true })).toBeVisible();
+    await expect(options).not.toHaveAttribute("open");
     await options.locator("summary").focus();
     await page.keyboard.press("Enter");
     await expect(options).toHaveAttribute("open");
