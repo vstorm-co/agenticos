@@ -53,6 +53,7 @@ MAKEFILE = REPO_ROOT / "Makefile"
 # tag, and `test_images_workflow.py` is what reads that file.
 GATING_JOBS = (
     "lint",
+    "test-shard",
     "test",
     "lint-frontend",
     "frontend-shards",
@@ -98,6 +99,11 @@ CI_ONLY_TARGETS = {
     "test-frontend-reports-check",
     "test-frontend-merge",
     "build-frontend-pack",
+    # The same transport for the backend shards: `make test` runs the suite, these
+    # check the shards finished and apply its gate to their combined data (#119).
+    "test-backend-jobs-check",
+    "test-backend-reports-check",
+    "test-backend-merge",
     # `downgrade base` against CI's throwaway `test_db` is a rollback test;
     # against a laptop's `backend/.env` it is somebody's afternoon.
     "test-migrations",

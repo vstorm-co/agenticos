@@ -1,4 +1,4 @@
-.PHONY: ci-test-db-configure test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-workspace sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
+.PHONY: ci-test-db-configure test-backend-jobs-check test-backend-reports-check test-backend-merge test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-workspace sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -470,6 +470,24 @@ format:
 # when a test failed, and the recipe then fails with the suite's status.
 COV_REPORT ?= term-missing
 PLATFORM_COVERAGE = $(shell uv run --quiet --directory backend python -c 'import tomllib; print(",".join(tomllib.load(open("pyproject.toml", "rb"))["tool"]["coverage"]["run"]["include"]))')
+# The platform gate over whatever `backend/.coverage` holds: one run's data, or
+# the shards' data once `test-backend-merge` has combined it. Expects `status` to
+# hold the suite's exit code and leaves it non-zero if the gate fails.
+TEST_GATE = $(if $(findstring xml,$(COV_REPORT)),uv run --directory backend coverage xml -q --fail-under=0 --include="$(PLATFORM_COVERAGE)" || status=1;) \
+	uv run --directory backend coverage report --include="$(PLATFORM_COVERAGE)" || [ $$status -ne 0 ] || status=2;
+
+# CI splits the backend suite over this many `test-shard` jobs (#119).
+# `BACKEND_SHARD=K/N` makes `make test` run shard K's files only and keep its
+# coverage data as `backend/.coverage.shardK` instead of applying the gate, which
+# only means anything over the whole suite. `scripts/ci_backend_shard.py` decides
+# membership, so every file runs in exactly one shard.
+#
+# The shard's data is written there directly (`COVERAGE_FILE`), not renamed from
+# `.coverage` afterwards: pytest-cov erases `.coverage` and every `.coverage.*`
+# beside it when a run starts, so a second shard run in the same tree used to
+# delete the first one's data.
+BACKEND_SHARDS := 3
+BACKEND_SHARD_INDEX = $(firstword $(subst /, ,$(BACKEND_SHARD)))
 
 # The backend suite runs against a throwaway Postgres (docker-compose.test.yml)
 # rather than the development one. The integration reset TRUNCATEs the tables
@@ -515,10 +533,25 @@ ci-test-db-configure:
 # stays serial: worker startup is not worth paying for one file.
 test:
 	$(TEST_DB_START)
+	@status=0; paths=tests/; \
+	$(if $(BACKEND_SHARD),paths=$$(uv run --quiet --directory backend python ../scripts/ci_backend_shard.py $(BACKEND_SHARD) tests) || exit 1;) \
+	$(TEST_DB_ENV) $(if $(BACKEND_SHARD),COVERAGE_FILE=.coverage.shard$(BACKEND_SHARD_INDEX)) uv run --directory backend pytest $$paths -v --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4 || status=$$?; \
+	$(if $(BACKEND_SHARD),test -s backend/.coverage.shard$(BACKEND_SHARD_INDEX) || status=1;,$(TEST_GATE)) \
+	exit $$status
+
+# The aggregate `test` job in CI: every shard must have succeeded, every shard's
+# coverage data must be present, and the gate then runs once over their union.
+test-backend-jobs-check:
+	@test "$(TESTS)" = success
+
+test-backend-reports-check:
+	@for shard in $$(seq 1 $(BACKEND_SHARDS)); do test -s "backend/.coverage.shard$$shard" || exit 1; done
+	@test "$$(find backend -maxdepth 1 -name ".coverage.shard*" -type f | wc -l | tr -d " ")" = $(BACKEND_SHARDS)
+
+test-backend-merge:
 	@status=0; \
-	$(TEST_DB_ENV) uv run --directory backend pytest tests/ -v --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4 || status=$$?; \
-	$(if $(findstring xml,$(COV_REPORT)),uv run --directory backend coverage xml -q --fail-under=0 --include="$(PLATFORM_COVERAGE)" || status=1;) \
-	uv run --directory backend coverage report --include="$(PLATFORM_COVERAGE)" || [ $$status -ne 0 ] || status=2; \
+	(cd backend && uv run coverage combine -q .coverage.shard*) || exit 1; \
+	$(TEST_GATE) \
 	exit $$status
 
 # Fast loop while writing code — no coverage, no gate.

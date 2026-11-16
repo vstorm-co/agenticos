@@ -92,7 +92,10 @@ def test_one_backend_run_preserves_the_platform_gate(tmp_path: Path, failure: st
         "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
         "PYTEST_PLUGINS": "pytest_cov.plugin,xdist.plugin",
     }
-    env.pop("PYTEST_ADDOPTS", None)
+    # The shard job runs this file with `BACKEND_SHARD` set; the run below must
+    # see only what it passes on its own command line.
+    for inherited in ("PYTEST_ADDOPTS", "BACKEND_SHARD", "MAKEFLAGS", "MAKELEVEL", "MFLAGS"):
+        env.pop(inherited, None)
     result = subprocess.run(
         [MAKE, "test", "TEST_DB=external", "COV_REPORT=xml"],
         cwd=tmp_path,
@@ -117,6 +120,100 @@ def test_one_backend_run_preserves_the_platform_gate(tmp_path: Path, failure: st
     assert report.returncode == 0, report.stdout + report.stderr
     assert "inherited.py" in report.stdout
     assert not (backend / "executed").exists(), "informational report ran tests again"
+
+
+@pytest.mark.parametrize("status", ["failure", "cancelled", "skipped", ""])
+def test_backend_aggregate_refuses_an_unsuccessful_shard(status: str) -> None:
+    result = subprocess.run(
+        [MAKE, "test-backend-jobs-check"],
+        cwd=ROOT,
+        env={**os.environ, "TESTS": status},
+        capture_output=True,
+    )
+    assert result.returncode != 0
+
+
+def test_backend_aggregate_accepts_complete_success() -> None:
+    result = subprocess.run(
+        [MAKE, "test-backend-jobs-check"],
+        cwd=ROOT,
+        env={**os.environ, "TESTS": "success"},
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("missing", [None, 1, 2, 3])
+def test_backend_report_check_refuses_a_missing_shard(tmp_path: Path, missing: int | None) -> None:
+    shutil.copy(ROOT / "Makefile", tmp_path / "Makefile")
+    (tmp_path / "backend").mkdir()
+    for shard in range(1, 4):
+        if shard != missing:
+            (tmp_path / f"backend/.coverage.shard{shard}").write_text("coverage data")
+    result = subprocess.run([MAKE, "test-backend-reports-check"], cwd=tmp_path, capture_output=True)
+    assert (result.returncode == 0) is (missing is None)
+
+
+@pytest.mark.parametrize("covered", ["both", "one"])
+def test_sharded_backend_runs_gate_only_their_union(tmp_path: Path, covered: str) -> None:
+    """Each shard alone is below the bar; the merged data is what the gate reads."""
+    shutil.copy(ROOT / "Makefile", tmp_path / "Makefile")
+    (tmp_path / "scripts").mkdir()
+    shutil.copy(ROOT / "scripts/ci_backend_shard.py", tmp_path / "scripts/ci_backend_shard.py")
+    backend = tmp_path / "backend"
+    (backend / "app").mkdir(parents=True)
+    (backend / "tests").mkdir()
+    (backend / "app/__init__.py").write_text("")
+    (backend / "app/platform.py").write_text(
+        "def first():\n    return 1\n\n\ndef second():\n    return 2\n"
+    )
+    (backend / "tests/test_a.py").write_text(
+        "from app.platform import first\n\n\ndef test_first():\n    assert first() == 1\n"
+    )
+    second = "assert second() == 2" if covered == "both" else "assert True"
+    (backend / "tests/test_b.py").write_text(
+        f"from app.platform import second\n\n\ndef test_second():\n    {second}\n"
+    )
+    (backend / "pyproject.toml").write_text(
+        '[project]\nname="coverage-contract"\nversion="0.0.0"\n'
+        '[tool.pytest.ini_options]\npythonpath=["."]\n'
+        '[tool.coverage.run]\ninclude=["app/platform.py"]\n'
+        "[tool.coverage.report]\nfail_under=100\nshow_missing=true\n"
+    )
+    env = {
+        **os.environ,
+        "UV_PROJECT_ENVIRONMENT": sys.prefix,
+        "UV_NO_SYNC": "1",
+        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+        "PYTEST_PLUGINS": "pytest_cov.plugin,xdist.plugin",
+    }
+    # The shard job runs this file with `BACKEND_SHARD` set; the run below must
+    # see only what it passes on its own command line.
+    for inherited in ("PYTEST_ADDOPTS", "BACKEND_SHARD", "MAKEFLAGS", "MAKELEVEL", "MFLAGS"):
+        env.pop(inherited, None)
+    for shard in ("1/2", "2/2"):
+        run = subprocess.run(
+            [MAKE, "test", "TEST_DB=external", f"BACKEND_SHARD={shard}"],
+            cwd=tmp_path,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        assert run.returncode == 0, run.stdout + run.stderr
+    assert {path.name for path in backend.glob(".coverage*")} == {
+        ".coverage.shard1",
+        ".coverage.shard2",
+    }
+    merged = subprocess.run(
+        [MAKE, "test-backend-merge", "COV_REPORT=xml"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert (merged.returncode == 0) is (covered == "both"), merged.stdout + merged.stderr
+    assert (backend / "coverage.xml").exists()
 
 
 def test_shards_preserve_required_contexts_and_isolation() -> None:
@@ -145,7 +242,7 @@ def test_shards_preserve_required_contexts_and_isolation() -> None:
             assert (result.returncode == 0) is (statuses == ("success", "success"))
     assert set(jobs["e2e-shards"]["services"]) == {"postgres", "redis"}
     assert "build-frontend" in jobs["e2e-shards"]["needs"]
-    for name in ("test", "e2e-shards"):
+    for name in ("test-shard", "e2e-shards"):
         postgres = jobs[name]["services"]["postgres"]
         assert postgres["image"] == "pgvector/pgvector:pg16"
         assert "--tmpfs /var/lib/postgresql/data" in postgres["options"]

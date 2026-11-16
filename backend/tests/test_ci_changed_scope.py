@@ -40,7 +40,14 @@ ci_changed_scope = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(ci_changed_scope)
 
 # Job name in the workflow -> the `changes` output that gates it.
-GATED_JOBS = {"test": "backend", "test-frontend": "frontend", "e2e": "e2e"}
+# `test-shard` runs the backend suite and `test` is its aggregate, the required
+# context; both carry the same gate, so a skipped backend skips the pair (#119).
+GATED_JOBS = {
+    "test-shard": "backend",
+    "test": "backend",
+    "test-frontend": "frontend",
+    "e2e": "e2e",
+}
 
 
 @pytest.fixture(scope="module")
