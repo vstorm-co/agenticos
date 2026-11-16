@@ -17872,6 +17872,2014 @@
       "true": "Prawda",
       "unsure": "Niepewne",
       "yes": "Tak"
+    },
+    "field": {
+      "agent_run": {
+        "config": {
+          "agent": {
+            "description": "Agent z katalogu i opublikowana wersja, którą uruchamia ten krok."
+          },
+          "inline": {
+            "description": "Agent skonfigurowany w tym kroku - model, instrukcje, capabilities, wiedza i serwery MCP - wersjonowany razem z workflow."
+          },
+          "max_cost_usd": {
+            "title": "Maks. koszt (USD)",
+            "description": "Najwięcej, ile jedno wykonanie tego kroku może wydać na zapytania do modelu, w USD. Puste pozostawia tylko limity agenta, workflow i organizacji."
+          },
+          "structured_output_schema": {
+            "title": "Schemat odpowiedzi strukturalnej",
+            "description": "JSON Schema obiektu, którym agent odpowiada zamiast we własnym formacie odpowiedzi. Puste zachowuje format agenta."
+          }
+        },
+        "input": {
+          "prompt": {
+            "title": "Prompt"
+          },
+          "sources": {
+            "title": "Źródła"
+          },
+          "attachments": {
+            "title": "Załączniki",
+            "description": "Obrazy z plików runa, pokazywane agentowi jako obrazy."
+          }
+        }
+      },
+      "ai_classify": {
+        "config": {
+          "model_profile_id": {
+            "title": "Model",
+            "description": "Jeden z modeli organizacji."
+          },
+          "temperature": {
+            "title": "Temperatura",
+            "description": "Zmienność odpowiedzi. Zostaw puste dla modeli, które nie obsługują temperatury."
+          },
+          "effort": {
+            "title": "Wysiłek rozumowania",
+            "description": "Jak intensywnie model rozumuje. Puste zachowuje ustawienie domyślne providera."
+          },
+          "max_cost_usd": {
+            "title": "Maks. koszt (USD)",
+            "description": "Najwięcej, ile może wydać jedno wykonanie tego kroku. Puste pozostawia limity workflow i organizacji."
+          },
+          "categories": {
+            "title": "Kategorie"
+          },
+          "instructions": {
+            "title": "Instrukcje",
+            "description": "Wszystko inne, co model powinien wziąć pod uwagę, np. która kategoria wygrywa przy remisie."
+          },
+          "min_confidence": {
+            "title": "Minimalna pewność",
+            "description": "Poniżej tej wartości krok wychodzi portem Niepewne zamiast portem kategorii. Gdy puste, zawsze wychodzi portem kategorii."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Tekst"
+          }
+        }
+      },
+      "ai_extract": {
+        "config": {
+          "model_profile_id": {
+            "title": "Model",
+            "description": "Jeden z modeli organizacji."
+          },
+          "temperature": {
+            "title": "Temperatura",
+            "description": "Zmienność odpowiedzi. Zostaw puste dla modeli, które nie obsługują temperatury."
+          },
+          "effort": {
+            "title": "Wysiłek rozumowania",
+            "description": "Jak intensywnie model rozumuje. Puste zachowuje ustawienie domyślne providera."
+          },
+          "max_cost_usd": {
+            "title": "Maks. koszt (USD)",
+            "description": "Najwięcej, ile może wydać jedno wykonanie tego kroku. Puste pozostawia limity workflow i organizacji."
+          },
+          "output_schema": {
+            "title": "Pola do wyciągnięcia",
+            "description": "JSON Schema obiektu do wyciągnięcia."
+          },
+          "instructions": {
+            "title": "Instrukcje",
+            "description": "Wszystko inne, co model powinien wiedzieć, np. format daty."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Tekst"
+          }
+        }
+      },
+      "ai_prompt": {
+        "config": {
+          "model_profile_id": {
+            "title": "Model",
+            "description": "Jeden z modeli organizacji."
+          },
+          "temperature": {
+            "title": "Temperatura",
+            "description": "Zmienność odpowiedzi. Zostaw puste dla modeli, które nie obsługują temperatury."
+          },
+          "effort": {
+            "title": "Wysiłek rozumowania",
+            "description": "Jak intensywnie model rozumuje. Puste zachowuje ustawienie domyślne providera."
+          },
+          "max_cost_usd": {
+            "title": "Maks. koszt (USD)",
+            "description": "Najwięcej, ile może wydać jedno wykonanie tego kroku. Puste pozostawia limity workflow i organizacji."
+          },
+          "instructions": {
+            "title": "Instrukcje",
+            "description": "Co model ma zrobić z każdym promptem - jego rola i zasady."
+          },
+          "structured_output_schema": {
+            "title": "Schemat odpowiedzi strukturalnej",
+            "description": "JSON Schema obiektu, którym model ma odpowiedzieć. Gdy puste, odpowiada tekstem."
+          }
+        },
+        "input": {
+          "prompt": {
+            "title": "Prompt"
+          }
+        }
+      },
+      "ai_rewrite": {
+        "config": {
+          "model_profile_id": {
+            "title": "Model",
+            "description": "Jeden z modeli organizacji."
+          },
+          "temperature": {
+            "title": "Temperatura",
+            "description": "Zmienność odpowiedzi. Zostaw puste dla modeli, które nie obsługują temperatury."
+          },
+          "effort": {
+            "title": "Wysiłek rozumowania",
+            "description": "Jak intensywnie model rozumuje. Puste zachowuje ustawienie domyślne providera."
+          },
+          "max_cost_usd": {
+            "title": "Maks. koszt (USD)",
+            "description": "Najwięcej, ile może wydać jedno wykonanie tego kroku. Puste pozostawia limity workflow i organizacji."
+          },
+          "task": {
+            "title": "Zadanie",
+            "description": "Co zrobić z tekstem."
+          },
+          "language": {
+            "title": "Język",
+            "description": "Język odpowiedzi - wymagany przy tłumaczeniu, w pozostałych przypadkach opcjonalny."
+          },
+          "length": {
+            "title": "Długość",
+            "description": "Jak długie ma być podsumowanie."
+          },
+          "style": {
+            "title": "Styl",
+            "description": "Jak ma brzmieć, np. 'formalnie' albo 'dla klienta'."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Tekst"
+          }
+        }
+      },
+      "code_javascript_sandbox": {
+        "config": {
+          "code": {
+            "title": "Kod",
+            "description": "Treść funkcji asynchronicznej: odczytaj powiązane wartości jako `args`, pliki wejściowe z folderu `inputs`, zapisz pliki do `outputs` i zwróć odpowiedź przez `return`."
+          },
+          "timeout_seconds": {
+            "title": "Limit czasu (sekundy)"
+          },
+          "connection_id": {
+            "title": "Host sandboxa",
+            "description": "Host sandboxa, na którym ma działać krok. Gdy puste, domyślny host organizacji."
+          },
+          "runtime": {
+            "title": "Runtime",
+            "description": "Runtime hosta, w którym ma działać krok, z Node. Gdy puste, domyślny runtime połączenia."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argumenty"
+          },
+          "files": {
+            "title": "Pliki"
+          }
+        }
+      },
+      "code_python_sandbox": {
+        "config": {
+          "code": {
+            "title": "Kod",
+            "description": "Odczytaj powiązane wartości jako `args`, pliki wejściowe z folderu `inputs` i zapisz pliki do `outputs`. Przypisz odpowiedź do `result`."
+          },
+          "timeout_seconds": {
+            "title": "Limit czasu (sekundy)"
+          },
+          "connection_id": {
+            "title": "Host sandboxa",
+            "description": "Host sandboxa, na którym ma działać krok. Gdy puste, domyślny host organizacji."
+          },
+          "runtime": {
+            "title": "Runtime",
+            "description": "Runtime hosta, w którym ma działać krok. Gdy puste, domyślny runtime połączenia."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argumenty"
+          },
+          "files": {
+            "title": "Pliki"
+          }
+        }
+      },
+      "code_python_simple": {
+        "config": {
+          "code": {
+            "title": "Kod",
+            "description": "Odczytaj powiązane wartości jako `args`; ostatnie wyrażenie jest wynikiem."
+          },
+          "timeout_seconds": {
+            "title": "Limit czasu (sekundy)"
+          },
+          "max_memory_mb": {
+            "title": "Maks. pamięć (MB)"
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argumenty"
+          }
+        }
+      },
+      "control_foreach": {
+        "config": {
+          "item_error_policy": {
+            "title": "Gdy element się nie powiedzie",
+            "description": "Zatrzymaj kończy pętlę błędem przy pierwszym elemencie, który się nie powiedzie. Zbieraj zapisuje błąd w miejscu tego elementu i kontynuuje z resztą."
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Elementy"
+          }
+        }
+      },
+      "convert_csv_to_json": {
+        "config": {
+          "max_bytes": {
+            "title": "Maks. bajtów",
+            "description": "Maksymalna liczba bajtów pliku wejściowego i zakodowanego wyniku"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Rodzaj"
+          },
+          "file__file_id": {
+            "title": "Identyfikator pliku"
+          },
+          "file__content_type": {
+            "title": "Typ zawartości"
+          },
+          "file__byte_size": {
+            "title": "Rozmiar w bajtach"
+          }
+        }
+      },
+      "convert_json_to_csv": {
+        "config": {
+          "max_bytes": {
+            "title": "Maks. bajtów",
+            "description": "Maksymalna liczba bajtów pliku wejściowego i zakodowanego wyniku"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Rodzaj"
+          },
+          "file__file_id": {
+            "title": "Identyfikator pliku"
+          },
+          "file__content_type": {
+            "title": "Typ zawartości"
+          },
+          "file__byte_size": {
+            "title": "Rozmiar w bajtach"
+          }
+        }
+      },
+      "convert_pdf_to_png": {
+        "config": {
+          "pages": {
+            "title": "Strony",
+            "description": "Które strony wyrenderować, licząc od 1."
+          },
+          "dpi": {
+            "title": "DPI"
+          },
+          "max_bytes": {
+            "title": "Maks. bajtów"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Rodzaj"
+          },
+          "file__file_id": {
+            "title": "Identyfikator pliku"
+          },
+          "file__content_type": {
+            "title": "Typ zawartości"
+          },
+          "file__byte_size": {
+            "title": "Rozmiar w bajtach"
+          }
+        }
+      },
+      "convert_text_to_file": {
+        "config": {
+          "filename": {
+            "title": "Nazwa pliku"
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Tekst"
+          }
+        }
+      },
+      "core_input": {
+        "config": {
+          "fields": {
+            "title": "Pola"
+          },
+          "input_schema": {
+            "description": "Kontrakt JSON Schema Draft 2020-12 dla wejścia w postaci obiektu JSON; referencje muszą być lokalne dla tego dokumentu"
+          }
+        }
+      },
+      "core_output": {
+        "input": {
+          "text": {
+            "title": "Tekst"
+          },
+          "sources": {
+            "title": "Źródła"
+          },
+          "artifacts": {
+            "title": "Artefakty"
+          },
+          "structured": {
+            "title": "Wartość strukturalna"
+          }
+        }
+      },
+      "data_combine": {
+        "config": {
+          "mode": {
+            "title": "Tryb"
+          },
+          "key": {
+            "title": "Klucz",
+            "description": "Pole, po którym dopasowywane są obiekty obu list, dla by_key"
+          }
+        },
+        "input": {
+          "first": {
+            "title": "Pierwsza"
+          },
+          "second": {
+            "title": "Druga"
+          }
+        }
+      },
+      "data_filter": {
+        "config": {
+          "condition": {
+            "title": "Warunek",
+            "description": "Wyrażenie JMESPath dla każdego elementu, np. item.score > `50`"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Elementy"
+          }
+        }
+      },
+      "data_map": {
+        "config": {
+          "mappings": {
+            "title": "Mapowania"
+          }
+        },
+        "input": {
+          "source": {
+            "title": "Źródło"
+          }
+        }
+      },
+      "debug_echo": {
+        "config": {
+          "message": {
+            "title": "Wiadomość"
+          }
+        },
+        "input": {
+          "message": {
+            "title": "Wiadomość"
+          }
+        }
+      },
+      "debug_relay": {
+        "input": {
+          "echoed": {
+            "title": "Odbita wartość"
+          },
+          "received_at": {
+            "title": "Otrzymano"
+          }
+        }
+      },
+      "decide_choose": {
+        "config": {
+          "question": {
+            "title": "Pytanie",
+            "description": "O czym decyduje się w sprawie tekstu, zadane tak, jak zapytałby człowiek"
+          },
+          "secret_id": {
+            "title": "Klucz TypeSafe",
+            "description": "Klucz API TypeSafe z vault"
+          },
+          "model": {
+            "title": "Model",
+            "description": "Który Jev odpowiada: bieżące wydanie, wersja preview albo przypięta wersja"
+          },
+          "min_confidence": {
+            "title": "Minimalna pewność",
+            "description": "Poniżej tej wartości krok wychodzi portem Niepewne, zamiast działać według odpowiedzi"
+          },
+          "options": {
+            "title": "Opcje"
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Tekst"
+          }
+        }
+      },
+      "decide_score": {
+        "config": {
+          "question": {
+            "title": "Pytanie",
+            "description": "O czym decyduje się w sprawie tekstu, zadane tak, jak zapytałby człowiek"
+          },
+          "secret_id": {
+            "title": "Klucz TypeSafe",
+            "description": "Klucz API TypeSafe z vault"
+          },
+          "model": {
+            "title": "Model",
+            "description": "Który Jev odpowiada: bieżące wydanie, wersja preview albo przypięta wersja"
+          },
+          "min_confidence": {
+            "title": "Minimalna pewność",
+            "description": "Poniżej tej wartości krok wychodzi portem Niepewne, zamiast działać według odpowiedzi"
+          },
+          "levels": {
+            "title": "Poziomy",
+            "description": "Co oznacza każdy poziom, od 0 w górę - 'niepilne', 'pilne', ..."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Tekst"
+          }
+        }
+      },
+      "decide_yes_no": {
+        "config": {
+          "question": {
+            "title": "Pytanie",
+            "description": "O czym decyduje się w sprawie tekstu, zadane tak, jak zapytałby człowiek"
+          },
+          "secret_id": {
+            "title": "Klucz TypeSafe",
+            "description": "Klucz API TypeSafe z vault"
+          },
+          "model": {
+            "title": "Model",
+            "description": "Który Jev odpowiada: bieżące wydanie, wersja preview albo przypięta wersja"
+          },
+          "min_confidence": {
+            "title": "Minimalna pewność",
+            "description": "Poniżej tej wartości krok wychodzi portem Niepewne, zamiast działać według odpowiedzi"
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Tekst"
+          }
+        }
+      },
+      "email_send": {
+        "config": {
+          "smtp_secret_id": {
+            "title": "Konto SMTP",
+            "description": "Wybierz konto SMTP z vault albo zostaw puste, aby użyć nadawcy platformy."
+          },
+          "reply_to": {
+            "title": "Adres do odpowiedzi",
+            "description": "Dokąd trafia odpowiedź. Gdy puste, domyślny adres do odpowiedzi nadawcy."
+          }
+        },
+        "input": {
+          "to": {
+            "title": "Do",
+            "description": "Do dziesięciu adresów. Każdy dostaje własną kopię."
+          },
+          "subject": {
+            "title": "Temat"
+          },
+          "body": {
+            "title": "Treść",
+            "description": "Zwykły tekst."
+          }
+        }
+      },
+      "error_handle": {
+        "config": {
+          "branches": {
+            "title": "Gałęzie"
+          }
+        }
+      },
+      "error_raise": {
+        "config": {
+          "code": {
+            "title": "Kod",
+            "description": "Kod wielkimi literami, który może dopasować gałąź error.handle, np. ORDER_REJECTED."
+          },
+          "message": {
+            "title": "Komunikat"
+          },
+          "details": {
+            "title": "Szczegóły"
+          },
+          "retryable": {
+            "title": "Można ponowić",
+            "description": "Czy polityka ponowień kroku może spróbować ponownie."
+          }
+        }
+      },
+      "file_read": {
+        "config": {
+          "parse_as": {
+            "title": "Parsuj jako"
+          },
+          "max_bytes": {
+            "title": "Maks. bajtów"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Rodzaj"
+          },
+          "file__file_id": {
+            "title": "Identyfikator pliku"
+          },
+          "file__content_type": {
+            "title": "Typ zawartości"
+          },
+          "file__byte_size": {
+            "title": "Rozmiar w bajtach"
+          }
+        }
+      },
+      "file_write": {
+        "config": {
+          "format": {
+            "title": "Format"
+          },
+          "filename": {
+            "title": "Nazwa pliku",
+            "description": "Jak nazwać plik. Gdy puste, `output` z rozszerzeniem formatu, np. `output.csv`."
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Tekst"
+          },
+          "json_value": {
+            "title": "Wartość JSON"
+          },
+          "rows": {
+            "title": "Wiersze"
+          }
+        }
+      },
+      "flow_await_reply": {
+        "config": {
+          "provider": {
+            "title": "Dostawca skrzynki"
+          },
+          "connection_id": {
+            "title": "Połączona skrzynka organizacji"
+          },
+          "mailbox": {
+            "title": "Współdzielona skrzynka Outlook"
+          },
+          "poll_seconds": {
+            "title": "Sprawdzaj co (sekundy)"
+          }
+        },
+        "input": {
+          "thread_id": {
+            "title": "Identyfikator wątku"
+          },
+          "expected_sender": {
+            "title": "Oczekiwany nadawca"
+          },
+          "not_before": {
+            "title": "Nie wcześniej niż"
+          },
+          "deadline": {
+            "title": "Termin"
+          },
+          "anchor_message_id": {
+            "title": "Identyfikator wiadomości bazowej"
+          }
+        }
+      },
+      "flow_wait": {
+        "config": {
+          "seconds": {
+            "title": "Czekaj przez (sekundy)",
+            "description": "Po jakim czasie od dotarcia do kroku kontynuować; najwyżej trzydzieści dni. Przy czekaniu na wywołanie - najdłuższy czas oczekiwania na nie"
+          },
+          "until_called": {
+            "title": "Czekaj na wywołanie linku wznowienia runa",
+            "description": "Kontynuuj, gdy zostanie wywołany adres z kroku Link wznowienia, i przekaż dalej to, co do niego wysłano"
+          }
+        },
+        "input": {
+          "until": {
+            "title": "Do"
+          }
+        }
+      },
+      "html_parse": {
+        "config": {
+          "selector": {
+            "title": "Selektor CSS",
+            "description": "Elementy do wybrania, jak w arkuszu stylów - na przykład `table.prices td` albo `a.download`. Puste nie wybiera niczego."
+          },
+          "max_matches": {
+            "title": "Maks. dopasowań",
+            "description": "Ile wybranych elementów zwrócić"
+          },
+          "base_url": {
+            "title": "Adres bazowy",
+            "description": "Względem niego rozwiązywane są linki względne. Nigdy nie jest pobierany."
+          },
+          "max_chars": {
+            "title": "Maks. znaków tekstu",
+            "description": "Czytelny tekst jest ucinany na tej długości"
+          }
+        },
+        "input": {
+          "html": {
+            "title": "HTML",
+            "description": "HTML, najwyżej 2 000 000 znaków"
+          },
+          "file": {
+            "description": "Plik z HTML, najwyżej 5 000 000 bajtów"
+          },
+          "file__kind": {
+            "title": "Rodzaj"
+          },
+          "file__file_id": {
+            "title": "Identyfikator pliku"
+          },
+          "file__content_type": {
+            "title": "Typ zawartości"
+          },
+          "file__byte_size": {
+            "title": "Rozmiar w bajtach"
+          }
+        }
+      },
+      "http_download": {
+        "config": {
+          "url": {
+            "title": "URL",
+            "description": "URL http lub https. Może być powiązany z wcześniejszym krokiem."
+          },
+          "headers": {
+            "title": "Nagłówki"
+          },
+          "auth__kind": {
+            "title": "Rodzaj"
+          },
+          "auth__secret_id": {
+            "title": "Identyfikator sekretu",
+            "description": "Dane dostępowe HTTP z vault, powiązane z originami, do których wolno je wysyłać."
+          },
+          "auth__header_name": {
+            "title": "Nazwa nagłówka",
+            "description": "Dla `header`: nagłówek, w którym wysyłany jest token, np. X-Api-Key."
+          },
+          "auth__header_prefix": {
+            "title": "Prefiks nagłówka",
+            "description": "Opcjonalny schemat dla własnego nagłówka, np. Token, wysyłany przed kluczem, jak w Authorization: Token abc123."
+          },
+          "auth__query_name": {
+            "title": "Nazwa parametru zapytania",
+            "description": "Dla `query`: parametr URL, w którym wysyłany jest token, np. api_key."
+          },
+          "timeout_seconds": {
+            "title": "Limit czasu (sekundy)"
+          },
+          "max_bytes": {
+            "title": "Maks. bajtów",
+            "description": "Odrzuć plik większy niż ten rozmiar, niezależnie od tego, jak opisuje go serwer."
+          },
+          "expected_content_types": {
+            "title": "Oczekiwane typy zawartości",
+            "description": "Przyjmuj tylko te typy mediów, rozpoznane po bajtach samego pliku - `application/pdf`, `image/png`. Puste przyjmuje każdy."
+          },
+          "filename": {
+            "title": "Nazwa pliku",
+            "description": "Jak nazwać zapisany plik. Gdy puste, nazwa jest brana z URL."
+          }
+        }
+      },
+      "http_request": {
+        "config": {
+          "method": {
+            "title": "Metoda"
+          },
+          "url": {
+            "title": "URL",
+            "description": "URL http lub https. Może być powiązany z wcześniejszym krokiem."
+          },
+          "headers": {
+            "title": "Nagłówki"
+          },
+          "auth__kind": {
+            "title": "Rodzaj"
+          },
+          "auth__secret_id": {
+            "title": "Identyfikator sekretu",
+            "description": "Dane dostępowe HTTP z vault, powiązane z originami, do których wolno je wysyłać."
+          },
+          "auth__header_name": {
+            "title": "Nazwa nagłówka",
+            "description": "Dla `header`: nagłówek, w którym wysyłany jest token, np. X-Api-Key."
+          },
+          "auth__header_prefix": {
+            "title": "Prefiks nagłówka",
+            "description": "Opcjonalny schemat dla własnego nagłówka, np. Token, wysyłany przed kluczem, jak w Authorization: Token abc123."
+          },
+          "auth__query_name": {
+            "title": "Nazwa parametru zapytania",
+            "description": "Dla `query`: parametr URL, w którym wysyłany jest token, np. api_key."
+          },
+          "timeout_seconds": {
+            "title": "Limit czasu (sekundy)"
+          },
+          "max_response_bytes": {
+            "title": "Maks. bajtów odpowiedzi"
+          },
+          "idempotency_key_header": {
+            "title": "Nagłówek klucza idempotencji",
+            "description": "Wysyłaj stały klucz operacji tego kroku w tym nagłówku (np. Idempotency-Key), żeby ponowienie rozpoznane przez drugą stronę było bezpieczne."
+          },
+          "on_error_status": {
+            "title": "Przy statusie błędu",
+            "description": "Czy status inny niż 2xx kończy krok błędem, czy jest zwracany jako jego wynik."
+          },
+          "pagination__mode": {
+            "title": "Tryb"
+          },
+          "pagination__items_path": {
+            "title": "Ścieżka elementów",
+            "description": "Gdzie są elementy każdej strony, na przykład data albo results."
+          },
+          "pagination__next_path": {
+            "title": "Ścieżka następnej strony",
+            "description": "Dla next_url i cursor: gdzie jest URL lub kursor następnej strony, na przykład links.next albo meta.next_cursor."
+          },
+          "pagination__param": {
+            "title": "Parametr",
+            "description": "Dla cursor i page: parametr zapytania, który go przenosi."
+          },
+          "pagination__first_page": {
+            "title": "Pierwsza strona"
+          },
+          "pagination__max_pages": {
+            "title": "Maks. stron",
+            "description": "Najwięcej pobieranych stron."
+          }
+        },
+        "input": {
+          "body": {
+            "title": "Treść"
+          }
+        }
+      },
+      "http_upload": {
+        "config": {
+          "method": {
+            "title": "Metoda"
+          },
+          "url": {
+            "title": "URL",
+            "description": "URL http lub https. Może być powiązany z wcześniejszym krokiem."
+          },
+          "headers": {
+            "title": "Nagłówki"
+          },
+          "auth__kind": {
+            "title": "Rodzaj"
+          },
+          "auth__secret_id": {
+            "title": "Identyfikator sekretu",
+            "description": "Dane dostępowe HTTP z vault, powiązane z originami, do których wolno je wysyłać."
+          },
+          "auth__header_name": {
+            "title": "Nazwa nagłówka",
+            "description": "Dla `header`: nagłówek, w którym wysyłany jest token, np. X-Api-Key."
+          },
+          "auth__header_prefix": {
+            "title": "Prefiks nagłówka",
+            "description": "Opcjonalny schemat dla własnego nagłówka, np. Token, wysyłany przed kluczem, jak w Authorization: Token abc123."
+          },
+          "auth__query_name": {
+            "title": "Nazwa parametru zapytania",
+            "description": "Dla `query`: parametr URL, w którym wysyłany jest token, np. api_key."
+          },
+          "timeout_seconds": {
+            "title": "Limit czasu (sekundy)"
+          },
+          "max_response_bytes": {
+            "title": "Maks. bajtów odpowiedzi"
+          },
+          "idempotency_key_header": {
+            "title": "Nagłówek klucza idempotencji",
+            "description": "Wysyłaj stały klucz operacji tego kroku w tym nagłówku (np. Idempotency-Key), żeby ponowienie rozpoznane przez drugą stronę było bezpieczne."
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Rodzaj"
+          },
+          "file__file_id": {
+            "title": "Identyfikator pliku"
+          },
+          "file__content_type": {
+            "title": "Typ zawartości"
+          },
+          "file__byte_size": {
+            "title": "Rozmiar w bajtach"
+          }
+        }
+      },
+      "human_approval": {
+        "config": {
+          "title": {
+            "title": "Tytuł",
+            "description": "Pytanie, na które odpowiada zatwierdzający, np. Wysłać zwrot?"
+          },
+          "approvers": {
+            "title": "Zatwierdzający",
+            "description": "Kto może decydować. Gdy puste, każdy, kto decyduje o zatwierdzeniach."
+          },
+          "timeout_hours": {
+            "title": "Limit czasu (godziny)",
+            "description": "Jak długo run czeka, zanim prośba wygaśnie. Gdy puste, bez końca."
+          },
+          "editable": {
+            "title": "Pozwól zatwierdzającemu edytować",
+            "description": "Pokaż powiązaną propozycję w edytorze; wersja zatwierdzona przez zatwierdzającego wychodzi jako ostateczna."
+          },
+          "proposal_label": {
+            "title": "Etykieta propozycji",
+            "description": "Jak nazywa się propozycja, np. Odpowiedź. Gdy puste, Propozycja."
+          },
+          "proposal_format": {
+            "title": "Format propozycji",
+            "description": "Czy propozycja jest zwykłym tekstem, czy Markdownem."
+          },
+          "choices": {
+            "title": "Sposoby zatwierdzenia",
+            "description": "Zaproponuj je zamiast zwykłego Zatwierdź: każdy z jednym przyciskiem i jednym portem wyjściowym, w tej kolejności, a krok nie ma portu Zatwierdzone. Gdy puste, krok zatwierdza albo odrzuca."
+          }
+        },
+        "input": {
+          "details": {
+            "title": "Szczegóły"
+          },
+          "proposal": {
+            "title": "Propozycja",
+            "description": "Tekst, który sprawdza zatwierdzający i który edytuje, gdy krok na to pozwala."
+          }
+        }
+      },
+      "image_transform": {
+        "config": {
+          "crop__left": {
+            "title": "Od lewej"
+          },
+          "crop__top": {
+            "title": "Od góry"
+          },
+          "crop__width": {
+            "title": "Szerokość"
+          },
+          "crop__height": {
+            "title": "Wysokość"
+          },
+          "resize__width": {
+            "title": "Szerokość"
+          },
+          "resize__height": {
+            "title": "Wysokość"
+          },
+          "resize__mode": {
+            "title": "Tryb"
+          },
+          "rotate_degrees": {
+            "title": "Obrót (stopnie)",
+            "description": "Zgodnie z ruchem wskazówek zegara"
+          },
+          "output_format": {
+            "title": "Format wyjściowy"
+          },
+          "quality": {
+            "title": "Jakość",
+            "description": "Dla JPEG i WebP"
+          },
+          "max_bytes": {
+            "title": "Maks. bajtów"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Rodzaj"
+          },
+          "file__file_id": {
+            "title": "Identyfikator pliku"
+          },
+          "file__content_type": {
+            "title": "Typ zawartości"
+          },
+          "file__byte_size": {
+            "title": "Rozmiar w bajtach"
+          }
+        }
+      },
+      "knowledge_add": {
+        "config": {
+          "collection_ids": {
+            "title": "Kolekcje",
+            "description": "Kolekcje wiedzy, do których dodać dokument."
+          }
+        },
+        "input": {
+          "title": {
+            "title": "Tytuł",
+            "description": "Nazwa dokumentu. Wymagana przy tekście; bez niej plik zachowuje własną nazwę."
+          },
+          "text": {
+            "title": "Tekst"
+          },
+          "file__kind": {
+            "title": "Rodzaj"
+          },
+          "file__file_id": {
+            "title": "Identyfikator pliku"
+          },
+          "file__content_type": {
+            "title": "Typ zawartości"
+          },
+          "file__byte_size": {
+            "title": "Rozmiar w bajtach"
+          }
+        }
+      },
+      "knowledge_search": {
+        "config": {
+          "collection_ids": {
+            "title": "Kolekcje",
+            "description": "Kolekcje wiedzy do przeszukania."
+          },
+          "top_k": {
+            "title": "Top K",
+            "description": "Najwięcej fragmentów do zwrócenia."
+          }
+        },
+        "input": {
+          "query": {
+            "title": "Zapytanie"
+          }
+        }
+      },
+      "logic_if": {
+        "config": {
+          "condition": {
+            "title": "Warunek",
+            "description": "Wyrażenie JMESPath na wejściu, oceniane jako prawda lub fałsz - na przykład value.status == 'approved'."
+          }
+        },
+        "input": {
+          "value": {
+            "title": "Wartość"
+          }
+        }
+      },
+      "logic_merge": {
+        "config": {
+          "wait_for": {
+            "title": "Czekaj na",
+            "description": "`one`: gałąź, która się wykonała, przekazana dalej jako `value`. `all`: każda gałąź, przekazana dalej po nazwie jako `branches`"
+          },
+          "branch_keys": {
+            "title": "Nazwy gałęzi",
+            "description": "Nazwa dla każdej przychodzącej gałęzi. Gałąź bez nazwy jest nazywana od kroku, z którego wychodzi, albo od gałęzi kroku Rozdziel"
+          }
+        }
+      },
+      "logic_split": {
+        "config": {
+          "branches": {
+            "title": "Gałęzie",
+            "description": "Gałęzie, każda jako nazwany port wyjściowy; co najmniej dwie, każda z własną nazwą"
+          }
+        }
+      },
+      "logic_switch": {
+        "config": {
+          "rules": {
+            "title": "Reguły"
+          }
+        },
+        "input": {
+          "value": {
+            "title": "Wartość"
+          }
+        }
+      },
+      "loop_yield": {
+        "input": {
+          "value": {
+            "title": "Wartość"
+          }
+        }
+      },
+      "mattermost_channels_find": {
+        "config": {
+          "bot_id": {
+            "title": "Bot Mattermost",
+            "description": "Jako który z botów Mattermost organizacji działa ten krok"
+          },
+          "limit": {
+            "title": "Ile kanałów wypisać",
+            "description": "Najwyżej tyle"
+          }
+        },
+        "input": {
+          "query": {
+            "title": "Nazwa zawiera",
+            "description": "Fragment nazwy kanału"
+          },
+          "channel_id": {
+            "title": "Kanał, na którym jest bot",
+            "description": "W Mattermost to z niego odczytywany jest zespół do przeszukania"
+          }
+        }
+      },
+      "mattermost_members_list": {
+        "config": {
+          "bot_id": {
+            "title": "Bot Mattermost",
+            "description": "Jako który z botów Mattermost organizacji działa ten krok"
+          },
+          "limit": {
+            "title": "Ile osób wypisać",
+            "description": "Najwyżej tyle"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanał"
+          }
+        }
+      },
+      "mattermost_message_send": {
+        "config": {
+          "bot_id": {
+            "title": "Bot Mattermost",
+            "description": "Jako który z botów Mattermost organizacji działa ten krok"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanał",
+            "description": "Identyfikator kanału na platformie"
+          },
+          "text": {
+            "title": "Wiadomość"
+          },
+          "thread_id": {
+            "title": "Wątek",
+            "description": "Wątek, w którym odpowiedzieć: znacznik czasu wątku Slack, identyfikator głównego posta Mattermost, temat forum Telegram"
+          }
+        }
+      },
+      "mattermost_messages_read": {
+        "config": {
+          "bot_id": {
+            "title": "Bot Mattermost",
+            "description": "Jako który z botów Mattermost organizacji działa ten krok"
+          },
+          "limit": {
+            "title": "Ile wiadomości odczytać",
+            "description": "Najwyżej tyle"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanał"
+          },
+          "thread_id": {
+            "title": "Wątek",
+            "description": "Odczytaj zamiast tego ten wątek"
+          }
+        }
+      },
+      "mcp_call": {
+        "config": {
+          "connection_id": {
+            "title": "Serwer",
+            "description": "Jeden z serwerów MCP organizacji."
+          },
+          "tool": {
+            "title": "Narzędzie",
+            "description": "Narzędzie do wywołania, pod nazwą nadaną przez serwer."
+          },
+          "idempotency_key_argument": {
+            "title": "Argument klucza idempotencji",
+            "description": "Wysyłaj stały klucz operacji tego kroku jako ten argument narzędzia, gdy narzędzie go deklaruje, żeby ponowienie rozpoznane przez serwer było bezpieczne."
+          },
+          "approval": {
+            "title": "Proś o zatwierdzenie",
+            "description": "Przed narzędziem, którego serwer nie oznacza jako tylko do odczytu, przed każdym wywołaniem albo nigdy."
+          },
+          "approvers": {
+            "title": "Zatwierdzający",
+            "description": "Kto może zatwierdzić wywołanie. Gdy puste, każdy, kto decyduje o zatwierdzeniach."
+          },
+          "timeout_seconds": {
+            "title": "Limit czasu (sekundy)",
+            "description": "Ile czasu narzędzie może mieć na odpowiedź."
+          },
+          "on_tool_error": {
+            "title": "Gdy narzędzie odpowie błędem",
+            "description": "Czy błąd zwrócony przez narzędzie kończy krok błędem, czy jest jego wynikiem."
+          }
+        },
+        "input": {
+          "arguments": {
+            "title": "Argumenty",
+            "description": "Obiekt zgodny z własnym schematem wejścia narzędzia."
+          }
+        }
+      },
+      "notification_send": {
+        "config": {
+          "recipients": {
+            "title": "Odbiorcy",
+            "description": "Członkowie organizacji do powiadomienia."
+          },
+          "subject": {
+            "title": "Temat",
+            "description": "Nagłówek powiadomienia."
+          },
+          "channels": {
+            "title": "Kanały",
+            "description": "Gdzie może do nich dotrzeć. Nadal obowiązują preferencje każdej osoby i jej wyraźna zgoda na kanały prywatne; workflow nie może wybrać za nich miejsca docelowego w czacie."
+          }
+        },
+        "input": {
+          "message": {
+            "title": "Wiadomość"
+          }
+        }
+      },
+      "slack_channels_find": {
+        "config": {
+          "bot_id": {
+            "title": "Bot Slack",
+            "description": "Jako który z botów Slack organizacji działa ten krok"
+          },
+          "limit": {
+            "title": "Ile kanałów wypisać",
+            "description": "Najwyżej tyle"
+          }
+        },
+        "input": {
+          "query": {
+            "title": "Nazwa zawiera",
+            "description": "Fragment nazwy kanału"
+          },
+          "channel_id": {
+            "title": "Kanał, na którym jest bot",
+            "description": "W Mattermost to z niego odczytywany jest zespół do przeszukania"
+          }
+        }
+      },
+      "slack_members_list": {
+        "config": {
+          "bot_id": {
+            "title": "Bot Slack",
+            "description": "Jako który z botów Slack organizacji działa ten krok"
+          },
+          "limit": {
+            "title": "Ile osób wypisać",
+            "description": "Najwyżej tyle"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanał"
+          }
+        }
+      },
+      "slack_message_send": {
+        "config": {
+          "bot_id": {
+            "title": "Bot Slack",
+            "description": "Jako który z botów Slack organizacji działa ten krok"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanał",
+            "description": "Identyfikator kanału na platformie"
+          },
+          "text": {
+            "title": "Wiadomość"
+          },
+          "thread_id": {
+            "title": "Wątek",
+            "description": "Wątek, w którym odpowiedzieć: znacznik czasu wątku Slack, identyfikator głównego posta Mattermost, temat forum Telegram"
+          }
+        }
+      },
+      "slack_messages_read": {
+        "config": {
+          "bot_id": {
+            "title": "Bot Slack",
+            "description": "Jako który z botów Slack organizacji działa ten krok"
+          },
+          "limit": {
+            "title": "Ile wiadomości odczytać",
+            "description": "Najwyżej tyle"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanał"
+          },
+          "thread_id": {
+            "title": "Wątek",
+            "description": "Odczytaj zamiast tego ten wątek"
+          }
+        }
+      },
+      "table_create": {
+        "config": {
+          "name": {
+            "title": "Nazwa"
+          },
+          "description": {
+            "title": "Opis"
+          },
+          "columns": {
+            "title": "Kolumny"
+          },
+          "visibility": {
+            "title": "Widoczność"
+          }
+        }
+      },
+      "table_describe": {
+        "config": {
+          "table": {
+            "description": "Tabela, na której pracuje ten krok, przypinana przy publikacji workflow."
+          },
+          "table__kind": {
+            "title": "Rodzaj"
+          },
+          "table__table_id": {
+            "title": "Identyfikator tabeli"
+          },
+          "table__column_ids": {
+            "title": "Identyfikatory kolumn"
+          },
+          "table__schema_version": {
+            "title": "Wersja schematu"
+          }
+        }
+      },
+      "table_exists": {
+        "input": {
+          "name": {
+            "title": "Nazwa"
+          }
+        }
+      },
+      "table_list": {
+        "config": {
+          "limit": {
+            "title": "Limit",
+            "description": "Najwięcej tabel do wypisania"
+          }
+        },
+        "input": {
+          "search": {
+            "title": "Szukaj"
+          }
+        }
+      },
+      "table_record_create": {
+        "config": {
+          "table": {
+            "description": "Tabela, na której pracuje ten krok, przypinana przy publikacji workflow."
+          },
+          "table__kind": {
+            "title": "Rodzaj"
+          },
+          "table__table_id": {
+            "title": "Identyfikator tabeli"
+          },
+          "table__column_ids": {
+            "title": "Identyfikatory kolumn"
+          },
+          "table__schema_version": {
+            "title": "Wersja schematu"
+          }
+        },
+        "input": {
+          "values": {
+            "title": "Wartości",
+            "description": "Wartości komórek według identyfikatora lub etykiety kolumny"
+          },
+          "external_id": {
+            "title": "Identyfikator zewnętrzny"
+          }
+        }
+      },
+      "table_record_delete": {
+        "config": {
+          "table": {
+            "description": "Tabela, na której pracuje ten krok, przypinana przy publikacji workflow."
+          },
+          "table__kind": {
+            "title": "Rodzaj"
+          },
+          "table__table_id": {
+            "title": "Identyfikator tabeli"
+          },
+          "table__column_ids": {
+            "title": "Identyfikatory kolumn"
+          },
+          "table__schema_version": {
+            "title": "Wersja schematu"
+          }
+        },
+        "input": {
+          "record_id": {
+            "title": "Identyfikator rekordu"
+          },
+          "expected_revision": {
+            "title": "Oczekiwana rewizja"
+          }
+        }
+      },
+      "table_record_exists": {
+        "config": {
+          "table": {
+            "description": "Tabela, na której pracuje ten krok, przypinana przy publikacji workflow."
+          },
+          "table__kind": {
+            "title": "Rodzaj"
+          },
+          "table__table_id": {
+            "title": "Identyfikator tabeli"
+          },
+          "table__column_ids": {
+            "title": "Identyfikatory kolumn"
+          },
+          "table__schema_version": {
+            "title": "Wersja schematu"
+          },
+          "filters": {
+            "title": "Filtry"
+          }
+        }
+      },
+      "table_record_get": {
+        "config": {
+          "table": {
+            "description": "Tabela, na której pracuje ten krok, przypinana przy publikacji workflow."
+          },
+          "table__kind": {
+            "title": "Rodzaj"
+          },
+          "table__table_id": {
+            "title": "Identyfikator tabeli"
+          },
+          "table__column_ids": {
+            "title": "Identyfikatory kolumn"
+          },
+          "table__schema_version": {
+            "title": "Wersja schematu"
+          }
+        },
+        "input": {
+          "record_id": {
+            "title": "Identyfikator rekordu"
+          },
+          "external_id": {
+            "title": "Identyfikator zewnętrzny"
+          }
+        }
+      },
+      "table_record_query": {
+        "config": {
+          "table": {
+            "description": "Tabela, na której pracuje ten krok, przypinana przy publikacji workflow."
+          },
+          "table__kind": {
+            "title": "Rodzaj"
+          },
+          "table__table_id": {
+            "title": "Identyfikator tabeli"
+          },
+          "table__column_ids": {
+            "title": "Identyfikatory kolumn"
+          },
+          "table__schema_version": {
+            "title": "Wersja schematu"
+          },
+          "filters": {
+            "title": "Filtry"
+          },
+          "sort__by": {
+            "title": "Według",
+            "description": "`created_at`, `updated_at` albo identyfikator kolumny. Remisy zawsze rozstrzyga identyfikator rekordu."
+          },
+          "sort__direction": {
+            "title": "Kierunek"
+          },
+          "limit": {
+            "title": "Limit"
+          },
+          "skip": {
+            "title": "Pomiń"
+          }
+        }
+      },
+      "table_record_update": {
+        "config": {
+          "table": {
+            "description": "Tabela, na której pracuje ten krok, przypinana przy publikacji workflow."
+          },
+          "table__kind": {
+            "title": "Rodzaj"
+          },
+          "table__table_id": {
+            "title": "Identyfikator tabeli"
+          },
+          "table__column_ids": {
+            "title": "Identyfikatory kolumn"
+          },
+          "table__schema_version": {
+            "title": "Wersja schematu"
+          }
+        },
+        "input": {
+          "record_id": {
+            "title": "Identyfikator rekordu"
+          },
+          "values": {
+            "title": "Wartości",
+            "description": "Tylko komórki do zmiany, według identyfikatora lub etykiety kolumny"
+          },
+          "expected_revision": {
+            "title": "Oczekiwana rewizja"
+          }
+        }
+      },
+      "table_record_upsert": {
+        "config": {
+          "table": {
+            "description": "Tabela, na której pracuje ten krok, przypinana przy publikacji workflow."
+          },
+          "table__kind": {
+            "title": "Rodzaj"
+          },
+          "table__table_id": {
+            "title": "Identyfikator tabeli"
+          },
+          "table__column_ids": {
+            "title": "Identyfikatory kolumn"
+          },
+          "table__schema_version": {
+            "title": "Wersja schematu"
+          }
+        },
+        "input": {
+          "external_id": {
+            "title": "Identyfikator zewnętrzny"
+          },
+          "values": {
+            "title": "Wartości",
+            "description": "Wartości komórek według identyfikatora lub etykiety kolumny"
+          }
+        }
+      },
+      "telegram_members_list": {
+        "config": {
+          "bot_id": {
+            "title": "Bot Telegram",
+            "description": "Jako który z botów Telegram organizacji działa ten krok"
+          },
+          "limit": {
+            "title": "Ile osób wypisać",
+            "description": "Najwyżej tyle"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanał"
+          }
+        }
+      },
+      "telegram_message_send": {
+        "config": {
+          "bot_id": {
+            "title": "Bot Telegram",
+            "description": "Jako który z botów Telegram organizacji działa ten krok"
+          }
+        },
+        "input": {
+          "channel_id": {
+            "title": "Kanał",
+            "description": "Identyfikator kanału na platformie"
+          },
+          "text": {
+            "title": "Wiadomość"
+          },
+          "thread_id": {
+            "title": "Wątek",
+            "description": "Wątek, w którym odpowiedzieć: znacznik czasu wątku Slack, identyfikator głównego posta Mattermost, temat forum Telegram"
+          }
+        }
+      },
+      "text_compare": {
+        "config": {
+          "method": {
+            "title": "Metoda",
+            "description": "Co jest liczone: znaki, wspólne słowa albo niezmienione wiersze"
+          },
+          "ignore_case": {
+            "title": "Ignoruj wielkość liter",
+            "description": "Traktuj wielkie i małe litery jako równe"
+          },
+          "ignore_whitespace": {
+            "title": "Ignoruj białe znaki",
+            "description": "Scal odstępy w wierszu, przytnij każdy wiersz i usuń puste wiersze; podziały wierszy nadal się liczą"
+          },
+          "ignore_punctuation": {
+            "title": "Ignoruj interpunkcję",
+            "description": "Pomiń interpunkcję"
+          },
+          "strip_quoted": {
+            "title": "Pomiń cytowaną pocztę i podpisy",
+            "description": "Usuń cytowane wiersze odpowiedzi, linię z autorem cytatu i wszystko po podpisie"
+          }
+        },
+        "input": {
+          "a": {
+            "title": "A",
+            "description": "Pierwszy tekst, np. oryginał"
+          },
+          "b": {
+            "title": "B",
+            "description": "Drugi tekst, np. wersja po edycji"
+          }
+        }
+      },
+      "text_extract": {
+        "config": {
+          "max_bytes": {
+            "title": "Maks. bajtów"
+          },
+          "max_chars": {
+            "title": "Maks. znaków"
+          }
+        },
+        "input": {
+          "file__kind": {
+            "title": "Rodzaj"
+          },
+          "file__file_id": {
+            "title": "Identyfikator pliku"
+          },
+          "file__content_type": {
+            "title": "Typ zawartości"
+          },
+          "file__byte_size": {
+            "title": "Rozmiar w bajtach"
+          }
+        }
+      },
+      "transform_aggregate": {
+        "config": {
+          "fields": {
+            "title": "Pola"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Elementy"
+          }
+        }
+      },
+      "transform_crypto": {
+        "config": {
+          "operation": {
+            "title": "Operacja"
+          },
+          "length": {
+            "title": "Długość",
+            "description": "Liczba losowych bajtów, dla random_hex"
+          }
+        },
+        "input": {
+          "text": {
+            "title": "Tekst"
+          }
+        }
+      },
+      "transform_date_time": {
+        "config": {
+          "operation": {
+            "title": "Operacja"
+          },
+          "amount": {
+            "title": "Ilość"
+          },
+          "unit": {
+            "title": "Jednostka"
+          },
+          "format": {
+            "title": "Format",
+            "description": "Jak to zapisać, np. %d.%m.%Y"
+          },
+          "timezone": {
+            "title": "Strefa czasowa",
+            "description": "Strefa czasowa IANA, np. Europe/Warsaw. Gdy puste: strefa workflow"
+          }
+        },
+        "input": {
+          "value": {
+            "title": "Wartość"
+          }
+        }
+      },
+      "transform_edit_fields": {
+        "config": {
+          "set": {
+            "title": "Ustaw"
+          },
+          "remove": {
+            "title": "Usuń"
+          },
+          "only_set": {
+            "title": "Tylko ustawione",
+            "description": "Zachowaj tylko pola ustawione tutaj, usuwając wszystkie pozostałe"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Elementy"
+          }
+        }
+      },
+      "transform_limit": {
+        "config": {
+          "count": {
+            "title": "Liczba",
+            "description": "Ile elementów zachować"
+          },
+          "from_end": {
+            "title": "Od końca",
+            "description": "Zachowaj ostatnie elementy zamiast pierwszych"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Elementy"
+          }
+        }
+      },
+      "transform_remove_duplicates": {
+        "config": {
+          "fields": {
+            "title": "Pola",
+            "description": "Pola, które dwa elementy muszą mieć wspólne, by były duplikatami; gdy puste, cały element"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Elementy"
+          }
+        }
+      },
+      "transform_sort": {
+        "config": {
+          "by": {
+            "title": "Według"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Elementy"
+          }
+        }
+      },
+      "transform_split_out": {
+        "config": {
+          "field": {
+            "title": "Pole"
+          },
+          "keep_other_fields": {
+            "title": "Zachowaj pozostałe pola",
+            "description": "Skopiuj pozostałe pola elementu do każdego nowego elementu"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Elementy"
+          }
+        }
+      },
+      "transform_summarize": {
+        "config": {
+          "group_by": {
+            "title": "Grupuj według"
+          },
+          "summaries": {
+            "title": "Podsumowania"
+          }
+        },
+        "input": {
+          "items": {
+            "title": "Elementy"
+          }
+        }
+      },
+      "trigger_channel_message": {
+        "config": {
+          "bot_id": {
+            "title": "Bot",
+            "description": "Który z botów Slack, Mattermost lub Telegram organizacji uruchamia workflow"
+          },
+          "chat_types": {
+            "title": "Gdzie",
+            "description": "Wiadomości bezpośrednie, kanały i grupy albo jedno i drugie"
+          },
+          "text_contains": {
+            "title": "Tylko gdy wiadomość zawiera",
+            "description": "Słowo lub fraza, bez względu na wielkość liter; gdy puste, każda wiadomość"
+          }
+        }
+      },
+      "trigger_form": {
+        "config": {
+          "fields": {
+            "title": "Pola"
+          },
+          "input_schema": {
+            "title": "Schemat wejścia"
+          },
+          "title": {
+            "title": "Tytuł",
+            "description": "Nagłówek strony"
+          },
+          "description": {
+            "title": "Opis",
+            "description": "Wyświetlany pod tytułem: do czego służy formularz"
+          },
+          "submit_label": {
+            "title": "Etykieta przycisku wysyłania",
+            "description": "Tekst na przycisku"
+          },
+          "success_message": {
+            "title": "Komunikat po wysłaniu",
+            "description": "Co strona wyświetla po przesłaniu odpowiedzi"
+          },
+          "appearance__accent": {
+            "title": "Kolor akcentu"
+          },
+          "appearance__width": {
+            "title": "Szerokość"
+          },
+          "appearance__layout": {
+            "title": "Układ"
+          }
+        }
+      },
+      "trigger_github": {
+        "config": {
+          "repository": {
+            "title": "Repozytorium",
+            "description": "Repozytorium w postaci owner/name"
+          },
+          "events": {
+            "title": "Uruchamia się przy",
+            "description": "Zdarzenia GitHub, które go uruchamiają"
+          },
+          "actions": {
+            "title": "Tylko te akcje",
+            "description": "Np. opened albo closed; gdy puste, dowolna akcja. Push nie ma żadnej"
+          },
+          "register_with_account": {
+            "title": "Skonfiguruj webhook za mnie",
+            "description": "Zarejestruj go w repozytorium przez połączone konto GitHub organizacji, jeśli jest połączone z uprawnieniem do zarządzania webhookami"
+          }
+        }
+      },
+      "trigger_gmail": {
+        "config": {
+          "subject_contains": {
+            "title": "Temat zawiera",
+            "description": "Słowo lub fraza w temacie, bez względu na wielkość liter"
+          },
+          "sender_contains": {
+            "title": "Nadawca zawiera",
+            "description": "Porównywane tylko z adresem nadawcy, nigdy z wyświetlaną nazwą, bez względu na wielkość liter: @acme.com to dokładnie ta domena (bez jej subdomen), pełny adres to ten adres, inny tekst to fragment adresu. Wymaga poczty uwierzytelnionej przez domenę nadawcy"
+          },
+          "label": {
+            "title": "Etykieta",
+            "description": "Jedna z etykiet skrzynki, dokładnie, np. INBOX albo IMPORTANT. Poczta z etykietą SENT, DRAFT, SPAM lub TRASH jest pomijana, chyba że to pole wskazuje tę etykietę"
+          }
+        }
+      },
+      "trigger_manual": {
+        "config": {
+          "fields": {
+            "title": "Pola"
+          },
+          "input_schema": {
+            "description": "Kontrakt JSON Schema Draft 2020-12 dla wejścia w postaci obiektu JSON; referencje muszą być lokalne dla tego dokumentu"
+          }
+        }
+      },
+      "trigger_outlook": {
+        "config": {
+          "folder": {
+            "title": "Folder",
+            "description": "Folder standardowy (inbox, archive, junkemail) albo wyświetlana nazwa folderu najwyższego poziomu, do którego reguła poczty odkłada pocztę do odczytania"
+          },
+          "mailbox": {
+            "title": "Skrzynka współdzielona",
+            "description": "Skrzynka współdzielona, którą może czytać połączone konto; puste oznacza jego własną. Wskazanie skrzynki wymaga uprawnienia do zarządzania połączeniami"
+          },
+          "subject_contains": {
+            "title": "Temat zawiera",
+            "description": "Słowo lub fraza w temacie, bez względu na wielkość liter"
+          },
+          "sender_contains": {
+            "title": "Nadawca zawiera",
+            "description": "Porównywane tylko z adresem nadawcy, nigdy z wyświetlaną nazwą, bez względu na wielkość liter: @acme.com to dokładnie ta domena (bez jej subdomen), pełny adres to ten adres, inny tekst to fragment adresu. Wymaga poczty uwierzytelnionej przez domenę nadawcy"
+          },
+          "has_attachments": {
+            "title": "Ma załączniki",
+            "description": "Tylko poczta z załącznikami (lub bez nich)"
+          },
+          "importance": {
+            "title": "Ważność",
+            "description": "Ważność ustawiona przez nadawcę"
+          },
+          "category": {
+            "title": "Kategoria",
+            "description": "Jedna z kategorii Outlook wiadomości, bez względu na wielkość liter"
+          }
+        }
+      },
+      "trigger_schedule": {
+        "config": {
+          "schedule_kind": {
+            "title": "Rodzaj harmonogramu"
+          },
+          "interval_seconds": {
+            "title": "Interwał (sekundy)",
+            "description": "Sekundy między runami, co najmniej minuta"
+          },
+          "cron_expression": {
+            "title": "Wyrażenie cron",
+            "description": "Pięć pól, w strefie czasowej workflow (UTC, chyba że jego ustawienia wskazują inną), np. 0 9 * * 1-5"
+          },
+          "input": {
+            "title": "Wejście",
+            "description": "Od czego zaczyna się każdy run, jako JSON"
+          }
+        }
+      },
+      "trigger_table_record": {
+        "config": {
+          "table": {
+            "description": "Tabela i kolumny, których zmiana go uruchamia - gdy żadnej nie wybrano, zmiana dowolnej kolumny."
+          },
+          "table__kind": {
+            "title": "Rodzaj"
+          },
+          "table__table_id": {
+            "title": "Identyfikator tabeli"
+          },
+          "table__column_ids": {
+            "title": "Identyfikatory kolumn"
+          },
+          "table__schema_version": {
+            "title": "Wersja schematu"
+          },
+          "events": {
+            "title": "Uruchamia się, gdy rekord zostanie",
+            "description": "Dodany, zmieniony lub usunięty. Gdy wybrano kolumny, zmiana uruchamia go tylko wtedy, gdy zmieniła się jedna z wybranych kolumn tabeli."
+          },
+          "filters": {
+            "title": "Filtry",
+            "description": "Każdy musi być spełniony dla rekordu - w postaci, w jakiej został dodany lub zmieniony, albo w jakiej był przed usunięciem"
+          }
+        }
+      },
+      "trigger_workflow_call": {
+        "config": {
+          "fields": {
+            "title": "Pola"
+          },
+          "input_schema": {
+            "description": "Kontrakt JSON Schema Draft 2020-12 dla wejścia w postaci obiektu JSON; referencje muszą być lokalne dla tego dokumentu"
+          }
+        }
+      },
+      "webhook_respond": {
+        "config": {
+          "status_code": {
+            "title": "Kod statusu",
+            "description": "Status HTTP, od 200 do 599."
+          },
+          "headers": {
+            "title": "Nagłówki"
+          }
+        },
+        "input": {
+          "body": {
+            "title": "Treść"
+          }
+        }
+      },
+      "workflow_run": {
+        "config": {
+          "workflow_id": {
+            "title": "Workflow",
+            "description": "Opublikowany workflow, który zaczyna się od wyzwalacza Wywołany przez workflow"
+          },
+          "wait": {
+            "title": "Czekaj na zakończenie",
+            "description": "Przekaż dalej jego odpowiedź. Gdy wyłączone, krok kontynuuje, gdy tylko workflow się uruchomi"
+          }
+        },
+        "input": {
+          "input": {
+            "title": "Wejście"
+          }
+        }
+      }
     }
   }
 }
