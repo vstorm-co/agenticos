@@ -94,6 +94,18 @@ class TestWhatIsRecorded:
         assert row.target == "echo 'a secret the command printed'"
         assert row.detail == ""
 
+    async def test_a_command_preserves_its_explicit_working_directory(self, tmp_path: Path):
+        folder = tmp_path / "reports"
+        folder.mkdir()
+        recorder, session = _wrap(tmp_path)
+
+        result = await recorder.run(["pwd"], cwd=str(folder))
+
+        assert Path(result.stdout.strip()).resolve() == folder.resolve()
+        assert len(session.rows) == 1
+        assert session.rows[0].op == "execute"
+        assert session.rows[0].ok is True
+
     async def test_a_shell_command_is_recorded_as_written(self, tmp_path: Path):
         """The console's `execute` hands the model's command to a shell as one
         string, so that string is the operation."""
@@ -569,7 +581,10 @@ class TestSetUpOnFirstUse:
         assert {entry.name for entry in listing} == {"skills"}
         assert [row.target for row in session.rows] == ["skills/s/SKILL.md", "."]
 
-    async def test_an_operation_arriving_meanwhile_waits_for_the_set_up(self, tmp_path: Path):
+    @pytest.mark.parametrize("second_is_question", [False, True])
+    async def test_an_operation_arriving_meanwhile_waits_for_the_set_up(
+        self, tmp_path: Path, second_is_question: bool
+    ):
         recorder, _ = _wrap(tmp_path)
         release = anyio.Event()
         order: list[str] = []
@@ -580,7 +595,10 @@ class TestSetUpOnFirstUse:
             order.append("set up")
 
         async def operation(name: str) -> None:
-            await recorder.write_text(name, name)
+            if second_is_question and name == "second.txt":
+                await recorder.exists(name)
+            else:
+                await recorder.write_text(name, name)
             order.append(name)
 
         recorder.prepare_on_first_use(set_up)

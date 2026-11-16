@@ -1394,7 +1394,27 @@ class TestTheBundledSkill:
             "templates/live-table.html",
             "templates/report.html",
             "references/design-recipes.md",
+            "references/styles-and-deliverables.md",
+            "references/app-design-playbook.md",
+            "references/runtime-and-verification.md",
+            "references/ui-components.md",
+            "templates/component-studio.html",
+            "templates/editorial-brief.html",
+            "templates/decision-workbench.html",
+            "templates/slide-deck.html",
         }
+
+    def test_product_studio_is_admitted_as_a_self_contained_page(self) -> None:
+        from app.services import skill_library
+
+        skill = skill_library.get("visual-design")
+        assert skill is not None
+        page = next(
+            resource.content
+            for resource in skill.resources
+            if resource.name == "templates/product-studio.html"
+        )
+        assert lint_page(page.encode()) == []
 
     def test_its_class_table_is_exactly_what_kit_3_defines(self) -> None:
         """Every class the skill names is real, and every real one is named."""
@@ -1406,12 +1426,16 @@ class TestTheBundledSkill:
         named = set(re.findall(r"(?<![\w-])ao-[a-z0-9]+(?:-[a-z0-9]+)*", recipes))
         assert named == KIT_CLASSES[3]
 
-    def test_every_template_is_built_on_kit_3_and_passes_the_lint(self) -> None:
+    def test_every_template_uses_the_kit_or_its_own_style_and_passes_the_lint(self) -> None:
         for resource in self._skill().resources:
             if not resource.name.startswith("templates/"):
                 continue
-            assert "lib/agenticos-3.css" in resource.content, resource.name
-            assert "lib/agenticos-3.js" in resource.content, resource.name
+            assert "lib/agenticos-3.css" in resource.content or "<style>" in resource.content, (
+                resource.name
+            )
+            assert "lib/agenticos-3.js" in resource.content or "<script" in resource.content, (
+                resource.name
+            )
             bound = ["tickets"] if resource.name == "templates/live-table.html" else []
             assert lint_page(resource.content.encode(), bound=bound) == [], resource.name
 

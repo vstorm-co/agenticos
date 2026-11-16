@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -14,7 +15,7 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return {
     ...actual,
-    apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+    apiClient: { get: vi.fn(), put: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -383,4 +384,165 @@ it("returns to the newest attempt page when another fire starts", async () => {
   view.rerender(<TriggerRunsView trigger={trigger()} pendingSince={Date.now() - 1000} />);
   expect(await screen.findByText(/Enable Act as creator/)).toBeVisible();
   expect(screen.queryByText("Starting…")).toBeNull();
+});
+
+it("shows paused setup status without granting non-owners a source-review control", () => {
+  render(
+    <TriggerRow
+      trigger={trigger({
+        setup_required: true,
+        can_manage: false,
+        created_by_user_id: "someone-else",
+      })}
+    />,
+    { wrapper },
+  );
+  expect(screen.getByText("Setup required")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Setup required" })).not.toBeInTheDocument();
+});
+
+it.each([true, false])(
+  "shows stop for a parked routine only when the server allows it (%s)",
+  async (allowed) => {
+    vi.mocked(apiClient.post).mockClear();
+    serveRuns([run({ status: "awaiting_approval" })]);
+    const normal = vi.mocked(apiClient.get).getMockImplementation()!;
+    let stopped = false;
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+      if (path.endsWith("/can-stop")) return allowed;
+      if (path === "/runs" && stopped) return { items: [run({ status: "cancelled" })], total: 1 };
+      return normal(path, options);
+    });
+    vi.mocked(apiClient.post).mockImplementation(async () => {
+      stopped = true;
+      return null;
+    });
+    render(<TriggerRunsView trigger={trigger({ conversation_id: "c1" })} pendingSince={null} />, {
+      wrapper,
+    });
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith("/runs/r1/can-stop", {
+        signal: expect.any(AbortSignal),
+      }),
+    );
+    if (allowed) {
+      await userEvent.click(await screen.findByRole("button", { name: "Stop waiting run" }));
+      expect(apiClient.post).toHaveBeenCalledWith("/runs/r1/cancel");
+      expect(await screen.findByText(/cancelled/i)).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Stop waiting run" })).toBeNull();
+    } else {
+      expect(screen.queryByRole("button", { name: "Stop waiting run" })).toBeNull();
+      expect(apiClient.post).not.toHaveBeenCalled();
+    }
+  },
+);
+
+it("explains a skipped overlap in the routine's history", async () => {
+  serveRuns([], 0, { items: [attempt("previous_run_active")], total: 1 });
+  render(<TriggerRunsView trigger={trigger()} pendingSince={null} />, { wrapper });
+  expect(await screen.findByText(/Skipped because a previous run is still running/)).toBeVisible();
+});
+
+it("keeps a waiting run visible and reports a refused stop", async () => {
+  serveRuns([run({ status: "awaiting_approval" })]);
+  const normal = vi.mocked(apiClient.get).getMockImplementation()!;
+  vi.mocked(apiClient.get).mockImplementation(async (path, options) =>
+    path.endsWith("/can-stop") ? true : normal(path, options),
+  );
+  vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("Cannot stop now"));
+  render(<TriggerRunsView trigger={trigger({ conversation_id: "c1" })} pendingSince={null} />, {
+    wrapper,
+  });
+  await userEvent.click(await screen.findByRole("button", { name: "Stop waiting run" }));
+  await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  expect(screen.getByRole("button", { name: "Stop waiting run" })).toBeEnabled();
+  expect(screen.getByText(/awaiting approval/i)).toBeVisible();
+});
+
+it("reopens pending setup from Resume without enabling an unreviewed routine", async () => {
+  const { useAuthStore } = await import("@/stores/auth-store");
+  useAuthStore.setState({
+    user: {
+      id: "creator",
+      email: "creator@example.com",
+      is_active: true,
+      created_at: "2026-11-16T00:00:00Z",
+    },
+  });
+  vi.mocked(apiClient.patch).mockClear();
+  vi.mocked(apiClient.get).mockImplementation(async (path) => {
+    if (path.endsWith("/sources"))
+      return {
+        current: false,
+        review_token: "sources",
+        version_id: "v1",
+        resources: [],
+        accounts: [],
+        unavailable_sources: [],
+      };
+    if (path.endsWith("/action-consents"))
+      return { can_waive: false, review_token: "actions", items: [] };
+    return { items: [], total: 0 };
+  });
+  render(
+    <TriggerRow
+      trigger={trigger({ created_by_user_id: "creator", setup_required: true, is_active: false })}
+    />,
+    { wrapper },
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Resume" }));
+  expect(await screen.findByRole("dialog", { name: "Review routine access" })).toBeVisible();
+  expect(apiClient.patch).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Finish later" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(apiClient.patch).not.toHaveBeenCalled();
+});
+
+it("finishes deferred setup before enabling the routine", async () => {
+  const { useAuthStore } = await import("@/stores/auth-store");
+  useAuthStore.setState({
+    user: {
+      id: "creator",
+      email: "creator@example.com",
+      is_active: true,
+      created_at: "2026-11-16T00:00:00Z",
+    },
+  });
+  const pending = trigger({
+    created_by_user_id: "creator",
+    setup_required: true,
+    is_active: false,
+  });
+  const sources = {
+    current: true,
+    review_token: "sources",
+    version_id: "v1",
+    resources: [],
+    accounts: [],
+    unavailable_sources: [],
+  };
+  const actions = { can_waive: false, review_token: "actions", items: [] };
+  vi.mocked(apiClient.get).mockImplementation(async (path) => {
+    if (path.endsWith("/sources")) return sources;
+    if (path.endsWith("/action-consents")) return actions;
+    return { items: [], total: 0 };
+  });
+  vi.mocked(apiClient.put).mockImplementation(async (path) =>
+    path.endsWith("/sources") ? sources : actions,
+  );
+  vi.mocked(apiClient.patch).mockResolvedValue({
+    ...pending,
+    setup_required: false,
+    is_active: true,
+  });
+  render(<TriggerRow trigger={pending} />, { wrapper });
+  await userEvent.click(screen.getByRole("button", { name: "Resume" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Enable routine" }));
+  await waitFor(() =>
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/triggers/t1", { is_active: true }),
+  );
+  expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/triggers/t1/sources", {
+    review_token: "sources",
+  });
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 });

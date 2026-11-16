@@ -208,6 +208,10 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
   await page.goto(`/runs?agent=${delegateId}`);
   await expect(pageHeading(page, "Activity")).toBeVisible();
   await page.getByRole("tab", { name: "Runs", exact: true }).click();
+  for (const name of ["Asked by", "Model", "Tokens"]) {
+    await page.getByRole("button", { name: "Columns", exact: true }).click();
+    await page.getByRole("menuitemcheckbox", { name, exact: true }).check();
+  }
   const delegateRuns = page.getByRole("row").filter({ hasText: modelLabel });
   await expect(
     delegateRuns,
@@ -235,6 +239,8 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
   // the same page, so a change that merged the two histories fails here.
   await page.goto(`/runs?agent=${parentId}`);
   await page.getByRole("tab", { name: "Runs", exact: true }).click();
+  await page.getByRole("button", { name: "Columns", exact: true }).click();
+  await page.getByRole("menuitemcheckbox", { name: "Model", exact: true }).check();
   await expect(page.getByRole("row").filter({ hasText: modelLabel })).toHaveCount(1);
 
   // 7. cleaning up
@@ -294,24 +300,24 @@ async function instruct(page: Page, instructions: string): Promise<void> {
  * first-class provider here.
  */
 async function addStubModel(page: Page, label: string): Promise<void> {
-  await page.locator("#add-model-provider").click();
+  await page.locator('[id$="-add-model-provider"]:visible').click();
   await page.getByRole("option", { name: PROVIDER_LABEL, exact: true }).click();
-  await page.locator("#add-model-id").click();
+  await page.locator('[id$="-add-model-id"]:visible').click();
   await page.getByPlaceholder("Search models…").fill(PROVIDER_MODEL);
   await page.getByRole("option", { name: new RegExp(`^(Use )?${PROVIDER_MODEL}\\b`) }).click();
 
   // The key picker only appears once a provider has more than one key stored -
   // with exactly one there is nothing to decide. Whichever it lands on is the
   // seed's, and no request is authenticated: the stub does not check.
-  const keyPicker = page.locator("#add-model-key");
+  const keyPicker = page.locator('[id$="-add-model-key"]:visible');
   if (await keyPicker.isVisible()) {
     await keyPicker.click();
     await page.getByRole("option").first().click();
   }
 
-  await page.locator("#add-model-endpoint").fill(MODEL_ENDPOINT);
+  await page.locator('[id$="-add-model-endpoint"]:visible').fill(MODEL_ENDPOINT);
   await page.getByRole("button", { name: "Name it something else" }).click();
-  await page.locator("#add-model-label").fill(label);
+  await page.locator('[id$="-add-model-label"]:visible').fill(label);
   await page.getByRole("button", { name: "Add model" }).click();
 
   await expectModel(page, label);

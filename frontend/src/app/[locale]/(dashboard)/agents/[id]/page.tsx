@@ -115,6 +115,7 @@ import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-p
 import { gapStatus } from "@/lib/knowledge-gap-status";
 import { ImproveButton, ImproveLink } from "@/components/agents/improve-link";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/states";
 import {
   ResourceUnavailable,
@@ -916,7 +917,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     [capabilities],
   );
 
-  if (isLoading) return <BuilderSkeleton />;
+  if (isLoading) return <BuilderSkeleton tab={tab} />;
   if (agentError instanceof ApiError && (agentError.status === 404 || agentError.status === 403))
     return (
       <div role="alert" className="space-y-3">
@@ -936,7 +937,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         cta={{ label: tAgents("retryLoad"), onClick: () => void refetchAgent() }}
       />
     );
-  if (!spec) return <BuilderSkeleton />;
+  if (!spec) return <BuilderSkeleton tab={tab} />;
   if (isSystem) return <ResourceUnavailable back={ROUTES.AGENTS} label={t("backToAgents")} />;
 
   const isPublished = agent.status === "published";
@@ -1208,16 +1209,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <MessageSquare className="h-4 w-4" />
                 {t("openChat")}
               </Button>
-              <Button
-                variant="outline"
-                onClick={continueConversation}
-                disabled={!isPublished}
-                title={isPublished ? undefined : t("publishAgentChatWith")}
-              >
-                <History className="h-4 w-4" />
-                {t("continueConversation")}
-              </Button>
-              {/* In the apps: the Dock's or tray's "New Chat With", or the home screen. */}
               <PinAgentButton
                 agent={{
                   id,
@@ -1228,131 +1219,121 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 }}
                 disabled={!isPublished}
               />
-              {/* Beside the chat button rather than in the overflow menu: the
-                map answers "what is this agent" and that question comes up
-                before publishing, not after somebody goes looking for it. */}
-              {
-                <Button variant="outline" onClick={() => setMapOpen(true)}>
-                  <Network className="h-4 w-4" />
-                  {t("visualMap")}
-                </Button>
-              }
-              {/* For whoever cannot open the overflow menu, which is where an
-                  editor finds the export - a header of six buttons asked for
-                  every decision at once. */}
-              {!canEdit && (
-                <Button variant="outline" asChild>
-                  <a href={`/api/agents/${id}/spec.yaml`} download>
-                    <Download className="h-4 w-4" />
-                    {t("exportYaml")}
-                  </a>
-                </Button>
-              )}
-              {!canEdit && canDuplicate && (
-                <Button variant="outline" onClick={duplicate} disabled={clone.isPending}>
-                  <Copy className="h-4 w-4" />
-                  {t("duplicate")}
-                </Button>
-              )}
-              {/* Who reaches this agent, the way a document is shared: one
-                  button, one dialog, instead of two cards at the foot of a tab. */}
-              <Button variant="outline" onClick={() => setShareOpen(true)} data-tour="agent-share">
-                <UserPlus className="h-4 w-4" />
-                {tSharing("share")}
-              </Button>
-
-              {canEdit && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" aria-label={t("moreActions")}>
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64">
-                    <DropdownMenuItem asChild className={DESCRIBED_ITEM}>
-                      <a href={`/api/agents/${id}/spec.yaml`} download>
-                        <Download className="h-4 w-4" />
-                        <DropdownMenuItemText
-                          label={t("exportYaml")}
-                          description={tMenu("menuExportHint")}
-                        />
-                      </a>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label={t("moreActions")}
+                    data-tour="agent-share"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuItem onSelect={continueConversation} disabled={!isPublished}>
+                    <History className="size-4" />
+                    {t("continueConversation")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setMapOpen(true)}>
+                    <Network className="size-4" />
+                    {t("visualMap")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setShareOpen(true)}>
+                    <UserPlus className="size-4" />
+                    {tSharing("share")}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild className={DESCRIBED_ITEM}>
+                    <a href={`/api/agents/${id}/spec.yaml`} download>
+                      <Download className="h-4 w-4" />
+                      <DropdownMenuItemText
+                        label={t("exportYaml")}
+                        description={tMenu("menuExportHint")}
+                      />
+                    </a>
+                  </DropdownMenuItem>
+                  {canDuplicate && (
+                    <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={duplicate}>
+                      <Copy className="h-4 w-4" />
+                      <DropdownMenuItemText
+                        label={t("duplicate")}
+                        description={tMenu("menuDuplicateHint")}
+                      />
                     </DropdownMenuItem>
-                    {canDuplicate && (
-                      <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={duplicate}>
-                        <Copy className="h-4 w-4" />
+                  )}
+                  {canEdit && (
+                    <>
+                      <DropdownMenuItem
+                        className={DESCRIBED_ITEM}
+                        onSelect={() => avatarInput.current?.click()}
+                      >
+                        <ImagePlus className="h-4 w-4" />
                         <DropdownMenuItemText
-                          label={t("duplicate")}
-                          description={tMenu("menuDuplicateHint")}
+                          label={agent.has_avatar ? t("replaceAvatar2") : t("uploadAvatar2")}
+                          description={tMenu("menuAvatarHint")}
                         />
                       </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem
-                      className={DESCRIBED_ITEM}
-                      onSelect={() => avatarInput.current?.click()}
-                    >
-                      <ImagePlus className="h-4 w-4" />
-                      <DropdownMenuItemText
-                        label={agent.has_avatar ? t("replaceAvatar2") : t("uploadAvatar2")}
-                        description={tMenu("menuAvatarHint")}
-                      />
-                    </DropdownMenuItem>
-                    <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
-                      {t("avatarColour")}
-                    </DropdownMenuLabel>
-                    {/* Not menu items: a swatch click picks a colour and leaves the
+                      <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
+                        {t("avatarColour")}
+                      </DropdownMenuLabel>
+                      {/* Not menu items: a swatch click picks a colour and leaves the
                       menu open, where selecting an item would close it. */}
-                    <div className="px-2 pb-1.5">
-                      <AvatarColorPicker
-                        value={agent.avatar_color ?? null}
-                        onChange={(slot) => setColor.mutate(slot)}
-                        disabled={setColor.isPending}
-                      />
-                    </div>
-                    {/* A seeded system agent is the platform's own: archiving or
+                      <div className="px-2 pb-1.5">
+                        <AvatarColorPicker
+                          value={agent.avatar_color ?? null}
+                          onChange={(slot) => setColor.mutate(slot)}
+                          disabled={setColor.isPending}
+                        />
+                      </div>
+                      {/* A seeded system agent is the platform's own: archiving or
                       deleting it is refused, whatever the caller holds. */}
-                    {!agent.system_key && (
-                      <>
-                        <DropdownMenuSeparator />
-                        {agent.status === "archived" ? (
+                      {!agent.system_key && (
+                        <>
+                          <DropdownMenuSeparator />
+                          {agent.status === "archived" ? (
+                            <DropdownMenuItem
+                              className={DESCRIBED_ITEM}
+                              onSelect={() => unarchive.mutate(id)}
+                            >
+                              <ArchiveRestore className="h-4 w-4" />
+                              <DropdownMenuItemText
+                                label={t("restore")}
+                                description={tMenu("menuRestoreHint")}
+                              />
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem
+                              className={DESCRIBED_ITEM}
+                              onSelect={() => setConfirming("archive")}
+                            >
+                              <Archive className="h-4 w-4" />
+                              <DropdownMenuItemText
+                                label={t("archive")}
+                                description={tMenu("menuArchiveHint")}
+                              />
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
-                            className={DESCRIBED_ITEM}
-                            onSelect={() => unarchive.mutate(id)}
+                            className={cn(
+                              DESCRIBED_ITEM,
+                              "text-destructive focus:text-destructive",
+                            )}
+                            onSelect={() => setConfirming("delete")}
                           >
-                            <ArchiveRestore className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" />
                             <DropdownMenuItemText
-                              label={t("restore")}
-                              description={tMenu("menuRestoreHint")}
+                              label={t("deletePermanently")}
+                              description={tMenu("menuDeleteHint")}
                             />
                           </DropdownMenuItem>
-                        ) : (
-                          <DropdownMenuItem
-                            className={DESCRIBED_ITEM}
-                            onSelect={() => setConfirming("archive")}
-                          >
-                            <Archive className="h-4 w-4" />
-                            <DropdownMenuItemText
-                              label={t("archive")}
-                              description={tMenu("menuArchiveHint")}
-                            />
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className={cn(DESCRIBED_ITEM, "text-destructive focus:text-destructive")}
-                          onSelect={() => setConfirming("delete")}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <DropdownMenuItemText
-                            label={t("deletePermanently")}
-                            description={tMenu("menuDeleteHint")}
-                          />
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+                        </>
+                      )}
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
               <input
                 ref={avatarInput}
                 type="file"
@@ -1727,7 +1708,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
             {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
-            <Card ref={attachModelCard} data-tour="agent-model" className="scroll-mt-4">
+            <Card
+              ref={attachModelCard}
+              data-tour="agent-model"
+              className="scroll-mt-4 rounded-none border-0 border-b bg-transparent [&>div]:px-0"
+            >
               <CardHeader>
                 <CardTitle>{t("model")}</CardTitle>
                 <CardDescription>{t("howAgentAsksIts")}</CardDescription>
@@ -2295,33 +2280,51 @@ export default function AgentBuilderPage({ params }: PageProps) {
  * moment the agent arrived, which is the jump the skeleton exists to prevent.
  * `ConversationSkeleton` in `chat-container.tsx` is the same argument.
  */
-function BuilderSkeleton() {
+function BuilderSkeleton({ tab }: { tab: string }) {
   const t = useTranslations("pages.agents");
   return (
-    <div role="status" aria-label={t("loading")} className="min-w-0 space-y-6">
-      <div className="mb-6 md:mb-8">
-        <div className="bg-foreground/8 mb-3 h-3 w-40 animate-pulse rounded" />
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="min-w-0 space-y-2">
-            <div className="bg-foreground/10 h-5 w-52 animate-pulse rounded" />
-            <div className="bg-foreground/8 h-3.5 w-80 max-w-full animate-pulse rounded" />
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {["w-32", "w-28", "w-24", "w-20"].map((width, index) => (
-              <div
+    <div
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-label={t("loading")}
+      className="min-w-0 space-y-6"
+    >
+      <PageHeader
+        title={
+          <span className="flex items-center gap-3">
+            <Skeleton className="size-12 rounded-full" />
+            <Skeleton className="h-8 w-52 max-w-full" />
+          </span>
+        }
+        breadcrumbs={[{ label: t("agents"), href: ROUTES.AGENTS }, { label: "…" }]}
+        badges={
+          <>
+            <Skeleton className="h-5 w-20 rounded-full" />
+            <Skeleton className="h-5 w-40 rounded-full" />
+          </>
+        }
+        actions={
+          <div aria-hidden="true" className="flex flex-wrap gap-2">
+            {["w-20", "w-36", "w-56", "w-32", "w-24", "w-9", "w-28"].map((width, index) => (
+              <Skeleton
                 key={index}
-                className={cn("bg-foreground/10 h-9 animate-pulse rounded-md", width)}
+                className={cn(
+                  "touch:min-h-11 h-10 rounded-lg",
+                  width,
+                  index > 1 && "hidden md:block",
+                )}
               />
             ))}
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* Tab strip - one placeholder per tab, at the width its label takes.
           Keyed by position rather than by the width class: the classes repeat,
           which React reported as duplicate keys on every load of this page. */}
       <div className="border-border touch:min-h-11 flex h-9 max-w-full min-w-0 items-center gap-3 overflow-hidden border-b px-2">
-        {["w-12", "w-20", "w-28", "w-16", "w-24", "w-16", "w-12"].map((width, index) => (
+        {["w-12", "w-20", "w-28", "w-16", "w-24", "w-16", "w-28", "w-16"].map((width, index) => (
           <div
             key={index}
             className={cn("bg-foreground/10 h-4 shrink-0 animate-pulse rounded-md", width)}
@@ -2329,20 +2332,22 @@ function BuilderSkeleton() {
         ))}
       </div>
 
-      <Card>
-        <CardHeader className="space-y-2">
-          <div className="bg-foreground/10 h-4 w-28 animate-pulse rounded" />
-          <div className="bg-foreground/8 h-3 w-full max-w-xl animate-pulse rounded" />
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* The instructions textarea: rows={10} at the same border and radius. */}
-          <div className="border-input bg-foreground/[0.04] h-52 animate-pulse rounded-md border" />
-          <div className="space-y-2">
-            <div className="bg-foreground/10 h-3 w-16 animate-pulse rounded" />
-            <div className="border-input bg-foreground/[0.04] h-9 w-full animate-pulse rounded-md border" />
-          </div>
-        </CardContent>
-      </Card>
+      {tab === "build" ? (
+        <Card aria-hidden="true">
+          <CardContent className="space-y-2 p-4 sm:p-5">
+            <div className="flex h-9 items-center justify-between">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-8 w-24 rounded-lg" />
+            </div>
+            <Skeleton className="border-input h-64 w-full rounded-xl border" />
+          </CardContent>
+        </Card>
+      ) : (
+        <div aria-hidden="true" className="border-border bg-card min-h-96 rounded-xl border p-5">
+          <div className="bg-muted h-5 w-36 animate-pulse rounded" />
+          <div className="bg-muted mt-5 h-32 w-full animate-pulse rounded-lg" />
+        </div>
+      )}
     </div>
   );
 }

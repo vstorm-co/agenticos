@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Shield } from "lucide-react";
+import { Shield, Search } from "lucide-react";
 
 import { UserDetailDrawer } from "@/components/admin/user-detail-drawer";
 import { ErrorState } from "@/components/states";
@@ -11,6 +11,7 @@ import {
   Button,
   DataTable,
   ListCard,
+  ListCardEmpty,
   ListCardFootRow,
   PaginationBar,
   SearchInput,
@@ -95,8 +96,11 @@ export default function AdminUsersPage() {
               ariaHidden
             />
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className="text-foreground truncate text-sm font-medium">
+              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                <p
+                  title={u.full_name || u.email}
+                  className="text-foreground max-w-full truncate text-sm font-medium"
+                >
                   {u.full_name || u.email.split("@")[0]}
                 </p>
                 {/* The deployment superadmin, which is the only authority a user
@@ -198,7 +202,20 @@ export default function AdminUsersPage() {
           sort={sort}
           onSort={setSort}
           error={error ? <ErrorState description={error} className="m-5" /> : null}
-          empty={search ? t("noUsersMatch", { query: search }) : t("noUsersYet")}
+          empty={
+            search ? (
+              <ListCardEmpty
+                icon={Search}
+                title={t("noUsersMatch", { query: search })}
+                onClearFilters={() => {
+                  setSearch("");
+                  setPage(0);
+                }}
+              />
+            ) : (
+              t("noUsersYet")
+            )
+          }
           className="rounded-none border-0 bg-transparent"
         />
 

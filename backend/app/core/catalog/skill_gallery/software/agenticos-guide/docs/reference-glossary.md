@@ -123,6 +123,7 @@ in [Capabilities](https://vstorm-co.github.io/agenticos/reference/capabilities/)
 | Drafts | `drafts` |
 | Web browser | `browser_use` |
 | Chat channel lookup | `channel_tools` |
+| Connected chat apps | `channel_actions` |
 | Telephone calls | `phone_calls` |
 | Charts | `charts` |
 | Date and time | `clock` |

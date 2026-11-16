@@ -1,5 +1,5 @@
 ---
-source_sha: "65dcefce4721"
+source_sha: "9bc0bd6a3c5a"
 ---
 
 # Skills { #skills }
@@ -217,11 +217,13 @@ der Liste auf der Seite Skills für jeden, der diesen Skill bearbeiten darf. Ein
 Vorschlag für einen neuen Skill erscheint für jeden, der `skills:edit` hält.
 Niemand sonst kann ihn auflisten oder öffnen:
 
-- **Check on agents** führt die Änderung auf jedem Agent der Linie aus, für die
-  sie geschrieben wurde, und angewendet wird sie - als nächste Version dieser
-  Linie, die deren Agents beim nächsten Run lesen - aus dem Ergebnis dieser
-  Prüfung. Siehe
-  [Eine Änderung auf jedem Agent prüfen](#checking-a-change-on-every-agent).
+- **Review** öffnet die vorgeschlagenen Anweisungen, den Vergleich mit dem aktuellen
+  Skill und die Referenzdateien. **Aktualisierung anwenden** speichert sofort eine
+  neue Version. Agents dieser Linie verwenden sie beim nächsten Run. Tests sind
+  optional; fehlende Testfragen blockieren die Übernahme nicht.
+- **Vor dem Anwenden testen (optional)** prüft die Änderung an den Agents der Linie.
+  Das Ergebnis zeigt Regressionen und nicht geprüfte Agents vor der Entscheidung.
+  Siehe [Eine Änderung auf jedem Agent prüfen](#checking-a-change-on-every-agent).
 - **Discard** behält den Eintrag. Ein Agent, der wiederholt dieselbe Änderung
   vorschlägt, sagt jemandem etwas über den Skill, und eine gelöschte Zeile macht
   das unsichtbar.
@@ -282,12 +284,12 @@ festgesetzt sind, und die Agents anderer Forks werden nicht ausgeführt - die
 ihre Fragen zweimal, mit dem Skill, wie er ist, und mit der Änderung, und sonst
 unterscheidet sich nichts.
 
-Eine Änderung, die der Workspace eines Agents geschrieben hat, eine, die der
-Assistent vorgeschlagen hat, und ein
-[Bibliotheks-Update](#getting-skills-into-an-organization) eines Skills, dem
-Agents folgen, gehen nur über diese Prüfung live. Wer den Skill von Hand
-bearbeitet, speichert sofort eine neue Version, und diese Bearbeitung wird nicht
-geprüft.
+Workspace-Vorschläge, Vorschläge des Assistenten und
+[Bibliotheks-Updates](#getting-skills-into-an-organization) können ohne diese
+optionale Prüfung angewendet werden. Bearbeitungsrechte, Vorschlagsrevision und
+zugrunde liegende Skill-Version werden weiterhin geprüft. Wenn Sie testen,
+gelten für die Übernahme über das Testergebnis dessen Regeln, einschließlich
+Bestätigungen und Versionsbindungen.
 
 ### Was sie fragt { #what-a-check-asks }
 
@@ -1066,3 +1068,15 @@ Der Assistent kann **Ein Skill wäre sinnvoll** vorschlagen, wenn ein wiederverw
 Ein Ablauf aus weniger als drei verschiedenen Antworten wird nicht als Vorschlag aufgenommen. Er steht mit vollständigem Text unter **weitere Ideen warten auf Ihre Entscheidung**. **Create skill** öffnet eine Vorschau: Name, Beschreibung und Inhalt lassen sich bearbeiten, und ein Hinweis nennt, auf wie vielen Antworten er beruht. **Create skill** in der Vorschau legt den Skill in der Bibliothek an und bindet ihn an den Entwurf des Agenten, nie an eine veröffentlichte Version. Dafür gelten dieselben Berechtigungen wie für Accept, und es gibt keinen Modellaufruf. Ein zweiter Klick liefert den bereits erstellten Skill.
 
 Die Kostenschätzung berücksichtigt den vollständigen vorgeschlagenen Inhalt für jede Kandidatenantwort und bestätigende Wiederholungen zusätzlich zum historischen Antwortpreis.
+
+## Designressourcen für Apps und Visuals { #design-resources }
+
+`artifact-pages` unterstützt wiederverwendbare Apps, belegte Berichte, Entscheidungshilfen und Browserpräsentationen. `visual-design` unterstützt interaktive Erklärungen, Vergleiche, Diagramme und eigenständige prozedurale Grafiken. Beide wählen Gestaltung und Interaktionen passend zu Schule, Spiel oder Arbeit statt für jedes Thema dasselbe Dashboard. Ausführliche Anleitungen und vollständige HTML-Beispiele werden nur bei Bedarf geladen.
+
+Die Beispiele enthalten einen Belegfilter, veränderbare Entscheidungskriterien, einen transparenten Kostenvergleich, reproduzierbare generative Kunst und eine per Tastatur bedienbare Präsentation mit Übersicht, vier visuellen Themen und vollständigem Drucklayout. Beispieldaten und Annahmen sind gekennzeichnet. Steuerelemente, Fehlerfälle, Zurücksetzen, Mobilansicht und reduzierte Bewegung gehören zur Prüfung.
+
+Apps exportiert veröffentlichte HTML-/Markdown-Seiten oder Browserpräsentationen über `export_artifact`. Der Betreiber konfiguriert `ARTIFACT_RENDER_CDP_URL` und installiert das Extra `browser`; der Agent benötigt einen Workspace für die echte PDF-Datei. Es gelten die Zugriffs- und Zielgruppenregeln der App-Vorschau; nicht verfügbare gebundene Daten verhindern den Export. Dateien sind auf 50 Seiten und 20 MB begrenzt und erhalten eindeutige Namen. PDF, Seitenumbrüche und vollständige Folien prüfen. Ein PowerPoint-Format wird nicht eingeführt.
+
+Chat kann interaktive Inhalte einbetten. Mattermost und andere Textkanäle erhalten einen berechtigten App-Link, ein gerendertes Bild soweit unterstützt oder eine angeforderte PDF-Datei; HTML läuft nicht in diesen Nachrichten. Ein Link gewährt keinen öffentlichen Zugriff. Bestehende Installationen nutzen die normale Bibliotheksaktualisierung: unveränderte Kopien werden aktualisiert, verwendete Skills warten auf ihre Prüfung, eigene Anpassungen bleiben geschützt.
+
+Mitgelieferte Plattform-Skills und die Skills des AI Architect können nach den normalen Ressourcenrechten gelesen und verwendet werden. Änderungen an Inhalt, Dateien, Versionen oder Forks, das Löschen und das Belegen eines reservierten Namens erfordern jedoch organisationsweite Agenten-Bearbeitungsrechte (Owner/Admin bei den eingebauten Rollen). Eine Bearbeitungsfreigabe für den Skill umgeht diesen Schutz nicht. Gewöhnliche Organisations-Skills behalten ihre bisherigen Eigentums- und Freigaberegeln.

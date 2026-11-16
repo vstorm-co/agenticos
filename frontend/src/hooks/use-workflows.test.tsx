@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import en from "../../messages/en.json";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -436,14 +437,31 @@ describe("useWorkflowVersion", () => {
 });
 
 describe("useNodeCatalog", () => {
-  it("exposes the registered node types", async () => {
+  it("names, describes and labels each node in the reader's language, else as served", async () => {
+    const port = (id: string, label: string) => ({ id, label, kind: "output", schema: null });
     vi.mocked(api.getNodeCatalog).mockResolvedValue({
-      items: [{ id: "debug.echo" }] as never,
-      total: 1,
+      items: [
+        {
+          id: "human.approval",
+          name: "Ask for approval (served)",
+          description: "served",
+          ports: [port("approved", "Approved"), port("ship", "Ship it")],
+        },
+        { id: "vendor.new", name: "Brand new step", description: "Not translated yet", ports: [] },
+      ] as never,
+      total: 2,
     });
     const { result } = renderHook(() => useNodeCatalog(), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.nodes).toEqual([{ id: "debug.echo" }]);
+    const [approval, added] = result.current.nodes;
+    expect(approval).toMatchObject({
+      id: "human.approval",
+      name: "Ask for approval",
+      description: en.workflowNodes.node.human_approval.description,
+    });
+    // A known port label is the catalog's; one an author wrote keeps its own words.
+    expect(approval?.ports.map((item) => item.label)).toEqual(["Approved", "Ship it"]);
+    expect(added).toMatchObject({ name: "Brand new step", description: "Not translated yet" });
   });
 
   it("reports an empty catalog while the request is still in flight", () => {

@@ -886,7 +886,7 @@ off in the capability's settings for a model that cannot read images; the
 report still comes back. `agenticos cmd doctor` says whether the renderer
 answers.
 
-Three more bundled skills build a **slide deck** as an app: `presentation-decks` (a ready template with a 16:9 slide frame, keyboard and touch navigation, speaker notes on `n` and one slide per page when printed to PDF), `deck-storyline` (the audience, the decision and a storyline of claims before any slide exists) and `deck-review` (titles that read as the argument, one message per slide, every number traced, readable from a distance). They add no library and no PowerPoint export.
+Three more bundled skills build a **slide deck** as an app: `presentation-decks` (the varied 16:9 HTML deck from `artifact-pages`, with keyboard navigation, overview, palette selection and one slide per printed page), `deck-storyline` (the audience, the decision and a storyline of claims before any slide exists) and `deck-review` (titles that read as the argument, one message per slide, every number traced, readable from a distance). They add no library and no PowerPoint export.
 
 ## Visuals
 
@@ -1384,3 +1384,13 @@ under `artifacts/<organization>/<artifact>/`.
 - Archiving keeps a page and serves nothing of it, the public link off, until
   someone who may edit it restores it.
 - A retention class of its own, measured from the last publication.
+
+## Preview loading and sharing { #preview-loading-and-sharing }
+
+Chat previews reserve their space while the visual renderer or App thumbnail loads. They fade in only when rendering or image decoding finishes; reduced-motion preferences disable the animation. App listings use cached, version-specific static thumbnails rather than executing every App again when returning to the list.
+
+The Apps skill includes interactive HTML slide decks, print styles for PDF and reusable component examples. PDF export needs the configured renderer; a validation-only preview does not prove that a script executed successfully. Use the actual rendered preview to verify charts, tables and interactive content. PowerPoint export is not included.
+
+The platform MCP tool `create_app_public_link` requires edit access and explicit confirmation that the App may be shared publicly. It reuses an existing link and preserves its password, expiry and pinned version. Live data requires separate owner consent. A call is successful only when the API confirms the public URL.
+
+The bundled presentation example uses five distinct compositions: illustrated cover, large metric, comparison, sequence and decision. The report example recomputes selected totals and its chart from the same counts. Visual design also includes a procedural product studio with beveled forms, material finishes, local studio lighting, assembly separation, named views and a WebGL fallback. These are adaptable HTML examples, not a PowerPoint or manufacturing-model export. Existing organizations receive skill revisions through the normal library update and review flow; locally edited copies remain protected.

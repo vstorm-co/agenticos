@@ -1,5 +1,5 @@
 ---
-source_sha: "4154d0af5d18"
+source_sha: "fc26a8af977d"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i budżety, bezpieczne rozłączanie i transkrypcje."
@@ -81,6 +81,7 @@ nazywa się model realtime.
 | Azure OpenAI | wdrożenie `gpt-realtime` | Relay | **Nie zweryfikowane na żywo** |
 | Google | Gemini Live: `gemini-2.5-flash-native-audio-latest`, `gemini-3.1-flash-live-preview` | Relay | **Nie zweryfikowane na żywo** |
 | xAI | `grok-voice-latest`, rozliczany za minutę | Relay | **Nie zweryfikowane na żywo** |
+| ElevenLabs | `eleven_realtime_v1_mini`, `eleven_realtime_v1_max` | Relay | **Nie zweryfikowane na żywo** |
 
 Tylko OpenAI dało się przetestować na prawdziwym koncie. Azure, Gemini i xAI są
 zbudowane na podstawie dokumentacji providerów i Pydantic AI i przetestowane z
@@ -430,3 +431,9 @@ Potwierdzenie, rozwiązanie lub wyciszenie tej sprawy oraz odczytanie jej powiad
 Usuwanie konta i organizacji jest odrzucane, dopóki istnieją niezakończone połączenia telefoniczne. Zakończ je i poczekaj na stan końcowy przed ponownym usuwaniem; zachowuje to obsługę callbacków dostawcy i limity czasu. Eksport osobisty obejmuje wszystkie sprawy, także bez próby połączenia, a pełna treść jest wliczana do limitu rozmiaru eksportu.
 
 Zmiana danych uwierzytelniających bota SMS jest także blokowana do zakończenia jego połączeń telefonicznych. Anulowanie podczas wysyłania żądania połączenia zapisuje zamiar przerwania i rozłącza po nadejściu identyfikatora od dostawcy. Procedura kończenia zatwierdza ten zapis przed kontaktem z dostawcą, dzięki czemu podpisane callbacki stanu mogą równolegle rozliczyć połączenie.
+
+ElevenLabs Realtime udostępnia `eleven_realtime_v1_mini` oraz `eleven_realtime_v1_max` przez relay PCM 24 kHz, z domyślnym głosem `brian` i semantycznym wykrywaniem tur.
+
+SDK nie raportuje opłat za tokeny. Połączenia z ustawionym budżetem wydatków są odrzucane przed nawiązaniem; połączenia bez takiego budżetu zachowują limit czasu i zapisują koszt audio jako dolną granicę, a nie pełny rachunek. Stawka katalogowa audio wynosi 0,08 USD/minutę (0,16 USD w trybie burst); tokeny kosztują dodatkowo. Wartość kontekstu 16k jest ostrożnym limitem historii przyjętym przez platformę, a nie oknem kontekstu ogłoszonym przez dostawcę. Integrację sprawdzono offline na konstrukcji modeli SDK i kontrolowanych transportach, bez testów na rzeczywistym koncie. [SDK](https://pydantic.dev/docs/ai/api/realtime/elevenlabs/), [ElevenLabs API pricing](https://elevenlabs.io/pricing/api).
+
+Pominięcie języka rozmowy oznacza angielski; wybór języka pokazuje tę wartość zamiast oferować automatyczne wykrywanie.

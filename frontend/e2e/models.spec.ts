@@ -47,8 +47,8 @@ async function expectRunsOn(
   page: Page,
   { provider, model }: { provider: string; model: string },
 ): Promise<void> {
-  await expect(page.locator("#add-model-provider")).toContainText(provider);
-  await expect(page.locator("#add-model-id")).toContainText(model);
+  await expect(page.locator('[id$="-add-model-provider"]:visible')).toContainText(provider);
+  await expect(page.locator('[id$="-add-model-id"]:visible')).toContainText(model);
 }
 
 test.describe("Models", () => {
@@ -111,7 +111,7 @@ test.describe("Models", () => {
     await expect(submit).toBeDisabled();
 
     await nameIt(page, label);
-    await page.locator("#add-model-endpoint").fill("https://example.com/v1");
+    await page.locator('[id$="-add-model-endpoint"]:visible').fill("https://example.com/v1");
     await expect(submit).toBeEnabled();
     await submit.click();
 
@@ -174,7 +174,7 @@ test.describe("Models", () => {
     await pickModel(page, "llama3.2");
     await nameIt(page, `e2e-refused-${Date.now().toString(36)}`);
 
-    const endpoint = page.locator("#add-model-endpoint");
+    const endpoint = page.locator('[id$="-add-model-endpoint"]:visible');
     await endpoint.fill("file:///etc/passwd");
     await page.getByRole("button", { name: "Add model" }).click();
 
@@ -187,7 +187,7 @@ test.describe("Models", () => {
 
 /** Choose a provider, which is what decides every field below it. */
 async function pickProvider(page: Page, label: string): Promise<void> {
-  await page.locator("#add-model-provider").click();
+  await page.locator('[id$="-add-model-provider"]:visible').click();
   await page.getByRole("option", { name: label, exact: true }).click();
 }
 
@@ -200,10 +200,10 @@ async function pickProvider(page: Page, label: string): Promise<void> {
  * here is refreshed.
  */
 async function pickModel(page: Page, model: string): Promise<void> {
-  await page.locator("#add-model-id").click();
+  await page.locator('[id$="-add-model-id"]:visible').click();
   await page.getByPlaceholder("Search models…").fill(model);
   await page.getByRole("option", { name: new RegExp(`^(Use )?${model}\\b`) }).click();
-  await expect(page.locator("#add-model-id")).toContainText(model);
+  await expect(page.locator('[id$="-add-model-id"]:visible')).toContainText(model);
 }
 
 /**
@@ -215,5 +215,5 @@ async function pickModel(page: Page, model: string): Promise<void> {
  */
 async function nameIt(page: Page, label: string): Promise<void> {
   await page.getByRole("button", { name: "Name it something else" }).click();
-  await page.locator("#add-model-label").fill(label);
+  await page.locator('[id$="-add-model-label"]:visible').fill(label);
 }

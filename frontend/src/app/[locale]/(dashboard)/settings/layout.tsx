@@ -27,10 +27,12 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
         title={isMemory ? memory("title") : t("settings")}
         description={isMemory ? memory("description") : t("manageYourAccountIntegrations")}
       />
-      <div data-tour="settings-tabs">
-        <PageTabs tabs={SETTINGS_TABS} overflow="scroll" />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-5">
+        <div data-tour="settings-tabs">
+          <PageTabs tabs={SETTINGS_TABS} overflow="scroll" />
+        </div>
+        <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">{children}</div>
       </div>
-      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col pb-6">{children}</div>
     </div>
   );
 }

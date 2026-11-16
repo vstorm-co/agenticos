@@ -20,6 +20,7 @@ from uuid import UUID
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.exc import DBAPIError
 
 from app.api import deps
 from app.core.config import settings
@@ -259,6 +260,7 @@ class TestMembers:
             patch(f"{PATH}.artifact_repo.latest_version", new=AsyncMock(return_value=None)),
             patch(f"{PATH}.artifact_repo.update", new=AsyncMock(return_value=row)),
             patch(f"{PATH}.resource_grant_repo.delete_for_resource", new=AsyncMock()),
+            patch(f"{PATH}.artifact_repo.lock_for_delete", new=AsyncMock()),
             patch(f"{PATH}.artifact_repo.delete_artifact", new=AsyncMock()),
             patch(f"{PATH}.record_audit", new=AsyncMock()),
             patch(f"{PATH}.spawn_after_commit") as after_commit,
@@ -272,6 +274,26 @@ class TestMembers:
         assert read.json()["name"] == "weekly-report"
         assert retitled.status_code == 200
         assert deleted.status_code == 204
+
+    async def test_a_busy_source_answers_409_without_deleting(self, client: OpenClient) -> None:
+        class LockedSource(RuntimeError):
+            sqlstate = "55P03"
+
+        row = _artifact()
+        failure = DBAPIError("lock source", {}, LockedSource())
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{PATH}._DELETE_LOCK_SECONDS", 0),
+            patch(f"{PATH}.artifact_repo.lock_for_delete", new=AsyncMock(side_effect=failure)),
+            patch(f"{PATH}.artifact_repo.delete_artifact", new=AsyncMock()) as delete,
+            patch(f"{PATH}.spawn_after_commit") as cleanup,
+        ):
+            async with client() as http:
+                refused = await http.delete(_url(f"/{row.id}"))
+        assert refused.status_code == 409
+        assert refused.json()["error"]["code"] == "CONCURRENT_CHANGE"
+        delete.assert_not_awaited()
+        cleanup.assert_not_called()
 
     async def test_an_empty_title_is_refused_at_the_edge(self, client: OpenClient) -> None:
         async with client() as http:
@@ -1768,3 +1790,17 @@ class TestTheVisualFrame:
         assert response.status_code == 200
         assert response.headers["access-control-allow-origin"] == "*"
         assert b"OrbitControls" in response.content
+
+
+async def test_thumbnail_route_passes_the_exact_requested_version_to_the_authorized_service(client):
+    artifact_id, version_id = uuid.uuid4(), uuid.uuid4()
+    result = {"version_id": version_id, "state": "ready", "image": "data:image/jpeg;base64,eA=="}
+    with patch.object(ArtifactService, "thumbnail", AsyncMock(return_value=result)) as thumbnail:
+        async with client() as opened:
+            response = await opened.get(
+                f"/api/v1/artifacts/{artifact_id}/thumbnail?version_id={version_id}"
+            )
+    assert response.status_code == 200
+    assert response.json()["version_id"] == str(version_id)
+    assert thumbnail.await_args.args[1] == artifact_id
+    assert thumbnail.await_args.kwargs == {"version_id": version_id}

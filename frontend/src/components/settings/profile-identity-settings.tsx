@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { Camera } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,7 +15,7 @@ import { apiClient } from "@/lib/api-client";
 import { cn, formatDate, isAppAdmin, MAX_AVATAR_SIZE_BYTES } from "@/lib/utils";
 import { useAuthStore } from "@/stores";
 import type { User } from "@/types";
-import { useUploadAccountAvatar } from "@/hooks/use-account-profile";
+import { useUploadAccountAvatar, type AgentContext } from "@/hooks/use-account-profile";
 import { useChanged } from "@/hooks/use-changed";
 import { useLocale, useTranslations } from "next-intl";
 import styles from "./profile-identity-settings.module.css";
@@ -25,12 +25,16 @@ export function ProfileIdentitySettings({
   saveLabel,
   secondaryAction,
   section = "all",
+  unifiedSave = false,
 }: {
   onContinue?: () => void;
   saveLabel?: string;
   secondaryAction?: ReactNode;
   section?: "all" | "identity" | "context";
+  unifiedSave?: boolean;
 }) {
+  const sharedFormId = useId();
+  const IdentityContainer = unifiedSave ? "div" : "form";
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.settings");
   const locale = useLocale();
@@ -42,6 +46,7 @@ export function ProfileIdentitySettings({
   const [email, setEmail] = useState(user?.email ?? "");
   const [saving, setSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
   const [colorSaving, setColorSaving] = useState(false);
   const [contextSaving, setContextSaving] = useState(false);
   const identityBusy = saving || avatarUploading || colorSaving;
@@ -95,6 +100,22 @@ export function ProfileIdentitySettings({
     }
   };
 
+  const saveProfileTab = async (changes: AgentContext): Promise<User> => {
+    const payload = {
+      ...changes,
+      ...(name !== (user?.full_name ?? "") ? { full_name: name || null } : {}),
+      ...(email !== user?.email ? { email } : {}),
+    };
+    const updated = await apiClient.patch<User>("/users/me", payload);
+    setUser(updated);
+    if (payload.email !== undefined) {
+      setEmail(updated.email);
+      if (updated.pending_email)
+        toast.success(t("emailChangeSent", { email: updated.pending_email }));
+    }
+    return updated;
+  };
+
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || busy) return;
@@ -134,10 +155,12 @@ export function ProfileIdentitySettings({
   }
   const profileChanged = name !== (user.full_name ?? "") || email !== user.email;
 
+  const avatarSrc = `/api/users/avatar/${user.id}?v=${avatarVersion}`;
+
   return (
     <div
       className={cn(
-        "flex flex-1 flex-col space-y-4",
+        unifiedSave ? styles.overview : "flex flex-1 flex-col space-y-4",
         onContinue && section === "identity" && styles.guided,
       )}
     >
@@ -146,7 +169,7 @@ export function ProfileIdentitySettings({
           title={t("personalInfo")}
           description={t("visibleTeammatesSharedOrganizations")}
         >
-          <form
+          <IdentityContainer
             aria-label={t("personalInfo")}
             onSubmit={async (event) => {
               event.preventDefault();
@@ -171,9 +194,10 @@ export function ProfileIdentitySettings({
                       onContinue && styles.portrait,
                     )}
                   >
-                    {user.avatar_url ? (
+                    {user.avatar_url && failedAvatar !== avatarSrc ? (
                       <Image
-                        src={`/api/users/avatar/${user.id}?v=${avatarVersion}`}
+                        src={avatarSrc}
+                        onError={() => setFailedAvatar(avatarSrc)}
                         alt=""
                         width={80}
                         height={80}
@@ -231,11 +255,12 @@ export function ProfileIdentitySettings({
                   />
                 </MoreOptions>
               </div>
-              <div className="grid items-start gap-4 md:grid-cols-2">
+              <div className={cn("grid items-start gap-4", !unifiedSave && "md:grid-cols-2")}>
                 <FormField label={t("displayName")} htmlFor="profile-name">
                   <Input
                     id="profile-name"
                     name="full_name"
+                    form={unifiedSave ? sharedFormId : undefined}
                     autoComplete="name"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
@@ -260,6 +285,7 @@ export function ProfileIdentitySettings({
                   <Input
                     id="profile-email"
                     name="email"
+                    form={unifiedSave ? sharedFormId : undefined}
                     type="email"
                     autoComplete="email"
                     required
@@ -268,27 +294,32 @@ export function ProfileIdentitySettings({
                   />
                 </FormField>
               </div>
-              <div
-                data-profile-actions
-                className="flex flex-wrap items-center justify-end gap-3 border-t pt-4"
-              >
-                <Button
-                  type="submit"
-                  loading={saving}
-                  disabled={busy || (!onContinue && !profileChanged)}
-                  className="w-full sm:w-auto"
+              {!unifiedSave && (
+                <div
+                  data-profile-actions
+                  className="flex flex-wrap items-center justify-end gap-3 border-t pt-4"
                 >
-                  {saveLabel ?? t("saveChanges")}
-                </Button>
-                {secondaryAction}
-              </div>
+                  <Button
+                    type="submit"
+                    loading={saving}
+                    disabled={busy || (!onContinue && !profileChanged)}
+                    className="w-full sm:w-auto"
+                  >
+                    {saveLabel ?? t("saveChanges")}
+                  </Button>
+                  {secondaryAction}
+                </div>
+              )}
             </fieldset>
-          </form>
+          </IdentityContainer>
         </SectionCard>
       )}
       {section !== "identity" && (
         <AgentContextSettings
           user={user}
+          formId={unifiedSave ? sharedFormId : undefined}
+          onSave={unifiedSave ? saveProfileTab : undefined}
+          identityChanged={unifiedSave ? profileChanged : undefined}
           disabled={identityBusy}
           onSavingChange={setContextSaving}
           beforeSave={onContinue && section !== "context" ? handleSaveProfile : undefined}

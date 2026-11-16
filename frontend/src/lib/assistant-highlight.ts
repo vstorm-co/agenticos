@@ -124,13 +124,15 @@ function arrivedAt(page: string, left: string, localeWaited: boolean): boolean {
 export async function pointAt(anchor: string, page: string): Promise<boolean> {
   // By the step's id as well: a step may light its card's header while the
   // Architect names the card, and both sit behind the same tab.
-  const tab = TOUR_STEPS.find((step) => step.target === anchor || step.id === anchor)?.activate;
+  const step = TOUR_STEPS.find((entry) => entry.target === anchor || entry.id === anchor);
+  const target = step?.target ?? anchor;
+  const tab = step?.activate;
   const left = window.location.pathname;
   const activations = typeof tab === "string" ? [tab] : (tab ?? []);
   let revealIndex = 0;
   for (let waited = 0; waited <= WAIT_MS; waited += POLL_MS) {
     const arrived = arrivedAt(page, left, waited >= LOCALE_WAIT_MS);
-    const element = arrived ? findShown(anchor) : null;
+    const element = arrived ? (findShown(anchor) ?? findShown(target)) : null;
     if (element) {
       element.scrollIntoView({ block: "center", behavior: glideOrJump() });
       element.classList.add(HIGHLIGHT_CLASS);

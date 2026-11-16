@@ -1,5 +1,8 @@
 "use client";
 
+import { Search } from "lucide-react";
+import { EmptyIllustration } from "@/components/illustrations/empty-illustration";
+
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { SortButton } from "@/components/ui/sort-button";
@@ -295,12 +298,17 @@ export function DataTable<T>({
                       role={stackOnNarrow ? "cell" : undefined}
                       key={col.key}
                       className={cn(
-                        "px-4 py-3",
+                        "px-3 py-3 sm:px-4",
                         col.hideBelow && hideBelowClass[col.hideBelow],
                         col.className,
                       )}
                     >
-                      <div className="bg-foreground/10 h-4 w-2/3 animate-pulse rounded" />
+                      {stackOnNarrow && col.header && (
+                        <span className="text-muted-foreground mb-1 hidden text-xs font-medium @max-md/table:block">
+                          {col.header}
+                        </span>
+                      )}
+                      <div className="bg-foreground/10 h-4 w-24 max-w-full animate-pulse rounded" />
                     </td>
                   ))}
                 </tr>
@@ -394,7 +402,14 @@ export function DataTable<T>({
               !empty && "px-4 py-6",
             )}
           >
-            {empty ?? t("noResults")}
+            {typeof empty === "string" || empty == null ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-5">
+                <EmptyIllustration icon={Search} />
+                <p className="text-foreground text-sm font-medium">{empty ?? t("noResults")}</p>
+              </div>
+            ) : (
+              empty
+            )}
           </div>
         )}
       </div>

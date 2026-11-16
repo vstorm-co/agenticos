@@ -210,7 +210,7 @@ async def promote_owned_private_to_org(db: AsyncSession, *, owner_user_id: UUID)
         .values(visibility=Visibility.ORG.value)
     )
     await db.flush()
-    return result.rowcount  # ty: ignore[unresolved-attribute]
+    return result.rowcount  # ty: ignore[missing-attribute]
 
 
 async def agents_using_for_secrets(

@@ -13,7 +13,11 @@ export {
 export { useAdminOrganizationDetail } from "./use-admin-organization-detail";
 export { useWebSocket } from "./use-websocket";
 export { useChat } from "./use-chat";
-export { useCodingChanges } from "./use-coding-changes";
+export {
+  useCodingChanges,
+  useCodingChangeSets,
+  useRevertCodingChanges,
+} from "./use-coding-changes";
 export { useConversationWorkspace } from "./use-conversation-workspace";
 export { useConversationSearch, useConversations } from "./use-conversations";
 export { useConversationShares } from "./use-conversation-shares";
@@ -122,6 +126,7 @@ export {
   useRunTranscript,
   useSpend,
 } from "./use-runs";
+export { useStopParkedRun } from "./use-stop-parked-run";
 export {
   useAgentAttention,
   usePeopleUsage,

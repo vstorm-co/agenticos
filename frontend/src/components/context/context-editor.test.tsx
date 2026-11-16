@@ -145,12 +145,14 @@ describe("ContextEditor", () => {
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ description: null }));
   });
 
-  it("keeps usage policy in the agent builder instead of editing it globally", () => {
+  it("keeps secondary usage guidance behind context help", async () => {
     mount();
     expect(screen.queryByLabelText("Mode")).toBeNull();
     expect(screen.queryByLabelText("Format")).toBeNull();
     expect(screen.queryByRole("switch")).toBeNull();
-    expect(screen.getByText(/Choose how each agent/)).toBeInTheDocument();
+    expect(screen.queryByText(/Choose how each agent/)).toBeNull();
+    await userEvent.click(screen.getAllByRole("button", { name: "More information" })[0]!);
+    expect(screen.getByText(/Choose how each agent/)).toBeVisible();
   });
 
   it("preserves a legacy format when opening and editing the content", async () => {

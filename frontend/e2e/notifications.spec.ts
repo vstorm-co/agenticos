@@ -135,7 +135,13 @@ test.describe("Notifications", () => {
     await openBell(page);
     // Newest first (`created_at desc`), so the row this test just produced is
     // the top of the list - clicking it is the same click a person makes.
-    await page.locator("li").first().locator("a, button").first().click();
+    await page
+      .getByRole("dialog", { name: "Notifications", exact: true })
+      .locator("li")
+      .first()
+      .locator("a, button")
+      .first()
+      .click();
 
     // Polled, not read once: the client's own cache patch and the server's
     // acceptance of the mark-read write are two different moments, and a

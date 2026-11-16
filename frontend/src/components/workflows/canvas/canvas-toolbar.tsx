@@ -37,6 +37,7 @@ import type { ValidationProblem } from "@/components/workflows/validation";
 import type { NodeDefinition, Uuid } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 import { useWorkflowNodeStyleStore } from "@/stores/workflow-node-style-store";
+import { useNarrowScreen } from "@/hooks/use-narrow-screen";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { ScopeBreadcrumb } from "./scope-breadcrumb";
@@ -80,7 +81,10 @@ export function CanvasToolbar({
   const editNode = useWorkflowEditorStore((state) => state.editNode);
   const overlay = useWorkflowEditorStore((state) => state.overlay);
   const setOverlay = useWorkflowEditorStore((state) => state.setOverlay);
-  const minimapShown = useWorkflowEditorStore((state) => state.minimapShown);
+  const onPhone = useNarrowScreen();
+  const minimapShown = useWorkflowEditorStore((state) =>
+    onPhone ? state.phoneMinimapShown : state.minimapShown,
+  );
   const toggleMinimap = useWorkflowEditorStore((state) => state.toggleMinimap);
   const nodeStyle = useWorkflowNodeStyleStore((state) => state.style);
   const setNodeStyle = useWorkflowNodeStyleStore((state) => state.setStyle);
@@ -123,7 +127,7 @@ export function CanvasToolbar({
   return (
     <>
       <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex items-start justify-between gap-3">
-        <div className="pointer-events-auto flex flex-wrap items-center gap-2">
+        <div className="bg-card/95 border-border pointer-events-auto flex flex-wrap items-center gap-1 rounded-xl border p-1 shadow-sm">
           {!readOnly && !empty && (
             <Popover open={adding} onOpenChange={setAdding}>
               <PopoverTrigger asChild>
@@ -132,7 +136,7 @@ export function CanvasToolbar({
                   variant="outline"
                   aria-label={t("toolbarAddStep")}
                   title={t("toolbarAddStep")}
-                  className="bg-background/90 hover:bg-background h-8 rounded-lg shadow-sm backdrop-blur"
+                  className="h-8 rounded-lg"
                 >
                   <Plus className="h-4 w-4" />
                   {t("toolbarAddStep")}
@@ -151,7 +155,7 @@ export function CanvasToolbar({
               <Button
                 size="icon"
                 variant="outline"
-                className="bg-background/90 size-8 rounded-lg shadow-sm"
+                className="size-8 rounded-lg border-transparent bg-transparent shadow-none"
                 aria-label={t("toolbarDisplay")}
               >
                 <Settings2 className="size-4" />
@@ -161,7 +165,7 @@ export function CanvasToolbar({
               <DropdownMenuCheckboxItem
                 className="gap-3"
                 checked={minimapShown}
-                onCheckedChange={toggleMinimap}
+                onCheckedChange={() => toggleMinimap(onPhone)}
               >
                 <MapIcon className="size-4" />
                 {t(minimapShown ? "toolbarHideMinimap" : "toolbarShowMinimap")}
@@ -281,7 +285,7 @@ function ToolbarIcon({
       title={label}
       onClick={onClick}
       className={cn(
-        "bg-background/70 hover:bg-background size-8 rounded-lg shadow-sm backdrop-blur",
+        "size-8 rounded-lg border-transparent bg-transparent shadow-none",
         pressed && "bg-accent",
       )}
     >

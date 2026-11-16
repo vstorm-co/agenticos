@@ -13,7 +13,7 @@ register(
         version=1,
         name="Score",
         category="decide",
-        description="Ask Jev where a text sits on your rubric - urgency, fit, risk.",
+        description="Ask the decision model where a text sits on your rubric - urgency, fit, risk.",
         kind="control",
         config_schema=ScoreConfig,
         input_schema=DecisionInput,

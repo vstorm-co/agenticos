@@ -130,7 +130,7 @@ describe("the sync wizard's target collection", () => {
       onSubmit: vi.fn(),
     });
 
-    expect(screen.getByText("Target collection")).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Target collection" })).toBeVisible();
     // Radix draws the chosen item's text in the closed trigger, so this is the
     // seed being visible rather than the list being open.
     expect(screen.getByRole("combobox")).toHaveTextContent("contracts");

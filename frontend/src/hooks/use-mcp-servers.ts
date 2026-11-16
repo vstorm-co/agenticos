@@ -91,7 +91,7 @@ export function useMcpCatalogPage(
   state: McpServerStateFilter = "all",
 ) {
   const needle = query.trim();
-  const { data, isLoading, isFetching, isPlaceholderData } = useQuery({
+  const { data, isLoading, isFetching, isPlaceholderData, error, refetch } = useQuery({
     queryKey: qk.mcpServers.listPage(needle, category, auth, page, state),
     enabled,
     queryFn: () =>
@@ -111,6 +111,8 @@ export function useMcpCatalogPage(
     isLoading,
     isFetching,
     isPlaceholderData,
+    error,
+    refetch,
   };
 }
 

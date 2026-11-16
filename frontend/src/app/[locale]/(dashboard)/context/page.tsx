@@ -223,7 +223,7 @@ export default function ContextPage() {
     return (
       <div className="flex flex-1 flex-col space-y-4">
         {header}
-        <ListCard fill namedByPage title={t("contextFiles")} counted={null}>
+        <ListCard layout="grid" fill namedByPage title={t("contextFiles")} counted={null}>
           <CatalogLoading kind="document" />
         </ListCard>
       </div>
@@ -284,6 +284,7 @@ export default function ContextPage() {
       <ProposedContextChanges canEdit={canCreate} />
 
       <ListCard
+        layout="grid"
         fill
         data-tour="context-list"
         namedByPage
@@ -302,6 +303,15 @@ export default function ContextPage() {
             <NothingSharedWithGroup groupId={groupId} />
           ) : files.length === 0 ? (
             <ListCardEmpty
+              onClearFilters={
+                isFiltering
+                  ? () => {
+                      setQuery("");
+                      setGroupId(null);
+                      setPage(0);
+                    }
+                  : undefined
+              }
               icon={FileText}
               title={isFiltering ? t("noContextMatches") : t("noContextYet")}
               description={

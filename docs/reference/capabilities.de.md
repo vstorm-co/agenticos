@@ -1,5 +1,5 @@
 ---
-source_sha: "68958b7ea0a1"
+source_sha: "4f3a31df37a1"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -140,7 +140,7 @@ Der Code-Modus erhält diese Stopps über die Sandbox-Grenze hinweg.
 | `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` | übergeben |
 | `computer_use` | Computer-Bedienung | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | für einen Daemon | übergeben |
 | `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — | unverändert |
-| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona | übergeben |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace` | `sandbox:execute` | für Daytona | übergeben |
 | `mirage` | Virtuelles Terminal | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | pro Ordner, über das Extra `mirage` | übergeben |
 | `charts` | Diagramme | analysis | `create_chart` | — | — | unverändert |
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | unverändert |
@@ -160,7 +160,7 @@ Der Code-Modus erhält diese Stopps über die Sandbox-Grenze hinweg.
 | `compaction` | Lange Gespräche | utility | keine, mit Absicht | — | — | ohne Wirkung |
 | `media` | Bilder auslagern | utility | keine, mit Absicht | — | — | ohne Wirkung |
 | `tool_output_limits` | Grenzen für Tool-Ergebnisse | utility | `read_tool_result` | — | — | unverändert |
-| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | unverändert |
+| `artifacts` | Apps | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `export_artifact`, `share_artifact` | — | — | unverändert |
 | `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | nicht verfügbar |
 | `phone_calls` | [Telefonanrufe](../voice.md#telephone-calls) | channels | `get_phone_contact_policy`, `call_me`, `list_phone_transfer_contacts`, `transfer_phone_call`, `end_phone_call` | `endpoint_id` | — | — |
 | `ask_user` | Rückfragen | utility | `ask_user_question` | — | — | auf dem Bildschirm |
@@ -234,7 +234,7 @@ ein Eval anhält und aufzeichnet:
 | `image_generation` | `generate_image` |
 | `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
 | `memory_mem0` | `remember` |
-| `sandbox` | `write_file`, `edit_file`, `execute` |
+| `sandbox` | `write_file`, `edit_file`, `execute`, `select_project_workspace` |
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
 
 Jedes andere Tool oben liest nur. Delegieren zählt als Lesen: Die eigenen Tools
@@ -440,7 +440,7 @@ werden unter `/api/v1/context` verwaltet und per id an einen Agent gebunden
 Notizen, die ein Agent über Unterhaltungen hinweg selbst führt, indiziert durch
 eine, die er selbst pflegt. Wo `context` eine Bibliothek ist, die eine Person
 verfasst und an viele Agents bindet, ist das Gedächtnis das eigene des Agents: Er
-schreibt mitten im Run über Tools hinein, und sonst schreibt hier niemand. Es wird
+schreibt mitten im Run über Tools hinein. Eine Person kann ihre eigenen Notizen unter **Settings → Memory → Notes** korrigieren, ohne Zugriff auf fremde Notizen zu erhalten. Korrekturen bewahren den ursprünglichen Agent-Zeitstempel und den Unterdrückungsstatus, prüfen die Revision und protokollieren den Vorgang ohne Notizinhalt. Es wird
 nicht per id gebunden — die Capability zu aktivieren, gibt dem Agent seine Notizen.
 
 **`MEMORY.md` ist der Index, und er wird dem Agent bei jeder Anfrage gezeigt.** Er
@@ -1276,6 +1276,8 @@ und Speicher die einzigen Grenzen, die zu setzen sich lohnt.
 
 ## Sandbox { #files-shell }
 
+`select_project_workspace` wählt ein zugängliches Projekt für Datei- und Shell-Tools bis zum Ende des Runs. Ohne Projekt-ID wird der ursprüngliche Workspace wiederhergestellt. Eine Fortsetzung nach einer Freigabe behält die Auswahl; die nächste Gesprächsrunde beginnt im ursprünglichen Workspace. Der Gesprächsverlauf bleibt in seinem Thread. Jeder Zugriff wird erneut autorisiert; Routinen bleiben auf ihre geprüfte Projektquelle beschränkt. Isolierte Evaluationen können keine dauerhaften Projekte auswählen.
+
 `ls`, `read_file`, `glob`, `grep` — _Lesen._
 `write_file`, `edit_file`, `execute` — _Schreiben und Ausführen._
 
@@ -1870,8 +1872,33 @@ markiert, wo er abgeschnitten wurde.
 Zugriff gelesen wie ihr Transkript, also sieht ihn jeder, der den Chat lesen darf;
 wird der Chat gelöscht, verschwindet er mit. In einem Sandbox, den mehrere Chats
 teilen, sieht eine Aufgabe, die gleichzeitig mit einer anderen läuft, auch deren
-Änderungen in ihrem Diff. Eine Aufgabe zurückzunehmen wird noch nicht angeboten,
-und eine Aufgabe auf diesem Computer zeichnet keinen Diff auf.
+Änderungen in ihrem Diff. Eine Aufgabe auf diesem Computer zeichnet keinen Diff auf.
+
+**Diese Aufgabe rückgängig machen.** Neue Aufgaben können reguläre Dateien nur
+wiederherstellen, wenn ihr vollständiger Snapshot in einem isolierten
+Unterhaltungs-Workspace entstand. Snapshots mit Projekt-, Agent-, Kanal- oder
+Benutzerumfang bleiben schreibgeschützt, weil sie Arbeit anderer Unterhaltungen
+enthalten können. Du brauchst aktuellen Bearbeitungszugriff; kein Run darf im
+Workspace schreiben. Inhalt und Ausführungsmodus jeder Datei müssen dem Zustand
+nach der Aufgabe entsprechen. Ein Konflikt lehnt die gesamte Aktion ab und nennt
+die Dateien. Andere Dateien sowie Git-Index und Git-Verlauf bleiben unverändert.
+
+Die Aktion reiht einen dauerhaften Job ein und reserviert den Workspace. Das
+Panel zeigt Fortschritt und eindeutige Ablehnungen. Bei unbekanntem Ergebnis
+bleibt die Reservierung bestehen; **Erneut versuchen** prüft vor dem Schreiben,
+ob die Dateien bereits wiederhergestellt wurden. Ein Absturz oder eine verlorene
+Antwort kann die Rücknahme deshalb nicht unbemerkt doppelt anwenden. Der Worker
+prüft den Zugriff erneut und protokolliert den Erfolg.
+
+Die Aktion stellt nur Dateien wieder her; Unterhaltung und Aufgabenbericht
+bleiben erhalten. Sie benötigt Git und Python 3 und lehnt abgeschnittene,
+bereinigte, ältere reine Anzeige-Snapshots, verknüpfte Dateien und aktuelle
+Dateien über 2 MiB ab. Ein entfernter oder verschobener Workspace wird nicht ersetzt.
+
+**Anzahl geänderter Dateien.** Panel und Nachrichtenfuß verwenden den gespeicherten
+Änderungssatz, einschließlich Shell-Änderungen und der Anzahl nicht aufgelisteter
+Dateien. Nur Aufgaben ohne Änderungssatz nutzen die Dateiliste des Harness;
+neue Berichte geben diese Pfade relativ zum Workspace an.
 
 **Die Aufgaben einer Unterhaltung setzen eine Sitzung fort.** Die Sitzungs-ID des
 Harness liegt im Sandbox neben der Arbeit, unter `.agenticos/coding-agent/`, eine je
@@ -2031,6 +2058,8 @@ Deployments, der jetzt three.js, Mermaid und Leaflet enthält, und dem eigenen
 Kachelpfad des Deployments. Siehe [Visuals](../artifacts.md#visuals).
 
 ## Apps { #artifacts }
+
+`export_artifact` speichert die aktuell veröffentlichte Version als echte PDF-Datei im Workspace. Der isolierte Renderer unterstützt A4-Berichte und 16:9-Browserpräsentationen, behält die Zugriffs- und Zielgruppenprüfung der Vorschau bei und verweigert nicht verfügbare gebundene Daten. Renderer und Extra `browser` müssen konfiguriert sein. Dateien erhalten eindeutige Namen und sind auf 50 Seiten und 20 MB begrenzt. Siehe [Designressourcen](../skills.de.md#design-resources).
 
 `publish_artifact` — _veröffentlicht eine fertige Seite — einen Bericht, ein
 kleines Dashboard, eine Zusammenfassung — unter einem stabilen Link._
@@ -3260,6 +3289,8 @@ geschwärzter Prompt erreicht das Modell bereinigt, aber die Unterhaltung speich
 Nachricht so, wie die Person sie eingegeben hat, einschließlich personenbezogener
 Daten. Wer die Unterhaltung lesen kann, kann auch diese Nachricht lesen.
 
+Das für Menschen sichtbare Transkript bleibt das ursprüngliche Auditprotokoll. Eine separate bereinigte Kopie einschließlich Anhangsbeschreibung wird für Modellhistorie und Zitate gespeichert. Spätere Züge behalten diese Kopie auch nach Deaktivierung der Eingabeschwärzung. Ältere Historie wird vor der Kontextverwaltung geprüft; blockierte Züge verwenden weiterhin den Ablehnungsmarker.
+
 **Die Eingabekante prüft einen Anhang, bevor er geschrieben wird.** Eine angehängte
 Datei erreicht den Prompt als ihr Name, ihr Pfad und ihre ersten 20 Zeilen
 (höchstens 2.000 Zeichen), und die Eingabekante liest sie zusammen mit der Nachricht
@@ -3674,3 +3705,17 @@ Die Auswahl des lokalen Zugriffs gehört zum gewählten Agenten, nicht zu einer 
 Die Korrektur `[session:api] Verwende die EU-Zahlen` erreicht die Sitzung `api`. Bei einer aktiven Sitzung erreichen sie auch Korrekturen ohne Adresse; bei mehreren bleiben diese beim übergeordneten Agenten, damit keine andere Aufgabe geändert wird. Der übergeordnete Agent protokolliert die Korrektur einmal, wenn er fortfährt.
 
 Sandbox-Coding-Aufgaben desselben Toolsets laufen nacheinander, damit sich ihre Dateischnappschüsse nicht überschneiden; unabhängige lokale Sitzungen laufen weiterhin parallel.
+
+
+## Verbundene Chat-Apps (`channel_actions`) { #connected-chat-apps-channel_actions }
+
+Ausdrückliche Bot-Freigaben zum Finden von Kanälen, Durchsuchen von Nachrichten und Senden angeforderter Berichte aus jedem Lauf.
+
+| Werkzeug | Aktion |
+| --- | --- |
+| `list_chat_connections` | Bot-IDs, Freigaben und aktuelles Ziel |
+| `find_chat_channels` | Metadaten beigetretener Kanäle mit Seiten |
+| `read_chat_messages` | Begrenzter, gefilterter Nachrichtenverlauf |
+| `send_chat_message` | Angeforderte Nachricht oder Bericht als Beitrag oder Thread-Antwort |
+
+Jede Operation prüft erneut Organisationsmitgliedschaft, Agentenzugriff, aktive Bindung und Bot sowie anschließend Kanalmitgliedschaft und Thread-Zugehörigkeit. Sie tritt keinen Kanälen bei und verwendet keine Bots anderer Agenten. Suche und Verlauf liefern begrenzte Seiten mit Cursorn; eine leere Trefferseite ist nicht das Ende, solange ein Cursor besteht. Anbieterfehler sind Ablehnungen, keine leeren Ergebnisse. Senden folgt den Freigaberegeln; unbestätigte Sendungen müssen vor einem erneuten Versuch am Ziel geprüft werden. Andere Plattformen behalten ihre Gesprächswerkzeuge; kanalübergreifende Aktionen werden nur bei überprüfbarer Mitgliedschaft angeboten.

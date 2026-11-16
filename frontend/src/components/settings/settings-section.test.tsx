@@ -32,12 +32,24 @@ it("offers contextual guidance in organization settings without hiding fields", 
   expect(await screen.findByText("How these settings work")).toBeVisible();
 });
 
-it("shows personal settings descriptions without opening a tooltip", () => {
+it("keeps personal settings guidance on demand with the action visible", async () => {
   render(
     <SectionCard title="Security" description="Manage your sessions">
       <button>Manage</button>
     </SectionCard>,
   );
-  expect(screen.getByText("Manage your sessions")).toBeVisible();
-  expect(screen.queryByRole("button", { name: "More information" })).not.toBeInTheDocument();
+  expect(screen.queryByText("Manage your sessions")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Manage" })).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "More information" }));
+  expect(await screen.findByText("Manage your sessions")).toBeVisible();
+});
+
+it("keeps a destructive card warning visible", () => {
+  render(
+    <SectionCard title="Delete" description="Cannot be undone" danger>
+      <button>Delete</button>
+    </SectionCard>,
+  );
+  expect(screen.getByText("Cannot be undone")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "More information" })).toBeNull();
 });

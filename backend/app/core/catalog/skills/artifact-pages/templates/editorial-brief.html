@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>A smaller launch, stronger evidence</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --paper: light-dark(#faf8f3, #191b20);
+        --ink: light-dark(#252b32, #e9eced);
+        --muted: light-dark(#535f69, #acb7bf);
+        --line: light-dark(#c9cfce, #46505b);
+        --accent: light-dark(#176654, #81d5bb);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font:
+          17px/1.55 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 1120px;
+        margin: auto;
+        padding: clamp(20px, 5vw, 64px);
+      }
+      h1 {
+        font:
+          clamp(36px, 6vw, 72px)/1.04 Georgia,
+          serif;
+        max-width: 18ch;
+        margin: 16px 0 24px;
+      }
+      h2 {
+        font-size: 24px;
+        line-height: 1.2;
+      }
+      p {
+        max-width: 70ch;
+      }
+      .eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--accent);
+      }
+      .muted,
+      small {
+        color: var(--muted);
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      button,
+      select,
+      input:not([type="range"]) {
+        min-height: 44px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 8px 12px;
+        background: var(--paper);
+        color: var(--ink);
+      }
+      button {
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: var(--accent);
+      }
+      :focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 3px;
+      }
+      label {
+        display: block;
+        font-size: 14px;
+        font-weight: 600;
+        margin-top: 16px;
+      }
+      input[type="range"] {
+        width: 100%;
+        min-height: 44px;
+        accent-color: var(--accent);
+      }
+      .split {
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr);
+        gap: 40px;
+      }
+      .rule {
+        border-top: 1px solid var(--line);
+        padding-top: 24px;
+        margin-top: 32px;
+      }
+      svg,
+      canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 14px;
+      }
+      th,
+      td {
+        text-align: left;
+        border-bottom: 1px solid var(--line);
+        padding: 12px 8px;
+      }
+      output {
+        font-variant-numeric: tabular-nums;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .error {
+        color: light-dark(#a32e29, #ffaaa5);
+      }
+      @media (max-width: 640px) {
+        .split {
+          grid-template-columns: 1fr;
+          gap: 20px;
+        }
+        h1 {
+          font-size: 40px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          scroll-behavior: auto !important;
+        }
+      }
+      @media print {
+        button,
+        input,
+        select,
+        .controls {
+          display: none;
+        }
+        body {
+          background: white;
+          color: black;
+        }
+        main {
+          padding: 0;
+        }
+      }
+      @media (max-width: 640px) {
+        svg text {
+          font-size: 26px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">Decision brief · Demonstration data</p>
+        <h1>A smaller launch, stronger evidence.</h1>
+        <p>
+          Start with two teams. Measure successful handoffs before expanding the
+          rollout. This example separates evidence from assumptions so the
+          reader can inspect the recommendation.
+        </p>
+        <p class="muted">Prepared 13 November 2026 · Example organization</p>
+      </header>
+      <section class="split rule" aria-labelledby="finding">
+        <div>
+          <h2 id="finding">Where the friction lives</h2>
+          <p>
+            Most observed delays happen at handoffs, where a clear owner matters
+            more than another automation.
+          </p>
+          <a href="#evidence">Inspect the evidence</a>
+        </div>
+        <figure>
+          <svg viewBox="0 0 600 230" role="img" aria-labelledby="chart-title">
+            <title id="chart-title">
+              Illustrative median delay: intake 2 hours, handoff 9 hours, review
+              4 hours
+            </title>
+            <g fill="currentColor" font-size="18">
+              <text x="0" y="42">Intake</text>
+              <text x="0" y="102">Handoff</text>
+              <text x="0" y="162">Review</text>
+            </g>
+            <g fill="var(--accent)">
+              <rect x="120" y="20" width="80" height="30" />
+              <rect x="120" y="80" width="360" height="30" />
+              <rect x="120" y="140" width="160" height="30" />
+            </g>
+            <g fill="currentColor" font-size="18">
+              <text x="210" y="42">2 h</text>
+              <text x="490" y="102">9 h</text>
+              <text x="290" y="162">4 h</text>
+            </g>
+            <path d="M120 185H520" stroke="var(--line)" />
+            <text x="120" y="216" fill="currentColor" font-size="16">
+              Median delay in hours · Zero baseline
+            </text>
+          </svg>
+          <figcaption class="muted">
+            Illustrative sample, not a production measurement.
+          </figcaption>
+        </figure>
+      </section>
+      <section class="rule" id="evidence" aria-labelledby="evidence-heading">
+        <h2 id="evidence-heading">Evidence ledger</h2>
+        <label for="filter">Show evidence</label
+        ><select id="filter">
+          <option value="all">All evidence</option>
+          <option value="observed">Observed</option>
+          <option value="assumption">Assumptions</option>
+        </select>
+        <p id="count" role="status"></p>
+        <ol id="ledger">
+          <li data-kind="observed">
+            <h3>Handoffs take the longest</h3>
+            <p>
+              Example process review: median 9 hours across 24 handoffs. Small
+              sample; one unusually busy week.
+            </p>
+          </li>
+          <li data-kind="observed">
+            <h3>Ownership reduces rework</h3>
+            <p>
+              Illustrative interview notes: 6 of 8 participants wanted an
+              explicit next owner.
+            </p>
+          </li>
+          <li data-kind="assumption">
+            <h3>A two-team pilot is representative</h3>
+            <p>
+              This is an assumption to validate, not an observed result. Include
+              teams with different workloads.
+            </p>
+          </li>
+        </ol>
+        <details>
+          <summary>Limitations and next check</summary>
+          <p>
+            Replace these examples with attributable source records, dates and
+            sample sizes. Compare handoff times before and after the pilot;
+            review whether the teams represent the wider organization.
+          </p>
+        </details>
+      </section>
+    </main>
+    <script>
+      const filter = document.getElementById("filter");
+      const rows = [...document.querySelectorAll("#ledger li")];
+      function render() {
+        let count = 0;
+        for (const row of rows) {
+          row.hidden =
+            filter.value !== "all" && row.dataset.kind !== filter.value;
+          if (!row.hidden) count++;
+        }
+        document.getElementById("count").textContent =
+          `${count} of ${rows.length} evidence items shown`;
+      }
+      filter.addEventListener("change", render);
+      render();
+    </script>
+  </body>
+</html>

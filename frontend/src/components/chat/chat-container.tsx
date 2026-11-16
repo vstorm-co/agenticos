@@ -27,6 +27,7 @@ import {
 } from "@/hooks";
 import type { ChatTesting, SteerDraft } from "@/hooks/use-chat";
 import { AgentPicker, isChattable } from "./agent-picker";
+import { ChatApprovalSelector } from "./chat-approval-selector";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
 import { SheetRow } from "./composer-sheet";
@@ -487,6 +488,7 @@ export function ChatContainer({
     setModelProfile,
     setApprovalMode,
     pendingApproval,
+    continuingApproval,
     mayRememberApproval,
     sendResumeDecisions,
     pendingQuestions,
@@ -929,6 +931,7 @@ export function ChatContainer({
         sentTurnAnchoredRef={sentTurnAnchoredRef}
         sentTurnSpacerRef={sentTurnSpacerRef}
         pendingApproval={pendingApproval}
+        continuingApproval={continuingApproval}
         onResumeDecisions={sendResumeDecisions}
         mayRememberApproval={mayRememberApproval}
         pendingQuestions={pendingQuestions}
@@ -1063,6 +1066,7 @@ interface ChatUIProps {
   sentTurnAnchoredRef: React.RefObject<boolean>;
   sentTurnSpacerRef: React.RefObject<HTMLDivElement | null>;
   pendingApproval?: PendingApproval | null;
+  continuingApproval?: boolean;
   onResumeDecisions?: (decisions: Decision[]) => void;
   mayRememberApproval?: boolean;
   pendingQuestions?: AskUserQuestion[] | null;
@@ -1139,6 +1143,7 @@ function ChatUI({
   sentTurnAnchoredRef,
   sentTurnSpacerRef,
   pendingApproval,
+  continuingApproval = false,
   onResumeDecisions,
   mayRememberApproval,
   pendingQuestions,
@@ -1628,7 +1633,11 @@ function ChatUI({
               <OutcomeCards
                 conversationId={conversationId}
                 hasApprovalPanel={!!pendingApproval && !!onResumeDecisions}
-                isWorking={isProcessing || messages.some((message) => message.isStreaming)}
+                isWorking={
+                  isProcessing ||
+                  continuingApproval ||
+                  messages.some((message) => message.isStreaming)
+                }
                 className="pointer-events-auto mx-auto max-h-40 w-full max-w-5xl overflow-y-auto overscroll-contain px-2 pb-2 sm:px-4"
               />
             )}
@@ -1788,6 +1797,15 @@ function ChatUI({
                           composerStrip !== null && "rounded-t-none",
                         )}
                       >
+                        {!agentFixed && (
+                          <div className="border-border bg-muted/40 hidden items-center rounded-t-2xl border-b px-3 py-1.5 has-[a]:flex">
+                            <ProjectChip
+                              conversationId={conversationId}
+                              pickerOpen={projectPickerOpen}
+                              onPickerOpenChange={setProjectPickerOpen}
+                            />
+                          </div>
+                        )}
                         <div
                           className={cn(
                             "px-2.5 pt-1 pb-0.5",
@@ -1801,7 +1819,7 @@ function ChatUI({
                           )}
                           {/* One row of actions under the text, the same at every
                           level of every limit: attach and who answers on the left;
-                          usage, the model, the microphone and send on the right. A
+                          files, settings, the microphone and send on the right. A
                           limit near its end changes an icon's colour and never
                           costs the row a button. */}
                           <ChatInput
@@ -1855,20 +1873,13 @@ function ChatUI({
                             // Who answers first and largest: it is the most
                             // consequential choice in the composer.
                             controlsSlot={
-                              agentFixed ? undefined : (
-                                <>
-                                  <AgentPicker />
-                                  {/* A phone's row is the agent alone; the project is
-                                    picked from its `+` sheet. */}
-                                  <span className="contents max-md:hidden">
-                                    <ProjectChip
-                                      conversationId={conversationId}
-                                      pickerOpen={projectPickerOpen}
-                                      onPickerOpenChange={setProjectPickerOpen}
-                                    />
-                                  </span>
-                                </>
-                              )
+                              <>
+                                {!agentFixed && <AgentPicker />}
+                                <ChatApprovalSelector
+                                  onChange={onApprovalModeChange}
+                                  disabled={isProcessing || readOnly}
+                                />
+                              </>
                             }
                             onProject={
                               agentFixed || conversationId
@@ -1926,14 +1937,19 @@ function ChatUI({
                               <span className="contents max-md:hidden">
                                 {/* Wide screens only, as is the panel it opens. */}
                                 <span ref={setFilesSlot} className="hidden lg:contents" />
-                                <UsageMeter
-                                  usage={lastUsage}
-                                  workspace={workspace}
-                                  total={conversationCost}
-                                  contextWindow={contextWindow}
-                                />
                                 <div>
                                   <ChatControls
+                                    usageSlot={
+                                      <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                                        <span>{t("input.contextUsed")}</span>{" "}
+                                        <UsageMeter
+                                          usage={lastUsage}
+                                          workspace={workspace}
+                                          total={conversationCost}
+                                          contextWindow={contextWindow}
+                                        />
+                                      </div>
+                                    }
                                     onModelProfileChange={onModelProfileChange}
                                     onApprovalModeChange={onApprovalModeChange}
                                     agentModel={agentModel}

@@ -9,7 +9,7 @@ import { ArrowLeft, ChevronRight, Plus, RefreshCw, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
-import { appToolLabel, serverGroupId } from "@/components/workflows/apps";
+import { WORKFLOW_APPS, appToolLabel, serverGroupId } from "@/components/workflows/apps";
 import { NodeTile } from "@/components/workflows/node-tile";
 import { sectionSwatchClass } from "@/components/workflows/node-visuals";
 import { writeNodeDragData } from "@/components/workflows/palette/drag";
@@ -72,6 +72,8 @@ function Tile(which: TileFor) {
   );
 }
 
+const CURATED_APPS = new Set(WORKFLOW_APPS.map((app) => app.id));
+
 /**
  * Choosing the next step: sections of groups - Agents, Tables, Slack - and each
  * group's steps one level down, or every step matching a search at once.
@@ -85,6 +87,9 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
   const t = useTranslations("workflows");
   const [query, setQuery] = useState("");
   const [openGroup, setOpen] = useState<PickerGroup | null>(null);
+  // Catalog apps nobody has connected offer no step yet: folded under one row,
+  // so the steps that can be added are not lost among forty that cannot.
+  const [allApps, setAllApps] = useState(false);
   const coloured = useWorkflowNodeStyleStore((state) => state.style) === "colour";
 
   const label = (category: string) =>
@@ -209,6 +214,14 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
     </Command.Item>
   );
 
+  // Only the catalog's own services: an app the console curates, and one this member
+  // may not see actions of, keep their rows, which say how to get its steps.
+  const toConnect = (group: PickerGroup) =>
+    group.app !== undefined &&
+    !CURATED_APPS.has(group.app.app.id) &&
+    !group.app.needsPermission &&
+    group.items.length + group.app.actions.length + group.app.untested.length === 0;
+
   const groupRow = (group: PickerGroup) => (
     <Command.Item
       key={group.category}
@@ -237,7 +250,9 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
         )}
       </span>
       <span className="text-muted-foreground text-xs tabular-nums">
-        {group.items.length + (group.app?.actions.length ?? 0)}
+        {toConnect(group)
+          ? t("pickerAppToConnect")
+          : group.items.length + (group.app?.actions.length ?? 0)}
       </span>
       <ChevronRight aria-hidden="true" className="text-muted-foreground size-4" />
     </Command.Item>
@@ -375,14 +390,37 @@ export function NodePicker({ offered, onPick, draggable = false }: NodePickerPro
               }
               className={cn(GROUP_HEADING, "mb-1")}
             >
-              {section.groups.map((group) => {
-                // A group of one step is that step: a click adds it at once.
-                if (group.items.length === 1 && group.app === undefined) {
-                  const only = group.items[0] as NodeDefinition;
-                  return stepRow(only, "step");
-                }
-                return groupRow(group);
-              })}
+              {section.groups
+                .filter((group) => !toConnect(group))
+                .map((group) => {
+                  // A group of one step is that step: a click adds it at once.
+                  if (group.items.length === 1 && group.app === undefined) {
+                    const only = group.items[0] as NodeDefinition;
+                    return stepRow(only, "step");
+                  }
+                  return groupRow(group);
+                })}
+              {section.groups.some(toConnect) && (
+                <>
+                  {allApps && section.groups.filter(toConnect).map(groupRow)}
+                  <Command.Item
+                    value={`__more__:${section.id}`}
+                    onSelect={() => setAllApps((shown) => !shown)}
+                    className={cn(
+                      COMMAND_ITEM_FOCUS,
+                      "text-muted-foreground flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium",
+                    )}
+                  >
+                    <ChevronRight
+                      aria-hidden="true"
+                      className={cn("size-3.5 transition-transform", allApps && "rotate-90")}
+                    />
+                    {allApps
+                      ? t("pickerFewerApps")
+                      : t("pickerMoreApps", { count: section.groups.filter(toConnect).length })}
+                  </Command.Item>
+                </>
+              )}
             </Command.Group>
           ))
         )}

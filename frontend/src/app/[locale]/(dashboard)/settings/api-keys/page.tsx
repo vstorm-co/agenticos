@@ -1,13 +1,5 @@
-"use client";
+import { DeveloperAccess } from "@/components/settings/developer-access";
 
-import { ApiKeysManager } from "@/components/settings/api-keys-manager";
-import { ApiUsage } from "@/components/settings/api-usage";
-
-export default function ApiKeysSettingsPage() {
-  return (
-    <div className="flex flex-1 flex-col space-y-6">
-      <ApiKeysManager />
-      <ApiUsage />
-    </div>
-  );
+export default function AccessSettingsPage() {
+  return <DeveloperAccess initial="api" />;
 }

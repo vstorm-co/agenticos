@@ -57,7 +57,7 @@ from pydantic import (
     model_serializer,
     model_validator,
 )
-from pydantic_ai.capabilities import AbstractCapability
+from pydantic_ai.capabilities import AbstractCapability, CombinedCapability
 
 from app.agents.capabilities._overrides import ToolOverrides
 from app.core.exceptions import BadRequestError
@@ -805,6 +805,14 @@ def _as_bound(
     }
     if not names and not descriptions:
         return capability
+    if isinstance(capability, CombinedCapability) and capability.defer_loading is not True:
+        # A plain combination is flattened by Pydantic AI. Bind the tool-owning
+        # children, so a rename replaces their registered identities too.
+        bound = capability.visit_and_replace(
+            lambda child: _as_bound(child, overrides) if child.get_toolset() is not None else child
+        )
+        assert bound is not None
+        return bound
     return ToolOverrides(wrapped=capability, names=names, descriptions=descriptions)
 
 
@@ -829,6 +837,7 @@ def load_builtins() -> None:
         background_tasks,
         background_tools,
         browser_use,
+        channel_actions,
         channel_tools,
         charts,
         clock,

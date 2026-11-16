@@ -1,13 +1,23 @@
 "use client";
 
+import Link from "next/link";
+import { ROUTES } from "@/lib/constants";
 import { useTranslations } from "next-intl";
 import { useRoutineSources } from "@/hooks/use-routine-sources";
 import { Button, Spinner } from "@/components/ui";
 import { ErrorState } from "@/components/states/error-state";
+import { getErrorMessage } from "@/lib/api-error";
 import type { Trigger } from "@/types/triggers";
 
-export function SourceConsentsPanel({ trigger }: { trigger: Trigger }) {
+export function SourceConsentsPanel({
+  trigger,
+  showApprove = true,
+}: {
+  trigger: Trigger;
+  showApprove?: boolean;
+}) {
   const t = useTranslations("triggers.sourceConsents");
+  const errors = useTranslations("errors");
   const { data, isLoading, error, replace, refetch } = useRoutineSources(
     trigger.agent_id,
     trigger.id,
@@ -19,7 +29,18 @@ export function SourceConsentsPanel({ trigger }: { trigger: Trigger }) {
       {isLoading ? (
         <Spinner />
       ) : error ? (
-        <ErrorState cta={{ label: t("retry"), onClick: () => void refetch() }} />
+        <div className="space-y-2">
+          <ErrorState
+            title={getErrorMessage(error, errors)}
+            cta={{ label: t("retry"), onClick: () => void refetch() }}
+          />
+          <Link
+            className="text-sm underline underline-offset-4"
+            href={`${ROUTES.AGENT_DETAIL(trigger.agent_id)}?highlight=agent-mcp`}
+          >
+            {t("inspectAgent")}
+          </Link>
+        </div>
       ) : (
         data && (
           <>
@@ -30,17 +51,27 @@ export function SourceConsentsPanel({ trigger }: { trigger: Trigger }) {
               ))}
             </ul>
             {data.unavailable_sources.length > 0 && (
-              <p role="status" className="text-sm">
-                {t("unavailable", { names: data.unavailable_sources.join(", ") })}
-              </p>
+              <div className="space-y-2">
+                <p role="status" className="text-sm">
+                  {t("unavailable", { names: data.unavailable_sources.join(", ") })}
+                </p>
+                <Link
+                  className="text-sm underline underline-offset-4"
+                  href={`${ROUTES.AGENT_DETAIL(trigger.agent_id)}?highlight=agent-mcp`}
+                >
+                  {t("inspectAgent")}
+                </Link>
+              </div>
             )}
-            <Button
-              variant="outline"
-              disabled={replace.isPending || data.unavailable_sources.length > 0 || data.current}
-              onClick={() => replace.mutate(data.review_token)}
-            >
-              {t("accept")}
-            </Button>
+            {showApprove && (
+              <Button
+                variant="outline"
+                disabled={replace.isPending || data.unavailable_sources.length > 0 || data.current}
+                onClick={() => replace.mutate(data.review_token)}
+              >
+                {t("accept")}
+              </Button>
+            )}
           </>
         )
       )}

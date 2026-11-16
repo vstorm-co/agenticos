@@ -1,8 +1,12 @@
 ---
-source_sha: "1b6fafac402e"
+source_sha: "68bc1f6dcd69"
 ---
 
 # Die Konsole { #the-console }
+
+Organisationen bietet eine Suche nach Namen und Slugs der Mitgliedschaften; die Trefferzahl steht in derselben Leiste. Leeren der Suche zeigt wieder alle Mitgliedschaften.
+
+Die Me-Ansicht beginnt mit einer Zusammenfassung des Zeitraums als Karte, gefolgt von einem kompakten Briefing mit Titeln, Quellen und Aktionen. Vollständige Vorschläge bleiben im Posteingang.
 
 Das persönliche Dashboard liest Onboarding und Briefing gemeinsam, bevor es die erste Zeile anzeigt. Ein reservierter Ladebereich verhindert wechselnde Platzhalterlayouts; andere Widgets laden unabhängig. Fehlgeschlagene Lesevorgänge können erneut versucht werden. Arbeitsbereiche lassen sich auf Smartphones erweitern; beim Wechsel zum Desktop kehrt die Navigation zurück und ungespeicherte Felder bleiben erhalten.
 
@@ -68,13 +72,15 @@ Die Agenten einer Unterhaltung sind nach ihrer letzten Nachricht oder ihrem letz
 
 Ist **Approve everything** nicht verfügbar, unterscheiden die Chat-Einstellungen zwischen fehlender Entscheidungsberechtigung und einer Organisationsrichtlinie, die pauschale Zustimmung deaktiviert. Wer Genehmigungen entscheiden darf, erhält einen Link zu **Budget und Genehmigungen**, um die Richtlinie ausdrücklich zu ändern. Der Chat ändert die Organisationsrichtlinie niemals automatisch.
 
+Der Eingabebereich zeigt den aktiven Genehmigungsmodus neben der Agent-Auswahl. Über die Beschriftung lässt sich der gespeicherte Modus vor dem Senden ändern. Es gelten dieselben Berechtigungen und Organisationsrichtlinien wie in Chat controls. Automatisch genehmigte Aufrufe behalten ihre genehmigten Audit-Einträge; nur tatsächlich ausstehende Aufrufe zeigen eine Aufforderung zur Entscheidung.
+
 Dialoge behalten auf dem Smartphone an allen Rändern 12 px Abstand. Kompakte Seitenköpfe zeigen Titel und Aktionen in einer Zeile, wenn genug Platz ist. Die Context-Beschreibung öffnet sich über die Editorleiste.
 
-Auf dem Smartphone bleiben die Hauptaktionen sichtbar; weitere Befehle öffnet **Weitere Seitenaktionen**. Inbox-Filter und Tabellenformat werden über Auswahllisten gewählt. Einstellungen mit vielen Bereichen haben ein Bereichsmenü; der MCP-Client wird aus einer Liste gewählt. Projekt- und Workspace-Dateien öffnen sich im Vollbildleser; der Zurück-Pfeil führt zu den Ordnern. Im Workflow-Schritteditor wählst du Einstellungen, Eingabe oder Ausgabe. Beim Wechsel bleiben Änderungen erhalten; auf dem Desktop stehen die Bereiche weiterhin nebeneinander.
+Auf dem Smartphone bleiben die Hauptaktionen sichtbar; weitere Befehle öffnet **Weitere Seitenaktionen**. Inbox-Filter und Tabellenformat werden über Auswahllisten gewählt. Einstellungen haben eine horizontale, scrollbare Tableiste; der MCP-Client wird aus einer Liste gewählt. Projekt- und Workspace-Dateien öffnen sich im Vollbildleser; der Zurück-Pfeil führt zu den Ordnern. Im Workflow-Schritteditor wählst du Einstellungen, Eingabe oder Ausgabe. Beim Wechsel bleiben Änderungen erhalten; auf dem Desktop stehen die Bereiche weiterhin nebeneinander.
 
 Jede ausdrückliche Aktion **New chat** fokussiert den Editor erneut, auch bei einem leeren Entwurf; die Vergabe einer Gesprächs-ID während des Schreibens fordert keinen Fokus an.
 
-Markdown-Felder und Dateieditoren bieten ebenfalls eine Schaltfläche zum Vergrößern, ohne den aktuellen Entwurf zu verwerfen. Beschreibung und Kategorie eines Skills lassen sich über dem Editor aufklappen. Das Chat-Eingabefeld benötigt weniger Platz und begrenzt lange Entwürfe anhand der verfügbaren Bildschirmhöhe. Beim Öffnen der Navigation erhält das Panel den Fokus; mit Tab sind dessen Bedienelemente weiterhin erreichbar. Der Workflow-Canvas bietet auf Telefonen eine schwebende Vollbild-Schaltfläche und eine kleinere Minimap.
+Markdown-Felder und Dateieditoren bieten ebenfalls eine Schaltfläche zum Vergrößern, ohne den aktuellen Entwurf zu verwerfen. Beschreibung und Kategorie eines Skills lassen sich über dem Editor aufklappen. Das Chat-Eingabefeld benötigt weniger Platz und begrenzt lange Entwürfe anhand der verfügbaren Bildschirmhöhe. Beim Öffnen der Navigation erhält das Panel den Fokus; mit Tab sind dessen Bedienelemente weiterhin erreichbar. Auf Telefonen bietet der Workflow-Canvas eine schwebende Vollbild-Schaltfläche, öffnet sich mit dem ganzen Ablauf im Blick und startet mit ausgeblendeter Minimap.
 
 Auf Telefonen bleiben Beschreibung, Kategorie und Dateiverwaltung in Skill- und Kontexteditoren beim Schreiben eingeklappt. Eine Schaltfläche wechselt zwischen Quelltext und Vorschau. Apps bietet schwebende Zurück- und Optionsschaltflächen; die Optionen zeigen Titel, Version, Design und Freigabe.
 
@@ -82,7 +88,9 @@ Seitenüberschriften verwenden die Abstände des umgebenden Layouts ohne Verdopp
 
 Sekundäre Schaltflächen und Filter teilen eine deutlichere Füllfläche, kontrastreiche Beschriftungen und klare Zustände bei Hover, Betätigung und geöffnetem Menü. Die Modellauswahl im Chat verwendet denselben Stil.
 
-Persönliche Einstellungen behalten horizontale Tabs am oberen Rand, einschließlich der Desktop-Seiten innerhalb der App. Beschreibungen stehen direkt im Panel; Formulare passen sich ihrem Inhalt an. Konto enthält Passwortänderung und aktive Sitzungen; die Passwortaktion steht unter den Feldern.
+Persönliche Einstellungen verwenden auf Desktop und Telefon horizontale, scrollbare Tabs. Erläuterungen öffnen sich über Informationsschaltflächen; Feldanforderungen, Validierungsfehler und Warnungen vor Löschaktionen bleiben sichtbar. Konto enthält Passwortänderungen und aktive Sitzungen.
+
+Gesprächstitel stehen in der Chatliste zuerst, Agentennamen und Aktivität darunter. Suche, Filter und Neuer Chat teilen sich die Kopfzeile. Kopfzeilenfilter öffnen sich unter ihrer Schaltfläche, Filter der eingeklappten Leiste daneben. Dekorative Illustrationen wechseln ohne Wiedergabesteuerung und beachten die Einstellung für reduzierte Bewegung.
 
 Profilfelder stehen bei genügend Platz nebeneinander; **Änderungen speichern** ist erst nach einer Bearbeitung verfügbar. Eine Fähigkeitskarte hat einen Bereich zum Öffnen der Einstellungen und einen separaten Schalter zum Aktivieren. Beispiele stehen im Einstellungsbereich hinter dem Informationssymbol; die Illustration der Galerie wird dort nicht wiederholt.
 
@@ -133,31 +141,14 @@ an, die Sie öffnen dürfen. Alle starten in der Ansicht **Ich**:
 
 | Ansicht | Beantwortet |
 | --- | --- |
-| **Ich** | Eine Begrüßung, Ihr Zeitraum und alles, was auf Sie wartet, in zwei Sätzen - Aufrufe, Antworten zur Prüfung, durchgefallene Suites, Vorschläge des Assistenten; Ihre Runs, wie viele fertig wurden, was auf Sie wartet (gleich gezählt) und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, die Agents, die Aufmerksamkeit brauchen, die Verbesserungen, die auf Sie warten, Ihre Agents, was mit Ihnen geteilt wurde, Ihre [Datasets](datasets.md) mit dem, woran ihre Fälle die Antwort messen, die neuesten Eval-Runs und Suites, die Vorschläge des Assistenten nach Agent, Skill und Datei und die Wissenslücken |
-| **Ich** | Eine Begrüßung und Ihr Zeitraum in einem Satz; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, Ihre Agents und was mit Ihnen geteilt wurde |
+| **Ich** | Ihr Zeitraum, Briefing und Discover-Tipps; letzte Unterhaltungen, Projekte, eigene und häufig verwendete Agents sowie letzte Visualisierungen. Entscheidungs-, Hintergrundthemen- und Freigabekarten entfallen in dieser persönlichen Standardansicht. |
 | **Organisation** | Die anordenbare Seite unten |
 | **Gruppe** | Die Mitglieder einer [Gruppe](departments.md) - ihre Runs, Ausgaben, Modelle, wann sie arbeiten und wer es am meisten nutzt. Die Gruppe wählen Sie neben dem Schalter. Eine Gruppe, deren Mitglieder im Zeitraum nichts ausgeführt haben, sagt das einmal, mit einem Weg zur Gruppe, statt eine Seite leerer Karten zu zeigen |
 | **Deployment** | Nur für einen [Deployment-Admin](permissions.md) — Plattformsummen, Health, aktivste Tenants, Bewertungen |
 
-In **Ich** listet **Agents, die Aufmerksamkeit brauchen** die Agents, die Sie
-sehen dürfen, mit negativ bewerteten Antworten, fehlgeschlagenen Runs oder einer
-durchgefallenen Eval-Suite im Zeitraum - nur Zahlen, nie das Gesagte - mit
-**Verbessern** bei denen, die Sie bearbeiten dürfen. Die Agent-Galerie markiert
-dieselben Agents der letzten dreißig Tage mit dem Abzeichen **Braucht
-Aufmerksamkeit**, das beim Überfahren sagt, warum. Antworten und Runs zählen
-nur für die Version, die der Agent jetzt in seiner Standardumgebung ausliefert:
-Das Veröffentlichen einer Korrektur löscht das Signal, bis die neue Version
-eigene sammelt. Beides erfordert `runs:view`.
+Das persönliche Briefing richtet Titel und Quelle an den Aktionen aus. Discover folgt direkt darunter. Letzte Visualisierungen zeigen ihre Bilder vollständig in zentrierten Vorschauen. Beantwortete Fragen warten nicht mehr, sobald der Server die zugelassene Fortsetzung startet. Ein Klick schließt schließbare Toasts mit kurzem Ausblenden; laufende Vorgänge bleiben sichtbar.
 
-Darunter listet **Verbesserungen, die auf Sie warten** die
-[Verbessern](authoring.md#the-improve-wizard)-Sitzungen, die für Ihren nächsten
-Schritt oder Ihre Entscheidung angehalten haben, jede an ihrem Halt geöffnet, und
-die [Prüfungen einer Skill-Änderung](skills.md#when-an-agent-got-worse), über die
-Sie entscheiden können und die noch laufen oder auf eine Entscheidung warten.
-Danach folgen die von Agents vorgeschlagenen Skill-Änderungen, dann die
-festgesetzten Agents und die Forks, an denen main
-[vorbeigezogen ist](skills.md#which-version-an-agent-reads). Ein Fork wird von
-dort nachgezogen, ein festgesetzter Agent auf der Seite seines Skills verschoben.
+Qualitätskarten wie **Agents, die Aufmerksamkeit brauchen** und **Verbesserungen, die auf Sie warten**, bleiben in der Organisationsansicht unter **Customize** verfügbar. Entscheidungen, Berechtigungen und Links zur Agent-Verbesserung bleiben erhalten. Persönliche Wartezahlen umfassen nur eigene Werkzeugfreigaben und offene Inbox-Vorschläge.
 
 Die Ansicht der Organisation zeigt die Karten, die mit Daten antworten, in
 Gruppen. Der Rest - Integrationen, Kanäle, Routinen, Wissens-Sync, Abteilungen,
@@ -227,6 +218,10 @@ statt still den Snapshot zu überschreiben, den Sie behalten wollten.
 
 ## Routinen und Beobachtungen { #routines-and-watches }
 
+Neue Zeitpläne und API-Trigger werden pausiert gespeichert. Danach erscheint **Zugriff der Routine prüfen**. Prüfen Sie die Quellen und wählen Sie Aktionen ohne Rückfrage aus; **Routine aktivieren** speichert beide Entscheidungen und aktiviert die Routine. **Später fortfahren** lässt sie pausiert. Explizite Freigaben des Agenten bleiben verbindlich. Beim Fortsetzen einer unvollständigen Einrichtung öffnet sich diese Prüfung erneut; die Aktivierung prüft die Quellen nochmals.
+
+Verhindert **Skip this run** eine überlappende Ausführung, speichert der Verlauf den Grund ohne neue Ausführung oder Kosten. Sie können eine wartende Ausführung direkt im Verlauf stoppen, wenn der Server dies erlaubt. Ihre bisherigen Kosten bleiben erhalten; der nächste geplante Termin kann wieder starten. Wiederholte Auslassungen wegen desselben unfertigen Laufs teilen sich einen Verlaufseintrag.
+
 Routinennamen werden auf Telefonen umgebrochen. Ohne Suchtreffer erscheint **Suche löschen**; **Erneut versuchen** lädt Aufgaben und Beobachtungen nach einem Lesefehler neu. Zeitpläne und Ereignisauslöser werden zwischen festem Kopf und Aktionsleiste bearbeitet. Schreibvorgänge sperren Felder und Schließen bis zum Abschluss; eine Ablehnung erhält den Entwurf.
 
 Routines hat zwei Tabs. **Agentenaufgaben** startet einen gewählten Agenten nach
@@ -237,7 +232,7 @@ Ergebnisse in den privaten Posteingang. Jeder Tab hat eigene Erstellungsaktionen
 30 Modellanfragen, lange Ergebnisse werden gekürzt; so bleibt eine Beobachtung
 eines großen Workspace günstig.
 
-Organisation → Proaktivität trennt Vorschläge, Überwachung, gemeinsame Limits, Zustellungszeiten und Begrüßungen. Ungespeicherte Änderungen lassen sich verwerfen. Hintergrunddienste zeigen Status und Verbrauch; Modell- und Budgeteinstellungen werden pro Dienst aufgeklappt.
+Organisation → KI & Dienste → Vorschläge und Monitoring trennt Vorschläge, Überwachung, gemeinsame Limits, Zustellungszeiten und Begrüßungen. Ungespeicherte Änderungen lassen sich verwerfen. Hintergrunddienste zeigen Status und Verbrauch; Modell- und Budgeteinstellungen werden pro Dienst aufgeklappt.
 
 Zeitgesteuerte, ereignisgesteuerte und überwachende Routinen verwenden denselben Dialograhmen mit festem Kopfbereich und Navigation sowie einem scrollbaren Formular. Das Erstellen einer Überwachung führt durch Konfiguration, Nachricht und Zeitplan; Zurück erhält den Entwurf. Die Agentenauswahl zeigt dieselben Avatare wie der Chat. Ausführungs- und Zustelloptionen einer Überwachung stehen gemeinsam in einem Bereich für erweiterte Optionen.
 
@@ -568,7 +563,13 @@ Routine einrichtet.
 
 Unterhaltungslisten behalten den Hauptagenten bei und nennen zusätzlich Claude Code oder Codex, wenn gespeicherte Aufgabenberichte ihre Mitarbeit belegen. Sidebar, Projektchats, Dashboard und Quick-Ask-Verlauf verwenden dieselben Symbole und Beschriftungen. Jeder Coding-Harness erscheint einmal, bleibt nach dem Aktualisieren sichtbar und ist unabhängig von aktuellen Chat-Einstellungen. Die Auswahl ohne Ausführung fügt ihn nicht zum Verlauf hinzu.
 
-Das Files-Panel gruppiert Dateien nach Ordnern und unterscheidet gleiche Namen in verschiedenen Verzeichnissen. HTML-Vorschauen laden lokale Stylesheets und ihre verschachtelten Ressourcen über denselben Dateizugriff wie die Seite. Vorschau und Quelltext bleiben getrennt; Skripte sind deaktiviert. Ist ein Stylesheet nicht lesbar, nennt die Vorschau die betroffene Datei. Unter einer Antwort stehen Links zu den in diesem Turn geänderten Dateien, anhand der von erfolgreichen Schreib-/Bearbeitungswerkzeugen oder dem Coding-Harness gemeldeten Pfade. Die Links öffnen aktuelle Workspace-Dateien, keine versionierte Kopie.
+Das Files-Panel gruppiert Dateien nach Ordnern und unterscheidet gleiche Namen in verschiedenen Verzeichnissen. HTML-Vorschauen laden lokale Stylesheets und ihre verschachtelten Ressourcen über denselben Dateizugriff wie die Seite. Vorschau und Quelltext bleiben getrennt; Skripte sind deaktiviert. Ist ein Stylesheet nicht lesbar, nennt die Vorschau die betroffene Datei.
+
+Unter einer Antwort stehen Links zu den in diesem Turn geänderten Dateien. Programmieraufgaben verwenden ihren gespeicherten Änderungssatz einschließlich Shell-Änderungen; ohne Änderungssatz nutzen sie den Harness-Bericht. Das Aufgabenpanel bietet **Diese Aufgabe rückgängig machen** an, wenn du den ursprünglichen Workspace bearbeiten darfst und der Snapshot vollständig ist. Die Links öffnen aktuelle Workspace-Dateien, keine versionierte Kopie.
+
+Die Rücknahme läuft als dauerhafter Job in einem isolierten Unterhaltungs-Workspace. Snapshots geteilter Bereiche bleiben schreibgeschützt. Das Panel zeigt den Fortschritt; ein unbekanntes Ergebnis reserviert den Workspace, bis Erneut versuchen seine Dateien prüft.
+
+Snapshots für Rücknahmen sind auf 2 MiB pro Datei und insgesamt 16 MiB für die Daten vor und nach der Änderung begrenzt; größere Änderungen bleiben ohne Rücknahme einsehbar. Die Prüfung begrenzt auch das Lesen älterer Snapshots. Pro Minute sind sechs Anfragen pro Person und zwanzig pro Organisation zulässig, mit einer lokalen Grenze bei Redis-Ausfällen. Jede Organisation führt höchstens einen Rücknahme-Job gleichzeitig aus.
 
 Während der Arbeit erscheinen Fortschrittsmeldungen und die jeweils folgenden Tool-Aufrufe in ihrer Eingangsreihenfolge in einem aufgeklappten Verlauf. Erst nach Abschluss wird der Verlauf unter einem „Worked for…“- oder „Thought for…“-Schalter eingeklappt; darunter bleibt nur die finale Antwort. Aufklappen zeigt dieselben Nachrichten und Tool-Gruppen wieder chronologisch. Begründungen bleiben separat aufklappbar; ihre Überschriften erzeugen keine Prozessphasen. Fragen und Freigaben behalten ihren Wartestatus bis zur Entscheidung, auch bei delegierten Anfragen. Aktive Freigabekarten und visuelle Ergebnisse bleiben außerhalb des abgeschlossenen Verlaufs sichtbar.
 
@@ -1040,7 +1041,9 @@ entschieden wurde und was sie gekostet hat. Eine abgeschlossene Sitzung öffnet
 ihren Assistenten nur zum Lesen, mit der Entscheidung im letzten Schritt; siehe
 [Verbesserungsverlauf](authoring.md#improvement-history).
 
-Die Organisationsdetails haben fünf Registerkarten: **Mitglieder** für Personen und Einladungen; **Arbeitsbereich** für Profil und Standard-Spracheinstellungen; **Budget und Freigaben** für Ausgaben und Zugriffsregeln; **Proaktivität** für Vorschläge, Überwachung und Zustellung; **KI und Dienste** für Architect und Systemdienste. Jedes Formular behält seine Berechtigungsprüfung. Budgetverantwortliche erreichen KI und Dienste auch ohne Architect-Konfiguration. Die Auswahl steht in der URL, Entwürfe bleiben beim Wechsel erhalten, und bisherige `?tab=voice`-Links öffnen Arbeitsbereich.
+Organisationsdetails haben drei Registerkarten: **Mitglieder**, **Budget und Freigaben** und **KI & Dienste**. Mitglieder bietet Namens-/E-Mail-Suche, Rollenfilter und die letzte erfasste Aktion in diesem Arbeitsbereich. Dies ist eine Audit-Aktion, kein Besuch oder Login; Aktionen durch Identitätsübernahme werden ausgeschlossen und fehlende Historie erscheint als Strich. **Arbeitsbereich bearbeiten** öffnet einen Dialog für Name, Avatar und Farbe mit Schutz ungespeicherter Änderungen. KI & Dienste beginnt mit Hintergrunddiensten, danach folgen KI-Architekt, Vorschläge und Monitoring sowie Sprache. Aufklappen erhält Entwürfe. Alle Steuerelemente behalten ihre Berechtigungsprüfungen. Alte Links mit `?tab=profile` öffnen den Arbeitsbereich-Dialog; `?tab=voice` und `?tab=proactivity` öffnen die passenden Einstellungen in KI & Dienste.
+
+Das tägliche Briefing lässt sich direkt in Hintergrunddienste konfigurieren; es aktualisiert dasselbe Organisationsmodell und personenbezogene Limit wie die Vorschläge. Die Speicherpflege startet ausgeschaltet; auch alte Profile ohne Modell werden als ausgeschaltet angezeigt. Wählen Sie vor dem Einschalten ein Modell. Ausgeschaltete Dienste zeigen keine Einrichtungswarnung. Namen der Sprachanbieter enthalten keine Hinweise zum Schlüsselstatus; Schlüssel behalten ihre separate Auswahl und Validierung.
 
 Nach der Anmeldung erscheinen an die Konto-E-Mail adressierte Einladungen auch in Konsole und Onboarding, ohne den E-Mail-Link zu öffnen. Der Empfänger wählt eine Organisation und nimmt ausdrücklich an; Später lässt die Verknüpfung Einladungen verfügbar. Angezeigt werden nur gültige Einladungen an die aktuelle Konto-Adresse, ohne geteilte Links und bereits beigetretene Organisationen. Die Annahme wechselt zur gewählten Organisation und öffnet deren Begrüßung. Der Server gibt in diesem Posteingang keine Einladungstokens zurück.
 
@@ -1123,7 +1126,7 @@ Die Seitenleistenfußzeile zeigt die Build-Version der Konsole neben Suche und B
 
 Eine neuere stabile AgenticOS-Version hebt die Versionsnummer mit einem grünen Punkt hervor. Ein Klick zeigt die laufende und verfügbare Version sowie einen Link zum offiziellen Release. Die Hintergrundprüfung läuft beim Öffnen der Konsole, während der Nutzung alle 30 Minuten und bei veralteten Daten nach erneutem Fokus oder Wiederherstellung der Verbindung. Der Server teilt öffentliche Prüfergebnisse fünf Minuten lang und sendet keine Konto-, Organisations- oder Bereitstellungsdaten an GitHub. Bei Netzwerkfehlern bleibt die laufende Version sichtbar, ohne als aktuell bezeichnet zu werden. Der Hinweis lädt die Seite nicht neu und installiert kein Update automatisch.
 
-Nach der Anmeldung zeigt **Was ist neu** einmal pro Konto auf diesem Gerät die öffentlichen GitHub-Versionshinweise der installierten Version. Das Fenster wartet, bis das Onboarding geschlossen ist. Schließen markiert die Version als gelesen; fehlende Hinweise oder Netzwerkfehler unterbrechen die Sitzung nicht. Funktionen einer neueren, noch nicht installierten Version stehen nur hinter dem Update-Hinweis.
+Nach der Anmeldung zeigt **Was ist neu** einmal pro Konto auf diesem Gerät die öffentlichen GitHub-Versionshinweise der installierten Version. Das Fenster wartet, bis das Onboarding geschlossen ist. Schließen markiert die Version als gelesen; fehlende Hinweise oder Netzwerkfehler unterbrechen die Sitzung nicht. Funktionen einer neueren, noch nicht installierten Version stehen nur hinter dem Update-Hinweis. Die Abschnitte **Upgrading** und **Notes for operators** mit Migrationen und Upgrade-Schritten sehen nur Administratoren des Deployments; eine Version, die nichts anderes enthält, öffnet für alle anderen kein Fenster.
 
 Chat controls merkt sich Modell, Freigabemodus und lokale Werkzeuge pro Konto und Organisation über Chats hinweg. Projektdateieinstellungen haben Vorrang. Die Zustimmung zum gesamten Computer gilt für eine Unterhaltung oder für einen Agenten, wenn dieser auf Ihrem Computer arbeitet. Das Überspringen von Freigaben benötigt weiterhin die aktuelle Berechtigung und Organisationsrichtlinie. Agent setting (oder Cloud für Dateien) ist deaktiviert, wenn dem veröffentlichten Agenten diese Fähigkeit fehlt; lokale Alternativen werden nicht automatisch aktiviert. Ein Klick auf die ausgewählte lokale Option schaltet sie aus.
 
@@ -1233,3 +1236,19 @@ Mitgliederverwalter können prüfen, ob sie und ein bestehendes Mitglied einen g
 Abgeschlossene Chat-Turns zeigen den vor einer Agentenfrage gelieferten Text neben der abschließenden Antwort, auch nach Ablehnung der Frage oder Fortsetzung des Runs. Tool-Ergebnisse und Überlegungen bleiben im aufklappbaren Arbeitsverlauf. Dies gilt für gespeicherte und geteilte Chats; die Textlänge entscheidet nicht über die Einordnung.
 
 Der Run-Verlauf unterscheidet die anfragende Person vom Herausgeber, dessen Berechtigung eine externe Anfrage zulässt. Nicht verknüpfte Kanalabsender erscheinen auf Desktop und Mobilgeräten als ausdrücklich unbestätigte Chat-Konten; anonyme Anfragen erhalten keine erfundene Mitgliedsidentität. Die Run-API behält `user_id` als Berechtigungskontext und ergänzt `initiated_by_publisher_fallback` und `asked_in_chat` für eine korrekte Zuordnung. Die Anzeige verknüpft keine Konten und gewährt keinen Zugriff auf persönliche Verbindungen des Herausgebers.
+
+Die Zeitraumwahl steht neben den Dashboard-Ansichten. Zuletzt erstellte Visualisierungen bevorzugen gespeicherte Vorschaubilder. Fehlt eines, wird die Zeichnung für ihren Besitzer rekonstruiert und in einem isolierten Rahmen gerendert, sobald sich die Kachel dem sichtbaren Bereich nähert. Dafür ist kein Browser auf dem Server erforderlich.
+
+Die Suche öffnest du über die Lupe neben dem Schalter zum Einklappen der Seitenleiste; das Tastenkürzel bleibt verfügbar. Auf dem Desktop hat der Arbeitsbereich einen abgerundeten Rahmen neben der Seitenleiste. Galerien zeigen Ressourcenkarten direkt auf der Seite.
+
+Das Dashboard zeigt Discover-Tipps nach seinen Daten. Briefing verwendet Zeilen mit Aktionen neben dem Text, wenn die Breite ausreicht. Erklärungen leerer Widgets lassen sich über ihre Zusammenfassung aufklappen; Fehler und Wiederholen bleiben sichtbar.
+
+Der Agenteneditor hebt Test, Im Chat öffnen und Veröffentlichen hervor. Weitere Aktionen enthält Teilen, die Übersichtskarte, das Fortsetzen des Gesprächs und Export. Aktivität vereint Zeitraum, Filter, Spaltenauswahl und Export in einer Leiste. Spalten können Autor, Oberfläche, Modell und Tokenanzahl anzeigen; Kosten, Dauer und Startzeit bleiben in der Haupttabelle.
+
+Einstellungen bietet auf Desktop und Telefon horizontale, scrollbare Tabs. Gewöhnliche Abschnitte verwenden Trennlinien; destruktive Aktionen behalten ihren Warnrahmen. Im Chat steht der Projektkontext über dem Eingabefeld, die Nutzung findest du in den Chat-Einstellungen. Navigation erhält das gemeinsame Layout ohne Ausblenden der Inhalte.
+
+Gruppen der Seitenleiste öffnen und schließen sich fließend. Verborgene Ziele erhalten keinen Fokus; beim Einklappen bleibt das aktuelle Ziel sichtbar. Animationen beachten deine Darstellungseinstellungen; bei reduzierter Bewegung bleiben diese Bedienelemente statisch.
+
+Einstellungen behalten horizontale Tabs. API-Schlüssel und MCP-Clients teilen **API & MCP**, mit getrennten Zugriffskontrollen und bestehenden URLs; die innere Ansicht steht in der URL. Mobile Einrichtung ist unter **Konto** verlinkt. Das Profil zeigt Identität und Agentenkontext auf breiten Bildschirmen nebeneinander, mit eigenen Karten für Erscheinungsbild und verbundene Konten. Listen füllen die verfügbare Höhe. Organisationen und Gruppen öffnen über **Organisationen verwalten** im Workspace-Wechsler statt über doppelte Sidebar-Einträge. Leere Seiten, Listen und Tabellen teilen dieselbe Illustration. Directory wartet auf Berechtigungen und Daten, bevor es eine einzelne Aktion zum Erstellen einer Zuordnung zeigt.
+
+Persönliche Einstellungen haben keinen eigenen Assistant-Tab mehr. Seitenhinweise stehen unter **Account**; die alte URL `/settings/assistant` leitet dorthin weiter. **Inbox preferences** enthält den persönlichen Schalter für die Zustellung nächtlicher Vorschläge. Verlauf und Wiederherstellung bleiben im Inbox. Organisationsmodelle, Budgets, Speicherpflege und Voice bleiben unter **AI & services**. Formularbeschriftungen haben eine gemeinsame Mindestzeilenhöhe, auch mit Inline-Hilfe. Standard-Eingaben und Auswahllisten sind gleich hoch; bei groben Zeigegeräten sind die Berührungsflächen größer. Kompakte Tabellenfilter behalten ihre eigene Größe. Die MCP-Einrichtung besitzt einen eigenen Rahmen statt eines zweiten umschließenden Containers.

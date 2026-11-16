@@ -195,10 +195,13 @@ So a write becomes a **proposal**, and it appears above the list on the Skills p
 for anyone who may edit that skill. A proposal for a new skill appears for anyone
 holding `skills:edit`. Nobody else can list or open it:
 
-- **Check on agents** runs the change on every agent of the line it was written
-  for, and applying it - the next version of that line, which those agents read
-  on their next run - happens from the check's result. See
-  [Checking a change on every agent](#checking-a-change-on-every-agent).
+- **Review** opens the proposed instructions, their comparison with the current skill,
+  and the reference files. **Apply update** saves the next version immediately.
+  Agents following that line use it on their next run. Evaluation is optional;
+  missing test questions do not block applying a proposal.
+- **Test before applying (optional)** runs the change on the agents of its line.
+  The result shows regressions and any agents that could not be checked before
+  the final decision. See [Checking a change on every agent](#checking-a-change-on-every-agent).
 - **Discard** keeps the record. An agent proposing the same edit repeatedly is
   telling somebody something about the skill, and a deleted row makes that
   invisible.
@@ -252,10 +255,12 @@ Agents pinned to an older version and the agents of other forks are not run - th
 change does not reach them. Each agent's published version answers its questions
 twice, with the skill as it is and with the change, and nothing else differs.
 
-A change an agent's workspace wrote, one the assistant proposed and a
-[library update](#getting-skills-into-an-organization) of a skill agents follow go live only through
-this check. A person editing the skill by hand saves a new version at once, and
-that edit is not checked.
+Workspace proposals, assistant proposals and
+[library updates](#getting-skills-into-an-organization) can be reviewed and applied
+without this optional check. Applying still verifies edit access, the proposal's
+revision and the skill version it was based on. When you choose to evaluate a
+change, the check's result and its acknowledgement or pinning requirements govern
+applying through that check.
 
 ### What it asks { #what-a-check-asks }
 
@@ -955,3 +960,15 @@ The assistant can propose **Worth creating a skill** when a reusable procedure a
 A procedure drawn from fewer than three distinct answers is not proposed as a suggestion. It is listed with its full text under **more ideas need your decision**. **Create skill** opens a preview: the name, description and body can be edited, and a warning says how many answers it is based on. **Create skill** in the preview creates the skill in the library and binds it to the agent's draft, never to a published version. It needs the same permissions as Accept and makes no model call. A second click returns the skill already created.
 
 The estimate reserves the full proposed body for each candidate answer and its confirming reruns, in addition to the historical per-answer price.
+
+## Design resources for Apps and Visuals { #design-resources }
+
+`artifact-pages` guides reusable Apps, evidence-led reports, decision workbenches and browser presentations. `visual-design` guides interactive explanations, comparisons, diagrams and original procedural graphics. Both choose composition, style and interactions for school, play or work rather than applying one dashboard to every subject. Detailed playbooks and complete HTML examples are loaded only when needed.
+
+The examples include an evidence filter, editable decision criteria, a transparent cost comparison, a reproducible generative field and a keyboard-operated slide deck with overview, four visual themes and a complete print layout. Example data and assumptions are labelled. Controls, error states, reset, phone layouts and reduced motion are part of verification.
+
+Apps can export a published HTML/Markdown page or browser presentation through `export_artifact`. The operator must configure `ARTIFACT_RENDER_CDP_URL` and install the `browser` extra; the agent needs a workspace to save the real PDF. Exports use the same access and audience rules as App previews and refuse unavailable bound data. A file is limited to 50 pages and 20 MB and gets a unique filename. Inspect the PDF, including page breaks and all slides. This does not introduce a PowerPoint format.
+
+Chat can embed interactive content. Mattermost and other text channels receive an authorized App link, a rendered image where supported, or a requested PDF through file delivery; HTML does not execute inside those messages. Posting a link does not grant public access. Existing installations receive these resources through the normal library refresh: untouched copies update, followed skills wait for their check, and customized copies remain protected.
+
+Bundled platform skills and the skills shipped with the AI Architect can be read and used through normal resource access, but changing their content, files, versions or forks, deleting them, or claiming their reserved name requires organization-wide agent edit authority (Owner/Admin in the built-in roles). A skill edit grant does not bypass this protection. Ordinary organization skills retain their existing ownership and sharing rules.

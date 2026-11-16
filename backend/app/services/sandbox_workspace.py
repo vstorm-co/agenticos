@@ -693,6 +693,69 @@ class SandboxWorkspaceService:
         # `None` outside it, where each read builds and closes its own.
         self._shared_archives: dict[UUID, Any] | None = None
 
+    async def recorded_for_task(
+        self, ctx: AuthContext, *, conversation_id: UUID, ref: WorkspaceRef
+    ) -> list[tuple[AgentWorkspace, UUID]]:
+        """The task's recorded containers this person may currently change.
+
+        Metadata only: reading a diff must not load a workspace credential or
+        construct a provider client. Shared-scope snapshots stay read-only.
+        """
+        from app.services.conversation import ConversationService
+
+        conversation = await ConversationService(self.db).get_conversation(
+            conversation_id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            for_write=True,
+            turn=True,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        rows = await workspace_repo.for_session(
+            self.db, organization_id=ctx.organization_id, session_id=ref.id
+        )
+        allowed: list[tuple[AgentWorkspace, UUID]] = []
+        for row in rows:
+            connection_id = row.connection_id
+            if connection_id is None or row.backend != "service":
+                continue
+            # A shared container can include another conversation's edits in the
+            # capture interval. Its diff is useful; it cannot prove task ownership.
+            if (
+                row.scope != "conversation"
+                or row.project_id is not None
+                or row.conversation_id != conversation.id
+            ):
+                continue
+            allowed.append((row, connection_id))
+        if not allowed:
+            raise NotFoundError(message="The task's original workspace is unavailable", details={})
+        return allowed
+
+    @asynccontextmanager
+    async def open_recorded(
+        self, ctx: AuthContext, *, conversation_id: UUID, ref: WorkspaceRef
+    ) -> AsyncGenerator[Workspace]:
+        """Attach the original container, never a replacement for a removed workspace."""
+        for row, connection_id in await self.recorded_for_task(
+            ctx, conversation_id=conversation_id, ref=ref
+        ):
+            resolved = await self._connection(ctx, connection_id)
+            sandbox = self._service_capability(
+                resolved, row.scope_key, tenant=str(ctx.organization_id)
+            )
+            if ref.provider != _provider(sandbox):
+                continue
+            backend = sandbox.backend(ref)
+            try:
+                yield Workspace(backend)
+            finally:
+                if isinstance(backend, OrgOpenSandboxBackend):
+                    await backend.aclose()
+            return
+        raise NotFoundError(message="The task's original workspace is unavailable", details={})
+
     async def open(
         self,
         spec: AgentSpec,
@@ -961,6 +1024,15 @@ class SandboxWorkspaceService:
         resolving can fail for reasons that were fine at publish time (a key
         rotated away, a host switched off) and each of those says which.
         """
+        if scope == "conversation" and identity.conversation_id is not None:
+            from app.services.workspace_turn_guard import admit
+
+            await admit(
+                self.db,
+                organization_id=identity.organization_id,
+                conversation_id=identity.conversation_id,
+                run_id=identity.run_id,
+            )
         briefing: str | None = None
         parses_documents = False
         notice = _OpeningNotice(on_wait) if on_wait is not None else None
@@ -995,6 +1067,7 @@ class SandboxWorkspaceService:
             session_key=key,
             agent_id=identity.agent_id,
             run_id=identity.run_id,
+            isolated_turn=scope == "conversation" and identity.run_id is not None,
             on_settled=notice.settled if notice is not None else None,
             explain_unavailable=(
                 partial(explain_unavailable, base_url=sandbox.service_url, client=_sandboxd_http())

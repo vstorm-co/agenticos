@@ -381,6 +381,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "chat-coding-revert",
+    page: ROUTES.CHAT,
+    target: "coding-task-revert",
+    optional: true,
+  },
+  {
     id: "chat-background-tasks",
     page: ROUTES.CHAT,
     target: "chat-background-tasks",
@@ -1297,7 +1303,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // The organization detail, entered from the workspaces list. Two routes, one
   // walk: the organization tabs (profile, then the member list) and then a step
   // across into the roles matrix. Ungated — any member reaches both.
-  { id: "org-profile", page: ORG_MEMBERS, target: "org-profile", activate: "org-tab-profile" },
+  { id: "org-profile", page: ORG_MEMBERS, target: "org-tab-profile" },
   {
     id: "org-governance",
     page: ORG_MEMBERS,
@@ -1309,14 +1315,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "org-proactivity",
     page: ORG_MEMBERS,
     target: "org-proactivity",
-    activate: "org-tab-proactivity",
+    activate: "org-tab-assistant",
     anyPermission: [Perm.budgetsManage, Perm.orgSettings],
   },
   {
     id: "org-proactivity-model",
     page: ORG_MEMBERS,
     target: "org-proactivity-model",
-    activate: "org-tab-proactivity",
+    activate: ["org-tab-assistant", "org-proactivity-expand"],
     permission: Perm.budgetsManage,
     anyPermission: [Perm.connectionsManage],
     optional: true,
@@ -1341,7 +1347,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "org-voice",
     page: ORG_MEMBERS,
     target: "org-voice",
-    activate: "org-tab-profile",
+    activate: "org-tab-assistant",
     permission: Perm.orgSettings,
   },
   // The AI Architect's card: drawn only on the active organization's page, and

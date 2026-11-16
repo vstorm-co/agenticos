@@ -32,6 +32,7 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
@@ -177,6 +178,95 @@ def migration_database() -> Iterator[None]:
         # FORCE because a connection outliving its subprocess would otherwise
         # leave the database behind. Nobody else ever connects to it.
         _outside_a_transaction(maintenance, drop)
+
+
+def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs() -> None:
+    """0322_coding_task_revert.py and 0323_coding_revert_admission.py preserve legacy diffs."""
+    from app.db.models.conversation import Conversation
+    from app.db.models.organization import Organization
+
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("downgrade", "0321_resource_icons")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    fields = (
+        "revert_patch",
+        "workspace_ref",
+        "reverted_at",
+        "snapshot_isolated",
+        "revert_job_id",
+        "revert_started_at",
+        "revert_failure",
+    )
+    change_id = uuid4()
+    files = [{"path": "old.py", "status": "modified", "patch": "-before\n+after\n"}]
+    try:
+        with DatabaseSession(engine) as db:
+            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            db.add(owner)
+            db.flush()
+            organization = Organization(
+                name="Legacy diff", slug=f"legacy-{uuid4()}", created_by_user_id=owner.id
+            )
+            db.add(organization)
+            db.flush()
+            conversation = Conversation(
+                organization_id=organization.id, user_id=owner.id, title="Old task"
+            )
+            db.add(conversation)
+            db.flush()
+            db.execute(
+                text(
+                    "INSERT INTO coding_task_changes (id, organization_id, conversation_id, harness, files, omitted, truncated) "
+                    "VALUES (:id, :organization, :conversation, 'codex', CAST(:files AS jsonb), 0, false)"
+                ),
+                {
+                    "id": change_id,
+                    "organization": organization.id,
+                    "conversation": conversation.id,
+                    "files": json.dumps(files),
+                },
+            )
+            db.commit()
+        with engine.connect() as db:
+            before = set(
+                db.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns WHERE table_name = 'coding_task_changes'"
+                    )
+                ).scalars()
+            )
+        assert not set(fields) & before
+        for action, target in (
+            ("upgrade", "head"),
+            ("downgrade", "0321_resource_icons"),
+            ("upgrade", "head"),
+        ):
+            result = _alembic(action, target)
+            assert result.returncode == 0, result.stderr
+            if action == "upgrade":
+                with engine.connect() as db:
+                    row = db.execute(
+                        text(
+                            "SELECT files, revert_patch, workspace_ref, reverted_at, snapshot_isolated, revert_job_id, revert_started_at, revert_failure FROM coding_task_changes WHERE id = :id"
+                        ),
+                        {"id": change_id},
+                    ).one()
+                assert row == (files, None, None, None, False, None, None, None)
+        with engine.connect() as db:
+            after = set(
+                db.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns WHERE table_name = 'coding_task_changes'"
+                    )
+                ).scalars()
+            )
+        assert after - before == set(fields)
+        result = _alembic("check")
+        assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()
 
 
 def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> None:
@@ -1979,4 +2069,86 @@ def test_opensandbox_upgrade_and_guarded_downgrade_preserve_connection_settings(
         drift = _alembic("check")
         assert drift.returncode == 0, drift.stderr
     finally:
+        engine.dispose()
+
+
+def test_routine_overlap_history_round_trip_preserves_runs_and_other_attempts() -> None:
+    from app.db.models.agent import Agent
+    from app.db.models.agent_run import AgentRun
+    from app.db.models.agent_trigger import AgentTrigger, TriggerAttempt
+    from app.db.models.organization import Organization
+
+    upgraded = _alembic("upgrade", "head")
+    assert upgraded.returncode == 0, upgraded.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    owner_id, org_id = uuid4(), uuid4()
+    try:
+        with DatabaseSession(engine) as db:
+            owner = User(id=owner_id, email=f"{owner_id}@example.com", hashed_password="x")
+            db.add(owner)
+            db.flush()
+            org = Organization(
+                id=org_id, name="Overlap", slug=f"overlap-{org_id}", created_by_user_id=owner_id
+            )
+            db.add(org)
+            db.flush()
+            agent = Agent(organization_id=org_id, name="Worker", slug=f"worker-{uuid4()}")
+            db.add(agent)
+            db.flush()
+            trigger = AgentTrigger(
+                organization_id=org_id,
+                agent_id=agent.id,
+                created_by_user_id=owner_id,
+                prompt="Report",
+                interval_seconds=300,
+                next_fire_at=datetime.now(UTC),
+            )
+            db.add(trigger)
+            db.flush()
+            run = AgentRun(
+                organization_id=org_id,
+                agent_id=agent.id,
+                user_id=owner_id,
+                trigger_id=trigger.id,
+                surface="schedule",
+                status="awaiting_approval",
+                cost_usd=Decimal("0.42"),
+            )
+            db.add(run)
+            db.add_all(
+                [
+                    TriggerAttempt(
+                        organization_id=org_id,
+                        trigger_id=trigger.id,
+                        activation_id=uuid4(),
+                        status="blocked",
+                        stage="preparation",
+                        reason=reason,
+                    )
+                    for reason in ("previous_run_active", "agent_unavailable")
+                ]
+            )
+            db.commit()
+            trigger_id, run_id = trigger.id, run.id
+        downgraded = _alembic("downgrade", "0330_linear_trigger")
+        assert downgraded.returncode == 0, downgraded.stderr
+        with engine.connect() as connection:
+            assert connection.execute(
+                text("SELECT reason FROM trigger_attempts WHERE trigger_id=:id"), {"id": trigger_id}
+            ).scalars().all() == ["agent_unavailable"]
+            status, cost = connection.execute(
+                text("SELECT status, cost_usd FROM agent_runs WHERE id=:id"), {"id": run_id}
+            ).one()
+            assert status == "awaiting_approval" and cost == Decimal("0.42")
+        restored = _alembic("upgrade", "head")
+        assert restored.returncode == 0, restored.stderr
+        drift = _alembic("check")
+        assert drift.returncode == 0, drift.stderr
+    finally:
+        with engine.begin() as connection:
+            connection.execute(
+                text("DELETE FROM agent_runs WHERE organization_id=:id"), {"id": org_id}
+            )
+            connection.execute(text("DELETE FROM organizations WHERE id=:id"), {"id": org_id})
+            connection.execute(text("DELETE FROM users WHERE id=:id"), {"id": owner_id})
         engine.dispose()

@@ -1,5 +1,5 @@
 ---
-source_sha: "39ef16198c21"
+source_sha: "bbe82e47bf65"
 ---
 
 # Aplicaciones { #artifacts }
@@ -922,7 +922,7 @@ informe, sin la imagen, y dice que el despliegue no tiene renderizador. Desactiv
 puede leer imágenes; el informe sigue llegando. `agenticos cmd doctor` dice si el
 renderizador responde.
 
-Tres skills incluidos más construyen una **presentación** como app: `presentation-decks` (una plantilla lista con marco de diapositiva 16:9, navegación con teclado y táctil, notas del orador con `n` y una diapositiva por página al imprimir a PDF), `deck-storyline` (el público, la decisión y una línea de afirmaciones antes de que exista ninguna diapositiva) y `deck-review` (títulos que se leen como argumento, un mensaje por diapositiva, cada cifra trazada, legible desde lejos). No añaden ninguna biblioteca ni exportación a PowerPoint.
+Tres skills incluidos más construyen una **presentación** como app: `presentation-decks` (la presentación HTML 16:9 de `artifact-pages`, con composiciones variadas, navegación por teclado, vista general, selección de paleta y una diapositiva por página impresa), `deck-storyline` (el público, la decisión y una línea de afirmaciones antes de que exista ninguna diapositiva) y `deck-review` (títulos que se leen como argumento, un mensaje por diapositiva, cada cifra trazada, legible desde lejos). No añaden ninguna biblioteca ni exportación a PowerPoint.
 
 ## Visuals { #visuals }
 
@@ -1440,3 +1440,13 @@ del despliegue, bajo `artifacts/<organization>/<artifact>/`.
 - Archivar conserva una página y no sirve nada de ella, con el enlace público
   desactivado, hasta que alguien que puede editarla la restaura.
 - Una clase de retención propia, medida desde la última publicación.
+
+## Carga de vistas previas y uso compartido { #preview-loading-and-sharing }
+
+Las vistas previas del chat reservan espacio mientras carga el renderizador visual o la miniatura de Apps. Aparecen gradualmente cuando termina el renderizado o la decodificación; la preferencia de movimiento reducido desactiva la animación. Las listas de Apps usan miniaturas estáticas en caché por versión, en lugar de ejecutar cada aplicación al volver a la lista.
+
+El skill Apps incluye presentaciones HTML interactivas, estilos de impresión PDF y ejemplos de componentes reutilizables. Exportar PDF requiere configurar el renderizador; validar una vista previa no demuestra que el script se ejecutara correctamente. Comprueba gráficos, tablas y contenido interactivo en la vista renderizada. No se incluye exportación a PowerPoint.
+
+La herramienta MCP de la plataforma `create_app_public_link` requiere acceso de edición y confirmación explícita de publicación. Reutiliza los enlaces existentes y conserva contraseña, caducidad y versión fijada. Los datos en vivo requieren consentimiento separado del propietario. La llamada solo tiene éxito cuando la API confirma la URL pública.
+
+El ejemplo de presentación incluido usa cinco composiciones distintas: portada ilustrada, métrica grande, comparación, secuencia y decisión. El informe recalcula los totales seleccionados y el gráfico desde los mismos recuentos. Visual design también incluye un estudio de producto procedural con bordes modelados, acabados, iluminación local, separación de piezas, vistas con nombre y una alternativa sin WebGL. Son ejemplos HTML adaptables, no una exportación a PowerPoint ni de modelos de fabricación. Las organizaciones existentes reciben versiones de skills mediante el flujo normal de actualización y revisión de biblioteca; las copias editadas localmente permanecen protegidas.

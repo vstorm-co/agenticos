@@ -78,6 +78,7 @@ export default function ProjectsPage() {
     <div className="flex flex-1 flex-col space-y-4">
       {header}
       <ListCard
+        layout="grid"
         fill
         data-tour="projects-list"
         namedByPage
@@ -107,6 +108,14 @@ export default function ProjectsPage() {
           />
         ) : projects.length === 0 ? (
           <ListCardEmpty
+            onClearFilters={
+              isSearching
+                ? () => {
+                    setQuery("");
+                    setPage(0);
+                  }
+                : undefined
+            }
             icon={FolderKanban}
             title={isSearching ? t("noMatches") : t("noProjectsYet")}
             description={isSearching ? t("searchedNames") : t("noProjectsHint")}

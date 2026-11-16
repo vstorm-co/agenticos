@@ -177,7 +177,10 @@ def _as_history(
                 "content": (
                     REFUSED_TURN
                     if row.role == "user" and row.guardrail_refused
-                    else spoken.get(row.id, row.content) + (row.attachment_context or "")
+                    else spoken.get(
+                        row.id, row.model_content if row.model_content is not None else row.content
+                    )
+                    + ((row.attachment_context or "") if row.model_content is None else "")
                 ),
                 # The size of the request this answer came out of: the anchor the
                 # compaction estimator measures against, in place of counting
@@ -625,8 +628,8 @@ class ConversationService:
                 self.db, message_ids=message_ids
             )
             for msg in conversation.messages:
-                msg.user_rating = user_ratings.get(msg.id)  # ty: ignore[unresolved-attribute]
-                msg.rating_count = rating_counts.get(msg.id)  # ty: ignore[unresolved-attribute]
+                msg.user_rating = user_ratings.get(msg.id)  # ty: ignore[missing-attribute]
+                msg.rating_count = rating_counts.get(msg.id)  # ty: ignore[missing-attribute]
         if include_messages and conversation.messages:
             await self._attach_authors(conversation.messages)
             await self._attach_senders(conversation.messages, conversation)
@@ -726,7 +729,7 @@ class ConversationService:
         ):
             share = await conversation_share_repo.get_share(self.db, conversation.id, user_id)
             permission = share.permission if share is not None else None
-        conversation.share_permission = permission  # ty: ignore[unresolved-attribute]
+        conversation.share_permission = permission  # ty: ignore[missing-attribute]
 
     async def _may_read(
         self, conversation: Conversation, user_id: UUID, *, ctx: AuthContext | None = None
@@ -947,7 +950,7 @@ class ConversationService:
             return
         for msg in messages:
             if msg.channel_identity_id is not None:
-                msg.author = authors.get(msg.channel_identity_id)  # ty: ignore[unresolved-attribute]
+                msg.author = authors.get(msg.channel_identity_id)  # ty: ignore[missing-attribute]
 
     async def _attach_senders(
         self, messages: Sequence[Message], conversation: Conversation
@@ -969,16 +972,16 @@ class ConversationService:
             if author_id is not None:
                 authored.append((msg, author_id))
             elif in_project and _a_persons_turn(msg):
-                msg.sender_gone = True  # ty: ignore[unresolved-attribute]
+                msg.sender_gone = True  # ty: ignore[missing-attribute]
         if not authored:
             return
         people = await conversation_repo.users_by_id(self.db, {a for _, a in authored})
         for msg, author_id in authored:
             author = people.get(author_id)
             if author is None:
-                msg.sender_gone = True  # ty: ignore[unresolved-attribute]
+                msg.sender_gone = True  # ty: ignore[missing-attribute]
             else:
-                msg.sender = ChatPerson.of(author)  # ty: ignore[unresolved-attribute]
+                msg.sender = ChatPerson.of(author)  # ty: ignore[missing-attribute]
 
     async def reply_quoted(self, message: Message) -> MessageReplyRef | None:
         """The quote one turn carries of the message it answers, or `None`."""
@@ -1014,7 +1017,7 @@ class ConversationService:
             if answered is None:
                 continue
             author = people.get(answered.author_user_id) if answered.author_user_id else None
-            msg.reply_to = MessageReplyRef(  # ty: ignore[unresolved-attribute]
+            msg.reply_to = MessageReplyRef(  # ty: ignore[missing-attribute]
                 message_id=answered.id,
                 role=answered.role,
                 excerpt=_excerpt(answered.content),
@@ -1069,16 +1072,16 @@ class ConversationService:
         for conversation in conversations:
             owner = people.get(conversation.user_id) if conversation.user_id else None
             worker = people.get(working[conversation.id]) if conversation.id in working else None
-            conversation.owner = ChatPerson.of(owner) if owner else None  # ty: ignore[unresolved-attribute]
-            conversation.working = ChatPerson.of(worker) if worker else None  # ty: ignore[unresolved-attribute]
+            conversation.owner = ChatPerson.of(owner) if owner else None  # ty: ignore[missing-attribute]
+            conversation.working = ChatPerson.of(worker) if worker else None  # ty: ignore[missing-attribute]
             # Somebody whose account went between the heartbeat and this read
             # is simply not drawn.
-            conversation.here = [  # ty: ignore[unresolved-attribute]
+            conversation.here = [  # ty: ignore[missing-attribute]
                 ChatPerson.of(people[person])
                 for person in here.get(str(conversation.id), [])
                 if person in people
             ]
-            conversation.seen_by = [  # ty: ignore[unresolved-attribute]
+            conversation.seen_by = [  # ty: ignore[missing-attribute]
                 ChatReader(**ChatPerson.of(user).model_dump(), read_at=read_at)
                 for user, read_at in readers.get(conversation.id, [])
             ]
@@ -1211,7 +1214,7 @@ class ConversationService:
             )
         )
         for conversation in conversations:
-            conversation.unread = conversation.id in unread  # ty: ignore[unresolved-attribute]
+            conversation.unread = conversation.id in unread  # ty: ignore[missing-attribute]
 
     async def mark_read(
         self,
@@ -1246,8 +1249,8 @@ class ConversationService:
         )
         for conversation in conversations:
             current = activity.get(conversation.id)
-            conversation.running_since = current.since if current else None  # ty: ignore[unresolved-attribute]
-            conversation.running_run_ids = current.run_ids if current else []  # ty: ignore[unresolved-attribute]
+            conversation.running_since = current.since if current else None  # ty: ignore[missing-attribute]
+            conversation.running_run_ids = current.run_ids if current else []  # ty: ignore[missing-attribute]
 
     async def attach_agents(self, conversations: Sequence[Conversation]) -> None:
         """Name the agents that answered, on each row of a page.
@@ -1269,8 +1272,8 @@ class ConversationService:
             self.db, [conversation.id for conversation in conversations]
         )
         for conversation in conversations:
-            conversation.coding_agents = coding.get(conversation.id, [])  # ty: ignore[unresolved-attribute]
-            conversation.agents = [  # ty: ignore[unresolved-attribute]
+            conversation.coding_agents = coding.get(conversation.id, [])  # ty: ignore[missing-attribute]
+            conversation.agents = [  # ty: ignore[missing-attribute]
                 ConversationAgent(
                     id=agent.id,
                     slug=agent.slug,
@@ -1304,7 +1307,7 @@ class ConversationService:
             )
         )
         for conversation in conversations:
-            conversation.is_favourite = conversation.id in starred  # ty: ignore[unresolved-attribute]
+            conversation.is_favourite = conversation.id in starred  # ty: ignore[missing-attribute]
 
     async def set_favourite(
         self,
@@ -1337,7 +1340,7 @@ class ConversationService:
             self.db, user_id=user_id, conversation_id=conversation.id, favourite=favourite
         )
         await self.attach_agents([conversation])
-        conversation.is_favourite = favourite  # ty: ignore[unresolved-attribute]
+        conversation.is_favourite = favourite  # ty: ignore[missing-attribute]
         return conversation
 
     async def admin_list_with_users(
@@ -1679,7 +1682,7 @@ class ConversationService:
         )
         for conversation in conversations:
             source_id = sources.get(conversation.id)
-            conversation.forked_from = (  # ty: ignore[unresolved-attribute]
+            conversation.forked_from = (  # ty: ignore[missing-attribute]
                 None
                 if source_id is None or source_id not in titles
                 else ConversationForkOrigin(
@@ -2242,7 +2245,7 @@ def _said(message: Message) -> str:
     other way a refused prompt's words would reach it (#2578)."""
     if message.role == "user" and message.guardrail_refused:
         return REFUSED_TURN
-    return message.content
+    return message.model_content if message.model_content is not None else message.content
 
 
 def _whose(message: Message, people: dict[UUID, User]) -> str:

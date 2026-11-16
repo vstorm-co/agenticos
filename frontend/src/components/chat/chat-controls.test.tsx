@@ -441,3 +441,10 @@ it("keeps both personal account connections reachable for an agent that delegate
   expect(screen.getByRole("region", { name: "Your codex account" })).toBeVisible();
   expect(screen.getByRole("region", { name: "Your claude_code account" })).toBeVisible();
 });
+
+it("keeps usage inside the controls panel", async () => {
+  render(<ChatControls usageSlot={<span>Context usage details</span>} />);
+  expect(screen.queryByText("Context usage details")).toBeNull();
+  await userEvent.click(trigger());
+  expect(screen.getByText("Context usage details")).toBeVisible();
+});

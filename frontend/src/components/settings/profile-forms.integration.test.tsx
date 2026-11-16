@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 
@@ -115,4 +115,39 @@ it("unlocks a refused portrait upload and accepts retrying the same file", async
   await userEvent.upload(input, file);
   await waitFor(() => expect(useAuthStore.getState().user?.avatar_url).toBe("avatars/test.png"));
   expect(apiClient.upload).toHaveBeenCalledTimes(2);
+});
+
+it("saves identity and agent context in one request from the profile tab", async () => {
+  vi.mocked(apiClient.patch).mockResolvedValue({
+    ...USER,
+    full_name: "Alex draft",
+    job_title: "Engineer",
+  });
+  render(<ProfileIdentitySettings unifiedSave />);
+  expect(screen.getAllByRole("button", { name: /Save/ })).toHaveLength(1);
+  await userEvent.type(screen.getByLabelText("Display name"), " draft");
+  await userEvent.type(screen.getByLabelText("Your role"), "Engineer");
+  await userEvent.click(screen.getByRole("button", { name: /Save/ }));
+  await waitFor(() => expect(apiClient.patch).toHaveBeenCalledOnce());
+  expect(apiClient.patch).toHaveBeenCalledWith(
+    "/users/me",
+    expect.objectContaining({ full_name: "Alex draft", job_title: "Engineer" }),
+  );
+});
+
+it("uses the generated portrait after a failed image and retries a newly uploaded version", () => {
+  useAuthStore.setState({ user: { ...USER, avatar_url: "avatars/missing.png" }, avatarVersion: 1 });
+  render(<ProfileIdentitySettings section="identity" />);
+  const portrait = screen.getAllByRole("button", { name: "Replace avatar" })[0];
+  if (!portrait) throw new Error("Missing portrait control");
+  const image = portrait.querySelector("img");
+  if (!image) throw new Error("Missing uploaded portrait");
+  fireEvent.error(image);
+  expect(portrait.querySelector("img")).toBeNull();
+  expect(portrait.querySelector("svg")).not.toBeNull();
+  act(() => useAuthStore.setState({ avatarVersion: 2 }));
+  expect(portrait.querySelector("img")).toHaveAttribute(
+    "src",
+    expect.stringContaining("/api/users/avatar/profile-user?v=2"),
+  );
 });

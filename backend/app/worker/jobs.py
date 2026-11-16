@@ -56,6 +56,14 @@ class WakeTask(Payload):
     revision: int = Field(ge=1)
 
 
+class RevertCodingTask(Payload):
+    organization_id: UUID
+    change_id: UUID
+    user_id: UUID
+    claim_id: UUID
+    api_key_id: UUID | None = None
+
+
 class MoveProjectWorkspacePayload(Payload):
     transfer_id: UUID
     project_id: UUID
@@ -101,6 +109,7 @@ class ChannelHandbackCall(Payload):
 
 
 class ChannelHandback(Payload):
+    message_id: str | None = None
     organization_id: UUID
     run_id: UUID
     bot_id: UUID
@@ -114,6 +123,15 @@ class ChannelHandback(Payload):
 
 class NoPayload(Payload):
     """For a job whose work is to look at the current state."""
+
+
+class AnalyzeChannel(Payload):
+    organization_id: UUID
+    observation_id: UUID
+    generation: UUID
+    admission_hash: str = Field(min_length=64, max_length=64)
+    revision: int = Field(ge=1)
+    messages: list[dict[str, JsonValue]] = Field(min_length=1, max_length=20)
 
 
 class Tick(Payload):
@@ -775,6 +793,16 @@ RECONCILE_CONVERSATION_TASKS = _sweep("reconcile-conversation-tasks", timeout=ti
 SWEEP_GENERATED_MEDIA = _sweep("sweep-generated-media")
 SEND_DIAGNOSTICS = _sweep("send-diagnostics", timeout=timedelta(seconds=60))
 PROACTIVE_SWEEP = _sweep("proactive-sweep")
+CHANNEL_OBSERVATION_SWEEP = _sweep("channel-observation-sweep")
+ANALYZE_CHANNEL = Task(
+    kind="analyze-channel",
+    payload_type=AnalyzeChannel,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=5),
+    priority=Priority.SCHEDULED,
+    retry_refusal="Wait for new channel messages; automatic replies are not replayed",
+)
 WATCH_SWEEP = _sweep("watch-sweep")
 # Three attempts, unlike the sweeps above: a sweep's next tick is the same work
 # again, but the next report is a week or a month away and covers another window,
@@ -782,6 +810,16 @@ WATCH_SWEEP = _sweep("watch-sweep")
 # is idempotent across attempts (Codex, #2248).
 WEEKLY_USAGE_REPORT = _sweep("weekly-usage-report", timeout=timedelta(hours=1), max_attempts=3)
 MONTHLY_USAGE_REPORT = _sweep("monthly-usage-report", timeout=timedelta(hours=1), max_attempts=3)
+
+REVERT_CODING_TASK = Task(
+    retry_refusal="Retry the revert from its conversation so its files and current access can be checked again",
+    kind="revert-coding-task",
+    payload_type=RevertCodingTask,
+    pool=Pool.AGENT,
+    max_attempts=3,
+    timeout=timedelta(minutes=3),
+    priority=Priority.INTERACTIVE,
+)
 
 MOVE_PROJECT_WORKSPACE = Task(
     retry_refusal="Start a new transfer in the project's sandbox settings; retired transfer copies cannot be reused",
@@ -827,6 +865,7 @@ TASKS: dict[str, TaskKind] = {
         PROCESS_EMAIL_DELIVERY,
         DELIVER_CHANNEL_HANDBACK,
         MOVE_PROJECT_WORKSPACE,
+        REVERT_CODING_TASK,
         INGEST_DOCUMENT,
         SYNC_COLLECTION,
         SYNC_SOURCE,
@@ -889,6 +928,8 @@ TASKS: dict[str, TaskKind] = {
         SWEEP_GENERATED_MEDIA,
         SEND_DIAGNOSTICS,
         PROACTIVE_SWEEP,
+        CHANNEL_OBSERVATION_SWEEP,
+        ANALYZE_CHANNEL,
         WATCH_SWEEP,
         WEEKLY_USAGE_REPORT,
         MONTHLY_USAGE_REPORT,

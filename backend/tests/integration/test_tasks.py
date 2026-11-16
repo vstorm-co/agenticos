@@ -1819,3 +1819,46 @@ async def test_waking_a_task_waits_for_its_board_before_it_holds_the_task(engine
     assert held == task.id
     async with factory() as db:
         assert (await TaskService(db).get(data.contexts[0], task.id)).status == "waiting_for_user"
+
+
+async def test_agent_board_reuses_its_table_and_tracks_live_agent_access(db: AsyncSession) -> None:
+    from dataclasses import replace
+
+    from app.db.models.agent import Agent
+    from app.services.task_access import board_manages
+
+    data = await world(db)
+    agent = Agent(
+        organization_id=data.org.id,
+        name="Research backlog",
+        slug=f"backlog-{uuid4().hex}",
+        owner_user_id=data.users[0].id,
+        visibility="private",
+    )
+    db.add(agent)
+    await db.flush()
+    service = TaskService(db)
+    scope = BoardEnsure(scope="agent", scope_id=agent.id)
+    board = await service.ensure_board(data.contexts[0], scope)
+    assert (await service.ensure_board(data.contexts[0], scope)).id == board.id
+    assert (await service.boards(data.contexts[0]))[0].scope_name == agent.name
+    assert await board_manages(db, data.contexts[0], board)
+    tables = VirtualTableService(db)
+    viewer = replace(data.contexts[1], role=OrgRoleName.MEMBER)
+    assert (await tables.list_tables(viewer)).items == []
+    with pytest.raises(NotFoundError):
+        await tables.describe_table(viewer, board.table_id)
+    with pytest.raises(NotFoundError):
+        await service.ensure_board(viewer, scope)
+    foreign = replace(data.contexts[0], organization_id=uuid4())
+    with pytest.raises(NotFoundError):
+        await service.ensure_board(foreign, scope)
+    agent.visibility = "org"
+    await db.flush()
+    assert any(table.id == board.table_id for table in (await tables.list_tables(viewer)).items)
+    agent.visibility = "private"
+    await db.flush()
+    assert (await tables.list_tables(viewer)).items == []
+    await service.purge_scope("agent", agent.id, organization_id=data.org.id)
+    assert await service.boards(data.contexts[0]) == []
+    assert (await tables.list_tables(data.contexts[0])).items == []

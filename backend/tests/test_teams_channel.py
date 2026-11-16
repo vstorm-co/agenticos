@@ -438,3 +438,8 @@ async def test_a_routine_is_offered_only_the_team_channels_to_post_into() -> Non
         await ChannelBotService(MagicMock(), organization_id=uuid.uuid4()).teams_conversations()
 
     assert listed.await_args.kwargs["types"] == ("channel",)
+
+
+@pytest.mark.parametrize("sender", [{"id": "bot-id", "role": "bot"}, {"id": f"28:{APP_ID}"}])
+def test_bot_messages_do_not_start_a_new_channel_observation(sender):
+    assert TeamsAdapter().parse_incoming(_activity(**{"from": sender}), "bot") is None
