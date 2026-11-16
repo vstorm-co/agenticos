@@ -215,3 +215,16 @@ describe("SuggestionCards", () => {
     expect(useAuthStore.getState().user).toBeNull();
   });
 });
+
+it("keeps the routine access review mounted after the last suggestion is accepted", async () => {
+  state.suggestions = [suggestion("routine", { prompt: "Summarise sales" })];
+  const view = render(<SuggestionCards agentId="a-1" />);
+  await userEvent.click(screen.getByRole("button", { name: "Set it up" }));
+  await userEvent.click(screen.getByRole("button", { name: "create" }));
+  await waitFor(() => expect(state.accept).toHaveBeenCalledWith("s-routine"));
+  state.suggestions = [];
+  view.rerender(<SuggestionCards agentId="a-1" />);
+  expect(screen.getByRole("dialog")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "close" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
