@@ -122,6 +122,7 @@ function serveRuns(
   attempts: TriggerAttemptList = { items: [], total: 0 },
 ) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path.includes("/activations/")) return { state: "pending" };
     if (path === "/agents") return { items: [], total: 0 };
     if (path === "/runs") return { items: runs, total: total ?? runs.length };
     if (path.includes("/attempts?")) return attempts;
@@ -254,7 +255,11 @@ describe("TriggerRow run list", () => {
     // row for it - and "has not run yet" is the opposite of what just happened.
     const user = userEvent.setup();
     serveRuns([]);
-    vi.mocked(apiClient.post).mockResolvedValue(trigger());
+    vi.mocked(apiClient.post).mockResolvedValue({
+      ...trigger(),
+      activation_id: "requested-fire",
+      job_id: "job1",
+    });
     render(<TriggerRow trigger={trigger()} />, { wrapper });
 
     await user.click(screen.getByRole("button", { name: "Run now" }));
@@ -288,6 +293,7 @@ describe("TriggerRow run list", () => {
 
   it("says a failed read out loud rather than as an empty list", async () => {
     vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.includes("/activations/")) return { state: "pending" };
       if (path === "/agents") return { items: [], total: 0 };
       if (path.includes("/attempts?")) return { items: [], total: 0 };
       if (path.startsWith("/agents/")) return { items: [trigger()], total: 1 };
@@ -371,6 +377,7 @@ describe("before-run attempts", () => {
     serveRuns([]);
     const normal = vi.mocked(apiClient.get).getMockImplementation()!;
     vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+      if (path.includes("/activations/")) return { state: "pending" };
       if (path.includes("/attempts?")) throw new Error("unavailable");
       return normal(path, options);
     });
@@ -390,6 +397,7 @@ it("returns to the newest attempt page when another fire starts", async () => {
     occurred_at: new Date(Date.now() - 3600000).toISOString(),
   };
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path.includes("/activations/")) return { state: "pending" };
     if (path === "/runs") return { items: [], total: 0 };
     if (path.includes("/attempts?")) {
       const newest = firing && path.includes("skip=0&");
@@ -437,6 +445,7 @@ it.each([true, false])(
     const normal = vi.mocked(apiClient.get).getMockImplementation()!;
     let stopped = false;
     vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+      if (path.includes("/activations/")) return { state: "pending" };
       if (path.endsWith("/can-stop")) return allowed;
       if (path === "/runs" && stopped) return { items: [run({ status: "cancelled" })], total: 1 };
       return normal(path, options);
@@ -499,6 +508,7 @@ it("reopens pending setup from Resume without enabling an unreviewed routine", a
   });
   vi.mocked(apiClient.patch).mockClear();
   vi.mocked(apiClient.get).mockImplementation(async (path) => {
+    if (path.includes("/activations/")) return { state: "pending" };
     if (path.endsWith("/sources"))
       return {
         current: false,
@@ -551,6 +561,7 @@ it("finishes deferred setup before enabling the routine", async () => {
   };
   const actions = { can_waive: false, review_token: "actions", items: [] };
   vi.mocked(apiClient.get).mockImplementation(async (path) => {
+    if (path.includes("/activations/")) return { state: "pending" };
     if (path.endsWith("/sources")) return sources;
     if (path.endsWith("/action-consents")) return actions;
     return { items: [], total: 0 };
@@ -649,7 +660,6 @@ it("does not mistake an already running fire for another manual dispatch", async
 
 it("stops dispatch invalidations once the new run is recorded", async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const invalidate = vi.spyOn(client, "invalidateQueries");
   serveRuns([run({ status: "completed" })]);
   render(
     <QueryClientProvider client={client}>
@@ -658,8 +668,9 @@ it("stops dispatch invalidations once the new run is recorded", async () => {
   );
   expect(await screen.findByRole("link", { name: "Open run" })).toBeVisible();
   expect(screen.queryByText("Starting…")).toBeNull();
+  const reads = vi.mocked(apiClient.get).mock.calls.length;
   await new Promise((resolve) => setTimeout(resolve, 3200));
-  expect(invalidate).not.toHaveBeenCalled();
+  expect(apiClient.get).toHaveBeenCalledTimes(reads);
 });
 
 it.each([false, true])("matches before-run attempts by identity (new: %s)", async (isNew) => {
@@ -702,6 +713,7 @@ it("does not settle a dispatch from cached rows older than its history snapshot"
     releaseHistory = resolve;
   });
   vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+    if (path.includes("/activations/")) return { state: "pending" };
     if (path === "/runs" || path.includes("/attempts?")) {
       await held;
       return path === "/runs"
@@ -727,4 +739,44 @@ it("does not settle a dispatch from cached rows older than its history snapshot"
     ),
   );
   expect(screen.getByText("Starting…")).toBeVisible();
+});
+
+it.each(["recorded", "not_started"] as const)(
+  "settles %s independently of paginated history",
+  async (state) => {
+    serveRuns([run({ id: "newer-run", routine_activation_id: "another-fire" })], 100, {
+      items: [{ ...attempt(), activation_id: "another-fire" }],
+      total: 40,
+    });
+    const normal = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) =>
+      path.includes("/activations/") ? { state } : normal(path, options),
+    );
+    render(<TriggerRunsView trigger={trigger()} activationId="requested-fire" jobId="job1" />, {
+      wrapper,
+    });
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith(
+        "/agents/a1/triggers/t1/activations/requested-fire",
+        { params: { job_id: "job1" } },
+      ),
+    );
+    await waitFor(() => expect(screen.queryByText("Starting…")).toBeNull());
+    if (state === "not_started")
+      expect(
+        await screen.findByText("This request finished without a run available in history."),
+      ).toBeVisible();
+  },
+);
+
+it("reports an unavailable activation receipt without polling it indefinitely", async () => {
+  serveRuns([]);
+  const normal = vi.mocked(apiClient.get).getMockImplementation()!;
+  vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+    if (path.includes("/activations/")) throw new Error("Unavailable");
+    return normal(path, options);
+  });
+  render(<TriggerRunsView trigger={trigger()} activationId="requested-fire" />, { wrapper });
+  expect(await screen.findByText("This trigger's runs could not be read.")).toBeVisible();
+  expect(screen.queryByText("Starting…")).toBeNull();
 });

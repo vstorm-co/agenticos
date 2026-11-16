@@ -8843,6 +8843,7 @@
     "runsTitle": "Uruchomienia wyzwalacza",
     "fireCount": "{count, plural, =0 {brak runów} one {1 run} few {# runy} many {# runów} other {# runu}}",
     "fireStarting": "Uruchamianie…",
+    "fireNotStarted": "Wywołanie zakończyło się. W historii nie ma dostępnego uruchomienia.",
     "fireSummary": "{status} · ${cost}",
     "openRun": "Otwórz run",
     "fireStatus": {

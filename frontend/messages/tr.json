@@ -10740,6 +10740,7 @@
     "runsTitle": "Trigger run’ları",
     "fireCount": "{count, plural, =0 {run yok} =1 {1 run} other {# run}}",
     "fireStarting": "Başlatılıyor…",
+    "fireNotStarted": "İstek sona erdi. Geçmişte kullanılabilir bir ajan çalışması yok.",
     "fireSummary": "{status} · ${cost}",
     "openRun": "Run’ı aç",
     "fireStatus": {

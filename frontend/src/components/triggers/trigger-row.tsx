@@ -77,9 +77,11 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
     !trigger.is_active || runNow.isPending || (trigger.waiting_device_count ?? 0) > 0;
   // Compare history identities rather than clocks from the browser and worker.
   const [activationId, setActivationId] = useState<string | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
 
   function openRuns() {
     setActivationId(null);
+    setJobId(null);
     setViewing(true);
   }
 
@@ -87,6 +89,7 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
     runNow.mutate(trigger.id, {
       onSuccess: (pending) => {
         setActivationId(pending.activation_id);
+        setJobId(pending.job_id);
         setViewing(true);
       },
     });
@@ -277,10 +280,14 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
       <TriggerRunsSheet
         trigger={trigger}
         activationId={activationId}
+        jobId={jobId}
         open={viewing}
         onOpenChange={(next) => {
           setViewing(next);
-          if (!next) setActivationId(null);
+          if (!next) {
+            setActivationId(null);
+            setJobId(null);
+          }
         }}
       />
     </div>

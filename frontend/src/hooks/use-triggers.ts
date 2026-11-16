@@ -9,6 +9,7 @@ import { qk } from "@/lib/query-keys";
 import { getErrorMessage } from "@/lib/api-error";
 import type {
   Trigger,
+  TriggerActivationStatus,
   TriggerAttemptList,
   TriggerCreate,
   TriggerCreated,
@@ -135,5 +136,42 @@ export function useTriggerAttempts(trigger: Trigger, page: number, pending: bool
         `/agents/${trigger.agent_id}/triggers/${trigger.id}/attempts?skip=${page * 10}&limit=10`,
       ),
     refetchInterval: pending ? 3000 : trigger.is_active ? 30_000 : false,
+  });
+}
+
+/** One accepted activation, independent of the history pages currently displayed. */
+export function useTriggerActivation(
+  trigger: Trigger,
+  activationId: string | null,
+  jobId: string | null,
+  enabled: boolean,
+) {
+  const queryClient = useQueryClient();
+  return useQuery({
+    queryKey: qk.triggers.activation(trigger.agent_id, trigger.id, activationId ?? "", jobId),
+    enabled: enabled && activationId !== null,
+    queryFn: async () => {
+      const status = await apiClient.get<TriggerActivationStatus>(
+        `/agents/${trigger.agent_id}/triggers/${trigger.id}/activations/${activationId}`,
+        jobId === null ? undefined : { params: { job_id: jobId } },
+      );
+      if (status.state !== "pending") {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: qk.runs.all() }),
+          queryClient.invalidateQueries({
+            queryKey: qk.triggers.attempts(trigger.agent_id, trigger.id, 0),
+            exact: true,
+          }),
+          queryClient.invalidateQueries({
+            queryKey: qk.triggers.list(trigger.agent_id),
+            exact: true,
+          }),
+          queryClient.invalidateQueries({ queryKey: qk.triggers.orgList(), exact: true }),
+        ]);
+      }
+      return status;
+    },
+    refetchInterval: (query) =>
+      query.state.error === null && query.state.data?.state === "pending" ? 3000 : false,
   });
 }

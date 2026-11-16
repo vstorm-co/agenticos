@@ -74,6 +74,7 @@ describe("staleQueries", () => {
     expect(staleQueries(change("workflow"))).toEqual([qk.workflows.all(), qk.sharing.all()]);
     expect(staleQueries(change("secret"))).toEqual([qk.secrets.all(), qk.sharing.all()]);
     expect(staleQueries(change("mcp_connection"))).toEqual([
+      qk.triggers.all(),
       qk.mcpConnections.all(),
       qk.mcpServers.lists(),
       qk.mcpServers.entries(),

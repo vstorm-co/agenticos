@@ -95,6 +95,7 @@ from app.repositories import routine_device_wait as device_wait_repo
 from app.schemas.agent_trigger import (
     _EVENT_CONFIG_MODELS,
     GithubTriggerConfig,
+    TriggerActivationRead,
     TriggerAttemptList,
     TriggerAttemptRead,
     TriggerAttemptReason,
@@ -245,6 +246,7 @@ class EventFireDecision:
 class TriggerDispatch:
     trigger: AgentTrigger
     activation_id: UUID
+    job_id: UUID | None
 
 
 def _next_fire(
@@ -1803,7 +1805,49 @@ class AgentTriggerService:
             )
         # `_owned` let this caller through, so they manage it - say so on the read.
         setattr(trigger, "can_manage", True)  # noqa: B010
-        return TriggerDispatch(trigger=trigger, activation_id=activation_id)
+        return TriggerDispatch(trigger=trigger, activation_id=activation_id, job_id=job_id)
+
+    async def activation_status(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        trigger_id: UUID,
+        activation_id: UUID,
+        job_id: UUID | None,
+    ) -> TriggerActivationRead:
+        """An exact fire's admission, including queued work that ends without a run."""
+        trigger = await self._owned(ctx, agent_id, trigger_id)
+        # Read job settlement before its outputs: workers commit outputs before
+        # acknowledging the job, so a concurrent completion cannot hide its run.
+        job = None if job_id is None else await background_job_repo.get(self.db, job_id)
+        if job is not None and (
+            job.organization_id != ctx.organization_id
+            or job.kind != FIRE_TRIGGER.kind
+            or job.payload.get("trigger_id") != str(trigger.id)
+            or job.payload.get("activation_id") != str(activation_id)
+        ):
+            raise NotFoundError(message="Activation not found")
+        run_id = await agent_run_repo.run_id_for_routine_activation(
+            self.db,
+            organization_id=ctx.organization_id,
+            trigger_id=trigger.id,
+            activation_id=activation_id,
+        )
+        if run_id is not None:
+            return TriggerActivationRead(state="recorded")
+        attempt = await agent_trigger_repo.attempt_for_activation(
+            self.db,
+            trigger_id=trigger.id,
+            organization_id=ctx.organization_id,
+            activation_id=activation_id,
+        )
+        if attempt is not None:
+            return TriggerActivationRead(state="recorded")
+        if job is None:
+            raise NotFoundError(message="Activation not found")
+        return TriggerActivationRead(
+            state="not_started" if job.status in {"succeeded", "dead", "cancelled"} else "pending"
+        )
 
     async def prepare_event_fire(
         self, source: str, trigger_id: UUID, *, body: bytes, headers: Mapping[str, str]

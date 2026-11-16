@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { ArrowUpRight, CheckCircle2, Loader2, PlayCircle, XCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
@@ -17,10 +16,9 @@ import {
   SheetTitle,
 } from "@/components/ui";
 import { useRuns } from "@/hooks";
-import { useTriggerAttempts } from "@/hooks/use-triggers";
+import { useTriggerActivation, useTriggerAttempts } from "@/hooks/use-triggers";
 import { useStopParkedRun } from "@/hooks/use-stop-parked-run";
 import { ROUTES } from "@/lib/constants";
-import { qk } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import type { AgentRun } from "@/types/runs";
 import type { Trigger, TriggerAttemptList } from "@/types/triggers";
@@ -52,9 +50,11 @@ const PAGE = 50;
 export function TriggerRunsView({
   trigger,
   activationId,
+  jobId = null,
 }: {
   trigger: Trigger;
   activationId: string | null;
+  jobId?: string | null;
 }) {
   const t = useTranslations("triggers");
   const locale = useLocale();
@@ -65,8 +65,13 @@ export function TriggerRunsView({
     if (activationId !== null) setPage(0);
   }
   const [settledActivationId, setSettledActivationId] = useState<string | null>(null);
-  const settled = activationId !== null && settledActivationId === activationId;
-  const query = useTriggerAttempts(trigger, page, activationId !== null && !settled);
+  const locallySettled = activationId !== null && settledActivationId === activationId;
+  const receipt = useTriggerActivation(trigger, activationId, jobId, !locallySettled);
+  const settled =
+    locallySettled ||
+    (activationId !== null && receipt.data !== undefined && receipt.data.state !== "pending");
+  const waiting = activationId !== null && !settled && receipt.error === null;
+  const query = useTriggerAttempts(trigger, page, waiting);
   const attempts = query.data;
   const recordedAttempt = attempts?.items.some((attempt) => attempt.activation_id === activationId);
   if (activationId !== null && settledActivationId !== activationId && recordedAttempt) {
@@ -74,6 +79,16 @@ export function TriggerRunsView({
   }
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {!locallySettled && receipt.error && (
+        <ErrorState
+          title={t("runsCouldNotBeRead")}
+          className="m-5"
+          cta={{ label: t("attemptsRetry"), onClick: () => void receipt.refetch() }}
+        />
+      )}
+      {receipt.data?.state === "not_started" && (
+        <p className="text-muted-foreground p-5 text-sm">{t("fireNotStarted")}</p>
+      )}
       {query.error ? (
         <ErrorState
           title={t("attemptsError")}
@@ -88,6 +103,7 @@ export function TriggerRunsView({
           trigger={trigger}
           activationId={settled ? null : activationId}
           onSettled={setSettledActivationId}
+          polling={waiting}
         />
       </div>
     </div>
@@ -150,10 +166,12 @@ function RunHistory({
   trigger,
   activationId,
   onSettled,
+  polling,
 }: {
   trigger: Trigger;
   activationId: string | null;
   onSettled: (fire: string) => void;
+  polling: boolean;
 }) {
   const t = useTranslations("triggers");
   const [page, setPage] = useState(0);
@@ -164,26 +182,13 @@ function RunHistory({
     conversationId: conversationId ?? undefined,
     skip: page * PAGE,
     // Poll until a new history identity records the dispatched fire.
-    ...(activationId !== null ? { refetchIntervalMs: POLL_WHILE_WAITING_MS } : {}),
+    ...(polling ? { refetchIntervalMs: POLL_WHILE_WAITING_MS } : {}),
   });
   const recorded =
     activationId !== null && runs.some((run) => run.routine_activation_id === activationId);
   useEffect(() => {
     if (recorded) onSettled(activationId);
   }, [onSettled, activationId, recorded]);
-
-  // A trigger that has never fired has no run-log conversation either, so there
-  // is nothing to poll but the trigger itself: its `conversation_id` appears with
-  // the first fire, at which point the listing above takes over.
-  const queryClient = useQueryClient();
-  useEffect(() => {
-    if (activationId === null) return;
-    const timer = setInterval(() => {
-      void queryClient.invalidateQueries({ queryKey: qk.triggers.all() });
-      void queryClient.invalidateQueries({ queryKey: qk.runs.all() });
-    }, POLL_WHILE_WAITING_MS);
-    return () => clearInterval(timer);
-  }, [activationId, queryClient]);
 
   if (conversationId !== null && isLoading) {
     return <LoadingState variant="skeleton-table" columns={1} rows={4} className="m-5" />;
@@ -195,7 +200,7 @@ function RunHistory({
   // A row for the fire that has been dispatched and has not recorded itself yet:
   // without it, pressing Run now on a trigger with no history answers with "not
   // run yet" for a few seconds, which is the opposite of what just happened.
-  const starting = activationId !== null && !recorded;
+  const starting = polling && activationId !== null && !recorded;
 
   if (runs.length === 0 && !starting) {
     return <p className="text-muted-foreground p-5 text-sm">{t("noMessagesDescription")}</p>;
@@ -306,11 +311,13 @@ function FireRow({ run }: { run: AgentRun }) {
 export function TriggerRunsSheet({
   trigger,
   activationId,
+  jobId = null,
   open,
   onOpenChange,
 }: {
   trigger: Trigger;
   activationId: string | null;
+  jobId?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -324,7 +331,7 @@ export function TriggerRunsSheet({
           </SheetTitle>
           <SheetClose onClick={() => onOpenChange(false)} />
         </SheetHeader>
-        {open && <TriggerRunsView trigger={trigger} activationId={activationId} />}
+        {open && <TriggerRunsView trigger={trigger} activationId={activationId} jobId={jobId} />}
       </SheetContent>
     </Sheet>
   );

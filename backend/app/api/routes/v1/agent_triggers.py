@@ -28,6 +28,7 @@ from app.api.deps import AgentTriggerSvc, Auth, require
 from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.schemas.agent_trigger import (
+    TriggerActivationRead,
     TriggerAttemptList,
     TriggerCreate,
     TriggerCreateRead,
@@ -185,7 +186,29 @@ async def run_trigger_now(
     return TriggerDispatchRead(
         **TriggerRead.model_validate(accepted.trigger).model_dump(),
         activation_id=accepted.activation_id,
+        job_id=accepted.job_id,
     )
+
+
+@router.get(
+    "/{agent_id}/triggers/{trigger_id}/activations/{activation_id}",
+    response_model=TriggerActivationRead,
+)
+async def trigger_activation_status(
+    agent_id: UUID,
+    trigger_id: UUID,
+    activation_id: UUID,
+    ctx: Auth,
+    service: AgentTriggerSvc,
+    job_id: UUID | None = Query(None),
+) -> Any:
+    """Console receipt for one accepted fire, independent of history pagination.
+
+    `job_id` is the accepted response's queue receipt. Missing or inaccessible
+    activations return 404. A completed job without a run or refusal reports
+    `not_started`, including a routine paused before its worker admitted it.
+    """
+    return await service.activation_status(ctx, agent_id, trigger_id, activation_id, job_id)
 
 
 @router.post(

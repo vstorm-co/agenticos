@@ -921,6 +921,11 @@ class TriggerDispatchRead(TriggerRead):
     """Accepted manual fire, identified through its queued activation."""
 
     activation_id: UUID
+    job_id: UUID | None
+
+
+class TriggerActivationRead(BaseSchema):
+    state: Literal["pending", "recorded", "not_started"]
 
 
 class TriggerCreateRead(TriggerRead):

@@ -10017,6 +10017,7 @@
     "runsTitle": "Trigger-Runs",
     "fireCount": "{count, plural, =0 {keine Runs} =1 {1 Run} other {# Runs}}",
     "fireStarting": "Startet …",
+    "fireNotStarted": "Die Anfrage ist beendet. Im Verlauf ist kein Agentenlauf verfügbar.",
     "fireSummary": "{status} · ${cost}",
     "openRun": "Run öffnen",
     "fireStatus": {

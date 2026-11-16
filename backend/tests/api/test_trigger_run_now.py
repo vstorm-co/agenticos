@@ -62,6 +62,7 @@ async def test_running_now_is_accepted_rather_than_answered_with_the_finished_ru
             return_value=MagicMock(
                 trigger=_trigger(trigger_id),
                 activation_id=activation_id,
+                job_id=None,
             )
         )
     )
@@ -140,3 +141,25 @@ async def test_attempt_history_is_typed_bounded_and_delegates_resource_access():
     service.attempts.assert_awaited_once()
     assert service.attempts.await_args.args[1:] == (_AGENT_ID, trigger_id)
     assert service.attempts.await_args.kwargs == {"skip": 10, "limit": 10}
+
+
+async def test_activation_status_delegates_the_exact_receipt() -> None:
+    from app.schemas.agent_trigger import TriggerActivationRead
+
+    trigger_id, activation_id, job_id = uuid4(), uuid4(), uuid4()
+    service = MagicMock(
+        activation_status=AsyncMock(return_value=TriggerActivationRead(state="not_started"))
+    )
+    async with _client(service) as client:
+        response = await client.get(
+            f"/api/v1/agents/{_AGENT_ID}/triggers/{trigger_id}/activations/{activation_id}",
+            params={"job_id": str(job_id)},
+        )
+    assert response.status_code == 200
+    assert response.json() == {"state": "not_started"}
+    assert service.activation_status.await_args.args[1:] == (
+        _AGENT_ID,
+        trigger_id,
+        activation_id,
+        job_id,
+    )
