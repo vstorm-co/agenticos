@@ -21,26 +21,31 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- Tables tenant isolation adds migration `0328_tables_tenant_rls`, after `0327_virtual_table_relations`. It installs policies with enforcement disabled and adds a membership foreign key for user-specific Tables grants. Existing grants without membership, and cross-organization trigger or admission parents, must be reviewed before the migration can proceed; it refuses those rows without repairing data. Enabling enforcement is a separate operator cutover with distinct migration, runtime and maintenance credentials and drained API/worker services. Follow the [Tables cutover procedure](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md) before activation.
-- Thread storage uses migration `0326_room_threads.py` after `0325_merge_t3_rooms_v173.py`. It builds the composite unique index and the thread lookup index concurrently, then attaches the unique index as a constraint. These builds allow ordinary reads and writes. Adding the nullable root column and attaching the unique constraint need brief `ACCESS EXCLUSIVE` locks, which can wait behind long transactions. The foreign-key and check constraints are added `NOT VALID` and validated without blocking ordinary writes. Rehearse on a production-sized copy and review any lock waits during upgrade; prebuilding the composite index is unnecessary.
+- Tables tenant isolation adds migration `0335_tables_tenant_rls`, after `0334_virtual_table_relations`. It installs policies with enforcement disabled and adds a membership foreign key for user-specific Tables grants. Existing grants without membership, and cross-organization trigger or admission parents, must be reviewed before the migration can proceed; it refuses those rows without repairing data. Enabling enforcement is a separate operator cutover with distinct migration, runtime and maintenance credentials and drained API/worker services. Follow the [Tables cutover procedure](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md) before activation.
+- Thread storage uses migration `0333_room_threads.py` after `0332_merge_t3_pools_v1761.py`. It builds the composite unique index and the thread lookup index concurrently, then attaches the unique index as a constraint. These builds allow ordinary reads and writes. Adding the nullable root column and attaching the unique constraint need brief `ACCESS EXCLUSIVE` locks, which can wait behind long transactions. The foreign-key and check constraints are added `NOT VALID` and validated without blocking ordinary writes. Rehearse on a production-sized copy and review any lock waits during upgrade; prebuilding the composite index is unnecessary.
 - If an index build fails, the revision stays pending and the nullable root column may remain. Retry the upgrade after any active build has finished. The migration reuses exact valid indexes and drops an exact invalid index with `DROP INDEX CONCURRENTLY` before rebuilding it. It stops and leaves a conflicting object untouched. Inspect any unexpected object before resolving it. Once thread replies exist, retain a thread-aware application version or restore the matching pre-upgrade backup: an older reader or dropping the root column would mix those replies into the main transcript. Downgrading refuses while replies exist; an empty downgrade returns to `0325_merge_t3_rooms_v173`.
 - The HTTP messages endpoint, `GET /api/v1/conversations/{conversation_id}/messages`, now defaults to `top_level_only=true`. Clients that need a combined timeline of main-room messages and thread replies must explicitly pass `top_level_only=false`.
-- Relationship storage uses migration `0327_virtual_table_relations` after `0326_room_threads` and requires a complete Tables read/write outage: the record uniqueness constraint holds `ACCESS EXCLUSIVE` through the transactional backfill. Stop and drain Tables traffic, migrate, then start only versions maintaining normalized links. Invalid definitions abort; malformed links remain as repair evidence with original JSON, revisions and history retained. Rehearse on a restored copy and check per-organization quota headroom plus physical database/index growth. Quotas are not raised and retained data is not discarded. Downgrade also requires drained traffic and a deliberate application rollback.
+- Relationship storage uses migration `0334_virtual_table_relations` after `0333_room_threads` and requires a complete Tables read/write outage: the record uniqueness constraint holds `ACCESS EXCLUSIVE` through the transactional backfill. Stop and drain Tables traffic, migrate, then start only versions maintaining normalized links. Invalid definitions abort; malformed links remain as repair evidence with original JSON, revisions and history retained. Rehearse on a restored copy and check per-organization quota headroom plus physical database/index growth. Quotas are not raised and retained data is not discarded. Downgrade also requires drained traffic and a deliberate application rollback.
 
 ### Changed
 
 - Sync upstream to v1.73.0 while preserving the T3 overlay; migration histories join at `0324_merge_t3_upstream_v173` and `0325_merge_t3_rooms_v173`.
 
+### Security
+
+- Separate MCP connection use from administration on existing paths. Use grants continue to authorize agent/workflow binding, while editing, deleting, probing, reading call logs and changing sharing require management authority or an edit grant within the existing route gates. Existing role scopes and published-agent delegation remain in place; no grants are promoted and no new discovery endpoint is added.
+
 ### Added
 
 - Tables can enforce an additional PostgreSQL tenant boundary across their complete data family. Request and background transactions bind one trusted organization; active enforcement refuses missing context, privileged runtime roles, partial activation and policy drift. Operator preflight checks ownership, privileges, database identity and legacy parent integrity before an explicit atomic cutover. Authorized global account export/deletion uses a separately verified maintenance connection, with audit and cleanup in the same transaction.
-
-- Linked table records use ordered, same-organization relationships with database-enforced endpoints and per-field limits. Current reads, filters, project access and edits use these connections; backlinks require access to both endpoints. Invalid legacy links remain as repair evidence, and edits retain hidden valid destinations. Relationship definitions, connections and evidence count toward storage quotas, with atomic refusal of table creation, schema changes and batch writes.
-- Record updates accept atomic `link_changes` keyed by immutable link column IDs. Explicit additions and removals require current target read access, preserve unnamed hidden links, and share scalar edits' revision, history, transaction and idempotency behavior. The grid and record panel send link deltas and retain those choices through conflicts, so reapplying an edit preserves unrelated links added by another writer.
-- Explicit Read and Write access on table rows for members and groups, with expiry, revocation and row-sharing controls. Write includes Read and ordinary cell edits; deletion, access changes and schema administration retain separate checks. Row policies can require explicit grants or use Read/Write people fields. Effective row permissions drive grid, detail and kanban controls, catalog counts follow row visibility, and idempotent write replays recheck current authority, including cached batch errors. External-ID refusals do not reveal hidden record IDs or revisions. Authorized receipts remain readable after archiving without enabling new writes. Existing task boards retain their access model.
 - Message-level side threads in Team rooms: open a saved message's thread, follow its reply count, share its direct link, and post human messages or explicitly ask an agent inside it. Threads inherit the room's project audience and share its durable request queue. Replies, resumed answers, drafts and uncertain retries retain their thread; ordinary quoted replies remain separate. Agent history prioritizes the root and thread replies, with earlier main-room context filling the remaining history budget.
 - A thread run keeps its own paused state and does not inherit or replace the main room's plan, reminder or compaction state. Removing a chat from its project keeps existing threads readable under that chat's remaining access, with further thread replies disabled. Saving an answer as a dataset example keeps its question, answer and history in the same discussion, so interleaved messages from other threads do not contaminate the example.
-- Browser, Computer and Files controls on the right of every chat, with separate panels that open before tool activity. Hosted-tool start actions use the selected agent's published configuration and run permissions. Opening an empty panel starts no run; completed browser and desktop images are clearly marked as the last view, and closing a panel keeps it closed as new results arrive.
+- Linked table records use ordered, same-organization relationships with database-enforced endpoints and per-field limits. Current reads, filters, project access and edits use these connections; backlinks require access to both endpoints. Invalid legacy links remain as repair evidence, and edits retain hidden valid destinations. Relationship definitions, connections and evidence count toward storage quotas, with atomic refusal of table creation, schema changes and batch writes.
+- Record updates accept atomic `link_changes` keyed by immutable link column IDs. Explicit additions and removals require current target read access, preserve unnamed hidden links, and share scalar edits' revision, history, transaction and idempotency behavior. The grid and record panel send link deltas and retain those choices through conflicts, so reapplying an edit preserves unrelated links added by another writer.
+- An Agent settings pane beside chat, with explicit draft saving for name, description, instructions, default model and configured capability switches. Editing and publishing use per-agent access hints, including resource grants. Publishing validates the draft and uses the existing version/environment confirmation. Edits survive switching workspace panes; remote changes pause saving. Chat model overrides and running turns keep their existing scope.
+- The agent chat header has a compact model selector with provider icons, saved-model search, explicit account filtering and a return to the agent's model. It preserves chat preferences, permission gates and the advanced connection setup in Controls; disconnected or non-chat models stay unavailable.
+- Browser, Computer and Files controls beside full desktop chats, with separate panels that open before tool activity. The rail is hidden on phones and in compact chats. Hosted-tool start actions use the selected agent's published configuration and run permissions. Opening an empty panel starts no run; completed browser and desktop images are clearly marked as the last view, and closing a panel keeps it closed as new results arrive.
+- Explicit Read and Write access on table rows for members and groups, with expiry, revocation and row-sharing controls. Write includes Read and ordinary cell edits; deletion, access changes and schema administration retain separate checks. Row policies can require explicit grants or use Read/Write people fields. Effective row permissions drive grid, detail and kanban controls, catalog counts follow row visibility, and idempotent write replays recheck current authority, including cached batch errors. External-ID refusals do not reveal hidden record IDs or revisions. Authorized receipts remain readable after archiving without enabling new writes. Existing task boards retain their access model.
 - Project-room messaging APIs accept human posts without a model call and explicit requests for published cloud agents. A PostgreSQL submission ledger deduplicates retries, queues agent requests per conversation and retains their original requester; permissions are checked when accepted and when work starts or resumes. A waiting approval or answer keeps the room queue blocked. Queued follow-ups read earlier messages and the completed answers to preceding requests, while excluding later prompts. Migration `0311_room_submissions.py` follows `0303_virtual_table_row_policy.py`, which follows `0310_secret_requests.py`; the separate Team rooms interface uses these endpoints.
 - Open console tabs detect a newly deployed frontend and show a persistent top-center update notice with a Reload button, matching ServerOS. Checks run every minute while visible and when the tab returns; the app reloads only when the person chooses it. Build identities detect updates even when the release number is unchanged.
 - Row-level access for tables, by assignee: a table may carry a row policy naming the user or multi-user column that gates viewing and the one that gates editing, plus an optional project half (a link column, a projects table and its members column) that widens viewing to project members. A row with an empty assignee is visible to nobody except the deployment owner, the table owner and Owner/Admin roles; Builders and Operators get the predicate applied like everyone else. Creating a row its creator cannot see is refused, as are updates, upserts and deletes that move a row out of the caller's visibility, and single reads of invisible rows are 404s. Linked records a reader cannot see yield no label and no id, rollups count only the visible subset, and triggers do not fire for rows their publisher cannot see. Set it with `PUT /tables/{id}/row-policy`; tables without a policy behave exactly as before.
@@ -115,6 +120,97 @@ Two things are versioned separately from this file and worth knowing about:
 - Table link replacements validate every explicitly submitted destination before accepting an unchanged write. Hidden and missing destination IDs receive the same refusal; omitted hidden links remain preserved for older clients.
 - Table upserts return the same refusal for a hidden external ID and an unavailable creation, including absent or stale revisions, so row-grant readers cannot use error messages to discover hidden records.
 - Relationship backfill refuses invalid stored link limits, including zero, false and blank values. Only omitted or null limits use the legacy default; a refusal rolls back the new relationship tables without rewriting source data.
+- Deleting an app waits for workflow worker mutations before changing its rows, preventing a deadlock while a worker finishes a run started by that app.
+- Completed room answers containing only text can recover a missed save acknowledgement from history, restoring reply, fork and rating actions. Local tool results, thinking, errors, and pending approvals or questions retain their existing state.
+- Table links expose only readable destination IDs and labels, including exports and projected reads. Link filters and counts use the same visible destinations, and legacy array replacements retain hidden existing links. Invalid stored row policies block record access with a repairable `ROW_POLICY_INVALID` error instead of disabling restrictions.
+- Chat followers recover saved-answer acknowledgements and final outcomes when a turn finishes during replay or a quiet interval. Sequence checks keep recovered frames in order without duplicating earlier output.
+- Room workers carry the persisted assistant message ID through their completion callback so connected participants receive a save acknowledgement before the turn ends. The acknowledgement still requires a separately committed message from the same run.
+
+## [1.76.1] - 2026-11-15
+
+### Documentation
+
+- README links to RepoCloud and Railway hosting templates in all four languages, with provider configuration and version limitations.
+
+## [1.76.0] - 2026-11-15
+
+### Added
+
+- Native Linear webhook triggers verify signed deliveries and start agent routines directly.
+
+## [1.75.0] - 2026-11-15
+
+### Added
+
+- Generic API webhook triggers can verify raw-body HMAC-SHA256 signatures in a configured header, with hex or base64 encoding.
+
+## [1.74.0] - 2026-11-14
+
+### Added
+
+- Opt-in automatic channel participation with a separate decision model, focus instructions, bounded message windows and configurable pre-/post-mention intervals. Automatic replies can use bound organization MCP accounts; private accounts and calls needing human approval require a direct mention.
+
+- Organization groups in workflow human/MCP approvals and agent notification audiences. Decisions use current eligible membership; empty or deleted configured groups never become unrestricted approval.
+
+
+- New chat bindings enable all supported tools by default, including agent-chosen emoji reactions on Mattermost, Slack, Discord, Telegram and iMessage, with explicit platform limits and text replies alongside reactions.
+
+- Apps exports published reports and browser presentations as real PDF files through the isolated renderer, with audience checks and explicit size/page limits.
+- Apps and Visuals include design playbooks, themed browser presentations, a native UI component studio and richer map/3D examples for school, play and work (#2989).
+- Platform MCP can create or reuse an App's public link after an explicit request, under the normal write approval and edit-access checks; live public-data consent remains separate.
+
+- Per-bot opt-in tools to find joined channels, search message history and send requested reports from web chat, linked channel conversations or routines.
+- Routines with unavailable sources are saved paused with setup guidance instead of discarding the requested schedule.
+
+- Channel history supports bounded text, author and time filters with destination-bound continuation cursors for Mattermost and Slack. Other platforms report unsupported paging explicitly.
+
+- Activity separates the runtime tool catalog from provider-resolved visibility, records Tool Search policy and per-request tool counts, and puts model settings and cache usage beside readable prompt/source views. Run history fills the available viewport even when it contains few records.
+
+### Fixed
+
+- Keep sandbox connection details and session controls readable on narrow screens, search sessions by agent name, and confirm channel-bot removal before disconnecting bound agents.
+
+- Align organization role, directory and retention views with shared list layouts: searchable permission matrices with sticky labels, responsive retention fields and matching loading states, disabled unchanged saves, and retryable directory deletion refusals.
+
+- Share pagination controls and loading/boundary states across catalogs, record tables and memory. Disable unchanged participation settings, organize background-service cards, and retain the full file-reader footprint while previews load.
+- Keep switches visible when wrapped in action tooltips; tooltip state no longer overrides checked-state styling.
+- Forward image-proxy requests from their URL and headers without rewrapping the runtime's Request object.
+
+- Match loading placeholders to the actual agent/group cards, stacked channel and sandbox tables, workflow canvas, workspace documents and record lists. Preserve page frames and toolbars while data loads, and keep placeholders visible on narrow screens in both themes.
+
+- Upgrade the OpenTelemetry API/SDK instrumentation family to 1.45.2/0.66b2 to fix trace-context parsing denial of service (CVE-2026-126360).
+
+- Preserve input redactions in a separate model-replay copy, including attachment briefings and forked conversations; keep the original human audit transcript.
+- Apply knowledge-base teardown ownership rules to account and organization purges, and track CLI connector ingestion against concurrent teardown.
+- Enforce base access on integration mutations and cloning, reserve unassigned RAG templates for connection managers, and retain sync-log tenant/target ownership after source deletion. Validate source edits before mutation locks and reject stale validated writes.
+- Native routine skill loading no longer inherits an unrelated write-approval requirement; explicit agent approval policy still applies. Approval decisions no longer leave continuation blocked by a stale cached queue.
+- Preserve bot text replies after emoji reactions, including approval continuations. Unlinked senders can request bot reactions on the admitted message or earlier messages actually read from that bound channel, without borrowing publisher account authority. Show editable deployment defaults directly in the channel instruction input; preserve legacy custom additions and restore live defaults when cleared. Smooth chat App/Visual previews with reserved skeletons, decode/render readiness and reduced-motion support.
+
+
+- Protect bundled platform and Architect skills from edits, resource/version/fork changes and deletion by callers without organization-wide agent edit authority, including explicit skill grants; reserve their names against unprivileged creation (#2882).
+
+- Routine skill loading no longer falls through to the unknown external-action approval rule; explicit agent approval gates remain enforced (#3019). Approval decisions check the server for remaining requests rather than trusting a stale queue page.
+- Email delivers generated chart images as attachments instead of dropping image-only answers. Email, iMessage and Twilio MMS offer explicit current-conversation file delivery.
+- Session-check errors offer a sign-in action that preserves the return destination alongside retrying the saved session.
+
+- Preserve expanded chat activity through tool approval and resumption, use neutral approval status styling, and remove acknowledged approval notices without a stale flash.
+- Keep real tool progress visible in messaging channels after interim text, with bounded elapsed-time and completed-step updates for long work.
+
+- Browser and computer previews reach channel progress through runtime events, and available authenticated links remain in final and resumed answers.
+- The shipped AgenticOS instructions open relevant sources proactively, discover MCP fetch operations and link to the correct tool/account setup when something is missing.
+- Mobile composer placeholders and text align with attachment and send actions.
+
+- Chat prompts only for genuinely pending approvals; standing and remembered consent keep their approved audit entries without showing an actionable approval card after the tool completes (#2994).
+
+
+- Read Mattermost thread history in creation-time order and honor result limits even when the platform returns an unordered or oversized thread. Use the thread endpoint's native paging parameters for both text and attachment backfill.
+- Discover both search and fetch tools from multi-query local tool search, including MCP tools with long descriptions.
+- Keep channel author metadata separate from user messages, without inserting an empty message marker. Ignore Mattermost system housekeeping posts before they can start paid agent runs.
+
+### Changed
+
+- The active chat permission mode stays visible beside the composer, with a direct selector that respects the organization waiver policy and the caller’s permissions (#2995).
+
 
 ## [1.73.0] - 2026-11-13
 
@@ -139,6 +235,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Report why the sandbox host could not start a workflow script's sandbox, as `SANDBOX_START_FAILED` with a bounded, safe diagnosis that does not expose host paths or build output, instead of saying the host could not be reached. `make dev` now creates the sandbox workspace directory before Docker can create it as root, which on Linux and under Docker Desktop's WSL integration left every sandbox unable to start; an existing directory the service cannot write is reported with the command that fixes it.
 - **Coding task file counts.** The message footer and task panel use the stored change set, including shell edits. New reports normalize harness-only fallback paths relative to the workspace.
 - **Workflow step claims follow the database clock.** A worker's claim on a workflow step now measures its lease from the database's time, the clock every expiry check reads. Before, a worker host whose clock ran behind the database could take a claim that had already expired, so a second worker could run the same step; one whose clock ran ahead held a dead worker's step longer than `WORKFLOW_DISPATCH_LEASE_SECONDS`. The recovery sweeps read the database's time too.
+
 
 ## [1.72.0] - 2026-11-13
 
@@ -1071,8 +1168,6 @@ environment without a person's decision.
   fallbacks for email clients that do not load them.
 
 ### Fixed
-
-- Table links expose only readable destination IDs and labels, including exports and projected reads. Link filters and counts use the same visible destinations, and legacy array replacements retain hidden existing links. Invalid stored row policies block record access with a repairable `ROW_POLICY_INVALID` error instead of disabling restrictions.
 
 - Keep parked secret requests in their original conversation, account and organization.
   Leaving that context clears the card and ignores delayed reads or decisions;
@@ -21786,7 +21881,11 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.73.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.76.1...HEAD
+[1.76.1]: https://github.com/vstorm-co/agenticos/compare/v1.76.0...v1.76.1
+[1.76.0]: https://github.com/vstorm-co/agenticos/compare/v1.75.0...v1.76.0
+[1.75.0]: https://github.com/vstorm-co/agenticos/compare/v1.74.0...v1.75.0
+[1.74.0]: https://github.com/vstorm-co/agenticos/compare/v1.73.0...v1.74.0
 [1.73.0]: https://github.com/vstorm-co/agenticos/compare/v1.72.0...v1.73.0
 [1.72.0]: https://github.com/vstorm-co/agenticos/compare/v1.71.2...v1.72.0
 [1.71.2]: https://github.com/vstorm-co/agenticos/compare/v1.71.1...v1.71.2

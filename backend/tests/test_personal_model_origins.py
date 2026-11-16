@@ -160,8 +160,11 @@ async def test_origin_is_checked_before_the_first_model_resolution(
     )
     seen: list[AuthContext] = []
 
-    async def resolve(models_ctx: AuthContext, *, profile_id: UUID | None) -> NoReturn:
+    async def resolve(
+        models_ctx: AuthContext, *, profile_id: UUID | None, decision: bool = False
+    ) -> NoReturn:
         assert profile_id == spec.model_profile_id
+        assert decision is False
         seen.append(models_ctx)
         if models_ctx.personal_user_id is None:
             raise AuthorizationError(message="A personal connection needs its own signed-in user")
@@ -236,8 +239,11 @@ async def test_a_parked_nested_workflow_keeps_its_origin_without_a_live_dispatch
     )
     seen: list[AuthContext] = []
 
-    async def resolve(ctx: AuthContext, *, profile_id: UUID | None) -> NoReturn:
+    async def resolve(
+        ctx: AuthContext, *, profile_id: UUID | None, decision: bool = False
+    ) -> NoReturn:
         assert profile_id == spec.model_profile_id
+        assert decision is False
         seen.append(ctx)
         if ctx.personal_user_id is None:
             raise AuthorizationError(message="Workflow execution cannot use a personal connection")

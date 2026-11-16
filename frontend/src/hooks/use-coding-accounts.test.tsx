@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { useCodingAccounts } from "./use-coding-accounts";
 import { useAuthStore } from "@/stores";
+import { qk } from "@/lib/query-keys";
 import type { CodingAccount } from "@/lib/coding-accounts-api";
 import * as api from "@/lib/coding-accounts-api";
 const scope = vi.hoisted(() => ({ tenant: "organization" as string | null }));
@@ -16,6 +17,8 @@ vi.mock("@/lib/coding-accounts-api", () => ({
   connectCodingAccount: vi.fn(),
   disconnectCodingAccount: vi.fn(),
   enableCodingAccount: vi.fn(),
+  setCodingAccountDefault: vi.fn(),
+  setCodingAccountPoolMember: vi.fn(),
   completeCodingSignIn: vi.fn(),
   startCodingSignIn: vi.fn(),
 }));
@@ -26,6 +29,17 @@ const account: CodingAccount = {
   secret_kind: "api_key",
   enabled: false,
   generation: "generation",
+  is_default: true,
+  pool_member: false,
+  usage: {
+    status: "unknown",
+    observed_at: null,
+    observation_age_seconds: null,
+    valid_until: null,
+    source: "unavailable",
+    windows: [],
+    reason_code: "provider_contract_unverified",
+  },
 };
 function mount() {
   const client = new QueryClient({
@@ -91,3 +105,40 @@ it.each(["tenant", "person"])("does not query private coding accounts without %s
   expect(result.current.ready).toBe(false);
   expect(api.listCodingAccounts).not.toHaveBeenCalled();
 });
+
+it.each(["tenant", "person"])(
+  "keeps reads disabled when a mutation callback completes without %s",
+  async (missing) => {
+    if (missing === "tenant") scope.tenant = null;
+    else useAuthStore.setState({ user: null });
+    vi.mocked(api.setCodingAccountDefault).mockResolvedValue(account);
+    const { result, client } = mount();
+    const key = qk.codingAccounts.mine(result.current.scope);
+    act(() => {
+      client.setQueryData(key, { items: [account] });
+    });
+    expect(client.getQueryState(key)?.isInvalidated).toBe(false);
+    await act(async () => {
+      await result.current.makeDefault.mutateAsync(account);
+    });
+    expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+    expect(result.current.ready).toBe(false);
+    expect(api.listCodingAccounts).not.toHaveBeenCalled();
+  },
+);
+it.each(["default", "pool"])(
+  "refreshes the owner's account after changing its %s",
+  async (change) => {
+    const updated = { ...account, is_default: true, pool_member: change === "pool" };
+    vi.mocked(api.setCodingAccountDefault).mockResolvedValue(updated);
+    vi.mocked(api.setCodingAccountPoolMember).mockResolvedValue(updated);
+    const { result } = mount();
+    await waitFor(() => expect(result.current.accounts.isSuccess).toBe(true));
+    vi.mocked(api.listCodingAccounts).mockResolvedValue({ items: [updated] });
+    await act(async () => {
+      if (change === "default") await result.current.makeDefault.mutateAsync(account);
+      else await result.current.poolMembership.mutateAsync({ account, poolMember: true });
+    });
+    await waitFor(() => expect(result.current.accounts.data?.items).toEqual([updated]));
+  },
+);

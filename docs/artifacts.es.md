@@ -1,5 +1,5 @@
 ---
-source_sha: "dd46ea746100"
+source_sha: "fa76644c347a"
 ---
 
 # Aplicaciones { #artifacts }
@@ -921,7 +921,7 @@ La consola aporta el ID, el título y la versión de la aplicación, además de 
 ruta actual. El iframe no puede sustituir esa identidad ni conceder permisos
 adicionales. La API usa el puente existente de la sandbox; no extrae el DOM ni
 captura automáticamente campos de formulario o parámetros de consulta de la URL.
-El lector controla qué comparte en la
+Quien usa la vista controla lo que comparte en la
 [ventana del asistente](console.md#the-assistant).
 
 ### Ver la página: la vista previa { #seeing-the-page-preview }
@@ -1477,3 +1477,11 @@ del despliegue, bajo `artifacts/<organization>/<artifact>/`.
 - Archivar conserva una página y no sirve nada de ella, con el enlace público
   desactivado, hasta que alguien que puede editarla la restaura.
 - Una clase de retención propia, medida desde la última publicación.
+
+## Carga de vistas previas y uso compartido { #preview-loading-and-sharing }
+
+Las vistas previas del chat reservan espacio mientras carga el renderizador visual o la miniatura de Apps. Aparecen gradualmente cuando termina el renderizado o la decodificación; la preferencia de movimiento reducido desactiva la animación. Las listas de Apps usan miniaturas estáticas en caché por versión, en lugar de ejecutar cada aplicación al volver a la lista.
+
+El skill Apps incluye presentaciones HTML interactivas, estilos de impresión PDF y ejemplos de componentes reutilizables. Exportar PDF requiere configurar el renderizador; validar una vista previa no demuestra que el script se ejecutara correctamente. Comprueba gráficos, tablas y contenido interactivo en la vista renderizada. No se incluye exportación a PowerPoint.
+
+La herramienta MCP de la plataforma `create_app_public_link` requiere acceso de edición y confirmación explícita de que la App puede compartirse públicamente. Reutiliza los enlaces existentes y conserva contraseña, caducidad y versión fijada. Los datos en vivo requieren consentimiento separado del propietario. La llamada solo tiene éxito cuando la API confirma la URL pública.

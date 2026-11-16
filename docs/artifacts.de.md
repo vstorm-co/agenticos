@@ -1,5 +1,5 @@
 ---
-source_sha: "dd46ea746100"
+source_sha: "fa76644c347a"
 ---
 
 # Apps { #artifacts }
@@ -981,7 +981,7 @@ veröffentlicht. Die Prüfungen:
 ### Kontext mit dem Assistenten teilen { #sharing-context-with-the-assistant }
 
 Mit `agenticos.setAssistantContext` beschreibt eine statische App oder eine App
-mit Daten-Bindings ihre aktuelle Ansicht für den schwebenden Assistenten. Die
+mit Datenbindungen ihre aktuelle Ansicht für den schwebenden Assistenten. Die
 Funktion ist im Hauptviewer `/apps/{artifactId}` der Konsole für angemeldete
 Benutzer verfügbar. Rufen Sie sie erneut auf, sobald sich Ansicht, Filter oder
 ausgewählte Datensätze ändern:
@@ -1011,7 +1011,7 @@ die von der App gelieferten Details. Texte werden auf diese Länge gekürzt;
 Die Konsole liefert App-ID, Titel, Version und aktuellen Pfad. Der iframe kann
 diese Identität nicht ersetzen oder zusätzliche Berechtigungen erteilen. Die API
 nutzt die bestehende Sandbox-Brücke; sie liest das DOM nicht aus und erfasst
-weder Formularfelder noch URL-Abfrageparameter automatisch. Der Betrachter
+weder Formularfelder noch URL-Abfrageparameter automatisch. Die Person, die die App betrachtet,
 steuert die Freigabe im [Assistentenfenster](console.md#the-assistant).
 
 ### Die Seite sehen: Vorschau { #seeing-the-page-preview }
@@ -1606,3 +1606,11 @@ Deployments, unter `artifacts/<organization>/<artifact>/`.
 - Archivieren behält eine Seite und liefert nichts von ihr aus, den öffentlichen
   Link ausgeschaltet, bis jemand, der sie bearbeiten darf, sie wiederherstellt.
 - Eine eigene Aufbewahrungsklasse, gemessen ab der letzten Veröffentlichung.
+
+## Vorschauen laden und teilen { #preview-loading-and-sharing }
+
+Chat-Vorschauen reservieren Platz, während der Visual-Renderer oder das App-Vorschaubild lädt. Sie werden nach dem Rendern oder Dekodieren eingeblendet; die Einstellung für reduzierte Bewegung deaktiviert die Animation. App-Listen verwenden zwischengespeicherte statische Vorschaubilder pro Version, statt beim Zurückkehren jede App erneut auszuführen.
+
+Der Apps-Skill enthält interaktive HTML-Präsentationen, PDF-Druckstile und wiederverwendbare Komponentenbeispiele. PDF-Export benötigt den konfigurierten Renderer; eine Vorschau mit reiner Validierung beweist keine erfolgreiche Skriptausführung. Diagramme, Tabellen und interaktive Inhalte müssen in der gerenderten Vorschau geprüft werden. PowerPoint-Export ist nicht enthalten.
+
+Das Plattform-MCP-Tool `create_app_public_link` benötigt Bearbeitungszugriff und die ausdrückliche Bestätigung der öffentlichen Freigabe. Es verwendet vorhandene Links weiter und erhält Passwort, Ablaufdatum und festgelegte Version. Live-Daten benötigen eine separate Zustimmung des Eigentümers. Ein Aufruf ist erst erfolgreich, wenn die API die öffentliche URL bestätigt.

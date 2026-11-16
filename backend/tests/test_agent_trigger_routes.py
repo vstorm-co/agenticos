@@ -199,3 +199,9 @@ async def test_portal_targets_maps_the_adapters_answer():
     result = await list_portal_targets("github", _CTX, service, connection_id=uuid.uuid4())
     assert result.total == 1
     assert result.items[0].id == "acme/api"
+
+
+async def test_linear_webhook_acknowledges_with_200():
+    service = MagicMock(queue_event_fire=AsyncMock(return_value=True))
+    response = await ingest_trigger_event("linear", uuid.uuid4(), _request(b"{}", {}), service)
+    assert response.status_code == 200

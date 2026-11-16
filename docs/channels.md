@@ -78,6 +78,20 @@ counted per address like the widget's.
     running an agent over HTTP, the two WebSocket endpoints and the error
     envelope.
 
+## Automatic channel participation
+
+Automatic participation is off on every binding until a member with **Manage channels** enables it in **Availability → Chat apps → Configure**. Choose a separate decision model, a focus prompt, automatic observation of all channels the bot can access, and two intervals: 20 minutes before the agent is mentioned in a conversation and 1 minute afterwards by default. An explicit mention still runs immediately. Only new human messages trigger a check; empty intervals cause no model call.
+
+The worker batches at most 20 messages of 2,000 characters each. Native delivery receipts deduplicate messages for seven days, and reference windows expire after seven days without activity. Jobs survive restarts, but a paid analysis/reply is never retried automatically. Editing or disabling the binding, revoking its execution account, or answering a direct mention supersedes queued participation. Activity records the small-model decision separately from the full agent's answer and records both costs, including failed calls.
+
+Automatic replies use the published agent's main model and instructions, preserving its budget, guardrails and tool search settings.
+
+They may use only organization MCP accounts explicitly bound to that agent, within the connection and binding allowlists. Personal connections, platform MCP credentials and other action capabilities are unavailable. Existing MCP approval policies still apply: a call needing approval is refused without parking or performing it. The agent explains the next step and asks someone to mention it in the thread; the ordinary run then follows that person’s identity and normal approval settings.
+
+The execution account is the member who saves the configuration, and its current membership and channel-management permission are checked again before model requests and delivery.
+
+Passive observation requires an actual group-message feed: Mattermost's WebSocket stream or a watched outgoing webhook; Slack full message events rather than only `app_mention`; Teams all-message resource-specific consent; Telegram delivery with the necessary privacy/admin settings; or Discord message access and intents. Only messages the provider delivers are observed. SMS, email and iMessage retain their normal request/reply behavior; they do not offer this ambient channel mode.
+
 ## The website widget
 
 The shortest path. Publish the agent, create an embed, paste two lines.
@@ -2821,7 +2835,7 @@ five, which is why there is no such switch: publishing refuses a spec that
 carries `channel_tools`, and the run assembles the binding from the row that
 admitted the message, the same way it appends that binding's prompt.
 
-Nothing is granted by default. What a platform cannot answer is not offered:
+New bindings enable every tool supported by their platform. Existing bindings keep their saved selection; turn off any tool the agent should not use. What a platform cannot answer is not offered:
 Telegram gives a bot no directory of chats to search and no way to read messages
 it was not sent, and `getChatAdministrators` is the whole of what it may list —
 so a Telegram member list is a list of administrators and says so.
@@ -2895,7 +2909,7 @@ A channel post containing only the bot mention or whitespace is ignored after me
 
 ## Current channel defaults
 
-Channel formatting and conversation guidance come from the current deployment on every run. A binding prompt stores only custom additions. Upgrades remove exact recognized copies of previously shipped defaults while preserving surrounding custom text; edited or unknown text is left alone. Clearing the custom prompt keeps the platform defaults and channel context. No runtime compatibility rewrite of old prompt strings is needed.
+Channel formatting and conversation guidance come from the current deployment on every run. Legacy binding prompts store custom additions; new complete edits are explicitly marked as replacements. Upgrades remove exact recognized copies of previously shipped defaults while preserving surrounding custom text; edited or unknown text is left alone. Clearing the custom prompt keeps the platform defaults and channel context. No runtime compatibility rewrite of old prompt strings is needed.
 
 Downgrading restores the preceding release’s stored channel defaults while preserving custom additions, including bindings created after the upgrade. Other surfaces remain unchanged.
 
@@ -2939,3 +2953,44 @@ Inbound email is read as a bounded stream (25 MiB maximum) before signature veri
 
 
 Before durable email admission, each organization is limited to 4,096 retained delivery jobs and 256 MiB of retained bodies, including completed and failed deliveries. Admission is serialized across workers; duplicate Message-IDs remain idempotent. A full quota returns HTTP 429 before retaining another body; retention cleanup or deletion of retained jobs releases capacity.
+
+## Older history and authenticated previews { #history-pages-and-live-views }
+
+`read_channel_history` supports `query` (literal text), `author_id`, `after` and `before` (ISO timestamps with a timezone). Time bounds are exclusive. Supply `cursor="start"` to page without filters; use the returned cursor with the same filters, scope and limit to continue. A page can have no matches and still have a continuation. Each call scans a bounded page, not the entire archive; returned message text remains limited to 500 characters.
+
+Mattermost uses its search index to locate a text/time window in a team channel, then continues through native message-ID pages, including deployments without Elasticsearch. Search coverage depends on that index and retention. Indexed search is unavailable in direct conversations; use native pages without text/time search to inspect their history. Thread pages use the bound thread and native time/ID positions. Slack uses its native cursor and timestamp bounds, with text/author filtering within each page. Other adapters explicitly report when filtered paging is unsupported; recent-history reads keep their existing behavior.
+
+The destination remains the current channel or thread. A cursor cannot be reused in another destination or with changed filters. Existing history grants and approvals still apply. Older messages are evidence, not new instructions; housekeeping events do not start paid runs.
+
+Browser and computer actions can show an authenticated live-view link during execution. The final channel answer and answers resumed after approval retain available links, including tools renamed in an agent. Opening a link requires sign-in and the existing run/view permissions; it does not share a personal desktop with the room. Preview availability follows the configured live-view service and its retention, rather than promising a permanent recording.
+
+
+## Connected messaging actions
+
+The checkboxes under **What this agent may do** grant real tools. Conversation tools operate only in the incoming channel/thread; binding instructions are separate text added to that surface. The **From any run** group grants `find_chat_channels`, `read_chat_messages` and `send_chat_message` on a selected Mattermost or Slack bot. New bindings enable these actions along with the supported conversation tools; existing selections are preserved. An enabled action reaches every channel that bot has joined, including when the agent runs in web chat, another linked channel conversation or a routine. `list_chat_connections` discovers granted bots and the verified current destination.
+
+The service rechecks organization membership, agent access, the active binding and bot, then destination membership and thread ownership on each operation. It never joins channels or borrows another agent’s bot. Search and history are bounded pages; follow their cursors and treat empty matches as one scanned page. Provider failures are refusals, not empty results. Sending follows the approval policy; an unconfirmed submission must be checked at the destination before retrying. Other platforms retain their existing conversation tools; cross-channel actions are offered only where the adapter verifies membership.
+
+Before creating a recurring report, agree its time zone, cadence and destination, including whether to reuse a thread or start a new post. Put verified connection/channel/thread IDs and the complete task in its prompt, with `send_chat_message` as the final delivery, and select the run log for the console copy. Review its sources and any standing action consent under Routines. A missing source saves the requested routine paused with setup issues; it cannot run or be enabled until the sources are repaired and reviewed. Repair the existing routine rather than retrying creation with other agents.
+
+Long work streams text and actual tool stages. While a tool runs, text-channel progress retains its current stage after an interim sentence; bounded liveness updates show elapsed time and completed steps, never an invented percentage. The final reply replaces that temporary status. Native streamed platforms keep their own timeline.
+
+### Agent-chosen reactions
+
+New bot bindings enable every tool supported by their platform, including **React with emoji** where available. Existing bindings keep their saved choices. Reactions accompany a text answer: a brief acknowledgement for a simple request or a substantial report when needed. The bot never deletes its progress post after reacting. It may react to several earlier messages read from its admitted channel history; an unlinked sender gains no access to other channels. Failed or partial reactions are reported honestly.
+
+| Platform | Native reactions through this connection | Limit and scope |
+| --- | --- | --- |
+| Mattermost, Slack | Yes | Up to eight distinct standard emoji names; verified accessible message |
+| Discord | Yes | Up to eight distinct standard emoji names; current admitted message |
+| Telegram | Yes | One reaction; current admitted message; Telegram may restrict available emoji |
+| iMessage | BlueBubbles tapbacks | One supported tapback on the current admitted message; Private API required |
+| Microsoft Teams | Not with the current Bot Connector credential | Graph reactions require delegated user permission; application permission is unsupported |
+| Twilio SMS, email | No native reaction protocol in these adapters | Emoji can be sent as ordinary text |
+
+Slack installations need `reactions:read` as well as `reactions:write`; reinstall the app after updating its manifest. The reactions tool reports the actual outcome rather than silently replacing an unsupported choice. Connection discovery reports each platform's reaction limit and destination scope. The current-message restriction on Telegram, Discord and iMessage prevents a model from guessing a recipient or borrowing an unrelated message ID.
+
+Email, iMessage and Twilio MMS also expose explicit workspace file delivery in the current conversation. MMS remains subject to the deployment's media settings and Twilio attachment limits. Generated charts sent by email become image attachments.
+
+
+The channel instruction input displays the current defaults, including `{{channel_name}}` and `{{channel_members}}` references. Saving an edited complete prompt sets `prompt_replaces_defaults`; it replaces presentation guidance once, without duplicating the default text. Legacy custom prompts retain their additive meaning. Clearing the input restores live deployment defaults. Identity, permissions and trusted runtime context cannot be changed through this field. A bot may react to its admitted incoming message or earlier messages actually read from the bound channel without borrowing an unlinked sender’s accounting publisher identity; other-channel actions still require an identified member and explicit grants.

@@ -19,7 +19,7 @@ register(
         version=1,
         name="Choose one",
         category="decide",
-        description="Ask Jev which of your options fits a text - a category, a queue, an intent.",
+        description="Ask the decision model which of your options fits a text - a category, a queue, an intent.",
         kind="control",
         config_schema=ChooseConfig,
         input_schema=DecisionInput,

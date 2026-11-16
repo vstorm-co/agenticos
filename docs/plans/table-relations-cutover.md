@@ -80,7 +80,7 @@ destinations and one-to-one destination constraints are outside this version.
 
 ## Backfill and evidence
 
-Migration `0327_virtual_table_relations` follows `0326_room_threads` from #90.
+Migration `0334_virtual_table_relations` follows `0333_room_threads` from #90.
 The application dependency stack is #103, #99 and #100 before #101; the room
 thread migration must also be integrated before this revision is released.
 The earlier, unreleased `0326_virtual_table_relations` checkpoint was renumbered
@@ -169,7 +169,7 @@ or migration timing.
 The earlier unreleased checkpoint passed a full-chain PostgreSQL rehearsal on
 2026-11-14 UTC, using a new disposable database and fabricated tenants. These
 receipts name its original `0326` revision and predecessor; repeat the chain
-rehearsal after integration of `0326_room_threads` and the renamed `0327`:
+rehearsal after integration of `0333_room_threads` and the renamed `0334`:
 
 - A fresh upgrade reached `0325_merge_t3_rooms_v173`. An intentionally invalid
   cross-organization relationship then refused `0326` without leaving its tables

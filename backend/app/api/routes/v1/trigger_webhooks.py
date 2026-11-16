@@ -4,7 +4,7 @@ Authentication is the trigger's own HMAC secret, not a session, so these routes
 carry no auth dependency - exactly like the channel webhooks. The decision to fire
 is the service's; this layer only reads the raw body (the bytes the signature
 covers) and hands it over. The service queues the fire as a job, so the provider
-gets a fast 202 while the agent run happens in a worker, out of the API process.
+gets a fast response while the agent run happens in a worker, out of the API process.
 """
 
 from typing import Any
@@ -49,6 +49,7 @@ async def ingest_github_app_event(request: Request, service: AgentTriggerSvc) ->
     "/triggers/{source}/{trigger_id}",
     status_code=status.HTTP_202_ACCEPTED,
     response_model=None,
+    responses={200: {"description": "Linear delivery accepted or ignored"}},
 )
 async def ingest_trigger_event(
     source: str,
@@ -60,10 +61,11 @@ async def ingest_trigger_event(
 
     Among *verified* deliveries the response gives nothing away: one with nothing
     to do - an unknown or inactive trigger, one that is not an event trigger of
-    this source, or a payload the filter does not match - answers 202 exactly as a
-    fired one does, so a caller who holds the secret cannot tell an existing
+    this source, or a payload the filter does not match - answers exactly as a
+    fired one does (200 for Linear, 202 for other sources), so a caller who holds the secret cannot tell an existing
     trigger from a missing one. A signature that does *not* verify is a 403 (and a
-    body that is not a JSON object a 400) - a deliberate trade for the integrator,
+    body that is not a JSON object a 400 for other sources; Linear rejects an
+    invalid body or timestamp with a 403 during verification) - a deliberate trade for the integrator,
     whose provider surfaces that failure so a mistyped secret is fixable; the
     trigger ids are unguessable UUIDs, so the 403 is not a practical oracle. Both
     come from the service.
@@ -73,9 +75,12 @@ async def ingest_trigger_event(
     A burst of deliveries therefore queues capped worker runs instead of that many
     concurrent agent runs competing with request handling on the API's event
     loop. The job is one row in this request's transaction, well inside a
-    provider's delivery timeout, and the 202 goes out only once it has committed.
+    provider's delivery timeout, and the response goes out only once it has committed.
+    Linear requires HTTP 200; the other sources continue to receive 202.
     """
     headers = dict(request.headers)
     body = await request.body()
     await service.queue_event_fire(source, trigger_id, body=body, headers=headers)
-    return Response(status_code=status.HTTP_202_ACCEPTED)
+    return Response(
+        status_code=status.HTTP_200_OK if source == "linear" else status.HTTP_202_ACCEPTED
+    )

@@ -16,7 +16,12 @@ async def list_for(
     result = await db.execute(
         select(CodingAccount)
         .where(CodingAccount.organization_id == organization_id, CodingAccount.user_id == user_id)
-        .order_by(CodingAccount.harness)
+        .order_by(
+            CodingAccount.harness,
+            CodingAccount.is_default.desc(),
+            CodingAccount.created_at,
+            CodingAccount.id,
+        )
     )
     return result.scalars().all()
 
@@ -28,6 +33,7 @@ async def get(
     user_id: UUID,
     account_id: UUID | None = None,
     harness: str | None = None,
+    default_only: bool = False,
     locked: bool = False,
 ) -> CodingAccount | None:
     query = select(CodingAccount).where(
@@ -37,6 +43,8 @@ async def get(
         query = query.where(CodingAccount.id == account_id)
     if harness is not None:
         query = query.where(CodingAccount.harness == harness)
+    if default_only:
+        query = query.where(CodingAccount.is_default.is_(True))
     if locked:
         query = query.with_for_update()
     result = await db.execute(query)

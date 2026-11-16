@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
 import { CodingAccounts, PersonalCodingAccount } from "./coding-accounts";
 import { apiClient } from "@/lib/api-client";
+import type { CodingAccount, CodingAccountChange } from "@/lib/coding-accounts-api";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -24,13 +25,24 @@ vi.mock("@/stores", () => {
 vi.mock("@/hooks/use-shell", () => ({ useShell: () => null }));
 vi.mock("@/lib/desktop/shell", () => ({ isDesktopShell: () => false }));
 vi.mock("@/components/desktop/local-agent-settings", () => ({ LocalAgentSettings: () => null }));
-const account = {
+const account: CodingAccount = {
   id: "c-1",
   harness: "claude_code",
   label: "My Claude",
   secret_kind: "api_key",
   enabled: false,
   generation: "g-1",
+  is_default: true,
+  pool_member: false,
+  usage: {
+    status: "unknown",
+    observed_at: null,
+    observation_age_seconds: null,
+    valid_until: null,
+    source: "unavailable",
+    windows: [],
+    reason_code: "provider_contract_unverified",
+  },
 };
 function mount(ui: ReactElement = <CodingAccounts />) {
   const client = new QueryClient({
@@ -81,6 +93,95 @@ it("changes consent with a generation check and disconnects only the selected ac
   );
   await userEvent.click(screen.getByRole("button", { name: "Disconnect" }));
   await waitFor(() => expect(apiClient.delete).toHaveBeenCalledWith("/coding-accounts/c-1"));
+});
+it("shows unknown provider usage and lets the owner choose a default and pool account", async () => {
+  let codex: CodingAccount = {
+    ...account,
+    id: "c-2",
+    harness: "codex",
+    label: "Second Codex",
+    secret_kind: "openai_codex",
+    enabled: true,
+    generation: "g-2",
+    is_default: false,
+  };
+  vi.mocked(apiClient.get).mockImplementation(async () => ({ items: [account, codex] }));
+  vi.mocked(apiClient.patch).mockImplementation(async (_path, data) => {
+    codex = { ...codex, ...(data as CodingAccountChange) };
+    return codex;
+  });
+  mount();
+  expect(await screen.findAllByText("Provider usage: Unknown · source: unavailable")).toHaveLength(
+    2,
+  );
+  const row = screen.getByText("Second Codex").closest("li");
+  if (!row) throw new Error("Missing Codex account row");
+  expect(within(row).queryByRole("button", { name: "Enable use" })).not.toBeInTheDocument();
+  await userEvent.click(await screen.findByRole("button", { name: "Make default" }));
+  await waitFor(() =>
+    expect(apiClient.patch).toHaveBeenCalledWith("/coding-accounts/c-2", {
+      generation: "g-2",
+      enabled: true,
+      is_default: true,
+    }),
+  );
+  await waitFor(() => expect(within(row).getByText("Default")).toBeInTheDocument());
+  expect(within(row).queryByRole("button", { name: "Make default" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Add to pool" }));
+  await waitFor(() =>
+    expect(apiClient.patch).toHaveBeenCalledWith("/coding-accounts/c-2", {
+      generation: "g-2",
+      enabled: true,
+      pool_member: true,
+    }),
+  );
+  expect(await within(row).findByText("In pool")).toBeInTheDocument();
+  await userEvent.click(within(row).getByRole("button", { name: "Remove from pool" }));
+  await waitFor(() =>
+    expect(apiClient.patch).toHaveBeenCalledWith("/coding-accounts/c-2", {
+      generation: "g-2",
+      enabled: true,
+      pool_member: false,
+    }),
+  );
+  await waitFor(() => expect(within(row).queryByText("In pool")).not.toBeInTheDocument());
+});
+it("shows reported usage windows with their source, age and reset time", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({
+    items: [
+      {
+        ...account,
+        usage: {
+          ...account.usage,
+          status: "rate_limited",
+          source: "native_runtime",
+          observation_age_seconds: 12,
+          windows: [
+            {
+              name: "Five-hour",
+              used: 100,
+              limit: 100,
+              unit: "%",
+              resets_at: "2026-11-16T12:00:00Z",
+            },
+            { name: "Weekly", used: null, limit: null, unit: null, resets_at: null },
+          ],
+        },
+      },
+    ],
+  });
+  mount();
+  expect(
+    await screen.findByText(
+      "Provider status: rate_limited \u00b7 source: native_runtime \u00b7 checked 12 seconds ago",
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText("Five-hour: 100 / 100 % \u00b7 resets at 2026-11-16T12:00:00Z"),
+  ).toBeInTheDocument();
+  expect(screen.getByText("Weekly: Unknown / Unknown")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Make default" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Add to pool" })).not.toBeInTheDocument();
 });
 it("starts a fresh ChatGPT flow and submits its callback", async () => {
   vi.mocked(apiClient.post).mockImplementation(async (path) =>
