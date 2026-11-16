@@ -1,5 +1,5 @@
 ---
-source_sha: "3d76e4884645"
+source_sha: "b1235c5eddfc"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2381,7 +2381,7 @@ para mostrar diferencias entre la consola y Mattermost.
     Teams necesita instalar o actualizar el paquete de la aplicación en el equipo o chat de destino, con consentimiento del propietario para `ChannelMessage.Read.Group` y `ChatMessage.Read.Chat`. El paquete los solicita solo con el interruptor activado. Telegram usa los alias de texto `@all`, `@here`, `@channel` y `@everyone`; no notifican al grupo. El bot debe recibir mensajes del grupo; compruebe el modo de privacidad en BotFather. Las menciones, los comandos y las respuestas se verifican contra la identidad real del bot de Telegram. Discord cuenta `@everyone` y `@here` solo cuando el remitente tiene permiso para usarlos, es decir, cuando Discord notifica de verdad a la sala.
 
 - **Enviar archivos del workspace bajo petición también requiere aprobación.** Conceder `send_channel_file` habilita la herramienta; publicar los bytes sigue esperando una confirmación explícita.
-- **Los remitentes vinculados usan los mismos ajustes de aprobación MCP que en el chat web.** Se aplican la política del vínculo y la configuración de cada herramienta, incluido Run freely sin declaración de solo lectura. Las aprobaciones obligatorias siguen pidiéndose. Las conexiones de plataforma conservan su política mínima global. Se aplica a conexiones personales y de organización, delegados y llamadas reanudadas. Las conexiones personales pertenecen al remitente actual; vincular la cuenta no concede permisos adicionales. Los participantes no vinculados siguen aprobando cada llamada MCP. Los metadatos del canal se envían después de los resultados de herramientas, también tras reanudaciones sucesivas.
+- **Las ejecuciones en canales usan los mismos ajustes de aprobación MCP y Mirage que el chat web.** Se aplican la política del vínculo y la configuración de cada herramienta, incluido Run freely sin declaración de solo lectura. Las aprobaciones obligatorias siguen pidiéndose. Las conexiones de plataforma conservan su política mínima global. Se aplica a conexiones personales y de organización, delegados y llamadas reanudadas. Las conexiones personales requieren la identidad vinculada del remitente actual y su conexión autorizada; vincular la cuenta no concede permisos adicionales. Los participantes no vinculados usan las herramientas MCP de la organización con la misma política de aprobación configurada. Los metadatos del canal se envían después de los resultados de herramientas, también tras reanudaciones sucesivas.
 
 Se conserva todo el historial de la sala, incluidos mensajes de otros participantes. Run freely también permite llamadas a herramientas influidas por ese contexto; úsalo solo con herramientas y salas de confianza, y Ask first cuando cada escritura necesite confirmación.
 
@@ -2389,7 +2389,7 @@ Los mensajes de canal guardan solo el texto del remitente. Las etiquetas del aut
 
 Los nombres de canal, temas, descripciones y etiquetas de autor editables pasan las comprobaciones de entrada antes de llegar al modelo. Los valores redactados sustituyen a los originales; los valores de referencia bloqueados se ocultan y una pregunta permitida puede continuar. La sintaxis fija, los identificadores de plataforma y los tipos de chat no se examinan como texto de la pregunta.
 
-Las referencias del autor se pasan por separado del mensaje actual para que los guardrails de entrada examinen la pregunta real. Los participantes sin cuenta vinculada siguen necesitando aprobación para todas las llamadas MCP, incluidas las lecturas de organización.
+Las referencias del autor se pasan por separado del mensaje actual para que los guardrails de entrada examinen la pregunta real.
 
 Tanto las invocaciones explícitas `@slug` como las respuestas predeterminadas reciben el historial guardado de la conversación junto con el contexto inicial del hilo del canal.
 

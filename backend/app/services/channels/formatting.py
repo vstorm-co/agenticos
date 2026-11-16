@@ -55,9 +55,10 @@ PICTURE_DELIVERY_UNCONFIRMED = (
 
 
 MCP_APPROVAL_GUIDANCE = (
-    "For a linked sender, MCP calls follow the agent binding and per-tool approval settings, "
-    "the same as web chat; Run freely does not require an extra channel confirmation. "
-    "An unlinked sender still needs approval for all MCP calls, including organization reads."
+    "MCP calls follow the agent binding and per-tool approval settings, the same as web chat, "
+    "whether or not the sender has linked their identity. Run freely does not require an extra "
+    "channel confirmation. Personal MCP services still require the sender's linked identity "
+    "and their own authorized connection."
 )
 
 

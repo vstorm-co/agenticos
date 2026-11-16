@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Upgrading
+
+- Unlinked channel senders no longer trigger an automatic approval for every MCP or Mirage call. Review agents exposed to unlinked participants: select Ask first for tools needing confirmation, or require linked accounts in the bot's access policy. Existing pending approvals still need a decision or a stopped run; this change does not approve them automatically.
+
 ### Added
 
 - Add ElevenLabs Scribe v3/v2 transcription and Eleven Realtime Mini/Max voice conversations with explicit vault keys. Realtime audio costs remain a floor because token charges are unreported; calls with spending budgets are refused before connecting.
@@ -26,6 +30,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Select an accessible project's workspace for the current agent run from chat or channels, without moving conversation history. Access is rechecked for each operation; approval continuations retain the selection and routines keep their reviewed source ceiling.
 
 ### Changed
+
+- Channel runs now respect the agent's MCP and Mirage approval settings for unlinked senders too, including delegates and resumed calls. Personal MCP accounts still require the sender's linked identity and authorized connection; bot access controls and platform MCP write approvals remain enforced.
 
 - Add varied editorial slide compositions, an evidence-led report with reconciled filtering, and a detailed procedural product studio to the bundled Apps and Visuals skills.
 - Simplify the default Me dashboard, align Briefing rows, place Discover directly below Briefing and center visual previews. Settle answered questions when the server starts their continuation, and dismiss clicked toasts with a shorter exit.

@@ -1,5 +1,5 @@
 ---
-source_sha: "3d76e4884645"
+source_sha: "b1235c5eddfc"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2330,7 +2330,7 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
     Teams wymaga instalacji lub aktualizacji nowego pakietu aplikacji w danym zespole albo czacie i zgody właściciela na `ChannelMessage.Read.Group` oraz `ChatMessage.Read.Chat`. Pakiet prosi o nie tylko po włączeniu przełącznika. Telegram używa tekstowych aliasów `@all`, `@here`, `@channel` i `@everyone`; nie powiadamiają one grupy. Bot musi otrzymywać wiadomości grupy, więc sprawdź tryb prywatności w BotFather. Wzmianki, komendy i odpowiedzi są porównywane z rzeczywistą tożsamością bota Telegrama. Discord liczy `@everyone` i `@here` tylko wtedy, gdy nadawca ma prawo ich użyć, czyli gdy Discord rzeczywiście powiadamia kanał.
 
 - **Wysyłka pliku z workspace na żądanie również wymaga zatwierdzenia.** Nadanie `send_channel_file` udostępnia narzędzie; przesłanie bajtów do rozmowy nadal czeka na wyraźne potwierdzenie.
-- **Powiązani nadawcy korzystają z tych samych ustawień akceptacji MCP co w chacie internetowym.** Obowiązuje polityka powiązania i ustawienie każdego narzędzia, także Run freely bez deklaracji tylko do odczytu. Wymagane akceptacje nadal pytają. Połączenia platformy zachowują minimalną politykę platformową. Dotyczy to połączeń osobistych i organizacyjnych, delegatów i wznowień. Połączenie osobiste należy do bieżącego nadawcy; powiązanie konta nie przyznaje dodatkowych uprawnień. Niepowiązani uczestnicy nadal zatwierdzają każde wywołanie MCP. Metadane kanału są wysyłane po wynikach narzędzi, także przy kolejnych wznowieniach po akceptacji.
+- **Uruchomienia w kanałach stosują te same ustawienia akceptacji MCP i Mirage co chat internetowy.** Obowiązuje polityka powiązania i ustawienie każdego narzędzia, także Run freely bez deklaracji tylko do odczytu. Wymagane akceptacje nadal pytają. Połączenia platformy zachowują minimalną politykę platformową. Dotyczy to połączeń osobistych i organizacyjnych, delegatów i wznowień. Połączenia osobiste wymagają powiązanej tożsamości bieżącego nadawcy i jego autoryzowanego połączenia; powiązanie konta nie przyznaje dodatkowych uprawnień. Niepowiązani uczestnicy używają firmowych narzędzi MCP zgodnie z tą samą skonfigurowaną polityką akceptacji. Metadane kanału są wysyłane po wynikach narzędzi, także przy kolejnych wznowieniach po akceptacji.
 
 Pełna historia pokoju pozostaje dostępna, także wiadomości innych uczestników. Run freely pozwala więc również na wywołania narzędzi pod wpływem tego kontekstu; wybieraj je dla zaufanych narzędzi i pokoi, a Ask first, gdy każdy zapis wymaga potwierdzenia.
 
@@ -2338,7 +2338,7 @@ Wiadomości kanałowe zapisują wyłącznie tekst nadawcy. Etykiety autora są o
 
 Edytowalne nazwy kanałów, tematy, opisy i etykiety autora przechodzą skonfigurowane kontrole wejścia przed dotarciem do modelu. Wartości po redakcji zastępują oryginały; zablokowane wartości kontekstu są ukrywane, a dozwolone pytanie może być wykonane. Stała składnia metryki, identyfikatory platformy i typ rozmowy nie są sprawdzane jako treść pytania.
 
-Dane autora są przekazywane oddzielnie od bieżącej wiadomości, więc input guardrails sprawdzają właściwe pytanie. Niepowiązani uczestnicy kanału nadal potrzebują zatwierdzenia każdego wywołania MCP, także odczytów organizacyjnych.
+Dane autora są przekazywane oddzielnie od bieżącej wiadomości, więc input guardrails sprawdzają właściwe pytanie.
 
 Zarówno jawne wywołania `@slug`, jak i odpowiedzi domyślne dostają zapisaną historię rozmowy wraz z początkowym kontekstem wątku kanału.
 

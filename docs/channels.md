@@ -2262,7 +2262,7 @@ surface, so a difference between the console and Mattermost remains visible.
     Teams requires the updated app package to be installed or upgraded in the target team or chat, with owner consent to `ChannelMessage.Read.Group` and `ChatMessage.Read.Chat`. Those grants are requested only when this switch is on. Telegram uses explicit text aliases `@all`, `@here`, `@channel` and `@everyone`; these do not notify the group. Telegram must deliver group messages to the bot, so check BotFather privacy mode. Own mentions, commands and replies are resolved against the bot's actual Telegram identity. Discord counts `@everyone` and `@here` only when the sender may ping them, which is when Discord notifies the room.
 
 - **Requested workspace-file delivery also requires approval.** Granting `send_channel_file` makes it available; a request still waits for explicit confirmation before bytes are posted.
-- **Linked senders use the same MCP approval settings as web chat.** The binding’s policy and each tool’s override apply, including Run freely for a tool without a read-only annotation. Required approvals still ask. Platform connections keep their platform-wide minimum policy. This applies to personal and organization connections, delegates and resumed calls. Personal connections belong to the current sender; linking does not grant additional permissions. Unlinked participants still require approval for every MCP call. Channel reference metadata is sent after tool results, including after repeated approval resumptions.
+- **Channel runs use the same MCP and Mirage approval settings as web chat.** The binding’s policy and each tool’s override apply, including Run freely for a tool without a read-only annotation. Required approvals still ask. Platform connections keep their platform-wide minimum policy. This applies to personal and organization connections, delegates and resumed calls. Personal connections require the current sender's linked identity and authorized connection; linking does not grant additional permissions. Unlinked participants use organization MCP tools under the same configured approval policy. Channel reference metadata is sent after tool results, including after repeated approval resumptions.
 
 The full room history remains available, including messages from other participants. Run freely therefore also permits tool calls influenced by that context; choose it only for trusted tools and rooms, and use Ask first when each write needs confirmation.
 
@@ -2270,7 +2270,7 @@ Channel messages store only the sender’s text. Author labels are resolved from
 
 Editable channel names, topics, purposes and author labels pass the configured input checks before reaching the model. Redacted values replace the originals; blocked reference values are withheld while an otherwise allowed question can continue. Fixed envelope syntax, platform identifiers and chat-type enums are not screened as question text.
 
-Author reference data is supplied separately from the current message, so input guardrails screen the actual question. Unlinked channel participants still need approval for every MCP call, including organization reads.
+Author reference data is supplied separately from the current message, so input guardrails screen the actual question.
 
 Both explicit `@slug` invocations and default replies receive the saved conversation history together with the initial channel thread context.
 

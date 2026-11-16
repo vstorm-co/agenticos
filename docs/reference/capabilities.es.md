@@ -1,5 +1,5 @@
 ---
-source_sha: "4f3a31df37a1"
+source_sha: "7d56de6cfe78"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1460,7 +1460,7 @@ archivos y usar grep de texto; la búsqueda semántica con modelos no está habi
 El consentimiento debe terminar en el mismo navegador y con la misma cuenta
 iniciadora de AgenticOS.
 
-Los secretos del vault deben corresponder al propósito del backend; `custom` permite una integración propia de forma explícita. OneDrive y SharePoint aceptan una aplicación Entra con propósito `sharepoint`, y los servicios de Hugging Face aceptan `huggingface`. La publicación y la ejecución aplican la misma regla. Cada host de una lista de servidores PostgreSQL debe figurar en la lista permitida del despliegue. MongoDB y GridFS requieren un único host `mongodb://`: la plataforma fuerza `directConnection=true` y rechaza el descubrimiento SRV. Los remitentes de canales sin cuenta vinculada necesitan aprobación para cada herramienta Mirage, incluso las lecturas; al vincular la cuenta se aplica la política habitual de carpetas del autor.
+Los secretos del vault deben corresponder al propósito del backend; `custom` permite una integración propia de forma explícita. OneDrive y SharePoint aceptan una aplicación Entra con propósito `sharepoint`, y los servicios de Hugging Face aceptan `huggingface`. La publicación y la ejecución aplican la misma regla. Cada host de una lista de servidores PostgreSQL debe figurar en la lista permitida del despliegue. MongoDB y GridFS requieren un único host `mongodb://`: la plataforma fuerza `directConnection=true` y rechaza el descubrimiento SRV. Las ejecuciones en canales usan los ajustes habituales de aprobación del autor para el vínculo Mirage y cada herramienta, también para remitentes sin cuenta vinculada.
 
 Los montajes PostgreSQL requieren una contraseña no vacía en el DSN de la bóveda; no se admiten contraseñas vacías ni autenticación sin contraseña. No recurren a `PGPASSWORD` ni a `.pgpass`. Se rechazan los parámetros DSN que apuntan a archivos de credenciales o TLS del host (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`).
 

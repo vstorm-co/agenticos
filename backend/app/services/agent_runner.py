@@ -2842,52 +2842,6 @@ def _organization_mcp_only(spec: AgentSpec) -> AgentSpec:
     )
 
 
-def _with_channel_service_approval(
-    spec: AgentSpec, surface: RunSurface, *, linked_sender: bool = False
-) -> AgentSpec:
-    """Keep linked members' authored policy; hold every unlinked MCP call.
-
-    A linked channel sender uses the same approval settings as web chat.
-    Unlinked participants still need approval for all MCP and Mirage calls.
-    The factory applies this to delegates and resumed runs as well.
-    """
-    if surface not in _CHANNEL_SURFACES or linked_sender:
-        return spec
-    return spec.model_copy(
-        update={
-            "capabilities": [
-                binding.model_copy(
-                    update={
-                        "approval": "required",
-                        "tool_approval": {
-                            **binding.tool_approval,
-                            **dict.fromkeys(
-                                capability_def(MIRAGE_CAPABILITY_ID).tool_ids, "required"
-                            ),
-                        },
-                    }
-                )
-                if binding.id == MIRAGE_CAPABILITY_ID
-                else binding
-                for binding in spec.capabilities
-            ],
-            "mcp_servers": [_held_to_channel_approval(ref) for ref in spec.mcp_servers],
-        }
-    )
-
-
-def _held_to_channel_approval(ref: McpServerRef) -> McpServerRef:
-    """One MCP binding, held to what a chat app requires.
-
-    See :func:`_with_channel_service_approval` for the rule.
-    """
-    approval = "all"
-    if isinstance(ref, PlatformMcpServerRef):
-        return ref.model_copy(update={"approval": approval})
-    asked = {tool: mode for tool, mode in ref.tool_approval.items() if mode == "required"}
-    return ref.model_copy(update={"approval": approval, "tool_approval": asked})
-
-
 def _with_channel_tools(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
     """The spec with the lookups *this* binding grants, if it grants any.
 
@@ -4383,9 +4337,6 @@ class AgentRunnerService:
             if acts_for_sender and not subject_is_publisher_fallback
             else None
         )
-        spec = _with_channel_service_approval(
-            spec, surface, linked_sender=personal_mcp_user_id is not None
-        )
         # Whether a signed-in person is behind this run even where a personal
         # binding may not speak through their account - true on the API, where a
         # bearer token identifies the caller but their own connections are
@@ -5755,9 +5706,6 @@ class AgentRunnerService:
                 shared,
             )
         )
-        spec = _with_channel_service_approval(
-            spec, delegation.surface, linked_sender=delegation.personal_mcp_user_id is not None
-        )
         own_resources = await self._delegate_resources(
             ctx,
             spec,
@@ -5958,9 +5906,6 @@ class AgentRunnerService:
                 # other.
                 runnable = _without_delegation(pinned)
 
-        runnable = _with_channel_service_approval(
-            runnable, delegation.surface, linked_sender=delegation.personal_mcp_user_id is not None
-        )
         model = await self.models.resolve(
             delegation.models_ctx, profile_id=runnable.model_profile_id
         )
