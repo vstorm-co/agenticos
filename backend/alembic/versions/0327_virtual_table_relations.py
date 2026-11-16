@@ -1,7 +1,7 @@
 """Normalize virtual-table links without rewriting record history.
 
 Revision ID: 0327_virtual_table_relations
-Revises: 0326_room_threads
+Revises: 0333_room_threads
 
 This migration requires a complete Tables read/write outage: the composite
 record uniqueness constraint holds ACCESS EXCLUSIVE through the backfill.
@@ -20,7 +20,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0327_virtual_table_relations"
-down_revision: str | None = "0326_room_threads"
+down_revision: str | None = "0333_room_threads"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

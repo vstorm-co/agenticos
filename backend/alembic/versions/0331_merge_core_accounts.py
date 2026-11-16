@@ -1,16 +1,14 @@
-"""Join the recovered core features and the published coding-account branch.
+"""Retain the unreleased core checkpoint after the canonical published threads.
 
-Both parents retain their original revision ids and own their schema changes.
-This revision only joins the histories; neither branch is renamed or replayed.
+Published room threads already descend from the coding-account and upstream
+branches. The remaining draft features therefore form one chain. This empty
+checkpoint retains the identity used by the pending feature branch.
 """
 
 from collections.abc import Sequence
 
 revision: str = "0331_merge_core_accounts"
-down_revision: tuple[str, str] = (
-    "0326_provider_account_pools",
-    "0330_role_navigation",
-)
+down_revision: str = "0330_role_navigation"
 branch_labels: None = None
 depends_on: str | Sequence[str] | None = None
 

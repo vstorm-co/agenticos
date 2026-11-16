@@ -80,13 +80,24 @@ destinations and one-to-one destination constraints are outside this version.
 
 ## Backfill and evidence
 
-Migration `0327_virtual_table_relations` follows `0326_room_threads` from #90.
+Migration `0327_virtual_table_relations` follows published `0333_room_threads` from #90.
 The application dependency stack is #103, #99 and #100 before #101; the room
 thread migration must also be integrated before this revision is released.
 The earlier, unreleased `0326_virtual_table_relations` checkpoint was renumbered
 to avoid sharing a revision number with the room migration. Its original commit
 and rehearsal receipts remain historical evidence below, not validation of the
 new parent chain. Never edit a migration that has reached a deployed database.
+
+PR #90 subsequently published the thread DDL as `0333_room_threads`, after
+`0332_merge_t3_pools_v1761`. The unreleased duplicate `0326_room_threads` is
+removed, and only the unreleased relationship revision adopts this canonical
+parent. Empty draft checkpoints `0331_merge_core_accounts` and
+`0336_merge_core_v1761` retain their IDs with single parents; the published pool
+and upstream migrations are already ancestors. Every published migration keeps
+its original bytes and parents. Databases created from the abandoned draft
+lineage are disposable rehearsals and must be rebuilt, not stamped or reused.
+Earlier receipts do not validate this revised chain; rehearse the exact release
+from the production revision and from the published thread revision.
 
 The migration requires a complete Tables read and write outage. Adding the
 composite record uniqueness constraint takes an `ACCESS EXCLUSIVE` lock on
@@ -169,7 +180,7 @@ or migration timing.
 The earlier unreleased checkpoint passed a full-chain PostgreSQL rehearsal on
 2026-11-14 UTC, using a new disposable database and fabricated tenants. These
 receipts name its original `0326` revision and predecessor; repeat the chain
-rehearsal after integration of `0326_room_threads` and the renamed `0327`:
+rehearsal with canonical `0333_room_threads` followed by `0327_virtual_table_relations`:
 
 - A fresh upgrade reached `0325_merge_t3_rooms_v173`. An intentionally invalid
   cross-organization relationship then refused `0326` without leaving its tables

@@ -1,7 +1,7 @@
 """Keep message subthreads separate from quoted replies inside their original room.
 
-Revision ID: 0326_room_threads
-Revises: 0325_merge_t3_rooms_v173
+Revision ID: 0333_room_threads
+Revises: 0332_merge_t3_pools_v1761
 
 Existing quote links stay in the main transcript. The new nullable root names a
 top-level message in the same conversation; deleting that root removes its thread
@@ -27,8 +27,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0326_room_threads"
-down_revision: str | None = "0325_merge_t3_rooms_v173"
+revision: str = "0333_room_threads"
+down_revision: str | None = "0332_merge_t3_pools_v1761"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

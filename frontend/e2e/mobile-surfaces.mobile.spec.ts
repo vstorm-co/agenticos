@@ -188,6 +188,10 @@ for (const platform of ["ios", "android"] as const) {
       await theme.tap();
       await expect(theme).toBeChecked();
       await expectContained(page);
+      await page.screenshot({
+        path: test.info().outputPath("appearance-phone-preview.png"),
+        animations: "disabled",
+      });
       await page.goto("/settings/notifications");
       const switches = page.getByRole("switch");
       await expect(switches.first()).toBeVisible();

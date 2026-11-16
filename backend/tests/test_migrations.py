@@ -194,6 +194,7 @@ def test_account_appearance_migration_preserves_existing_profiles() -> None:
     revision = script.get_revision("0329_user_appearance")
     assert revision is not None
     parent = revision.down_revision
+    assert isinstance(parent, str)
     result = _alembic("upgrade", "head")
     assert result.returncode == 0, result.stderr
     result = _alembic("downgrade", parent)
@@ -1950,8 +1951,10 @@ class TestConnectedAccountSources:
             engine.dispose()
 
 
-@pytest.mark.parametrize("previous", ["0331_merge_core_accounts", "0332_merge_t3_pools_v1761"])
-def test_core_upstream_join_preserves_saved_profiles_and_matches_models(previous: str) -> None:
+@pytest.mark.parametrize(
+    "previous", ["0311_room_submissions", "0332_merge_t3_pools_v1761", "0333_room_threads"]
+)
+def test_published_thread_chain_preserves_saved_profiles_and_matches_models(previous: str) -> None:
     reset = _alembic("downgrade", "base")
     assert reset.returncode == 0, reset.stderr
     applied = _alembic("upgrade", previous)
@@ -2006,12 +2009,12 @@ def test_core_upstream_join_preserves_saved_profiles_and_matches_models(previous
 class TestRoomThreadMigration:
     def test_revision_follows_the_room_merge_and_keeps_one_head(self) -> None:
         script = ScriptDirectory.from_config(Config("alembic.ini"))
-        revision = script.get_revision("0326_room_threads")
+        revision = script.get_revision("0333_room_threads")
         assert revision is not None
-        assert revision.down_revision == "0325_merge_t3_rooms_v173"
+        assert revision.down_revision == "0332_merge_t3_pools_v1761"
         relations = script.get_revision("0327_virtual_table_relations")
         assert relations is not None
-        assert relations.down_revision == "0326_room_threads"
+        assert relations.down_revision == "0333_room_threads"
         rls = script.get_revision("0328_tables_tenant_rls")
         assert rls is not None
         assert rls.down_revision == "0327_virtual_table_relations"
@@ -2026,19 +2029,16 @@ class TestRoomThreadMigration:
         assert accounts.down_revision == "0325_merge_t3_rooms_v173"
         merged = script.get_revision("0331_merge_core_accounts")
         assert merged is not None
-        assert merged.down_revision == ("0326_provider_account_pools", "0330_role_navigation")
+        assert merged.down_revision == "0330_role_navigation"
         combined = script.get_revision("0336_merge_core_v1761")
         assert combined is not None
-        assert combined.down_revision == (
-            "0331_merge_core_accounts",
-            "0332_merge_t3_pools_v1761",
-        )
+        assert combined.down_revision == "0331_merge_core_accounts"
         assert script.get_heads() == ["0336_merge_core_v1761"]
 
     def test_existing_quotes_survive_roundtrip_and_models_match_head(self) -> None:
         reset = _alembic("downgrade", "base")
         assert reset.returncode == 0, reset.stderr
-        previous = _alembic("upgrade", "0325_merge_t3_rooms_v173")
+        previous = _alembic("upgrade", "0332_merge_t3_pools_v1761")
         assert previous.returncode == 0, previous.stderr
         root_id, quote_id, conversation_id = uuid4(), uuid4(), uuid4()
         engine = create_engine(_url(MIGRATION_DATABASE))
@@ -2046,7 +2046,7 @@ class TestRoomThreadMigration:
             with engine.begin() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0325_merge_t3_rooms_v173"]
+                ).all() == ["0332_merge_t3_pools_v1761"]
                 connection.execute(text("SET LOCAL session_replication_role = replica"))
                 connection.execute(
                     text(
@@ -2125,7 +2125,7 @@ class TestRoomThreadMigration:
                     ),
                     {"id": child_id, "room": conversation_id, "root": root_id},
                 )
-            refused = _alembic("downgrade", "0325_merge_t3_rooms_v173")
+            refused = _alembic("downgrade", "0332_merge_t3_pools_v1761")
             assert refused.returncode != 0
             assert "Cannot remove room thread scopes" in refused.stderr
             with engine.begin() as connection:
@@ -2140,14 +2140,13 @@ class TestRoomThreadMigration:
                     == root_id
                 )
                 connection.execute(text("DELETE FROM messages WHERE id=:id"), {"id": child_id})
-            down = _alembic("downgrade", "0325_merge_t3_rooms_v173")
+            down = _alembic("downgrade", "0332_merge_t3_pools_v1761")
             assert down.returncode == 0, down.stderr
             with engine.connect() as connection:
-                # Unwinding the core branch preserves the independently published upstream DDL.
-                assert set(connection.scalars(text("SELECT version_num FROM alembic_version"))) == {
-                    "0325_merge_t3_rooms_v173",
-                    "0330_linear_trigger",
-                }
+                # Removing empty thread storage preserves its published upstream/pool parent.
+                assert connection.scalars(
+                    text("SELECT version_num FROM alembic_version")
+                ).all() == ["0332_merge_t3_pools_v1761"]
                 assert (
                     connection.scalar(
                         text("SELECT reply_to_message_id FROM messages WHERE id=:id"),
@@ -2183,7 +2182,7 @@ class TestRoomThreadMigration:
                 == 1
             )
 
-        downgraded = _alembic("downgrade", "0325_merge_t3_rooms_v173")
+        downgraded = _alembic("downgrade", "0332_merge_t3_pools_v1761")
         assert downgraded.returncode == 0, downgraded.stderr
         with engine.connect() as connection:
             assert (
@@ -2210,7 +2209,7 @@ class TestRoomThreadMigration:
         _outside_a_transaction(maintenance, f'CREATE DATABASE "{database}"')
         engine = create_engine(_url(database))
         try:
-            previous = _alembic("upgrade", "0325_merge_t3_rooms_v173")
+            previous = _alembic("upgrade", "0332_merge_t3_pools_v1761")
             assert previous.returncode == 0, previous.stderr
             yield engine
         finally:
@@ -2221,7 +2220,7 @@ class TestRoomThreadMigration:
     def _assert_thread_revision_pending(engine: Engine, *, column_exists: bool = False) -> None:
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0325_merge_t3_rooms_v173"
+                "0332_merge_t3_pools_v1761"
             ]
             assert (
                 connection.scalar(
@@ -2425,7 +2424,7 @@ class TestRoomThreadMigration:
                 "    return original(operations, operation, *args, **kwargs)\n"
                 "with patch.object(Operations, 'create_index', track_index), "
                 "patch.object(Operations, 'execute', interrupt):\n"
-                "    command.upgrade(Config('alembic.ini'), '0326_room_threads')\n",
+                "    command.upgrade(Config('alembic.ini'), '0333_room_threads')\n",
                 "true" if prebuilt else "false",
             ],
             capture_output=True,
