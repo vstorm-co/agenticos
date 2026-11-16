@@ -65,7 +65,7 @@ async def _call(
     return answer.status_code, answer.json(), requests, exposures
 
 
-_ID = uuid.uuid4()
+_ID = uuid.UUID("20760000-0000-4000-8000-000000000001")
 _CHANNEL_ROUTES = [
     ("GET", "/channels/binding-requests"),
     ("POST", f"/channels/binding-requests/{_ID}/approve"),
