@@ -8,6 +8,7 @@ import { ActionConsentsDialog } from "./action-consents-dialog";
 import { ResultModeField, type RoutineResultMode } from "./result-mode-field";
 import { RoutineOptions } from "./routine-options";
 import { EventOptions, eventOptionsValid } from "./event-options";
+import { WebhookSignatureFields, webhookSignatureValid } from "./webhook-signature-fields";
 import { FILTER_COPY } from "./portal-trigger-dialog";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -545,7 +546,10 @@ export function TriggerFormDialog({
       ...base,
       event_source: eventSource,
       event_secret: secret,
-      event_config: eventFilterConfig(eventSource, [filterA, filterB]),
+      event_config:
+        eventSource === "webhook" && Object.keys(extraConfig).length
+          ? extraConfig
+          : eventFilterConfig(eventSource, [filterA, filterB]),
     };
   }
 
@@ -742,6 +746,7 @@ export function TriggerFormDialog({
     taskValid &&
     (type !== "schedule" || scheduleValid) &&
     eventOptionsValid(extraConfig) &&
+    (type !== "event" || eventSource !== "webhook" || webhookSignatureValid(extraConfig)) &&
     !pending;
 
   const steps: WizardStep[] =
@@ -767,7 +772,8 @@ export function TriggerFormDialog({
         ? prompt.trim().length > 0
         : step === "schedule"
           ? scheduleValid
-          : secret.length >= MIN_SECRET;
+          : secret.length >= MIN_SECRET &&
+            (eventSource !== "webhook" || webhookSignatureValid(extraConfig));
   const onFirstStep = stepIdx === 0;
 
   function handleNext() {
@@ -810,13 +816,10 @@ export function TriggerFormDialog({
             </DialogDescription>
           </DialogHeader>
           {created.webhook_url && <WebhookField url={created.webhook_url} />}
-          {/* The secret, shown beside the URL it belongs with: the provider form
-              asks for both at once, and a generated one nobody copied would
-              otherwise be gone the moment this screen replaced the form -
-              recoverable only by rotating. The raw form's secret is the caller's
-              own (the server does not echo it back), so the local state is the
-              copy shown; `reveal_secret` covers a server-minted one. */}
-          {eventSource !== "linear" && (created.reveal_secret ?? secret) && (
+          {/* A generated secret must be copied before this dialog closes. The
+              raw form's local state holds the caller's secret; `reveal_secret`
+              covers a server-minted one. */}
+          {(created.reveal_secret ?? secret) && (
             <SecretRevealField
               secret={created.reveal_secret ?? secret}
               label={t("secret")}
@@ -889,11 +892,12 @@ export function TriggerFormDialog({
               {trigger.trigger_type === "event" && trigger.webhook_url && (
                 <WebhookField url={trigger.webhook_url} />
               )}
+              {trigger.trigger_type === "event" && trigger.event_source === "webhook" && (
+                <WebhookSignatureFields config={extraConfig} onChange={setExtraConfig} />
+              )}
 
-              {/* The filter is the one event field that is editable in place -
-                narrowing "which deliveries fire" is a filter edit, not a new
-                trigger. The source and secret stay fixed (the secret rotates
-                below instead). */}
+              {/* The source stays fixed; filters and webhook signature settings
+                can be edited, and eligible secrets can be rotated below. */}
               {trigger.trigger_type === "event" &&
                 trigger.event_source &&
                 (() => {
@@ -1078,6 +1082,8 @@ export function TriggerFormDialog({
             onEventSource={setEventSource}
             secret={secret}
             onSecret={setSecret}
+            config={extraConfig}
+            onConfig={setExtraConfig}
             filterA={filterA}
             onFilterA={setFilterA}
             filterB={filterB}
@@ -1632,6 +1638,8 @@ interface EventFieldsProps {
   onEventSource: (source: EventSource) => void;
   secret: string;
   onSecret: (value: string) => void;
+  config: Record<string, unknown>;
+  onConfig: (value: Record<string, unknown>) => void;
   filterA: string;
   onFilterA: (value: string) => void;
   filterB: string;
@@ -1656,8 +1664,8 @@ const EVENT_SOURCES: readonly { value: EventSource; labelKey: string }[] = [
   { value: "zendesk", labelKey: "sourceZendesk" },
 ];
 
-/** Sources whose signing secret the provider issues: nothing here can mint it. */
-const PROVIDER_SECRETS: ReadonlySet<EventSource> = new Set(["hubspot", "linear", "zendesk"]);
+/** Sources where the user supplies the signing secret instead of generating it here. */
+const MANUAL_SECRET_SOURCES: ReadonlySet<EventSource> = new Set(["hubspot", "linear", "zendesk"]);
 
 /** Where each source's delivery comes from - a static key per source so the
  *  catalog check can see them, rather than one interpolated key it cannot. */
@@ -1692,6 +1700,8 @@ function EventFields({
   onEventSource,
   secret,
   onSecret,
+  config,
+  onConfig,
   filterA,
   onFilterA,
   filterB,
@@ -1699,7 +1709,7 @@ function EventFields({
 }: EventFieldsProps) {
   const t = useTranslations("triggers");
   const filters = SOURCE_FILTERS[eventSource];
-  const issuedByProvider = PROVIDER_SECRETS.has(eventSource);
+  const manualSecret = MANUAL_SECRET_SOURCES.has(eventSource);
   return (
     <div className="space-y-3">
       <FormField
@@ -1737,6 +1747,7 @@ function EventFields({
         </p>
         <p className="text-muted-foreground text-xs">{t("webhookUrlPreviewHelp")}</p>
       </div>
+      {eventSource === "webhook" && <WebhookSignatureFields config={config} onChange={onConfig} />}
       <div className="space-y-1">
         <Label htmlFor="trigger-secret">{t("secret")}</Label>
         <div className="flex gap-2">
@@ -1744,17 +1755,29 @@ function EventFields({
             id="trigger-secret"
             value={secret}
             onChange={(event) => onSecret(event.target.value)}
-            placeholder={issuedByProvider ? t("secretPlaceholderProvider") : t("secretPlaceholder")}
+            placeholder={
+              manualSecret && eventSource !== "linear"
+                ? t("secretPlaceholderProvider")
+                : t("secretPlaceholder")
+            }
             className="flex-1 font-mono"
           />
-          {!issuedByProvider && (
+          {!manualSecret && (
             <Button type="button" variant="outline" onClick={() => onSecret(generateSecret())}>
               {t("generate")}
             </Button>
           )}
         </div>
         <p className="text-muted-foreground text-xs">
-          {issuedByProvider ? t("secretHelpProvider") : t("secretHelp")}
+          {eventSource === "linear"
+            ? t("linearSecretHelp")
+            : manualSecret
+              ? t("secretHelpProvider")
+              : eventSource === "webhook" &&
+                  config.signature_scheme &&
+                  config.signature_scheme !== "legacy"
+                ? t("signatureSecretHelp")
+                : t("secretHelp")}
         </p>
       </div>
       {filters && (

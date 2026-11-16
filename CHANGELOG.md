@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Configure API webhook signature formats and headers in the routine editor, and find Linear webhooks from the event picker.
+
 ## [1.78.0] - 2026-11-16
 
 ### Added
