@@ -1,5 +1,5 @@
 ---
-source_sha: "9159453c0964"
+source_sha: "0df9c638584e"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1069,6 +1069,16 @@ następnej publikacji: podepnij zamiast niego **Microsoft 365 (self-hosted)** al
 **Microsoft Work IQ**.
 
 ### Gmail i Google Workspace { #gmail-and-google-workspace }
+
+### MCP czy gotowe capabilities Google { #choose-mcp-or-built-in-google-capabilities }
+
+Dla operacji Gmail, Kalendarza, Dysku, Dokumentów, Arkuszy i Prezentacji obsługiwanych przez AgenticOS zacznij od [gotowych capabilities](integrations.md). Wywołują zwykłe API Google, bez udziału w Developer Preview hostowanego MCP i bez klienta OAuth dla agenta AI. Administrator konfiguruje Google raz w **Vault → Integracje**; użytkownicy podłączają konta w **Ustawienia czatu → Narzędzia → Twoje konta** lub **Ustawienia → Profil → Twoje podłączone konta**. Agent może też używać jawnie wybranych kont organizacji. Można podłączyć kilka kont.
+
+Hostowane serwery Workspace MCP Google są inną opcją, ale mają dodatkowe wymagania: udział w Developer Preview, włączone API produktu i MCP, klient OAuth oznaczony jako klient agenta AI oraz poprawny callback. Przyjęcie do preview i zgody administratorów mogą opóźnić konfigurację; nie obiecuj natychmiastowego dostępu ani stałego czasu oczekiwania. Samodzielnie hostowane i zewnętrzne serwery Workspace MCP mają własną konfigurację i nie są tą samą usługą preview. Zobacz [wymagania konfiguracji MCP Google](https://developers.google.com/workspace/guides/configure-mcp-servers).
+
+Weryfikacja OAuth jest oddzielna od przyjęcia do MCP. Zewnętrzna aplikacja z zakresami sensitive lub restricted może wymagać kontroli Google; istnieją wyjątki dla uprawnionych zastosowań wewnętrznych, osobistych i testowych. Zakresy restricted mogą wymagać także oceny bezpieczeństwa. Dotyczy to również capabilities: nie omijają weryfikacji. Zobacz [weryfikację sensitive scopes](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification) i [restricted scopes](https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification). Sprawdź faktyczny status aplikacji, zamiast twierdzić, że każde połączenie musi czekać na kontrolę.
+
+Pomagając podłączyć Google, ustal operację i właściciela kont. Preferuj gotową capability, jeśli ją obsługuje; zaproponuj MCP dla dodatkowych narzędzi, już skonfigurowanego serwera lub preferencji użytkownika. Sprawdź faktyczne powiązania agenta i dostęp do kont przed obietnicą wykonania działania. Przy braku dostępu skieruj administratora do konfiguracji dostawcy albo użytkownika do podłączenia własnego konta. Obecność capability w AgenticOS nie oznacza, że jest włączona i podłączona dla danego agenta.
 
 ### Oficjalne zdalne serwery Google { #official-google-remote-servers }
 

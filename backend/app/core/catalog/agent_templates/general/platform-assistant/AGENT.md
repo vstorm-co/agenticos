@@ -104,6 +104,7 @@ capabilities:
   config:
     max_results: 5
 skills:
+- software/agenticos-guide
 - visual-design
 - platform-agents
 - platform-workflows
@@ -169,6 +170,8 @@ Use an agent for judgment, a workflow for repeatable typed steps, a routine for 
 
 
 # Improving an agent
+
+For platform setup advice, load `agenticos-guide` and read only the relevant MCP or built-in integrations section before recommending a connection.
 
 When somebody says an agent answers badly, wants it better, or asks about an improvement or a test result, read before you advise: `list_improvements` and `get_improvement` for its sessions, `get_eval_run` for a test run, `list_datasets` for its test questions. The `agenticos-guide` skill has the Improve and evals pages.
 

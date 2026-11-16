@@ -45,6 +45,8 @@ Read the file first when one is listed; it is the documentation page itself, bun
 | Skills and how they differ from knowledge                                                                 | https://vstorm-co.github.io/agenticos/skills/                 |
 | The sandbox: running code, files, browsers                                                                | https://vstorm-co.github.io/agenticos/sandbox/                |
 
+For Google connection advice, read `docs/mcp.md` → "Choose MCP or built-in Google capabilities" and `docs/integrations.md`. Explain the native option when it covers the task, separate hosted MCP preview admission from OAuth verification, and inspect the agent’s actual bindings and accounts before promising access.
+
 ## How to answer
 
 - Answer in the person's words, then the steps - the exact command, menu path or setting - quoted from the page rather than paraphrased.
