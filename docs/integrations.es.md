@@ -1,5 +1,5 @@
 ---
-source_sha: "55783c9dd015"
+source_sha: "77665492a2d2"
 ---
 
 # Integraciones incorporadas { #built-in-integrations }
@@ -9,13 +9,15 @@ Las cuentas personales se conectan en **Controles del chat → Preferencias → 
 
 ## Continuar con AgenticOS { #continue-with-agenticos }
 
-El diálogo de cuenta ofrece **Continuar con AgenticOS** o **Usar credenciales propias**. La primera opción usa nuestra aplicación OAuth compartida mediante [AgenticOS Bridge](https://github.com/vstorm-co/agenticos-bridge), una API sin interfaz, y no necesita un cliente OAuth de la organización. Configure `OAUTH_BRIDGE_URL=https://bridge-agenticos.testapp.ovh` en el backend; vacío lo desactiva. Si el bridge o la aplicación del proveedor no están preparados, la opción permanece deshabilitada. También puede alojar su propio bridge bajo un origen HTTPS.
+La opción compartida **Continuar con AgenticOS** está oculta de forma predeterminada. Solicite acceso a **dev@vstorm.co** indicando su organización, la URL pública exacta de AgenticOS, los proveedores deseados y un contacto para incidentes. Vstorm revisa cada solicitud individualmente; el acceso no es automático. Tras la aprobación, configure en el backend `OAUTH_BRIDGE_URL=https://bridge-agenticos.testapp.ovh` y el `OAUTH_BRIDGE_ACCESS_KEY` recibido. Guarde la clave solo en la configuración secreta del servidor, nunca en variables del frontend, especificaciones de agentes ni el repositorio. La opción aparece únicamente cuando se aceptan la clave, el destino y el proveedor. **Usar credenciales propias** sigue disponible sin aprobación de Vstorm ni clave del bridge.
 
 Solo el intercambio de códigos OAuth y la renovación pasan por el bridge. Los tokens se cifran en el Vault de esta instancia, vinculado a su propietario; los datos de trabajo van directamente a Google, Microsoft o Slack. El bridge mantiene credenciales de aplicación y una clave de cifrado en la configuración del servidor, sin base de datos de tokens de usuarios. Sus tickets cifrados y temporales requieren PKCE; renovar requiere un comprobante vinculado al token y la aplicación OAuth. Se debe confiar en el operador porque los tokens existen temporalmente en la memoria del proceso. Siguen vigentes la verificación del proveedor, las reglas de distribución y el consentimiento del tenant.
 
 El bridge admite capabilities nativas y cuentas personales o de organización, incluso varias simultáneamente. Los montajes Mirage que necesitan el secreto de la aplicación OAuth siguen usando credenciales propias. Reconectar conserva la fuente original. Cambiar el origen del broker exige reconectar; nunca se envían tokens a otro broker.
 
-El bridge permite por defecto orígenes de instancias concretos. Un comodín explícito puede habilitarse tras verificar proveedores y revisar posibles abusos. No convierte en seguras las instancias de destino no confiables. Lea la documentación de seguridad del bridge antes de operar un broker compartido.
+El operador gestiona el acceso exclusivamente mediante CLI. Cada clave está vinculada a un origen exacto, proveedores aprobados y una fecha de caducidad; se guardan hashes y metadatos de acceso/contacto, no tokens de usuarios.
+
+Revocarla bloquea los siguientes inicios, callbacks, intercambios y renovaciones, pero no retira tokens ya emitidos por el proveedor ni detiene una operación en curso. Ante una posible intrusión, revoque también la autorización en el proveedor. Una clave de sustitución requiere volver a conectar las cuentas gestionadas. Los operadores de bridges propios emiten sus claves. Antes de conectar, lea la política de privacidad y las condiciones del bridge y de su instancia; el bridge es una parte de confianza porque procesa tokens en memoria.
 
 
 ## Configurar una cuenta { #set-up-an-account }

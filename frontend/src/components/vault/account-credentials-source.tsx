@@ -23,6 +23,7 @@ export function AccountCredentialsSource({
 }) {
   const t = useTranslations("pages.vault.connectedAccounts.setup");
   const id = useId();
+  if (!available && value === "own") return null;
   return (
     <fieldset className="space-y-2">
       <legend className="mb-2 text-sm font-medium">{t("credentialsSource")}</legend>

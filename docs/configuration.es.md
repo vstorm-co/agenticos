@@ -1,5 +1,5 @@
 ---
-source_sha: "fdfff066b47a"
+source_sha: "9cea9cf537ab"
 ---
 
 # Configuración { #configuration }
@@ -163,6 +163,7 @@ Validación en producción: `API_KEY` no puede usar el valor por defecto con
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/google/callback` | URL de callback de OAuth2 |
 | `FRONTEND_URL` | `http://localhost:3000` | URL del frontend para las redirecciones de OAuth2 |
 | `OAUTH_BRIDGE_URL` | vacío | Broker OAuth HTTPS de confianza opcional para cuentas nativas; consulte [Continuar con AgenticOS](integrations.md#continue-with-agenticos). Vacío utiliza credenciales propias. |
+| `OAUTH_BRIDGE_ACCESS_KEY` | vacío | Clave de instancia solo del servidor, emitida tras revisión; solicítela en dev@vstorm.co. Sin clave la opción compartida está oculta. |
 | `DESKTOP_DEEP_LINK_SCHEME` | `agenticos` | El esquema que la carcasa de escritorio registra para un inicio de sesión entregado al navegador del sistema ([Desktop](desktop.md#signing-in)). El callback construye una redirección con él, así que es un ajuste y no algo que elija quien llama |
 
 Cómo conseguir el par: [consola de Google Cloud](https://console.cloud.google.com/) →

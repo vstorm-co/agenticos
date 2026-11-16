@@ -7,7 +7,14 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, computed_field, field_validator, model_validator, ValidationInfo
+from pydantic import (
+    SecretStr,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+    ValidationInfo,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.map_tiles import MapTiles, resolve as resolve_map_tiles
@@ -461,6 +468,8 @@ class Settings(BaseSettings):
     # after the first change, so a burst of them is one run on the end state.
     EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS: int = 600
     ALGORITHM: str = "HS256"
+    OAUTH_BRIDGE_ACCESS_KEY: SecretStr = SecretStr("")
+    """Console-issued deployment key; server-only and never returned to the browser."""
     OAUTH_BRIDGE_URL: str = ""
     """Trusted HTTPS OAuth broker origin; empty keeps account consent fully local."""
 

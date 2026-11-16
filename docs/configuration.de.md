@@ -1,5 +1,5 @@
 ---
-source_sha: "fdfff066b47a"
+source_sha: "9cea9cf537ab"
 ---
 
 # Konfiguration { #configuration }
@@ -164,6 +164,7 @@ Standardwert sein.
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/google/callback` | Callback-URL für OAuth2 |
 | `FRONTEND_URL` | `http://localhost:3000` | Frontend-URL für die OAuth2-Weiterleitungen |
 | `OAUTH_BRIDGE_URL` | leer | Optionaler vertrauenswürdiger HTTPS-OAuth-Broker für native Konten; siehe [Mit AgenticOS fortfahren](integrations.md#continue-with-agenticos). Leer verwendet eigene Anbieter-Zugangsdaten. |
+| `OAUTH_BRIDGE_ACCESS_KEY` | leer | Nur serverseitiger Instanzschlüssel nach Prüfung; Zugang unter dev@vstorm.co beantragen. Ohne Schlüssel ist die gemeinsame Option ausgeblendet. |
 | `DESKTOP_DEEP_LINK_SCHEME` | `agenticos` | Das Schema, das die Desktop-Hülle für eine an den Systembrowser übergebene Anmeldung registriert ([Desktop](desktop.md#signing-in)). Der Callback baut daraus eine Weiterleitung, also eine Einstellung und nichts, was ein Aufrufer wählen kann |
 
 So kommen Sie an das Paar: [Google Cloud console](https://console.cloud.google.com/) →

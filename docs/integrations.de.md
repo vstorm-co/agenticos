@@ -1,5 +1,5 @@
 ---
-source_sha: "55783c9dd015"
+source_sha: "77665492a2d2"
 ---
 
 # Integrierte Integrationen { #built-in-integrations }
@@ -9,13 +9,15 @@ Persönliche Konten verbinden Sie unter **Chat-Steuerung → Einstellungen → I
 
 ## Mit AgenticOS fortfahren { #continue-with-agenticos }
 
-Der Kontodialog bietet **Mit AgenticOS fortfahren** oder **Eigene Zugangsdaten verwenden**. Die erste Option verwendet unsere gemeinsame OAuth-App über die reine API [AgenticOS Bridge](https://github.com/vstorm-co/agenticos-bridge), ohne OAuth-Client der Organisation. Im Backend aktiviert `OAUTH_BRIDGE_URL=https://bridge-agenticos.testapp.ovh` den Broker; eine leere Einstellung deaktiviert ihn. Ist die Bridge oder Anbieter-App nicht bereit, bleibt die Option nicht verfügbar. Betreiber können eine eigene Bridge unter einem HTTPS-Origin betreiben.
+Die gemeinsame Option **Mit AgenticOS fortfahren** ist standardmäßig ausgeblendet. Beantragen Sie Zugang unter **dev@vstorm.co** mit Organisation, genauer öffentlicher AgenticOS-URL, gewünschten Anbietern und einem Vorfallkontakt. Vstorm prüft jeden Antrag einzeln; Zugang wird nicht automatisch erteilt. Konfigurieren Sie nach Freigabe im Backend `OAUTH_BRIDGE_URL=https://bridge-agenticos.testapp.ovh` und den erhaltenen `OAUTH_BRIDGE_ACCESS_KEY`. Der Schlüssel gehört ausschließlich in die geheime Serverkonfiguration, niemals in Frontend-Variablen, Agentenspezifikationen oder die Versionsverwaltung. Die Option erscheint nur bei zugelassenem Schlüssel, Ziel und Anbieter. **Eigene Zugangsdaten verwenden** bleibt ohne Vstorm-Freigabe oder Bridge-Schlüssel verfügbar.
 
 Nur OAuth-Codeaustausch und Erneuerung laufen über die Bridge. Tokens liegen verschlüsselt im eigentümergebundenen Vault dieser Instanz; Arbeitsdaten gehen direkt an Google, Microsoft oder Slack. Die Bridge speichert App-Zugangsdaten und einen Verschlüsselungsschlüssel in der Serverkonfiguration, ohne Benutzertoken-Datenbank. Verschlüsselte, befristete Übergabetickets verlangen PKCE; Erneuerungen benötigen eine an Token und OAuth-App gebundene Bestätigung. Der Betreiber bleibt vertrauenswürdig, da Tokens vorübergehend im Prozessspeicher existieren. Anbieterprüfung, Vertriebsregeln und Mandantenzustimmung gelten weiterhin.
 
 Die Bridge unterstützt native Produkt-Capabilities sowie persönliche und Organisationskonten, auch mehrere gleichzeitig. Mirage-Mounts mit benötigtem OAuth-App-Secret verwenden weiterhin eigene Zugangsdaten. Eine erneute Verbindung behält die ursprüngliche Quelle. Ein geänderter Broker-Origin erfordert erneutes Verbinden; Tokens gehen niemals an einen anderen Broker.
 
-Die Bridge erlaubt standardmäßig nur eingetragene Instanz-Origins. Ein ausdrücklicher Wildcard-Zugang ist nach Anbieterprüfung und Missbrauchsprüfung möglich. Nicht vertrauenswürdige Zielinstanzen werden dadurch nicht sicher. Lesen Sie vor dem Betrieb eines gemeinsamen Brokers dessen Sicherheitsdokumentation.
+Der Betreiber verwaltet Zugänge ausschließlich über die CLI. Schlüssel sind an einen exakten Instanz-Origin, genehmigte Anbieter und ein Ablaufdatum gebunden; gespeichert werden Schlüsselhashes und Zugangs-/Kontaktmetadaten, keine Benutzertokens.
+
+Ein Widerruf sperrt folgende Starts, Rückrufe, Codeaustausche und Erneuerungen, zieht aber bereits ausgestellte Anbietertokens nicht zurück und stoppt keine laufende Anbieteroperation. Widerrufen Sie bei einem Verdacht auch die Anbieterfreigabe. Ein Ersatzschlüssel erfordert eine erneute Kontoverbindung. Betreiber eigener Bridges stellen eigene Schlüssel aus. Lesen Sie vor der Verbindung die Datenschutz- und Nutzungsbedingungen der Bridge sowie die Regeln Ihrer Instanz; die Bridge bleibt vertrauenswürdig zu behandeln, da sie Tokens im Arbeitsspeicher verarbeitet.
 
 
 ## Ein Konto einrichten { #set-up-an-account }

@@ -5,13 +5,15 @@ Personal accounts are connected in **Chat controls → Preferences → Your acco
 
 ## Continue with AgenticOS
 
-The account dialog offers **Continue with AgenticOS** or **Use your own credentials**. The first uses our shared OAuth app through an API-only [AgenticOS Bridge](https://github.com/vstorm-co/agenticos-bridge); it does not require an organization OAuth client. Set `OAUTH_BRIDGE_URL=https://bridge-agenticos.testapp.ovh` in the backend to enable the broker. Empty disables it. The option stays unavailable when the bridge or the provider app is not ready. An operator may also host the bridge and configure its own HTTPS origin.
+The shared **Continue with AgenticOS** option is hidden by default. To request access, email **dev@vstorm.co** with your organization, exact public AgenticOS URL, intended providers and incident contact. Vstorm reviews requests individually; access is not automatic. After approval, configure backend `OAUTH_BRIDGE_URL=https://bridge-agenticos.testapp.ovh` and the issued `OAUTH_BRIDGE_ACCESS_KEY`. Keep the key in server-side secret configuration, never in frontend variables, an agent spec or source control. The option appears only when the key, destination and provider are accepted. **Use your own credentials** remains available without Vstorm approval or a bridge key.
 
 Only OAuth code exchange and refresh pass through the bridge. Tokens are sealed in this deployment's owner-bound Vault; business data goes directly to Google, Microsoft or Slack. The bridge keeps its app credentials and an encryption key in server configuration, with no user-token database. Its encrypted, expiring handoff tickets require PKCE; refresh requires a receipt bound to the token and OAuth app. The bridge operator remains trusted because tokens exist transiently in its memory. Provider verification, distribution and tenant consent policies still apply.
 
 The bridge supports native product capabilities and personal/organization accounts, including several accounts at once. Mirage mounts that require the OAuth application's client secret continue to use your own credentials. Reconnect preserves the original credential source. Changing the configured broker origin requires reconnecting managed accounts; tokens are never forwarded to a different broker.
 
-Public enrollment is controlled on the bridge: exact deployment origins by default, or an explicit wildcard after provider verification and abuse review. This does not make untrusted destination deployments safe. See the bridge security document before operating a shared broker.
+Bridge access is managed exclusively through the operator's CLI. Keys are bound to one exact deployment origin, approved providers and an expiry; their hashes and enrollment/contact metadata are stored separately from user tokens.
+
+Revocation blocks subsequent starts, callbacks, token exchanges and refreshes, but cannot retract provider access tokens already issued or stop an in-flight provider operation. Revoke the provider grant as well after a suspected compromise. A replacement key requires reconnecting managed accounts. Self-hosted bridge operators issue their own deployment keys. Review the bridge privacy policy, terms and your deployment's policies before connecting; the bridge remains trusted because it handles tokens in memory.
 
 
 ## Set up an account

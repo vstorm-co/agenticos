@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Native account consent can use an API-only AgenticOS Bridge or the organization's own OAuth app. Managed tokens stay in the deployment's Vault, with PKCE handoff and token-bound refresh receipts. Configure `OAUTH_BRIDGE_URL` to opt in; provider app readiness is shown before consent.
+- Native account consent can use an API-only AgenticOS Bridge or the organization's own OAuth app. Managed tokens stay in the deployment's Vault, with PKCE handoff and token-bound refresh receipts. Disabled and hidden by default; reviewed deployments configure `OAUTH_BRIDGE_URL` and a console-issued `OAUTH_BRIDGE_ACCESS_KEY` requested from dev@vstorm.co. Provider app readiness is checked before consent.
 
 ## [1.78.0] - 2026-11-16
 

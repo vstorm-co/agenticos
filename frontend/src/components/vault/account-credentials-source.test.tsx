@@ -30,3 +30,11 @@ it("keeps an unavailable managed account locked during repair", () => {
   for (const radio of screen.getAllByRole("radio")) expect(radio).toBeDisabled();
   expect(screen.getByText("Not available on this deployment yet.")).toBeInTheDocument();
 });
+
+it("does not offer shared connections on an unapproved deployment", () => {
+  render(
+    <AccountCredentialsSource value="own" available={false} locked={false} onChange={vi.fn()} />,
+  );
+  expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+  expect(screen.queryByText(/Continue with AgenticOS/)).not.toBeInTheDocument();
+});

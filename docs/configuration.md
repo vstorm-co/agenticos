@@ -156,6 +156,7 @@ Production validation: `API_KEY` cannot use the default value in
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/google/callback` | OAuth2 callback URL |
 | `FRONTEND_URL` | `http://localhost:3000` | Frontend URL for OAuth2 redirects |
 | `OAUTH_BRIDGE_URL` | empty | Optional trusted HTTPS OAuth broker for native accounts; see [Continue with AgenticOS](integrations.md#continue-with-agenticos). Empty uses your own provider credentials. |
+| `OAUTH_BRIDGE_ACCESS_KEY` | empty | Server-only deployment key issued after review; request access at dev@vstorm.co. Without it the shared connection option is hidden. |
 | `DESKTOP_DEEP_LINK_SCHEME` | `agenticos` | The scheme the desktop shell registers for a sign-in handed to the system browser ([Desktop](desktop.md#signing-in)). The callback builds a redirect out of it, so it is a setting rather than anything a caller can choose |
 
 Getting the pair: [Google Cloud console](https://console.cloud.google.com/) →

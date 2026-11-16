@@ -17,6 +17,11 @@ from tests.test_connected_accounts import _payload
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
+@pytest.fixture(autouse=True)
+def bridge_access(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "OAUTH_BRIDGE_ACCESS_KEY", SecretStr("test-deployment-key"))
+
+
 def wire(
     monkeypatch: pytest.MonkeyPatch, handler: Callable[[httpx2.Request], httpx2.Response]
 ) -> None:
@@ -30,6 +35,8 @@ def wire(
 
 async def test_transport_and_metadata_status(monkeypatch: pytest.MonkeyPatch) -> None:
     def handler(request: httpx2.Request) -> httpx2.Response:
+        assert request.headers["X-AgenticOS-Bridge-Key"] == "test-deployment-key"
+        assert "test-deployment-key" not in str(request.url)
         assert str(request.url).startswith("https://93.184.216.34/v1/providers?origin=")
         return httpx2.Response(
             200,
@@ -191,3 +198,17 @@ def test_invalid_bridge_configuration_fails_before_serving(origin: str) -> None:
 
     with pytest.raises(ValueError):
         Settings.validate_oauth_bridge_url(origin)
+
+
+async def test_bridge_stays_disabled_without_a_key_and_never_contacts_the_service(
+    monkeypatch,
+) -> None:
+    wire(monkeypatch, lambda request: pytest.fail("Disabled bridge reached the network"))
+    monkeypatch.setattr(settings, "OAUTH_BRIDGE_ACCESS_KEY", SecretStr(""))
+    assert await bridge.status("google") == "disabled"
+    with pytest.raises(OAuthError, match="disabled"):
+        await bridge._request("/v1/oauth/start", {"provider": "google"})
+
+
+def test_bridge_access_key_is_masked_in_configuration() -> None:
+    assert "test-deployment-key" not in repr(settings.OAUTH_BRIDGE_ACCESS_KEY)

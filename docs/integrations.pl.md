@@ -1,5 +1,5 @@
 ---
-source_sha: "55783c9dd015"
+source_sha: "77665492a2d2"
 ---
 
 # Wbudowane integracje { #built-in-integrations }
@@ -9,13 +9,15 @@ Konta osobiste podłączysz w **Ustawienia czatu → Preferencje → Twoje konta
 
 ## Kontynuuj z AgenticOS { #continue-with-agenticos }
 
-Okno konta oferuje **Kontynuuj z AgenticOS** lub **Użyj własnych credentials**. Pierwsza opcja korzysta ze wspólnej aplikacji OAuth przez [AgenticOS Bridge](https://github.com/vstorm-co/agenticos-bridge), działający wyłącznie jako API, bez klienta OAuth organizacji. Ustaw `OAUTH_BRIDGE_URL=https://bridge-agenticos.testapp.ovh` w backendzie. Pusta wartość wyłącza bridge. Opcja jest niedostępna, jeśli bridge lub aplikacja dostawcy nie są gotowe. Operator może też uruchomić własny bridge pod adresem HTTPS.
+Opcja **Kontynuuj z AgenticOS** jest domyślnie ukryta. Aby poprosić o dostęp, napisz na **dev@vstorm.co**, podając organizację, dokładny publiczny adres AgenticOS, potrzebnych dostawców i kontakt na wypadek incydentu. Vstorm rozpatruje wnioski indywidualnie; dostęp nie jest automatyczny. Po zatwierdzeniu ustaw w backendzie `OAUTH_BRIDGE_URL=https://bridge-agenticos.testapp.ovh` i otrzymany `OAUTH_BRIDGE_ACCESS_KEY`. Klucz przechowuj w sekretach serwera, nigdy w zmiennych frontendu, specyfikacji agenta ani repozytorium. Opcja pojawi się dopiero po zaakceptowaniu klucza, adresu instancji i dostawcy. **Użyj własnych credentials** pozostaje dostępne bez zgody Vstorm i bez klucza bridge’a.
 
 Przez bridge przechodzą tylko wymiana kodu OAuth i odświeżanie. Tokeny są szyfrowane w Vault tej instancji, przypisanym do właściciela; dane robocze trafiają bezpośrednio do Google, Microsoft lub Slacka. Bridge ma credentials aplikacji i klucz szyfrowania w konfiguracji serwera, bez bazy tokenów użytkowników. Szyfrowane bilety mają termin ważności i wymagają PKCE; odświeżanie wymaga potwierdzenia przypisanego do tokena i aplikacji OAuth. Operator bridge’a pozostaje zaufaną stroną, bo tokeny chwilowo są w pamięci jego procesu. Nadal obowiązują weryfikacja dostawcy, zasady dystrybucji i zgody administratorów tenantów.
 
 Bridge obsługuje natywne capabilities produktów oraz konta osobiste i organizacji, także kilka równocześnie. Mounty Mirage wymagające sekretu aplikacji OAuth nadal korzystają z własnych credentials. Ponowne połączenie zachowuje źródło credentials. Zmiana adresu bridge’a wymaga ponownego podłączenia kont; tokeny nigdy nie są przekazywane innemu brokerowi.
 
-Bridge domyślnie dopuszcza wskazane originy instancji. Jawny wildcard można włączyć po weryfikacji dostawców i przeglądzie ryzyka nadużyć. Nie czyni to niezaufanych instancji docelowych bezpiecznymi. Przed uruchomieniem wspólnego brokera przeczytaj jego dokumentację bezpieczeństwa.
+Dostępem zarządza się wyłącznie przez CLI operatora bridge’a. Klucz jest przypisany do jednego dokładnego originu instancji, zatwierdzonych dostawców i daty ważności; przechowywane są jego skrót oraz metadane dostępu i kontaktu, oddzielnie od tokenów użytkowników.
+
+Unieważnienie blokuje kolejne rozpoczęcia, callbacki, wymiany kodu i odświeżenia, ale nie cofa już wydanych tokenów dostawcy ani trwającej operacji u dostawcy. Przy podejrzeniu włamania cofnij również zgodę u dostawcy. Nowy klucz wymaga ponownego podłączenia kont zarządzanych. Operator własnego bridge’a wydaje własne klucze. Przed połączeniem zapoznaj się z polityką prywatności i regulaminem bridge’a oraz zasadami swojej instancji; bridge pozostaje zaufaną stroną, bo obsługuje tokeny w pamięci.
 
 
 ## Konfiguracja konta { #set-up-an-account }

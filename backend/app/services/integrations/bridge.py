@@ -51,13 +51,18 @@ class BridgeFailure(BaseModel):
 
 
 async def _request(path: str, data: Mapping[str, str | list[str]] | None = None) -> bytes:
-    if not settings.OAUTH_BRIDGE_URL:
+    if not settings.OAUTH_BRIDGE_URL or not settings.OAUTH_BRIDGE_ACCESS_KEY.get_secret_value():
         raise OAuthError("AgenticOS account connection is disabled on this deployment")
     try:
         async with (
             PinnedAsyncClient(timeout=httpx2.Timeout(15 if data is not None else 3)) as client,
             client.stream(
-                "POST" if data is not None else "GET", settings.OAUTH_BRIDGE_URL + path, json=data
+                "POST" if data is not None else "GET",
+                settings.OAUTH_BRIDGE_URL + path,
+                json=data,
+                headers={
+                    "X-AgenticOS-Bridge-Key": settings.OAUTH_BRIDGE_ACCESS_KEY.get_secret_value()
+                },
             ) as response,
         ):
             body = bytearray()
@@ -83,7 +88,7 @@ async def _request(path: str, data: Mapping[str, str | list[str]] | None = None)
 
 
 async def status(provider: str) -> Literal["disabled", "unavailable", "unconfigured", "ready"]:
-    if not settings.OAUTH_BRIDGE_URL:
+    if not settings.OAUTH_BRIDGE_URL or not settings.OAUTH_BRIDGE_ACCESS_KEY.get_secret_value():
         return "disabled"
     try:
         origin = settings.FRONTEND_URL.rstrip("/")
