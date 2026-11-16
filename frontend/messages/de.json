@@ -17605,6 +17605,10 @@
         "name": "Felder zuordnen",
         "description": "Werte aus früheren Ausgaben auswählen und jedem einen Typ geben."
       },
+      "data_value": {
+        "name": "Daten",
+        "description": "Ein Objekt, eine Liste oder einen Wert für spätere Schritte bereithalten. Einmal pro Run gesetzt."
+      },
       "debug_echo": {
         "name": "Echo",
         "description": "Gibt seine Eingabe unverändert zurück. Hat keine echte Wirkung."

@@ -13632,6 +13632,10 @@
         "name": "Alanları eşle",
         "description": "Önceki çıktılardan değerler seçin ve her birine bir tür verin."
       },
+      "data_value": {
+        "name": "Veri",
+        "description": "Sonraki adımlar için bir nesne, liste veya değer tutar. Her run için bir kez ayarlanır."
+      },
       "debug_echo": {
         "name": "Yankı",
         "description": "Girdisini değiştirmeden geri döndürür. Gerçek bir etkisi yoktur."

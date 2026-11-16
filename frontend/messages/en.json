@@ -17919,6 +17919,10 @@
         "name": "Map fields",
         "description": "Pick values out of earlier outputs and give each one a type."
       },
+      "data_value": {
+        "name": "Data",
+        "description": "Hold an object, a list or a value for later steps. Set once per run."
+      },
       "debug_echo": {
         "name": "Echo",
         "description": "Echoes its input back, unchanged. Has no real effect."

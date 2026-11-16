@@ -17692,6 +17692,10 @@
         "name": "Mapuj pola",
         "description": "Wybierz wartości z wcześniejszych wyjść i nadaj każdej z nich typ."
       },
+      "data_value": {
+        "name": "Dane",
+        "description": "Przechowaj obiekt, listę lub wartość dla kolejnych kroków. Ustawiane raz na run."
+      },
       "debug_echo": {
         "name": "Echo",
         "description": "Zwraca swoje wejście bez zmian. Nie ma żadnego realnego efektu."
