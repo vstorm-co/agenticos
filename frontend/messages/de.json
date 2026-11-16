@@ -1967,7 +1967,10 @@
         "missing": "Kein Datensatz hat diese externe ID",
         "deleted": "Datensatz gelöscht",
         "record": "Datensatz „{title}“ · Revision {revision}",
-        "recordUntitled": "Datensatz · Revision {revision}"
+        "recordUntitled": "Datensatz · Revision {revision}",
+        "table": "Tabelle",
+        "column": "Spalte",
+        "value": "Wert"
       }
     },
     "turnWasStopped": "gestoppt",

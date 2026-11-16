@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Fragment, type ReactNode } from "react";
 import { Table2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -14,22 +15,33 @@ import { TableCallQueryView } from "./table-call-query";
 import { GenericToolResult } from "./generic";
 import { platformCallError } from "./platform-objects";
 
+/** One labelled line - "Table", "Column", "Value" - so a reader never guesses which is which. */
+function Line({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="contents">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="text-foreground min-w-0 break-words">{children}</dd>
+    </div>
+  );
+}
+
 function Values({ values, table }: { values: Record<string, CellValue>; table: TableRead }) {
+  const t = useTranslations("chat.tools.tableCall");
   const cellText = useCellText();
   return (
-    <dl className="grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
+    <>
       {Object.entries(values).map(([id, value]) => {
         const column = table.columns.find((candidate) => candidate.id === id);
         return (
-          <div key={id} className="contents">
-            <dt className="text-muted-foreground truncate">
+          <Fragment key={id}>
+            <Line label={t("column")}>
               {column?.label ?? <span className="font-mono">{id}</span>}
-            </dt>
-            <dd className="text-foreground min-w-0 break-words">{cellText(column, value)}</dd>
-          </div>
+            </Line>
+            <Line label={t("value")}>{cellText(column, value)}</Line>
+          </Fragment>
         );
       })}
-    </dl>
+    </>
   );
 }
 
@@ -42,19 +54,21 @@ export function TableCallSummary({ call, table }: { call: TableCall; table: Tabl
   const t = useTranslations("chat.tools.tableCall");
   return (
     <div className="space-y-2">
-      <Link
-        href={`/tables/${encodeURIComponent(table.id)}`}
-        className="text-foreground hover:text-primary inline-flex max-w-full items-center gap-1.5 text-xs font-medium"
-      >
-        <Table2 className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-        <span className="truncate">{table.name}</span>
-      </Link>
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
+        <Line label={t("table")}>
+          <Link
+            href={`/tables/${encodeURIComponent(table.id)}`}
+            className="hover:text-primary inline-flex max-w-full items-center gap-1.5 font-medium"
+          >
+            <Table2 className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+            <span className="truncate">{table.name}</span>
+          </Link>
+        </Line>
+        {call.values !== null && <Values values={call.values} table={table} />}
+      </dl>
       {call.query !== null && <TableCallQueryView query={call.query} table={table} />}
       {call.externalId !== null && (
         <p className="text-muted-foreground text-xs">{t("externalId", { id: call.externalId })}</p>
-      )}
-      {call.values !== null && Object.keys(call.values).length > 0 && (
-        <Values values={call.values} table={table} />
       )}
     </div>
   );

@@ -1967,7 +1967,10 @@
         "missing": "No record has this external ID",
         "deleted": "Record deleted",
         "record": "Record “{title}” · revision {revision}",
-        "recordUntitled": "Record · revision {revision}"
+        "recordUntitled": "Record · revision {revision}",
+        "table": "Table",
+        "column": "Column",
+        "value": "Value"
       }
     },
     "turnWasStopped": "stopped",

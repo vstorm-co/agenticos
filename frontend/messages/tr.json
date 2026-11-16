@@ -9320,7 +9320,10 @@
         "missing": "Bu harici kimliğe sahip kayıt yok",
         "deleted": "Kayıt silindi",
         "record": "“{title}” kaydı · revizyon {revision}",
-        "recordUntitled": "Kayıt · revizyon {revision}"
+        "recordUntitled": "Kayıt · revizyon {revision}",
+        "table": "Tablo",
+        "column": "Sütun",
+        "value": "Değer"
       }
     },
     "turnWasStopped": "durduruldu",

@@ -1031,7 +1031,10 @@
         "missing": "Żaden rekord nie ma tego zewnętrznego ID",
         "deleted": "Rekord usunięty",
         "record": "Rekord „{title}” · wersja {revision}",
-        "recordUntitled": "Rekord · wersja {revision}"
+        "recordUntitled": "Rekord · wersja {revision}",
+        "table": "Tabela",
+        "column": "Kolumna",
+        "value": "Wartość"
       }
     },
     "turnWasStopped": "zatrzymano",

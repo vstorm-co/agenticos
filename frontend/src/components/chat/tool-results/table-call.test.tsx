@@ -224,7 +224,14 @@ describe("table tool results", () => {
       ),
     );
     expect(await screen.findByText("Worth sharing")).toBeVisible();
-    expect(screen.getByText("status")).toBeVisible();
+    // Each part says what it is: the table, then the column and the value it gets.
+    expect(
+      screen.getAllByRole("term").map((term) => [term.textContent, term.nextSibling?.textContent]),
+    ).toEqual([
+      ["Table", "hacker_news_table"],
+      ["Column", "status"],
+      ["Value", "Worth sharing"],
+    ]);
     expect(screen.getByText("Record “Agents in prod” · revision 2")).toBeVisible();
   });
 
