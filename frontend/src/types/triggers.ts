@@ -155,6 +155,7 @@ export interface TriggerList {
 export type TriggerAnswerTo = "run_log" | "primary" | "conversation";
 
 export interface TriggerCreate {
+  review_before_activation?: boolean;
   max_failures?: number | null;
   is_active?: boolean;
   notification_channels?: RoutineNotificationChannel[] | null;

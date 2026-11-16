@@ -99,6 +99,7 @@ describe("New-schedule template picker", () => {
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers", {
+      review_before_activation: true,
       is_active: false,
       prompt: "Summarise what happened overnight.",
       name: "Daily standup",
@@ -129,6 +130,7 @@ describe("New-schedule template picker", () => {
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers", {
+      review_before_activation: true,
       is_active: false,
       prompt: "Write this week's report.",
       name: "Weekly report",

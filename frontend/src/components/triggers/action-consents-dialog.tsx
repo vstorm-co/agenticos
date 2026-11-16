@@ -20,7 +20,12 @@ import {
 } from "@/components/ui";
 import { ErrorState } from "@/components/states/error-state";
 import type { Trigger } from "@/types/triggers";
-import { routineActionIdentity as identity, routineActionKey } from "@/lib/routine-actions-api";
+import {
+  routineActionIdentity as identity,
+  routineActionKey,
+  type RoutineActionOptions,
+} from "@/lib/routine-actions-api";
+import type { RoutineSourceReview } from "@/lib/routine-sources-api";
 
 export function ActionConsentsDialog({
   trigger,
@@ -35,6 +40,7 @@ export function ActionConsentsDialog({
   const t = useTranslations("triggers.actionConsents");
   const setup = useTranslations("triggers");
   const sources = useRoutineSources(trigger.agent_id, trigger.id);
+  const sourcesData = sources.data;
   const [saving, setSaving] = useState(false);
   const { data, isLoading, error, replace, refetch } = useRoutineActions(
     trigger.agent_id,
@@ -52,11 +58,11 @@ export function ActionConsentsDialog({
     !!sources.error ||
     sources.isLoading ||
     sources.data.unavailable_sources.length > 0;
-  async function save() {
-    if (!data || !sources.data || pending || sourceUnavailable) return;
+  async function save(data: RoutineActionOptions, sourceReview: RoutineSourceReview) {
     setSaving(true);
     try {
-      if (!sources.data.current) await sources.replace.mutateAsync(sources.data.review_token);
+      if (onSaved || !sourceReview.current)
+        await sources.replace.mutateAsync(sourceReview.review_token);
       if (data.can_waive || onSaved) {
         await replace.mutateAsync(
           data.can_waive
@@ -171,7 +177,7 @@ export function ActionConsentsDialog({
               overLimit ||
               sourceUnavailable
             }
-            onClick={() => void save()}
+            onClick={data && sourcesData ? () => void save(data, sourcesData) : undefined}
           >
             {onSaved ? setup("enableRoutine") : t("save")}
           </Button>

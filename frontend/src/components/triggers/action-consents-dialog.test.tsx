@@ -29,6 +29,7 @@ const state = vi.hoisted(() => ({
     ],
   } as RoutineActionOptions,
   error: null as Error | null,
+  loading: false,
   save: vi.fn(),
   sourcesSave: vi.fn(),
   sourceCurrent: true,
@@ -39,7 +40,7 @@ const state = vi.hoisted(() => ({
 vi.mock("@/hooks/use-routine-actions", () => ({
   useRoutineActions: () => ({
     data: state.data,
-    isLoading: false,
+    isLoading: state.loading,
     error: state.error,
     replace: { mutate: state.save, mutateAsync: state.save, isPending: false },
     refetch: state.retry,
@@ -68,6 +69,7 @@ describe("routine action consent", () => {
     state.sourceError = null;
     state.sourceUnavailable = [];
     state.error = null;
+    state.loading = false;
     state.data.can_waive = true;
     state.data.review_token = "review-1";
     state.data.items = initialActions.map((item) => ({ ...item, consented: false }));
@@ -187,6 +189,7 @@ beforeEach(() => {
   state.sourceError = null;
   state.sourceUnavailable = [];
   state.error = null;
+  state.loading = false;
   state.data.can_waive = true;
   state.data.review_token = "review-1";
   state.data.items = initialActions.map((item) => ({ ...item, consented: false }));
@@ -374,4 +377,32 @@ it("can review sources without standing-consent permission or changing stored ac
   expect(state.sourcesSave).toHaveBeenCalledWith("source-review");
   expect(state.save).not.toHaveBeenCalled();
   expect(close).toHaveBeenCalledOnce();
+});
+
+it("retries a failed action review before offering another consent", async () => {
+  state.error = new Error("offline");
+  state.retry.mockClear();
+  render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+  await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+  expect(state.retry).toHaveBeenCalledOnce();
+  expect(state.save).not.toHaveBeenCalled();
+});
+
+it("can dismiss an idle access review with Escape", async () => {
+  const close = vi.fn();
+  render(<ActionConsentsDialog trigger={trigger} onClose={close} />);
+  await userEvent.keyboard("{Escape}");
+  expect(close).toHaveBeenCalledOnce();
+});
+
+it("waits for the action inventory instead of presenting an empty selection", () => {
+  state.loading = true;
+  render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+  expect(screen.queryByRole("checkbox", { name: "execute" })).toBeNull();
+});
+
+it("uses the compatibility selection limit when the server omits it", () => {
+  delete state.data.max_actions;
+  render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+  expect(screen.getByRole("status")).toHaveTextContent("0 actions selected · limit 100");
 });

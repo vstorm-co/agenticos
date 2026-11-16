@@ -72,11 +72,18 @@ function serve() {
       return { can_waive: true, review_token: "actions", items: [] };
     return path === "/me/permissions" ? { permissions: [] } : { items: [], total: 0 };
   });
-  vi.mocked(apiClient.put).mockResolvedValue({
-    can_waive: true,
-    review_token: "actions",
-    items: [],
-  });
+  vi.mocked(apiClient.put).mockImplementation(async (path) =>
+    path.endsWith("/sources")
+      ? {
+          current: true,
+          review_token: "sources",
+          version_id: "v1",
+          resources: [],
+          accounts: [],
+          unavailable_sources: [],
+        }
+      : { can_waive: true, review_token: "actions", items: [] },
+  );
   vi.mocked(apiClient.patch).mockResolvedValue(trigger());
 }
 
@@ -152,6 +159,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
+      review_before_activation: true,
       is_active: false,
       prompt: "Triage it",
       name: null,
@@ -221,6 +229,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
+      review_before_activation: true,
       is_active: false,
       prompt: "Handle it",
       name: null,

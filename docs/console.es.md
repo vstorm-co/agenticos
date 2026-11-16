@@ -1,5 +1,5 @@
 ---
-source_sha: "570cd7eb6b6a"
+source_sha: "286317e6ecde"
 ---
 
 # La consola { #the-console }
@@ -226,9 +226,9 @@ instantánea que querías conservar.
 
 ## Rutinas y seguimientos { #routines-and-watches }
 
-Las programaciones y los disparadores de API nuevos se guardan en pausa y muestran **Review routine access**. Revisa las fuentes y selecciona las acciones que pueden ejecutarse sin preguntar; **Enable routine** guarda ambas decisiones y activa la rutina. **Finish later** la deja en pausa. Las aprobaciones explícitas del agente siguen siendo obligatorias.
+Las programaciones y los disparadores de API nuevos se guardan en pausa y muestran **Review routine access**. Revisa las fuentes y selecciona las acciones que pueden ejecutarse sin preguntar; **Enable routine** guarda ambas decisiones y activa la rutina. **Finish later** la deja en pausa. Las aprobaciones explícitas del agente siguen siendo obligatorias. Reanudar una configuración pendiente vuelve a abrir esta revisión; la activación comprueba de nuevo las fuentes.
 
-Si **Skip this run** evita una ejecución simultánea, el historial registra el motivo sin iniciar ni cobrar otra ejecución. Puedes detener una ejecución en espera desde el historial cuando el servidor lo permita. Se conserva su coste acumulado y se desbloquea la siguiente ejecución programada.
+Si **Skip this run** evita una ejecución simultánea, el historial registra el motivo sin iniciar ni cobrar otra ejecución. Puedes detener una ejecución en espera desde el historial cuando el servidor lo permita. Se conserva su coste acumulado y se desbloquea la siguiente ejecución programada. Las omisiones repetidas por la misma ejecución pendiente comparten una entrada del historial.
 
 Los nombres de las rutinas se ajustan en teléfonos. Sin resultados aparece **Clear search**; **Retry** vuelve a cargar tareas y observaciones tras un error de lectura. Los horarios y disparadores se editan entre cabecera y pie de acciones fijos. La escritura bloquea campos y cierre; un rechazo conserva el borrador.
 

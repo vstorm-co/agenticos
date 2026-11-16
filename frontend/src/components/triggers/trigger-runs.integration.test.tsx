@@ -15,7 +15,7 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return {
     ...actual,
-    apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+    apiClient: { get: vi.fn(), put: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -457,4 +457,92 @@ it("keeps a waiting run visible and reports a refused stop", async () => {
   await waitFor(() => expect(toast.error).toHaveBeenCalled());
   expect(screen.getByRole("button", { name: "Stop waiting run" })).toBeEnabled();
   expect(screen.getByText(/awaiting approval/i)).toBeVisible();
+});
+
+it("reopens pending setup from Resume without enabling an unreviewed routine", async () => {
+  const { useAuthStore } = await import("@/stores/auth-store");
+  useAuthStore.setState({
+    user: {
+      id: "creator",
+      email: "creator@example.com",
+      is_active: true,
+      created_at: "2026-11-16T00:00:00Z",
+    },
+  });
+  vi.mocked(apiClient.patch).mockClear();
+  vi.mocked(apiClient.get).mockImplementation(async (path) => {
+    if (path.endsWith("/sources"))
+      return {
+        current: false,
+        review_token: "sources",
+        version_id: "v1",
+        resources: [],
+        accounts: [],
+        unavailable_sources: [],
+      };
+    if (path.endsWith("/action-consents"))
+      return { can_waive: false, review_token: "actions", items: [] };
+    return { items: [], total: 0 };
+  });
+  render(
+    <TriggerRow
+      trigger={trigger({ created_by_user_id: "creator", setup_required: true, is_active: false })}
+    />,
+    { wrapper },
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Resume" }));
+  expect(await screen.findByRole("dialog", { name: "Review routine access" })).toBeVisible();
+  expect(apiClient.patch).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Finish later" }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(apiClient.patch).not.toHaveBeenCalled();
+});
+
+it("finishes deferred setup before enabling the routine", async () => {
+  const { useAuthStore } = await import("@/stores/auth-store");
+  useAuthStore.setState({
+    user: {
+      id: "creator",
+      email: "creator@example.com",
+      is_active: true,
+      created_at: "2026-11-16T00:00:00Z",
+    },
+  });
+  const pending = trigger({
+    created_by_user_id: "creator",
+    setup_required: true,
+    is_active: false,
+  });
+  const sources = {
+    current: true,
+    review_token: "sources",
+    version_id: "v1",
+    resources: [],
+    accounts: [],
+    unavailable_sources: [],
+  };
+  const actions = { can_waive: false, review_token: "actions", items: [] };
+  vi.mocked(apiClient.get).mockImplementation(async (path) => {
+    if (path.endsWith("/sources")) return sources;
+    if (path.endsWith("/action-consents")) return actions;
+    return { items: [], total: 0 };
+  });
+  vi.mocked(apiClient.put).mockImplementation(async (path) =>
+    path.endsWith("/sources") ? sources : actions,
+  );
+  vi.mocked(apiClient.patch).mockResolvedValue({
+    ...pending,
+    setup_required: false,
+    is_active: true,
+  });
+  render(<TriggerRow trigger={pending} />, { wrapper });
+  await userEvent.click(screen.getByRole("button", { name: "Resume" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Enable routine" }));
+  await waitFor(() =>
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/triggers/t1", { is_active: true }),
+  );
+  expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/triggers/t1/sources", {
+    review_token: "sources",
+  });
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 });

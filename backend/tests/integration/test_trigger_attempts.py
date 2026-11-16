@@ -259,6 +259,9 @@ async def test_an_overlapping_schedule_leaves_a_reason_and_fires_after_the_run_e
     assert await db.scalar(select(func.count()).select_from(AgentRun)) == 1
     assert await service.claim_and_advance(now=now) == []
     assert (await service.attempts(ctx, trigger.agent_id, trigger.id, skip=0, limit=10)).total == 1
+    later = trigger.next_fire_at
+    assert await service.claim_and_advance(now=later) == []
+    assert (await service.attempts(ctx, trigger.agent_id, trigger.id, skip=0, limit=10)).total == 1
     run.status = RunStatus.CANCELLED.value
     trigger.next_fire_at = now
     await db.flush()
