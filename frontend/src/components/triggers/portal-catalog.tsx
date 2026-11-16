@@ -514,6 +514,7 @@ export function PortalCatalog({
                     <p className="text-muted-foreground text-xs font-medium tracking-wide">
                       {t("apiCategory")}
                     </p>
+                    <p className="text-muted-foreground text-xs">{t("apiProviders")}</p>
                     {!compact && (
                       <p className="text-muted-foreground line-clamp-2 text-sm">
                         {t("apiDescription")}

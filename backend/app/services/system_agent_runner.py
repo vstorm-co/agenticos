@@ -142,8 +142,9 @@ class SystemAgentRunner:
                 searches searches these alone, as far as the caller may read them.
 
         Raises:
+            NotFoundError: The chosen agent is missing or the caller may not view it.
             SystemAgentUnavailableError: The agent cannot run - `not_seeded`,
-                `missing` when `agent_id` names no agent of its kind,
+                `missing` when `agent_id` names an agent of another kind,
                 `unpublished`, `archived`, `no_access` for this caller, or
                 `no_model` when the model it would run on is gone or has no key.
             SystemAgentRunError: The run was recorded but ended without an answer:
@@ -230,6 +231,7 @@ class SystemAgentRunner:
         work to the background.
 
         Raises:
+            NotFoundError: The chosen agent is missing or the caller may not view it.
             SystemAgentUnavailableError: `not_seeded`, `missing`, `unpublished`,
                 `archived`, `no_access` for this caller, or `no_model`.
         """
@@ -274,7 +276,11 @@ class SystemAgentRunner:
     async def _picked(self, ctx: AuthContext, *, key: str, agent_id: UUID) -> Agent:
         definition = system_agent(key)
         agent = await agent_repo.get(self.db, agent_id, organization_id=ctx.organization_id)
-        if agent is None or agent.kind != definition.kind.value:
+        if agent is None or not await resolve_access(
+            self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT
+        ):
+            raise NotFoundError(message="Agent not found", details={"agent_id": agent_id})
+        if agent.kind != definition.kind.value:
             raise SystemAgentUnavailableError(
                 message=f"The {definition.kind.value} picked here no longer exists. Pick another.",
                 key=key,

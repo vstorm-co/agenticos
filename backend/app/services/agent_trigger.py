@@ -244,8 +244,7 @@ class EventFireDecision:
 @dataclass(frozen=True, slots=True)
 class TriggerDispatch:
     trigger: AgentTrigger
-    previous_run_id: UUID | None
-    previous_attempt_id: UUID | None
+    activation_id: UUID
 
 
 def _next_fire(
@@ -1765,29 +1764,15 @@ class AgentTriggerService:
         arrive. The job is written in this request's transaction, so it exists
         exactly when the audit entry beside it does, and a worker runs it.
 
-        Returns the trigger and its latest history identities before enqueueing.
-        The latest run may still be running and not yet stamped as `last_run_id`.
-        These identities let the console recognize a new run or refusal without
-        comparing its own clock with the worker's. The route answers 202 because
-        execution starts after commit.
+        Returns the trigger and this queued fire's activation identity. Runs and
+        before-run attempts record the same identity, so concurrent fires and
+        independent browser/worker clocks cannot settle the wrong dispatch.
         """
         trigger = await self._owned(ctx, agent_id, trigger_id)
         if not await self._polled_source_current(trigger):
             raise RoutineSourcesRequired()
         admitted_policy = read_policy(trigger.approved_sources).id
-        previous_runs, _ = (
-            await agent_run_repo.list_runs(
-                self.db,
-                organization_id=trigger.organization_id,
-                filters=agent_run_repo.RunFilters(conversation_id=trigger.conversation_id),
-                limit=1,
-            )
-            if trigger.conversation_id is not None
-            else ([], 0)
-        )
-        attempts, _ = await agent_trigger_repo.list_attempts(
-            self.db, trigger_id=trigger.id, organization_id=trigger.organization_id, skip=0, limit=1
-        )
+        activation_id = uuid4()
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -1797,16 +1782,28 @@ class AgentTriggerService:
             target_id=str(agent_id),
             details={"trigger_id": str(trigger.id)},
         )
-        await self.queue_fire(
-            trigger.id, organization_id=trigger.organization_id, source_policy_id=admitted_policy
+        job_id = await self.queue_fire(
+            trigger.id,
+            organization_id=trigger.organization_id,
+            source_policy_id=admitted_policy,
+            activation_id=activation_id,
         )
+        if (
+            job_id is None
+            and await agent_trigger_repo.attempt_for_activation(
+                self.db,
+                trigger_id=trigger.id,
+                organization_id=trigger.organization_id,
+                activation_id=activation_id,
+            )
+            is None
+        ):
+            raise ConflictError(
+                message="The routine could not be queued. Refresh its status and try again."
+            )
         # `_owned` let this caller through, so they manage it - say so on the read.
         setattr(trigger, "can_manage", True)  # noqa: B010
-        return TriggerDispatch(
-            trigger=trigger,
-            previous_run_id=previous_runs[0].id if previous_runs else None,
-            previous_attempt_id=attempts[0].id if attempts else None,
-        )
+        return TriggerDispatch(trigger=trigger, activation_id=activation_id)
 
     async def prepare_event_fire(
         self, source: str, trigger_id: UUID, *, body: bytes, headers: Mapping[str, str]
@@ -2912,6 +2909,7 @@ class AgentTriggerService:
             )
             return
 
+        ctx = replace(ctx, routine_dispatch_id=activation_id)
         conversation_id = await self._run_log(trigger, agent_name=agent.name)
 
         from app.services.agent_runner import AgentRunnerService

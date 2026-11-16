@@ -9592,11 +9592,16 @@ async def test_a_revoked_routine_is_refused_before_models_or_mcp_connections_are
 @pytest.mark.anyio
 @pytest.mark.security
 @pytest.mark.parametrize("change", ["not_personal", "personal", "unavailable"])
-async def test_routine_origin_and_live_tool_guard_are_attached_during_preparation(change) -> None:
+@pytest.mark.parametrize("has_dispatch", [False, True])
+async def test_routine_origin_and_live_tool_guard_are_attached_during_preparation(
+    change, has_dispatch: bool
+) -> None:
     from app.agents.routine_authority import RoutineGuard
     from app.services.routine_authority import RoutineAuthority
 
-    ctx = replace(_ctx(), routine_id=uuid.uuid4())
+    ctx = replace(
+        _ctx(), routine_id=uuid.uuid4(), routine_dispatch_id=uuid.uuid4() if has_dispatch else None
+    )
     service = AgentRunnerService(_db())
     agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), kind="agent")
     spec = AgentSpec(name="Routine")
@@ -9663,6 +9668,9 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
                 await service.prepare(ctx, agent.id)
             return
         await service.prepare(ctx, agent.id)
+    assert create.await_args.kwargs["routine_policy"]["activation_id"] == (
+        None if ctx.routine_dispatch_id is None else str(ctx.routine_dispatch_id)
+    )
     assert create.await_args.kwargs["trigger_id"] == ctx.routine_id
     assert create.await_args.kwargs["routine_policy"]["mcp_sources"] == {}
     assert (

@@ -6,6 +6,7 @@ asks it for and what it makes of each answer.
 """
 
 import uuid
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -13,17 +14,19 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from app.agents.isolation import RunIsolation
-from app.agents.system_agents import JUDGE
+from app.agents.system_agents import IMPROVER, JUDGE
 from app.core.exceptions import (
     NotFoundError,
     SystemAgentOutputError,
     SystemAgentRunError,
     SystemAgentUnavailableError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import RunStatus, RunSurface
-from app.services import system_agent_runner
+from app.db.models.resource_grant import GrantLevel, Visibility
+from app.repositories import resource_grant_repo
+from app.services import access, system_agent_runner
 from app.services.system_agent_runner import (
     SystemAgentRunner,
     _unreadable,
@@ -224,6 +227,129 @@ class TestRun:
 
         assert raised.value.run_id == run.id
         execute.assert_awaited_once()
+
+
+@pytest.fixture
+def chosen_helper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[AuthContext, MagicMock, SystemAgentRunner, AsyncMock]:
+    ctx = _ctx()
+    helper = _agent(
+        kind=IMPROVER.kind.value,
+        organization_id=ctx.organization_id,
+        owner_user_id=uuid.uuid4(),
+        visibility=Visibility.PRIVATE.value,
+    )
+    runner, execute = _runner(monkeypatch, agent=helper)
+    monkeypatch.setattr(system_agent_runner, "resolve_access", access.resolve_access)
+    monkeypatch.setattr(system_agent_runner.agent_repo, "get", AsyncMock(return_value=helper))
+    monkeypatch.setattr(resource_grant_repo, "get_level", AsyncMock(return_value=None))
+    return ctx, helper, runner, execute
+
+
+class TestChosenHelper:
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "unavailable",
+        ["private", "missing", "foreign", "no_subject", "run_only_key", "archived", "wrong_kind"],
+    )
+    async def test_an_unreadable_helper_is_missing_before_its_settings_are_read(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        chosen_helper: tuple[AuthContext, MagicMock, SystemAgentRunner, AsyncMock],
+        unavailable: str,
+    ) -> None:
+        ctx, helper, runner, execute = chosen_helper
+        if unavailable == "missing":
+            monkeypatch.setattr(system_agent_runner.agent_repo, "get", AsyncMock(return_value=None))
+        elif unavailable == "foreign":
+            helper.organization_id = uuid.uuid4()
+        elif unavailable == "no_subject":
+            ctx = replace(ctx, user_id=None, role=OrgRoleName.OWNER)
+        elif unavailable == "run_only_key":
+            ctx = replace(ctx, key_scopes=frozenset({Perm.AGENTS_RUN}))
+            monkeypatch.setattr(
+                resource_grant_repo, "get_level", AsyncMock(return_value=GrantLevel.USE)
+            )
+        elif unavailable == "archived":
+            helper.status = AgentStatus.ARCHIVED.value
+        elif unavailable == "wrong_kind":
+            helper.kind = JUDGE.kind.value
+
+        with pytest.raises(NotFoundError) as raised:
+            await runner.run(
+                ctx, key=IMPROVER.key, prompt="Improve it", output_type=Verdict, agent_id=helper.id
+            )
+
+        assert raised.value.status_code == 404
+        assert raised.value.details == {"agent_id": helper.id}
+        system_agent_runner.agent_repo.get.assert_awaited_once_with(
+            runner.db, helper.id, organization_id=ctx.organization_id
+        )
+        system_agent_runner.agent_repo.get_version.assert_not_awaited()
+        system_agent_runner.ModelProfileService.resolve.assert_not_awaited()
+        execute.assert_not_awaited()
+
+    @pytest.mark.parametrize("access_via", ["owner", "organization", "grant"])
+    async def test_a_readable_runnable_helper_can_be_chosen(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        chosen_helper: tuple[AuthContext, MagicMock, SystemAgentRunner, AsyncMock],
+        access_via: str,
+    ) -> None:
+        ctx, helper, runner, execute = chosen_helper
+        if access_via == "owner":
+            helper.owner_user_id = ctx.user_id
+        elif access_via == "organization":
+            helper.visibility = Visibility.ORG.value
+        else:
+            monkeypatch.setattr(
+                resource_grant_repo, "get_level", AsyncMock(return_value=GrantLevel.USE)
+            )
+
+        result = await runner.run(
+            ctx, key=IMPROVER.key, prompt="Improve it", output_type=Verdict, agent_id=helper.id
+        )
+
+        assert result.output == Verdict(passed=True, reason="cites the policy")
+        assert execute.call_args.args[:2] == (ctx, helper.id)
+        execute.assert_awaited_once()
+        runner.agents.ensure.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_read_grant_does_not_allow_running_the_helper(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        chosen_helper: tuple[AuthContext, MagicMock, SystemAgentRunner, AsyncMock],
+    ) -> None:
+        ctx, helper, runner, execute = chosen_helper
+        monkeypatch.setattr(
+            resource_grant_repo, "get_level", AsyncMock(return_value=GrantLevel.READ)
+        )
+
+        with pytest.raises(SystemAgentUnavailableError) as raised:
+            await runner.run(
+                ctx, key=IMPROVER.key, prompt="Improve it", output_type=Verdict, agent_id=helper.id
+            )
+
+        assert raised.value.reason == "no_access"
+        system_agent_runner.agent_repo.get_version.assert_not_awaited()
+        execute.assert_not_awaited()
+
+    async def test_a_visible_helper_of_the_wrong_kind_still_says_it_cannot_run(
+        self, chosen_helper: tuple[AuthContext, MagicMock, SystemAgentRunner, AsyncMock]
+    ) -> None:
+        ctx, helper, runner, execute = chosen_helper
+        helper.visibility = Visibility.ORG.value
+        helper.kind = JUDGE.kind.value
+
+        with pytest.raises(SystemAgentUnavailableError) as raised:
+            await runner.run(
+                ctx, key=IMPROVER.key, prompt="Improve it", output_type=Verdict, agent_id=helper.id
+            )
+
+        assert raised.value.reason == "missing"
+        execute.assert_not_awaited()
 
 
 def test_an_unreadable_answer_leaves_why_on_its_run_and_never_the_answer() -> None:

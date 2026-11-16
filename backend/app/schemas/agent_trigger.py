@@ -918,10 +918,9 @@ class TriggerRead(BaseSchema, TimestampSchema):
 
 
 class TriggerDispatchRead(TriggerRead):
-    """Accepted manual fire, with history identities captured before enqueueing."""
+    """Accepted manual fire, identified through its queued activation."""
 
-    previous_run_id: UUID | None
-    previous_attempt_id: UUID | None
+    activation_id: UUID
 
 
 class TriggerCreateRead(TriggerRead):

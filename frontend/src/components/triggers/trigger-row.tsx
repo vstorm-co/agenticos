@@ -16,7 +16,7 @@ import { Badge, Button, ConfirmDialog, TooltipProvider } from "@/components/ui";
 import { ActionConsentsDialog } from "@/components/triggers/action-consents-dialog";
 import { useAuthStore } from "@/stores";
 import { useTriggers } from "@/hooks/use-triggers";
-import type { PendingTriggerFire, Trigger } from "@/types/triggers";
+import type { Trigger } from "@/types/triggers";
 
 /**
  * The mark every row leads with, so a mixed list stays aligned: a schedule gets
@@ -76,17 +76,17 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
   const runDisabled =
     !trigger.is_active || runNow.isPending || (trigger.waiting_device_count ?? 0) > 0;
   // Compare history identities rather than clocks from the browser and worker.
-  const [pendingFire, setPendingFire] = useState<PendingTriggerFire | null>(null);
+  const [activationId, setActivationId] = useState<string | null>(null);
 
   function openRuns() {
-    setPendingFire(null);
+    setActivationId(null);
     setViewing(true);
   }
 
   function fireAndWatch() {
     runNow.mutate(trigger.id, {
       onSuccess: (pending) => {
-        setPendingFire(pending);
+        setActivationId(pending.activation_id);
         setViewing(true);
       },
     });
@@ -276,11 +276,11 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
       />
       <TriggerRunsSheet
         trigger={trigger}
-        pendingFire={pendingFire}
+        activationId={activationId}
         open={viewing}
         onOpenChange={(next) => {
           setViewing(next);
-          if (!next) setPendingFire(null);
+          if (!next) setActivationId(null);
         }}
       />
     </div>

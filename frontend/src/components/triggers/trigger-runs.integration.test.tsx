@@ -34,6 +34,31 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
+it.each(["run", "attempt"])(
+  "waits for its own activation when another %s finishes first",
+  async (outcome) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    serveRuns(
+      [run({ id: "other-run", routine_activation_id: "other-fire", status: "completed" })],
+      1,
+      { items: [{ ...attempt(), activation_id: "other-fire" }], total: 1 },
+    );
+    render(
+      <QueryClientProvider client={client}>
+        <TriggerRunsView trigger={trigger()} activationId="requested-fire" />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("link", { name: "Open run" });
+    expect(screen.getByText("Starting…")).toBeVisible();
+    serveRuns(outcome === "run" ? [run({ status: "completed" })] : [], outcome === "run" ? 1 : 0, {
+      items: outcome === "attempt" ? [attempt()] : [],
+      total: outcome === "attempt" ? 1 : 0,
+    });
+    await client.invalidateQueries();
+    await waitFor(() => expect(screen.queryByText("Starting…")).toBeNull());
+  },
+);
+
 function trigger(overrides: Partial<Trigger> = {}): Trigger {
   return {
     id: "t1",
@@ -68,6 +93,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
 function run(overrides: Record<string, unknown> = {}) {
   return {
     id: "r1",
+    routine_activation_id: "requested-fire",
     agent_id: "a1",
     agent_version_id: null,
     user_id: null,
@@ -281,7 +307,7 @@ void useTriggers;
 function attempt(reason: TriggerAttempt["reason"] = "platform_identity_required"): TriggerAttempt {
   return {
     id: reason,
-    activation_id: "activation",
+    activation_id: "requested-fire",
     status: "blocked",
     stage: "source_review",
     reason,
@@ -297,7 +323,7 @@ describe("before-run attempts", () => {
     render(
       <TriggerRunsView
         trigger={trigger({ conversation_id: null })}
-        pendingFire={{ previousRunId: null, previousAttemptId: null }}
+        activationId="requested-fire"
       />,
       { wrapper },
     );
@@ -315,7 +341,7 @@ describe("before-run attempts", () => {
         items: [{ ...attempt(reason), status: "failed", stage: "preparation" }],
         total: 1,
       });
-      render(<TriggerRunsView trigger={trigger()} pendingFire={null} />, { wrapper });
+      render(<TriggerRunsView trigger={trigger()} activationId={null} />, { wrapper });
       expect(
         await screen.findByRole("heading", { name: "Before the agent started" }),
       ).toBeVisible();
@@ -327,7 +353,7 @@ describe("before-run attempts", () => {
 
   it("paginates attempts independently from agent runs", async () => {
     serveRuns([run()], 130, { items: [attempt()], total: 11 });
-    render(<TriggerRunsView trigger={trigger()} pendingFire={null} />, { wrapper });
+    render(<TriggerRunsView trigger={trigger()} activationId={null} />, { wrapper });
     await screen.findByRole("heading", { name: "Before the agent started" });
     await userEvent.click(
       within(screen.getByRole("group", { name: "Before the agent started" })).getByRole("button", {
@@ -348,7 +374,7 @@ describe("before-run attempts", () => {
       if (path.includes("/attempts?")) throw new Error("unavailable");
       return normal(path, options);
     });
-    render(<TriggerRunsView trigger={trigger()} pendingFire={null} />, { wrapper });
+    render(<TriggerRunsView trigger={trigger()} activationId={null} />, { wrapper });
     expect(await screen.findByText("Could not read attempts before run creation.")).toBeVisible();
     serveRuns([], 0, { items: [attempt()], total: 1 });
     await userEvent.click(screen.getByRole("button", { name: "Retry history" }));
@@ -360,6 +386,7 @@ it("returns to the newest attempt page when another fire starts", async () => {
   let firing = false;
   const old = {
     ...attempt("preparation_failed"),
+    activation_id: "old-fire",
     occurred_at: new Date(Date.now() - 3600000).toISOString(),
   };
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
@@ -371,7 +398,7 @@ it("returns to the newest attempt page when another fire starts", async () => {
     if (path === "/agents") return { items: [], total: 0 };
     return { items: [trigger()], total: 1 };
   });
-  const view = render(<TriggerRunsView trigger={trigger()} pendingFire={null} />, { wrapper });
+  const view = render(<TriggerRunsView trigger={trigger()} activationId={null} />, { wrapper });
   await screen.findByRole("heading", { name: "Before the agent started" });
   await userEvent.click(
     within(screen.getByRole("group", { name: "Before the agent started" })).getByRole("button", {
@@ -382,12 +409,7 @@ it("returns to the newest attempt page when another fire starts", async () => {
     expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/triggers/t1/attempts?skip=10&limit=10"),
   );
   firing = true;
-  view.rerender(
-    <TriggerRunsView
-      trigger={trigger()}
-      pendingFire={{ previousRunId: null, previousAttemptId: null }}
-    />,
-  );
+  view.rerender(<TriggerRunsView trigger={trigger()} activationId="requested-fire" />);
   expect(await screen.findByText(/Enable Act as creator/)).toBeVisible();
   expect(screen.queryByText("Starting…")).toBeNull();
 });
@@ -423,7 +445,7 @@ it.each([true, false])(
       stopped = true;
       return null;
     });
-    render(<TriggerRunsView trigger={trigger({ conversation_id: "c1" })} pendingFire={null} />, {
+    render(<TriggerRunsView trigger={trigger({ conversation_id: "c1" })} activationId={null} />, {
       wrapper,
     });
     await waitFor(() =>
@@ -445,7 +467,7 @@ it.each([true, false])(
 
 it("explains a skipped overlap in the routine's history", async () => {
   serveRuns([], 0, { items: [attempt("previous_run_active")], total: 1 });
-  render(<TriggerRunsView trigger={trigger()} pendingFire={null} />, { wrapper });
+  render(<TriggerRunsView trigger={trigger()} activationId={null} />, { wrapper });
   expect(await screen.findByText(/Skipped because a previous run is still running/)).toBeVisible();
 });
 
@@ -456,7 +478,7 @@ it("keeps a waiting run visible and reports a refused stop", async () => {
     path.endsWith("/can-stop") ? true : normal(path, options),
   );
   vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("Cannot stop now"));
-  render(<TriggerRunsView trigger={trigger({ conversation_id: "c1" })} pendingFire={null} />, {
+  render(<TriggerRunsView trigger={trigger({ conversation_id: "c1" })} activationId={null} />, {
     wrapper,
   });
   await userEvent.click(await screen.findByRole("button", { name: "Stop waiting run" }));
@@ -558,13 +580,7 @@ it.each(["running", "awaiting_approval", "awaiting_answer", "completed", "failed
   async (status) => {
     const requestedAt = Date.now() - 1000;
     serveRuns([run({ status, started_at: new Date(requestedAt + 100).toISOString() })]);
-    render(
-      <TriggerRunsView
-        trigger={trigger()}
-        pendingFire={{ previousRunId: "previous-run", previousAttemptId: null }}
-      />,
-      { wrapper },
-    );
+    render(<TriggerRunsView trigger={trigger()} activationId="requested-fire" />, { wrapper });
     expect(await screen.findByRole("link", { name: "Open run" })).toBeVisible();
     expect(screen.queryByText("Starting…")).toBeNull();
     if (status === "awaiting_approval" || status === "awaiting_answer") {
@@ -579,14 +595,14 @@ it.each(["completed", "running"])(
   "does not mistake an older %s occurrence for the newly dispatched run",
   async (status) => {
     const requestedAt = Date.now();
-    serveRuns([run({ status, started_at: new Date(requestedAt - 60_000).toISOString() })]);
-    render(
-      <TriggerRunsView
-        trigger={trigger()}
-        pendingFire={{ previousRunId: "r1", previousAttemptId: null }}
-      />,
-      { wrapper },
-    );
+    serveRuns([
+      run({
+        status,
+        routine_activation_id: "old-fire",
+        started_at: new Date(requestedAt - 60_000).toISOString(),
+      }),
+    ]);
+    render(<TriggerRunsView trigger={trigger()} activationId="requested-fire" />, { wrapper });
     expect(await screen.findByRole("link", { name: "Open run" })).toBeVisible();
     expect(screen.getByText("Starting…")).toBeVisible();
   },
@@ -602,8 +618,7 @@ it.each([-300_000, 300_000])(
       ]);
       return {
         ...trigger({ last_run_id: "previous-run" }),
-        previous_run_id: "previous-run",
-        previous_attempt_id: null,
+        activation_id: "requested-fire",
       };
     });
     render(<TriggerRow trigger={trigger({ last_run_id: "previous-run" })} />, { wrapper });
@@ -614,24 +629,17 @@ it.each([-300_000, 300_000])(
 );
 
 it("waits for the new occurrence when a history row has no start timestamp", async () => {
-  serveRuns([run({ started_at: null })]);
-  render(
-    <TriggerRunsView
-      trigger={trigger()}
-      pendingFire={{ previousRunId: "r1", previousAttemptId: null }}
-    />,
-    { wrapper },
-  );
+  serveRuns([run({ started_at: null, routine_activation_id: "old-fire" })]);
+  render(<TriggerRunsView trigger={trigger()} activationId="requested-fire" />, { wrapper });
   expect(await screen.findByRole("link", { name: "Open run" })).toBeVisible();
   expect(screen.getByText("Starting…")).toBeVisible();
 });
 
 it("does not mistake an already running fire for another manual dispatch", async () => {
-  serveRuns([run({ id: "already-running", status: "running" })]);
+  serveRuns([run({ id: "already-running", status: "running", routine_activation_id: "old-fire" })]);
   vi.mocked(apiClient.post).mockResolvedValue({
     ...trigger({ last_run_id: "older-finished-run" }),
-    previous_run_id: "already-running",
-    previous_attempt_id: null,
+    activation_id: "requested-fire",
   });
   render(<TriggerRow trigger={trigger({ last_run_id: "older-finished-run" })} />, { wrapper });
   await userEvent.click(screen.getByRole("button", { name: "Run now" }));
@@ -645,10 +653,7 @@ it("stops dispatch invalidations once the new run is recorded", async () => {
   serveRuns([run({ status: "completed" })]);
   render(
     <QueryClientProvider client={client}>
-      <TriggerRunsView
-        trigger={trigger()}
-        pendingFire={{ previousRunId: "old-run", previousAttemptId: null }}
-      />
+      <TriggerRunsView trigger={trigger()} activationId="requested-fire" />
     </QueryClientProvider>,
   );
   expect(await screen.findByRole("link", { name: "Open run" })).toBeVisible();
@@ -663,16 +668,14 @@ it.each([false, true])("matches before-run attempts by identity (new: %s)", asyn
       {
         ...attempt(),
         id: isNew ? "new-attempt" : "old-attempt",
+        activation_id: isNew ? "requested-fire" : "old-fire",
         occurred_at: "2020-01-01T00:00:00Z",
       },
     ],
     total: 1,
   });
   render(
-    <TriggerRunsView
-      trigger={trigger({ conversation_id: null })}
-      pendingFire={{ previousRunId: null, previousAttemptId: "old-attempt" }}
-    />,
+    <TriggerRunsView trigger={trigger({ conversation_id: null })} activationId="requested-fire" />,
     { wrapper },
   );
   await screen.findByRole("heading", { name: "Before the agent started" });
@@ -683,8 +686,14 @@ it("does not settle a dispatch from cached rows older than its history snapshot"
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const runKey = qk.runs.list({ conversationId: "c1" });
   const attemptKey = qk.triggers.attempts("a1", "t1", 0);
-  client.setQueryData(runKey, { items: [run({ id: "older-run" })], total: 1 });
-  client.setQueryData(attemptKey, { items: [{ ...attempt(), id: "older-attempt" }], total: 1 });
+  client.setQueryData(runKey, {
+    items: [run({ id: "older-run", routine_activation_id: "old-fire" })],
+    total: 1,
+  });
+  client.setQueryData(attemptKey, {
+    items: [{ ...attempt(), id: "older-attempt", activation_id: "old-fire" }],
+    total: 1,
+  });
   await client.invalidateQueries();
   serveRuns([]);
   const normal = vi.mocked(apiClient.get).getMockImplementation()!;
@@ -696,17 +705,17 @@ it("does not settle a dispatch from cached rows older than its history snapshot"
     if (path === "/runs" || path.includes("/attempts?")) {
       await held;
       return path === "/runs"
-        ? { items: [run({ id: "previous-run" })], total: 1 }
-        : { items: [{ ...attempt(), id: "previous-attempt" }], total: 1 };
+        ? { items: [run({ id: "previous-run", routine_activation_id: "old-fire" })], total: 1 }
+        : {
+            items: [{ ...attempt(), id: "previous-attempt", activation_id: "old-fire" }],
+            total: 1,
+          };
     }
     return normal(path, options);
   });
   render(
     <QueryClientProvider client={client}>
-      <TriggerRunsView
-        trigger={trigger({ conversation_id: "c1" })}
-        pendingFire={{ previousRunId: "previous-run", previousAttemptId: "previous-attempt" }}
-      />
+      <TriggerRunsView trigger={trigger({ conversation_id: "c1" })} activationId="requested-fire" />
     </QueryClientProvider>,
   );
   expect(await screen.findByText("Starting…")).toBeVisible();

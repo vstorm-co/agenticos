@@ -138,13 +138,12 @@ describe("useTriggers", () => {
     const { toast } = await import("sonner");
     vi.mocked(apiClient.post).mockResolvedValue({
       ...trigger(),
-      previous_run_id: null,
-      previous_attempt_id: null,
+      activation_id: "requested-fire",
     });
     const result = await hook();
 
     const pending = await result.current.runNow.mutateAsync("t1");
-    expect(pending).toEqual({ previousRunId: null, previousAttemptId: null });
+    expect(pending.activation_id).toBe("requested-fire");
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers/t1/run", {});
     expect(toast.success).toHaveBeenCalledWith("Running now");

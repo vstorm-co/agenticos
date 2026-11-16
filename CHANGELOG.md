@@ -19,15 +19,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-### Fixed
+### Added
 
-- Routine access reviews refresh their sources and action inventories after a personal or organization MCP connection is changed or checked, without reloading the console (#3061).
-- Routine history clears the starting placeholder when the requested run appears, including runs already waiting for approval or finished before the first refresh. Older runs do not hide a new dispatch, and history identities keep the pending state independent of browser/server clock differences (#3063). Waiting-for-answer runs have a translated status in every console language (#3064).
-- Preserve the cadence and run estimates of stored cron schedules by keeping croniter below 7 until its changed expression semantics can be migrated (#3067).
+- Configure API webhook signature formats and headers in the routine editor, and find Linear webhooks from the event picker.
 
 ### Changed
 
 - Update compatible backend runtime, sandbox, parsing, documentation and test dependencies from #3058, and refresh their third-party notices.
+- Update FastAPI, Logfire and Pydantic AI Skills, with refreshed third-party notices (#3043).
+
+### Fixed
+
+- Routine access reviews refresh their sources and action inventories after a personal or organization MCP connection is changed or checked, without reloading the console (#3061).
+- Routine history clears the starting placeholder when the requested run appears, including runs already waiting for approval or finished before the first refresh. Older runs do not hide a new dispatch, and the exact queued activation keeps polling independent of concurrent fires and browser/server clock differences (#3063). Waiting-for-answer runs have a translated status in every console language (#3064).
+- Run now returns an explicit conflict when no job or durable refusal can be recorded, instead of acknowledging work that will never run (#3069).
+- Preserve the cadence and run estimates of stored cron schedules by keeping croniter below 7 until its changed expression semantics can be migrated (#3067).
+- Choosing an improvement helper requires view access as well as run access. Missing or inaccessible helpers return 404 before their settings are read (#2685).
 
 ## [1.78.0] - 2026-11-16
 

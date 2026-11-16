@@ -176,16 +176,15 @@ async def run_trigger_now(
 
     202, not 200: the fire is dispatched once this request commits rather than run
     inside it, so the trigger comes back as it stands and its `last_run_id` still
-    names a previous finished or parked run (#658). `previous_run_id` and
-    `previous_attempt_id` identify the latest history before dispatch, including
-    a run that is still running. Compare identities to recognize new history;
-    client and worker clocks need not agree.
+    names a previous finished or parked run (#658). `activation_id` identifies
+    this specific fire: its run records it as `routine_activation_id`, or its
+    before-run attempt records it as `activation_id`. Other concurrent fires
+    cannot settle this dispatch, and client and worker clocks need not agree.
     """
     accepted = await service.run_now(ctx, agent_id, trigger_id)
     return TriggerDispatchRead(
         **TriggerRead.model_validate(accepted.trigger).model_dump(),
-        previous_run_id=accepted.previous_run_id,
-        previous_attempt_id=accepted.previous_attempt_id,
+        activation_id=accepted.activation_id,
     )
 
 
