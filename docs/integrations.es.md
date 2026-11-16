@@ -1,5 +1,5 @@
 ---
-source_sha: "290558fad076"
+source_sha: "6898de96508a"
 ---
 
 # Integraciones incorporadas { #built-in-integrations }
@@ -89,6 +89,19 @@ Consulte [capabilities](reference/capabilities.md), [triggers](triggers.md), [go
 Asigne una etiqueta como Trabajo al conectar; use la misma etiqueta para la cuenta correspondiente de cada persona.
 
 Los triggers nativos creados mediante API requieren `connection_id`. Las modificaciones de filtros vuelven a comprobar la cuenta, permisos y conversaciones seleccionadas. Cada selección distinta de conversaciones Slack/Teams conserva su propio cursor y solo alimenta sus triggers asociados; una selección admite hasta 20 conversaciones.
+
+## Conexión sin navegador { #connect-without-a-browser }
+
+IMAP y Odoo se pueden conectar mediante la API HTTP. Copie la [plantilla IMAP](assets/setup/imap-account.example.json) u [Odoo](assets/setup/odoo-account.example.json) y la [plantilla de autenticación curl](assets/setup/agenticos-auth.example.conf) fuera del repositorio. Sustituya todos los ejemplos por la cuenta de prueba autorizada y un [token de acceso AgenticOS](api.md). Restrinja ambos archivos al operador (`chmod 600 account.json auth.conf`); nunca guarde credenciales reales en git. Las plantillas no contienen credenciales válidas.
+
+Añada el host IMAP exacto a `MIRAGE_ALLOWED_HOSTS` o el host Odoo a `ODOO_ALLOWED_HOSTS` del backend, conservando las entradas existentes. IMAP utiliza TLS verificado; Odoo requiere HTTPS y JSON-2 de la versión 19 o posterior. Envíe la solicitud a su despliegue AgenticOS:
+
+```bash
+curl --fail-with-body --config auth.conf --json @account.json \
+  https://agenticos.example.com/api/v1/me/connected-accounts/imap
+```
+
+Para Odoo, cambie el final de la ruta a `/odoo`; la plantilla mantiene desactivada la escritura. Las cuentas de organización usan `/api/v1/connected-accounts/imap` u `/odoo`; el usuario necesita `mcp:manage`. Una respuesta correcta devuelve el ID de conexión, no las credenciales. Para reconectar, añada `connection_id`. Corrija cualquier host rechazado o credencial inválida antes de usar la cuenta. Las plantillas y pruebas locales no acreditan una conexión real con el proveedor.
 
 ## Odoo { #odoo }
 

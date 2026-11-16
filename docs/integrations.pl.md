@@ -1,5 +1,5 @@
 ---
-source_sha: "290558fad076"
+source_sha: "6898de96508a"
 ---
 
 # Wbudowane integracje { #built-in-integrations }
@@ -89,6 +89,19 @@ Zobacz [capabilities](reference/capabilities.md), [triggery](triggers.md), [zarz
 Przy łączeniu nadaj etykietę, np. Praca; używaj tej samej etykiety dla odpowiedniego konta każdej osoby.
 
 Tworząc natywny trigger przez API, podaj `connection_id`. Edycja filtrów ponownie sprawdza konto, uprawnienia i wybór rozmów. Każdy odrębny wybór rozmów Slack/Teams ma własny kursor i zasila tylko powiązane triggery; jeden wybór może zawierać do 20 rozmów.
+
+## Połączenie bez przeglądarki { #connect-without-a-browser }
+
+IMAP i Odoo można podłączyć przez HTTP API. Skopiuj [dane żądania IMAP](assets/setup/imap-account.example.json) lub [Odoo](assets/setup/odoo-account.example.json) oraz [szablon uwierzytelnienia curl](assets/setup/agenticos-auth.example.conf) poza repozytorium. Zastąp wszystkie przykładowe wartości zatwierdzonym kontem testowym i [tokenem dostępu AgenticOS](api.md). Ogranicz dostęp do obu plików do operatora (`chmod 600 account.json auth.conf`); nigdy nie commituj uzupełnionych credentials. Szablony nie zawierają działających danych dostępowych.
+
+Dodaj dokładny host IMAP do backendowego `MIRAGE_ALLOWED_HOSTS` albo host Odoo do `ODOO_ALLOWED_HOSTS`, zachowując istniejące wpisy. IMAP używa zweryfikowanego TLS; Odoo wymaga HTTPS i JSON-2 w wersji 19+. Wyślij żądanie do swojego wdrożenia AgenticOS:
+
+```bash
+curl --fail-with-body --config auth.conf --json @account.json \
+  https://agenticos.example.com/api/v1/me/connected-accounts/imap
+```
+
+Dla Odoo zmień końcówkę ścieżki na `/odoo`; szablon pozostawia zapis wyłączony. Konto organizacji korzysta z `/api/v1/connected-accounts/imap` albo `/odoo`; wywołujący potrzebuje `mcp:manage`. Sukces zwraca identyfikator połączenia, nie credentials. Aby odnowić istniejące połączenie, dodaj `connection_id` do żądania. Odrzucony host lub niepoprawne credentials trzeba poprawić przed użyciem konta. Szablony i testy lokalne nie potwierdzają połączenia z prawdziwą usługą.
 
 ## Odoo { #odoo }
 

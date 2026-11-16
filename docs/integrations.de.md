@@ -1,5 +1,5 @@
 ---
-source_sha: "290558fad076"
+source_sha: "6898de96508a"
 ---
 
 # Integrierte Integrationen { #built-in-integrations }
@@ -89,6 +89,19 @@ Siehe [Capabilities](reference/capabilities.md), [Trigger](triggers.md), [Govern
 Vergeben Sie beim Verbinden ein Label wie Arbeit; verwenden Sie es für das entsprechende Konto jeder Person.
 
 Native Trigger benötigen beim Erstellen über die API `connection_id`. Filteränderungen prüfen Konto, Rechte und Gesprächsauswahl erneut. Jede eigene Slack-/Teams-Gesprächsauswahl hat einen eigenen Cursor und versorgt nur die zugehörigen Trigger; eine Auswahl kann bis zu 20 Gespräche umfassen.
+
+## Verbindung ohne Browser { #connect-without-a-browser }
+
+IMAP und Odoo lassen sich über die HTTP-API verbinden. Kopieren Sie die [IMAP-Vorlage](assets/setup/imap-account.example.json) oder [Odoo-Vorlage](assets/setup/odoo-account.example.json) und die [curl-Authentifizierungsvorlage](assets/setup/agenticos-auth.example.conf) außerhalb des Repositorys. Ersetzen Sie alle Beispielwerte durch das genehmigte Testkonto und ein [AgenticOS-Zugriffstoken](api.md). Beschränken Sie den Zugriff auf beide Dateien auf den Betreiber (`chmod 600 account.json auth.conf`); committen Sie keine ausgefüllten Zugangsdaten. Die Vorlagen enthalten keine gültigen Zugangsdaten.
+
+Ergänzen Sie den genauen IMAP-Host in `MIRAGE_ALLOWED_HOSTS` oder den Odoo-Host in `ODOO_ALLOWED_HOSTS` im Backend, ohne vorhandene Einträge zu entfernen. IMAP nutzt geprüftes TLS; Odoo benötigt HTTPS und JSON-2 ab Version 19. Senden Sie die Anfrage an Ihre AgenticOS-Instanz:
+
+```bash
+curl --fail-with-body --config auth.conf --json @account.json \
+  https://agenticos.example.com/api/v1/me/connected-accounts/imap
+```
+
+Für Odoo endet der Pfad auf `/odoo`; Schreibzugriff bleibt in der Vorlage ausgeschaltet. Organisationskonten verwenden `/api/v1/connected-accounts/imap` oder `/odoo`; der Aufrufer benötigt `mcp:manage`. Eine erfolgreiche Antwort enthält die Verbindungs-ID, keine Zugangsdaten. Für eine erneute Verbindung ergänzen Sie `connection_id`. Abgelehnte Hosts oder ungültige Zugangsdaten müssen vor der Nutzung korrigiert werden. Vorlagen und lokale Tests belegen keine Verbindung zu einem echten Dienst.
 
 ## Odoo { #odoo }
 

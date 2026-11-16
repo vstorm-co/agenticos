@@ -86,6 +86,19 @@ Set a label such as Work when connecting; use the same label for each person’s
 
 Native triggers created through the API require `connection_id`. Filter edits recheck the account, permissions and conversation selection. Each distinct Slack/Teams conversation selection keeps its own cursor and only feeds its associated triggers; one selection can contain up to 20 conversations.
 
+## Connect without a browser
+
+IMAP and Odoo can be connected through the HTTP API. Copy the [IMAP payload](assets/setup/imap-account.example.json) or [Odoo payload](assets/setup/odoo-account.example.json) and [curl authentication template](assets/setup/agenticos-auth.example.conf) outside the repository. Replace every example value with the authorized test account and an [AgenticOS access token](api.md). Restrict both local files to the operator (`chmod 600 account.json auth.conf`); never commit filled credentials. The templates contain no working credentials.
+
+Allow the exact IMAP host in backend `MIRAGE_ALLOWED_HOSTS`, or the Odoo host in `ODOO_ALLOWED_HOSTS`, preserving existing entries. IMAP uses verified TLS; Odoo requires HTTPS and version 19+ JSON-2. Run the request against your AgenticOS deployment:
+
+```bash
+curl --fail-with-body --config auth.conf --json @account.json \
+  https://agenticos.example.com/api/v1/me/connected-accounts/imap
+```
+
+For Odoo, change the final path to `/odoo`; the template keeps write access off. For an organization account, use `/api/v1/connected-accounts/imap` or `/odoo` instead; the caller needs `mcp:manage`. Success returns the connection ID, not its credentials. Reconnect in place by adding `connection_id` to the payload. A refused hostname or invalid credential must be repaired before the account is usable. Templates and local tests do not establish a live connection.
+
 ## Odoo
 
 Connect Odoo 19+ through JSON-2 with the HTTPS origin, database name and a business user's API key. The operator must list the exact host in `ODOO_ALLOWED_HOSTS`; paths, redirects and custom ports are refused. Odoo Online requires a Custom plan for external API access. Install the business modules you intend to use and restrict the user's Odoo ACLs and record rules. Keys expire: rotate them and reconnect the account. Write access is opt-in and every agent write still needs approval.

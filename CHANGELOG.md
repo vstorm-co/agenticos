@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Connect IMAP and Odoo without the console using documented API requests and
+  credential-free payload templates for personal or organization accounts.
+
 - Register channel bots from a terminal with a hidden token prompt, a protected
   token file or stdin; existing `--token` arguments remain supported.
 
