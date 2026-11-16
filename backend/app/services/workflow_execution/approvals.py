@@ -45,7 +45,10 @@ from app.schemas.workflow_approval import (
 )
 from app.services import text_similarity
 from app.services.workflow_execution import dispatch_queue
-from app.services.workflow_execution.approval_audience import group_approvers
+from app.services.workflow_execution.approval_audience import (
+    group_approvers,
+    groups_deciding_through,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -111,12 +114,22 @@ class WorkflowApprovalService:
         created_from: datetime | None = None,
         created_to: datetime | None = None,
         oldest_first: bool = True,
+        decidable: bool = False,
     ) -> WorkflowApprovalList:
         """The organization's requests in `statuses` - pending when none.
 
         Oldest first, as the queue drains; newest first reads the record of
         decisions. `created_from` and `created_to` narrow it to a window.
+        `decidable` keeps only the requests the caller may decide, and `total`
+        then counts those across every page. The database applies it to the
+        page and the count alike, with the caller's groups read once, because
+        the console polls this for every decider.
         """
+        my_groups: set[str] = set()
+        if decidable:
+            my_groups = await groups_deciding_through(
+                self.db, organization_id=ctx.organization_id, user_id=ctx.subject_id
+            )
         rows, total = await approval_repo.list_with_workflow(
             self.db,
             organization_id=ctx.organization_id,
@@ -126,8 +139,13 @@ class WorkflowApprovalService:
             created_from=created_from,
             created_to=created_to,
             oldest_first=oldest_first,
+            decidable_by=ctx.subject_id if decidable else None,
+            through_groups=my_groups,
         )
-        items = [_read(row, name, can_decide=await self._eligible(ctx, row)) for row, name in rows]
+        items = [
+            _read(row, name, can_decide=decidable or await self._eligible(ctx, row))
+            for row, name in rows
+        ]
         return WorkflowApprovalList(items=items, total=total)
 
     async def _eligible(self, ctx: AuthContext, approval: WorkflowApproval) -> bool:

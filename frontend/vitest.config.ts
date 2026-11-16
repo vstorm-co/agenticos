@@ -164,6 +164,8 @@ export default defineConfig({
         // The offline strip in the apps (#2097).
         "src/components/layout/offline-banner.tsx",
         "src/components/layout/notification-glyph.tsx",
+        // Dates in the reader's own zone rather than the server's.
+        "src/components/layout/browser-time-zone.tsx",
         "src/components/chat/project-chip.tsx",
         "src/components/chat/chat-room-bar.tsx",
         "src/components/chat/typing-indicator.tsx",
@@ -206,6 +208,7 @@ export default defineConfig({
         "src/components/teams/org-proactivity.tsx",
         "src/components/inbox/inbox-page.tsx",
         "src/components/inbox/suggestion-rows.tsx",
+        "src/components/inbox/approvals-waiting.tsx",
         "src/components/chat/turn-extras.tsx",
         "src/components/chat/turn-files.tsx",
         "src/components/chat/turn-shortcuts.tsx",

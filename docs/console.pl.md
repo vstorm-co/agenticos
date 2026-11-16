@@ -1,5 +1,5 @@
 ---
-source_sha: "68bc1f6dcd69"
+source_sha: "2225d063f6ba"
 ---
 
 # Konsola { #the-console }
@@ -875,7 +875,7 @@ Aby spróbować innego podejścia albo zająć się pobocznym pytaniem tam, gdzi
 
 Rozgałęzić rozmowę może tylko jej właściciel: osoba, której ją udostępniono do podglądu lub edycji, nie ma tej akcji. Rozgałęzienie kopiuje wiadomości i wywołania narzędzi, ale nie pliki załączników, pliki zapisane przez agenta w workspace, obrazy wygenerowane przez agentów, koszt ani rekordy runów. Agent nadal zna tekst załącznika, ale rozgałęzienie nie pokazuje jego karty; obraz wygenerowany przez agenta należy do oryginału i przestaje się wczytywać, gdy oryginał zostanie usunięty. Dopóki run w tej historii wciąż pisze albo czeka na zatwierdzenie lub odpowiedź na pytanie, rozmowy nie da się rozgałęzić.
 
-Na górze rozgałęzienia widać **Rozgałęzienie rozmowy** z linkiem do oryginału. Tę linię widzisz tylko ty: jeśli udostępnisz rozgałęzienie, odbiorca zobaczy zwykłą rozmowę.
+Na górze rozgałęzienia widać **Rozgałęzienie rozmowy** z linkiem do oryginału, a na liście rozmów znak rozgałęzienia przed tytułem podaje nazwę oryginału. Oba widzisz tylko ty: jeśli udostępnisz rozgałęzienie, odbiorca zobaczy zwykłą rozmowę.
 
 Rozgałęzienie może obejmować najwyżej 2000 wiadomości, 10 000 wywołań narzędzi i 20 MiB kopiowanego tekstu oraz danych strukturalnych. Limit wynosi dziesięć żądań na minutę na członka i organizację. Aktualizowana rozmowa może chwilowo odmówić rozgałęzienia; spróbuj ponownie po zakończeniu aktualizacji. Historię przekraczającą limit trzeba skrócić przed skopiowaniem.
 
@@ -1061,13 +1061,13 @@ Lista organizacji w administracji pokazuje wgrane zdjęcie albo inicjały w wybr
 
 ## Pierwsze zadanie { #your-first-task }
 
-W nowym workspace domyślnie wybrany jest dostarczony **AgenticOS**, również przed publikacją, chyba że wybierzesz innego domyślnego agenta. Po pierwszej wiadomości może wyjaśnić konfigurację modelu i pokazać kartę ustawień bez wykonywania draftu ani wywoływania dostawcy AI. Odpowiedź i karta pozostają w historii czatu. Osoby z uprawnieniami konfiguracji otwierają ustawienia modelu agenta; pozostali członkowie widzą wskazówkę dotyczącą administratora i kontakt wsparcia instancji, jeśli został podany. Wybierz model, dodaj klucz, jeśli jest wymagany, i opublikuj agenta, aby uruchomić zwykłe odpowiedzi AI. Zwykłe drafty i zarchiwizowani agenci nadal nie mogą być wykonywani.
+W nowej organizacji domyślnie wybrany jest dostarczony **AgenticOS**, również przed publikacją, chyba że wybierzesz innego domyślnego agenta. Po pierwszej wiadomości może wyjaśnić konfigurację modelu i pokazać kartę ustawień bez wykonywania draftu ani wywoływania dostawcy AI. Odpowiedź i karta pozostają w historii czatu. Osoby z uprawnieniami konfiguracji otwierają ustawienia modelu agenta; pozostali członkowie widzą wskazówkę dotyczącą administratora i kontakt wsparcia instancji, jeśli został podany. Wybierz model, dodaj klucz, jeśli jest wymagany, i opublikuj agenta, aby uruchomić zwykłe odpowiedzi AI. Zwykłe drafty i zarchiwizowani agenci nadal nie mogą być wykonywani.
 
-Gdy nie ma dostępnego opublikowanego agenta, onboarding pozwala też otworzyć rozmowę konfiguracyjną z dostępnym draftem dostarczonego AgenticOS. Członek organizacji nie potrzebuje do tego uprawnień do modeli; otrzymuje wskazówki konfiguracyjne, a nie wynik zadania AI. Niedostępne drafty pozostają zablokowane, a dostępny opublikowany agent ma pierwszeństwo.
+Gdy nie ma dostępnego opublikowanego agenta, onboarding proponuje osobie, która może przygotować agenta, **Połącz model**: wybór modelu i przygotowanie agenta. Pozostałym pozwala otworzyć rozmowę konfiguracyjną z dostępnym draftem dostarczonego AgenticOS. Członek organizacji nie potrzebuje do tego uprawnień do modeli; otrzymuje wskazówki konfiguracyjne, a nie wynik zadania AI. Niedostępne drafty pozostają zablokowane, a dostępny opublikowany agent ma pierwszeństwo.
 
 Zamknięcie banera startowego lub wybranie **Ukryj na 24 godziny** wycisza propozycję na 24
 godziny według czasu serwera. Potem może wrócić, jeśli konfiguracja nie została ukończona,
-a workspace nadal wymaga pierwszego startu. Po przejściu pytań **Zakończ konfigurację i
+a organizacja nadal wymaga pierwszego startu. Po przejściu pytań **Zakończ konfigurację i
 otwórz aplikację** zapisuje ukończenie dla tego członkostwa. Opcjonalne pola, zaproszenia,
 model, agent ani run AI nie są wymagane. Ukończenie onboardingu i udane zadanie to osobne
 stany.
@@ -1084,13 +1084,13 @@ Start uwzględnia uprawnienia osoby i jej dotychczasową pracę:
 | Osoba | Prowadzony start |
 | --- | --- |
 | Administrator aplikacji | Utworzenie lub wybór firmy, tożsamość i zaproszenia, następnie zasady dołączania przyszłych kont. |
-| Administrator organizacji | Przygotowanie workspace’u i jego limitu wydatków, bez ustawień wdrożenia. |
+| Administrator organizacji | Przygotowanie organizacji i jej limitu wydatków, bez ustawień wdrożenia. |
 | Nowe konto członka | Powitanie, opcjonalny profil osobisty i kontekst pracy, potem pierwsze zadanie. |
-| Istniejące konto dołączające do kolejnej organizacji | Powitanie w tym workspace, użycie zapisanego profilu lub jego świadomy przegląd. |
+| Istniejące konto dołączające do kolejnej organizacji | Powitanie w tej organizacji, użycie zapisanego profilu lub jego świadomy przegląd. |
 
 Przewodnik AgenticOS objaśnia każdą decyzję przygotowanymi wiadomościami interfejsu.
 Nie są odpowiedziami modelu i nie wywołują AI. Profil i kontekst pracy są wspólne dla
-workspace’ów konta. Dane opcjonalne można pominąć. **Zapisz i kontynuuj** prowadzi
+organizacji konta. Dane opcjonalne można pominąć. **Zapisz i kontynuuj** prowadzi
 dalej po udanym zapisie; błąd zapisu pozostawia bieżące pytanie.
 
 Konfiguracja wdrożenia pyta o rejestrację, miejsce startu przyszłych kont i opcjonalny
@@ -1106,7 +1106,7 @@ a zero ostrzega o możliwej blokadzie runów. To limit rejestrowanego zużycia, 
 abonament ani doładowanie. Zaawansowane zatwierdzenia, asystenci i głos pozostają
 zwinięte oraz zachowują swoje uprawnienia i sposób zapisu.
 
-Adres URL zachowuje krok, pytanie konfiguracji i workspace po odświeżeniu. Nie przechowuje
+Adres URL zachowuje krok, pytanie konfiguracji i organizację po odświeżeniu. Nie przechowuje
 niezapisanych zmian, nie nadaje dostępu i nie oznacza ukończenia. Zmiana organizacji
 lub odebranie uprawnień uniemożliwiają wznowienie uprzywilejowanego kroku. Zakończenie
 ostatniego etapu zapisuje ukończenie na członkostwie także przy pominięciu pól i AI.

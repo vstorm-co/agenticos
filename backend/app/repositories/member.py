@@ -331,8 +331,10 @@ async def list_member_ids_by_role(
     *,
     organization_id: UUID,
     roles: list[str],
+    with_app_admins: bool = False,
 ) -> list[UUID]:
-    """User ids of the members holding one of `roles`.
+    """User ids of the members holding one of `roles`, and the app admins among
+    the members when `with_app_admins` asks for them.
 
     Identity only, no preference filter (#1598): a notification write happens
     once per resolved *person*, and a channel's preference is applied
@@ -343,7 +345,9 @@ async def list_member_ids_by_role(
         .join(OrganizationMember, OrganizationMember.user_id == User.id)
         .where(
             OrganizationMember.organization_id == organization_id,
-            OrganizationMember.role.in_(roles),
+            or_(OrganizationMember.role.in_(roles), User.is_app_admin.is_(True))
+            if with_app_admins
+            else OrganizationMember.role.in_(roles),
             User.is_active.is_(True),
         )
     )
