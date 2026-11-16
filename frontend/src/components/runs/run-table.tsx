@@ -1,13 +1,16 @@
 "use client";
+import { cn } from "@/lib/utils";
 
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
+import { formatUsd } from "@/components/dashboard/format";
 import { ThumbsDown } from "lucide-react";
 import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RunStatusBadge } from "@/components/agents/status-badge";
 import { displayName, type IdentifiedMember } from "@/components/orgs/member-identity";
+import { RunSourceTag } from "@/components/runs/run-source";
 import { ModalityBadge, SurfaceIcon, surfaceLabel } from "@/components/runs/surface-icon";
 import { clock } from "@/lib/voice/clock";
 import { ProviderIcon } from "@/components/vault/provider-icon";
@@ -20,6 +23,9 @@ import type { AgentRun } from "@/types/runs";
 
 /** The orders `GET /runs` offers, matching `RunOrder` on the backend. */
 export type RunSortKey = "started_at" | "duration" | "cost" | "tokens";
+export type RunDetailColumn = "user" | "surface" | "model" | "tokens";
+const DETAIL_COLUMNS: ReadonlySet<string> = new Set(["user", "surface", "model", "tokens"]);
+
 export interface RunSort {
   by: RunSortKey;
   dir: "asc" | "desc";
@@ -53,8 +59,11 @@ export function RunTable({
   fillHeight,
   agentsById,
   membersById,
+  detailColumns,
 }: {
   runs: AgentRun[];
+  /** Omit for all metadata, or choose the detail columns shown beside the essentials. */
+  detailColumns?: readonly RunDetailColumn[];
   sort?: RunSort;
   onSort?: (sort: RunSort) => void;
   /** Opens a row's detail. Given, every row becomes clickable; a delegations
@@ -83,8 +92,53 @@ export function RunTable({
   const meId = useAuthStore((state) => state.user?.id ?? null);
   const sortable = sort !== undefined && onSort !== undefined;
 
+  const personLabel = (run: AgentRun) => {
+    const chat = run.asked_in_chat;
+    if (chat) {
+      const description = t(chat.bot_name ? "askedInChatThrough" : "askedInChat", {
+        platform: surfaceLabel(chat.platform, t),
+        name: chat.name,
+        bot: chat.bot_name ?? "",
+      });
+      return (
+        <span className="flex min-w-0 items-center gap-1.5 text-xs" title={description}>
+          <SurfaceIcon surface={chat.platform} />
+          <span className="max-w-[10rem] truncate">{chat.name}</span>
+          <Badge variant="outline" className="shrink-0">
+            {t("unverifiedSender")}
+          </Badge>
+        </span>
+      );
+    }
+    if (run.initiated_by_publisher_fallback) {
+      return <span className="text-muted-foreground text-xs">{t("anonymousRequester")}</span>;
+    }
+    const member = run.user_id === null ? undefined : membersById?.get(run.user_id);
+    if (member === undefined) return <span className="text-muted-foreground text-xs">-</span>;
+    return (
+      <span className="flex items-center gap-2 text-xs whitespace-nowrap">
+        <EntityAvatar
+          seed={member.user_id}
+          name={member.full_name || member.email}
+          imageSrc={`/api/users/avatar/${member.user_id}`}
+          className="h-5 w-5 shrink-0 text-[9px]"
+          ariaHidden
+        />
+        <span className="max-w-[10rem] truncate" title={displayName(member)}>
+          {displayName(member)}
+        </span>
+      </span>
+    );
+  };
+  const hasPeople =
+    membersById !== undefined ||
+    runs.some((run) => run.asked_in_chat || run.initiated_by_publisher_fallback);
+
   /** The agent's face and name, or nothing when the reader cannot resolve it. */
   const agentLabel = (run: AgentRun) => {
+    if (run.system_role === "channel_decision") {
+      return <span className="truncate italic">{t("systemRoleChannelDecision")}</span>;
+    }
     // Work a platform role did is named for the role, not for the starter agent it is
     // recorded under: that agent's instructions never ran (#2575).
     if (run.system_role === "daily_briefing" || run.system_role === "memory_maintenance") {
@@ -95,7 +149,14 @@ export function RunTable({
       );
     }
     const agent = agentsById?.get(run.agent_id);
-    if (agent === undefined) return null;
+    if (agent === undefined) {
+      // A platform agent - the judge, the assistant - is in no agent list.
+      return run.origin ? (
+        <span className="truncate" title={run.origin.agent_name}>
+          {run.origin.agent_name}
+        </span>
+      ) : null;
+    }
     return (
       <>
         <span aria-hidden>
@@ -148,6 +209,11 @@ export function RunTable({
                 : t("delegatedTask", { taskId: run.subagent_task_id })}
             </Badge>
           )}
+          {(run.asked_in_chat || run.initiated_by_publisher_fallback) && (
+            <span className="block max-w-[calc(100vw-10rem)] min-w-0 sm:hidden">
+              {personLabel(run)}
+            </span>
+          )}
           {/* On a phone the row is this cell and the cost: who ran and when,
               folded under the status rather than six columns swiped sideways.
               Bounded by the screen, or a long agent name widens the column and
@@ -185,32 +251,13 @@ export function RunTable({
           },
         ] as Column<AgentRun>[])
       : []),
-    ...(membersById !== undefined
+    ...(hasPeople
       ? ([
           {
             key: "user",
             hideBelow: "sm",
-            header: t("personColumn"),
-            cell: (run) => {
-              const member = run.user_id === null ? undefined : membersById.get(run.user_id);
-              if (member === undefined) {
-                return <span className="text-muted-foreground text-xs">-</span>;
-              }
-              return (
-                <span className="flex items-center gap-2 text-xs whitespace-nowrap">
-                  <EntityAvatar
-                    seed={member.user_id}
-                    name={member.full_name || member.email}
-                    imageSrc={`/api/users/avatar/${member.user_id}`}
-                    className="h-5 w-5 shrink-0 text-[9px]"
-                    ariaHidden
-                  />
-                  <span className="max-w-[10rem] truncate" title={displayName(member)}>
-                    {displayName(member)}
-                  </span>
-                </span>
-              );
-            },
+            header: t("askedByColumn"),
+            cell: personLabel,
           },
         ] as Column<AgentRun>[])
       : []),
@@ -219,14 +266,29 @@ export function RunTable({
       hideBelow: "sm",
       header: t("surface"),
       // The mark and the name together: the mark is what makes a column of
-      // fifty rows scannable, the name is what a screen reader hears.
-      cell: (run) => (
-        <span className="text-muted-foreground flex items-center gap-1.5 whitespace-nowrap">
-          <SurfaceIcon surface={run.surface} />
-          {surfaceLabel(run.surface, t)}
-          <ModalityBadge modality={run.modality} />
-        </span>
-      ),
+      // fifty rows scannable, the name is what a screen reader hears. Under
+      // them, what the run was asked - which is how a run is found again to
+      // become a dataset case.
+      cell: (run) => {
+        const asked =
+          run.preview &&
+          (run.eval_case?.graded ? t("grading", { input: run.preview }) : run.preview);
+        return (
+          <span className="text-muted-foreground block">
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+              <SurfaceIcon surface={run.surface} />
+              {surfaceLabel(run.surface, t)}
+              <ModalityBadge modality={run.modality} />
+            </span>
+            <RunSourceTag run={run} />
+            {asked && (
+              <span className="block max-w-56 truncate text-xs" title={asked}>
+                {asked}
+              </span>
+            )}
+          </span>
+        );
+      },
     },
     {
       key: "model",
@@ -270,7 +332,7 @@ export function RunTable({
       // A call is one row (#54): its reconnects' runs are summed into it.
       cell: (run) => (
         <span className="font-mono text-xs whitespace-nowrap">
-          ${Number(run.voice_chain?.cost_usd ?? run.cost_usd).toFixed(4)}
+          {formatUsd(run.voice_chain?.cost_usd ?? run.cost_usd, locale, 4)}
           {run.cost_is_partial && (
             <span className="text-muted-foreground" title={t("modelRunHadNo")}>
               {" +"}
@@ -300,7 +362,7 @@ export function RunTable({
           </span>
         ) : (
           <span className="text-muted-foreground font-mono text-xs whitespace-nowrap">
-            {formatRunDuration(run.started_at, run.ended_at)}
+            {formatRunDuration(run.started_at, run.ended_at, locale)}
           </span>
         ),
     },
@@ -335,7 +397,10 @@ export function RunTable({
       // lists its owner's threads, so anybody else's link would land on an
       // empty sidebar dressed as the conversation.
       cell: (run) =>
-        run.conversation_id !== null && run.user_id !== null && run.user_id === meId ? (
+        run.conversation_id !== null &&
+        !run.initiated_by_publisher_fallback &&
+        run.user_id !== null &&
+        run.user_id === meId ? (
           <Link
             href={`${ROUTES.CHAT}?id=${run.conversation_id}`}
             aria-label={t("openTheChatBehind")}
@@ -353,7 +418,14 @@ export function RunTable({
 
   return (
     <DataTable<AgentRun>
-      columns={columns}
+      columns={
+        detailColumns === undefined
+          ? columns
+          : columns.filter(
+              (column) =>
+                !DETAIL_COLUMNS.has(column.key) || detailColumns.some((key) => key === column.key),
+            )
+      }
       rows={runs}
       getRowKey={(run) => run.id}
       sort={sort}
@@ -365,7 +437,10 @@ export function RunTable({
       fillHeight={fillHeight}
       // Wide enough for every column from the small breakpoint up; a phone
       // shows two columns and needs no floor.
-      className="rounded-none border-0 bg-transparent sm:[&_table]:min-w-[46rem]"
+      className={cn(
+        "rounded-none border-0 bg-transparent",
+        detailColumns === undefined && "sm:[&_table]:min-w-[46rem]",
+      )}
     />
   );
 }

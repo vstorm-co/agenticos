@@ -1,5 +1,5 @@
 ---
-source_sha: "e026fdc8417b"
+source_sha: "321e44fc604c"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -7,14 +7,6 @@ source_sha: "e026fdc8417b"
 Ten dokument opisuje, jak traktowane są pliki w dwóch kontekstach: uploady
 plików w czacie, które należą do osoby, która je zrobiła, oraz ingestia
 dokumentów RAG, która należy do kolekcji i jest uzależniona od tego,
-Usunięcie bazy odłącza i dezaktywuje dokładnie te źródła synchronizacji, które ją
-zapisują, niezależnie od tego, kto jeszcze ma tę nazwę. Zachowują konfigurację
-konektora, ale przed kolejną synchronizacją wymagają jawnego przypisania i ponownej
-aktywacji; inna baza o tej samej nazwie ich nie przejmuje. Czyszczenie domyślnej bazy też
-odłącza i dezaktywuje jej źródła: jej wiersz zostaje, ale źródło pozostawione na niej
-zsynchronizowałoby usuniętą treść z powrotem. Ingest z CLI odrzuca nazwę zarezerwowaną
-przez oczekujące usunięcie, dopóki cleanup jej nie zwolni.
-
 [kto może do niej sięgnąć](#who-may-reach-a-collection).
 
 ## Uploady plików w czacie { #chat-file-uploads }
@@ -380,6 +372,13 @@ media/
 domyślnie SSE-S3, a SSE-KMS kluczem, który nazywa wdrożenie. Ustawienia znajdziesz
 w [konfiguracji](configuration.md#uploaded-files-at-rest).
 
+Ingest bazy wiedzy przy lokalnym storage nadal wymaga współdzielenia
+`MEDIA_DIR/_rag_tmp` przez API i worker. Przy S3 każde wykonanie workera pobiera
+własny zapisany obiekt i usuwa kopię tymczasową po zakończeniu, błędzie parsera
+lub anulowaniu. Pody nie współdzielą dysku tymczasowego API; zobacz
+[wdrożenie Kubernetes](kubernetes.md). Zabite dziecko może pozostawić kopię do
+momentu wymiany poda.
+
 !!! info "Który backend uruchomić i czego każdy od Ciebie wymaga"
 
     Lokalny jest uczciwą odpowiedzią dla jednego hosta: zaszyfruj wolumen, a pliki
@@ -472,6 +471,10 @@ flowchart TD
     Wiersz `RAGDocument` zapisywany jest **najpierw**, a cztery środkowe kroki
     wykonują się w zadaniu w tle z własną sesją - dlatego upload odpowiada
     `202 {"status": "processing"}`, zamiast czekać.
+
+Równoległe pierwsze zapisy do tej samej kolekcji czekają na utworzenie jej
+tabeli i indeksów w jednej transakcji. Jeśli tworzenie się nie powiedzie,
+transakcja jest wycofywana, a oczekujący zapis może utworzyć tabelę.
 
 Są dwa adresy, pod które może trafić upload —
 `POST /rag/collections/{name}/ingest` i `POST /kb/{kb_id}/documents` — i oba
@@ -886,6 +889,23 @@ Nazwa, której wywołujący nie podaje, wyprowadzana jest z nazwy wyświetlanej 
 sześciu losowych znaków szesnastkowych i jest zajmowana tą samą ścieżką, a nie
 uznawana za bezpieczną dlatego, że jest losowa.
 
+**Nie jest też wolna nazwa z treścią, której nie posiada żadna baza.** `rag-ingest`
+zapisuje wiersze śledzące i tabelę `rag_<name>` bez bazy wiedzy i bez organizacji.
+Dlatego `claim` odrzuca nazwę, której nie trzyma żadna baza, dopóki ma ona wiersze bez
+bazy opisujące chunki dowolnego tenanta poza organizacją wywołującego albo tabelę
+wektorową z takimi chunkami. Wcześniej członek z `collections:edit` mógł utworzyć bazę
+na kolekcji operatora i ją usunąć, a razem z nią chunki operatora
+([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). Nazwy trzymanej przez
+bazę to nie dotyczy: wywołujący może zapisywać każdą z tych baz, więc i tak mógłby je
+usunąć lub wyczyścić. Taką nazwę może przejąć administrator aplikacji; nieudany wiersz
+bez id wektorowego nie opisuje żadnego chunka i nazwy nie blokuje. `rag-ingest`
+przerwany w trakcie pliku zostawia wiersz `processing`, który blokuje nazwę, dopóki
+administrator aplikacji jej nie przejmie albo nie uruchomi `rag-drop <name>`.
+
+Treści, która trafia pod nazwę *po* zajęciu jej przez bazę, nie da się tu odrzucić,
+więc chroni ją rozbiórka: tabela ostatniej bazy zostaje, dopóki ma nieprzypisany chunk,
+którego ta baza nie przejmuje, jak opisano niżej przy usuwaniu bazy.
+
 **I nazwa w trakcie rozbiórki też nie jest wolna.** Usunięcie kolekcji kasuje jej
 wiersze bazy wiedzy w ramach requestu, ale fizyczną tabelę wektorów `rag_<name>`
 usuwa dopiero *po* zatwierdzeniu requestu, przekazując to trwałemu workerowi —
@@ -905,9 +925,10 @@ przy bramce `still_wanted` tuż przed zapisem wektorów, więc synchronizacja do
 wyczyszczonej kolekcji domyślnej (której wiersz czyszczenie zachowuje) zatrzymuje
 się, zamiast zapełniać tabelę, która jest właśnie usuwana (#1382). Oba są
 sprawdzeniami rezerwacji w trybie best-effort, a nie serializacją trzymaną na
-blokadzie: trzymanie blokady rozbiórki przez cały zapis zakleszczyłoby się
-z czyszczeniem organizacji, które najpierw blokuje wiersz `organizations`, więc
-zamknięcie ostatniego wąskiego okna zostawiono #1382.
+blokadzie. Zapis przypisany do bazy opiera się na nich oraz na blokadach swojej bazy
+i wiersza, a zamknięcie ostatniego wąskiego okna zostawiono #1382. Zapis chunków bez
+bazy trzyma blokadę rozbiórki do swojego zatwierdzenia, co opisano niżej przy
+rozbiórce ostatniej bazy.
 
 Rezerwacja, której usunięcie nigdy się nie wykonało — stracone przez awarię
 między zatwierdzeniem a rozesłaniem albo przez usunięcie, które zawiodło na
@@ -941,12 +962,23 @@ wypisuje ich identyfikatory; `--knowledge-base <id>` wskazuje bazę do wyczyszcz
 a tabela zostaje dla pozostałych. Tabelę i pliki usuwa worker po commicie polecenia
 (#2560).
 
+Tabela ostatniej bazy znika niezależnie od zawartości: to operator zlecił usunięcie i
+to do niego należy treść, którą usuwanie w konsoli by oszczędziło (#2747).
+
 `documents` było też kolekcją **domyślną**, więc quickstart w CLI celował kiedyś
 w tabelę śledzącą; teraz domyślną jest `default`. Baza wiedzy utworzona pod starą
 nazwą, zanim to weszło, nadal istnieje i nadal da się ją usunąć, ale nie da się
 do niej nic wciągnąć — usuń ją i utwórz nową pod inną nazwą. Nic się przy tym nie
 traci: ingestia do tamtej kolekcji nigdy się nie powiodła, bo zbudowanie indeksu
 wektorowego na tabeli bez kolumny `embedding` kończy się błędem.
+
+Usunięcie bazy odłącza i dezaktywuje dokładnie te źródła synchronizacji, które ją
+zapisują, niezależnie od tego, kto jeszcze ma tę nazwę. Zachowują konfigurację
+konektora, ale przed kolejną synchronizacją wymagają jawnego przypisania i ponownej
+aktywacji; inna baza o tej samej nazwie ich nie przejmuje. Czyszczenie domyślnej bazy też
+odłącza i dezaktywuje jej źródła: jej wiersz zostaje, ale źródło pozostawione na niej
+zsynchronizowałoby usuniętą treść z powrotem. Ingest z CLI odrzuca nazwę zarezerwowaną
+przez oczekujące usunięcie, dopóki cleanup jej nie zwolni.
 
 ### Kto może sięgnąć po kolekcję { #who-may-reach-a-collection }
 
@@ -1055,16 +1087,73 @@ zostają i pasują po swoim tenancie, a nieprzypisane wiersze dokumentów nadal 
 listowane w bazach swojego tenanta ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Gdy żadna inna baza nie ma tej nazwy, obie ścieżki i `rag-drop` usuwają te same
-wiersze, razem z ich plikami, a zadanie porządkowe usuwa tabelę: wiersze samej bazy
-i nieprzypisane wiersze jej tenanta. Dla bazy organizacji albo bazy osobistej są to
-wiersze jej organizacji, dla bazy app-scoped wiersze bez organizacji (te, które
-zapisuje `rag-ingest`), a dla bazy osobistej poza organizacją żadne.
+wiersze, razem z ich plikami: wiersze samej bazy i nieprzypisane wiersze jej tenanta.
+Dla bazy organizacji albo bazy osobistej są to wiersze jej organizacji, dla bazy
+app-scoped wiersze bez organizacji (te, które zapisuje `rag-ingest`), a dla bazy
+osobistej poza organizacją żadne.
 
+Obie ścieżki zachowują potem tabelę, jeśli ma nieprzypisany chunk, którego baza nie
+przejmuje: `rag-ingest` albo synchronizację z CLI operatora do zajętej nazwy albo
+chunk innego tenanta. Claim nie może odrzucić treści, która pojawia się po nim, a
+wywołujący nie ma do niej uprawnień. Czyszczone są tylko chunki, które baza przejmuje,
+a pozostałe wiersze pod tą nazwą zostają bez zmian.
+
+Poza bazą domyślną, która zostaje na tej nazwie, nazwa wraca do stanu, jaki zostawia
+`rag-ingest`: nie ma jej żadna baza, usuwa ją `rag-drop <name>`, a `claim` odrzuca ją
+wszystkim poza administratorem aplikacji i organizacją, której chunki są jedynymi, jakie
+zostały ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+
+Zapis chunków bez bazy trzyma nazwę do swojego zatwierdzenia, więc tabela jest
+sprawdzana dopiero po zakończeniu każdego takiego zapisu, który już trwa. Zapis, który
+dotrze do nazwy, gdy jest zarezerwowana, jest odrzucany i plik trzeba zaindeksować
+ponownie. Zadanie czyszczenia usuwa tylko zarezerwowaną nazwę, więc jego ponowne
+uruchomienie zostawia zapis wykonany po pierwszym usunięciu.
+
+Duży dokument może trzymać nazwę przez kilka sekund. Utworzenie na tej nazwie
+(`POST /kb`, `POST /rag/collections/{name}`) czeka sekundę, a potem odpowiada 409
+z prośbą o ponowienie, bo każde czekające żądanie zajmuje połączenie z bazą danych,
+a dość takich żądań odrzuca wszystkie pozostałe. Usunięcie czeka na koniec zapisu.
+
+Baza osobista poza organizacją nie przejmuje żadnego nieprzypisanego chunka, choć
+chunk wskazany przez jej własne wiersze znika razem z nią. Historyczny fragment bez
+bazy, organizacji i wiersza śledzącego ma nieznane pochodzenie. Zachowuje tabelę,
+ale **baza aplikacyjna nie może go odczytać**, nawet gdy administrator aplikacji
+przejmie nazwę ([#2773](https://github.com/vstorm-co/agenticos/issues/2773)).
+
+Baza aplikacyjna przejmuje globalne nieprzypisane fragmenty i wiersze śledzące tylko
+gdy ich `writer_kind` to `operator`. Nowe zapisy z `rag-ingest` i synchronizacji CLI
+utrwalają to pochodzenie; ingestowanie przez platformę zapisuje `document`, które
+pozostaje po usunięciu użytkownika lub bazy. Migracja
+`0300_unfiled_writer_provenance.py` nie ufa dawnym znacznikom pochodzenia, zachowuje
+pewne przypisania do dokumentów, a niejednoznaczne dane izoluje jako `legacy_unknown`.
+Odczyt nieprzypisanych danych organizacji nadal ogranicza tenant.
+
+**Po aktualizacji:** wykonaj audyt zachowanej kolekcji z powłoki serwera. Komenda
+korzysta wyłącznie z bazy danych i zwraca zagregowane liczby, bez treści dokumentów:
+
+```bash
+uv run agenticos cmd rag-unfiled-provenance <name>
+```
+
+Dopiero po sprawdzeniu źródła i potwierdzeniu, że nieznane globalne nieprzypisane dane
+są importem operatora przeznaczonym dla każdej organizacji, uruchom:
+
+```bash
+uv run agenticos cmd rag-unfiled-provenance <name> --confirm-operator
+```
+
+Wymagane jest interaktywne potwierdzenie (`--yes` zastępuje je w automatyzacji).
+Aktualizacja jest atomowa i powtarzalna; pomija fragmenty i wiersze o znanym
+pochodzeniu dokumentowym. Niepewne dane pozostaw w izolacji; ponownie zaimportuj je
+do uprawnionej bazy albo usuń istniejącą procedurą operatora `rag-drop <name>`.
+Przejęcie nazwy w konsoli nigdy nie potwierdza pochodzenia danych.
+
+W pozostałych przypadkach, a przy `rag-drop` zawsze, zadanie porządkowe usuwa tabelę.
 Nieprzypisane wiersze innego tenanta pod tą nazwą zostają, razem z plikami, bo
-wywołujący nie ma do nich uprawnień. Ich chunki znikają razem z tabelą, więc zostają
-oznaczone jako nieudane: następna baza tego tenanta o tej nazwie listuje je jako
-nieudane, przesłany dokument trzeba przesłać jeszcze raz, a synchronizacja ponownie
-indeksuje zsynchronizowany dokument.
+wywołujący nie ma do nich uprawnień. Po usunięciu tabeli nic już za nimi nie stoi, więc
+zostają oznaczone jako nieudane: następna baza tego tenanta o tej nazwie listuje je
+jako nieudane, przesłany dokument trzeba przesłać jeszcze raz, a synchronizacja
+ponownie indeksuje zsynchronizowany dokument.
 
 Wcześniej `DELETE /kb/{id}` zostawiało nieprzypisane wiersze tenanta za usuniętą
 tabelą, nadal listowane jako zaindeksowane, a usunięcie kolekcji kasowało każdy
@@ -1210,7 +1299,7 @@ prosił. Adres `NULL` nie pasuje do żadnego porównania, co jest tu odpowiedzi�
 pożądaną, a nie taką, którą trzeba obchodzić, i jest tym, co ma każdy wiersz
 zapisany przed powstaniem tej kolumny.
 
-Trzy rzeczy decydują o tym, co wycofanie może zabrać, i każdą z nich najpierw
+Cztery rzeczy decydują o tym, co wycofanie może zabrać, i każdą z nich najpierw
 zrobiono źle:
 
 - **Po adresie, nigdy po nazwie pliku.** To ta sama kolizja, którą
@@ -1218,6 +1307,12 @@ zrobiono źle:
   wektorów, osiągnięta z drugiej strony: `a/readme.md` i `b/readme.md` w jednym
   buckecie dzielą nazwę bazową, więc dopasowanie po nazwie kasuje wiersz drugiego
   pliku.
+- **W zakresie nowego wiersza, nigdy po nazwie kolekcji.** Nazwa nie jest
+  unikalna, więc dwie organizacje albo dwie bazy jednej mogą synchronizować do niej
+  tę samą ścieżkę. Wiersz przypisany do bazy wycofuje tylko wiersze, które ta baza
+  wyświetla — własne i niezaklasyfikowane wiersze swojego tenanta — a wiersz bez bazy
+  tylko wiersze bez bazy własnej organizacji
+  ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 - **`ERROR`, a nie „nie ma id wektorowego”.** To są różne zbiory, a traktowanie
   ich jako jednego to wyścig: wiersz `PROCESSING` należy do próby, która wciąż
   trwa, i przy dwóch nakładających się ingestiach jednego source'a druga

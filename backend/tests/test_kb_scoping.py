@@ -21,16 +21,29 @@ from app.worker.jobs import BasePurge
 
 
 @pytest.fixture(autouse=True)
+def _a_free_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These run on a stand-in session, which has no savepoint for the bounded wait."""
+    monkeypatch.setattr(
+        "app.services.collection_access.hold_name_within", AsyncMock(return_value=True)
+    )
+
+
+@pytest.fixture(autouse=True)
 def _no_sync_sources(monkeypatch: pytest.MonkeyPatch) -> None:
     """No connectors unless a teardown test explicitly supplies one."""
     monkeypatch.setattr("app.repositories.sync_source.get_all", AsyncMock(return_value=[]))
 
 
 @pytest.fixture(autouse=True)
-def _nothing_left_unindexed(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A last holder's teardown marks another tenant's rows left under the name;
-    the statement hits the database, so it is a no-op unless a test asserts it."""
+def _last_holders_table_goes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A last holder's teardown asks its table for chunks it does not take, and
+    marks another tenant's rows left under the name. Both hit the database, so
+    the table holds none and the marking is a no-op unless a test asserts it."""
     monkeypatch.setattr("app.repositories.rag_document_repo.mark_unindexed", AsyncMock())
+    monkeypatch.setattr(
+        "app.repositories.rag_document_repo.table_holds_unfiled_outside",
+        AsyncMock(return_value=False),
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -57,9 +70,14 @@ def _teardown_reservations(monkeypatch):
     """The teardown-reservation repo (#1362) hits the database; mock it at the
     boundary. A name is free to claim and reserving/releasing is a no-op by default;
     a test that asserts a reservation re-patches `reserve`."""
-    from app.repositories import collection_teardown_repo
+    from app.repositories import collection_teardown_repo, rag_document_repo
 
     monkeypatch.setattr(collection_teardown_repo, "is_reserved", AsyncMock(return_value=False))
+    # A name holding no unowned content (#2747); the claim reads it from the database.
+    monkeypatch.setattr(rag_document_repo, "holds_unfiled_outside", AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        rag_document_repo, "table_holds_chunks_outside", AsyncMock(return_value=False)
+    )
     monkeypatch.setattr(collection_teardown_repo, "reserve", AsyncMock())
     monkeypatch.setattr(collection_teardown_repo, "release", AsyncMock())
 
@@ -954,7 +972,7 @@ class TestKBAccessControl:
                 BasePurge(
                     collection="docs",
                     knowledge_base_id=kb.id,
-                    vector_document_ids=["legacy-1"],
+                    vector_document_ids=["doc-1", "legacy-1"],
                     takes_unfiled=True,
                     tenant=org_id,
                 ),
@@ -990,7 +1008,7 @@ class TestKBAccessControl:
                 BasePurge(
                     collection="docs",
                     knowledge_base_id=kb.id,
-                    vector_document_ids=["legacy-1"],
+                    vector_document_ids=["doc-1", "legacy-1"],
                     takes_unfiled=True,
                     tenant=org_id,
                 ),
@@ -2026,3 +2044,85 @@ async def test_custom_embedding_endpoint_requires_connection_authority():
     )
     with pytest.raises(BadRequestError):
         await service._embedding_url(_ctx(), "openai", "https://example.com/v1")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("scope", "role", "grant", "owned", "admin", "expected"),
+    [
+        ("org", "member", GrantLevel.READ, False, False, False),
+        ("org", "viewer", GrantLevel.EDIT, False, False, True),
+        ("org", "member", None, True, False, True),
+        ("app", "owner", None, False, False, False),
+        ("app", "viewer", None, False, True, True),
+        ("personal", "viewer", None, True, False, True),
+        ("personal", "owner", None, False, False, False),
+    ],
+)
+@pytest.mark.usefixtures("kb_contents_unread")
+async def test_detail_reports_effective_write_access(
+    mock_db_session: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+    scope: str,
+    role: str,
+    grant: GrantLevel | None,
+    owned: bool,
+    admin: bool,
+    expected: bool,
+) -> None:
+    ctx = _ctx(role=role, app_admin=admin)
+    kb = _readable_kb("handbook")
+    kb.scope = scope
+    kb.visibility = Visibility.PRIVATE.value
+    kb.organization_id = ctx.organization_id
+    kb.owner_user_id = ctx.user_id if owned else uuid.uuid4()
+    monkeypatch.setattr(
+        "app.repositories.resource_grant_repo.get_level", AsyncMock(return_value=grant)
+    )
+    monkeypatch.setattr(
+        "app.repositories.rag_document_repo.counts_by_scope", AsyncMock(return_value={})
+    )
+    detail = await KnowledgeBaseService(mock_db_session).describe(kb, ctx=ctx)
+    assert detail.model_dump(mode="json")["can_edit"] is expected
+    assert detail.id == kb.id
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("filled", [False, True])
+async def test_detail_keeps_the_listing_counts_and_usage(
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch, filled: bool
+) -> None:
+    from app.schemas.resource_usage import AgentUsage
+
+    ctx = _ctx()
+    kb = _readable_kb("handbook")
+    kb.owner_user_id = ctx.user_id
+    kb.organization_id = ctx.organization_id
+    agents = [AgentUsage(id=uuid.uuid4(), name="Research", slug="research")]
+    monkeypatch.setattr(
+        "app.repositories.knowledge_base_repo.get_accessible", AsyncMock(return_value=[kb])
+    )
+    monkeypatch.setattr(
+        "app.repositories.rag_document_repo.counts_by_scope",
+        AsyncMock(
+            return_value={kb.id: CollectionCounts(documents=4, indexed=3, chunks=21)}
+            if filled
+            else {}
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.knowledge_base.agents_using", AsyncMock(return_value={kb.id: agents})
+    )
+    monkeypatch.setattr(
+        "app.services.knowledge_base.groups_sharing", AsyncMock(return_value={kb.id: ["Research"]})
+    )
+    service = KnowledgeBaseService(mock_db_session)
+    listing = await service.list_readable(ctx)
+    detail = await service.describe(kb, ctx=ctx)
+    assert detail.document_count == (4 if filled else 0)
+    assert detail.indexed_count == (3 if filled else 0)
+    assert detail.chunk_count == (21 if filled else 0)
+    assert detail.used_by == agents
+    assert detail.shared_groups == ["Research"]
+    assert detail.model_dump(exclude={"can_edit"}) == listing.items[0].model_dump()
+    assert detail.can_edit is True

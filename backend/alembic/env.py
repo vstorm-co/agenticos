@@ -1,12 +1,11 @@
 """Alembic migration environment."""
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
-from logging.config import fileConfig
-
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from app.core.config import settings
+from app.core.logging import setup_logging
 from app.db.base import Base
 from app.db.vector_tables import is_runtime_vector_table
 
@@ -26,8 +25,7 @@ from app.db.models.knowledge_base import KnowledgeBase  # noqa: F401
 
 config = context.config
 
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+setup_logging()
 target_metadata = Base.metadata
 
 

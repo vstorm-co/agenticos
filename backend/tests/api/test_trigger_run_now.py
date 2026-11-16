@@ -56,12 +56,22 @@ def _trigger(trigger_id: UUID) -> TriggerRead:
 
 async def test_running_now_is_accepted_rather_than_answered_with_the_finished_run():
     trigger_id = uuid4()
-    service = MagicMock(run_now=AsyncMock(return_value=_trigger(trigger_id)))
+    activation_id = uuid4()
+    service = MagicMock(
+        run_now=AsyncMock(
+            return_value=MagicMock(
+                trigger=_trigger(trigger_id),
+                activation_id=activation_id,
+                job_id=None,
+            )
+        )
+    )
     async with _client(service) as client:
         response = await client.post(
             f"/api/v1/agents/{_AGENT_ID}/triggers/{trigger_id}/run", json={}
         )
     assert response.status_code == 202
+    assert response.json()["activation_id"] == str(activation_id)
 
 
 async def test_routine_reviews_and_revocations_keep_the_path_and_review_token():
@@ -100,3 +110,56 @@ async def test_routine_reviews_and_revocations_keep_the_path_and_review_token():
     assert service.set_action_consents.await_args.args[1:3] == (_AGENT_ID, trigger_id)
     assert service.set_action_consents.await_args.args[3].actions == []
     assert service.set_source_consents.await_args.args[3].review_token == "b" * 64
+
+
+async def test_attempt_history_is_typed_bounded_and_delegates_resource_access():
+    from app.schemas.agent_trigger import TriggerAttemptList, TriggerAttemptRead
+
+    trigger_id, attempt_id = uuid4(), uuid4()
+    page = TriggerAttemptList(
+        items=[
+            TriggerAttemptRead(
+                id=attempt_id,
+                activation_id=uuid4(),
+                status="blocked",
+                stage="source_review",
+                reason="platform_identity_required",
+                occurred_at=datetime(2026, 11, 12, tzinfo=UTC),
+            )
+        ],
+        total=1,
+    )
+    service = MagicMock(attempts=AsyncMock(return_value=page))
+    root = f"/api/v1/agents/{_AGENT_ID}/triggers/{trigger_id}/attempts"
+    async with _client(service) as client:
+        response = await client.get(root + "?skip=10&limit=10")
+        refused = await client.get(root + "?limit=101")
+    assert response.status_code == 200
+    assert response.json()["items"][0]["id"] == str(attempt_id)
+    assert response.json()["items"][0]["reason"] == "platform_identity_required"
+    assert refused.status_code == 422
+    service.attempts.assert_awaited_once()
+    assert service.attempts.await_args.args[1:] == (_AGENT_ID, trigger_id)
+    assert service.attempts.await_args.kwargs == {"skip": 10, "limit": 10}
+
+
+async def test_activation_status_delegates_the_exact_receipt() -> None:
+    from app.schemas.agent_trigger import TriggerActivationRead
+
+    trigger_id, activation_id, job_id = uuid4(), uuid4(), uuid4()
+    service = MagicMock(
+        activation_status=AsyncMock(return_value=TriggerActivationRead(state="not_started"))
+    )
+    async with _client(service) as client:
+        response = await client.get(
+            f"/api/v1/agents/{_AGENT_ID}/triggers/{trigger_id}/activations/{activation_id}",
+            params={"job_id": str(job_id)},
+        )
+    assert response.status_code == 200
+    assert response.json() == {"state": "not_started"}
+    assert service.activation_status.await_args.args[1:] == (
+        _AGENT_ID,
+        trigger_id,
+        activation_id,
+        job_id,
+    )

@@ -43,12 +43,25 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture(autouse=True)
+def _a_free_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These run on a stand-in session, which has no savepoint for the bounded wait."""
+    monkeypatch.setattr(
+        "app.services.collection_access.hold_name_within", AsyncMock(return_value=True)
+    )
+
+
+@pytest.fixture(autouse=True)
 def _not_reserved(monkeypatch: pytest.MonkeyPatch) -> None:
     """A create reaches `claim`, which reads the teardown-reservation repo (#1362);
     mock it at the boundary so a name is free unless a test says otherwise."""
-    from app.repositories import collection_teardown_repo
+    from app.repositories import collection_teardown_repo, rag_document_repo
 
     monkeypatch.setattr(collection_teardown_repo, "is_reserved", AsyncMock(return_value=False))
+    # A name holding no unowned content (#2747); the claim reads it from the database.
+    monkeypatch.setattr(rag_document_repo, "holds_unfiled_outside", AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        rag_document_repo, "table_holds_chunks_outside", AsyncMock(return_value=False)
+    )
 
 
 def _modelled_collection_names() -> list[str]:

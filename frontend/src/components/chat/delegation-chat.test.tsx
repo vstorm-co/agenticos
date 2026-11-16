@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Delegation } from "@/types";
 
+vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
+
 import { DelegationChat } from "./delegation-chat";
 
 vi.mock("./markdown-content", () => ({

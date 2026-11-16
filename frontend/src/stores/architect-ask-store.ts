@@ -6,12 +6,14 @@ interface ArchitectAsk {
   /** Increments with every ask, so the same words asked twice are two asks. */
   id: number;
   text: string;
+  /** Written into the Architect's message box for the person to send, rather than sent. */
+  draft: boolean;
 }
 
 interface ArchitectAskState {
   /** The last thing somewhere else in the console asked the Architect, or null. */
   request: ArchitectAsk | null;
-  ask: (text: string) => void;
+  ask: (text: string, options?: { draft?: boolean }) => void;
   /** Taken by the widget once asked, so a widget mounted later does not ask it again. */
   answered: (id: number) => void;
 }
@@ -26,6 +28,6 @@ let asks = 0;
  */
 export const useArchitectAskStore = create<ArchitectAskState>((set) => ({
   request: null,
-  ask: (text) => set({ request: { id: ++asks, text } }),
+  ask: (text, options) => set({ request: { id: ++asks, text, draft: options?.draft ?? false } }),
   answered: (id) => set((state) => (state.request?.id === id ? { request: null } : state)),
 }));

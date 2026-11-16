@@ -45,6 +45,17 @@ const WEEKLY: TriggerTemplate = {
 
 function serve(templates: TriggerTemplate[] = [DAILY, WEEKLY]) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path.endsWith("/sources"))
+      return {
+        current: true,
+        review_token: "sources",
+        version_id: "v1",
+        resources: [],
+        accounts: [],
+        unavailable_sources: [],
+      };
+    if (path.endsWith("/action-consents"))
+      return { can_waive: true, review_token: "actions", items: [] };
     if (path === "/trigger-templates") return { items: templates, total: templates.length };
     if (path === "/agents") {
       return { items: [{ id: "a1", name: "Analyst", status: "published" }], total: 1 };
@@ -71,7 +82,12 @@ async function open() {
 describe("New-schedule template picker", () => {
   it("prefills the prompt and an interval cadence from a template", async () => {
     const user = userEvent.setup();
-    vi.mocked(apiClient.post).mockResolvedValue({});
+    vi.mocked(apiClient.post).mockResolvedValue({
+      id: "routine",
+      agent_id: "a1",
+      trigger_type: "schedule",
+      is_active: false,
+    });
     const dialog = await open();
 
     await user.click(dialog.getByRole("button", { name: "Start from a template" }));
@@ -83,6 +99,8 @@ describe("New-schedule template picker", () => {
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers", {
+      review_before_activation: true,
+      is_active: false,
       prompt: "Summarise what happened overnight.",
       name: "Daily standup",
       trigger_type: "schedule",
@@ -95,7 +113,12 @@ describe("New-schedule template picker", () => {
 
   it("prefills a cron cadence from a template that suggests one", async () => {
     const user = userEvent.setup();
-    vi.mocked(apiClient.post).mockResolvedValue({});
+    vi.mocked(apiClient.post).mockResolvedValue({
+      id: "routine",
+      agent_id: "a1",
+      trigger_type: "schedule",
+      is_active: false,
+    });
     const dialog = await open();
 
     // A second pick replaces the name the first one wrote.
@@ -107,6 +130,8 @@ describe("New-schedule template picker", () => {
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers", {
+      review_before_activation: true,
+      is_active: false,
       prompt: "Write this week's report.",
       name: "Weekly report",
       trigger_type: "schedule",
@@ -122,7 +147,12 @@ describe("New-schedule template picker", () => {
     // The Routines page's ideas open the form with one chosen: the first frame
     // shows it, rather than a blank form somebody has to pick it in again.
     const user = userEvent.setup();
-    vi.mocked(apiClient.post).mockResolvedValue({});
+    vi.mocked(apiClient.post).mockResolvedValue({
+      id: "routine",
+      agent_id: "a1",
+      trigger_type: "schedule",
+      is_active: false,
+    });
     render(
       <TriggerFormDialog agentId="a1" open onOpenChange={vi.fn()} initialTemplate={WEEKLY} />,
       { wrapper },
@@ -145,7 +175,12 @@ describe("New-schedule template picker", () => {
 
   it("keeps a name somebody typed when a template is picked after it", async () => {
     const user = userEvent.setup();
-    vi.mocked(apiClient.post).mockResolvedValue({});
+    vi.mocked(apiClient.post).mockResolvedValue({
+      id: "routine",
+      agent_id: "a1",
+      trigger_type: "schedule",
+      is_active: false,
+    });
     render(<TriggerFormDialog agentId="a1" open onOpenChange={vi.fn()} />, { wrapper });
     const dialog = within(await screen.findByRole("dialog"));
 

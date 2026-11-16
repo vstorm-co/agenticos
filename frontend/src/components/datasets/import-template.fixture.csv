@@ -1,0 +1,2 @@
+input,history,reference_answer,counter_example,expected_tool_calls,order_mode,checks,tags,note
+How long does a refund take?,,A refund reaches your card within 5 working days.,Refunds take 30 days.,,,"[{""type"": ""contains"", ""value"": ""5 working days""}]","refunds,billing",Asked often in chat.

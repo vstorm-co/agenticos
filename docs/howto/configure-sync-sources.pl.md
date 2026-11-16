@@ -1,5 +1,5 @@
 ---
-source_sha: "9db77a8adb2b"
+source_sha: "0e3f3c6c82f8"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
@@ -610,15 +610,21 @@ obsługiwane.
 
 Wszystkie endpointy źródeł synchronizacji leżą pod `/api/v1/rag/sync/`.
 Wypisanie listy wymaga `collections:view`, a wszystko, co zmienia źródło, wymaga
-`collections:edit` — w obu przypadkach wobec kolekcji, do której źródło należy;
-rola administratora w tym nie występuje. Zobacz
+`collections:edit`. Rola administratora w tym nie występuje. Poniższe akapity
+mówią, do których źródeł sięga każda z tych operacji. Zobacz
 [kto może sięgnąć do kolekcji](../file-processing.md#who-may-reach-a-collection).
+
+`GET /api/v1/rag/sync/sources` wypisuje wszystkie źródła, w tym nieprzypisane szablony, tylko z `connections:manage`. W przeciwnym razie pokazuje źródła zasilające dostępne do odczytu bazy. Tworzenie, odłączanie, edycja, usuwanie i klonowanie nieprzypisanego szablonu wymaga **Manage connections**. Źródła przypisane wymagają edycji swojej bazy, również przez `/org/integrations`; uprawnienie organizacyjne tej strony nie omija dostępu do bazy. Klonowanie osobno sprawdza źródło i cel.
+
+Edycja źródła weryfikuje adresy zdalne przed założeniem blokad zapisu. Zapis pod blokadą sprawdza zweryfikowaną rewizję i odrzuca nieaktualne zmiany. Synchronizacja z kolejki ponownie sprawdza pierwotny cel przed ingestion. Usuwanie kont i organizacji używa tych samych zasad własności i blokad co usuwanie bazy; ingestion z CLI również zapisuje pochodzenie i respektuje te blokady.
+
+Historia synchronizacji zachowuje organizację inicjującą i docelową bazę po usunięciu źródła. Uruchomienie bez źródła jest widoczne tylko przy potwierdzonej własności i dostępie do tej bazy. Stare logi bez źródła i potwierdzonego właściciela są ukryte; wspólna nazwa kolekcji nie przypisuje ich organizacji.
 
 ### CRUD źródeł synchronizacji { #sync-sources-crud }
 
 | Metoda | Endpoint | Opis |
 |--------|----------|-------------|
-| `GET` | `/api/v1/rag/sync/sources` | Wypisuje wszystkie skonfigurowane źródła synchronizacji |
+| `GET` | `/api/v1/rag/sync/sources` | Wypisuje źródła synchronizacji (wszystkie z `connections:manage`) |
 | `POST` | `/api/v1/rag/sync/sources` | Tworzy nowe źródło synchronizacji |
 | `PATCH` | `/api/v1/rag/sync/sources/{id}` | Zmienia istniejące źródło synchronizacji |
 | `DELETE` | `/api/v1/rag/sync/sources/{id}` | Usuwa źródło synchronizacji |
@@ -698,6 +704,18 @@ rozwiązuje się dla twojej organizacji i do której musisz mieć prawo zapisu; 
 odłącza je od każdej bazy, a źródło bez bazy nie synchronizuje.
 
 Ustaw `is_active` na `false`, aby wstrzymać źródło bez usuwania go.
+Wstrzymane źródło nie uruchamia się według harmonogramu ani na żądanie przez
+API lub CLI. Konsola wyłącza przycisk synchronizacji. Zadanie w kolejce sprawdza
+stan ponownie przed pobraniem plików i kończy się błędem, jeśli źródło
+wstrzymano podczas oczekiwania. Wstrzymanie nie przerywa już rozpoczętej
+synchronizacji. Ustaw `is_active` na `true`, aby zezwolić na nowe synchronizacje.
+
+Przy rozwiązywaniu nazwy kolekcji wybierana jest najstarsza baza w organizacji
+źródła, a jeśli jej nie ma — baza o zakresie aplikacji. Przy jednakowych
+czasach utworzenia kolejność określa identyfikator bazy. API odmawia przypisania
+źródła przez nazwę kolekcji, jeśli kilka pasujących baz ma ten sam najstarszy
+czas utworzenia. Użyj bazy wiedzy z unikalną nazwą kolekcji, aby usunąć tę
+niejednoznaczność.
 
 ## Monitorowanie operacji synchronizacji { #monitoring-sync-operations }
 

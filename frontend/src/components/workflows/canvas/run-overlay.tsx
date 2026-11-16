@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, useMemo } from "react";
 
 import type { NodeRunStatus, WorkflowNodeRunRead } from "@/lib/workflows/types";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 /** What a run did with one node of its graph, across every iteration it ran in. */
 export interface NodeRunSummary {
@@ -90,7 +91,9 @@ export function summarizeNodeRuns(rows: WorkflowNodeRunRead[]): Map<string, Node
  * still going; `starting` is handed its work - the step before it finished -
  * and waits only for the engine to pick it up, so it reads as under way;
  * `notReached` was never reached by a run that ended - after a failure or a
- * Stop. Each state has one look, on the card and on the wire into it.
+ * Stop. `switchedOff` is a step switched off in the run's graph: whatever its
+ * row says, it does nothing, so it never reads as waiting or under way. Each
+ * state has one look, on the card and on the wire into it.
  */
 export type NodeRunState =
   | "pending"
@@ -101,10 +104,16 @@ export type NodeRunState =
   | "failed"
   | "attention"
   | "skipped"
-  | "notReached";
+  | "notReached"
+  | "switchedOff";
 
 /** The state a step shows: its summary's status, or, with none yet, whether the run goes on. */
-export function nodeRunState(summary: NodeRunSummary | null, live: boolean): NodeRunState {
+export function nodeRunState(
+  summary: NodeRunSummary | null,
+  live: boolean,
+  switchedOff = false,
+): NodeRunState {
+  if (switchedOff) return "switchedOff";
   switch (summary?.status) {
     case undefined:
       return live ? "pending" : "notReached";
@@ -172,17 +181,40 @@ export function useNodeRunState(
   nodeId: string,
 ): { state: NodeRunState; summary: NodeRunSummary | null; watched: boolean } | null {
   const overlay = useContext(NodeRunOverlayContext);
+  const off = useSwitchedOff();
   if (overlay === null) return null;
   const summary = overlay.summaries.get(nodeId) ?? null;
-  return { state: nodeRunState(summary, overlay.live), summary, watched: overlay.watched };
+  return {
+    state: nodeRunState(summary, overlay.live, off.has(nodeId)),
+    summary,
+    watched: overlay.watched,
+  };
 }
 
-/** How the wire between two steps reads on a run's canvas; null on the editor's. */
+/**
+ * How the wire between two steps reads on a run's canvas; null on the editor's. It
+ * follows what the run did, a step switched off included - its card always reads
+ * so, but the wire into one down a branch not taken still fades.
+ */
 export function useWireRunState(from: string, into: string): WireRunState | null {
   const overlay = useContext(NodeRunOverlayContext);
   if (overlay === null) return null;
   const state = (id: string) => nodeRunState(overlay.summaries.get(id) ?? null, overlay.live);
   return wireRunState(state(from), state(into));
+}
+
+const NONE_OFF: ReadonlySet<string> = new Set();
+
+/** The steps switched off in the graph on the canvas - the run's own, which its page seeds. */
+function useSwitchedOff(): ReadonlySet<string> {
+  const nodes = useWorkflowEditorStore((state) => state.graph?.nodes);
+  return useMemo(
+    () =>
+      nodes === undefined
+        ? NONE_OFF
+        : new Set(nodes.filter((node) => node.disabled === true).map((node) => node.id)),
+    [nodes],
+  );
 }
 
 /** Live movement and one completion sweep belong only to a watched run. */

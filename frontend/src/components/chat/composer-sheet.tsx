@@ -132,9 +132,14 @@ export function ComposerSheet({
     <>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
-          {trigger("hidden h-9 w-9 shrink-0 md:inline-flex")}
+          {trigger("hidden h-9 w-9 shrink-0 data-[state=open]:bg-accent md:inline-flex")}
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" side="top" sideOffset={8} className="w-80 p-1.5">
+        <DropdownMenuContent
+          align="start"
+          side="top"
+          sideOffset={8}
+          className="w-80 rounded-xl p-1.5"
+        >
           {actions.map((action) => (
             <DropdownMenuItem
               key={action.key}

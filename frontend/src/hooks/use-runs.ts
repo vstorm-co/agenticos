@@ -14,9 +14,10 @@ import type {
   AgentRunList,
   ApprovalList,
   CostSummary,
-  RunStatus,
   ResumedRun,
   RunManifest,
+  RunSource,
+  RunStatus,
   RunTranscript,
   ToolApproval,
 } from "@/types/runs";
@@ -64,6 +65,8 @@ export function useRuns(
     /** Narrows to these statuses - `failed,budget_exceeded` is "the problems". */
     statuses?: RunStatus[];
     surface?: string;
+    /** Conversations, an agent answering evals, or a platform agent's own work. */
+    source?: RunSource;
     /** Voice calls or text runs (#54); a call is one row, however often it reconnected. */
     modality?: "text" | "voice";
     /** The model as the run recorded it - the dashboard's bars count these. */
@@ -95,6 +98,7 @@ export function useRuns(
     rated,
     statuses,
     surface,
+    source,
     modality,
     modelLabel,
     userId,
@@ -113,6 +117,7 @@ export function useRuns(
       rated,
       statuses,
       surface,
+      source,
       modality,
       modelLabel,
       userId,
@@ -137,6 +142,7 @@ export function useRuns(
       if (isTest !== undefined) params.test = String(isTest);
       if (statuses && statuses.length > 0) params.status = statuses.join(",");
       if (surface) params.surface = surface;
+      if (source) params.source = source;
       if (modality) params.modality = modality;
       if (modelLabel) params.model_label = modelLabel;
       if (userId) params.user_id = userId;
@@ -403,18 +409,10 @@ export function useApprovals(options?: { enabled?: boolean; skip?: number }) {
         return;
       }
       toast.success(approved ? t("decisionApproved") : t("decisionRejected"));
-      // Deciding the last outstanding call makes the resume possible; nothing
-      // performs it (the backend keeps the click and the execution apart). The
-      // chat's dialog has always followed its decision with the resume - the
-      // queue not doing the same left a run approved and parked forever.
-      // This read is one cached page of fifty, so a run whose other parked call
-      // sits past those fifty reads as clear; `/approvals` cannot narrow by run,
-      // so the backend's refusal is the real check and the auto path swallows
-      // exactly that refusal (see `useResumeRun`).
-      const stillParked = queryClient
-        .getQueryData<ApprovalList>(qk.runs.approvals(skip))
-        ?.items.some((item) => item.run_id === approval.run_id && item.status === "pending");
-      if (!stillParked) resume.mutate(approval.run_id);
+      // A cached page can still include a just-decided row, or omit a pending
+      // row on another page. Let the server check the full run after every
+      // decision; its still-pending refusal is expected and does not run a model.
+      resume.mutate(approval.run_id);
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });

@@ -58,6 +58,19 @@ PATH = "app.services.artifact"
 
 
 @pytest.fixture(autouse=True)
+def _organization_attribution(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Public viewers read their organization's current footer preference."""
+    from app.db.models.organization import Organization
+
+    monkeypatch.setattr(
+        f"{PATH}.organization_repo.get_by_id",
+        AsyncMock(
+            return_value=Organization(public_agenticos_attribution=True, public_live_data=False)
+        ),
+    )
+
+
+@pytest.fixture(autouse=True)
 def _shared_with_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
     """The listing names each page's groups; the session here is a mock."""
 
@@ -578,6 +591,7 @@ class TestDelete:
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
             patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
             patch(f"{PATH}.resource_grant_repo.delete_for_resource", new=AsyncMock()) as grants,
+            patch(f"{PATH}.artifact_repo.lock_for_delete", new=AsyncMock()),
             patch(f"{PATH}.artifact_repo.delete_artifact", new=AsyncMock()) as delete,
             patch(f"{PATH}.record_audit", new=AsyncMock()),
             patch(f"{PATH}.spawn_after_commit") as after_commit,
@@ -587,6 +601,23 @@ class TestDelete:
         delete.assert_awaited_once()
         after_commit.call_args.args[1].close()
         assert after_commit.call_args.kwargs["name"] == "artifact-delete"
+
+    async def test_unrelated_database_errors_in_the_lock_phase_remain_errors(self) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        failure = DBAPIError("lock", {}, RuntimeError("broken connection"))
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.artifact_repo.lock_for_delete", new=AsyncMock(side_effect=failure)),
+            patch(f"{PATH}.artifact_repo.delete_artifact", new=AsyncMock()) as delete,
+            patch(f"{PATH}.spawn_after_commit") as cleanup,
+            pytest.raises(DBAPIError) as raised,
+        ):
+            await _service().delete(ctx, artifact.id)
+        assert raised.value is failure
+        delete.assert_not_awaited()
+        cleanup.assert_not_called()
 
 
 class TestView:
@@ -790,7 +821,13 @@ class TestPublicView:
             public = await _service().public_view("k")
         assert public.title == "Weekly report"
         assert public.password_required is False
-        assert set(public.model_dump()) == {"password_required", "title", "published_at", "view"}
+        assert set(public.model_dump()) == {
+            "password_required",
+            "title",
+            "published_at",
+            "view",
+            "show_agenticos_attribution",
+        }
         assert counted.await_args.args[1] == artifact.id
 
     @pytest.mark.security
@@ -804,7 +841,11 @@ class TestPublicView:
             patch(f"{PATH}.artifact_repo.count_public_view", new=AsyncMock()),
             patch(
                 f"{PATH}.organization_repo.get_by_id",
-                new=AsyncMock(return_value=MagicMock(public_live_data=False)),
+                new=AsyncMock(
+                    return_value=MagicMock(
+                        public_live_data=False, public_agenticos_attribution=True
+                    )
+                ),
             ),
             patch(f"{PATH}.owner_membership_id", new=AsyncMock(return_value=None)),
         ):

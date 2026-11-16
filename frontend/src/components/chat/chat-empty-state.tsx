@@ -147,7 +147,7 @@ function Welcome({ agent, starters, loading, onPick, suggestionsSlot }: WelcomeP
             size="lg"
           />
         ) : loading ? (
-          <Skeleton className="size-10 rounded-full" data-testid="welcome-agent-loading" />
+          <Skeleton className="size-14 rounded-full" data-testid="welcome-agent-loading" />
         ) : (
           <WelcomeIcon icon={Sparkles} />
         )

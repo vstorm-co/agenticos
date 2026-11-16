@@ -70,8 +70,22 @@ class CodingAgent(AbstractCapability[AgentDepsT]):
             "Each personal cloud task starts in an isolated copy. Review its diff and result archive; "
             "it does not apply changes to shared project files. Personal accounts do not run unattended schedules."
             if self.runs_on == "personal_sandbox"
-            else "Its later tasks in this conversation continue the same session."
+            else "Each task names a session (`main` when it names none): the same name continues "
+            "that session's earlier work and a new name opens another."
         )
+        if self.runs_on == "this_computer":
+            continuation += (
+                " Each session may choose `harness` - Claude Code or Codex, signed in on that "
+                "computer - and a `folder` inside the chat's folder, so several projects or "
+                "both coding agents can work at once. Use distinct session names. A mid-run "
+                "correction prefixed with [session:api] targets api; unaddressed corrections "
+                "stay with you when several sessions are active."
+            )
+        elif self.runs_on == "sandbox":
+            continuation += (
+                " Sandbox tasks in this toolset queue so their workspace snapshots do not "
+                "overlap. Named sessions keep separate histories, not separate files."
+            )
         return (
             f"You can hand software work to {label}, a coding agent that works {where}: it {reach}. Use run_coding_agent with the whole task, then tell "
             "the person what it found or did. " + continuation

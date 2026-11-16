@@ -31,19 +31,23 @@ from app.core.security import (
     verify_password,
     verify_special_token,
 )
-from app.db.locks import LockScope, hold_name, try_hold_name, try_hold_subject
+from app.db.locks import (
+    LOCK_NOT_AVAILABLE,
+    LockScope,
+    hold_name,
+    try_hold_name,
+    try_hold_subject,
+)
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.updates import writable
 from app.repositories import (
-    collection_teardown_repo,
     conversation_repo,
     knowledge_base_repo,
     member_repo,
     organization_repo,
     organization_secret_repo,
     personal_data_repo,
-    rag_document_repo,
     session_repo,
     user_repo,
 )
@@ -55,7 +59,6 @@ from app.schemas.user import (
     UserUpdate,
 )
 from app.services import rate_limit
-from app.services.collection_access import CollectionAccessService
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 from app.services.file_storage import avatar_filename, delete_files_best_effort, get_file_storage
@@ -63,7 +66,6 @@ from app.services.generated_media import GeneratedMediaService
 from app.services.organization import OrganizationService
 from app.services.personal_data import PersonalDataService
 from app.services.signup_policy import check_may_register
-from app.worker.jobs import BasePurge
 
 if TYPE_CHECKING:
     from app.services.rag.vectorstore import BaseVectorStore
@@ -72,9 +74,6 @@ logger = logging.getLogger(__name__)
 
 _ACCOUNT_LOCK_SECONDS = 10.0
 """How long an account deletion's lock phase keeps starting again before refusing."""
-
-_LOCK_NOT_AVAILABLE = "55P03"
-"""The SQLSTATE a `NOWAIT` lock raises when another transaction holds the row."""
 
 _DEADLOCK_DETECTED = "40P01"
 """The SQLSTATE of the statement Postgres aborts to break a deadlock."""
@@ -1011,7 +1010,7 @@ class UserService:
                     locked = await self._lock_user_rows(user_id, app_admins=app_admins, nowait=True)
                     await self._hold_late_names(user_id, personal_orgs, names)
             except DBAPIError as failed:
-                if getattr(failed.orig, "sqlstate", None) != _LOCK_NOT_AVAILABLE:
+                if getattr(failed.orig, "sqlstate", None) != LOCK_NOT_AVAILABLE:
                     raise
             else:
                 return locked
@@ -1083,44 +1082,20 @@ class UserService:
         tables are a cleanup job queued in this transaction
         (`queue_external_state_cleanup`), so a rollback keeps them, a worker
         restart mid-cleanup does not orphan them (#1349), and
-        the drop takes the `COLLECTION_TEARDOWN` lock and re-reads the reference
-        check on its own session, so a name a second base still holds - or is
-        mid-claim on - keeps its table (#913, #1355). A table is queued for drop
+        the drop takes the `COLLECTION_TEARDOWN` lock and goes ahead only while the
+        name is reserved, so a name a second base still holds - or is mid-claim
+        on - keeps its table (#913, #1355). A table is queued for drop
         only when no other base claims the name; it is not tenant-unique, so two
         bases can share one.
         """
-        storage_paths: list[str] = []
-        collections_to_drop: list[str] = []
-        base_purges: list[BasePurge] = []
-        # Sorted by name so this loop, `_lock_account` and
-        # `OrganizationService.purge` - the paths that take several teardown locks in
-        # one transaction - acquire any shared name (#913) in one order, and cannot
-        # invert into a teardown-vs-teardown deadlock (#1387). On account deletion the
-        # names are already held here, taken by `_lock_account`.
+        from app.services.knowledge_base import KnowledgeBaseService
+
         personal = await knowledge_base_repo.list_personal_by_owner(self.db, user_id)
         ordered = sorted(personal, key=lambda kb: kb.collection_name)
-        # Acquire every name before source rows: an edit assigning a source to
-        # the next name may already hold that name while waiting for its row.
         for collection in dict.fromkeys(kb.collection_name for kb in ordered):
             await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
         for kb in ordered:
-            collection = kb.collection_name
-            storage_paths.extend(await rag_document_repo.delete_by_knowledge_base(self.db, kb.id))
-            await CollectionAccessService(self.db).detach_sources_targeting(kb)
-            await knowledge_base_repo.delete(self.db, kb.id)
-            if await knowledge_base_repo.list_by_collection_name(self.db, collection):
-                # The table stays for the base still holding the name, so this
-                # base's chunks are deleted by its id instead (#2537).
-                base_purges.append(BasePurge(collection=collection, knowledge_base_id=kb.id))
-            else:
-                collections_to_drop.append(collection)
-                await collection_teardown_repo.reserve(self.db, collection)
-        if storage_paths or collections_to_drop or base_purges:
-            from app.worker.tasks.teardown_tasks import queue_external_state_cleanup
-
-            await queue_external_state_cleanup(
-                self.db, storage_paths, collections_to_drop, base_purges=base_purges
-            )
+            await KnowledgeBaseService(self.db).purge(kb)
 
     async def admin_update(
         self, user_id: UUID, user_in: UserUpdate, *, acting_admin_id: UUID
@@ -1240,7 +1215,7 @@ class UserService:
         user = await user_repo.get_by_email(self.db, email)
         if user is None or not user.is_active:
             return None
-        token = create_magic_link_token(subject=str(user.id), return_to=return_to)
+        token = create_magic_link_token(subject=str(user.id), return_to=return_to, email=user.email)
         return user, token
 
     async def consume_magic_link_token(self, token: str) -> tuple[User, str | None]:

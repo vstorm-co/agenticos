@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.spec import AgentSpec, SubagentRef
+from app.agents.spec import AgentSpec, PlatformMcpServerRef, SubagentRef
 from app.core.exceptions import AuthorizationError, ConflictError
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent, AgentVersion
@@ -136,7 +136,7 @@ async def test_only_console_owner_can_review(db: AsyncSession, identity: str):
     if identity == "other":
         ctx = replace(ctx, user_id=uuid4())
     elif identity == "api":
-        ctx = replace(ctx, api_key_id=uuid4())
+        ctx = replace(ctx, api_key_id=uuid4(), key_internal=True)
     elif identity == "routine":
         ctx = replace(ctx, routine_id=trigger.id)
     else:
@@ -1091,3 +1091,166 @@ async def test_source_review_bounds_provider_inventory_without_connecting(db, mo
     else:
         reviewed = await RoutineSourceService(db)._review(ctx, trigger)
         assert bool(reviewed.unavailable) is (source != "disabled_phone")
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("runs_as_creator", [False, True])
+@pytest.mark.parametrize("delegated", [False, True])
+async def test_platform_mcp_requires_an_explicit_creator_identity(
+    db: AsyncSession, runs_as_creator: bool, delegated: bool
+) -> None:
+    ctx, trigger, spec, _ = await world(db)
+    version = await db.get(AgentVersion, trigger.pinned_version_id)
+    assert version is not None
+    platform_spec = spec.model_copy(
+        update={"mcp_servers": [PlatformMcpServerRef(account="platform")]}
+    )
+    if delegated:
+        child = Agent(
+            organization_id=ctx.organization_id,
+            owner_user_id=ctx.user_id,
+            name="Platform delegate",
+            slug=f"platform-{uuid4()}",
+            status="published",
+        )
+        db.add(child)
+        await db.flush()
+        child_version = AgentVersion(
+            agent_id=child.id,
+            organization_id=ctx.organization_id,
+            version=1,
+            spec=platform_spec.model_dump(mode="json"),
+        )
+        db.add(child_version)
+        await db.flush()
+        child.current_version_id = child_version.id
+        version.spec = spec.model_copy(
+            update={
+                "subagents": [SubagentRef(agent_id=child.id, agent_version_id=child_version.id)]
+            }
+        ).model_dump(mode="json")
+    else:
+        version.spec = platform_spec.model_dump(mode="json")
+    trigger.runs_as_creator = runs_as_creator
+    await db.flush()
+    service = RoutineSourceService(db)
+    if runs_as_creator:
+        policy = await service.initial(ctx, trigger)
+        trigger.approved_sources = policy.model_dump(mode="json")
+        assert (await service.options(ctx, trigger)).current
+        assert (await service.require_current(ctx, trigger, expected_id=policy.id)).id == policy.id
+    else:
+        options = await service.options(ctx, trigger)
+        assert not options.current
+        assert any("Act as creator" in source for source in options.unavailable_sources)
+        with pytest.raises(RoutineSourcesRequired) as refused:
+            await service.initial(ctx, trigger)
+        assert refused.value.details == {"unavailable_sources": options.unavailable_sources}
+        with pytest.raises(ConflictError):
+            await service.replace(
+                ctx, trigger, RoutineSourceConsent(review_token=options.review_token)
+            )
+        assert not trigger.runs_as_creator
+        # An old policy could have been saved before this compatibility check.
+        snapshot = await service.snapshot(ctx, trigger)
+        trigger.approved_sources = snapshot.policy.model_dump(mode="json")
+        await db.flush()
+        with pytest.raises(RoutineSourcesRequired) as existing:
+            await service.require_current(ctx, trigger, expected_id=snapshot.policy.id)
+        assert existing.value.code == "ROUTINE_PLATFORM_IDENTITY_REQUIRED"
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "change", ["tools", "generation", "binding_off", "bot_off", "binding_deleted", "bot_deleted"]
+)
+async def test_routine_chat_grants_are_recorded_and_live_revocation_requires_review(db, change):
+    from app.db.models.agent_exposure import AgentExposure
+    from app.db.models.channel_bot import ChannelBot
+    from app.services.channel_actions import grant_fingerprint
+    from app.services.routine_sources import require_bound_sources
+
+    ctx, trigger, _, _ = await world(db)
+    bot = ChannelBot(
+        id=uuid4(),
+        organization_id=ctx.organization_id,
+        platform="mattermost",
+        name="Weekly reports",
+        token_encrypted="not used by this test",
+        is_active=True,
+    )
+    db.add(bot)
+    await db.flush()
+    binding = AgentExposure(
+        id=uuid4(),
+        organization_id=ctx.organization_id,
+        agent_id=trigger.agent_id,
+        channel_bot_id=bot.id,
+        surface="mattermost",
+        is_active=True,
+        tools=["send_chat_message"],
+        created_by_user_id=ctx.user_id,
+    )
+    db.add(binding)
+    await db.flush()
+    policy = await RoutineSourceService(db).initial(ctx, trigger)
+    assert policy.channel_sources == {binding.id: grant_fingerprint(binding, bot)}
+    await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)
+    if change == "tools":
+        binding.tools = []
+    elif change == "generation":
+        bot.authorization_generation = uuid4()
+    elif change == "binding_off":
+        binding.is_active = False
+    elif change == "bot_off":
+        bot.is_active = False
+    elif change == "binding_deleted":
+        await db.delete(binding)
+    else:
+        await db.delete(bot)
+    await db.flush()
+    with pytest.raises(RoutineSourcesRequired):
+        await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)
+
+
+@pytest.mark.security
+async def test_deferred_setup_must_be_reviewed_before_resume(db: AsyncSession) -> None:
+    from app.schemas.agent_trigger import TriggerCreate, TriggerUpdate
+
+    ctx, original, _, _ = await world(db)
+    service = AgentTriggerService(db)
+    created = await service.create(
+        ctx,
+        original.agent_id,
+        TriggerCreate(
+            prompt="Check later",
+            schedule_kind="interval",
+            interval_seconds=300,
+            review_before_activation=True,
+        ),
+    )
+    assert not created.is_active and created.setup_required
+    with pytest.raises(RoutineSourcesRequired):
+        await service.update(ctx, created.agent_id, created.id, TriggerUpdate(is_active=True))
+    source_service = RoutineSourceService(db)
+    options = await source_service.options(ctx, created)
+    await source_service.replace(
+        ctx, created, RoutineSourceConsent(review_token=options.review_token)
+    )
+    resumed = await service.update(ctx, created.agent_id, created.id, TriggerUpdate(is_active=True))
+    assert resumed.is_active and not resumed.setup_required
+
+
+@pytest.mark.security
+async def test_resume_revalidates_sources_changed_since_the_last_review(db: AsyncSession) -> None:
+    from app.schemas.agent_trigger import TriggerUpdate
+
+    ctx, trigger, _, account = await world(db, mcp=True)
+    assert account is not None
+    trigger.is_active = False
+    account.authorization_generation = uuid4()
+    await db.flush()
+    with pytest.raises(RoutineSourcesRequired):
+        await AgentTriggerService(db).update(
+            ctx, trigger.agent_id, trigger.id, TriggerUpdate(is_active=True)
+        )

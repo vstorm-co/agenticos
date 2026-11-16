@@ -1,6 +1,5 @@
 "use client";
 
-import { TasksPanel } from "@/components/tasks/tasks-panel";
 import { BackgroundIcon } from "@/components/icons/product-icons";
 
 import { useState } from "react";
@@ -31,7 +30,6 @@ export default function WorkPage() {
       <PageHeader
         title={t("background")}
         description={t("backgroundDescription")}
-        descriptionMode="summary"
         actions={
           can(Perm.agentsView) ? (
             <Button variant="outline" asChild>
@@ -43,7 +41,6 @@ export default function WorkPage() {
           ) : undefined
         }
       />
-      {can(Perm.tablesView) && <TasksPanel />}
       <section
         data-tour="workspace-background"
         className="bg-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border"

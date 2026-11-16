@@ -200,6 +200,8 @@ handlers and CLI commands open `get_db_context()`, and worker tasks
 they commit on a clean exit of their own `async with` and start their deferred
 work in the same place — which has nothing to do with a response.
 
+Channel admission also commits before run preparation: `ChannelMessageRouter._route_inner` saves the admitted identity, session and conversation after access and rate-limit checks. Platform MCP credentials use an independent transaction and reference that conversation; a flush alone is not visible there. If admission cannot commit, preparation does not start.
+
 ### The run path's two commits
 
 One path deliberately commits earlier than "on the way out": **an agent run.**
@@ -576,6 +578,12 @@ carrying `input`, `ctx` and `url`, that nothing on the frontend read.
 `validate_spec` reports every problem in a spec at once, and most of them are broken
 references with no input to mark. So it answers `details.problems` — a line each,
 which the Builder lists — and `details.fields` for the subset that names one.
+
+When a click can clear some of them, it also answers `details.fixes`, a list of codes:
+`use_state_workspace` moves the workspace onto the stored `state` backend, which needs
+no sandbox connection, and `stop_sharing_unbound` drops from `share_with_delegates`
+what the agent cannot share. The Builder offers a button for each code it knows and
+ignores the rest. A fix saves the draft and validates it again; it never publishes.
 
 A capability's configuration is the one part of a spec rendered as a generated form,
 so its refusals name the input: `capabilities.knowledge.config.default_top_k`, with

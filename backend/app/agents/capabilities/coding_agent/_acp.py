@@ -37,6 +37,7 @@ from app.agents.capabilities.coding_agent._harness import (
     clip,
     last_steps,
 )
+from app.agents.model_context import check_model_context
 from app.agents.steering import SteeringInbox, screen_steer
 
 logger = logging.getLogger(__name__)
@@ -118,7 +119,7 @@ class AgentCalls(Protocol):
     """What the device can be asked about an agent: `agent.*` operations."""
 
     async def agent_call(
-        self, op: str, args: dict[str, Any], *, timeout: float
+        self, op: str, args: dict[str, Any], *, timeout: float, root: str | None = None
     ) -> dict[str, Any]: ...
 
 
@@ -132,8 +133,10 @@ class DevicePipe:
         *,
         resume_key: str | None = None,
         fresh_session: bool = False,
+        root: str | None = None,
     ) -> None:
         self._resume_key = resume_key
+        self._root = root
         self._fresh_session = fresh_session
         self.session_id: str | None = None
         self._device = device
@@ -146,7 +149,9 @@ class DevicePipe:
         args: dict[str, Any] = {"agent": self._harness}
         if self._resume_key is not None:
             args.update(resume_key=self._resume_key, fresh_session=self._fresh_session)
-        opened = await self._device.agent_call("agent.open", args, timeout=LAUNCH_TIMEOUT_SECONDS)
+        opened = await self._device.agent_call(
+            "agent.open", args, timeout=LAUNCH_TIMEOUT_SECONDS, root=self._root
+        )
         previous = opened.get("session_id")
         self.session_id = (
             previous if isinstance(previous, str) and not self._fresh_session else None
@@ -162,11 +167,15 @@ class DevicePipe:
                 "agent.remember",
                 {"id": self._id, "session_id": session_id},
                 timeout=CALL_TIMEOUT_SECONDS,
+                root=self._root,
             )
 
     async def send(self, message: dict[str, Any]) -> None:
         await self._device.agent_call(
-            "agent.send", {"id": self._id, "message": message}, timeout=CALL_TIMEOUT_SECONDS
+            "agent.send",
+            {"id": self._id, "message": message},
+            timeout=CALL_TIMEOUT_SECONDS,
+            root=self._root,
         )
 
     async def receive(self) -> dict[str, Any]:
@@ -175,6 +184,7 @@ class DevicePipe:
                 "agent.poll",
                 {"id": self._id, "cursor": self._cursor, "wait_ms": POLL_WAIT_MS},
                 timeout=POLL_TIMEOUT_SECONDS,
+                root=self._root,
             )
             cursor = answer.get("cursor")
             if isinstance(cursor, int):
@@ -194,7 +204,9 @@ class DevicePipe:
 
     async def close(self) -> None:
         if self._id is not None:
-            await self._device.agent_call("agent.close", {"id": self._id}, timeout=15.0)
+            await self._device.agent_call(
+                "agent.close", {"id": self._id}, timeout=15.0, root=self._root
+            )
 
 
 def permission_reply(access: Access, request: dict[str, Any]) -> dict[str, Any]:
@@ -330,6 +342,8 @@ class Conversation:
         self, method: str, params: dict[str, Any], *, sent: anyio.Event | None = None
     ) -> Any:
         """Send a request and read until its answer, handling everything between."""
+        if method == "session/prompt":
+            await check_model_context()
         identifier = next(self._ids)
         await self._pipe.send(
             {"jsonrpc": "2.0", "id": identifier, "method": method, "params": params}

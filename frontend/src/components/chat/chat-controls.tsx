@@ -3,13 +3,13 @@
 import Link from "next/link";
 import type { ApprovalMode } from "@/stores/chat-controls-store";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
-import { useId, useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { Check, HelpCircle, SlidersHorizontal, X } from "lucide-react";
+import { Check, Cpu, HelpCircle, Settings2, SlidersHorizontal, Wrench, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CodingAccounts } from "@/components/settings/coding-accounts";
+import { PersonalCodingAccount } from "@/components/settings/coding-accounts";
 import { RememberedApprovals } from "./remembered-approvals";
 import { ChatModelPicker } from "./chat-model-picker";
 import { WorkOn, ConversationNotifications } from "./work-on";
@@ -17,7 +17,8 @@ import { YourConnections } from "./your-connections";
 import { ContextHelp } from "@/components/ui/context-help";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useModelProviders, useOrganizationList, usePermissions } from "@/hooks";
-import { useOrgStore } from "@/stores";
+import { useAgentSelectionStore, useOrgStore } from "@/stores";
+import { useAgents } from "@/hooks/use-agents";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import type { PublishedModel } from "@/types/agents";
 import { Perm } from "@/types/permissions";
@@ -34,6 +35,7 @@ const APPROVAL_MODES: readonly ApprovalMode[] = ["follow_agent", "approve_all", 
 export type { ApprovalMode } from "@/stores/chat-controls-store";
 
 interface ChatControlsProps {
+  usageSlot?: ReactNode;
   agentCapabilities?: readonly string[] | null;
   /** The model profile this conversation runs on, or null for the agent's own. */
   onModelProfileChange?: (profileId: string | null) => void;
@@ -77,6 +79,7 @@ interface ChatControlsProps {
  *   permission and no ceiling.
  */
 export function ChatControls({
+  usageSlot,
   onModelProfileChange,
   onApprovalModeChange,
   agentModel = null,
@@ -92,6 +95,24 @@ export function ChatControls({
   const [open, setOpen] = useState(false);
   const desktop = isDesktopShell(useShell());
   const [tab, setTab] = useState("model");
+  const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  const { agents } = useAgents();
+  const selectedAgent = agents.find((agent) => agent.id === selectedAgentId);
+  const personalHarness = selectedAgent?.personal_coding_harness ?? null;
+  // What the agent reaches, kept apart from the model it runs on: the folder,
+  // browser, screen and coding agent on the desktop, and the coding account an
+  // agent that codes on the person's own account needs anywhere.
+  // A delegate can need either personal harness, even when the selected agent
+  // has no coding binding itself. Keep both connection doors in that case.
+  const delegates =
+    (agentCapabilities ?? selectedAgent?.published_capabilities)?.includes("subagents") === true;
+  const harnesses = delegates
+    ? (["claude_code", "codex"] as const)
+    : personalHarness
+      ? [personalHarness]
+      : [];
+  const tools = desktop || harnesses.length > 0;
+  const selectedTab = !tools && tab === "tools" ? "model" : tab;
   const { profiles } = useModelProviders();
   const { can } = usePermissions();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -134,7 +155,7 @@ export function ChatControls({
           // and remembered across chats; its name took the width of the row it sat in.
           // The dot is what an override leaves visible once the settings close.
           className={cn(
-            "hover:bg-foreground/[0.06] hover:text-foreground relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
+            "pressable-icon hover:bg-foreground/[0.06] hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground focus-visible:ring-ring relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-2",
             hasOverride ? "text-foreground" : "text-muted-foreground",
           )}
         >
@@ -160,8 +181,9 @@ export function ChatControls({
         side="top"
         align="end"
         sideOffset={12}
+        collisionPadding={12}
         tabIndex={-1}
-        className="bg-card flex max-h-[min(680px,var(--radix-popover-content-available-height))] w-[480px] flex-col overflow-hidden rounded-xl p-0 shadow-2xl"
+        className="bg-card flex max-h-[min(680px,var(--radix-popover-content-available-height))] w-[480px] flex-col overflow-hidden rounded-2xl p-0"
         // The page tour walks through these settings sections. Its caption takes
         // focus and its overlay takes the pointer - both outside - and closing on
         // either left the next stop pinned to a section that had gone.
@@ -175,27 +197,42 @@ export function ChatControls({
         }}
       >
         <div className="flex shrink-0 items-center justify-between px-5 pt-4 pb-3">
-          <h2 className="text-base font-semibold tracking-tight">{t("label")}</h2>
+          <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight">
+            <SlidersHorizontal className="text-muted-foreground size-4" aria-hidden />
+            {t("label")}
+          </h2>
           <button
             type="button"
             aria-label={tCommon("close")}
             onClick={() => setOpen(false)}
-            className="text-foreground/75 hover:bg-accent hover:text-foreground flex size-8 items-center justify-center rounded-md"
+            className="pressable-icon text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 flex size-8 items-center justify-center rounded-lg outline-none focus-visible:ring-2"
           >
             <X className="size-4" aria-hidden />
           </button>
         </div>
-        <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
-          <TabsList className="mx-5 shrink-0 gap-5">
-            <TabsTrigger value="model" className="px-0">
+        <Tabs value={selectedTab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
+          <TabsList className="mx-5 shrink-0 gap-1 sm:gap-1">
+            <TabsTrigger value="model" data-tour="chat-settings-model" className="flex-1 px-2">
+              <Cpu className="size-3.5" aria-hidden />
               {t("modelSection")}
             </TabsTrigger>
-            <TabsTrigger value="preferences" data-tour="chat-settings-preferences" className="px-0">
+            {tools && (
+              <TabsTrigger value="tools" data-tour="chat-settings-tools" className="flex-1 px-2">
+                <Wrench className="size-3.5" aria-hidden />
+                {t("toolsTab")}
+              </TabsTrigger>
+            )}
+            <TabsTrigger
+              value="preferences"
+              data-tour="chat-settings-preferences"
+              className="flex-1 px-2"
+            >
+              <Settings2 className="size-3.5" aria-hidden />
               {t("preferencesTab")}
             </TabsTrigger>
           </TabsList>
           <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain px-5 py-5">
-            <TabsContent value="model" forceMount hidden={tab !== "model"} className="mt-0">
+            <TabsContent value="model" forceMount hidden={selectedTab !== "model"} className="mt-0">
               <p className="text-muted-foreground mb-4 text-[13px] leading-5">
                 {t("whichModelRunsHere")}
               </p>
@@ -222,21 +259,24 @@ export function ChatControls({
                   {t("backAgentAposS")}
                 </button>
               )}
-
-              <CodingAccounts compact />
-              {desktop && (
-                <div className="mt-5 border-t pt-4">
-                  <p className="text-muted-foreground mb-3 text-[11px] font-medium tracking-wider uppercase">
-                    {t("toolsTab")}
-                  </p>
-                  <WorkOn agentCapabilities={agentCapabilities} />
-                </div>
-              )}
             </TabsContent>
+            {tools && (
+              <TabsContent
+                value="tools"
+                forceMount
+                hidden={selectedTab !== "tools"}
+                className="mt-0 space-y-4"
+              >
+                {harnesses.map((harness) => (
+                  <PersonalCodingAccount key={harness} harness={harness} />
+                ))}
+                {desktop && <WorkOn agentCapabilities={agentCapabilities} />}
+              </TabsContent>
+            )}
             <TabsContent
               value="preferences"
               forceMount
-              hidden={tab !== "preferences"}
+              hidden={selectedTab !== "preferences"}
               className="mt-0"
             >
               <div className="space-y-4" data-tour="chat-approval-mode">
@@ -260,7 +300,7 @@ export function ChatControls({
                   role="radiogroup"
                   aria-label={t("approvalMode")}
                   aria-describedby={!mayWaive ? waiverHintId : undefined}
-                  className="space-y-2"
+                  className="space-y-1"
                 >
                   {APPROVAL_MODES.map((mode) => {
                     // Rendered but unavailable, rather than hidden: "you cannot waive
@@ -282,10 +322,10 @@ export function ChatControls({
                           onApprovalModeChange?.(mode);
                         }}
                         className={cn(
-                          "focus-visible:ring-ring flex w-full items-start justify-between gap-4 rounded-xl border px-3.5 py-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset",
+                          "focus-visible:ring-ring flex w-full items-start justify-between gap-4 rounded-lg border px-3.5 py-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset",
                           approvalMode === mode
-                            ? "border-foreground/20 bg-foreground/[0.04] text-foreground"
-                            : "border-border/60 text-foreground/80 hover:bg-foreground/[0.025]",
+                            ? "border-foreground/15 bg-foreground/[0.06] text-foreground"
+                            : "text-foreground/80 hover:bg-foreground/[0.035] border-transparent",
                           !offered && "text-muted-foreground cursor-not-allowed border-dashed",
                         )}
                       >
@@ -361,10 +401,11 @@ export function ChatControls({
           </div>
         </Tabs>
 
-        <div className="text-muted-foreground flex shrink-0 items-center justify-between px-5 pt-1 pb-4 text-[11px]">
+        <div className="text-muted-foreground border-border flex shrink-0 items-center justify-between border-t px-5 py-3 text-[11px]">
           <span className="inline-flex items-center gap-1.5">{t("savedAutomatically")}</span>
           <span>{t("escToClose")}</span>
         </div>
+        {usageSlot && <div className="border-border shrink-0 border-t px-5 py-3">{usageSlot}</div>}
       </PopoverContent>
     </Popover>
   );

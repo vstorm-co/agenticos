@@ -90,6 +90,7 @@ async def local_skills_context(
     folder: str | None,
     computer_grant: UUID | None = None,
     conversation_id: UUID | None = None,
+    agent_id: UUID | None = None,
 ) -> LocalContext:
     """Read what the chosen sources hold and build the tool and the briefing for it.
 
@@ -106,6 +107,8 @@ async def local_skills_context(
             "conversation_id": str(conversation_id),
             "mode": "full_access",
         }
+        if agent_id is not None:
+            access["agent_id"] = str(agent_id)
     chosen = list(dict.fromkeys(sources))
     listing = await _hub.call(session_id, "local.skills", {"sources": chosen}, timeout=CALL_SECONDS)
     try:

@@ -110,6 +110,8 @@ export interface Organization {
    * take it is `approvals:decide`, which is a different question.
    */
   chat_may_waive_approvals: boolean;
+  /** Absent on older servers: public viewers show the footer by default. */
+  public_agenticos_attribution?: boolean;
   /** Whether a page's data may reach anonymous visitors of its public link or embeds. */
   public_live_data: boolean;
   /**
@@ -169,6 +171,8 @@ export interface OrganizationMember {
    *  Optional because only the members list computes it; absent reads as "no",
    *  which is the safe default for a control that would otherwise 403. */
   can_change_role?: boolean;
+  /** Latest audited action in this workspace, not a sign-in or visit. */
+  last_action_at?: string | null;
 }
 
 export interface OrganizationMemberList {

@@ -1,5 +1,7 @@
 "use client";
 
+import { toolLookupName } from "@/lib/tool-identity";
+
 import { Brain, ArrowUpRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -39,11 +41,11 @@ export function MemoryToolResult({
         {statement && <p className="text-sm break-words whitespace-pre-wrap">{statement}</p>}
         {statement ? (
           <div className="text-muted-foreground flex flex-wrap gap-2 text-xs">
-            {toolCall.name === "remember" && (
+            {toolLookupName(toolCall) === "remember" && (
               <span className="bg-muted rounded px-1.5 py-0.5">{labels(`kind.${kindLabel}`)}</span>
             )}
             <span>
-              {toolCall.name === "correct_memory"
+              {toolLookupName(toolCall) === "correct_memory"
                 ? t("memoryCorrectedResult")
                 : t("memoryRecordedResult")}
             </span>

@@ -1,5 +1,5 @@
 ---
-source_sha: "07eb2e5baba3"
+source_sha: "19a5f7f5ada4"
 title: "Escribe descripciones de producto a partir de un archivo de catálogo"
 description: "Adjunta un pequeño products.csv sintético y haz que un agent escriba una descripción de ficha por fila, señalando la fila a la que le falta un atributo obligatorio en lugar de inventarlo."
 ---
@@ -107,7 +107,7 @@ Comprueba primero FW-104: un atributo que falta y se rellena en silencio es el f
 ## Cuando algo sale mal { #when-it-goes-wrong }
 
 - **Se inventa un material o una medida para FW-104.** Se está ignorando la sección "Never" de la skill; repite la indicación en el campo de instrucciones del propio agent, no solo en la skill.
-- **El agent llama a `load_capability` con un id equivocado y el turno termina en error.** Ocurrió durante la verificación en 0.0.508, cuando la entrada de la galería se instalaba como `Product description writer`: el modelo escribió dos veces el id con guiones en su lugar y el turno terminó en `UnexpectedModelBehavior` en lugar de una negativa normal. Desde 0.0.509 las skills de la galería se instalan con ese nombre con guiones, y el nombre de una skill nueva debe usar minúsculas, dígitos y guiones ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)). Una skill instalada antes conserva su nombre antiguo: instálala de nuevo desde la galería y vincula la nueva.
+- **El agent llama a `read_skill` con un id equivocado y el turno termina en error.** Ocurrió durante la verificación en 0.0.508, cuando la entrada de la galería se instalaba como `Product description writer`: el modelo escribió dos veces el id con guiones en su lugar y el turno terminó en `UnexpectedModelBehavior` en lugar de una negativa normal. Desde 0.0.509 las skills de la galería se instalan con ese nombre con guiones, y el nombre de una skill nueva debe usar minúsculas, dígitos y guiones ([#1911](https://github.com/vstorm-co/agenticos/issues/1911)). Una skill instalada antes conserva su nombre antiguo: instálala de nuevo desde la galería y vincula la nueva.
 - **Falta la nota de talla en un artículo que se lleva puesto.** Pregunta qué atributo nombra para esa fila la sección "Always include" de la skill; una nota de talla ausente es el motivo de devolución que la skill existe para evitar.
 - **La respuesta se salta una fila.** Pide el número de filas antes de fiarte de la tabla: entran cinco filas, salen cinco descripciones.
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { Upload } from "lucide-react";
@@ -101,6 +101,14 @@ export function ImportCsvDialog({
   // A file imported again: a row whose external id the table holds updates that
   // record rather than being refused as taken. Meaningful only with that column.
   const [updateExisting, setUpdateExisting] = useState(false);
+  const mappingErrorId = useId();
+  const assigned = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const target of mapping) {
+    if (target === SKIP) continue;
+    if (assigned.has(target)) duplicates.add(target);
+    assigned.add(target);
+  }
   const byExternalId = mapping.includes(EXTERNAL_ID);
 
   const close = (next: boolean) => {
@@ -143,49 +151,66 @@ export function ImportCsvDialog({
   };
 
   const run = async (rows: string[][]) => {
-    const failures: Failure[] = [];
-    const ready: { line: number; record: RecordCreate }[] = [];
-    rows.forEach((row, index) => {
-      const line = index + 2;
-      const read = toRecord(row);
-      if ("reason" in read) failures.push({ line, reason: read.reason });
-      else ready.push({ line, record: read.record });
-    });
-    let created = 0;
-    let updated = 0;
-    setStep({ name: "importing", done: 0, total: ready.length });
-    for (let start = 0; start < ready.length; start += BATCH) {
-      const batch = ready.slice(start, start + BATCH);
-      try {
-        const result = await createRecords(
-          tableId,
-          batch.map((entry) => entry.record),
-          updateExisting && byExternalId,
-        );
-        created += result.created;
-        updated += result.updated ?? 0;
-        for (const failure of result.failed) {
-          failures.push({
-            line: (batch[failure.index] as (typeof batch)[number]).line,
-            reason: getErrorMessage(batchRefusal(failure), tErrors),
-          });
+    if (duplicates.size === 0) {
+      const failures: Failure[] = [];
+      const ready: { line: number; record: RecordCreate }[] = [];
+      // Batches cannot see each other's rows, so a repeated id is caught across the file here.
+      const firstLine = new Map<string, number>();
+      rows.forEach((row, index) => {
+        const line = index + 2;
+        const read = toRecord(row);
+        if ("reason" in read) {
+          failures.push({ line, reason: read.reason });
+          return;
         }
-      } catch (error) {
-        // A refusal of the whole batch - a rate limit, the table archived - stops
-        // the import there: every row not yet sent is listed, not guessed at.
-        const reason = getErrorMessage(error, tErrors);
-        for (const entry of ready.slice(start)) failures.push({ line: entry.line, reason });
-        break;
-      }
-      setStep({
-        name: "importing",
-        done: Math.min(start + BATCH, ready.length),
-        total: ready.length,
+        const id = read.record.external_id;
+        const earlier = id ? firstLine.get(id) : undefined;
+        if (earlier !== undefined) {
+          failures.push({ line, reason: t("repeatedExternalId", { line: earlier }) });
+          return;
+        }
+        if (id) firstLine.set(id, line);
+        ready.push({ line, record: read.record });
       });
+      let created = 0;
+      let updated = 0;
+      let asOf: string | undefined;
+      setStep({ name: "importing", done: 0, total: ready.length });
+      for (let start = 0; start < ready.length; start += BATCH) {
+        const batch = ready.slice(start, start + BATCH);
+        try {
+          const result = await createRecords(
+            tableId,
+            batch.map((entry) => entry.record),
+            updateExisting && byExternalId,
+            asOf,
+          );
+          asOf ??= result.as_of;
+          created += result.created;
+          updated += result.updated ?? 0;
+          for (const failure of result.failed) {
+            failures.push({
+              line: (batch[failure.index] as (typeof batch)[number]).line,
+              reason: getErrorMessage(batchRefusal(failure), tErrors),
+            });
+          }
+        } catch (error) {
+          // A refusal of the whole batch - a rate limit, the table archived - stops
+          // the import there: every row not yet sent is listed, not guessed at.
+          const reason = getErrorMessage(error, tErrors);
+          for (const entry of ready.slice(start)) failures.push({ line: entry.line, reason });
+          break;
+        }
+        setStep({
+          name: "importing",
+          done: Math.min(start + BATCH, ready.length),
+          total: ready.length,
+        });
+      }
+      await queryClient.invalidateQueries({ queryKey: qk.tables.recordsAll(tableId) });
+      failures.sort((a, b) => a.line - b.line);
+      setStep({ name: "done", created, updated, failures });
     }
-    await queryClient.invalidateQueries({ queryKey: qk.tables.recordsAll(tableId) });
-    failures.sort((a, b) => a.line - b.line);
-    setStep({ name: "done", created, updated, failures });
   };
 
   return (
@@ -244,7 +269,14 @@ export function ImportCsvDialog({
                         setMapping(mapping.map((target, index) => (index === at ? next : target)))
                       }
                     >
-                      <SelectTrigger className="w-full sm:w-48" aria-label={t("mapTo", { header })}>
+                      <SelectTrigger
+                        className="w-full sm:w-48"
+                        aria-label={t("mapTo", { header })}
+                        aria-invalid={duplicates.has(mapping[at] ?? SKIP)}
+                        aria-describedby={
+                          duplicates.has(mapping[at] ?? SKIP) ? mappingErrorId : undefined
+                        }
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -261,6 +293,12 @@ export function ImportCsvDialog({
                 ))}
               </div>
             </div>
+          )}
+
+          {step.name === "map" && duplicates.size > 0 && (
+            <p id={mappingErrorId} role="alert" className="text-destructive-ink text-sm">
+              {t("duplicateMapping")}
+            </p>
           )}
 
           {step.name === "map" && byExternalId && (
@@ -326,7 +364,7 @@ export function ImportCsvDialog({
                 {t("back")}
               </Button>
               <Button
-                disabled={mapping.every((target) => target === SKIP)}
+                disabled={duplicates.size > 0 || mapping.every((target) => target === SKIP)}
                 onClick={() => void run(step.rows)}
               >
                 {t("import", { count: step.rows.length })}

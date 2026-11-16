@@ -5,6 +5,7 @@ import {
   CONTEXT_ID,
   DEFAULT_SUBAGENTS_CONFIG,
   delegationNameClashes,
+  enableMcpToolSearch,
   duplicateDelegateIds,
   newSpecialist,
   pinStatus,
@@ -63,8 +64,21 @@ describe("withCapability", () => {
   it("adds a binding that publishing will accept", () => {
     const [added] = withCapability([], "charts", true);
 
-    expect(added).toMatchObject({ id: "charts", enabled: true, secret_id: null });
+    expect(added).toMatchObject({
+      id: "charts",
+      enabled: true,
+      secret_id: null,
+      approval: "required",
+    });
   });
+
+  it.each(["default", "never", "required"] as const)(
+    "preserves an existing %s approval",
+    (approval) => {
+      const configured = binding("charts", { approval });
+      expect(withCapability([configured], "charts", true)).toEqual([configured]);
+    },
+  );
 
   it("leaves a capability that is already on exactly as it was", () => {
     // Otherwise asking for a state it is already in would silently reset
@@ -81,6 +95,41 @@ describe("withCapability", () => {
     expect(withCapability([binding("charts"), binding("clock")], "charts", false)).toEqual([
       binding("clock"),
     ]);
+  });
+});
+
+describe("enableMcpToolSearch", () => {
+  it("adds an enabled Tool search binding configured to defer MCP tools", () => {
+    expect(enableMcpToolSearch([])).toEqual([
+      binding("tool_search", { config: { defer_mcp_servers: true }, approval: "required" }),
+    ]);
+  });
+
+  it("enables MCP deferral without resetting exclusions or other capability settings", () => {
+    const clock = binding("clock");
+    const configured = binding("tool_search", {
+      enabled: false,
+      approval: "required",
+      config: {
+        strategy: "local_bm25",
+        defer_capabilities: true,
+        defer_mcp_servers: false,
+        exclude_capabilities: ["knowledge"],
+        exclude_mcp_servers: ["github_work"],
+        exclude_tools: ["renamed_search"],
+      },
+    });
+
+    expect(enableMcpToolSearch([clock, configured])).toEqual([
+      clock,
+      {
+        ...configured,
+        enabled: true,
+        config: { ...configured.config, defer_mcp_servers: true },
+      },
+    ]);
+    expect(configured.enabled).toBe(false);
+    expect(configured.config.defer_mcp_servers).toBe(false);
   });
 });
 

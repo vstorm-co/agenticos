@@ -1,5 +1,5 @@
 ---
-source_sha: "d3a18b2e5b08"
+source_sha: "57bc6e1afff1"
 ---
 
 # Usługi ML { #the-ml-services }
@@ -471,3 +471,5 @@ obsługuje zarówno agenty, jak i wywołujących wprost. Osobny jest proces, lim
 restart — czyli to, o co prosi „wdrażane, aktualizowane i skalowane niezależnie".
 
 Nakładkę i jej oczekiwania opisuje `deploy/profiles/ml-services/README.md`.
+
+ElevenLabs Scribe jest dostępny także dla transkrypcji organizacji, agentów i kanałów: `scribe_v3` oraz `scribe_v2`. Korzysta z jawnie wskazanego klucza ElevenLabs w sejfie i własnych pól transportu `xi-api-key`, `model_id` oraz `language_code`. Nie korzysta z profilu modelu tekstowego ani klucza środowiskowego. Obowiązują standardowe limity czasu i przesyłania, wybór języka, kontrola organizacji i zapis użycia. [ElevenLabs API](https://elevenlabs.io/docs/api-reference/speech-to-text/convert).

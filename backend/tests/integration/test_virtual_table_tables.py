@@ -405,6 +405,132 @@ async def test_a_type_change_rewrites_every_value_it_survives(db):
     assert all(record.revision > 1 for record in records)
 
 
+async def test_a_type_change_records_each_rewritten_cell_and_leaves_the_rest_alone(db):
+    from app.db.models.virtual_table import (
+        VirtualTableOutbox,
+        VirtualTableRecord,
+        VirtualTableRecordHistory,
+    )
+
+    service, ctx, owner, _org = await _setup(db)
+    table = await service.create_table(
+        ctx,
+        TableCreate(name="Leads", columns=[column("Score", "integer"), column("Note", "text")]),
+    )
+    score_id, note_id = (col.id for col in table.columns)
+    scored, unscored = [
+        (await service.create_record(ctx, table.id, RecordCreate(values=values))).record
+        for values in ({str(score_id): 20, str(note_id): "hot"}, {str(note_id): "cold"})
+    ]
+    events = await db.scalar(select(func.count()).select_from(VirtualTableOutbox))
+
+    await service.update_schema(
+        ctx,
+        table.id,
+        SchemaUpdate(
+            expected_version=1,
+            columns=[column("Score", "text", id=score_id), column("Note", "long_text", id=note_id)],
+        ),
+    )
+
+    rewritten = await db.get(VirtualTableRecord, scored.id, populate_existing=True)
+    untouched = await db.get(VirtualTableRecord, unscored.id, populate_existing=True)
+    assert rewritten is not None and untouched is not None
+    assert rewritten.values[str(score_id)] == "20"
+    assert rewritten.revision == scored.revision + 1
+    assert rewritten.updated_by == owner.id
+    assert rewritten.updated_source is not None and rewritten.updated_source["kind"] == "user"
+    assert untouched.revision == unscored.revision
+    history = list(
+        await db.scalars(
+            select(VirtualTableRecordHistory).where(
+                VirtualTableRecordHistory.table_id == table.id,
+                VirtualTableRecordHistory.operation == "update",
+            )
+        )
+    )
+    assert [(row.record_id, row.revision, row.before, row.after) for row in history] == [
+        (scored.id, rewritten.revision, {str(score_id): 20}, {str(score_id): "20"})
+    ]
+    assert history[0].actor_user_id == owner.id
+    # Nothing a trigger would act on: one schema edit must not start a workflow per record.
+    assert await db.scalar(select(func.count()).select_from(VirtualTableOutbox)) == events
+
+
+async def test_a_value_a_type_change_empties_is_recorded_as_cleared(db):
+    from app.db.models.virtual_table import VirtualTableRecordHistory
+
+    service, ctx, _owner, _org = await _setup(db)
+    table = await service.create_table(
+        ctx, TableCreate(name="Leads", columns=[column("Score", "text")])
+    )
+    score_id = table.columns[0].id
+    blank = (
+        await service.create_record(ctx, table.id, RecordCreate(values={str(score_id): " "}))
+    ).record
+
+    await service.update_schema(
+        ctx,
+        table.id,
+        SchemaUpdate(expected_version=1, columns=[column("Score", "integer", id=score_id)]),
+    )
+
+    row = await db.scalar(
+        select(VirtualTableRecordHistory).where(
+            VirtualTableRecordHistory.record_id == blank.id,
+            VirtualTableRecordHistory.operation == "update",
+        )
+    )
+    assert row is not None
+    assert (row.before, row.after) == ({str(score_id): " "}, {})
+
+
+@pytest.mark.security
+async def test_a_type_change_past_the_storage_limit_writes_nothing(db, monkeypatch):
+    from app.core.config import settings
+    from app.db.models.virtual_table import VirtualTableRecord, VirtualTableRecordHistory
+    from app.repositories import virtual_table_repo
+    from app.services.virtual_tables.exceptions import QuotaExceededError
+
+    service, ctx, _owner, org = await _setup(db)
+    table = await service.create_table(
+        ctx, TableCreate(name="Leads", columns=[column("Score", "integer")])
+    )
+    score_id = table.columns[0].id
+    for score in range(20):
+        await service.create_record(ctx, table.id, RecordCreate(values={str(score_id): score}))
+    # The refusal audits in its own transaction, which waits on the audit chain this one holds.
+    await db.commit()
+    used = await virtual_table_repo.storage_bytes(db, organization_id=org.id)
+    monkeypatch.setattr(settings, "TABLES_MAX_STORAGE_BYTES_PER_ORGANIZATION", used)
+
+    with pytest.raises(QuotaExceededError):
+        await service.update_schema(
+            ctx,
+            table.id,
+            SchemaUpdate(expected_version=1, columns=[column("Score", "text", id=score_id)]),
+        )
+
+    assert (await service.describe_table(ctx, table.id)).schema_version == 1
+    held = await db.scalars(
+        select(VirtualTableRecord.values[str(score_id)]).where(
+            VirtualTableRecord.table_id == table.id
+        )
+    )
+    assert all(isinstance(value, int) for value in held)
+    assert (
+        await db.scalar(
+            select(func.count())
+            .select_from(VirtualTableRecordHistory)
+            .where(
+                VirtualTableRecordHistory.table_id == table.id,
+                VirtualTableRecordHistory.operation == "update",
+            )
+        )
+        == 0
+    )
+
+
 async def test_a_type_change_a_value_does_not_survive_writes_nothing(db, monkeypatch):
     service, ctx, _owner, _org = await _setup(db)
     table = await service.create_table(

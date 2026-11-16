@@ -12,6 +12,7 @@ describe("useOnboardingStore", () => {
       offer: null,
       choices: {},
       flowAgentId: null,
+      systemAgentPage: false,
     }),
   );
 
@@ -97,6 +98,13 @@ describe("useOnboardingStore", () => {
   it("setFlowAgentId remembers the agent the flow created", () => {
     useOnboardingStore.getState().setFlowAgentId("agent-7");
     expect(useOnboardingStore.getState().flowAgentId).toBe("agent-7");
+  });
+
+  it("setSystemAgentPage records that a system agent's builder is on screen, and is undone", () => {
+    useOnboardingStore.getState().setSystemAgentPage(true);
+    expect(useOnboardingStore.getState().systemAgentPage).toBe(true);
+    useOnboardingStore.getState().setSystemAgentPage(false);
+    expect(useOnboardingStore.getState().systemAgentPage).toBe(false);
   });
 
   it("openOffer shows the prompt without opening a walkthrough", () => {

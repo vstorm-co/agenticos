@@ -56,6 +56,7 @@ from app.schemas.artifact import (
     ArtifactPublicDataCreate,
     ArtifactPublicDataDisclosure,
     ArtifactPublicLinkUpdate,
+    ArtifactThumbnailRead,
     ArtifactUpdate,
     ArtifactVersionList,
     ArtifactView,
@@ -138,7 +139,11 @@ async def update_artifact(
 
 @router.delete("/{artifact_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> None:
-    """Delete it with every version, its grants and its public link."""
+    """Delete it with every version, its grants and its public link.
+
+    Returns 409 with nothing deleted if an active writer keeps its source locks
+    busy beyond the short retry window. The caller may retry the deletion.
+    """
     await service.delete(ctx, artifact_id)
 
 
@@ -436,6 +441,17 @@ async def follow_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) ->
 async def unfollow_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> Any:
     """Stop being notified about new versions."""
     return await service.unfollow(ctx, artifact_id)
+
+
+@router.get("/{artifact_id}/thumbnail", response_model=ArtifactThumbnailRead)
+async def artifact_thumbnail(
+    artifact_id: UUID,
+    service: ArtifactSvc,
+    ctx: Auth,
+    version_id: UUID | None = Query(None, description="A version this caller may open"),
+) -> Any:
+    """A cached preview image without running the page in the listing or loading live records."""
+    return await service.thumbnail(ctx, artifact_id, version_id=version_id)
 
 
 @router.get("/{artifact_id}/view", response_model=ArtifactView)

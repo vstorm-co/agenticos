@@ -894,6 +894,35 @@ describe("creating, renaming and removing a conversation", () => {
     expect(toast.error).toHaveBeenCalledWith("Failed to restore conversation");
   });
 
+  it("forks a conversation at an answer and opens the fork", async () => {
+    serve();
+    const result = await hook();
+    vi.mocked(apiClient.post).mockResolvedValueOnce(conversation("c-fork"));
+
+    await act(async () => {
+      await result.current.forkConversation("c-1", "m-7");
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-1/fork", { message_id: "m-7" });
+    expect(result.current.currentConversationId).toBe("c-fork");
+    expect(toast.success).toHaveBeenCalledWith("Conversation forked");
+  });
+
+  it("reports a refused fork and stays where it was", async () => {
+    serve();
+    const result = await hook();
+    vi.mocked(apiClient.post).mockRejectedValueOnce("boom");
+
+    let fork: unknown;
+    await act(async () => {
+      fork = await result.current.forkConversation("c-1", "m-7");
+    });
+
+    expect(fork).toBeNull();
+    expect(result.current.currentConversationId).not.toBe("c-fork");
+    expect(toast.error).toHaveBeenCalledWith("Failed to fork conversation");
+  });
+
   it("renames, then reads back the list - a new title can leave a search", async () => {
     serve({ items: [conversation("c-1"), conversation("c-2")] });
     const result = await hook();
@@ -1958,4 +1987,118 @@ it("does not reopen the previous address when a refresh starts navigation", asyn
   } finally {
     invalidate.mockRestore();
   }
+});
+
+it.each(["organization", "account", "selection"])(
+  "does not replace the open chat when %s changes during a fork",
+  async (changed) => {
+    const previousUser = useAuthStore.getState().user;
+    useAuthStore.setState({
+      user: {
+        id: "fork-owner",
+        email: "fork@example.com",
+        is_active: true,
+        created_at: "2026-11-09T00:00:00Z",
+      },
+    });
+    useOrgStore.setState({ activeOrgId: "org-a" });
+    const result = await hook();
+    let finish: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.post).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const forking = result.current.forkConversation("c-1", "m-7");
+    try {
+      act(() => {
+        if (changed === "organization") useOrgStore.setState({ activeOrgId: "org-b" });
+        if (changed === "account") useAuthStore.setState({ user: null });
+        if (changed === "selection")
+          useConversationStore.getState().setCurrentConversationId("c-elsewhere");
+      });
+      const selected = useConversationStore.getState().currentConversationId;
+      await act(async () => {
+        finish(conversation("c-fork"));
+        await forking;
+      });
+      expect(useConversationStore.getState().currentConversationId).toBe(selected);
+    } finally {
+      useAuthStore.setState({ user: previousUser });
+    }
+  },
+);
+
+it("drops a fork after the organization changes while its lists are refreshed", async () => {
+  const result = await hook();
+  vi.mocked(apiClient.post).mockResolvedValueOnce(conversation("c-fork"));
+  const invalidate = vi.spyOn(invalidation, "invalidateSoon").mockImplementationOnce(async () => {
+    useOrgStore.setState({ activeOrgId: "changed-after-copy" });
+  });
+  try {
+    let copied: unknown;
+    await act(async () => {
+      copied = await result.current.forkConversation("c-1", "m-7");
+    });
+    expect(copied).toBeNull();
+    expect(useConversationStore.getState().currentConversationId).not.toBe("c-fork");
+    expect(toast.success).not.toHaveBeenCalled();
+  } finally {
+    invalidate.mockRestore();
+  }
+});
+
+it("does not toast or return a fork after the organization changes while opening it", async () => {
+  const result = await hook();
+  vi.mocked(apiClient.post).mockResolvedValueOnce(conversation("c-fork"));
+  const base = vi.mocked(apiClient.get).getMockImplementation()!;
+  vi.mocked(apiClient.get).mockImplementation(async (path) => {
+    if (path.includes("c-fork/messages"))
+      useOrgStore.setState({ activeOrgId: "changed-while-opening" });
+    return base(path);
+  });
+  let copied: unknown;
+  await act(async () => {
+    copied = await result.current.forkConversation("c-1", "m-7");
+  });
+  expect(copied).toBeNull();
+  expect(toast.success).not.toHaveBeenCalled();
+});
+
+it("marks and restores shared unread state without touching access or grant caches", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(qk.organizations.list(), [{ id: "fallback", is_personal: true }]);
+  const sharedKey = qk.conversationShares.sharedWithMe(0, 50, null, false);
+  const row = conversation("shared", { unread: true });
+  client.setQueryData(sharedKey, { items: [row], total: 1 });
+  const grants = [{ id: "grant", permission: "view" }];
+  client.setQueryData(qk.conversationShares.list("shared"), grants);
+  function localWrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  }
+  const { result } = renderHook(() => useConversations(), { wrapper: localWrapper });
+  await waitFor(() => expect(result.current.isLoading).toBe(false));
+  let refuse: (reason: Error) => void = () => {};
+  vi.mocked(apiClient.post).mockImplementationOnce(
+    () =>
+      new Promise((_, reject) => {
+        refuse = reject;
+      }),
+  );
+  let write: Promise<void>;
+  await act(async () => {
+    write = result.current.markRead("shared");
+  });
+  expect(client.getQueryData(sharedKey)).toMatchObject({ items: [{ unread: false }] });
+  await act(async () => {
+    refuse(new Error("offline"));
+    await write;
+  });
+  expect(client.getQueryData(sharedKey)).toMatchObject({ items: [{ unread: true }] });
+  expect(client.getQueryData(qk.conversationShares.list("shared"))).toBe(grants);
+  vi.mocked(apiClient.post).mockResolvedValueOnce(undefined);
+  await act(async () => {
+    await result.current.markRead("shared");
+  });
+  expect(client.getQueryData(sharedKey)).toMatchObject({ items: [{ unread: false }] });
 });

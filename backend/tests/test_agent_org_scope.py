@@ -759,6 +759,42 @@ class TestPersistAssistantTurnRecordsWhatItCost:
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("status", ["awaiting_answer", "cancelled"])
+async def test_a_renamed_question_keeps_its_waiting_state_when_chat_persists_it(status):
+    from app.repositories.conversation import Attributed
+    from app.services.agent import persist_assistant_turn
+
+    service = TestPersistAssistantTurnRecordsWhatItCost()._conv_service()
+    service.complete_tool_call = AsyncMock()
+    service.start_tool_call.return_value = MagicMock(id=uuid.uuid4())
+    with (
+        patch("app.services.agent.get_db_context", _fake_db_context),
+        patch("app.services.agent.ConversationService", return_value=service),
+        patch(
+            "app.services.agent.conversation_repo.attributed_to_run",
+            AsyncMock(return_value=Attributed()),
+        ),
+        patch(
+            "app.services.agent.agent_run_repo.claim_parked_run",
+            AsyncMock(return_value=MagicMock(status=status)),
+        ),
+    ):
+        saved = await persist_assistant_turn(
+            str(uuid.uuid4()),
+            "",
+            None,
+            [{"tool_call_id": "ask-1", "tool_name": "clarify", "args": {}}],
+            organization_id=uuid.uuid4(),
+            run_id=uuid.uuid4(),
+            question_tool_call_ids={"ask-1"},
+        )
+
+    assert saved is not None
+    assert service.start_tool_call.await_args.kwargs["parked"] is (status != "cancelled")
+    assert service.start_tool_call.await_args.kwargs["awaiting_answer"] is (status != "cancelled")
+
+
+@pytest.mark.anyio
 @pytest.mark.parametrize("status", [None, "awaiting_approval", "cancelled"])
 async def test_a_late_parked_transcript_observes_a_stop_before_writing_calls(status):
     from app.repositories.conversation import Attributed

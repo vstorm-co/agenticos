@@ -6,7 +6,9 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.spec import AgentSpec, BudgetSpec, CapabilityBindingSpec
+from app.agents.spec import AgentSpec, BudgetSpec, CapabilityBindingSpec, SubagentRef
+from app.core.permissions import AuthContext
+from app.db.models.agent import Agent
 from app.db.models.credential import ModelProfile
 from app.repositories import agent_repo, skill_repo
 from app.schemas.skill import SkillUpdate
@@ -374,10 +376,8 @@ async def test_published_custom_tool_bindings_stay_typed_during_prompt_refresh(
     assert agent.current_version_id == current
 
 
-async def test_starter_pins_architect_and_refreshes_only_untouched_delegate_choices(
-    db: AsyncSession,
-) -> None:
-    ctx = await _owner(db)
+async def _pinned_starter(db: AsyncSession, ctx: AuthContext) -> tuple[Agent, Agent]:
+    """A starter as an earlier release left it: the Architect pinned as its delegate."""
     profile = ModelProfile(
         organization_id=ctx.organization_id,
         label="Model",
@@ -391,21 +391,51 @@ async def test_starter_pins_architect_and_refreshes_only_untouched_delegate_choi
     agents = await _agents(db, ctx)
     architect, starter = agents["Architect"], agents["AgenticOS"]
     assert architect.current_version_id is not None and starter.current_version_id is not None
-    spec = AgentSpec.model_validate(starter.draft_spec)
-    assert len(spec.subagents) == 1
-    assert spec.subagents[0].agent_id == architect.id
-    assert spec.subagents[0].agent_version_id == architect.current_version_id
-    registry = AgentRegistryService(db)
-    await registry.publish(ctx, architect.id, note="A new Architect version")
-    await AssistantService(db).state(ctx)
-    spec = AgentSpec.model_validate(starter.draft_spec)
-    assert spec.subagents[0].agent_version_id == architect.current_version_id
-    # Removing an installed pin is a deliberate tool choice, not an old empty default.
-    await registry.save_draft(ctx, starter.id, spec.model_copy(update={"subagents": []}))
-    await registry.publish(ctx, starter.id)
-    await registry.publish(ctx, architect.id, note="Another Architect version")
-    await AssistantService(db).state(ctx)
     assert AgentSpec.model_validate(starter.draft_spec).subagents == []
+    pin = SubagentRef(agent_id=architect.id, agent_version_id=architect.current_version_id)
+    shipped = AgentSpec.model_validate(starter.draft_spec).model_copy(update={"subagents": [pin]})
+    registry = AgentRegistryService(db)
+    await registry.save_draft(ctx, starter.id, shipped)
+    await registry.publish(ctx, starter.id)
+    await agent_repo.update(
+        db,
+        agent=starter,
+        update_data={"shipped_template": {**baseline(STARTER, shipped), "release": "pinned"}},
+    )
+    return starter, architect
+
+
+async def test_starter_drops_the_architect_pin_an_earlier_release_delivered(
+    db: AsyncSession,
+) -> None:
+    """The starter answers platform questions itself; asking the Architect cost a minute."""
+    ctx = await _owner(db)
+    starter, _architect = await _pinned_starter(db, ctx)
+
+    await AssistantService(db).state(ctx)
+
+    assert AgentSpec.model_validate(starter.draft_spec).subagents == []
+    assert starter.current_version_id is not None
+    version = await agent_repo.get_version(
+        db, starter.current_version_id, organization_id=ctx.organization_id
+    )
+    assert version is not None and AgentSpec.model_validate(version.spec).subagents == []
+
+
+async def test_starter_keeps_a_delegate_somebody_chose(db: AsyncSession) -> None:
+    ctx = await _owner(db)
+    starter, architect = await _pinned_starter(db, ctx)
+    registry = AgentRegistryService(db)
+    await registry.publish(ctx, architect.id, note="A newer Architect, chosen by hand")
+    assert architect.current_version_id is not None
+    chosen = SubagentRef(agent_id=architect.id, agent_version_id=architect.current_version_id)
+    spec = AgentSpec.model_validate(starter.draft_spec).model_copy(update={"subagents": [chosen]})
+    await registry.save_draft(ctx, starter.id, spec)
+    await registry.publish(ctx, starter.id)
+
+    await AssistantService(db).state(ctx)
+
+    assert AgentSpec.model_validate(starter.draft_spec).subagents == [chosen]
 
 
 @pytest.mark.security

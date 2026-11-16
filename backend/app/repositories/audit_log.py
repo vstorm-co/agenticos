@@ -23,6 +23,24 @@ async def installed_skill_keys(db: AsyncSession, *, organization_id: UUID) -> se
     return {key for key in keys if key is not None}
 
 
+async def has_skill_installation(
+    db: AsyncSession, *, organization_id: UUID, skill_id: UUID, key: str
+) -> bool:
+    """Match the receipt to this row, never a deleted skill sharing its name."""
+    found = await db.scalar(
+        select(AppAdminAuditLog.id)
+        .where(
+            AppAdminAuditLog.organization_id == organization_id,
+            AppAdminAuditLog.action == "skill.installed",
+            AppAdminAuditLog.target_type == "skill",
+            AppAdminAuditLog.target_id == str(skill_id),
+            AppAdminAuditLog.details["key"].astext == key,
+        )
+        .limit(1)
+    )
+    return found is not None
+
+
 async def list_for_org(
     db: AsyncSession,
     *,
@@ -164,3 +182,25 @@ async def memory_erased_since(
         .limit(1)
     )
     return found is not None
+
+
+async def latest_member_actions(
+    db: AsyncSession, *, organization_id: UUID, user_ids: list[UUID]
+) -> dict[UUID, datetime]:
+    """Latest audited action in this organization, excluding impersonated actions.
+
+    This is not a visit or sign-in timestamp. Only actors on the requested
+    member page are included; activity in another organization never leaks.
+    """
+    if not user_ids:
+        return {}
+    rows = await db.execute(
+        select(AppAdminAuditLog.actor_user_id, func.max(AppAdminAuditLog.created_at))
+        .where(
+            AppAdminAuditLog.organization_id == organization_id,
+            AppAdminAuditLog.actor_user_id.in_(user_ids),
+            AppAdminAuditLog.impersonator_user_id.is_(None),
+        )
+        .group_by(AppAdminAuditLog.actor_user_id)
+    )
+    return dict(rows.all())

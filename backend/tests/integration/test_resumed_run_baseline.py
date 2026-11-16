@@ -17,7 +17,7 @@ whatever the test told it to.
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
@@ -37,7 +37,12 @@ from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import agent_run_repo
-from app.services.spend import month_start, organization_monthly_spend
+from app.services.spend import (
+    budget_window,
+    month_start,
+    organization_monthly_spend,
+    organization_spend_since,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -79,7 +84,9 @@ async def _agent(db, org: Organization) -> Agent:
     return agent
 
 
-async def _run_that_spent(db, *, org: Organization, agent: Agent, cost: Decimal) -> AgentRun:
+async def _run_that_spent(
+    db, *, org: Organization, agent: Agent, cost: Decimal, started_at: datetime | None = None
+) -> AgentRun:
     """A run that spent, finished and had its cost committed - as a parked one has."""
     run = await agent_run_repo.create_run(
         db,
@@ -92,7 +99,7 @@ async def _run_that_spent(db, *, org: Organization, agent: Agent, cost: Decimal)
         model_label="gpt-4.1",
         provider="openai",
         secret_id=None,
-        started_at=datetime.now(UTC),
+        started_at=started_at or datetime.now(UTC),
     )
     return await agent_run_repo.finish_run(
         db,
@@ -242,6 +249,77 @@ class TestWhatTheGuardThenSees:
         baseline = await organization_monthly_spend(db, org.id, exclude_run_id=parked.id)
 
         assert baseline == Decimal("9.00")
+
+
+class TestARunResumedInANewMonth:
+    """A run's whole cost belongs to the month it started, for the guard as for the report.
+
+    Parked on the last evening of a month and approved on the first, its earlier
+    cost is in its re-seeded ledger. Weighed against the new month, that cost
+    lands on a month the report never books it to - so a continuation the new
+    month has room for is refused, and the old month's cap stops binding it.
+    """
+
+    @staticmethod
+    async def _baselines(db, *, org, agent, parked) -> tuple[Decimal, Decimal]:
+        since, until = budget_window(parked.started_at)
+        agent_spent = await agent_run_repo.sum_cost_since(
+            db,
+            organization_id=org.id,
+            since=since,
+            until=until,
+            agent_id=agent.id,
+            include_delegations=True,
+            exclude_run_id=parked.id,
+        )
+        org_spent = await organization_spend_since(
+            db, org.id, since, until=until, exclude_run_id=parked.id
+        )
+        return agent_spent, org_spent
+
+    @staticmethod
+    def _last_evening() -> datetime:
+        return month_start() - timedelta(hours=2)
+
+    async def test_the_new_months_spend_does_not_refuse_it(self, db) -> None:
+        org = await _org(db)
+        agent = await _agent(db, org)
+        await _run_that_spent(db, org=org, agent=agent, cost=Decimal("100.00"))
+        await _run_that_spent(
+            db, org=org, agent=agent, cost=Decimal("1.00"), started_at=self._last_evening()
+        )
+        parked = await _run_that_spent(
+            db, org=org, agent=agent, cost=Decimal("4.00"), started_at=self._last_evening()
+        )
+
+        agent_spent, org_spent = await self._baselines(db, org=org, agent=agent, parked=parked)
+        assert (agent_spent, org_spent) == (Decimal("1.00"), Decimal("1.00"))
+        guard = TestWhatTheGuardThenSees._guard(
+            agent_spent, already_spent=Decimal("4.00"), cap=Decimal("10.00")
+        )
+
+        await _one_request(guard)
+
+    async def test_the_month_it_started_still_binds_it(self, db) -> None:
+        org = await _org(db)
+        agent = await _agent(db, org)
+        await _run_that_spent(
+            db, org=org, agent=agent, cost=Decimal("7.00"), started_at=self._last_evening()
+        )
+        parked = await _run_that_spent(
+            db, org=org, agent=agent, cost=Decimal("4.00"), started_at=self._last_evening()
+        )
+
+        agent_spent, org_spent = await self._baselines(db, org=org, agent=agent, parked=parked)
+        assert (agent_spent, org_spent) == (Decimal("7.00"), Decimal("7.00"))
+        guard = TestWhatTheGuardThenSees._guard(
+            agent_spent, already_spent=Decimal("4.00"), cap=Decimal("10.00")
+        )
+
+        with pytest.raises(BudgetExceeded) as refused:
+            await _one_request(guard)
+
+        assert refused.value.scope is BudgetScope.AGENT
 
 
 async def _answer(value: Decimal) -> Decimal:

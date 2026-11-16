@@ -157,6 +157,8 @@ export interface RealtimeModel {
   supports_thinking: boolean;
   input_sample_rate: number;
   output_sample_rate: number;
+  unreported_token_usage?: boolean;
+  default_language?: string | null;
 }
 
 /** A provider that can hold a voice conversation, and the vault kind its key must be. */

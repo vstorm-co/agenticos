@@ -10,7 +10,7 @@ from pydantic import TypeAdapter, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.mcp import McpSourceIdentity, tool_prefix
-from app.agents.spec import AgentSpec, OrgMcpServerRef, PersonalMcpServerRef
+from app.agents.spec import AgentSpec, OrgMcpServerRef, PersonalMcpServerRef, PlatformMcpServerRef
 from app.core.audit import current_impersonator, record_audit
 from app.core.exceptions import AuthorizationError, ConflictError
 from app.core.permissions import AuthContext
@@ -110,6 +110,14 @@ class RoutineSourcesRequired(AuthorizationError):
     code = "ROUTINE_SOURCES_REVIEW_REQUIRED"
 
 
+class PlatformRoutineIdentityRequired(RoutineSourcesRequired):
+    message = (
+        "The AgenticOS platform MCP server requires Act as creator. Enable it or remove "
+        "the platform binding from this agent and its delegates."
+    )
+    code = "ROUTINE_PLATFORM_IDENTITY_REQUIRED"
+
+
 def read_policy(value: object) -> RoutineSourcePolicy:
     try:
         return RoutineSourcePolicy.model_validate(value)
@@ -172,6 +180,29 @@ async def require_bound_sources(
             != expected
         ):
             raise RoutineSourcesRequired()
+    if policy.channel_sources:
+        from app.repositories import agent_exposure_repo, channel_bot_repo
+        from app.services.channel_actions import grant_fingerprint
+
+        for identifier, expected in policy.channel_sources.items():
+            exposure = await agent_exposure_repo.get(
+                db, identifier, organization_id=organization_id
+            )
+            bot = (
+                None
+                if exposure is None
+                else await channel_bot_repo.get_for_org(
+                    db, exposure.channel_bot_id, organization_id=organization_id
+                )
+            )
+            if (
+                exposure is None
+                or bot is None
+                or not exposure.is_active
+                or not bot.is_active
+                or grant_fingerprint(exposure, bot) != expected
+            ):
+                raise RoutineSourcesRequired()
     if policy.phone_sources:
         from app.repositories import channel_bot_repo
         from app.repositories import telephony as phone_repo
@@ -235,6 +266,7 @@ class RoutineSourceSnapshot:
     accounts: list[str]
     unavailable: list[str]
     resources: list[str]
+    requires_creator_identity: bool = False
 
     def token(self) -> str:
         content = self.policy.model_dump(mode="json", exclude={"id", "reviewed_at"})
@@ -254,15 +286,10 @@ class RoutineSourceService:
             ctx.organization_id != trigger.organization_id
             or ctx.user_id is None
             or ctx.user_id != trigger.created_by_user_id
-            or ctx.api_key_id is not None
-            or ctx.routine_id is not None
-            or ctx.fired_as_creator is not None
-            or ctx.subject_is_publisher_fallback
+            or not ctx.acts_in_person
             or current_impersonator() is not None
         ):
-            raise AuthorizationError(
-                message="Only the routine's owner can review its sources in the console"
-            )
+            raise AuthorizationError(message="Only the routine's owner can review its sources")
 
     async def _review(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourceSnapshot:
         if trigger.pinned_version_id is not None:
@@ -281,6 +308,7 @@ class RoutineSourceService:
         root_sources: set[UUID] = set()
         names: set[str] = set()
         unavailable: set[str] = set()
+        requires_creator_identity = False
         specs = [spec]
         seen: set[UUID] = set()
         resources: set[str] = set()
@@ -419,6 +447,12 @@ class RoutineSourceService:
         if len(external_sources) > 100:
             raise RoutineSourcesRequired(message="A routine can review at most 100 remote agents")
         for ref in (ref for current in specs for ref in current.mcp_servers):
+            if isinstance(ref, PlatformMcpServerRef):
+                resources.add("AgenticOS platform MCP")
+                if not trigger.runs_as_creator:
+                    requires_creator_identity = True
+                    unavailable.add(PlatformRoutineIdentityRequired.message)
+                continue
             if isinstance(ref, OrgMcpServerRef):
                 connection = await mcp_connection_repo.get_org_scoped_by_id(
                     self.db,
@@ -480,6 +514,16 @@ class RoutineSourceService:
                     unavailable.add(name)
                     continue
                 sources[account.id] = candidate
+        from app.services.channel_actions import grant_fingerprint, granted_connections
+
+        channel_sources: dict[UUID, str] = {}
+        for exposure, bot in (
+            await granted_connections(
+                self.db, organization_id=ctx.organization_id, agent_id=trigger.agent_id
+            )
+        ).values():
+            resources.add(f"Chat connection · {bot.name}")
+            channel_sources[exposure.id] = grant_fingerprint(exposure, bot)
         input_source = None
         if trigger.connection_id is not None:
             connection = await mcp_connection_repo.get_by_id(
@@ -513,6 +557,7 @@ class RoutineSourceService:
                 root_mcp_ids=tuple(sorted(root_sources)),
                 external_sources=external_sources,
                 phone_sources=phone_sources,
+                channel_sources=channel_sources,
                 secret_sources=secret_sources,
                 mirage_accounts=mirage_accounts,
                 input_connection_id=trigger.connection_id if input_source is not None else None,
@@ -521,14 +566,24 @@ class RoutineSourceService:
             accounts=sorted(names),
             unavailable=sorted(unavailable),
             resources=sorted(resources),
+            requires_creator_identity=requires_creator_identity,
         )
 
     async def initial(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourcePolicy:
         """Creating the responsibility freezes its configured sources, never new grants."""
         review = await self._review(ctx, trigger)
-        if review.unavailable:
-            raise RoutineSourcesRequired(details={"unavailable_sources": review.unavailable})
+        self._require_available(review)
         return review.policy
+
+    @staticmethod
+    def _require_available(review: RoutineSourceSnapshot) -> None:
+        if review.unavailable:
+            refusal = (
+                PlatformRoutineIdentityRequired
+                if review.requires_creator_identity
+                else RoutineSourcesRequired
+            )
+            raise refusal(details={"unavailable_sources": review.unavailable})
 
     async def snapshot(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourceSnapshot:
         """A single metadata snapshot for a console-owned preset confirmation."""
@@ -601,9 +656,8 @@ class RoutineSourceService:
         ):
             raise RoutineSourcesRequired()
         review = await self._review(ctx, trigger)
+        self._require_available(review)
         excluded = {"id", "reviewed_at", "version_id"}
-        if review.unavailable or policy.model_dump(exclude=excluded) != review.policy.model_dump(
-            exclude=excluded
-        ):
+        if policy.model_dump(exclude=excluded) != review.policy.model_dump(exclude=excluded):
             raise RoutineSourcesRequired()
         return policy

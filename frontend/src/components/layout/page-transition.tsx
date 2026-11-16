@@ -1,10 +1,8 @@
 "use client";
 
-import { useLayoutEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
 import { stripLocale } from "@/lib/active-route";
-import { prefersReducedMotion } from "@/lib/motion";
 import { directionFor } from "@/lib/navigation-direction";
 import { PAGE_CLEARANCE } from "@/lib/page-clearance";
 import { cn } from "@/lib/utils";
@@ -20,7 +18,7 @@ import { cn } from "@/lib/utils";
  * palette and property panel scroll inside a workspace that fills the window.
  */
 const OWN_SCROLL_PANE =
-  /\/(?:chat|projects\/[^/]+)(?:\/|$)|\/admin\/(?:users|organizations)\/?$|\/workflows\/[^/]+$/;
+  /\/(?:chat|runs|projects\/[^/]+)(?:\/|$)|\/admin\/(?:users|organizations)\/?$|\/workflows\/[^/]+$|\/orgs\/[^/]+\/roles\/?$/;
 
 /**
  * Routes that place their own room under themselves, lower down.
@@ -32,12 +30,8 @@ const OWN_SCROLL_PANE =
  *   control is a gap under it, so the page takes none at all.
  * - **`/workflows/<id>`**, the editor, whose workspace ends at that edge with
  *   its own margin.
- * - **`/runs`**, whose run detail is `sticky` beside the list. A sticky box is
- *   clamped to its containing block, so padding *below* that block shortens the
- *   scrollport the panel may pin in: 64px of it put the panel's top at -48px at
- *   maximum scroll and cut its own header off by 56px (#1206). Activity declares
- *   the same `PAGE_CLEARANCE` one level in, on the list column, where it lands
- *   under the last row and leaves the row itself ending at the viewport.
+ * - **`/runs`**, whose history and inspector fill the available viewport.
+ *   Activity owns the bottom margin around both independently scrolling panes.
  */
 const OWN_BOTTOM_ROOM = /\/(?:chat|runs|projects\/[^/]+)(?:\/|$)|\/workflows\/[^/]+$/;
 
@@ -45,18 +39,6 @@ const OWN_BOTTOM_ROOM = /\/(?:chat|runs|projects\/[^/]+)(?:\/|$)|\/workflows\/[^
 // forms, scroll positions and queries, even when only a sibling tab changed.
 export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const frame = useRef<HTMLDivElement>(null);
-  const previousPath = useRef(pathname);
-  useLayoutEffect(() => {
-    if (previousPath.current === pathname) return;
-    previousPath.current = pathname;
-    if (prefersReducedMotion()) return;
-    const reveal = frame.current?.animate?.([{ opacity: 0.65 }, { opacity: 1 }], {
-      duration: 160,
-      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-    });
-    return () => reveal?.cancel();
-  }, [pathname]);
   const workflowRunPage = /^\/workflows\/(?:runs|[^/]+\/runs(?:\/[^/]+)?)\/?$/.test(
     stripLocale(pathname),
   );
@@ -73,7 +55,6 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     // the last card at every width (#933). This box grows with its content, so
     // padding here is painted after the last element.
     <div
-      ref={frame}
       data-direction={direction}
       className={cn(
         "page-enter flex flex-1 flex-col",

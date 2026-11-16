@@ -581,16 +581,22 @@ China, use other hosts and are not supported.
 ## API reference
 
 All sync source endpoints live under `/api/v1/rag/sync/`. Listing takes
-`collections:view` and everything that changes a source takes `collections:edit`,
-in both cases reaching the collection the source belongs to — there is no admin
-role in it. See
+`collections:view` and everything that changes a source takes `collections:edit`.
+There is no admin role in it. The paragraphs below say which sources each one
+reaches. See
 [who may reach a collection](../file-processing.md#who-may-reach-a-collection).
+
+`GET /api/v1/rag/sync/sources` lists all sources, including unassigned templates, only with `connections:manage`. Otherwise it lists sources feeding readable bases. Creating, detaching, editing, deleting or cloning an unassigned template requires **Manage connections**. Assigned sources require edit access to their base, including when managed through `/org/integrations`; that page's organization permission does not bypass base access. Cloning checks the source and target separately.
+
+Source edits validate remote addresses before taking mutation locks. The locked write checks the validated revision and refuses stale changes. Queued syncs recheck their original target before ingestion. Account and organization purges use the same ownership and teardown fences as deleting a base; CLI ingestion also records provenance and participates in those fences.
+
+Sync history retains the initiating organization and target base after a source is deleted. A source-less run is visible only with proven ownership and access to that base. Legacy source-less logs without proven ownership are hidden, never attributed by a shared collection name.
 
 ### Sync sources CRUD
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/v1/rag/sync/sources` | List all configured sync sources |
+| `GET` | `/api/v1/rag/sync/sources` | List sync sources (all of them with `connections:manage`) |
 | `POST` | `/api/v1/rag/sync/sources` | Create a new sync source |
 | `PATCH` | `/api/v1/rag/sync/sources/{id}` | Update an existing sync source |
 | `DELETE` | `/api/v1/rag/sync/sources/{id}` | Delete a sync source |
@@ -669,7 +675,18 @@ A new `collection_name` moves the source to the knowledge base that name resolve
 to for your organization, which you must be able to write; `null` detaches it from
 any base, and a source with no base does not sync.
 
-Set `is_active` to `false` to pause a source without deleting it.
+Set `is_active` to `false` to pause a source without deleting it. A paused
+source cannot run on a schedule or be triggered through the API or CLI. The
+console disables its sync button. A queued job checks again before downloading
+files and ends with an error if the source was paused while it waited. Pausing
+does not interrupt a sync that has already started; set `is_active` to `true`
+to allow new syncs.
+
+When resolving a collection name, the oldest base in the source's organization
+wins, falling back to an app-scoped base. Equal creation times are ordered by
+base id. The API refuses to assign a source by collection name when several
+eligible bases share the oldest creation time. Use a knowledge base with a
+unique collection name to remove that ambiguity.
 
 ## Monitoring sync operations
 

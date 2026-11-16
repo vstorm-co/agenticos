@@ -1,3 +1,4 @@
+import type { DirectoryMapping } from "@/types/directory";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -118,6 +119,25 @@ beforeEach(() => {
 });
 
 describe("the directory mappings page", () => {
+  it("does not advertise an empty result or an add action before the mappings answer", async () => {
+    let finish: ((value: { items: DirectoryMapping[]; total: number }) => void) | undefined;
+    const answer = new Promise<{ items: DirectoryMapping[]; total: number }>((resolve) => {
+      finish = resolve;
+    });
+    serve("owner", { "/orgs/org-1/directory-mappings": () => answer });
+    await mount();
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith("/orgs/org-1/directory-mappings"),
+    );
+    expect(screen.queryByRole("button", { name: "Add mapping" })).not.toBeInTheDocument();
+    expect(screen.queryByText("No mappings yet")).not.toBeInTheDocument();
+    await act(async () => {
+      finish?.({ items: [], total: 0 });
+    });
+    expect(await screen.findByText("No mappings yet")).toBeVisible();
+    expect(screen.getAllByRole("button", { name: "Add mapping" })).toHaveLength(1);
+  });
+
   it("lists the mappings from the server, with the rules they follow", async () => {
     serve("admin");
     await mount();
@@ -292,15 +312,22 @@ describe("the directory mappings page", () => {
     );
   });
 
-  it("closes the confirmation when the delete is refused", async () => {
+  it("keeps a refused deletion open for an explicit retry", async () => {
     serve("owner");
-    vi.mocked(apiClient.delete).mockRejectedValue(new ApiError(403, "Outranked"));
+    vi.mocked(apiClient.delete)
+      .mockRejectedValueOnce(new ApiError(403, "Outranked"))
+      .mockResolvedValue(undefined);
     await mount();
 
     await userEvent.click(await screen.findByRole("button", { name: "Remove auditors" }));
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
 
-    await waitFor(() => expect(screen.queryByText(/The people auditors placed here/)).toBeNull());
+    await waitFor(() => expect(apiClient.delete).toHaveBeenCalledOnce());
+    expect(screen.getByRole("dialog")).toBeVisible();
+    expect(screen.getByText(/The people auditors placed here/)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(apiClient.delete).toHaveBeenCalledTimes(2);
   });
 
   it("offers the first mapping from the empty state, to a caller who may add one", async () => {

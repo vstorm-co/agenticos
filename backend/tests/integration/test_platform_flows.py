@@ -583,7 +583,12 @@ async def _sync_source_row(db, *, tenant: Tenant, kb: KnowledgeBase) -> SyncSour
 
 
 async def _sync_log_row(
-    db, *, collection_name: str, sync_source_id: uuid.UUID | None = None
+    db,
+    *,
+    collection_name: str,
+    sync_source_id: uuid.UUID | None = None,
+    organization_id: uuid.UUID | None = None,
+    knowledge_base_id: uuid.UUID | None = None,
 ) -> SyncLog:
     log = SyncLog(
         id=uuid.uuid4(),
@@ -592,6 +597,8 @@ async def _sync_log_row(
         mode="full",
         status="running",
         sync_source_id=sync_source_id,
+        organization_id=organization_id,
+        knowledge_base_id=knowledge_base_id,
     )
     db.add(log)
     await db.flush()
@@ -630,8 +637,18 @@ async def rag_estate(db, estate: TwoTenants) -> RagEstate:
         ),
         home_source=await _sync_source_row(db, tenant=home, kb=home_collection),
         other_source=await _sync_source_row(db, tenant=other, kb=other_collection),
-        home_sync=await _sync_log_row(db, collection_name=home_collection.collection_name),
-        other_sync=await _sync_log_row(db, collection_name=other_collection.collection_name),
+        home_sync=await _sync_log_row(
+            db,
+            collection_name=home_collection.collection_name,
+            organization_id=home.organization.id,
+            knowledge_base_id=home_collection.id,
+        ),
+        other_sync=await _sync_log_row(
+            db,
+            collection_name=other_collection.collection_name,
+            organization_id=other.organization.id,
+            knowledge_base_id=other_collection.id,
+        ),
     )
 
 
@@ -949,6 +966,7 @@ class TestTenantIsolation:
         ours_kb = await _kb_row(db, tenant=home, collection_name="shared_name")
         theirs_kb = await _kb_row(db, tenant=other, collection_name="shared_name")
         documents = {}
+        doc_ids = {}
         for tenant, kb in ((home, ours_kb), (other, theirs_kb)):
             doc = RAGDocument(
                 id=uuid.uuid4(),
@@ -964,6 +982,7 @@ class TestTenantIsolation:
             )
             db.add(doc)
             documents[kb.id] = doc.id
+            doc_ids[kb.id] = doc.vector_document_id
         await db.flush()
 
         response = await rag_api(home.ctx).delete(_rag("/collections/shared_name"))
@@ -982,9 +1001,12 @@ class TestTenantIsolation:
         [cleanup] = [CLEANUP_EXTERNAL_STATE.load(job.payload) for job in jobs]
         assert cleanup.storage_paths == [f"rag/shared_name/{ours_kb.id}.txt"]
         assert cleanup.collections == []
-        assert cleanup.base_purges == [
-            BasePurge(collection="shared_name", knowledge_base_id=ours_kb.id)
-        ]
+        [filed, unfiled] = cleanup.base_purges
+        assert filed == BasePurge(collection="shared_name", knowledge_base_id=ours_kb.id)
+        assert unfiled.collection == "shared_name"
+        assert unfiled.knowledge_base_id == ours_kb.id
+        assert unfiled.takes_unfiled and unfiled.tenant == home.organization.id
+        assert unfiled.vector_document_ids == [doc_ids[ours_kb.id]]
 
     async def test_a_search_naming_one_unreachable_collection_is_refused_entirely(
         self, rag_api: RagClient, rag_estate: RagEstate
@@ -1368,6 +1390,201 @@ class TestReadingOneSyncSourcesHistory:
         body = response.json()
         assert len(body["items"]) == 3
         assert body["total"] == 3
+
+
+class TestSyncSourcesStayWithTheirAudience:
+    """A source's settings and runs reach only who may see or change its base (#2745).
+
+    Three routes authorized less than they returned or changed: the wizard's
+    integration listing answered every reader of one base with every source of
+    the organization, an app-scoped base - read by every member of every
+    organization - reached other organizations' sources and runs, and the
+    `/rag` routes changed a source without asking about the base it feeds.
+    """
+
+    @pytest.mark.security
+    async def test_the_wizard_lists_the_organizations_integrations_only_to_their_managers(
+        self, db, kb_api: KbClient, rag_estate: RagEstate
+    ) -> None:
+        # A base every member of the organization reads, so a refusal is the gate's.
+        wiki = await _kb_row(db, tenant=rag_estate.home, collection_name="home_wiki")
+        url = f"{settings.API_V1_STR}/kb/{wiki.id}/sync-sources/org-integrations"
+        viewer = await _joined_tenant(db, rag_estate.home, OrgRoleName.VIEWER)
+        # An edit grant on the base whose source would be listed: a grant widens
+        # access to that base, not to the organization's integrations.
+        grantee = await _joined_tenant(db, rag_estate.home, OrgRoleName.MEMBER)
+        await SharingService(db).share(
+            rag_estate.home.ctx,
+            rag_estate.home_collection,
+            resource_type=COLLECTION,
+            subject_user_id=grantee.user.id,
+            level=GrantLevel.EDIT,
+        )
+        builder = await _joined_tenant(db, rag_estate.home, OrgRoleName.BUILDER)
+
+        assert (await kb_api(viewer).get(url)).status_code == 403
+        assert (await kb_api(grantee).get(url)).status_code == 403
+        for manager in (rag_estate.home, builder):
+            response = await kb_api(manager).get(url)
+            assert response.status_code == 200
+            assert [item["id"] for item in response.json()["items"]] == [
+                str(rag_estate.home_source.id)
+            ]
+
+    @pytest.mark.security
+    async def test_the_rag_source_listing_is_the_whole_list_only_for_a_manager(
+        self, db, rag_api: RagClient, rag_estate: RagEstate
+    ) -> None:
+        """`GET /rag/sync/sources` served the same rows as the wizard's listing to
+        `collections:view`; without `connections:manage` it now lists the sources
+        of bases the caller reads - not another member's personal base, nor a
+        template."""
+        personal = await _sync_source_row(db, tenant=rag_estate.home, kb=rag_estate.home_private)
+        template = SyncSource(
+            id=uuid.uuid4(),
+            organization_id=rag_estate.home.organization.id,
+            name="Drive",
+            connector_type="gdrive",
+            collection_name=None,
+            config={"folder_id": "abc"},
+        )
+        db.add(template)
+        await db.flush()
+        viewer = await _join(db, rag_estate.home, OrgRoleName.VIEWER)
+
+        def ids(response: Response) -> set[str]:
+            assert response.status_code == 200
+            return {item["id"] for item in response.json()["items"]}
+
+        listed = _rag("/sync/sources")
+        for reader in (viewer, rag_estate.home_member):
+            assert ids(await rag_api(reader).get(listed)) == {str(rag_estate.home_source.id)}
+        assert ids(await rag_api(rag_estate.home.ctx).get(listed)) == {
+            str(rag_estate.home_source.id),
+            str(personal.id),
+            str(template.id),
+        }
+        refused = await rag_api(viewer).get(f"{listed}?collection_name=home_notes")
+        assert refused.status_code == 404
+
+    @pytest.mark.security
+    async def test_an_app_base_shows_another_organizations_runs_only_to_a_platform_admin(
+        self, db, kb_api: KbClient, rag_api: RagClient, rag_estate: RagEstate
+    ) -> None:
+        """The other organization has no base of the name, so its source feeds the
+        app base every organization reads - and its runs are still its own."""
+        app_kb = KnowledgeBase(
+            id=uuid.uuid4(),
+            name="Shared handbook",
+            collection_name="shared_handbook",
+            scope=KBScope.APP.value,
+            organization_id=None,
+            visibility=Visibility.PRIVATE.value,
+            ingestion_config=deployment_defaults().model_dump(mode="json"),
+            embedding_model=_BUILT_WITH,
+            embedding_dim=_BUILT_WIDTH,
+        )
+        db.add(app_kb)
+        await db.flush()
+        theirs = await _sync_source_row(db, tenant=rag_estate.other, kb=app_kb)
+        run = await _sync_log_row(
+            db, collection_name=app_kb.collection_name, sync_source_id=theirs.id
+        )
+        logs_url = f"{settings.API_V1_STR}/kb/{app_kb.id}/sync-sources/{theirs.id}/logs"
+        admin_user = await _new_user(db)
+        admin = Tenant(
+            organization=rag_estate.home.organization,
+            user=admin_user,
+            ctx=AuthContext(
+                user_id=admin_user.id,
+                organization_id=rag_estate.home.organization.id,
+                role=OrgRoleName.MEMBER.value,
+                is_app_admin=True,
+            ),
+        )
+
+        assert (await kb_api(rag_estate.home).get(logs_url)).status_code == 404
+        listed = await rag_api(rag_estate.home.ctx).get(
+            _rag("/sync/logs?collection_name=shared_handbook")
+        )
+        assert listed.status_code == 200
+        assert listed.json()["items"] == []
+
+        response = await kb_api(admin).get(logs_url)
+        assert response.status_code == 200
+        assert [item["id"] for item in response.json()["items"]] == [str(run.id)]
+
+    @pytest.mark.security
+    async def test_a_source_is_changed_only_by_a_writer_of_the_base_it_feeds(
+        self, db, rag_api: RagClient, rag_estate: RagEstate
+    ) -> None:
+        """A member holds `collections:edit` for their own bases, not the
+        organization's - so detaching, reconfiguring, running or deleting that
+        base's source through `/rag` is refused as if it did not exist."""
+        member = rag_estate.home_member
+        url = _rag(f"/sync/sources/{rag_estate.home_source.id}")
+
+        responses = [
+            await rag_api(member).patch(url, json={"collection_name": None}),
+            await rag_api(member).patch(url, json={"config": {"folder_id": "elsewhere"}}),
+            await rag_api(member).patch(url, json={"schedule_minutes": 5}),
+            await rag_api(member).post(f"{url}/trigger"),
+            await rag_api(member).delete(url),
+        ]
+
+        assert [response.status_code for response in responses] == [404] * 5
+        await db.refresh(rag_estate.home_source)
+        assert rag_estate.home_source.collection_name == "home_handbook"
+        assert rag_estate.home_source.config == {"folder_id": "abc"}
+        assert rag_estate.home_source.schedule_minutes is None
+
+    @pytest.mark.security
+    async def test_an_edit_grant_on_the_base_lets_a_member_change_its_source(
+        self, db, rag_api: RagClient, rag_estate: RagEstate
+    ) -> None:
+        member = rag_estate.home_member
+        await SharingService(db).share(
+            rag_estate.home.ctx,
+            rag_estate.home_collection,
+            resource_type=COLLECTION,
+            subject_user_id=member.user_id,
+            level=GrantLevel.EDIT,
+        )
+        url = _rag(f"/sync/sources/{rag_estate.home_source.id}")
+
+        renamed = await rag_api(member).patch(url, json={"name": "Renamed"})
+        removed = await rag_api(member).delete(url)
+
+        assert renamed.status_code == 200
+        assert renamed.json()["name"] == "Renamed"
+        assert removed.status_code == 204
+        assert await db.get(SyncSource, rag_estate.home_source.id) is None
+
+    async def test_an_unassigned_template_requires_manage_connections(
+        self, db, rag_api: RagClient, rag_estate: RagEstate
+    ) -> None:
+        template = SyncSource(
+            id=uuid.uuid4(),
+            organization_id=rag_estate.home.organization.id,
+            name="Drive",
+            connector_type="gdrive",
+            collection_name=None,
+            config={"folder_id": "abc"},
+        )
+        db.add(template)
+        await db.flush()
+
+        response = await rag_api(rag_estate.home_member).patch(
+            _rag(f"/sync/sources/{template.id}"), json={"name": "Renamed"}
+        )
+
+        assert response.status_code == 404
+        await db.refresh(template)
+        assert template.name == "Drive"
+        response = await rag_api(rag_estate.home.ctx).patch(
+            _rag(f"/sync/sources/{template.id}"), json={"name": "Renamed"}
+        )
+        assert response.status_code == 200
 
 
 # -- how a collection reads its documents -------------------------------------
@@ -1986,6 +2203,7 @@ class TestWhatACollectionReportsItHolds:
                 db, collection_name="app_and_tenant", filename=f"app-{status}.txt", tenant=who
             )
             doc.knowledge_base_id = app_kb.id if who is not None else None
+            doc.writer_kind = "document" if who is not None else "operator"
             doc.status = status
         await db.flush()
 
@@ -3475,6 +3693,113 @@ class TestAnAgentsOwnMonthlyCap:
         assert refused.value.limit_usd == Decimal("10")
         assert refused.value.spent_usd == Decimal("12")
         assert refused.value.scope is BudgetScope.ORGANIZATION
+
+
+class TestTheCurrentVersionSetsTheAgentsCap:
+    """A pinned version decides how the agent behaves, not what it may spend.
+
+    `docs/governance.md`: a version pin keeps its behaviour while "current
+    access, budgets and approvals still apply". The cap used to come from the
+    version being run, so a routine, an environment or a workflow step pinned to
+    a version published before the limit spent past it.
+    """
+
+    @staticmethod
+    async def _two_versions(
+        db, tenant: Tenant, *, first: AgentSpec, second: AgentSpec, spent: Decimal
+    ) -> tuple[Agent, uuid.UUID]:
+        """An agent whose v1 is `first` and current v2 is `second`, with `spent` booked."""
+        profile = await _keyed_model_profile(db, tenant)
+        agent = await _published_agent(db, tenant, spec=first)
+        assert agent.current_version_id is not None
+        pinned = agent.current_version_id
+        registry = AgentRegistryService(db)
+        await registry.save_draft(
+            tenant.ctx, agent.id, second.model_copy(update={"model_profile_id": profile.id})
+        )
+        await registry.publish(tenant.ctx, agent.id)
+        await db.refresh(agent)
+        assert agent.current_version_id != pinned
+        await _run_row(
+            db,
+            organization_id=tenant.organization.id,
+            agent_id=agent.id,
+            cost=spent,
+            started_at=datetime.now(UTC),
+        )
+        await db.commit()
+        return agent, pinned
+
+    async def test_a_run_pinned_to_an_older_version_is_held_to_the_current_cap(self, db) -> None:
+        tenant = await _tenant(db, name="Pinned")
+        agent, v1 = await self._two_versions(
+            db,
+            tenant,
+            first=AgentSpec(name="Support"),
+            second=AgentSpec(name="Support", budget={"monthly_usd": 5}),
+            spent=Decimal("6"),
+        )
+
+        prepared = await AgentRunnerService(db).prepare(tenant.ctx, agent.id, version_id=v1)
+
+        with pytest.raises(BudgetExceeded) as refused:
+            await _answer(prepared)
+
+        assert refused.value.scope is BudgetScope.AGENT
+        assert refused.value.limit_usd == Decimal("5")
+        assert refused.value.spent_usd == Decimal("6")
+
+    async def test_an_environment_on_an_older_version_is_held_to_the_current_cap(self, db) -> None:
+        tenant = await _tenant(db, name="Staged")
+        agent, v1 = await self._two_versions(
+            db,
+            tenant,
+            first=AgentSpec(name="Support"),
+            second=AgentSpec(name="Support", budget={"monthly_usd": 5}),
+            spent=Decimal("6"),
+        )
+        staging = await AgentEnvironmentService(db).create(
+            tenant.ctx, agent.id, EnvironmentCreate(name="staging", version_id=v1)
+        )
+        await db.commit()
+
+        prepared = await AgentRunnerService(db).prepare(
+            tenant.ctx, agent.id, environment_id=staging.id
+        )
+
+        with pytest.raises(BudgetExceeded) as refused:
+            await _answer(prepared)
+
+        assert refused.value.scope is BudgetScope.AGENT
+        assert refused.value.limit_usd == Decimal("5")
+
+    async def test_a_cap_the_current_version_dropped_no_longer_binds_an_older_one(self, db) -> None:
+        tenant = await _tenant(db, name="Lifted")
+        agent, v1 = await self._two_versions(
+            db,
+            tenant,
+            first=AgentSpec(name="Support", budget={"monthly_usd": 5}),
+            second=AgentSpec(name="Support"),
+            spent=Decimal("6"),
+        )
+
+        prepared = await AgentRunnerService(db).prepare(tenant.ctx, agent.id, version_id=v1)
+
+        assert await _answer(prepared) == "thirty days"
+
+    async def test_a_pinned_run_under_the_current_cap_answers(self, db) -> None:
+        tenant = await _tenant(db, name="Roomy")
+        agent, v1 = await self._two_versions(
+            db,
+            tenant,
+            first=AgentSpec(name="Support", budget={"monthly_usd": 5}),
+            second=AgentSpec(name="Support", budget={"monthly_usd": 50}),
+            spent=Decimal("6"),
+        )
+
+        prepared = await AgentRunnerService(db).prepare(tenant.ctx, agent.id, version_id=v1)
+
+        assert await _answer(prepared) == "thirty days"
 
 
 # -- grants -------------------------------------------------------------------

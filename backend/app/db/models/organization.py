@@ -151,9 +151,24 @@ class Organization(Base, TimestampMixin):
         Boolean, nullable=False, default=True, server_default="true"
     )
 
+    # Off is enforced by the service that would start each model-backed run, not
+    # by the client; deterministic checks and people's verdicts stay available.
+    ai_assistance_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    # What new judges grade on. Unset, a new judge takes a model that costs more
+    # than the agent's it grades, so the grader is not the weaker of the two.
+    grading_model_profile_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("model_profiles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     # Whether a page's data may reach anonymous visitors of its public link or its
     # embeds (#1975). Off until an Owner or Admin allows it, and a kill switch: off
     # again hides the data at the next load and leaves each page's own consent alone.
+    public_agenticos_attribution: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
     public_live_data: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
@@ -279,6 +294,15 @@ class OrganizationMember(Base):
         default=MembershipSource.MANUAL.value,
         server_default=MembershipSource.MANUAL.value,
     )
+    onboarding_goal: Mapped[Literal["meeting", "document", "compare"] | None] = mapped_column(
+        String(16), nullable=True
+    )
+    onboarding_dismissed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    onboarding_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # The first messages an empty chat with the starter agent offers this person
     # here, written in the background from what they did in this organization -
     # so on the membership, never the account, which every organization reads.
@@ -292,6 +316,10 @@ class OrganizationMember(Base):
 
     __table_args__ = (
         UniqueConstraint("organization_id", "user_id", name="uq_org_member"),
+        CheckConstraint(
+            "onboarding_goal IS NULL OR onboarding_goal IN ('meeting', 'document', 'compare')",
+            name="ck_org_member_onboarding_goal",
+        ),
         Index("ix_org_member_org_role", "organization_id", "role"),
         CheckConstraint(
             "source IN ('manual', 'directory', 'discord')", name="ck_org_member_source"

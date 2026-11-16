@@ -20,10 +20,11 @@ import { Perm } from "@/types/permissions";
 /**
  * Whether an agent can be chatted with at all.
  *
- * Only a published agent has a version to run - the backend refuses a draft or
- * an archived one - so offering it would turn the picker into a trap.
+ * Published agents can run. The trusted, never-published starter can instead
+ * explain model setup; selecting it never executes its draft.
  */
-const isRunnable = (agent: Agent): boolean => agent.status === "published";
+const isRunnable = (agent: Agent): boolean =>
+  agent.status === "published" || (agent.setup_required === true && agent.can_run === true);
 
 /**
  * A workflow the chat can hand a message to: one whose live version starts from
@@ -44,11 +45,9 @@ export const isChattable = (workflow: WorkflowRead): boolean =>
  * here, showing the agent's face, because "which of these five agents am I
  * talking to" is answered faster by a picture than by reading five names.
  *
- * Only the organization's published agents are offered - there is no general
- * assistant to fall back to. An empty or stale selection resolves to the
- * user's default agent - the one starred here - or, absent that, the first
- * published agent as soon as the list arrives, so the composer always
- * addresses someone real.
+ * An empty or stale selection resolves to the user's explicit default, then
+ * the shipped AgenticOS starter, then the first published agent. The starter
+ * remains selectable before publication so it can guide first-time setup.
  *
  * A member who may run workflows is offered the published ones as well: a
  * message addressed to one starts a run of it, and its answer - a card with the
@@ -83,7 +82,7 @@ export function AgentPicker() {
   const answererName = selectedWorkflow?.name ?? selected?.name;
 
   // No selection, or one pointing at an agent that has since been unpublished,
-  // resolves to the default agent, then the first published one. The store is
+  // resolves to the explicit default, starter, then a published agent. The store is
   // read at send time, so this is also what keeps a frame from going out
   // without an agent.
   useEffect(() => {
@@ -96,7 +95,10 @@ export function AgentPicker() {
     // navigates; the picker would quietly hand the conversation to somebody
     // else, having been told exactly who was wanted.
     if (isFetching && selectedAgentId !== null) return;
-    const fallback = runnable.find((agent) => agent.id === defaultAgentId) ?? runnable[0];
+    const fallback =
+      runnable.find((agent) => agent.id === defaultAgentId) ??
+      runnable.find((agent) => agent.is_starter) ??
+      runnable[0];
     if (fallback) selectAgent(fallback.id);
   }, [isLoading, isFetching, selected, selectedAgentId, runnable, defaultAgentId, selectAgent]);
 
@@ -129,7 +131,7 @@ export function AgentPicker() {
           // `min-w-0` so the name inside can actually give way: the trigger is
           // in a row that runs out of room at 390px, and `max-w-[160px]` on the
           // name is a cap rather than permission to shrink.
-          className="bg-foreground/[0.06] hover:bg-foreground/[0.1] text-foreground touch:min-h-11 inline-flex min-w-0 touch-manipulation items-center gap-1.5 rounded-lg py-1 pr-2 pl-1 transition-colors"
+          className="group/agent bg-foreground/[0.06] hover:bg-foreground/[0.1] data-[state=open]:bg-foreground/[0.12] text-foreground focus-visible:ring-ring touch:min-h-11 inline-flex min-w-0 touch-manipulation items-center gap-1.5 rounded-lg py-1 pr-2 pl-1 transition-colors outline-none focus-visible:ring-2"
         >
           {isLoading && !selected && !selectedWorkflow ? (
             <Skeleton
@@ -158,7 +160,10 @@ export function AgentPicker() {
               (answererName ?? t("none"))
             )}
           </span>
-          <ChevronDown className="text-muted-foreground h-3 w-3" />
+          <ChevronDown
+            aria-hidden
+            className="text-muted-foreground h-3 w-3 transition-transform group-data-[state=open]/agent:rotate-180 motion-reduce:transition-none"
+          />
         </button>
       </PopoverTrigger>
 

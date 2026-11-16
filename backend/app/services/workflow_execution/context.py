@@ -49,6 +49,14 @@ class ClaimState:
 
 
 @dataclass(frozen=True, slots=True)
+class ChatSource:
+    """The admitted chat turn; missing IDs mean its source was deleted."""
+
+    conversation_id: UUID | None
+    message_id: UUID | None
+
+
+@dataclass(frozen=True, slots=True)
 class DispatchContext:
     """Everything a node handler may need to know about where it is running."""
 
@@ -100,6 +108,8 @@ class DispatchContext:
     agent step under it runs with no person behind it."""
     source_conversation_id: UUID | None = None
     """The chat destination authorized at admission; never a payload-supplied id."""
+    chat_source: ChatSource | None = None
+    """Server-written provenance, preserved across retries and called workflows."""
     test_chat_key: UUID | None = None
     """An opaque test-session token, namespaced by the workflow and principal."""
     nested: bool = False

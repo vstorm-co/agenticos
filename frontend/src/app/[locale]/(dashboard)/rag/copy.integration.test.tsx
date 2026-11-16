@@ -171,7 +171,7 @@ function serve() {
       };
     }
     if (!path.startsWith("/kb/kb-1")) return { items: [], total: 0 };
-    return COLLECTION;
+    return { ...COLLECTION, can_edit: caller.holds.includes(Perm.collectionsEdit) };
   });
 }
 

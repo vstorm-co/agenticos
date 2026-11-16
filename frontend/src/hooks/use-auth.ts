@@ -61,6 +61,8 @@ const TOKEN_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 // and it would otherwise install the previous account and its token over the
 // one the cookies now hold, leaving the socket and the page as different people.
 let identityEpoch = 0;
+// Several components can use the hook in one window; each storage signal starts one check.
+const handledStorageEvents = new WeakSet<StorageEvent>();
 
 /**
  * How long a sign-in request may take before the form says so.
@@ -216,6 +218,7 @@ function runAuthCheck(setUser: (u: User | null) => void): Promise<void> {
   if (authChecked) return Promise.resolve();
   if (authCheckPromise) return authCheckPromise;
   const epoch = identityEpoch;
+  useAuthStore.getState().setLoading(true);
   authCheckPromise = (async () => {
     let answer: SessionAnswer | null;
     try {
@@ -257,13 +260,39 @@ export function useAuth() {
     void runAuthCheck(adopt);
     ensureTokenRefresh(adopt);
     const retry = () => {
+      // A page that found nobody signed in asks again when it is looked at: the
+      // desktop's Quick Ask and blobby load beside the console and stay loaded,
+      // so one built before the person signed in kept saying "sign in" after
+      // they had (2026-11-06).
+      if (authChecked && useAuthStore.getState().user === null) authChecked = false;
       if (!authChecked) void runAuthCheck(adopt);
     };
+    const shown = () => {
+      if (document.visibilityState === "visible") retry();
+    };
+    const sessionChanged = (event: StorageEvent) => {
+      if (
+        event.key !== "auth-storage" ||
+        event.oldValue === event.newValue ||
+        handledStorageEvents.has(event)
+      )
+        return;
+      handledStorageEvents.add(event);
+      identityEpoch += 1;
+      authChecked = false;
+      authCheckPromise = null;
+      sessionRead = null;
+      void runAuthCheck(adopt);
+    };
+    window.addEventListener("storage", sessionChanged);
     window.addEventListener("online", retry);
     window.addEventListener("focus", retry);
+    document.addEventListener("visibilitychange", shown);
     return () => {
+      window.removeEventListener("storage", sessionChanged);
       window.removeEventListener("online", retry);
       window.removeEventListener("focus", retry);
+      document.removeEventListener("visibilitychange", shown);
     };
   }, [setUser, queryClient]);
 

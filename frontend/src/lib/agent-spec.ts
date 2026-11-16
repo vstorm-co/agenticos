@@ -80,7 +80,7 @@ export function unboundBinding(capabilityId: string): CapabilityBindingSpec {
   return {
     id: capabilityId,
     config: capabilityId === "computer_use" ? { desktop: "sandbox" } : {},
-    approval: "default",
+    approval: "required",
     tool_approval: {},
     tool_overrides: {},
     secret_id: null,
@@ -156,7 +156,7 @@ export function withCapability(
     {
       id: capabilityId,
       config: capabilityId === "computer_use" ? { desktop: "sandbox" } : {},
-      approval: "default",
+      approval: "required",
       tool_approval: {},
       tool_overrides: {},
       // Nothing chosen yet, which is what the settings say out loud for a
@@ -166,6 +166,15 @@ export function withCapability(
       enabled: true,
     },
   ];
+}
+
+/** Enable MCP deferral while preserving existing Tool search settings and exclusions. */
+export function enableMcpToolSearch(bindings: CapabilityBindingSpec[]): CapabilityBindingSpec[] {
+  return withCapability(bindings, "tool_search", true).map((binding) =>
+    binding.id === "tool_search"
+      ? { ...binding, enabled: true, config: { ...binding.config, defer_mcp_servers: true } }
+      : binding,
+  );
 }
 
 /**

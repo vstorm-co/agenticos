@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { ArrowUpRight, X, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { RotatingWorkspaceArt } from "@/components/illustrations/rotating-workspace-art";
 import { cn } from "@/lib/utils";
 
 export interface WelcomeSuggestion {
@@ -56,18 +57,24 @@ export function ChatWelcome({
   suggestionsSlot,
 }: ChatWelcomeProps) {
   const t = useTranslations("chat.empty");
+  // The centered composer must stay put when agent metadata replaces skeletons.
+  // Reserve four two-line suggestions and the same header slots in both states.
   const hints = (
     <>
       <div
         aria-busy={loading}
         className={cn(
-          "grid auto-rows-fr",
-          quiet ? "mt-5 min-h-40 gap-1" : compact ? "mt-4 gap-1.5" : "mt-6 gap-2 sm:grid-cols-2",
+          "grid",
+          quiet
+            ? "mt-4 auto-rows-[3.5rem] gap-1 sm:grid-cols-2"
+            : compact
+              ? "mt-4 auto-rows-fr gap-1.5"
+              : "mt-6 auto-rows-fr gap-2 sm:grid-cols-2",
         )}
       >
         {loading
           ? Array.from({ length: 4 }, (_, index) => (
-              <div key={index} className="flex h-9 items-center gap-3" aria-hidden>
+              <div key={index} className="flex h-full min-h-9 items-center gap-3" aria-hidden>
                 <span className="bg-muted size-4 animate-pulse rounded" />
                 <span className="bg-muted h-3 w-48 animate-pulse rounded" />
               </div>
@@ -81,7 +88,7 @@ export function ChatWelcome({
                   // blank page read as a form to fill in, not as places to start.
                   className={cn(
                     "group hover:bg-muted focus-visible:ring-ring flex h-full w-full items-start gap-3 rounded-lg text-left transition-colors outline-none focus-visible:ring-2",
-                    quiet ? "soft-enter text-muted-foreground px-2 py-2" : "bg-muted/60",
+                    quiet ? "text-muted-foreground px-2 py-2" : "bg-muted/60",
                     quiet ? "px-2 py-2" : compact ? "px-3 py-2.5" : "px-3 py-3",
                   )}
                 >
@@ -97,7 +104,12 @@ export function ChatWelcome({
                     <suggestion.icon className="h-4 w-4" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className={cn("block text-sm", !quiet && "text-foreground font-medium")}>
+                    <span
+                      className={cn(
+                        "block text-sm",
+                        quiet ? "line-clamp-2" : "text-foreground font-medium",
+                      )}
+                    >
                       {suggestion.title}
                     </span>
                     {suggestion.description !== "" && (
@@ -145,26 +157,24 @@ export function ChatWelcome({
     </>
   );
   return (
-    // A short window - a laptop zoomed in, a browser half the screen - keeps the
-    // greeting and the suggestions and drops the mark, the shortcuts and the
-    // air: all of it stacked put the cards under the composer.
-    <div
-      className={cn("soft-enter @container mx-auto w-full", compact ? "px-3 py-2" : "py-6 md:py-8")}
-    >
+    <div className={cn("@container mx-auto w-full", compact ? "px-3 py-2" : "py-6 md:py-8")}>
       <div className={compact ? "text-center" : "text-left"}>
         <div
           className={cn(
             "flex",
             compact
               ? "mb-3 justify-center"
-              : "mb-4 justify-start [@media(max-height:760px)]:hidden",
+              : "relative mb-4 min-h-36 w-full items-center justify-start",
+            quiet && !compact && "min-h-36",
           )}
         >
-          {mark}
+          {!compact && <RotatingWorkspaceArt />}
+          <span className="relative">{mark}</span>
         </div>
         <h2
           className={cn(
-            "text-foreground min-h-9 font-semibold tracking-tight",
+            "text-foreground min-h-9 font-medium tracking-tight",
+            quiet && "min-h-[2lh] md:min-h-9",
             compact ? "text-lg" : "text-2xl md:text-3xl",
           )}
         >
@@ -173,6 +183,7 @@ export function ChatWelcome({
         <p
           className={cn(
             "text-muted-foreground line-clamp-2 max-w-xl leading-relaxed",
+            quiet && "min-h-[2lh]",
             compact ? "mt-1 text-[13px]" : "mt-2 text-sm",
           )}
         >

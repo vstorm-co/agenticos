@@ -12,7 +12,6 @@ itself is unit-tested in `tests/test_sync_source_audit.py`, and end to end in
 
 import uuid
 from collections.abc import Iterator
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -50,7 +49,10 @@ def _read() -> SyncSourceRead:
 
 
 @pytest.fixture
-def wired(mock_db_session: Any, mock_redis: MagicMock) -> Iterator[dict[str, MagicMock]]:
+def wired(
+    mock_db_session: AsyncMock, mock_redis: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[dict[str, MagicMock]]:
+    monkeypatch.setattr("app.core.maintenance._verdict", AsyncMock(return_value=(False, None)))
     user = MagicMock()
     user.id = uuid.uuid4()
     context = AuthContext(user_id=user.id, organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
@@ -59,12 +61,15 @@ def wired(mock_db_session: Any, mock_redis: MagicMock) -> Iterator[dict[str, Mag
     target = MagicMock(id=uuid.uuid4(), collection_name="handbook")
     access = MagicMock(
         sync_source=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        writable_sync_source=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        hold_source_target=AsyncMock(),
         source_target=AsyncMock(return_value=target),
     )
     sources = MagicMock(
         create_source=AsyncMock(return_value=_read()),
         clone_source=AsyncMock(return_value=_read()),
         update_source=AsyncMock(return_value=_read()),
+        prepare_update=AsyncMock(return_value=MagicMock()),
     )
     app.dependency_overrides[deps.get_db_session] = lambda: mock_db_session
     app.dependency_overrides[deps.get_redis] = lambda: mock_redis

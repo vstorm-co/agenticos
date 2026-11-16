@@ -3,15 +3,19 @@
 A deck is a published page (an App) made of slides. It opens in the browser, needs
 no software, can be shared by link, and prints to PDF from the browser. Build it
 with `publish_artifact`, after loading `artifact-pages` for the served library and
-the house style: a deck uses the same files and the same look.
+supported runtime. A deck shares the App libraries, not a mandatory visual theme.
+Choose an audience-appropriate palette and type system; preserve a supplied brand.
 
 Decide the story before the slides: load `deck-storyline` if the person has not
 given you one. Check the finished deck with `deck-review`.
 
 ## Start from the template
 
-Load `templates/deck.html` and replace its slides and its `data` object. Do not
-write the frame yourself: it already has the parts that are easy to get wrong.
+For a new responsive browser deck, load the `artifact-pages` resource
+`templates/slide-deck.html`: it includes multiple visual directions, keyboard
+navigation, overview and a complete print layout. Adapt its content and primary
+interaction to the task. The older `templates/deck.html` below remains useful
+for a fixed 16:9 projector deck; check its scaled phone text carefully.
 
 - **A 1280 x 720 slide, scaled as a whole** to the window, so type and spacing keep
   their proportions on a laptop, a projector and a phone.
@@ -24,8 +28,10 @@ write the frame yourself: it already has the parts that are easy to get wrong.
 ## The slides
 
 Use the `ao-` components inside slides - `.ao-stat`, `.ao-card`, `.ao-grid-3`,
-`.ao-table`, `.ao-callout` - and the house style from `artifact-pages`: graphite, no
-accent colour, green and red only for better and worse, icons not emoji.
+`.ao-table`, `.ao-callout` - when they fit. They are reusable defaults, not a
+restriction on custom CSS or palettes. Read `artifact-pages` design guidance:
+editorial, classroom, playful and technical directions serve different audiences.
+Keep feedback colors meaningful, contrast strong, and every control functional.
 
 - **Big type.** The template's sizes are for a room: a title of 44 px, body text of
   at least 28 px, a table at 24 px. If it does not fit at that size, it is two slides.

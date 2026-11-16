@@ -10,6 +10,10 @@ have a home in the chat and in the [workspace](sandbox.md). An app is the
 thing that is *served*: it has an owner, a visibility and grants like an agent
 or a skill, and it can be given a public link for somebody with no account.
 
+## Shared-page attribution { #shared-page-attribution }
+
+Public app viewers show a floating badge with the AgenticOS logo and a GitHub link by default. Shared conversation pages show the same badge below the conversation. An Owner or Admin can hide the footer for the whole organization in **Organization settings → Governance → AgenticOS on shared pages**. The next page load uses the current setting. Password-protected apps show the footer only after unlocking. The footer belongs to the viewer; downloaded files and embedded app content are not modified.
+
 ## App appearance { #app-appearance }
 
 The signed-in app viewer and its public link have independent **light** and
@@ -882,7 +886,7 @@ off in the capability's settings for a model that cannot read images; the
 report still comes back. `agenticos cmd doctor` says whether the renderer
 answers.
 
-Three more bundled skills build a **slide deck** as an app: `presentation-decks` (a ready template with a 16:9 slide frame, keyboard and touch navigation, speaker notes on `n` and one slide per page when printed to PDF), `deck-storyline` (the audience, the decision and a storyline of claims before any slide exists) and `deck-review` (titles that read as the argument, one message per slide, every number traced, readable from a distance). They add no library and no PowerPoint export.
+Three more bundled skills build a **slide deck** as an app: `presentation-decks` (the varied 16:9 HTML deck from `artifact-pages`, with keyboard navigation, overview, palette selection and one slide per printed page), `deck-storyline` (the audience, the decision and a storyline of claims before any slide exists) and `deck-review` (titles that read as the argument, one message per slide, every number traced, readable from a distance). They add no library and no PowerPoint export.
 
 ## Visuals
 
@@ -938,7 +942,7 @@ The agent says so in its answer: that no map server is connected, and that an
 administrator turns real maps on with this setting.
 A chat app's picture of a map is drawn finished, with every pin in place.
 
-**World maps need none.** For anything about countries - customers by country, offices, a route between two cities - `AOWorldMap` draws a map in SVG from country outlines the deployment serves itself: no tile server, no network and no extra container. The agent prefers it; the tile map stays for street level.
+**World maps need none.** For anything about countries - customers by country, offices, a route between two cities - `AOWorldMap` draws a map in SVG from country outlines the deployment serves itself: no tile server, no network and no extra container. This is the default for new maps, including itineraries between cities. The agent loads the bundled country outlines and draws pins and routes without requiring configuration. Street-level maps remain an administrator opt-in through `VISUAL_MAP_TILES`; an unavailable tile service should fall back to this SVG map.
 
 **Choosing the form.** The `visual-design` skill tells the agent when a drawing
 is the right answer at all: text for a fact or advice, a Markdown table for
@@ -1380,3 +1384,13 @@ under `artifacts/<organization>/<artifact>/`.
 - Archiving keeps a page and serves nothing of it, the public link off, until
   someone who may edit it restores it.
 - A retention class of its own, measured from the last publication.
+
+## Preview loading and sharing { #preview-loading-and-sharing }
+
+Chat previews reserve their space while the visual renderer or App thumbnail loads. They fade in only when rendering or image decoding finishes; reduced-motion preferences disable the animation. App listings use cached, version-specific static thumbnails rather than executing every App again when returning to the list.
+
+The Apps skill includes interactive HTML slide decks, print styles for PDF and reusable component examples. PDF export needs the configured renderer; a validation-only preview does not prove that a script executed successfully. Use the actual rendered preview to verify charts, tables and interactive content. PowerPoint export is not included.
+
+The platform MCP tool `create_app_public_link` requires edit access and explicit confirmation that the App may be shared publicly. It reuses an existing link and preserves its password, expiry and pinned version. Live data requires separate owner consent. A call is successful only when the API confirms the public URL.
+
+The bundled presentation example uses five distinct compositions: illustrated cover, large metric, comparison, sequence and decision. The report example recomputes selected totals and its chart from the same counts. Visual design also includes a procedural product studio with beveled forms, material finishes, local studio lighting, assembly separation, named views and a WebGL fallback. These are adaptable HTML examples, not a PowerPoint or manufacturing-model export. Existing organizations receive skill revisions through the normal library update and review flow; locally edited copies remain protected.

@@ -80,10 +80,10 @@ test.describe("Refusals", () => {
     // appears once one is named.
     await openAgent(page, DRAFT_AGENT_NAME);
 
-    await page.locator("#add-model-provider").click();
+    await page.locator('[id$="-add-model-provider"]:visible').click();
     await page.getByRole("option", { name: "OpenAI", exact: true }).click();
 
-    await page.locator("#add-model-key").click();
+    await page.locator('[id$="-add-model-key"]:visible').click();
     await expect(page.getByRole("option", { name: new RegExp(FAKE_KEY_LABEL) })).toBeVisible();
     await expectNoRenderedSecret(page);
   });
@@ -111,9 +111,9 @@ test.describe("Refusals", () => {
     const expected = new Map<string, boolean>();
     for (const { permission } of GOVERNED) {
       const scope = await scopeInMatrix(page, role, permission);
-      // "—" is the catalog saying no; null means this server does not define the
+      // "-" is the catalog saying no; null means this server does not define the
       // permission at all, and inventing an expectation for it would be a guess.
-      if (scope !== null) expected.set(permission, scope !== "—");
+      if (scope !== null) expected.set(permission, scope !== "-");
     }
     expect(
       expected.size,

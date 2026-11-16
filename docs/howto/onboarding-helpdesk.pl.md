@@ -1,5 +1,5 @@
 ---
-source_sha: "921578018ea4"
+source_sha: "ebf27ba3fe81"
 title: "Odpowiadaj nowym pracownikom za pomocą plików kontekstu i skilli"
 description: "Przypisz jednemu agentowi krótki plik kontekstu ze stałymi faktami i skill z procedurą, a potem sprawdź, które z nich odpowiada na jaki rodzaj pytania."
 ---
@@ -85,7 +85,7 @@ How do I get access to the CRM?
 | Sprawdzenie | Kryterium |
 | --- | --- |
 | Pytanie o wypłatę i laptopa | Odpowiedź od razu, bez wywołania narzędzia, bo plik kontekstu jest już w prompcie |
-| Pytanie o dostęp do CRM | Wywołuje `load_capability` dla `request-access` przed odpowiedzią |
+| Pytanie o dostęp do CRM | Wywołuje `read_skill` dla `request-access` przed odpowiedzią |
 | Odpowiedź o CRM | Jako pierwszy krok podaje pisemną zgodę przełożonego, a nie tylko „post in #it-help” |
 | Pytanie, którego plik kontekstu nie obejmuje (np. „what's the dress code?”) | Mówi, że nie wie, zamiast wymyślać zasadę |
 | Późniejsza edycja pliku kontekstu | Kolejny run uwzględnia zmianę, bez ponownej publikacji agenta |
@@ -96,7 +96,7 @@ Najważniejsze są pierwsze dwa wiersze: jedna odpowiedź pochodzi z tekstu, kt�
 
     Model: Claude Sonnet 4.6 przez OpenRouter. Pytanie o wypłatę i laptopa zużyło 914 tokenów wejściowych **bez wywołania narzędzia** i dostało odpowiedź: *"Payroll runs on the last business day of the month... The standard laptop is a MacBook Pro"*. Koszt: 0,004 USD.
 
-    Pytanie o CRM wywołało `load_capability` z `{"id": "request-access"}`, dostało pełną treść skilla i odpowiedź: *"Since the CRM touches customer data, there's a specific process... Get your manager's written approval first... Post in #it-help. Tag your manager in the same thread"*. Koszt: 0,009 USD.
+    Pytanie o CRM wywołało `read_skill` z `{"id": "request-access"}`, dostało pełną treść skilla i odpowiedź: *"Since the CRM touches customer data, there's a specific process... Get your manager's written approval first... Post in #it-help. Tag your manager in the same thread"*. Koszt: 0,009 USD.
 
 ## Gdy coś pójdzie nie tak { #when-it-goes-wrong }
 

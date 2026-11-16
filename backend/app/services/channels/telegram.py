@@ -32,12 +32,17 @@ from aiogram.types import (
 )
 from aiogram.types import Message as AiogramMessage
 
-from app.agents.capabilities.channel_tools import ChannelDetails, ChannelMember
+from app.agents.capabilities.channel_tools import (
+    ChannelDetails,
+    ChannelDirectoryUnsupported,
+    ChannelMember,
+)
 from app.core.security import encode_untrusted
 from app.db.session import get_db_context
 from app.services.channels import connection_state, stream_lease
 from app.services.channels.base import (
     CHANNEL_COMMANDS,
+    REACTION_EMOJI,
     ChannelAdapter,
     IncomingAttachment,
     IncomingMessage,
@@ -559,7 +564,7 @@ class TelegramAdapter(ChannelAdapter):
             return None
 
         from_user: dict[str, Any] = msg_data.get("from") or {}
-        if not from_user.get("id"):
+        if not from_user.get("id") or from_user.get("is_bot") is True:
             return None
 
         attachments = self._attachments(msg_data)
@@ -713,6 +718,25 @@ class TelegramAdapter(ChannelAdapter):
         async with self._bot(bot_token) as bot:
             await bot.edit_message_reply_markup(
                 chat_id=press.platform_chat_id, message_id=int(press.message_id), reply_markup=None
+            )
+
+    async def react_to_message(
+        self,
+        bot_token: str,
+        channel_id: str,
+        message_id: str,
+        emoji: str,
+        *,
+        api_base_url: str | None,
+    ) -> None:
+        symbol = REACTION_EMOJI.get(emoji)
+        if symbol is None:
+            raise ChannelDirectoryUnsupported("Choose a supported standard Telegram emoji name")
+        async with self._bot(bot_token) as bot:
+            await bot.set_message_reaction(
+                chat_id=channel_id,
+                message_id=int(message_id),
+                reaction=[ReactionTypeEmoji(emoji=symbol)],
             )
 
     async def acknowledge_message(

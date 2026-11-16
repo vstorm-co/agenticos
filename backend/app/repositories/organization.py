@@ -185,10 +185,15 @@ async def generate_unique_slug(db: AsyncSession, base: str) -> str:
     if not await slug_exists(db, candidate):
         return candidate
     for i in range(2, 100):
-        suffixed = f"{candidate}-{i}"
+        suffixed = _with_suffix(candidate, f"-{i}")
         if not await slug_exists(db, suffixed):
             return suffixed
-    return f"{candidate}-{uuid.uuid4().hex[:6]}"
+    return _with_suffix(candidate, f"-{uuid.uuid4().hex[:6]}")
+
+
+def _with_suffix(slug: str, suffix: str) -> str:
+    """`slug` with `suffix`, cut first so the whole fits the column's 64 characters."""
+    return slug[: 64 - len(suffix)].rstrip("-") + suffix
 
 
 async def create(
@@ -226,6 +231,16 @@ async def update(
         org.name = name
     if avatar_url is not None:
         org.avatar_url = avatar_url
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
+async def make_shared(db: AsyncSession, org: Organization, *, name: str, slug: str) -> Organization:
+    """Turn a personal organization into an ordinary one called `name`."""
+    org.name = name
+    org.slug = slug
+    org.is_personal = False
     await db.flush()
     await db.refresh(org)
     return org
@@ -341,6 +356,16 @@ async def set_chat_approval_waiver(
     argument and so cannot express a boolean somebody deliberately set to false.
     """
     org.chat_may_waive_approvals = allowed
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
+async def set_public_agenticos_attribution(
+    db: AsyncSession, org: Organization, *, enabled: bool
+) -> Organization:
+    """Set the footer preference shared by this organization's public viewers."""
+    org.public_agenticos_attribution = enabled
     await db.flush()
     await db.refresh(org)
     return org

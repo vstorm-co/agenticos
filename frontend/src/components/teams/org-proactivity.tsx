@@ -56,7 +56,7 @@ interface Proactivity {
 /** What the organization has saved, as the form edits it; "1.000000" reads as "1". */
 function stored(org: Organization): Proactivity {
   return {
-    enabled: org.proactive_enabled ?? false,
+    enabled: Boolean(org.proactive_enabled && org.proactive_model_profile_id),
     modelId: org.proactive_model_profile_id ?? null,
     limit: String(Number(org.proactive_limit_usd ?? "1")),
     days: org.proactive_days ?? [1, 2, 3, 4, 5],
@@ -77,7 +77,15 @@ function stored(org: Organization): Proactivity {
  * uses its selected agent. The welcome message spends nothing and is the
  * organization's settings.
  */
-export function OrgProactivity({ org }: { org: Organization }) {
+export function OrgProactivity({
+  org,
+  collapsible = false,
+  defaultOpen = false,
+}: {
+  org: Organization;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
+}) {
   const t = useTranslations("teams.proactive");
   const { can } = usePermissions();
   const tenantId = useTenantId();
@@ -86,7 +94,7 @@ export function OrgProactivity({ org }: { org: Organization }) {
   const welcome = can(Perm.orgSettings);
   if (tenantId !== org.id) {
     return (
-      <SettingsSection title={t("title")} description={t("description")}>
+      <SettingsSection title={t("title")} description={t(collapsible ? "summary" : "description")}>
         <p className="text-muted-foreground text-sm">{t("switchOrganizationHint")}</p>
         <Button onClick={() => switchOrg(org.id)}>
           {t("switchOrganization", { name: org.name })}
@@ -96,16 +104,18 @@ export function OrgProactivity({ org }: { org: Organization }) {
   }
   if (!nightly && !welcome) return null;
   return (
-    <div className="space-y-5">
-      <header className="space-y-1.5">
-        <h2 className="text-lg font-semibold tracking-tight">{t("title")}</h2>
-        <p className="text-muted-foreground max-w-3xl text-sm leading-relaxed">
-          {t("description")}
-        </p>
-      </header>
-      {nightly && <NightlyForm key={org.id} org={org} />}
-      {welcome && <WelcomeForm org={org} />}
-    </div>
+    <SettingsSection
+      title={t("title")}
+      description={t(collapsible ? "summary" : "description")}
+      collapsible={collapsible}
+      toggleTour="org-proactivity-expand"
+      defaultOpen={defaultOpen}
+    >
+      <div className="space-y-5">
+        {nightly && <NightlyForm key={org.id} org={org} />}
+        {welcome && <WelcomeForm org={org} />}
+      </div>
+    </SettingsSection>
   );
 }
 
@@ -180,10 +190,6 @@ function NightlyForm({ org }: { org: Organization }) {
       setErrors({ [LIMIT_FIELD]: t("invalid") });
       return;
     }
-    if (form.enabled && form.modelId === null) {
-      setErrors({ [MODEL_FIELD]: t("modelRequired") });
-      return;
-    }
     setSaving(true);
     try {
       await setProactivity(org.id, {
@@ -208,7 +214,7 @@ function NightlyForm({ org }: { org: Organization }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid items-stretch gap-4 lg:grid-cols-2">
+      <div className="grid items-stretch gap-3">
         <FeaturePanel
           title={t("nightly")}
           status={<SetupIndicator hints={proactivitySetupHints(org)} />}
@@ -216,7 +222,7 @@ function NightlyForm({ org }: { org: Organization }) {
           icon={Moon}
           id="org-proactive-enabled"
           checked={form.enabled}
-          disabled={saving}
+          disabled={saving || form.modelId === null}
           onChange={(enabled) => edit({ enabled })}
         />
         <FeaturePanel
@@ -232,7 +238,7 @@ function NightlyForm({ org }: { org: Organization }) {
       <p className="text-muted-foreground max-w-4xl text-xs leading-relaxed">
         {t("runAttribution")}
       </p>
-      {form.enabled && (
+      {
         <div className="bg-card rounded-xl border p-4 sm:p-5">
           <fieldset
             id="org-proactive-model"
@@ -250,7 +256,9 @@ function NightlyForm({ org }: { org: Organization }) {
               profiles={profiles}
               profilesStatus={profilesStatus}
               value={form.modelId}
-              onChange={(modelId) => edit({ modelId })}
+              onChange={(modelId) =>
+                edit({ modelId, ...(modelId === null ? { enabled: false } : {}) })
+              }
               onCreationPendingChange={(pending) =>
                 setPendingCreations((count) => count + (pending ? 1 : -1))
               }
@@ -268,7 +276,7 @@ function NightlyForm({ org }: { org: Organization }) {
             )}
           </fieldset>
         </div>
-      )}
+      }
       {(form.enabled || form.watches) && (
         <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
           <SettingsSection title={t("budgetTitle")}>
@@ -486,7 +494,7 @@ function WelcomeForm({ org }: { org: Organization }) {
     >
       {(form.enabled || changed) && (
         <div className="space-y-4">
-          {form.enabled && (
+          {
             <FormField
               label={t("welcomeText")}
               htmlFor="org-welcome-text"
@@ -505,7 +513,7 @@ function WelcomeForm({ org }: { org: Organization }) {
                 }
               />
             </FormField>
-          )}
+          }
           {changed && (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p role="status" className="text-muted-foreground text-sm">

@@ -1,5 +1,5 @@
 ---
-source_sha: "9db77a8adb2b"
+source_sha: "0e3f3c6c82f8"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
@@ -619,15 +619,21 @@ und werden nicht unterstützt.
 
 Alle Endpunkte für Sync-Quellen liegen unter `/api/v1/rag/sync/`. Das Auflisten
 verlangt `collections:view`, und alles, was eine Quelle verändert, verlangt
-`collections:edit` — in beiden Fällen bezogen auf die Collection, zu der die
-Quelle gehört. Eine Adminrolle kommt darin nicht vor. Siehe
+`collections:edit`. Eine Adminrolle kommt darin nicht vor. Die Absätze unten
+sagen, welche Quellen jeweils erreicht werden. Siehe
 [wer eine Collection erreichen darf](../file-processing.md#who-may-reach-a-collection).
+
+`GET /api/v1/rag/sync/sources` listet alle Quellen einschließlich nicht zugeordneter Vorlagen nur mit `connections:manage`. Sonst erscheinen nur Quellen lesbarer Bases. Anlegen, Lösen, Bearbeiten, Löschen und Klonen einer nicht zugeordneten Vorlage erfordert **Manage connections**. Zugeordnete Quellen erfordern Bearbeitungszugriff auf ihre Base, auch über `/org/integrations`; die Organisationsberechtigung umgeht diesen Zugriff nicht. Beim Klonen werden Quelle und Ziel getrennt geprüft.
+
+Quelländerungen prüfen entfernte Adressen vor dem Setzen von Schreibsperren. Der gesperrte Schreibvorgang prüft die validierte Revision und verweigert veraltete Änderungen. Eingereihte Synchronisierungen prüfen vor der Verarbeitung ihr ursprüngliches Ziel erneut. Konto- und Organisationslöschungen verwenden dieselben Eigentumsregeln und Sperren wie das Löschen einer Base; auch CLI-Ingestion zeichnet die Herkunft auf und beachtet diese Sperren.
+
+Der Sync-Verlauf behält die auslösende Organisation und Ziel-Base nach dem Löschen einer Quelle. Ein Lauf ohne Quelle ist nur bei nachgewiesenem Eigentum und Zugriff auf diese Base sichtbar. Alte quellenlose Logs ohne nachweisbaren Eigentümer bleiben verborgen; ein gemeinsamer Collection-Name weist sie keiner Organisation zu.
 
 ### CRUD für Sync-Quellen { #sync-sources-crud }
 
 | Methode | Endpunkt | Beschreibung |
 |--------|----------|-------------|
-| `GET` | `/api/v1/rag/sync/sources` | Alle eingerichteten Sync-Quellen auflisten |
+| `GET` | `/api/v1/rag/sync/sources` | Sync-Quellen auflisten (alle mit `connections:manage`) |
 | `POST` | `/api/v1/rag/sync/sources` | Eine neue Sync-Quelle anlegen |
 | `PATCH` | `/api/v1/rag/sync/sources/{id}` | Eine vorhandene Sync-Quelle ändern |
 | `DELETE` | `/api/v1/rag/sync/sources/{id}` | Eine Sync-Quelle löschen |
@@ -708,7 +714,19 @@ Name für Ihre Organisation aufgelöst wird und auf die Sie Schreibrechte haben 
 `null` trennt sie von jeder Basis, und eine Quelle ohne Basis synchronisiert nicht.
 
 Setzen Sie `is_active` auf `false`, um eine Quelle anzuhalten, ohne sie zu
-löschen.
+löschen. Eine pausierte Quelle kann weder nach Zeitplan noch über API oder CLI
+synchronisiert werden. Die Konsole deaktiviert die Sync-Schaltfläche. Ein Job
+in der Warteschlange prüft den Zustand vor dem Herunterladen erneut und endet
+mit einem Fehler, wenn die Quelle während der Wartezeit pausiert wurde. Eine
+bereits gestartete Synchronisierung wird nicht unterbrochen. Setzen Sie
+`is_active` auf `true`, um neue Synchronisierungen zu erlauben.
+
+Beim Auflösen eines Sammlungsnamens wird die älteste Basis in der Organisation
+der Quelle gewählt, ersatzweise eine Basis mit App-Geltungsbereich. Gleiche
+Erstellungszeiten werden nach Basis-ID geordnet. Die API verweigert die
+Zuordnung einer Quelle über den Sammlungsnamen, wenn mehrere passende Basen
+dieselbe älteste Erstellungszeit haben. Verwenden Sie eine Wissensbasis mit
+eindeutigem Sammlungsnamen, um diese Mehrdeutigkeit zu beseitigen.
 
 ## Sync-Vorgänge überwachen { #monitoring-sync-operations }
 

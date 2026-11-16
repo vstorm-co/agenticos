@@ -11,6 +11,7 @@ import asyncio
 import base64
 import json
 import logging
+import time
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from typing import Any
@@ -840,6 +841,30 @@ class TestTheKeyAndTheStorageHost:
             await _make("xai", "grok-imagine-video-1.5", timeout_seconds=0.01)
 
         assert caught.value.failure is VideoFailure.TIMED_OUT
+
+    async def test_a_transient_failure_that_outlasts_the_deadline_is_not_tried_again(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(clients_module, "DOWNLOAD_GRACE_SECONDS", 0.0)
+
+        def slow_unavailable(_request: httpx.Request) -> httpx.Response:
+            # Blocks the loop, so the attempt itself carries the clock past the
+            # deadline and nothing else gets to time the job out first.
+            time.sleep(0.6)
+            return httpx.Response(503)
+
+        routes = {
+            ("POST", "/v1/videos/generations"): _json({"request_id": "rt"}),
+            ("GET", "/v1/videos/rt"): _json(
+                {"status": "done", "video": {"url": "https://vidgen.example/v.mp4"}}
+            ),
+            ("GET", "/v.mp4"): slow_unavailable,
+        }
+        with _answering(routes) as seen, pytest.raises(VideoProviderError) as caught:
+            await _make("xai", "grok-imagine-video-1.5", timeout_seconds=0.5)
+
+        assert caught.value.failure is VideoFailure.TIMED_OUT
+        assert [request.url.path for request in seen].count("/v.mp4") == 1
 
     @pytest.mark.parametrize(
         "url", ["http://tos.example/v.mp4", "https://[::1", ""], ids=["http", "invalid", "empty"]

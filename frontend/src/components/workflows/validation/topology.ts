@@ -3,16 +3,15 @@
  * of `validate.py` that precede the rules: scope derivation, node→scope ownership
  * and Kahn's ordering.
  *
- * Like the backend, the mirror **derives** scopes from the graph's own edges
- * rather than trusting whatever `scopes` a draft carries — a freshly-edited graph's
- * client-held scopes are stale until the server recomputes them, so the mirror
- * recomputes them too. Every scope `derive_scopes` can produce sets
- * `exit_node_id = scope_node_id`; #1790's body-interior exit (`loop.yield`) is not
- * derivable from topology alone and is out of the mirror's scope, exactly as no
- * #1786 control node produces one.
+ * Like the backend, the mirror **derives** scopes from the loop each step names
+ * (`scope_id`) rather than trusting whatever `scopes` a draft carries — a
+ * freshly-edited graph's client-held scopes are stale until the server recomputes
+ * them, so the mirror recomputes them too. Every scope `derive_scopes` produces sets
+ * `exit_node_id = scope_node_id`.
  */
 
 import { effectiveDefinition } from "@/lib/workflows/ports";
+import { entryNodes } from "@/lib/workflows/triggers";
 import type {
   NodeCatalog,
   NodeDefinition,
@@ -63,6 +62,21 @@ export function nodeIds(graph: WorkflowGraph): Set<string> {
   return new Set(graph.nodes.map((node) => node.id));
 }
 
+/**
+ * Steps switched off with no edge at all: parked beside the graph, never run. They
+ * need not be reachable, and one may be a step that decides the way; rule 13 still
+ * refuses a read of one. A trigger is never one: a run
+ * can start at it wired or not. Mirrors `set_aside` in
+ * `backend/app/workflows/graph/validate.py`.
+ */
+export function setAside(graph: WorkflowGraph): Set<string> {
+  const wired = new Set(graph.edges.flatMap((e) => [e.source_node_id, e.target_node_id]));
+  for (const entry of entryNodes(graph)) wired.add(entry.id);
+  return new Set(
+    graph.nodes.filter((n) => n.disabled === true && !wired.has(n.id)).map((n) => n.id),
+  );
+}
+
 /** Outgoing edges keyed by source node id. */
 export function forwardEdges(graph: WorkflowGraph): Map<string, WorkflowEdge[]> {
   const adjacency = new Map<string, WorkflowEdge[]>();
@@ -84,60 +98,56 @@ function ownsAScope(definition: NodeDefinition): boolean {
 }
 
 /**
- * Forward BFS from `entryPort`'s targets, never re-entering `scopeNodeId` — the
- * analog of `_body_reachable_from`. Excluding the scope node (rather than
- * special-casing the exit port) is what stops the body from absorbing everything
- * downstream of the scope.
- */
-function bodyReachableFrom(
-  graph: WorkflowGraph,
-  forward: Map<string, WorkflowEdge[]>,
-  scopeNodeId: string,
-  entryPort: string,
-): Set<string> {
-  const seen = new Set<string>();
-  const queue: string[] = graph.edges
-    .filter((edge) => edge.source_node_id === scopeNodeId && edge.source_port === entryPort)
-    .map((edge) => edge.target_node_id);
-  while (queue.length > 0) {
-    const current = queue.shift() as string;
-    if (seen.has(current) || current === scopeNodeId) continue;
-    seen.add(current);
-    for (const edge of forward.get(current) ?? []) {
-      if (!seen.has(edge.target_node_id)) queue.push(edge.target_node_id);
-    }
-  }
-  return seen;
-}
-
-/**
- * Recompute `scopes` from the graph's topology — the analog of `derive_scopes`.
+ * Recompute `scopes` from the loop each step names - the analog of `derive_scopes`.
  *
- * `body_node_ids` is the set reachable from the control node's first output port
- * without re-entering it. `exit_node_id` is always the control node itself, the
- * only value derivable without #1790's body-interior exit metadata.
+ * `body_node_ids` is every step whose chain of `scope_id`s leads to the control node,
+ * nested bodies included; wires play no part, so removing one never moves a step out
+ * of its loop. `exit_node_id` is the control node itself, leaving through its first
+ * output port.
  */
 export function deriveScopes(graph: WorkflowGraph, definitions: DefinitionMap): ScopeBoundary[] {
-  const forward = forwardEdges(graph);
+  const children = new Map<string, string[]>();
+  for (const node of graph.nodes) {
+    if (node.scope_id == null) continue;
+    const list = children.get(node.scope_id);
+    if (list === undefined) children.set(node.scope_id, [node.id]);
+    else list.push(node.id);
+  }
   const scopes: ScopeBoundary[] = [];
   for (const node of graph.nodes) {
     const definition = definitionFor(definitions, node.id);
     if (definition === null || !ownsAScope(definition)) continue;
-    const outputPorts = definition.ports.filter((port) => port.kind === "output");
-    const [entry, exit] = outputPorts;
-    if (entry === undefined || exit === undefined) continue;
-    const entryPort = entry.id;
-    const exitPort = exit.id;
-    const body = bodyReachableFrom(graph, forward, node.id, entryPort);
+    const exit = definition.ports.find((port) => port.kind === "output");
+    if (exit === undefined) continue;
     scopes.push({
       scope_node_id: node.id,
-      body_node_ids: [...body],
-      entry_port: entryPort,
+      body_node_ids: [...descendants(node.id, children)],
       exit_node_id: node.id,
-      exit_port: exitPort,
+      exit_port: exit.id,
     });
   }
   return scopes;
+}
+
+/** Every step inside `scopeNodeId`, nested loops' steps included; never the loop itself. */
+function descendants(scopeNodeId: string, children: Map<string, string[]>): Set<string> {
+  const seen = new Set<string>();
+  const queue = [...(children.get(scopeNodeId) ?? [])];
+  while (queue.length > 0) {
+    const current = queue.shift() as string;
+    if (seen.has(current) || current === scopeNodeId) continue;
+    seen.add(current);
+    queue.push(...(children.get(current) ?? []));
+  }
+  return seen;
+}
+
+/** The `loop.item` step a loop's body starts at, or null when the body has none. */
+export function loopItemOf(graph: WorkflowGraph, loopId: string): string | null {
+  return (
+    graph.nodes.find((node) => node.scope_id === loopId && node.definition_id === "loop.item")
+      ?.id ?? null
+  );
 }
 
 /**

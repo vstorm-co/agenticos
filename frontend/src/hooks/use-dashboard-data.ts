@@ -28,7 +28,7 @@ export function useRecentFailures(limit = 5, options?: { enabled?: boolean }) {
   return { failures: data?.items ?? [], total: data?.total ?? 0, isLoading, error, refetch };
 }
 
-/** The organization's sync sources and their freshness - the knowledge-sync card. */
+/** The sync sources the caller can list and their freshness - the knowledge-sync card. */
 export function useSyncSources(options?: { enabled?: boolean }) {
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { data, isLoading, error, refetch } = useQuery({

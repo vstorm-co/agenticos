@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Zeitlimits und Budgets, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "f415e83adfe5"
+source_sha: "fc26a8af977d"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -17,7 +17,7 @@ fortsetzen können. Audio wird nirgendwo gespeichert.
 Anrufe werden aus `/chat` in der Konsole geführt, und aus einem Widget oder von
 einer gehosteten Seite, wenn der eigene Schalter eines Embeds an ist. Jeder
 Anruf ist ein [Run](concepts.md) mit dem Namen des Realtime-Modells darauf, also
-sehen Aktivität (Activity), der Kostenbildschirm und der Audit-Trail ihn wie
+sehen **Aktivität** (Activity), der Kostenbildschirm und der Audit-Trail ihn wie
 jeden anderen Run.
 
 In `/chat` ist der Anruf eine Pille, die über dem Eingabefeld schwebt, das sich
@@ -88,6 +88,7 @@ der einzige Ort, an dem ein Realtime-Modell benannt wird.
 | Azure OpenAI | ein Deployment von `gpt-realtime` | Relay | **Nicht live verifiziert** |
 | Google | Gemini Live: `gemini-2.5-flash-native-audio-latest`, `gemini-3.1-flash-live-preview` | Relay | **Nicht live verifiziert** |
 | xAI | `grok-voice-latest`, pro Minute abgerechnet | Relay | **Nicht live verifiziert** |
+| ElevenLabs | `eleven_realtime_v1_mini`, `eleven_realtime_v1_max` | Relay | **Nicht live verifiziert** |
 
 Nur OpenAI ließ sich gegen ein echtes Konto testen. Azure, Gemini und xAI sind
 nach der Dokumentation der Provider und von Pydantic AI gebaut und mit Fakes
@@ -192,6 +193,10 @@ Anrufs sagt es laut.
   Textmodell oder einer seiner Subagents aufruft, zeigt dieselbe Freigabekarte
   wie eines, das der Anruf aufruft. Auch hier trägt der Anruf eines Besuchers
   kein freigabepflichtiges Tool.
+- **Ein Aufruf, der jedes Mal fragt, wird schriftlich entschieden.**
+  Ein Tool wie `share_memory` wartet auf jemanden, der genau liest, was es ändern
+  würde, und das kann eine Sprachkarte nicht zeigen. Der Anruf lehnt es ab, und
+  der Agent schlägt vor, im Text-Chat zu fragen.
 - **Eine Übergabe nach der anderen.** Jede setzt fort, was die letzte in diesem
   Anruf getan hat, sodass „jetzt schick die Datei“ nach „schreib es auf“
   funktioniert.
@@ -451,3 +456,9 @@ Bestätigen, Lösen oder Stummschalten des Falls sowie Lesen seiner Benachrichti
 Konten und Organisationen können nicht gelöscht werden, solange Telefonanrufe noch nicht abgeschlossen sind. Beenden Sie die Anrufe und warten Sie vor dem erneuten Löschen auf deren Endstatus; dadurch bleiben Anbieter-Callbacks und Zeitlimits wirksam. Der persönliche Export enthält alle Vorgänge, auch ohne Telefonversuch. Ihr vollständiger Inhalt zählt zur Größenbegrenzung des Exports.
 
 Auch der Austausch der SMS-Bot-Zugangsdaten wird bis zum Abschluss seiner Telefonanrufe abgelehnt. Ein Abbruch während der Anrufanforderung speichert die Beendigungsabsicht und legt auf, sobald die Anruf-ID des Anbieters eintrifft. Die Bereinigung bestätigt diese Absicht vor dem Anbieteraufruf, damit signierte Status-Callbacks den Beleg gleichzeitig abschließen können.
+
+ElevenLabs Realtime bietet `eleven_realtime_v1_mini` und `eleven_realtime_v1_max` über das PCM-Relay mit 24 kHz, der Standardstimme `brian` und semantischer Sprecherkennung.
+
+Das SDK meldet keine Tokenkosten. Anrufe mit einem Ausgabenbudget werden vor dem Verbindungsaufbau abgelehnt. Ohne Ausgabenbudget gilt weiterhin das Zeitlimit; Audiokosten werden als Untergrenze statt als vollständige Rechnung erfasst. Der Audiotarif beträgt 0,08 USD/Minute beziehungsweise 0,16 USD bei Burst; Tokenkosten kommen hinzu. Der Kontextwert von 16k ist ein konservatives Plattformlimit für den Verlauf, kein veröffentlichtes Kontextfenster des Anbieters. Die Integration wurde offline mit SDK-Modellkonstruktion und kontrollierten Transporten geprüft, nicht mit einem echten Konto. [SDK](https://pydantic.dev/docs/ai/api/realtime/elevenlabs/), [ElevenLabs API pricing](https://elevenlabs.io/pricing/api).
+
+Ohne Sprachangabe gilt Englisch; die Sprachauswahl zeigt diesen Standard statt einer automatischen Erkennung.

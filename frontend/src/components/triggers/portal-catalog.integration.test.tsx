@@ -248,6 +248,7 @@ function orgConnection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpC
     visibility: "org",
     catalog_key: "github",
     is_default: false,
+    trust_read_only_hints: false,
     label: null,
     last_tools: null,
     granted_scopes: ["repo", "admin:repo_hook"],
@@ -297,6 +298,23 @@ const emailRow = () => within(screen.getByRole("group", { name: "Email" }));
 const trackerRow = () => within(screen.getByRole("group", { name: "Tracker" }));
 
 describe("PortalCatalog", () => {
+  it("keeps compact service choices short until expanded, with their connection actions intact", async () => {
+    serve([], "oauth_app_secret");
+    render(<PortalCatalog compact canRun canManageConnections />, { wrapper });
+    const entry = await screen.findByRole("group", { name: "GitHub" });
+    expect(
+      within(entry).queryByRole("button", { name: "Add credentials" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(within(entry).getByText("GitHub", { exact: true }));
+    expect(screen.queryByRole("group", { name: "Email" })).not.toBeInTheDocument();
+    expect(within(entry).getByRole("button", { name: "Add credentials" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Back to services" }));
+    expect(screen.getByRole("group", { name: "Email" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(within(entry).getByRole("button", { name: /GitHub/ })).toHaveFocus(),
+    );
+  });
+
   beforeEach(() => vi.clearAllMocks());
 
   it("draws a card per portal with its own brand mark", async () => {
@@ -327,9 +345,19 @@ describe("PortalCatalog", () => {
     // others rather than as a ghost button in the filter row (#1071).
     await mount();
 
-    const card = within(screen.getByRole("group", { name: "API trigger" }));
+    const card = within(screen.getByRole("group", { name: "Webhook or API trigger" }));
 
     expect(card.getByRole("button", { name: "Create trigger" })).toBeInTheDocument();
+  });
+
+  it("names the provider webhooks available from the API card in the compact routine picker", async () => {
+    serve([]);
+    render(<PortalCatalog compact canRun canManageConnections />, { wrapper });
+
+    const card = within(await screen.findByRole("group", { name: "Webhook or API trigger" }));
+    expect(card.getByText("Signed webhooks")).toBeVisible();
+    expect(card.getByText(/Linear, HubSpot and Zendesk webhooks/)).toBeVisible();
+    expect(card.getByRole("button", { name: "Create trigger" })).toBeEnabled();
   });
 
   it("keeps the API trigger reachable when a search matches no portal", async () => {
@@ -343,13 +371,13 @@ describe("PortalCatalog", () => {
     );
 
     expect(await screen.findByText("No portals match")).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: "API trigger" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Webhook or API trigger" })).toBeInTheDocument();
   });
 
   it("hides the API trigger from a caller who may not run an agent", async () => {
     await mount({ canRun: false });
 
-    expect(screen.queryByRole("group", { name: "API trigger" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Webhook or API trigger" })).toBeNull();
   });
 
   it("does not offer Connect at all when it could only fail", async () => {

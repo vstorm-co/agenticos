@@ -1,22 +1,32 @@
 "use client";
 
-import { useState } from "react";
-import { KeyRound, Plus } from "lucide-react";
+import { useWorkspaceFullscreen } from "@/hooks/use-workspace-fullscreen";
+import { WorkspaceFullscreenButton } from "@/components/ui/workspace-fullscreen-button";
+import { useMemo, useState } from "react";
+import { KeyRound, Plus, Search } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { ApiKeyCard, STATUS_VARIANT } from "@/components/settings/api-key-card";
 import { CreateApiKeyDialog } from "@/components/settings/create-api-key-dialog";
 import { EmptyState, ErrorState } from "@/components/states";
-import { Badge, Button, ConfirmDialog, DataTable, type Column } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  ConfirmDialog,
+  DataTable,
+  ListCardEmpty,
+  Pager,
+  SearchInput,
+  Skeleton,
+  useListControls,
+  type Column,
+} from "@/components/ui";
 import { useApiKeys, usePermissions } from "@/hooks";
 import { formatDate } from "@/lib/utils";
-import type { ApiKey, ApiKeyStatus } from "@/types/api-keys";
+import type { ApiKey } from "@/types/api-keys";
 import { Perm } from "@/types/permissions";
 
-const STATUS_VARIANT: Record<ApiKeyStatus, "success" | "warning" | "destructive"> = {
-  active: "success",
-  expired: "warning",
-  revoked: "destructive",
-};
+const apiKeyRowId = (key: ApiKey): string => key.id;
 
 /**
  * The caller's organization API keys - every key in the organization for
@@ -27,15 +37,28 @@ const STATUS_VARIANT: Record<ApiKeyStatus, "success" | "warning" | "destructive"
  * itself appears.
  */
 export function ApiKeysManager() {
+  const { ref, expanded, toggle } = useWorkspaceFullscreen();
   const t = useTranslations("apiKeys");
   const tc = useTranslations("common");
   const locale = useLocale();
   const { can } = usePermissions();
   const canCreate = can(Perm.apiKeysCreate);
   const manages = can(Perm.apiKeysManage);
-  const { keys, isLoading, error, refetch, catalog, create, revoke } = useApiKeys({ canCreate });
+  const { keys, isLoading, error, refetch, catalog, catalogError, retryCatalog, create, revoke } =
+    useApiKeys({ canCreate });
   const [creating, setCreating] = useState(false);
   const [revoking, setRevoking] = useState<ApiKey | null>(null);
+
+  const ordered = useMemo(
+    () => [...keys].sort((a, b) => Number(a.status !== "active") - Number(b.status !== "active")),
+    [keys],
+  );
+  const list = useListControls({
+    items: ordered,
+    pageSize: 10,
+    matches: (key, query) =>
+      `${key.name} ${key.prefix} ${key.issuer_email}`.toLowerCase().includes(query),
+  });
 
   const columns: Column<ApiKey>[] = [
     {
@@ -43,7 +66,7 @@ export function ApiKeysManager() {
       header: t("name"),
       cell: (key) => (
         <div className="min-w-0">
-          <p className="text-foreground truncate text-sm font-medium">{key.name}</p>
+          <p className="text-foreground text-sm font-medium [overflow-wrap:anywhere]">{key.name}</p>
           <p className="text-muted-foreground font-mono text-xs">{key.prefix}…</p>
         </div>
       ),
@@ -63,7 +86,9 @@ export function ApiKeysManager() {
           {
             key: "issuer",
             header: t("issuer"),
-            cell: (key: ApiKey) => <span className="text-xs">{key.issuer_email}</span>,
+            cell: (key: ApiKey) => (
+              <span className="text-xs [overflow-wrap:anywhere]">{key.issuer_email}</span>
+            ),
             hideBelow: "lg" as const,
           },
         ]
@@ -107,74 +132,156 @@ export function ApiKeysManager() {
   ];
 
   return (
-    <section
-      className="bg-card border-foreground/[0.07] shadow-card flex min-h-0 flex-col rounded-2xl border"
-      data-tour="api-keys"
+    <div
+      ref={ref}
+      className={
+        expanded
+          ? "bg-background fixed inset-0 z-40 flex flex-col overflow-y-auto p-4 sm:p-6"
+          : "flex min-h-0 flex-1 flex-col"
+      }
     >
-      <header className="border-foreground/[0.06] flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4 sm:px-6">
-        <div className="min-w-0 flex-1">
-          <div className="space-y-1">
-            <h2 className="text-foreground text-sm font-semibold">{t("title")}</h2>
-            <p className="text-muted-foreground max-w-2xl text-xs leading-5">{t("why")}</p>
+      <section
+        className="bg-card border-foreground/[0.07] shadow-card flex min-h-0 flex-1 flex-col rounded-2xl border"
+        data-tour="api-keys"
+      >
+        <header className="border-foreground/[0.06] flex flex-col items-start justify-between gap-3 border-b px-5 py-4 sm:flex-row sm:px-6">
+          <div className="min-w-0 flex-1">
+            <div className="space-y-1">
+              <h2 className="text-foreground text-sm font-semibold">{t("title")}</h2>
+              <p className="text-muted-foreground max-w-2xl text-xs leading-5">{t("why")}</p>
+            </div>
           </div>
-        </div>
-        {canCreate && catalog && (
-          <Button size="sm" onClick={() => setCreating(true)}>
-            <Plus className="h-4 w-4" />
-            {t("createTitle")}
-          </Button>
+          <div className="flex items-center gap-2">
+            <WorkspaceFullscreenButton expanded={expanded} onToggle={toggle} />
+            {canCreate && catalog && (
+              <Button size="sm" className="w-full sm:w-auto" onClick={() => setCreating(true)}>
+                <Plus className="h-4 w-4" />
+                {t("createTitle")}
+              </Button>
+            )}
+          </div>
+        </header>
+        {canCreate && catalogError && (
+          <div className="px-4 pt-4 sm:px-6">
+            <ErrorState
+              title={t("couldNotLoadScopes")}
+              cta={{ label: tc("retry"), onClick: () => void retryCatalog() }}
+            />
+          </div>
         )}
-      </header>
-      {!isLoading && !error && keys.length === 0 ? (
-        <EmptyState
-          icon={KeyRound}
-          title={t("emptyTitle")}
-          description={t("emptyWhy")}
-          className="flex-1 border-0 bg-transparent"
-        />
-      ) : (
-        <div className="p-5 sm:p-6">
-          <DataTable
-            className="rounded-none border-0"
-            columns={columns}
-            rows={keys}
-            getRowKey={(key) => key.id}
-            loading={isLoading}
-            error={
-              error ? (
-                <ErrorState
-                  title={t("couldNotLoad")}
-                  cta={{ label: tc("retry"), onClick: () => void refetch() }}
-                />
-              ) : undefined
-            }
+        {!isLoading && !error && keys.length === 0 ? (
+          <EmptyState
+            icon={KeyRound}
+            title={t("emptyTitle")}
+            description={t("emptyWhy")}
+            className="flex-1 border-0 bg-transparent"
           />
-        </div>
-      )}
-      {catalog && (
-        <CreateApiKeyDialog
-          open={creating}
-          onOpenChange={setCreating}
-          catalog={catalog}
-          onCreate={(input) => create.mutateAsync(input)}
-          busy={create.isPending}
-        />
-      )}
-      {revoking && (
-        <ConfirmDialog
-          open
-          onOpenChange={() => setRevoking(null)}
-          title={t("revokeTitle", { name: revoking.name })}
-          description={t("revokeWhy")}
-          confirmLabel={t("revoke")}
-          destructive
-          loading={revoke.isPending}
-          onConfirm={async () => {
-            await revoke.mutateAsync(revoking.id);
-            setRevoking(null);
-          }}
-        />
-      )}
-    </section>
+        ) : (
+          <div className="space-y-4 p-4 sm:p-6">
+            {(isLoading || keys.length > 0) && !error && (
+              <SearchInput
+                value={list.query}
+                onChange={list.setQuery}
+                placeholder={t("search")}
+                className="w-full sm:max-w-sm"
+              />
+            )}
+            {error ? (
+              <ErrorState
+                title={t("couldNotLoad")}
+                cta={{ label: tc("retry"), onClick: () => void refetch() }}
+              />
+            ) : isLoading ? (
+              <>
+                <DataTable
+                  className="hidden rounded-none border-0 md:block"
+                  columns={columns}
+                  rows={[]}
+                  getRowKey={apiKeyRowId}
+                  loading
+                />
+                <div aria-busy="true" className="space-y-3 md:hidden">
+                  {[0, 1, 2].map((row) => (
+                    <div key={row} aria-hidden="true" className="rounded-xl border p-4">
+                      <div className="flex justify-between gap-3">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-5 w-16 rounded-full" />
+                      </div>
+                      <Skeleton className="mt-2 h-3 w-24" />
+                      <div className="mt-4 space-y-3">
+                        {Array.from({ length: manages ? 3 : 2 }, (_, index) => (
+                          <Skeleton key={index} className="h-3 w-full" />
+                        ))}
+                      </div>
+                      <Skeleton className="mt-4 h-8 w-full rounded-lg" />
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : list.visible.length === 0 ? (
+              <ListCardEmpty
+                onClearFilters={() => list.setQuery("")}
+                icon={Search}
+                title={t("noMatches")}
+                description={t("searchHint")}
+              />
+            ) : (
+              <>
+                <DataTable
+                  className="hidden rounded-none border-0 md:block"
+                  columns={columns}
+                  rows={list.visible}
+                  getRowKey={apiKeyRowId}
+                />
+                <div className="md:hidden">
+                  <ul className="space-y-3">
+                    {list.visible.map((key) => (
+                      <ApiKeyCard
+                        key={key.id}
+                        apiKey={key}
+                        manages={manages}
+                        onRevoke={setRevoking}
+                      />
+                    ))}
+                  </ul>
+                </div>
+                <Pager
+                  page={list.page}
+                  pageCount={list.pageCount}
+                  matched={list.matched}
+                  total={list.total}
+                  onPage={list.setPage}
+                  counted={t("keyCount", { count: list.total })}
+                />
+              </>
+            )}
+          </div>
+        )}
+        {catalog && (
+          <CreateApiKeyDialog
+            open={creating}
+            onOpenChange={(open) => {
+              setCreating(open);
+              if (!open) create.reset();
+            }}
+            catalog={catalog}
+            onCreate={(input) => create.mutateAsync(input)}
+            busy={create.isPending}
+          />
+        )}
+        {revoking && (
+          <ConfirmDialog
+            open
+            onOpenChange={() => setRevoking(null)}
+            title={t("revokeTitle", { name: revoking.name })}
+            description={t("revokeWhy")}
+            confirmLabel={t("revoke")}
+            destructive
+            loading={revoke.isPending}
+            onConfirm={() => revoke.mutate(revoking.id, { onSuccess: () => setRevoking(null) })}
+          />
+        )}
+      </section>
+    </div>
   );
 }

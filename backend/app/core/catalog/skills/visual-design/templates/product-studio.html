@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Forma 01 — product study</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f2efe8;
+        --ink: #262b29;
+        --muted: #6a7069;
+        --line: #c9cbc2;
+        --accent: #4e6a54;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font:
+          15px/1.5 system-ui,
+          sans-serif;
+      }
+      main {
+        max-inline-size: 1200px;
+        margin: auto;
+        padding: 28px;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-block-end: 20px;
+      }
+      .kicker {
+        font-size: 11px;
+        font-weight: 650;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      h1 {
+        font:
+          44px/1 Georgia,
+          serif;
+        letter-spacing: -0.035em;
+        margin: 8px 0;
+      }
+      p {
+        margin: 0;
+        color: var(--muted);
+      }
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 250px;
+        gap: 32px;
+        align-items: center;
+      }
+      .stage {
+        position: relative;
+        block-size: 500px;
+        min-inline-size: 0;
+        background: #e6e4dc;
+        border-radius: 8px;
+      }
+      .stage canvas {
+        display: block;
+        inline-size: 100%;
+        block-size: 100%;
+        border-radius: 8px;
+      }
+      .stage-label {
+        position: absolute;
+        inset: 18px auto auto 20px;
+        z-index: 1;
+        pointer-events: none;
+      }
+      .stage-hint {
+        position: absolute;
+        inset: auto 20px 18px;
+        color: #5d645d;
+        font-size: 11px;
+        pointer-events: none;
+      }
+      .controls {
+        display: grid;
+        gap: 24px;
+        align-items: start;
+      }
+      fieldset {
+        margin: 0;
+        padding: 0;
+        border: 0;
+      }
+      legend,
+      label {
+        font-weight: 600;
+        margin-block-end: 10px;
+        display: block;
+        font-size: 13px;
+      }
+      .buttons {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      button,
+      select {
+        font: inherit;
+        min-block-size: 40px;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        background: transparent;
+        color: var(--ink);
+        padding: 7px 11px;
+        cursor: pointer;
+      }
+      button[aria-pressed="true"] {
+        background: var(--ink);
+        color: var(--paper);
+        border-color: var(--ink);
+      }
+      button:hover {
+        border-color: var(--accent);
+      }
+      :focus-visible {
+        outline: 3px solid #5082aa;
+        outline-offset: 3px;
+      }
+      input[type="range"] {
+        inline-size: 100%;
+        accent-color: var(--accent);
+        min-block-size: 32px;
+      }
+      output {
+        float: right;
+        font-variant-numeric: tabular-nums;
+        color: var(--muted);
+      }
+      .parts {
+        padding-block-start: 18px;
+        border-block-start: 1px solid var(--line);
+        font-size: 13px;
+        display: grid;
+        gap: 12px;
+      }
+      .parts strong {
+        display: block;
+        color: var(--ink);
+      }
+      footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        margin-block-start: 22px;
+        padding-block-start: 16px;
+        border-block-start: 1px solid var(--line);
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .fallback {
+        display: grid;
+        place-items: center;
+        block-size: 100%;
+        padding: 32px;
+        text-align: center;
+      }
+      .fallback svg {
+        max-inline-size: 300px;
+        inline-size: 100%;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      @media (max-width: 720px) {
+        main {
+          padding: 16px;
+        }
+        .workspace {
+          grid-template-columns: 1fr;
+          gap: 24px;
+        }
+        .stage {
+          block-size: 360px;
+        }
+        .controls {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 20px;
+        }
+        .parts {
+          grid-column: 1/-1;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        h1 {
+          font-size: 36px;
+        }
+        footer {
+          flex-direction: column;
+          gap: 4px;
+        }
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./lib/three-0.186.0/three.module.js",
+          "three/addons/": "./lib/three-0.186.0/addons/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <span class="kicker">Industrial objects / 001</span>
+          <h1>Forma. A closer look.</h1>
+        </div>
+        <p>An original procedural camera study.</p>
+      </header>
+      <div class="workspace">
+        <div class="stage" id="stage">
+          <span class="stage-label kicker">Forma 01 / assembled</span
+          ><span class="stage-hint"
+            >Drag to orbit · scroll to zoom · or use named views</span
+          >
+          <div class="fallback" id="fallback">
+            <div>
+              <svg
+                viewBox="0 0 300 200"
+                role="img"
+                aria-label="Front elevation of a camera with a circular lens"
+              >
+                <rect
+                  x="30"
+                  y="55"
+                  width="240"
+                  height="120"
+                  rx="16"
+                  fill="#61745d"
+                />
+                <path d="M45 55v-20h75v20" fill="#adb4a8" />
+                <rect x="30" y="55" width="240" height="24" fill="#adb4a8" />
+                <circle cx="160" cy="118" r="64" fill="#292f2c" />
+                <circle cx="160" cy="118" r="43" fill="#637d80" />
+                <circle cx="160" cy="118" r="22" fill="#203939" />
+              </svg>
+              <p id="fallback-message">Loading the 3D product study…</p>
+            </div>
+          </div>
+        </div>
+        <aside class="controls" aria-label="Product controls">
+          <fieldset>
+            <legend>Finish</legend>
+            <div class="buttons">
+              <button type="button" data-finish="sage" aria-pressed="true">
+                Sage</button
+              ><button
+                type="button"
+                data-finish="graphite"
+                aria-pressed="false"
+              >
+                Graphite</button
+              ><button type="button" data-finish="sand" aria-pressed="false">
+                Sand
+              </button>
+            </div>
+          </fieldset>
+          <div>
+            <label for="explode"
+              >Lens assembly <output id="exploded">0%</output></label
+            ><input
+              type="range"
+              id="explode"
+              min="0"
+              max="100"
+              value="0"
+              step="1"
+            />
+          </div>
+          <fieldset>
+            <legend>View</legend>
+            <div class="buttons">
+              <button type="button" data-view="hero" aria-pressed="true">
+                Hero</button
+              ><button type="button" data-view="front" aria-pressed="false">
+                Front</button
+              ><button type="button" data-view="top" aria-pressed="false">
+                Top
+              </button>
+            </div>
+          </fieldset>
+          <button type="button" id="reset">Reset study</button>
+          <div class="parts">
+            <p><strong>01 / Shell</strong>Beveled aluminum</p>
+            <p><strong>02 / Grip</strong>Procedural grain</p>
+            <p><strong>03 / Optics</strong>Coated glass layers</p>
+          </div>
+        </aside>
+      </div>
+      <footer>
+        <span>Stylized design model · not a production CAD drawing</span
+        ><span>Local geometry and materials · no external assets</span>
+      </footer>
+    </main>
+    <script type="module">
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+      const stage = document.getElementById("stage");
+      const fallback = document.getElementById("fallback");
+      const message = document.getElementById("fallback-message");
+      const buttons = [...document.querySelectorAll("button")];
+      try {
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.1;
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.domElement.setAttribute("role", "img");
+        renderer.domElement.setAttribute(
+          "aria-label",
+          "Camera with a sculpted metal shell, textured grip and layered optical lens. Use the controls to inspect each component.",
+        );
+        stage.prepend(renderer.domElement);
+        fallback.hidden = true;
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color("#e6e4dc");
+        const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 80);
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.minDistance = 4;
+        controls.maxDistance = 16;
+        controls.maxPolarAngle = Math.PI * 0.49;
+        controls.target.set(0, 0.1, 0.35);
+        const environment = new THREE.Scene();
+        environment.background = new THREE.Color("#a9b5b4");
+        for (const [x, y, z, sx, sy, sz] of [
+          [0, 5, 0, 8, 0.1, 6],
+          [-5, 1, 2, 0.1, 4, 5],
+          [4, 2, -3, 0.1, 6, 4],
+        ]) {
+          const panel = new THREE.Mesh(
+            new THREE.BoxGeometry(sx, sy, sz),
+            new THREE.MeshBasicMaterial({ color: "#ffffff" }),
+          );
+          panel.position.set(x, y, z);
+          environment.add(panel);
+        }
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        const environmentTarget = pmrem.fromScene(environment, 0.06);
+        scene.environment = environmentTarget.texture;
+        pmrem.dispose();
+        environment.traverse((object) => {
+          if (object.isMesh) {
+            object.geometry.dispose();
+            object.material.dispose();
+          }
+        });
+        scene.add(new THREE.HemisphereLight("#ffffff", "#6e7564", 2));
+        const key = new THREE.DirectionalLight("#fff7e9", 4);
+        key.position.set(-3, 7, 5);
+        key.castShadow = true;
+        key.shadow.mapSize.set(1024, 1024);
+        Object.assign(key.shadow.camera, {
+          left: -5,
+          right: 5,
+          top: 5,
+          bottom: -5,
+          near: 0.1,
+          far: 20,
+        });
+        key.shadow.normalBias = 0.025;
+        scene.add(key);
+        const rim = new THREE.DirectionalLight("#c7e5f1", 2);
+        rim.position.set(4, 3, -4);
+        scene.add(rim);
+        const metal = new THREE.MeshStandardMaterial({
+          color: "#b9beb5",
+          metalness: 0.85,
+          roughness: 0.27,
+        });
+        const dark = new THREE.MeshStandardMaterial({
+          color: "#252e2c",
+          metalness: 0.65,
+          roughness: 0.33,
+        });
+        const grainCanvas = document.createElement("canvas");
+        grainCanvas.width = 128;
+        grainCanvas.height = 128;
+        const ctx = grainCanvas.getContext("2d");
+        if (!ctx) throw new Error("Material canvas unavailable");
+        let seed = 7281;
+        for (let y = 0; y < 128; y++)
+          for (let x = 0; x < 128; x++) {
+            seed = (seed * 1664525 + 1013904223) >>> 0;
+            const v = 100 + (seed >>> 27);
+            ctx.fillStyle = `rgb(${v},${v},${v})`;
+            ctx.fillRect(x, y, 1, 1);
+          }
+        const grain = new THREE.CanvasTexture(grainCanvas);
+        grain.wrapS = grain.wrapT = THREE.RepeatWrapping;
+        grain.repeat.set(4, 2);
+        const leather = new THREE.MeshStandardMaterial({
+          color: "#65795f",
+          roughness: 0.86,
+          bumpMap: grain,
+          bumpScale: 0.025,
+        });
+        const glass = new THREE.MeshPhysicalMaterial({
+          color: "#314e58",
+          metalness: 0.25,
+          roughness: 0.12,
+          clearcoat: 1,
+          clearcoatRoughness: 0.06,
+        });
+        const optical = new THREE.MeshPhysicalMaterial({
+          color: "#586d8c",
+          metalness: 0.5,
+          roughness: 0.09,
+          clearcoat: 1,
+        });
+        const product = new THREE.Group();
+        scene.add(product);
+        function roundedBox(w, h, d, r, material) {
+          const shape = new THREE.Shape();
+          shape.moveTo(-w / 2 + r, -h / 2);
+          shape.lineTo(w / 2 - r, -h / 2);
+          shape.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r);
+          shape.lineTo(w / 2, h / 2 - r);
+          shape.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2);
+          shape.lineTo(-w / 2 + r, h / 2);
+          shape.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r);
+          shape.lineTo(-w / 2, -h / 2 + r);
+          shape.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
+          const geometry = new THREE.ExtrudeGeometry(shape, {
+            depth: d,
+            bevelEnabled: true,
+            bevelSegments: 3,
+            steps: 1,
+            bevelSize: 0.035,
+            bevelThickness: 0.035,
+            curveSegments: 12,
+          });
+          geometry.translate(0, 0, -d / 2);
+          const mesh = new THREE.Mesh(geometry, material);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          return mesh;
+        }
+        const body = roundedBox(3.8, 2.25, 0.95, 0.18, metal);
+        product.add(body);
+        const grip = roundedBox(3.83, 1.52, 0.97, 0.12, leather);
+        grip.position.y = -0.07;
+        product.add(grip);
+        const shoulder = roundedBox(1.5, 0.38, 0.88, 0.08, metal);
+        shoulder.position.set(-0.85, 1.24, 0);
+        product.add(shoulder);
+        const finder = roundedBox(0.62, 0.3, 0.12, 0.045, dark);
+        finder.position.set(-1.07, 0.88, 0.53);
+        product.add(finder);
+        const finderGlass = roundedBox(0.42, 0.16, 0.13, 0.025, glass);
+        finderGlass.position.copy(finder.position);
+        finderGlass.position.z += 0.02;
+        product.add(finderGlass);
+        function cylinder(radius, depth, material) {
+          const mesh = new THREE.Mesh(
+            new THREE.CylinderGeometry(radius, radius, depth, 80),
+            material,
+          );
+          mesh.rotation.x = Math.PI / 2;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          return mesh;
+        }
+        const lens = new THREE.Group();
+        lens.position.set(0.28, -0.05, 0.55);
+        product.add(lens);
+        const segments = [];
+        for (const [radius, depth, z, material] of [
+          [0.91, 0.14, 0.05, metal],
+          [0.84, 0.38, 0.28, dark],
+          [0.86, 0.16, 0.55, metal],
+          [0.78, 0.2, 0.73, dark],
+          [0.68, 0.05, 0.85, glass],
+          [0.44, 0.02, 0.883, optical],
+          [0.2, 0.01, 0.899, dark],
+        ]) {
+          const part = cylinder(radius, depth, material);
+          part.position.z = z;
+          lens.add(part);
+          segments.push({ part, z });
+        }
+        const ribs = new THREE.InstancedMesh(
+          new THREE.BoxGeometry(0.026, 0.12, 0.025),
+          dark,
+          80,
+        );
+        const dummy = new THREE.Object3D();
+        for (let i = 0; i < 80; i++) {
+          const angle = (i * Math.PI * 2) / 80;
+          dummy.position.set(
+            Math.cos(angle) * 0.855,
+            Math.sin(angle) * 0.855,
+            0.55,
+          );
+          dummy.rotation.z = angle;
+          dummy.updateMatrix();
+          ribs.setMatrixAt(i, dummy.matrix);
+        }
+        ribs.castShadow = true;
+        lens.add(ribs);
+        const dial = cylinder(0.28, 0.16, dark);
+        dial.rotation.x = 0;
+        dial.position.set(1.2, 1.22, 0);
+        product.add(dial);
+        const shutter = cylinder(0.13, 0.1, metal);
+        shutter.rotation.x = 0;
+        shutter.position.set(0.58, 1.23, 0.12);
+        product.add(shutter);
+        for (const x of [-1.72, 1.72]) {
+          const lug = new THREE.Mesh(
+            new THREE.TorusGeometry(0.12, 0.035, 8, 24),
+            metal,
+          );
+          lug.position.set(x, 0.78, 0.54);
+          product.add(lug);
+        }
+        for (const [x, y] of [
+          [-1.6, 0.95],
+          [1.6, 0.95],
+          [-1.6, -0.93],
+          [1.6, -0.93],
+        ]) {
+          const screw = cylinder(0.034, 0.025, dark);
+          screw.position.set(x, y, 0.52);
+          product.add(screw);
+        }
+        const ground = new THREE.Mesh(
+          new THREE.PlaneGeometry(200, 200),
+          new THREE.ShadowMaterial({ opacity: 0.18 }),
+        );
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -1.2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+        const views = {
+          hero: [5, 3.1, 7.2],
+          front: [0.28, 0.1, 9],
+          top: [0.2, 9, 0.6],
+        };
+        function view(name) {
+          camera.position.set(...views[name]);
+          controls.target.set(0.1, 0.15, 0.5);
+          controls.update();
+          document
+            .querySelectorAll("[data-view]")
+            .forEach((button) =>
+              button.setAttribute(
+                "aria-pressed",
+                String(button.dataset.view === name),
+              ),
+            );
+        }
+        view("hero");
+        function resize() {
+          const w = stage.clientWidth;
+          const h = stage.clientHeight;
+          renderer.setSize(w, h, false);
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+          const narrow = w / h < 1.15;
+          controls.minDistance = narrow ? 6 : 4;
+          if (narrow && camera.position.length() < 10)
+            camera.position.setLength(10);
+        }
+        const sizeObserver = new ResizeObserver(resize);
+        sizeObserver.observe(stage);
+        resize();
+        const finishes = {
+          sage: "#65795f",
+          graphite: "#303b3b",
+          sand: "#ac9572",
+        };
+        function finish(name) {
+          leather.color.set(finishes[name]);
+          document
+            .querySelectorAll("[data-finish]")
+            .forEach((button) =>
+              button.setAttribute(
+                "aria-pressed",
+                String(button.dataset.finish === name),
+              ),
+            );
+        }
+        function explode(value) {
+          const amount = value / 100;
+          segments.forEach(({ part, z }, i) => {
+            part.position.z = z + amount * i * 0.24;
+          });
+          ribs.position.z = amount * 0.48;
+          document.getElementById("exploded").value = `${value}%`;
+          document.querySelector(".stage-label").textContent =
+            amount === 0 ? "Forma 01 / assembled" : "Forma 01 / lens exploded";
+        }
+        document
+          .getElementById("explode")
+          .addEventListener("input", (event) =>
+            explode(Number(event.target.value)),
+          );
+        document
+          .querySelectorAll("[data-view]")
+          .forEach((button) =>
+            button.addEventListener("click", () => view(button.dataset.view)),
+          );
+        document
+          .querySelectorAll("[data-finish]")
+          .forEach((button) =>
+            button.addEventListener("click", () =>
+              finish(button.dataset.finish),
+            ),
+          );
+        document.getElementById("reset").addEventListener("click", () => {
+          document.getElementById("explode").value = "0";
+          explode(0);
+          finish("sage");
+          view("hero");
+          resize();
+        });
+        let visible = true;
+        let frame = 0;
+        function render() {
+          frame = 0;
+          if (!visible || document.hidden) return;
+          controls.update();
+          renderer.render(scene, camera);
+          frame = requestAnimationFrame(render);
+        }
+        function resume() {
+          if (!frame && visible && !document.hidden)
+            frame = requestAnimationFrame(render);
+        }
+        const observer = new IntersectionObserver((entries) => {
+          visible = entries[0].isIntersecting;
+          if (!visible) {
+            cancelAnimationFrame(frame);
+            frame = 0;
+          } else resume();
+        });
+        observer.observe(stage);
+        document.addEventListener("visibilitychange", resume);
+        resume();
+        renderer.domElement.addEventListener("webglcontextlost", (event) => {
+          event.preventDefault();
+          cancelAnimationFrame(frame);
+          frame = 0;
+          renderer.domElement.hidden = true;
+          fallback.hidden = false;
+          message.textContent =
+            "The 3D context was lost. Reload to inspect the model; the front elevation remains available.";
+          buttons.forEach((button) => {
+            button.disabled = true;
+          });
+          document.getElementById("explode").disabled = true;
+        });
+        window.addEventListener(
+          "pagehide",
+          () => {
+            cancelAnimationFrame(frame);
+            observer.disconnect();
+            sizeObserver.disconnect();
+            document.removeEventListener("visibilitychange", resume);
+            controls.dispose();
+            const geometries = new Set();
+            const materials = new Set();
+            scene.traverse((object) => {
+              if (object.isMesh) {
+                geometries.add(object.geometry);
+                for (const material of Array.isArray(object.material)
+                  ? object.material
+                  : [object.material])
+                  materials.add(material);
+              }
+            });
+            geometries.forEach((geometry) => geometry.dispose());
+            materials.forEach((material) => material.dispose());
+            grain.dispose();
+            environmentTarget.dispose();
+            renderer.dispose();
+          },
+          { once: true },
+        );
+      } catch (error) {
+        fallback.hidden = false;
+        message.textContent =
+          "3D rendering is unavailable. The front elevation remains visible; try a browser with WebGL enabled.";
+        buttons.forEach((button) => {
+          button.disabled = true;
+        });
+        document.getElementById("explode").disabled = true;
+        console.error("Product study initialization failed", error);
+      }
+    </script>
+  </body>
+</html>

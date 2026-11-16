@@ -1,5 +1,6 @@
 import { BackgroundIcon } from "@/components/icons/product-icons";
 import {
+  FlaskConical,
   MessagesSquare,
   Activity,
   Boxes,
@@ -64,6 +65,8 @@ export type NavItem = {
 export type NavDomain = "use" | "build" | "knowledge" | "workspace" | "admin";
 
 export type NavGroup = {
+  /** Reached through the organization switcher rather than the main rail. */
+  switcherOnly?: boolean;
   /** `null` for the first group, which needs no label above the top item. */
   labelKey: string | null;
   domain: NavDomain;
@@ -117,6 +120,12 @@ export const NAV_GROUPS: NavGroup[] = [
         href: ROUTES.ROUTINES,
         icon: TimerReset,
         permission: Perm.agentsView,
+      },
+      {
+        labelKey: "datasets",
+        href: ROUTES.DATASETS,
+        icon: FlaskConical,
+        permission: Perm.datasetsView,
       },
       {
         labelKey: "artifacts",
@@ -232,6 +241,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     labelKey: "organization",
+    switcherOnly: true,
     domain: "workspace",
     collapsible: true,
     items: [

@@ -18,6 +18,8 @@ import type {
   WorkflowRunFileList,
   WorkflowRunList,
   WorkflowRunRead,
+  WorkflowQuestionRead,
+  WorkflowQuestionResponses,
   WorkflowRunStart,
 } from "@/lib/workflows/types";
 
@@ -132,4 +134,20 @@ export async function editReplyExpectation(
     `${ROOT}/${runId}/steps/${nodeRunId}/reply-expectation`,
     body,
   );
+}
+
+/** Pending questions visible to the signed-in person who started the agent step. */
+export async function listWorkflowRunQuestions(runId: string): Promise<WorkflowQuestionRead[]> {
+  return apiClient.get<WorkflowQuestionRead[]>(`${ROOT}/${runId}/questions`);
+}
+
+/** Save answers for the suspended step and queue its existing agent conversation. */
+export async function answerWorkflowRunQuestions(
+  runId: string,
+  nodeRunId: string,
+  responses: WorkflowQuestionResponses,
+): Promise<WorkflowRunRead> {
+  return apiClient.post<WorkflowRunRead>(`${ROOT}/${runId}/nodes/${nodeRunId}/answers`, {
+    responses,
+  });
 }

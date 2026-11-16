@@ -211,7 +211,7 @@ function PlatformBindingDialog({
                         disabled={disabled}
                         className="mt-0.5"
                       />
-                      <label htmlFor={`platform-tool-${tool.name}`} className="min-w-0 flex-1">
+                      <Label htmlFor={`platform-tool-${tool.name}`} className="min-w-0 flex-1">
                         <span className="flex items-center gap-2">
                           <span className="font-mono text-xs">{tool.name}</span>
                           {tool.writes ? (
@@ -225,7 +225,7 @@ function PlatformBindingDialog({
                         <span className="text-muted-foreground block text-xs">
                           {tool.description}
                         </span>
-                      </label>
+                      </Label>
                     </li>
                   ))}
                 </ul>

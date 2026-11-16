@@ -13,6 +13,7 @@ export const RUN_DOT: Record<WorkflowRunStatus, string> = {
   queued: "bg-muted-foreground/50",
   running: "bg-brand animate-pulse",
   waiting_approval: "bg-warning",
+  waiting_for_user: "bg-warning",
   waiting_retry: "bg-warning animate-pulse",
   needs_attention: "bg-warning",
   budget_exceeded: "bg-warning",
@@ -46,12 +47,19 @@ export function WorkflowRunStatusBadge({ status }: { status: WorkflowRunStatus }
   );
 }
 
-export function NodeRunStatusLabel({ status }: { status: NodeRunStatus }) {
+/** A step's status; a step switched off in the run's graph reads so, whatever its row says. */
+export function NodeRunStatusLabel({
+  status,
+  switchedOff = false,
+}: {
+  status: NodeRunStatus;
+  switchedOff?: boolean;
+}) {
   const t = useTranslations("pages.workflows.nodeStatus");
   return (
     <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
-      <Dot className={NODE_DOT[status]} />
-      {t(status)}
+      <Dot className={switchedOff ? NODE_DOT.skipped : NODE_DOT[status]} />
+      {switchedOff ? t("switchedOff") : t(status)}
     </span>
   );
 }

@@ -149,19 +149,14 @@ class WatchService:
 
     @staticmethod
     def _require_personal_consent(ctx: AuthContext) -> None:
-        """A script or background turn cannot grant itself future reads of a private account."""
-        if (
-            ctx.subject_is_publisher_fallback
-            or ctx.fired_as_creator is not None
-            or ctx.routine_id is not None
-            or (
-                (ctx.api_key_id is not None or ctx.key_scopes is not None)
-                and ctx.source_conversation_id is None
-            )
-            or current_impersonator() is not None
-        ):
+        """A background turn or an agent's credential cannot grant itself future reads of a private account.
+
+        The person may: signed in, through a key or MCP token they issued, or in
+        their own private chat.
+        """
+        if not ctx.acts_in_person or current_impersonator() is not None:
             raise AuthorizationError(
-                message="Creating or changing a watch requires the person's own consent in a private conversation or signed-in session."
+                message="Creating or changing a watch requires the person's own consent in a private conversation, signed-in session or their own API key."
             )
 
     async def _organization(self, ctx: AuthContext) -> Organization:

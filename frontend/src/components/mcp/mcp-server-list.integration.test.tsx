@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -72,6 +72,7 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
     visibility: "org",
     catalog_key: "github",
     is_default: false,
+    trust_read_only_hints: false,
     label: null,
     last_tools: null,
     granted_scopes: null,
@@ -334,6 +335,33 @@ describe("McpServerList", () => {
     const row = within(githubRow());
     expect(row.getByRole("button", { name: "Connect" })).toBeInTheDocument();
     expect(row.queryByTitle(/^(Organization|You):/)).toBeNull();
+  });
+
+  it("holds an OAuth draft during start and preserves it after refusal", async () => {
+    await mount();
+    await userEvent.click(within(githubRow()).getByRole("button", { name: "Connect" }));
+    await userEvent.click(await screen.findByRole("button", { name: "More options" }));
+    await userEvent.click(screen.getByRole("radio", { name: "OAuth" }));
+    await userEvent.clear(screen.getByLabelText("Tool prefix"));
+    await userEvent.type(screen.getByLabelText("Tool prefix"), "support-workspace");
+    let rejectWrite: (error: Error) => void = () => {
+      throw new Error("OAuth start not called");
+    };
+    vi.mocked(apiClient.post).mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectWrite = reject;
+        }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
+    expect(screen.getByLabelText("Tool prefix")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByRole("dialog")).toBeVisible();
+    await act(async () => rejectWrite(new Error("Controlled sign-in refusal")));
+    await waitFor(() => expect(screen.getByLabelText("Tool prefix")).toBeEnabled());
+    expect(screen.getByLabelText("Tool prefix")).toHaveValue("support-workspace");
+    expect(screen.getByRole("button", { name: "Connect & check" })).toBeEnabled();
   });
 
   it("writes no connection row when OAuth is chosen - the callback does that", async () => {
@@ -1285,7 +1313,7 @@ describe("connected servers across catalog pages", () => {
     const last = catalogEntries[50]!;
     const card = await screen.findByRole("group", { name: last.name });
     expect(screen.getAllByRole("group")).toHaveLength(1);
-    expect(screen.getByText("51 servers")).toBeVisible();
+    expect(screen.getByText("2 / 2")).toBeVisible();
     expect(screen.getByRole("button", { name: "Previous page" })).toBeEnabled();
 
     await userEvent.click(
@@ -1528,4 +1556,31 @@ describe("arriving with ?connect= for a server behind OAuth", () => {
     );
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+});
+
+it("explains an empty search and clears every narrowing", async () => {
+  await mount();
+  await userEvent.type(screen.getByPlaceholderText("Search servers…"), "no-server-matches");
+  expect(await screen.findByText("No servers found")).toBeVisible();
+  expect(screen.queryByRole("group", { name: "GitHub" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  expect(await screen.findByRole("group", { name: "GitHub" })).toBeVisible();
+  expect(screen.getByPlaceholderText("Search servers…")).toHaveValue("");
+});
+
+it("shows a failed catalog request and retries without claiming an empty catalog", async () => {
+  serve([], []);
+  const original = vi.mocked(apiClient.get).getMockImplementation();
+  if (!original) throw new Error("Missing catalog mock");
+  let refused = true;
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path.startsWith("/agents/mcp-servers") && refused) throw new Error("Offline");
+    return original(path);
+  });
+  render(<McpServerList canManageOrganization />, { wrapper });
+  expect(await screen.findByText("Could not load servers")).toBeVisible();
+  expect(screen.queryByText("No servers found")).not.toBeInTheDocument();
+  refused = false;
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(await screen.findByRole("group", { name: "GitHub" })).toBeVisible();
 });

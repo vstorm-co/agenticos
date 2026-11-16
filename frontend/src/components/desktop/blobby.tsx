@@ -52,6 +52,7 @@ interface BlobbyProps {
   settings: BlobbySettings;
   activity: Activity;
   signedIn: boolean;
+  checkSession?: () => Promise<boolean>;
   heard: Heard | null;
   reducedMotion: boolean;
 }
@@ -86,7 +87,14 @@ function run(what: string, command: () => Promise<void>) {
  * forth over it - and it is pleased. Right-click for the shell's menu. What the
  * agents are doing is said in the bubble, which opens the right page on click.
  */
-export function Blobby({ settings, activity, signedIn, heard, reducedMotion }: BlobbyProps) {
+export function Blobby({
+  settings,
+  activity,
+  signedIn,
+  checkSession,
+  heard,
+  reducedMotion,
+}: BlobbyProps) {
   const t = useTranslations("desktop.blobby");
   const [quip, setQuip] = useState<Bubble | null>(null);
   const quipTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -142,7 +150,12 @@ export function Blobby({ settings, activity, signedIn, heard, reducedMotion }: B
   const greet = () => {
     motion.react("wave", WAVE_MS);
     if (signedIn) speak();
-    else say(t("signedOut"));
+    else if (checkSession) {
+      run("could not check blobby's session", async () => {
+        if (await checkSession()) speak();
+        else say(t("signedOut"));
+      });
+    } else say(t("signedOut"));
   };
 
   const onPointerDown = (event: PointerEvent) => {

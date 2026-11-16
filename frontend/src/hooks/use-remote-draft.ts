@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { canonicalJson } from "@/lib/canonical-json";
 import { CONSOLE_TAB } from "@/lib/console-tab";
 import { onRemoteChange } from "@/lib/live-updates";
 import type { ChangeResource, MadeChange } from "@/types/change-events";
@@ -65,8 +66,10 @@ export function useRemoteDraft<T>({
   useEffect(
     () =>
       onRemoteChange((event) => {
-        // A run is nobody's edit, so there is no one to name in a conflict.
-        if (event.surface === "run" || event.resource !== resource || event.id !== id) return;
+        // A run or the platform's own work is nobody's edit, so there is no one
+        // to name in a conflict.
+        if (event.surface === "run" || event.surface === "system") return;
+        if (event.resource !== resource || event.id !== id) return;
         // This tab's own saves - it already has them. The same person's edit in
         // another tab is a change elsewhere like any other.
         if (event.origin_tab === CONSOLE_TAB) return;
@@ -74,7 +77,7 @@ export function useRemoteDraft<T>({
         setWaiting({
           event,
           since: now.fetchedAt,
-          stored: JSON.stringify(now.stored),
+          stored: canonicalJson(now.stored),
         });
       }),
     [resource, id],
@@ -85,10 +88,10 @@ export function useRemoteDraft<T>({
   // would paint one frame of the stale decision first.
   if (waiting !== null && fetchedAt > waiting.since) {
     setWaiting(null);
-    if (stored != null && JSON.stringify(stored) !== waiting.stored) {
+    if (stored != null && canonicalJson(stored) !== waiting.stored) {
       // Compared now, not when the event came: typing while the refetch was in
       // flight is an edit too, and adopting would silently drop it.
-      const edited = local !== null && JSON.stringify(local) !== waiting.stored;
+      const edited = local !== null && canonicalJson(local) !== waiting.stored;
       if (edited) setConflict(waiting.event);
       else adopt(stored);
     }

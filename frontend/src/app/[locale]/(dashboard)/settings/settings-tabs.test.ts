@@ -45,7 +45,8 @@ describe("the settings tab row", () => {
   it("leads to every page under /settings", () => {
     // The reported bug. `/settings/page.tsx` is not in this list: it is the
     // section index, and it redirects to the first tab rather than being one.
-    const tabbed = SETTINGS_TABS.map((tab) => tabSegment(tab.href))
+    const tabbed = SETTINGS_TABS.flatMap((tab) => [tab.href, ...(tab.matchHrefs ?? [])])
+      .map(tabSegment)
       .filter((segment): segment is string => segment !== null)
       .sort();
 
@@ -54,10 +55,12 @@ describe("the settings tab row", () => {
 
   it("leads only to pages that exist", () => {
     const routes = new Set(settingsRouteSegments());
-    const broken = SETTINGS_TABS.filter((tab) => {
-      const segment = tabSegment(tab.href);
-      return segment === null || !routes.has(segment);
-    });
+    const broken = SETTINGS_TABS.flatMap((tab) => [tab.href, ...(tab.matchHrefs ?? [])]).filter(
+      (href) => {
+        const segment = tabSegment(href);
+        return segment === null || !routes.has(segment);
+      },
+    );
 
     expect(broken).toEqual([]);
   });
@@ -73,7 +76,7 @@ describe("the settings tab row", () => {
   });
 
   it("names each destination once", () => {
-    const hrefs = SETTINGS_TABS.map((tab) => tab.href);
+    const hrefs = SETTINGS_TABS.flatMap((tab) => [tab.href, ...(tab.matchHrefs ?? [])]);
 
     expect(new Set(hrefs).size).toBe(hrefs.length);
   });

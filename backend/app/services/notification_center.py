@@ -414,6 +414,7 @@ class _GateCache:
     artifact_visible_by_id: dict[uuid.UUID, bool]
     workflow_visible_by_id: dict[uuid.UUID, bool]
     project_visible_by_id: dict[uuid.UUID, bool] = field(default_factory=dict)
+    conversation_visible_by_id: dict[uuid.UUID, bool] = field(default_factory=dict)
 
 
 class NotificationCenterService:
@@ -1265,12 +1266,19 @@ class NotificationCenterService:
         artifact_ids: set[uuid.UUID] = set()
         workflow_ids: set[uuid.UUID] = set()
         project_ids: set[uuid.UUID] = set()
+        conversation_ids: set[uuid.UUID] = set()
         for notification in notifications:
             context = notification.render_context or {}
             if "project_id" in context:
                 with contextlib.suppress(ValueError):
                     project_ids.add(uuid.UUID(str(context["project_id"])))
             gate = content_gate_for(NotificationEventType(notification.event_type))
+            if (
+                gate is ContentGate.SHARED_CONVERSATION
+                and context.get("resource_kind") == "conversation"
+            ):
+                with contextlib.suppress(ValueError):
+                    conversation_ids.add(uuid.UUID(str(context.get("resource_id"))))
             if gate is ContentGate.WORKFLOWS_VIEW:
                 with contextlib.suppress(ValueError):
                     workflow_ids.add(
@@ -1336,7 +1344,20 @@ class NotificationCenterService:
             artifact_visible_by_id=artifact_visible_by_id,
             workflow_visible_by_id=workflow_visible_by_id,
             project_visible_by_id=project_visible_by_id,
+            conversation_visible_by_id=await self._conversation_visibility(ctx, conversation_ids),
         )
+
+    async def _conversation_visibility(
+        self, ctx: AuthContext, ids: set[uuid.UUID]
+    ) -> dict[uuid.UUID, bool]:
+        # Conversation writes notify, so importing its service at module load
+        # time would make the two domains cyclic.
+        from app.services.conversation import ConversationService
+
+        if not ids:
+            return {}
+        visible = await ConversationService(self.db).visible_conversation_ids(ctx, ids)
+        return {conversation_id: conversation_id in visible for conversation_id in ids}
 
     async def gate_for(
         self, ctx: AuthContext, notification: Notification, cache: _GateCache | None = None
@@ -1369,6 +1390,16 @@ class NotificationCenterService:
             if not cache.project_visible_by_id.get(project_id, False):
                 return _Gate(visible=False)
         gate = content_gate_for(NotificationEventType(notification.event_type))
+        if gate is ContentGate.SHARED_CONVERSATION:
+            # Existing group-share notices retain their catalog policy. A direct
+            # conversation share names a private thread and must still reach it.
+            if context.get("resource_kind") != "conversation":
+                return _Gate(visible=True)
+            try:
+                conversation_id = uuid.UUID(str(context.get("resource_id")))
+            except ValueError:
+                return _Gate(visible=False)
+            return _Gate(visible=cache.conversation_visible_by_id.get(conversation_id, False))
         if gate is ContentGate.NONE:
             return _Gate(visible=True)
         if gate is ContentGate.DEGRADE:

@@ -354,3 +354,39 @@ class TestConversationCodingAgents:
     async def test_no_history_or_no_conversations_has_no_harness(self, db: AsyncSession) -> None:
         assert await conversation_repo.coding_agents_in_conversations(db, []) == {}
         assert await conversation_repo.coding_agents_in_conversations(db, [uuid.uuid4()]) == {}
+
+
+@pytest.mark.security
+async def test_renamed_coding_reports_keep_the_badge_and_external_names_cannot_claim_it(
+    db: AsyncSession,
+) -> None:
+    organization = await _org(db)
+    owner = await _user(db)
+    conversation = await _conversation(db, organization, owner)
+    message = Message(
+        id=uuid.uuid4(), conversation_id=conversation.id, role="assistant", content="done"
+    )
+    db.add(message)
+    await db.flush()
+    for name, tool_id, presentation, harness in [
+        ("build", "run_coding_agent", None, "codex"),
+        ("run_coding_agent", None, "generic", "claude_code"),
+    ]:
+        db.add(
+            ToolCall(
+                id=uuid.uuid4(),
+                message_id=message.id,
+                tool_call_id=name,
+                tool_name=name,
+                tool_id=tool_id,
+                presentation_kind=presentation,
+                args={},
+                result=json.dumps({"harness": harness, "outcome": "completed"}),
+                status="completed",
+                started_at=_START,
+            )
+        )
+    await db.flush()
+    assert await conversation_repo.coding_agents_in_conversations(db, [conversation.id]) == {
+        conversation.id: ["codex"]
+    }

@@ -41,6 +41,7 @@ __all__ = [
     # is nothing here for a person to approve. See `compaction/_capability.py`.
     tools=(),
     config_schema=CompactionConfig,
+    tunable=True,
 )
 def _build(ctx: CapabilityBuildContext) -> MeteredCompaction[object]:
     """Build the configured strategy, wrapped so its spend is billed.

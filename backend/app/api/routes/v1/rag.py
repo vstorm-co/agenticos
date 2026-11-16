@@ -234,13 +234,15 @@ async def drop_collection(
     KB row go in the request; the
     stored files and the vector table are torn down by the durable cleanup the
     service hands over after the commit, which takes the collection-teardown lock
-    and re-reads the reference check before dropping only what no base still
-    claims (#1347, #1349, #1355, #913). The name is not tenant-unique, so while
+    and drops only a name the delete reserved
+    (#1347, #1349, #1355, #913). The name is not tenant-unique, so while
     another base - possibly another organization's - still holds it, only this
     base's documents go and its chunks are purged from the kept table (#2560).
-    When it is the last holder, another tenant's unfiled rows under the name
-    stay, marked as failed since their chunks go with the table (#2568). So the
-    route no longer wires a store in.
+    When it is the last holder the table goes too, and another tenant's unfiled
+    rows under the name stay, marked as failed (#2568), unless the table holds
+    unfiled chunks the base does not take - an operator's `rag-ingest`, another
+    tenant's: then it stays for them, the same purge applies, and those rows are
+    left as they are (#2747). So the route no longer wires a store in.
     """
     collection = await access.writable(ctx, name)
     await kb_svc.delete_for_rag_collection(collection)
@@ -584,6 +586,7 @@ async def trigger_local_sync(
         # with that base's tenant instead of writing them untagged into an
         # org-backed collection where normal reads would never see them (#1684).
         knowledge_base_id=collection.id,
+        organization_id=ctx.organization_id,
     )
     return RAGSyncResponse(
         id=str(sync_log.id),
@@ -595,7 +598,6 @@ async def trigger_local_sync(
 @router.delete(
     "/sync/{sync_id}",
     response_model=RAGMessageResponse,
-    dependencies=[Depends(require(Perm.COLLECTIONS_EDIT))],
 )
 async def cancel_sync(
     sync_id: str,
@@ -616,18 +618,21 @@ async def cancel_sync(
 )
 async def list_sync_sources(
     sync_source_svc: SyncSourceSvc,
+    access: CollectionAccessSvc,
     ctx: Auth,
     collection_name: str | None = Query(None, description="Filter by KB collection name"),
 ) -> Any:
     """List sync sources for the active organization.
 
-    Pass `collection_name` to see only sources assigned to a specific KB.
-    Omit it to list all org-level integrations (assigned and unassigned).
+    With `connections:manage`, every source of the organization, assigned and
+    unassigned - the list `/org/integrations` returns. Without it, the sources
+    feeding a knowledge base the caller can read, and no unassigned ones. Pass
+    `collection_name` to see only one collection's sources; without the
+    permission, a collection the caller cannot read, or that does not exist, is
+    404.
     """
-    return await sync_source_svc.list_sources(
-        organization_id=ctx.organization_id,
-        collection_name=collection_name,
-    )
+    sources = await access.readable_sync_sources(ctx, collection_name)
+    return sync_source_svc.as_list(sources)
 
 
 @router.post(
@@ -651,6 +656,9 @@ async def create_sync_source(
     The base checked is the one the sync writes into, not any writable base of
     that name (`CollectionAccessService.source_target`), and the source records
     that base.
+
+    Only `connections:manage` lists an unassigned source, so a caller without it
+    keeps the id from this response.
     """
     target = (
         None
@@ -664,7 +672,6 @@ async def create_sync_source(
     "/sync/sources/{source_id}/clone",
     response_model=SyncSourceRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require(Perm.COLLECTIONS_EDIT))],
 )
 async def clone_sync_source(
     source_id: str,
@@ -680,15 +687,14 @@ async def clone_sync_source(
     organization's, and so must the collection it is being pointed at.
     The clone is independent - its own schedule and sync history.
     """
-    source = await access.sync_source(ctx, source_id)
     target = await access.source_target(ctx, data.collection_name)
+    source = await access.writable_sync_source(ctx, source_id)
     return await sync_source_svc.clone_source(str(source.id), data, ctx=ctx, knowledge_base=target)
 
 
 @router.patch(
     "/sync/sources/{source_id}",
     response_model=SyncSourceRead,
-    dependencies=[Depends(require(Perm.COLLECTIONS_EDIT))],
 )
 async def update_sync_source(
     source_id: str,
@@ -699,21 +705,24 @@ async def update_sync_source(
 ) -> Any:
     """Update an existing sync source configuration.
 
-    A new `collection_name` repoints the source at the base that name resolves
-    to, which the caller must be able to write
-    (`CollectionAccessService.repoint_target`); the name it already has keeps the
-    base it records, and `null` detaches it from any base.
+    The caller needs write access to the source's current base and any new target.
+    Resending its collection name keeps its recorded base; null detaches it and
+    requires Manage connections. A detached source does not sync.
     """
-    source = await access.sync_source(ctx, source_id)
+    source = await access.writable_sync_source(ctx, source_id, for_update=False)
+    prepared = await sync_source_svc.prepare_update(source_id, data, ctx=ctx)
+    # Lock the target name before the source row, as base deletion does.
     target = await access.repoint_target(ctx, source, data.collection_name)
-    return await sync_source_svc.update_source(str(source.id), data, ctx=ctx, knowledge_base=target)
+    source = await access.writable_sync_source(ctx, source_id)
+    return await sync_source_svc.update_source(
+        str(source.id), data, ctx=ctx, prepared=prepared, knowledge_base=target
+    )
 
 
 @router.delete(
     "/sync/sources/{source_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     response_model=None,
-    dependencies=[Depends(require(Perm.COLLECTIONS_EDIT))],
 )
 async def delete_sync_source(
     source_id: str,
@@ -721,15 +730,18 @@ async def delete_sync_source(
     access: CollectionAccessSvc,
     ctx: Auth,
 ) -> None:
-    """Delete a sync source configuration."""
-    source = await access.sync_source(ctx, source_id)
+    """Delete a sync source configuration.
+
+    A source feeding a knowledge base is deleted only by a caller who can
+    write that base (`CollectionAccessService.writable_sync_source`).
+    """
+    source = await access.writable_sync_source(ctx, source_id)
     await sync_source_svc.delete_source(str(source.id), ctx=ctx)
 
 
 @router.post(
     "/sync/sources/{source_id}/trigger",
     response_model=RAGSyncResponse,
-    dependencies=[Depends(require(Perm.COLLECTIONS_EDIT))],
 )
 async def trigger_sync_source(
     source_id: str,
@@ -737,8 +749,13 @@ async def trigger_sync_source(
     access: CollectionAccessSvc,
     ctx: Auth,
 ) -> Any:
-    """Trigger a manual sync for a configured source."""
-    source = await access.sync_source(ctx, source_id)
+    """Trigger a manual sync for a configured source.
+
+    A run writes into the base the source feeds, so it takes write access to
+    that base (`CollectionAccessService.writable_sync_source`).
+    """
+    source = await access.writable_sync_source(ctx, source_id)
+    sync_source_svc.refuse_paused(source)
     sync_log = await sync_source_svc.trigger_sync(str(source.id), user_id=ctx.user_id)
     return RAGSyncResponse(
         id=str(sync_log.id),

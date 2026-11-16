@@ -232,12 +232,17 @@ class TestTheCleanup:
         assert result == {"unlinked": 2, "dropped": 2, "restamped": 0, "purged": 0}
         engine.dispose.assert_awaited_once()
 
-    async def test_a_failed_drop_leaves_the_reservation_for_a_retry(self) -> None:
+    @pytest.mark.parametrize(
+        "failure", [SQLAlchemyError("blip"), RuntimeError("invalid legacy table")]
+    )
+    async def test_a_failed_drop_leaves_the_reservation_for_a_retry(
+        self, failure: Exception
+    ) -> None:
         """The name stays reserved when the drop fails: the table may still hold data,
         so freeing the name would let a claim adopt it. A retry drops and releases it
         (#1362)."""
         _storage, store, _engine, release, patches = _patch_cleanup()
-        store.delete_collection = AsyncMock(side_effect=SQLAlchemyError("blip"))
+        store.delete_collection = AsyncMock(side_effect=failure)
         with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
             result = await cleanup_external_state([], ["docs"])
 
@@ -293,10 +298,10 @@ class TestTheCleanup:
         ]
         assert [call.args[1] for call in release.await_args_list] == ["docs", "wiki"]
 
-    async def test_a_legacy_run_without_a_reservation_skips_a_reclaimed_name(self) -> None:
-        """A run queued before #1362 carries no reservation; if the name was reclaimed
-        since, it falls back to the reference check and does not drop the new tenant's
-        table - the safety an upgrade replaying an old run needs (#1362 review)."""
+    async def test_a_name_no_longer_reserved_is_left_alone(self) -> None:
+        """Every drop is queued with a reservation, so a run finding none has been
+        beaten to the drop: a rerun, or a job the sweep overtook. What is on the name
+        now arrived since, whether or not a base holds it (#1362 review, #2747)."""
         _storage, store, _engine, release, patches = _patch_cleanup()
         with (
             patches[0],
@@ -308,10 +313,6 @@ class TestTheCleanup:
             patch(
                 "app.repositories.collection_teardown_repo.is_reserved",
                 AsyncMock(return_value=False),
-            ),
-            patch(
-                "app.repositories.knowledge_base_repo.list_by_collection_name",
-                AsyncMock(return_value=[MagicMock()]),
             ),
         ):
             result = await cleanup_external_state([], ["docs"])

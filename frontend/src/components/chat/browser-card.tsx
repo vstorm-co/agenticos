@@ -1,5 +1,7 @@
 "use client";
 
+import { toolLookupName } from "@/lib/tool-identity";
+
 import { createContext, useContext, useEffect, useRef } from "react";
 
 import { Maximize2, Monitor } from "lucide-react";
@@ -31,7 +33,7 @@ const LiveBrowses = createContext<{
 }>({ browses: [] });
 
 function isDesktop(call: ToolCall): boolean {
-  return DESKTOP_TOOLS.has(call.name);
+  return DESKTOP_TOOLS.has(toolLookupName(call));
 }
 
 /** Hands the chat's live browses to the turns that made them. */

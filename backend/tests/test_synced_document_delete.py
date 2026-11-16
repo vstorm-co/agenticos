@@ -22,8 +22,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.core import background
+from app.core.exceptions import NotFoundError
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.vector_tables import VectorScope
-from app.repositories import rag_document_repo
+from app.repositories import knowledge_base_repo, rag_document_repo
+from app.repositories.rag_document import CollectionScope
 from app.services.rag_document import RAGDocumentService
 
 pytestmark = pytest.mark.anyio
@@ -143,7 +146,7 @@ class TestDeletingATrackedDocument:
     async def test_the_vectors_go_under_the_base_the_document_is_filed_under(self, monkeypatch):
         """Its base's own scope - tenant and base - so the delete reaches this
         document's chunks and nothing of a same-named base (#2537)."""
-        from app.repositories import knowledge_base_repo
+        from app.repositories import eval_suite_repo, knowledge_base_repo
 
         row = _row(vector_document_id="vector-doc-1")
         row.knowledge_base_id = uuid.uuid4()
@@ -153,6 +156,7 @@ class TestDeletingATrackedDocument:
         monkeypatch.setattr(
             knowledge_base_repo, "get_by_id", AsyncMock(return_value=MagicMock(vector_scope=scope))
         )
+        monkeypatch.setattr(eval_suite_repo, "list_watching", AsyncMock(return_value=[]))
         ingestion = MagicMock(remove_document=AsyncMock(return_value=True))
         db = _deferring_db()
 
@@ -296,7 +300,54 @@ class TestRetiringAPreviousAttempt:
         assert discard.await_args.kwargs == {
             "collection_name": "docs",
             "source_path": "s3://bucket/a/readme.md",
+            "organization_id": None,
+            "scope": None,
         }
+
+    @pytest.mark.security
+    async def test_a_row_filed_under_a_base_retires_only_in_that_bases_scope(self, monkeypatch):
+        """Not by name: another organization's base, or another base of this one,
+        can hold the same name and sync the same path (#2747)."""
+        kb = KnowledgeBase(
+            id=uuid.uuid4(),
+            name="docs",
+            collection_name="docs",
+            scope=KBScope.ORG.value,
+            organization_id=uuid.uuid4(),
+        )
+        discard = AsyncMock(return_value=0)
+        monkeypatch.setattr(rag_document_repo, "discard_failed", discard)
+        monkeypatch.setattr(knowledge_base_repo, "get_by_id", AsyncMock(return_value=kb))
+        monkeypatch.setattr(rag_document_repo, "create", AsyncMock(return_value=MagicMock()))
+
+        await RAGDocumentService(MagicMock()).create_document(
+            collection_name="docs",
+            filename="readme.md",
+            filesize=4,
+            filetype="md",
+            source_path="s3://bucket/a/readme.md",
+            organization_id=kb.organization_id,
+            knowledge_base_id=kb.id,
+        )
+
+        assert discard.await_args.kwargs["scope"] == CollectionScope.of(kb)
+
+    async def test_a_base_that_is_gone_is_refused_before_anything_is_retired(self, monkeypatch):
+        discard = AsyncMock()
+        monkeypatch.setattr(rag_document_repo, "discard_failed", discard)
+        monkeypatch.setattr(knowledge_base_repo, "get_by_id", AsyncMock(return_value=None))
+
+        with pytest.raises(NotFoundError):
+            await RAGDocumentService(MagicMock()).create_document(
+                collection_name="docs",
+                filename="readme.md",
+                filesize=4,
+                filetype="md",
+                source_path="s3://bucket/a/readme.md",
+                knowledge_base_id=uuid.uuid4(),
+            )
+
+        discard.assert_not_awaited()
 
     async def test_an_upload_retires_nothing(self, monkeypatch):
         """An upload's only name is a basename, which is not an address: two

@@ -48,6 +48,14 @@ function textOrNull(value: unknown): string | null {
   return typeof value === "string" && value !== "" ? value : null;
 }
 
+/** The portable JSON Schema contract a trigger declares; simple fields stay separate. */
+export function inputSchemaOf(config: Record<string, unknown>): JsonSchema | null {
+  const schema = config["input_schema"];
+  return typeof schema === "object" && schema !== null && !Array.isArray(schema)
+    ? (schema as JsonSchema)
+    : null;
+}
+
 /** The fields a trigger's config declares, in order - entries of no known shape skipped. */
 export function inputFieldsOf(config: Record<string, unknown>): InputField[] {
   const fields = config["fields"];

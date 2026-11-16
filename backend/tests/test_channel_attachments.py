@@ -51,7 +51,10 @@ pytestmark = pytest.mark.anyio
 @pytest.fixture(autouse=True)
 def _no_question_waiting() -> Iterator[None]:
     """No run in these chats is parked on a question, so every message is a turn."""
-    with patch("app.services.channels.router.ChannelPrompts.reply", AsyncMock(return_value=False)):
+    with (
+        patch("app.services.channels.router.ChannelPrompts.reply", AsyncMock(return_value=False)),
+        patch("app.services.channels.observation.observe", AsyncMock()),
+    ):
         yield
 
 
@@ -434,7 +437,9 @@ class TestATurnRefusedBeforeTheRunKeepsNothing:
             ),
             rows,
         ):
-            await router._route_inner(_incoming("here is the report"), MagicMock())
+            await router._route_inner(
+                _incoming("here is the report"), MagicMock(commit=AsyncMock())
+            )
 
         assert rows == []
         assert "No agent is available" in replies.await_args.args[2]
@@ -446,7 +451,9 @@ class TestATurnRefusedBeforeTheRunKeepsNothing:
         with _channel(
             _agent_router(answer=NotFoundError(message="No agent here answers to @support.")), rows
         ):
-            await router._route_inner(_incoming("@support where is my refund"), MagicMock())
+            await router._route_inner(
+                _incoming("@support where is my refund"), MagicMock(commit=AsyncMock())
+            )
 
         assert rows == []
         assert "@support" in replies.await_args.args[2]
@@ -459,7 +466,9 @@ class TestATurnRefusedBeforeTheRunKeepsNothing:
         router._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
 
         with _channel(_agent_router(answer_default=None), rows):
-            await router._route_inner(_incoming("here is the report"), MagicMock())
+            await router._route_inner(
+                _incoming("here is the report"), MagicMock(commit=AsyncMock())
+            )
 
         assert [stored.filename for stored in rows] == ["report.csv"]
 
@@ -807,7 +816,7 @@ async def _route_one_file(text: str) -> tuple[MagicMock, MagicMock, AsyncMock]:
         patch(f"{router}.ChannelAgentRouter", return_value=agents),
         patch.object(FileUploadService, "upload", upload),
     ):
-        await ChannelMessageRouter()._route_inner(incoming, MagicMock())
+        await ChannelMessageRouter()._route_inner(incoming, MagicMock(commit=AsyncMock()))
 
     return adapter, agents, upload
 
@@ -855,13 +864,13 @@ class TestACrashAnswersTheSameOnEitherPath:
         with _channel(_agent_router(answer=RuntimeError("provider exploded")), rows_m):
             # Without the fix this would raise out of `_route_inner` and answer
             # nothing; with it the crash is caught and apologised for.
-            await router_m._route_inner(_incoming("@support help"), MagicMock())
+            await router_m._route_inner(_incoming("@support help"), MagicMock(commit=AsyncMock()))
 
         router_d, replies_d, rows_d = _router()
         router_d._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
         router_d._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
         with _channel(_agent_router(answer_default=RuntimeError("provider exploded")), rows_d):
-            await router_d._route_inner(_incoming("just a question"), MagicMock())
+            await router_d._route_inner(_incoming("just a question"), MagicMock(commit=AsyncMock()))
 
         mention_reply = replies_m.await_args.args[2]
         default_reply = replies_d.await_args.args[2]
@@ -876,13 +885,17 @@ class TestACrashAnswersTheSameOnEitherPath:
         router_m, _replies_m, rows_m = _router()
         router_m._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
         with _channel(_agent_router(answer=RuntimeError("provider exploded")), rows_m):
-            await router_m._route_inner(_incoming("@support here is the report"), MagicMock())
+            await router_m._route_inner(
+                _incoming("@support here is the report"), MagicMock(commit=AsyncMock())
+            )
 
         router_d, _replies_d, rows_d = _router()
         router_d._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
         router_d._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
         with _channel(_agent_router(answer_default=RuntimeError("provider exploded")), rows_d):
-            await router_d._route_inner(_incoming("here is the report"), MagicMock())
+            await router_d._route_inner(
+                _incoming("here is the report"), MagicMock(commit=AsyncMock())
+            )
 
         assert rows_m == []
         assert rows_d == []
@@ -993,7 +1006,7 @@ class TestADeactivatedLinkedSenderIsRefusedEarly:
                 AsyncMock(return_value=None),
             ) as get_active,
         ):
-            await router._route_inner(incoming, MagicMock())
+            await router._route_inner(incoming, MagicMock(commit=AsyncMock()))
 
         get_active.assert_awaited_once()
         router._transcribe.assert_not_awaited()
@@ -1028,7 +1041,7 @@ class TestADeactivatedLinkedSenderIsRefusedEarly:
                 AsyncMock(return_value=MagicMock()),
             ),
         ):
-            await router._route_inner(incoming, MagicMock())
+            await router._route_inner(incoming, MagicMock(commit=AsyncMock()))
 
         router._receive_files.assert_awaited_once()
         router._transcribe.assert_awaited_once()
@@ -1064,7 +1077,7 @@ class TestADeactivatedLinkedSenderIsRefusedEarly:
                 AsyncMock(return_value=None),
             ),
         ):
-            await router._route_inner(incoming, MagicMock())
+            await router._route_inner(incoming, MagicMock(commit=AsyncMock()))
 
         router._transcribe.assert_awaited_once()
         assert router._transcribe.await_args.kwargs["requested_by"] is None
@@ -1098,7 +1111,7 @@ class TestATypedAnswerIsNotATurn:
                 AsyncMock(return_value=True),
             ) as reply,
         ):
-            await router._route_inner(incoming, MagicMock())
+            await router._route_inner(incoming, MagicMock(commit=AsyncMock()))
 
         assert reply.await_args.kwargs == {
             "platform": "slack",
@@ -1128,7 +1141,7 @@ class TestAWorkflowListeningToTheBot:
                 listener,
             ),
         ):
-            await router._route_inner(_incoming("refund order 42"), MagicMock())
+            await router._route_inner(_incoming("refund order 42"), MagicMock(commit=AsyncMock()))
 
         agents.return_value.answer_default.assert_not_awaited()
         assert listener.await_args.kwargs["sender_user_id"] is not None
@@ -1150,7 +1163,7 @@ class TestAWorkflowListeningToTheBot:
                 AsyncMock(side_effect=refused),
             ),
         ):
-            await router._route_inner(_incoming("refund order 42"), MagicMock())
+            await router._route_inner(_incoming("refund order 42"), MagicMock(commit=AsyncMock()))
 
         agents.return_value.answer_default.assert_not_awaited()
         assert "Too much workflow work" in replies.await_args.args[2]
@@ -1322,24 +1335,33 @@ async def test_attachment_attempt_budget_survives_sender_reassembly():
 
 
 @pytest.mark.parametrize("text", ["@support improve the map", "improve the map"])
-async def test_mentions_and_default_turns_both_receive_the_saved_thread_history(text: str) -> None:
+@pytest.mark.parametrize("has_backfill", [False, True])
+async def test_mentions_and_default_turns_both_receive_the_saved_thread_history(
+    text: str, has_backfill: bool
+) -> None:
     from pydantic_ai.messages import ModelRequest, UserPromptPart
+
+    from app.services.message_history import ModelHistory
 
     earlier = ModelRequest(parts=[UserPromptPart(content="Alice asked for the town-hall app.")])
     backfill = ModelRequest(parts=[UserPromptPart(content="Earlier channel discussion.")])
     with (
         patch.object(
-            ChannelMessageRouter, "_load_history", new=AsyncMock(return_value=[earlier])
+            ChannelMessageRouter,
+            "_load_history",
+            new=AsyncMock(return_value=ModelHistory([earlier], revision=7)),
         ) as load,
         patch.object(
             ChannelMessageRouter,
             "_thread_context",
-            new=AsyncMock(return_value=([backfill], [], [])),
+            new=AsyncMock(return_value=([backfill] if has_backfill else [], [], [])),
         ),
     ):
         _, agents, _ = await _route_one_file(text)
     answer = agents.answer if text.startswith("@") else agents.answer_default
-    assert answer.await_args.kwargs["message_history"] == [backfill, earlier]
+    history = answer.await_args.kwargs["message_history"]
+    assert isinstance(history, ModelHistory) and history.revision == 7
+    assert history == ([backfill, earlier] if has_backfill else [earlier])
     load.assert_awaited_once()
 
 

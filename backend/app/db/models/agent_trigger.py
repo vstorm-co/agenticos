@@ -171,6 +171,7 @@ class EventSource(enum.StrEnum):
     GOOGLE_CALENDAR = "google_calendar"
     GOOGLE_DRIVE = "google_drive"
     HUBSPOT = "hubspot"
+    LINEAR = "linear"
     MICROSOFT_FILES = "microsoft_files"
     OUTLOOK = "outlook"
     OUTLOOK_CALENDAR = "outlook_calendar"
@@ -244,6 +245,17 @@ class AgentTrigger(Base, TimestampMixin):
     # nobody's computer - and cleared with it.
     local_target: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     approved_sources: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+
+    @property
+    def setup_required(self) -> bool:
+        """A saved schedule whose source review has not been admitted."""
+        return (self.approved_sources or {}).get("pending_review") is True
+
+    @property
+    def setup_issues(self) -> list[str]:
+        """Safe source labels from initial setup, not provider error bodies."""
+        value = (self.approved_sources or {}).get("unavailable_sources", [])
+        return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
 
     action_consents: Mapped[list[dict[str, object]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
@@ -401,9 +413,11 @@ class AgentTrigger(Base, TimestampMixin):
             .scalar_subquery()
         )
 
+    # Deleting the creator also deletes their conversations. Check after both
+    # SET NULL paths finish, regardless of PostgreSQL's cascade trigger order.
     delivery_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("conversations.id", ondelete="SET NULL"),
+        ForeignKey("conversations.id", ondelete="SET NULL", deferrable=True, initially="DEFERRED"),
         nullable=True,
     )
     # What this routine may spend a month (#2575), counted from the runs it started. Once
@@ -480,7 +494,7 @@ class AgentTrigger(Base, TimestampMixin):
         CheckConstraint(
             "event_source IS NULL OR event_source IN "
             "('github', 'gmail', 'google_calendar', 'google_drive', 'hubspot', "
-            "'microsoft_files', 'outlook', 'outlook_calendar', 'webhook', 'zendesk')",
+            "'linear', 'microsoft_files', 'outlook', 'outlook_calendar', 'webhook', 'zendesk')",
             name="ck_trigger_event_source",
         ),
         # The discriminator across both concepts, in one constraint so a row can
@@ -535,3 +549,42 @@ class AgentTrigger(Base, TimestampMixin):
             f"<AgentTrigger(id={self.id}, agent_id={self.agent_id}, "
             f"type={self.trigger_type}, active={self.is_active})>"
         )
+
+
+class TriggerAttempt(Base):
+    """An activation that stopped before producing an agent run.
+
+    Only bounded reason codes are kept: no prompt, provider error, credential or
+    source metadata can leak through routine history.
+    """
+
+    __tablename__ = "trigger_attempts"
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    trigger_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_triggers.id", ondelete="CASCADE"), nullable=False
+    )
+    activation_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    stage: Mapped[str] = mapped_column(String(24), nullable=False)
+    reason: Mapped[str] = mapped_column(String(40), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    __table_args__ = (
+        Index("uq_trigger_attempt_activation", "trigger_id", "activation_id", unique=True),
+        Index("ix_trigger_attempt_history", "organization_id", "trigger_id", "occurred_at", "id"),
+        CheckConstraint("status IN ('blocked', 'failed')", name="ck_trigger_attempt_status"),
+        CheckConstraint(
+            "stage IN ('source_review', 'preparation')", name="ck_trigger_attempt_stage"
+        ),
+        CheckConstraint(
+            "reason IN ('platform_identity_required', 'source_review_required', "
+            "'agent_unavailable', 'preparation_failed', 'previous_run_active')",
+            name="ck_trigger_attempt_reason",
+        ),
+    )

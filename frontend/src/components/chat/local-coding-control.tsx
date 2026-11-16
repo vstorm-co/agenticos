@@ -52,6 +52,8 @@ export function LocalCodingControl() {
       chooseFolder?: boolean;
     }) => {
       if (choice.harness === null) return { target: choice.target };
+      // Whole-computer consent already covers a coding agent, in the home folder.
+      if (choice.target?.computer_grant && !choice.chooseFolder) return { target: choice.target };
       if (device?.linked !== true && !(await link.mutateAsync()).linked) return null;
       const state = await getLocalState();
       const existing =
@@ -79,9 +81,7 @@ export function LocalCodingControl() {
       }
     },
   });
-  const missingFolder =
-    effective !== null &&
-    (target === null || target.mode !== "full_access" || target.computer_grant !== undefined);
+  const missingFolder = effective !== null && (target === null || target.mode !== "full_access");
   return (
     <div
       className="border-foreground/10 bg-foreground/[0.02] rounded-xl border p-3"

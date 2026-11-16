@@ -55,6 +55,19 @@ PATH = "app.services.artifact"
 
 
 @pytest.fixture(autouse=True)
+def _organization_attribution(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Public viewers read their organization's current footer preference."""
+    from app.db.models.organization import Organization
+
+    monkeypatch.setattr(
+        f"{PATH}.organization_repo.get_by_id",
+        AsyncMock(
+            return_value=Organization(public_agenticos_attribution=True, public_live_data=False)
+        ),
+    )
+
+
+@pytest.fixture(autouse=True)
 def _shared_with_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
     """The listing names each page's groups; the session here is a mock."""
 
@@ -1381,7 +1394,27 @@ class TestTheBundledSkill:
             "templates/live-table.html",
             "templates/report.html",
             "references/design-recipes.md",
+            "references/styles-and-deliverables.md",
+            "references/app-design-playbook.md",
+            "references/runtime-and-verification.md",
+            "references/ui-components.md",
+            "templates/component-studio.html",
+            "templates/editorial-brief.html",
+            "templates/decision-workbench.html",
+            "templates/slide-deck.html",
         }
+
+    def test_product_studio_is_admitted_as_a_self_contained_page(self) -> None:
+        from app.services import skill_library
+
+        skill = skill_library.get("visual-design")
+        assert skill is not None
+        page = next(
+            resource.content
+            for resource in skill.resources
+            if resource.name == "templates/product-studio.html"
+        )
+        assert lint_page(page.encode()) == []
 
     def test_its_class_table_is_exactly_what_kit_3_defines(self) -> None:
         """Every class the skill names is real, and every real one is named."""
@@ -1393,12 +1426,16 @@ class TestTheBundledSkill:
         named = set(re.findall(r"(?<![\w-])ao-[a-z0-9]+(?:-[a-z0-9]+)*", recipes))
         assert named == KIT_CLASSES[3]
 
-    def test_every_template_is_built_on_kit_3_and_passes_the_lint(self) -> None:
+    def test_every_template_uses_the_kit_or_its_own_style_and_passes_the_lint(self) -> None:
         for resource in self._skill().resources:
             if not resource.name.startswith("templates/"):
                 continue
-            assert "lib/agenticos-3.css" in resource.content, resource.name
-            assert "lib/agenticos-3.js" in resource.content, resource.name
+            assert "lib/agenticos-3.css" in resource.content or "<style>" in resource.content, (
+                resource.name
+            )
+            assert "lib/agenticos-3.js" in resource.content or "<script" in resource.content, (
+                resource.name
+            )
             bound = ["tickets"] if resource.name == "templates/live-table.html" else []
             assert lint_page(resource.content.encode(), bound=bound) == [], resource.name
 
@@ -1419,3 +1456,34 @@ class TestTheBundledSkill:
         tool = build_artifacts_toolset(table_grants={}).tools["publish_artifact"]
         for name in set(artifacts.ARTIFACT_LIBRARY) - artifacts.FRAME_ONLY_LIBRARY:
             assert f"lib/{name}" in (tool.description or "")
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+async def test_public_footer_uses_the_artifacts_organization(enabled: bool) -> None:
+    from app.db.models.organization import Organization
+
+    artifact = _artifact(_ctx(), public_key="k")
+    lookup = AsyncMock(return_value=Organization(public_agenticos_attribution=enabled))
+    with (
+        patch.object(
+            ArtifactService, "_public", new=AsyncMock(return_value=(artifact, _version(artifact)))
+        ),
+        patch.object(ArtifactService, "_public_data_owner", new=AsyncMock(return_value=None)),
+        patch(f"{PATH}.artifact_repo.count_public_view", new=AsyncMock()),
+        patch(f"{PATH}.organization_repo.get_by_id", new=lookup),
+    ):
+        result = await _service().public_view("k")
+    assert result.show_agenticos_attribution is enabled
+    assert lookup.await_args.args[1] == artifact.organization_id
+
+
+async def test_a_public_page_without_its_organization_is_not_served() -> None:
+    artifact = _artifact(_ctx(), public_key="k")
+    with (
+        patch.object(
+            ArtifactService, "_public", new=AsyncMock(return_value=(artifact, _version(artifact)))
+        ),
+        patch(f"{PATH}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+        pytest.raises(NotFoundError),
+    ):
+        await _service().public_view("k")

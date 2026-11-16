@@ -33,6 +33,25 @@ function renderTable(props: Partial<Parameters<typeof DataTable<Row>>[0]> = {}) 
 }
 
 describe("DataTable", () => {
+  it("keeps table relationships and cell labels when stacked in a narrow container", () => {
+    renderTable({ stackOnNarrow: true, rows: [{ id: "one", name: "Existing member" }] });
+    expect(screen.getByRole("table")).toHaveAttribute("role", "table");
+    expect(screen.getByRole("columnheader")).toHaveTextContent("Name");
+    const cell = screen.getByRole("cell");
+    expect(cell).toHaveTextContent("Name");
+    expect(cell).toHaveTextContent("Existing member");
+  });
+
+  it("keeps stacked labels and an intrinsic placeholder width while loading", () => {
+    renderTable({ stackOnNarrow: true, loading: true, skeletonRows: 2 });
+    const cells = screen.getAllByRole("cell");
+    expect(cells).toHaveLength(2);
+    for (const cell of cells) {
+      expect(cell).toHaveTextContent("Name");
+      expect(cell.querySelector(".animate-pulse")).toHaveClass("w-24", "max-w-full");
+    }
+  });
+
   it("keeps an add action immediately after the rows in the same table body", () => {
     renderTable({
       rows: [{ id: "one", name: "Existing row" }],

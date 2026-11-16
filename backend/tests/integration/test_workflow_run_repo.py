@@ -12,6 +12,7 @@ structurally impossible.
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import select
@@ -37,6 +38,8 @@ from app.db.models.workflow_run import (
 )
 from app.repositories import background_task_kind as kind_repo
 from app.repositories import workflow_run as workflow_run_repo
+from app.services.workflow_execution import dispatcher
+from app.services.workflow_execution.reconciler import WorkflowReconcilerService
 
 pytestmark = pytest.mark.anyio
 
@@ -303,7 +306,7 @@ class TestDispatchOutboxClaim:
             db,
             node_run_id=node_run.id,
             token=token,
-            lease_expires_at=datetime.now(UTC) + timedelta(minutes=1),
+            lease_seconds=60,
         )
         assert claimed is not None
         assert claimed.claimed_by == token
@@ -325,14 +328,14 @@ class TestDispatchOutboxClaim:
             db,
             node_run_id=node_run.id,
             token=uuid.uuid4(),
-            lease_expires_at=datetime.now(UTC) + timedelta(minutes=5),
+            lease_seconds=300,
         )
         await db.commit()
         second = await workflow_run_repo.claim_outbox(
             db,
             node_run_id=node_run.id,
             token=uuid.uuid4(),
-            lease_expires_at=datetime.now(UTC) + timedelta(minutes=5),
+            lease_seconds=300,
         )
         assert second is None
 
@@ -353,7 +356,7 @@ class TestDispatchOutboxClaim:
             db,
             node_run_id=node_run.id,
             token=uuid.uuid4(),
-            lease_expires_at=datetime.now(UTC) - timedelta(seconds=1),
+            lease_seconds=-1,
         )
         await db.commit()
         new_token = uuid.uuid4()
@@ -361,7 +364,7 @@ class TestDispatchOutboxClaim:
             db,
             node_run_id=node_run.id,
             token=new_token,
-            lease_expires_at=datetime.now(UTC) + timedelta(minutes=5),
+            lease_seconds=300,
         )
         assert reclaimed is not None
         assert reclaimed.claimed_by == new_token
@@ -383,7 +386,7 @@ class TestDispatchOutboxClaim:
             db,
             node_run_id=node_run.id,
             token=uuid.uuid4(),
-            lease_expires_at=datetime.now(UTC) + timedelta(minutes=1),
+            lease_seconds=60,
         )
         assert claimed is None
 
@@ -809,7 +812,7 @@ class TestOrphanedInFlightAttempts:
             db,
             node_run_id=node_run.id,
             token=uuid.uuid4(),
-            lease_expires_at=datetime.now(UTC) - timedelta(seconds=1),
+            lease_seconds=-1,
         )
         await db.commit()
         attempt = await workflow_run_repo.create_attempt(
@@ -848,7 +851,7 @@ class TestOrphanedInFlightAttempts:
                 db,
                 node_run_id=node_run.id,
                 token=uuid.uuid4(),
-                lease_expires_at=datetime.now(UTC) - timedelta(seconds=1),
+                lease_seconds=-1,
             )
             await workflow_run_repo.create_attempt(
                 db,
@@ -884,7 +887,7 @@ class TestOrphanedInFlightAttempts:
             db,
             node_run_id=node_run.id,
             token=uuid.uuid4(),
-            lease_expires_at=datetime.now(UTC) - timedelta(seconds=1),
+            lease_seconds=-1,
         )
         await db.commit()
         attempt = await workflow_run_repo.create_attempt(
@@ -928,7 +931,7 @@ class TestStaleClaims:
             db,
             node_run_id=node_run.id,
             token=uuid.uuid4(),
-            lease_expires_at=datetime.now(UTC) - timedelta(seconds=1),
+            lease_seconds=-1,
         )
         await db.commit()
         found = await workflow_run_repo.take_stale_claims_for_resubmission(
@@ -959,7 +962,7 @@ class TestStaleClaims:
             db,
             node_run_id=node_run.id,
             token=uuid.uuid4(),
-            lease_expires_at=datetime.now(UTC) - timedelta(seconds=1),
+            lease_seconds=-1,
         )
         await db.commit()
         await workflow_run_repo.create_attempt(
@@ -975,6 +978,106 @@ class TestStaleClaims:
             db, before=datetime.now(UTC), resubmit_before=datetime.now(UTC)
         )
         assert outbox.id not in {row.id for row in found}
+
+
+class TestExpiredKeysBehindRuns:
+    @pytest.mark.security
+    async def test_a_lapsed_run_credential_is_kept_while_a_run_acts_with_it(self, db: AsyncSession):
+        from app.db.models.api_key import ApiKey
+        from app.repositories import api_key as api_key_repo
+
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        key = ApiKey(
+            organization_id=org.id,
+            user_id=org.created_by_user_id,
+            name="Run credential",
+            prefix=f"aos_{uuid.uuid4().hex[:8]}",
+            key_hash=uuid.uuid4().hex,
+            scopes=[],
+            internal=True,
+            expires_at=datetime.now(UTC) - timedelta(hours=1),
+        )
+        db.add(key)
+        await db.flush()
+        run = await _run(db, org, workflow, status=WorkflowRunStatus.RUNNING.value)
+        await workflow_run_repo.update_run(
+            db, run=run, update_data={"execution_api_key_id": key.id}
+        )
+
+        await api_key_repo.delete_expired_internal(
+            db, user_id=org.created_by_user_id, before=datetime.now(UTC)
+        )
+        assert await db.get(ApiKey, key.id, populate_existing=True) is not None
+
+        await workflow_run_repo.update_run(
+            db, run=run, update_data={"status": WorkflowRunStatus.SUCCEEDED.value}
+        )
+        await api_key_repo.delete_expired_internal(
+            db, user_id=org.created_by_user_id, before=datetime.now(UTC)
+        )
+        db.expunge(key)
+        assert await db.get(ApiKey, key.id) is None
+
+
+class _Skewed:
+    """Stands in for a module's `datetime` on an application host whose clock is `offset` off."""
+
+    def __init__(self, offset: timedelta) -> None:
+        self.offset = offset
+
+    def now(self, tz: object = None) -> datetime:
+        return datetime.now(UTC) + self.offset
+
+
+class TestLeasesRunOnTheDatabaseClock:
+    @pytest.mark.parametrize("skew", [timedelta(hours=1), timedelta(hours=-1)])
+    async def test_a_claim_is_leased_from_the_databases_time(
+        self, db: AsyncSession, skew: timedelta
+    ):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        await workflow_run_repo.create_outbox(
+            db, organization_id=org.id, workflow_run_id=run.id, node_run_id=node_run.id
+        )
+        await db.commit()
+        with patch("app.services.workflow_execution.dispatcher.datetime", _Skewed(skew)):
+            claimed = await dispatcher.claim(db, node_run_id=node_run.id, lease_seconds=60)
+
+        assert claimed is not None and claimed.lease_expires_at is not None
+        left = claimed.lease_expires_at - await workflow_run_repo.database_time(db)
+        assert timedelta(seconds=50) < left <= timedelta(seconds=60)
+
+    async def test_a_sweep_whose_clock_runs_ahead_leaves_a_live_claim_alone(self, db: AsyncSession):
+        org = await _org(db)
+        workflow = await _workflow(db, org)
+        run = await _run(db, org, workflow)
+        node_run = await _node_run(db, run)
+        outbox = await workflow_run_repo.create_outbox(
+            db, organization_id=org.id, workflow_run_id=run.id, node_run_id=node_run.id
+        )
+        await db.commit()
+        await workflow_run_repo.claim_outbox(
+            db, node_run_id=node_run.id, token=uuid.uuid4(), lease_seconds=60
+        )
+        await db.commit()
+        claimed = await db.get(DispatchOutbox, outbox.id, populate_existing=True)
+        assert claimed is not None
+        submitted = claimed.submitted_at
+
+        with patch(
+            "app.services.workflow_execution.reconciler.datetime",
+            _Skewed(timedelta(hours=1)),
+        ):
+            await WorkflowReconcilerService(db).stale_claims()
+        await db.commit()
+
+        row = await db.get(DispatchOutbox, outbox.id, populate_existing=True)
+        assert row is not None
+        assert row.status == DispatchOutboxStatus.CLAIMED.value
+        assert row.submitted_at == submitted
 
 
 class TestReprs:
@@ -1231,7 +1334,7 @@ class TestRenewLease:
             db,
             node_run_id=node_run.id,
             token=token,
-            lease_expires_at=datetime.now(UTC) + timedelta(seconds=1),
+            lease_seconds=1,
         )
         assert claimed is not None and claimed.lease_expires_at is not None
         first_expiry = claimed.lease_expires_at

@@ -25,6 +25,9 @@ const useRunsMock = vi.fn();
 // filter controls, so the holder is given everything - except the no-access
 // case, which flips this off.
 const holdsEverything = vi.hoisted(() => ({ value: true }));
+vi.mock("@/hooks/use-agents", () => ({
+  useJudges: () => ({ agents: [{ id: "judge-1", slug: "eval-judge", name: "Eval judge" }] }),
+}));
 vi.mock("@/hooks", () => ({
   useRuns: (agentId?: string, options?: unknown) => useRunsMock(agentId, options),
   usePermissions: () => ({ can: () => holdsEverything.value }),
@@ -163,6 +166,8 @@ describe("run history controls", () => {
       rated: undefined,
       statuses: undefined,
       surface: undefined,
+      // Every run, so a link to a platform agent's run lands on a listed row.
+      source: undefined,
       userId: undefined,
       agentVersionId: undefined,
       skip: 0,
@@ -231,9 +236,17 @@ describe("run history controls", () => {
   it("the Tokens header asks for the heaviest of the whole set", async () => {
     renderTab();
 
+    await userEvent.click(screen.getByRole("button", { name: "Columns" }));
+    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Tokens" }));
+    await userEvent.keyboard("{Escape}");
     await userEvent.click(screen.getByText("Tokens").closest("button")!);
 
     expect(lastOptions()).toMatchObject({ orderBy: "tokens", descending: true });
+    await userEvent.click(screen.getByRole("button", { name: "Columns" }));
+    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Tokens" }));
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("columnheader", { name: /Tokens/ })).toBeNull();
+    expect(lastOptions()).toMatchObject({ orderBy: "started_at", descending: true });
   });
 
   it("narrows to one status the server filters by", async () => {
@@ -254,6 +267,32 @@ describe("run history controls", () => {
     expect(lastOptions()).toMatchObject({
       statuses: ["failed", "budget_exceeded", "loop_stopped"],
     });
+  });
+
+  it("names the judge on its grading runs, which other agent lists leave out", () => {
+    useRunsMock.mockReturnValue({
+      runs: [{ ...aRun(), agent_id: "judge-1", surface: "eval" }],
+      total: 1,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    renderTab();
+    expect(screen.getAllByText("Eval judge").length).toBeGreaterThan(0);
+  });
+
+  it("narrows to conversations, to Improve and evals, or to system agents", async () => {
+    renderTab();
+
+    for (const [option, source] of [
+      ["Conversations", "conversation"],
+      ["Improve and evals", "evaluation"],
+      ["System agents", "system"],
+    ]) {
+      await userEvent.click(screen.getByRole("combobox", { name: "Filter by source" }));
+      await userEvent.click(screen.getByRole("option", { name: option }));
+      expect(lastOptions()).toMatchObject({ source });
+    }
   });
 
   it("narrows to one surface", async () => {
@@ -356,6 +395,10 @@ describe("run history controls", () => {
     const onFocusRun = vi.fn();
     renderTab({ onFocusRun });
 
+    expect(screen.queryByText("gpt-5")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Columns" }));
+    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Model" }));
+    await userEvent.keyboard("{Escape}");
     await userEvent.click(screen.getByText("gpt-5"));
 
     expect(onFocusRun).toHaveBeenCalledWith("run-1");

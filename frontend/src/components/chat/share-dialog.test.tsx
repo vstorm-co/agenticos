@@ -8,8 +8,11 @@ import type { OrganizationMember } from "@/types";
 const shareConversation = vi.fn();
 const fetchShares = vi.fn();
 const revokeShare = vi.fn();
+const changePermission = vi.fn();
 const listedMembers = vi.fn<() => OrganizationMember[]>(() => []);
 const listedShares = vi.fn<() => Record<string, unknown>[]>(() => []);
+const sharesError = vi.fn<() => string | null>(() => null);
+const sharesLoading = vi.fn<() => boolean>(() => false);
 const membersError = vi.fn<() => string | null>(() => null);
 const fetchMembers = vi.fn();
 
@@ -17,10 +20,12 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/hooks", () => ({
   useConversationShares: () => ({
     shares: listedShares(),
-    isLoading: false,
+    isLoading: sharesLoading(),
+    error: sharesError(),
     shareConversation,
     fetchShares,
     revokeShare,
+    changePermission,
   }),
   useMembers: () => ({
     members: listedMembers(),
@@ -70,8 +75,11 @@ beforeEach(() => {
   listedMembers.mockReturnValue(MEMBERS);
   listedShares.mockReturnValue([]);
   membersError.mockReturnValue(null);
+  sharesError.mockReturnValue(null);
+  sharesLoading.mockReturnValue(false);
   shareConversation.mockResolvedValue({ id: "s-1" });
   revokeShare.mockResolvedValue(undefined);
+  changePermission.mockResolvedValue({});
 });
 
 async function openPicker() {
@@ -466,6 +474,40 @@ describe("who it is shared with", () => {
     expect(revokeShare).toHaveBeenCalledWith("c1", "s-link");
   });
 
+  it("turns a person's view into edit in place", async () => {
+    const { toast } = await import("sonner");
+    listedShares.mockReturnValue([{ id: "s-1", shared_with: "u1", permission: "view" }]);
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Access level for Sam Fisher" }));
+    await userEvent.click(screen.getByRole("option", { name: "Edit" }));
+
+    expect(changePermission).toHaveBeenCalledWith("c1", "s-1", "edit");
+    expect(toast.success).toHaveBeenCalledWith("Access changed");
+  });
+
+  it("asks nothing when the level picked is the one it has", async () => {
+    listedShares.mockReturnValue([{ id: "s-1", shared_with: "u1", permission: "view" }]);
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Access level for Sam Fisher" }));
+    await userEvent.click(screen.getByRole("option", { name: "View" }));
+
+    expect(changePermission).not.toHaveBeenCalled();
+  });
+
+  it("says why a change was refused", async () => {
+    const { toast } = await import("sonner");
+    changePermission.mockRejectedValue(new Error("Only the conversation owner can change a share"));
+    listedShares.mockReturnValue([{ id: "s-1", shared_with: "u1", permission: "view" }]);
+    renderDialog();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Access level for Sam Fisher" }));
+    await userEvent.click(screen.getByRole("option", { name: "Edit" }));
+
+    expect(toast.error).toHaveBeenCalledWith("Only the conversation owner can change a share");
+  });
+
   it("says why a revoke was refused", async () => {
     const { toast } = await import("sonner");
     revokeShare.mockRejectedValue(new Error("Not yours to revoke"));
@@ -476,4 +518,19 @@ describe("who it is shared with", () => {
 
     expect(toast.error).toHaveBeenCalledWith("Not yours to revoke");
   });
+});
+
+it("distinguishes a failing shares read from nobody having access and offers retry", async () => {
+  sharesError.mockReturnValue("Could not read access");
+  renderDialog();
+  expect(screen.getByRole("alert")).toHaveTextContent("Could not read access");
+  expect(screen.queryByText("Not shared with anyone yet")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(fetchShares).toHaveBeenCalledWith("c1");
+});
+
+it("shows loading rather than an empty access list while shares are being read", () => {
+  sharesLoading.mockReturnValue(true);
+  renderDialog();
+  expect(screen.getByRole("status")).toHaveTextContent("Loading");
 });

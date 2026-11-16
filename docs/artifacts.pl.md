@@ -1,5 +1,5 @@
 ---
-source_sha: "df184b376180"
+source_sha: "bbe82e47bf65"
 ---
 
 # Aplikacje { #artifacts }
@@ -14,6 +14,10 @@ Aplikacja nie jest plikiem. Wykres, wygenerowany PDF i plik w workspace'ie mają
 swoje miejsce w czacie i w [workspace'ie](sandbox.md). Aplikacja to rzecz, która
 jest *serwowana*: ma właściciela, widoczność i granty, tak jak agent czy skill, i
 można jej nadać publiczny link dla kogoś bez konta.
+
+## Oznaczenie udostępnionych stron { #shared-page-attribution }
+
+Publiczne podglądy aplikacji domyślnie pokazują pływające oznaczenie z logo AgenticOS i linkiem do GitHuba. Strony udostępnionych rozmów pokazują takie samo oznaczenie pod rozmową. Właściciel lub administrator może ukryć stopkę dla całej organizacji w **Ustawienia organizacji → Nadzór → AgenticOS na udostępnionych stronach**. Kolejne otwarcie strony odczytuje aktualne ustawienie. Aplikacje chronione hasłem pokazują stopkę dopiero po odblokowaniu. Stopka należy do podglądu; pobierane pliki i osadzona treść aplikacji nie są modyfikowane.
 
 ## Wygląd aplikacji { #app-appearance }
 
@@ -911,7 +915,7 @@ raport, bez obrazu, i mówi, że wdrożenie nie ma renderera. Dla modelu, który
 czyta obrazów, wyłącz **Preview screenshot** w ustawieniach capability; raport
 nadal wraca. `agenticos cmd doctor` mówi, czy renderer odpowiada.
 
-Trzy kolejne dołączone skille budują **prezentację** jako aplikację: `presentation-decks` (gotowy szablon z kadrem slajdu 16:9, nawigacją klawiaturą i dotykiem, notatkami prelegenta pod `n` i jednym slajdem na stronę przy druku do PDF), `deck-storyline` (odbiorcy, decyzja i opowieść z tez, zanim powstanie jakikolwiek slajd) i `deck-review` (tytuły czytane jak argument, jedna myśl na slajd, każda liczba prześledzona, czytelność z daleka). Nie dodają biblioteki ani eksportu do PowerPointa.
+Trzy kolejne dołączone skille budują **prezentację** jako aplikację: `presentation-decks` (zróżnicowana prezentacja HTML 16:9 z `artifact-pages`, z nawigacją klawiaturą, przeglądem, wyborem palety i jednym slajdem na stronę wydruku), `deck-storyline` (odbiorcy, decyzja i opowieść z tez, zanim powstanie jakikolwiek slajd) i `deck-review` (tytuły czytane jak argument, jedna myśl na slajd, każda liczba prześledzona, czytelność z daleka). Nie dodają biblioteki ani eksportu do PowerPointa.
 
 ## Wizualizacje { #visuals }
 
@@ -965,7 +969,7 @@ nie podłączono serwera map i że administrator włącza prawdziwe mapy tym
 ustawieniem. Obraz mapy w aplikacji czatowej
 jest rysowany w stanie końcowym, ze wszystkimi pinezkami.
 
-**Mapy świata nie potrzebują żadnej.** Do wszystkiego, co dotyczy krajów - klienci według kraju, biura, trasa między dwoma miastami - `AOWorldMap` rysuje mapę w SVG z konturów krajów, które wdrożenie serwuje samo: bez serwera kafelków, sieci i dodatkowego kontenera. Agent woli ją od mapy z kafelkami, która zostaje na poziom ulic.
+**Mapy świata nie potrzebują żadnej.** Do wszystkiego, co dotyczy krajów - klienci według kraju, biura, trasa między dwoma miastami - `AOWorldMap` rysuje mapę w SVG z konturów krajów, które wdrożenie serwuje samo: bez serwera kafelków, sieci i dodatkowego kontenera. To domyślny wariant nowych map, także tras między miastami. Agent ładuje lokalne kontury krajów i rysuje pinezki oraz połączenia bez dodatkowej konfiguracji. Administrator może włączyć podkład uliczny przez `VISUAL_MAP_TILES`; gdy kafelki są niedostępne, agent powinien użyć mapy SVG.
 
 **Wybór formy.** Skill `visual-design` mówi agentowi, kiedy rysunek w ogóle jest
 właściwą odpowiedzią: tekst dla faktu albo rady, tabela Markdown dla dokładnych
@@ -1419,3 +1423,13 @@ wdrożenia, pod `artifacts/<organization>/<artifact>/`.
 - Archiwizacja zachowuje stronę i nie serwuje z niej niczego, przy wyłączonym
   publicznym linku, dopóki ktoś, kto może ją edytować, jej nie przywróci.
 - Osobna klasa retencji, liczona od ostatniej publikacji.
+
+## Ładowanie podglądów i udostępnianie { #preview-loading-and-sharing }
+
+Podglądy w chacie rezerwują miejsce podczas ładowania renderera wizualizacji lub miniatury Apps. Pojawiają się płynnie po zakończeniu renderowania lub dekodowania obrazu; preferencja ograniczonego ruchu wyłącza animację. Lista Apps używa buforowanych, statycznych miniatur przypisanych do wersji, zamiast ponownie uruchamiać każdą aplikację po powrocie do listy.
+
+Skill Apps zawiera interaktywne prezentacje HTML, style wydruku PDF i przykłady gotowych komponentów. Eksport PDF wymaga skonfigurowanego renderera; sama walidacja podglądu nie dowodzi wykonania skryptu. Wykresy, tabele i treści interaktywne sprawdzaj w wyrenderowanym podglądzie. Eksport PowerPoint nie jest dostępny.
+
+Narzędzie MCP platformy `create_app_public_link` wymaga prawa edycji i jawnego potwierdzenia publicznego udostępnienia aplikacji. Używa istniejącego linku, zachowując hasło, termin ważności i przypiętą wersję. Dane na żywo wymagają osobnej zgody właściciela. Wywołanie kończy się sukcesem dopiero po potwierdzeniu publicznego URL-a przez API.
+
+Dołączony przykład prezentacji ma pięć różnych kompozycji: ilustrowaną okładkę, dużą metrykę, porównanie, sekwencję i decyzję. Przykład raportu przelicza wybrane sumy oraz wykres z tych samych liczebności. Visual design zawiera też proceduralne studio produktu z modelowanymi krawędziami, wariantami materiałów, lokalnym oświetleniem studyjnym, rozkładaniem części, nazwanymi widokami i widokiem zastępczym przy braku WebGL. To przykłady HTML do adaptacji, a nie eksport PowerPoint lub modelu produkcyjnego. Istniejące organizacje otrzymują wersje skilli przez standardowe aktualizacje biblioteki i przegląd; lokalnie edytowane kopie pozostają chronione.

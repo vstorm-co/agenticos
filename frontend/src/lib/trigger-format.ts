@@ -375,6 +375,8 @@ function summaryText(summary: TriggerSummary, t: Translate, zone: string): strin
           return t("event.webhook");
         case "hubspot":
           return t("event.hubspot");
+        case "linear":
+          return t("event.linear");
         case "zendesk":
           return t("event.zendesk");
         case "google_drive":

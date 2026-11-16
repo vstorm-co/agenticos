@@ -926,7 +926,7 @@ it("does not take touch-keyboard focus on arrival or when a reply finishes", asy
     const view = (processing: boolean) => (
       <>
         <button>Read here</button>
-        <ChatInput onSend={onSend} isProcessing={processing} />
+        <ChatInput autoFocus onSend={onSend} isProcessing={processing} />
       </>
     );
     const { rerender } = render(view(false));

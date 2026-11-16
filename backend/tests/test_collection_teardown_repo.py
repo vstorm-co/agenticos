@@ -32,6 +32,20 @@ async def test_is_reserved_is_true_when_a_row_exists() -> None:
     assert await repo.is_reserved(db, "docs") is True
 
 
+@pytest.mark.parametrize(("reserved", "free"), [("docs", False), (None, True)])
+async def test_hold_unreserved_takes_the_lock_before_it_reads(
+    reserved: str | None, free: bool
+) -> None:
+    result = MagicMock(scalar_one_or_none=MagicMock(return_value=reserved))
+    db = MagicMock(execute=AsyncMock(return_value=result))
+
+    assert await repo.hold_unreserved(db, "docs") is free
+
+    lock, read = db.execute.await_args_list
+    assert "pg_advisory_xact_lock" in str(lock.args[0])
+    assert "collection_teardowns" in str(read.args[0])
+
+
 async def test_is_reserved_is_false_when_no_row() -> None:
     result = MagicMock(scalar_one_or_none=MagicMock(return_value=None))
     db = MagicMock(execute=AsyncMock(return_value=result))

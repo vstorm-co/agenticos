@@ -73,6 +73,8 @@ export function useOrgMcpConnections(): UseOrgMcpConnectionsResult {
       );
       void queryClient.invalidateQueries({ queryKey: qk.mcpServers.lists() });
       void queryClient.invalidateQueries({ queryKey: qk.mcpServers.entries() });
+      // Account changes also change routine source ceilings and action inventories.
+      void queryClient.invalidateQueries({ queryKey: qk.triggers.all() });
     },
     [queryClient],
   );
@@ -82,6 +84,7 @@ export function useOrgMcpConnections(): UseOrgMcpConnectionsResult {
       refetch(),
       queryClient.invalidateQueries({ queryKey: qk.mcpServers.lists() }),
       queryClient.invalidateQueries({ queryKey: qk.mcpServers.entries() }),
+      queryClient.invalidateQueries({ queryKey: qk.triggers.all() }),
     ]);
   }, [refetch, queryClient]);
 

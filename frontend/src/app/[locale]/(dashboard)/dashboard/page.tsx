@@ -7,7 +7,9 @@ import { ChevronDown, ChevronRight, LayoutGrid, MessageSquarePlus } from "lucide
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import { useStart } from "@/hooks/use-start";
+import { useSuggestions } from "@/hooks/use-suggestions";
 import { DashboardEditor } from "@/components/dashboard/dashboard-editor";
 import { DashboardPresetMenu } from "@/components/dashboard/dashboard-preset-menu";
 import { FilterRow } from "@/components/dashboard/filter-row";
@@ -19,6 +21,7 @@ import { QuietGroup } from "@/components/dashboard/quiet-group";
 import { StartChecklist } from "@/components/dashboard/start-checklist";
 import { ViewSwitcher } from "@/components/dashboard/view-switcher";
 import { WIDGET_COMPONENTS } from "@/components/dashboard/widgets";
+import { MySummaryWidget } from "@/components/dashboard/widgets/my-summary";
 import { Button } from "@/components/ui";
 import { EmptyState } from "@/components/states";
 import { useDashboardLayout, useDashboardPresets, useGroups, usePermissions } from "@/hooks";
@@ -109,6 +112,12 @@ export default function DashboardPage() {
   const { groups, isLoading: groupsLoading } = useGroups(activeOrgId ?? "");
   const viewParam = searchParams.get("view");
   const groupParam = searchParams.get("group");
+  const personal = viewParam === null || viewParam === "me";
+  const start = useStart(personal);
+  const briefing = useSuggestions(personal && can(Perm.agentsRun));
+  const openingLoading =
+    personal &&
+    ((activeOrgId !== null && start.isLoading) || (can(Perm.agentsRun) && briefing.isLoading));
 
   // can() answers false while permissions load; resolving the audience from
   // that would flash a viewer-shaped page at a steward. Wait for the saved
@@ -118,23 +127,14 @@ export default function DashboardPage() {
   // would open the organization's view for a moment and ask all of its
   // questions unnarrowed before the group arrived.
   if (isLoading || layoutLoading || (viewParam === "group" && groupsLoading)) {
-    const loadingAudience = resolveAudience(role, isAppAdmin);
-    const loadingView =
-      viewParam === "group"
-        ? "group"
-        : viewParam === "deployment" && isAppAdmin
-          ? "deployment"
-          : "me";
     return (
       <div className="space-y-4">
         <PageHeader title={t("title")} />
-        <DashboardSkeleton
-          sections={
-            viewParam === "org"
-              ? resolveEffectiveLayout(loadingAudience, storedEntries)
-              : viewLayout(loadingView, loadingAudience)
-          }
-        />
+        <div className="flex min-h-56 items-center justify-center">
+          <div role="status" aria-busy="true" aria-label={t("states.loading")}>
+            <Spinner className="text-muted-foreground size-5" aria-hidden />
+          </div>
+        </div>
       </div>
     );
   }
@@ -307,9 +307,23 @@ export default function DashboardPage() {
   const selectedSections = parseSectionsParam(sectionsParam, visible);
   const sections = applySectionsFilter(visible, selectedSections);
 
+  const personalSummary =
+    view === "me"
+      ? sections
+          .flatMap((section) => section.entries)
+          .find((entry) => entry.widget === "my-summary")
+      : undefined;
+
+  const bandSections = personalSummary
+    ? sections.map((section) => ({
+        ...section,
+        entries: section.entries.filter((entry) => entry.widget !== "my-summary"),
+      }))
+    : sections;
+
   const bands = (
     <div className={cn(BAND_GAP, "mt-6")}>
-      {sections.map((section) => {
+      {bandSections.map((section) => {
         // A custom divider carries the person's own caption (`title`) and an
         // accent; the curated defaults carry a translated `titleKey` and no
         // colour. Neutral is the absence of an accent — rendered plain, like a
@@ -374,7 +388,11 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={`${entry.widget}-${index}`}
-                      className={cn(cell, coloured && "dash-tile-accent")}
+                      className={cn(
+                        cell,
+                        !isCustom && "lg:has-[[data-widget-empty]:not([open])]:row-span-1",
+                        coloured && "dash-tile-accent",
+                      )}
                     >
                       <Widget
                         title={t(entry.titleKey ?? `widgets.${entry.widget}.title`)}
@@ -426,19 +444,36 @@ export default function DashboardPage() {
         groups={groups}
         groupId={group?.id ?? null}
         onGroupChange={changeGroup}
-      />
-      <FilterRow
-        period={period}
-        onPeriodChange={changePeriod}
-        sections={visible}
-        selectedSections={selectedSections}
-        onSectionsChange={changeSections}
+        actions={
+          <FilterRow
+            period={period}
+            onPeriodChange={changePeriod}
+            sections={visible}
+            selectedSections={selectedSections}
+            onSectionsChange={changeSections}
+          />
+        }
       />
       {/* Setting the organization up belongs where somebody acts on it - their
           own view or the organization's - not beside a group's or the host's
           numbers. */}
       {activeOrgId && view === "org" && <StartChecklist orgId={activeOrgId} />}
-      {view === "me" && <MeOpening orgId={activeOrgId} period={period} />}
+      {personalSummary && (
+        <div className="mt-6 min-h-64 lg:h-[18.5rem]">
+          <MySummaryWidget
+            title={t(personalSummary.titleKey ?? "widgets.my-summary.title")}
+            hint={t("widgets.my-summary.description")}
+            period={
+              personalSummary.options?.period
+                ? resolvePreset(personalSummary.options.period)
+                : period
+            }
+            options={personalSummary.options}
+            seeAll={WIDGETS["my-summary"].seeAll}
+          />
+        </div>
+      )}
+      {view === "me" && <MeOpening orgId={activeOrgId} period={period} pending={openingLoading} />}
       {view === "me" && <DiscoverTips />}
       {/* The bands own a rhythm of their own, four times the gap between two
           cards, which is what makes a band read as a band. The header and the

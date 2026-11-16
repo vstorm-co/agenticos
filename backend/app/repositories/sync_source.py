@@ -17,6 +17,25 @@ async def get_by_id(db: AsyncSession, source_id: UUID) -> SyncSource | None:
     return await db.get(SyncSource, source_id)
 
 
+async def lock(db: AsyncSession, source_id: UUID) -> SyncSource | None:
+    """The source as committed, its row held until the transaction ends.
+
+    `FOR NO KEY UPDATE`: enough to keep another transaction from repointing or
+    deleting the source, and weak enough that a sync still inserting a run or a
+    document claim that references it does not queue behind this.
+
+    A caller also inserting rows referencing the organization or a user takes
+    those first (`CollectionAccessService._hold_source`).
+    """
+    result = await db.execute(
+        select(SyncSource)
+        .where(SyncSource.id == source_id)
+        .with_for_update(key_share=True)
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_all(
     db: AsyncSession,
     *,

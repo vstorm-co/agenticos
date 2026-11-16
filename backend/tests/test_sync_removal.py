@@ -141,6 +141,17 @@ async def _syncing(
         patch.object(rag_tasks, "SyncSourceService", return_value=sources),
         patch.object(rag_tasks, "_source_knowledge_base", new=AsyncMock(return_value=_BASE)),
         patch.object(rag_tasks.knowledge_base_repo, "get_by_id", new=AsyncMock(return_value=_BASE)),
+        patch.object(
+            rag_tasks.sync_log_repo,
+            "get_by_id",
+            new=AsyncMock(
+                return_value=MagicMock(
+                    collection_name=source.collection_name,
+                    organization_id=source.organization_id,
+                    knowledge_base_id=None,
+                )
+            ),
+        ),
         patch.object(rag_tasks, "IngestionConfigService") as config_service,
         patch.object(rag_tasks, "NotificationService", return_value=notifications),
         patch.object(rag_tasks.IngestionService, "ingest_file", new=ingest),

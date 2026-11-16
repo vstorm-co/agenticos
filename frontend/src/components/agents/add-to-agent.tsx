@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, Plus } from "lucide-react";
+import { Bot, Check, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -32,6 +32,11 @@ interface AddToAgentProps {
   name: string;
   size?: "sm" | "default";
   className?: string;
+  /**
+   * Agents a served version already binds it in. Marked, still offered: a draft may
+   * have dropped it since, and adding says so when it has not.
+   */
+  has?: string[];
 }
 
 /**
@@ -44,7 +49,7 @@ interface AddToAgentProps {
  * nothing is published, which the confirmation says, with the way to the
  * Builder. Not rendered for a caller who may not edit agents.
  */
-export function AddToAgent({ resource, name, size = "sm", className }: AddToAgentProps) {
+export function AddToAgent({ resource, name, size = "sm", className, has }: AddToAgentProps) {
   const t = useTranslations("agents");
   const { can } = usePermissions();
   const [open, setOpen] = useState(false);
@@ -61,7 +66,9 @@ export function AddToAgent({ resource, name, size = "sm", className }: AddToAgen
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 p-1">
         <p className="text-muted-foreground px-2 py-1.5 text-xs">{t("addToAgentHint")}</p>
-        {open && <AgentChoices resource={resource} name={name} onDone={() => setOpen(false)} />}
+        {open && (
+          <AgentChoices resource={resource} name={name} has={has} onDone={() => setOpen(false)} />
+        )}
       </PopoverContent>
     </Popover>
   );
@@ -77,10 +84,13 @@ export function AddToAgent({ resource, name, size = "sm", className }: AddToAgen
 export function AgentChoices({
   resource,
   name,
+  has = [],
   onDone,
 }: {
   resource: AgentResourceRef;
   name: string;
+  /** Agents a served version already binds it in: marked, still offered. */
+  has?: string[];
   onDone: () => void;
 }) {
   const t = useTranslations("agents");
@@ -130,7 +140,13 @@ export function AgentChoices({
               colorSlot={agent.avatar_color}
               size="sm"
             />
-            <span className="truncate">{agent.name}</span>
+            <span className="min-w-0 flex-1 truncate">{agent.name}</span>
+            {has.includes(agent.id) && (
+              <span className="text-muted-foreground flex shrink-0 items-center gap-1 text-xs">
+                <Check className="h-3 w-3" aria-hidden />
+                {t("alreadyHasIt")}
+              </span>
+            )}
           </button>
         ))
       )}

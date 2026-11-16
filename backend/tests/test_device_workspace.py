@@ -207,6 +207,34 @@ async def test_whole_computer_never_collects_home_directory_as_attachments(
     assert args["computer_grant"] == str(grant)
     assert args["conversation_id"] == str(chat)
     assert args["path"] == "/another/volume/file.txt"
+    assert "agent_id" not in args
+
+
+async def test_whole_computer_operations_name_the_agent_the_consent_may_be_bound_to(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    grant, chat, agent = uuid4(), uuid4(), uuid4()
+    target = LocalTarget(folder="/Users/person", mode="full_access", computer_grant=grant)
+    device = module.DeviceWorkspace(uuid4(), uuid4(), target, conversation_id=chat, agent_id=agent)
+    call = AsyncMock(return_value={"exists": True})
+    monkeypatch.setattr(module._hub, "call", call)
+    assert await device.exists("/Users/person/app")
+    args = call.call_args.args[2]
+    assert (args["computer_grant"], args["conversation_id"], args["agent_id"]) == (
+        str(grant),
+        str(chat),
+        str(agent),
+    )
+
+
+async def test_a_folder_operation_sends_no_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    device = module.DeviceWorkspace(
+        uuid4(), uuid4(), LocalTarget(folder="/work"), conversation_id=uuid4(), agent_id=uuid4()
+    )
+    call = AsyncMock(return_value={"exists": True})
+    monkeypatch.setattr(module._hub, "call", call)
+    assert await device.exists("/work/a")
+    assert "agent_id" not in call.call_args.args[2]
 
 
 def test_whole_computer_target_requires_full_access_and_a_working_directory() -> None:
@@ -233,3 +261,18 @@ async def test_native_platform_is_read_from_the_resolved_device(
     call.return_value = {}
     with pytest.raises(WorkspaceUnavailableError, match="did not identify"):
         await workspace.platform()
+
+
+@pytest.mark.parametrize(
+    ("mode", "whole", "expected"),
+    [
+        ("read_only", False, False),
+        ("workspace_write", False, False),
+        ("full_access", False, True),
+        ("full_access", True, True),
+    ],
+)
+def test_native_coding_requires_full_access(mode: LocalMode, whole: bool, expected: bool) -> None:
+    target = LocalTarget(folder="/work", mode=mode, computer_grant=uuid4() if whole else None)
+    workspace = module.DeviceWorkspace(uuid4(), uuid4(), target, conversation_id=uuid4())
+    assert workspace.local_coding_allowed is expected

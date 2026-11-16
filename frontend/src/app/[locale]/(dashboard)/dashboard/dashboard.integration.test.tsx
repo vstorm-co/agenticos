@@ -345,6 +345,13 @@ function respond(path: string, options?: { params?: Record<string, string> }): u
       };
     case "/admin/ratings/summary":
       return RATINGS;
+    case "/authoring/waiting":
+      return { agents: [], skills: 0, contexts: 0 };
+    case "/improvements":
+      return [];
+    case "/skill-improvements/awaiting":
+    case "/skill-checks/awaiting":
+      return [];
     case "/workflows/summary":
       return { runs: 0, succeeded: 0, failed: 0, cost_usd: 0, needs_you: 0, workflows: [] };
     default:
@@ -634,7 +641,7 @@ describe("the viewer's dashboard", () => {
 });
 
 describe("the member's dashboard", () => {
-  it("asks for usage and quality only at own scope", async () => {
+  it("asks only for personal usage and skips quality-management metrics", async () => {
     auth.role = "member";
     auth.can = holds("agents:view", "agents:edit", "agents:run", "collections:view");
 
@@ -647,10 +654,7 @@ describe("the member's dashboard", () => {
     for (const [, options] of callsTo("/stats/usage")) {
       expect((options as { params: Record<string, string> }).params.scope).toBe("own");
     }
-    await waitFor(() => expect(callsTo("/ratings/summary").length).toBeGreaterThan(0));
-    for (const [, options] of callsTo("/ratings/summary")) {
-      expect((options as { params: Record<string, string> }).params.scope).toBe("own");
-    }
+    expect(callsTo("/ratings/summary")).toHaveLength(0);
     expect(callsTo("/approvals")).toHaveLength(0);
     expect(callsTo("/orgs/org1/members")).toHaveLength(0);
   });
@@ -1031,7 +1035,7 @@ describe("dashboard links while the page stays mounted", () => {
     params.delete("sections");
     params.delete("group");
     page.rerender(<DashboardPage />);
-    expect(screen.getByRole("heading", { name: /dashboard\.greeting/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /dashboard\.greeting/ })).toBeInTheDocument();
   });
 });
 
@@ -1052,4 +1056,77 @@ it("waits for a saved arrangement before mounting and fetching default widgets",
   await waitFor(() => expect(callsTo("/agents").length).toBeGreaterThan(0));
   expect(callsTo("/approvals")).toHaveLength(0);
   view.unmount();
+});
+
+it("keeps one loading state until onboarding and briefing can mount in their final shape", async () => {
+  const pending = Promise.withResolvers<unknown>();
+  const org = "00000000-0000-4000-8000-000000000001";
+  useOrgStore.setState({ activeOrgId: org });
+  const previous = vi.mocked(apiClient.get).getMockImplementation()!;
+  vi.mocked(apiClient.get).mockImplementation((path, options) =>
+    path === "/me/onboarding" ? pending.promise : previous(path, options),
+  );
+  render(<DashboardPage />, { wrapper });
+  await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/me/onboarding"));
+  expect(document.querySelectorAll('[role="status"][aria-busy="true"]')).toHaveLength(1);
+  expect(screen.queryByRole("heading", { name: "dashboard.widgets.suggestions.title" })).toBeNull();
+  pending.resolve({
+    organization_id: org,
+    organization_name: "Demo",
+    goal: null,
+    dismissed: true,
+    completed: true,
+    can_prepare: true,
+    can_configure_model: true,
+    support_email: null,
+    agents: [],
+    latest_conversation_id: null,
+    latest_completed_at: null,
+    has_result: true,
+    has_activity: true,
+  });
+  expect(
+    await screen.findByRole("heading", { name: "dashboard.widgets.suggestions.title" }),
+  ).toBeInTheDocument();
+  expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull();
+});
+
+it("shows personal metrics once, before the briefing", async () => {
+  render(<DashboardPage />, { wrapper });
+  const briefing = await screen.findByRole("heading", {
+    name: "dashboard.widgets.suggestions.title",
+  });
+  const summary = screen.getByRole("heading", { name: "dashboard.widgets.my-summary.title" });
+  expect(
+    screen.getAllByRole("heading", { name: "dashboard.widgets.my-summary.title" }),
+  ).toHaveLength(1);
+  expect(summary.compareDocumentPosition(briefing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it("keeps Me free of quality-management cards and their requests", async () => {
+  render(<DashboardPage />, { wrapper });
+  await screen.findByRole("heading", { name: "dashboard.widgets.suggestions.title" });
+  for (const widget of [
+    "eval-runs",
+    "eval-suites",
+    "datasets",
+    "review-queue",
+    "knowledge-gaps",
+    "authoring-suggestions",
+    "needs-attention",
+    "improvements-waiting",
+    "my-quality",
+    "tables",
+    "workflows",
+  ]) {
+    expect(screen.queryByRole("heading", { name: `dashboard.widgets.${widget}.title` })).toBeNull();
+  }
+  const qualityRequests = vi
+    .mocked(apiClient.get)
+    .mock.calls.filter(([path]) =>
+      /^\/(?:datasets|eval-runs|eval-suites|authoring|ratings)(?:[/?]|$)/.test(path),
+    );
+  expect(qualityRequests).toEqual([]);
+  expect(callsTo("/knowledge-gaps")).toHaveLength(0);
+  expect(callsTo("/workflows/summary")).toHaveLength(0);
 });

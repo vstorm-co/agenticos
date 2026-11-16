@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -87,6 +87,12 @@ describe("what the model was told", () => {
             calls: [
               { tool: "update_record", args: '{"n": 1}', status: "returned" },
               { tool: "update_record", args: '{"n": 2}', status: "failed" },
+              {
+                tool_call_id: "c1__3",
+                tool: "update_record",
+                args: '{"n": 3}',
+                status: "awaiting_approval",
+              },
             ],
           },
         ],
@@ -96,7 +102,8 @@ describe("what the model was told", () => {
 
     expect(screen.getByText("1 script")).toBeInTheDocument();
     expect(screen.getByText("await update_record(n=1)")).toBeInTheDocument();
-    expect(screen.getByText("It made 2 tool calls")).toBeInTheDocument();
+    expect(screen.getByText("It made 3 tool calls")).toBeInTheDocument();
+    expect(screen.getByText("Waiting for approval")).toBeInTheDocument();
     expect(screen.getByText('{"n": 2}')).toBeInTheDocument();
   });
 
@@ -151,8 +158,10 @@ describe("what the model was told", () => {
 
     renderManifest();
 
-    expect(screen.getByText("1 tool")).toBeVisible();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Tools/ }), { button: 0, ctrlKey: false });
+    expect(screen.getByText("1 of 1 tools")).toBeVisible();
     expect(screen.getByText("Look up how many of one item are in the warehouse.")).toBeVisible();
+    fireEvent.click(screen.getByText("check_stock"));
     expect(screen.getByText(/"sku"/)).toBeInTheDocument();
   });
 
@@ -161,6 +170,7 @@ describe("what the model was told", () => {
 
     renderManifest();
 
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Tools/ }), { button: 0, ctrlKey: false });
     expect(screen.getByText("The model was given no tools.")).toBeVisible();
   });
 
@@ -181,11 +191,20 @@ describe("what the model was told", () => {
   });
 
   it("says a run sent no instructions rather than leaving the panel blank", () => {
-    serve({ manifest: record({ instructions: null }) });
+    serve({ manifest: record({ instructions: null, system_prompts: [] }) });
 
     renderManifest();
 
     expect(screen.getByText("No instructions were sent with this run.")).toBeVisible();
+  });
+
+  it("does not claim no instructions for a run that sent them as system parts", () => {
+    serve({ manifest: record({ instructions: null, system_prompts: ["Grade the answer."] }) });
+
+    renderManifest();
+
+    expect(screen.queryByText("No instructions were sent with this run.")).toBeNull();
+    expect(screen.getByText("Grade the answer.")).toBeVisible();
   });
 });
 

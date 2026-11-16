@@ -1,5 +1,5 @@
 ---
-source_sha: "9db77a8adb2b"
+source_sha: "0e3f3c6c82f8"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
@@ -611,15 +611,21 @@ soportadas.
 
 Todos los endpoints de las fuentes de sincronización viven bajo
 `/api/v1/rag/sync/`. Listar exige `collections:view` y todo lo que modifica una
-fuente exige `collections:edit`, en ambos casos sobre la colección a la que
-pertenece la fuente: no interviene ningún rol de administrador. Consulta
+fuente exige `collections:edit`. No interviene ningún rol de administrador. Los
+párrafos siguientes dicen a qué fuentes llega cada operación. Consulta
 [quién puede llegar a una colección](../file-processing.md#who-may-reach-a-collection).
+
+`GET /api/v1/rag/sync/sources` lista todas las fuentes, incluidas las plantillas sin asignar, solo con `connections:manage`. En otro caso lista fuentes de bases legibles. Crear, desvincular, editar, eliminar o clonar una plantilla sin asignar requiere **Manage connections**. Las fuentes asignadas requieren edición de su base, también mediante `/org/integrations`; el permiso de organización no evita ese control. La clonación comprueba origen y destino por separado.
+
+Las modificaciones validan las direcciones remotas antes de adquirir bloqueos de escritura. La escritura bloqueada comprueba la revisión validada y rechaza cambios obsoletos. Las sincronizaciones en cola vuelven a verificar su destino original antes de ingerir datos. El borrado de cuentas y organizaciones usa las mismas reglas de propiedad y bloqueos que borrar una base; la ingesta CLI también registra procedencia y respeta estos bloqueos.
+
+El historial conserva la organización iniciadora y la base destino tras eliminar la fuente. Una ejecución sin fuente solo es visible con propiedad demostrada y acceso a esa base. Los registros antiguos sin fuente ni propietario demostrado se ocultan; compartir un nombre de colección no los atribuye a una organización.
 
 ### CRUD de fuentes de sincronización { #sync-sources-crud }
 
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
-| `GET` | `/api/v1/rag/sync/sources` | Lista todas las fuentes de sincronización configuradas |
+| `GET` | `/api/v1/rag/sync/sources` | Lista las fuentes de sincronización (todas con `connections:manage`) |
 | `POST` | `/api/v1/rag/sync/sources` | Crea una fuente de sincronización nueva |
 | `PATCH` | `/api/v1/rag/sync/sources/{id}` | Modifica una fuente de sincronización existente |
 | `DELETE` | `/api/v1/rag/sync/sources/{id}` | Borra una fuente de sincronización |
@@ -700,7 +706,19 @@ nombre se resuelve para tu organización, sobre la que debes tener permiso de
 escritura; `null` la desvincula de cualquier base, y una fuente sin base no
 sincroniza.
 
-Pon `is_active` en `false` para pausar una fuente sin borrarla.
+Pon `is_active` en `false` para pausar una fuente sin borrarla. Una fuente
+pausada no se ejecuta por programación ni se puede activar mediante la API o la
+CLI. La consola desactiva su botón de sincronización. Un trabajo en cola vuelve
+a comprobar el estado antes de descargar archivos y termina con un error si la
+fuente se pausó mientras esperaba. La pausa no interrumpe una sincronización ya
+iniciada; pon `is_active` en `true` para permitir nuevas sincronizaciones.
+
+Al resolver un nombre de colección, se elige la base más antigua de la
+organización de la fuente o, si no existe, una base de ámbito de aplicación.
+Si las fechas de creación coinciden, se ordenan por el identificador de la base.
+La API rechaza la asignación por nombre de colección cuando varias bases
+válidas comparten la fecha de creación más antigua. Usa una base de conocimiento
+con un nombre de colección único para eliminar esa ambigüedad.
 
 ## Supervisar las sincronizaciones { #monitoring-sync-operations }
 

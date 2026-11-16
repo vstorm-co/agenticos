@@ -69,7 +69,7 @@ export function EmbedsPanel({ agentId, canManage }: EmbedsPanelProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         {isLoading ? (
-          <LoadingState variant="skeleton-panel" rows={1} />
+          <LoadingState variant="pending" />
         ) : embeds.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t("notPublishedAnySite")}</p>
         ) : (

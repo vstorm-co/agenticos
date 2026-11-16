@@ -15,7 +15,7 @@ import { McpToolLoadNotice } from "@/components/agents/mcp-tool-load-notice";
 import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
 import { useMcpCatalog, useMcpConnections, useOrgMcpConnections, usePermissions } from "@/hooks";
-import { withCapability } from "@/lib/agent-spec";
+import { enableMcpToolSearch } from "@/lib/agent-spec";
 import { getErrorMessage } from "@/lib/api-error";
 import { toolsForBinding } from "@/lib/binding-tools";
 import { hereForMcpOAuthReturn } from "@/lib/mcp-oauth";
@@ -113,7 +113,7 @@ export function McpBindingsEditor({
         connections={connections}
         personalConnections={myConnections}
         onEnableToolSearch={() =>
-          onChange({ capabilities: withCapability(spec.capabilities, "tool_search", true) })
+          onChange({ capabilities: enableMcpToolSearch(spec.capabilities) })
         }
         disabled={disabled}
       />

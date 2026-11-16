@@ -33,7 +33,7 @@ import json
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
@@ -44,13 +44,14 @@ from pydantic_ai.messages import (
     SystemPromptPart,
     ToolCallPart,
 )
-from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse
+from pydantic_ai.models import Model, ModelRequestParameters, StreamedResponse, ToolVisibility
 from pydantic_ai.models.wrapper import WrapperModel
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import RunContext
 
 from app.agents.channel_reference import recorded_channel_messages
 from app.agents.ephemeral_media import dump_messages
+from app.agents.model_context import check_model_context
 
 # What a model setting may be, when it is written down. Everything else on
 # `ModelSettings` - `extra_headers`, `extra_body` - is provider passthrough, and
@@ -91,6 +92,7 @@ class RecordedTool:
     parameters_json_schema: dict[str, Any]
     #: `output` for the tool that carries a structured answer, `function` otherwise.
     kind: str
+    visibility: ToolVisibility | None = None
 
 
 @dataclass(slots=True)
@@ -125,6 +127,21 @@ class RecordedRequest:
     cache: str | None = None
     #: Of the prefix earlier requests cached, the tokens this one did not read back.
     cache_missed_tokens: int = 0
+    tool_counts: dict[ToolVisibility, int] | None = None
+    visible_tool_names: list[str] | None = None
+
+
+@dataclass
+class RecordedToolSearch:
+    """Discovery policy selected for this execution, without provider credentials."""
+
+    strategy: str
+    max_results: int
+    defer_capabilities: bool
+    defer_mcp_servers: bool
+    exclude_capabilities: tuple[str, ...]
+    exclude_mcp_servers: tuple[str, ...]
+    exclude_tools: tuple[str, ...]
 
 
 @dataclass
@@ -141,6 +158,9 @@ class RunRecorder:
     instructions: str | None = None
     system_prompts: list[str] = field(default_factory=list)
     tools: list[RecordedTool] = field(default_factory=list)
+    tool_counts: dict[ToolVisibility, int] | None = None
+    visible_tool_names: list[str] | None = None
+    tool_search: RecordedToolSearch | None = None
     settings: dict[str, Any] = field(default_factory=dict)
     requests: list[RecordedRequest] = field(default_factory=list)
     #: The last request's messages, dumped. The whole of what the model saw at
@@ -172,6 +192,19 @@ class RunRecorder:
         self.instructions = _instructions(messages) or self.instructions
         self.system_prompts = _system_prompts(messages) or self.system_prompts
         self.tools = _tools(parameters)
+        self.tool_counts = (
+            {
+                visibility: sum(tool.visibility == visibility for tool in self.tools)
+                for visibility in ("visible", "deferred", "withheld", "via_history")
+            }
+            if parameters.tool_visibility is not None
+            else None
+        )
+        self.visible_tool_names = (
+            [tool.name for tool in self.tools if tool.visibility == "visible"]
+            if self.tool_counts is not None
+            else None
+        )
         self.settings = _settings(model_settings)
         self.messages = dump_messages(recorded_channel_messages(messages))
 
@@ -196,6 +229,10 @@ class RunRecorder:
                     part.tool_name for part in response.parts if isinstance(part, ToolCallPart)
                 ],
                 finish_reason=response.finish_reason,
+                tool_counts=None if self.tool_counts is None else dict(self.tool_counts),
+                visible_tool_names=None
+                if self.visible_tool_names is None
+                else list(self.visible_tool_names),
             )
         )
 
@@ -222,6 +259,10 @@ class RunRecorder:
                 tool_calls=[],
                 finish_reason=None,
                 failed=type(exc).__name__,
+                tool_counts=None if self.tool_counts is None else dict(self.tool_counts),
+                visible_tool_names=None
+                if self.visible_tool_names is None
+                else list(self.visible_tool_names),
             )
         )
 
@@ -244,15 +285,33 @@ class RecordingModel(WrapperModel):
         super().__init__(wrapped)
         self.recorder = recorder
 
+    def _observe_request(
+        self,
+        messages: list[ModelMessage],
+        settings: ModelSettings | None,
+        parameters: ModelRequestParameters,
+    ) -> None:
+        # Visibility is resolved in the provider's public preparation step,
+        # after capabilities prepare the authorized catalog. Observe a prepared
+        # copy; pass the original inputs to the provider so its request mapping
+        # runs normally, without reapplying prepared instruction/cache blocks.
+        try:
+            _, prepared = self.wrapped.prepare_request(settings, parameters)
+        except Exception:
+            self.recorder.observe_request(messages, settings, parameters)
+            raise
+        self.recorder.observe_request(messages, settings, prepared)
+
     async def request(
         self,
         messages: list[ModelMessage],
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
     ) -> ModelResponse:
-        self.recorder.observe_request(messages, model_settings, model_request_parameters)
+        await check_model_context()
         started, clock = datetime.now(UTC), time.perf_counter()
         try:
+            self._observe_request(messages, model_settings, model_request_parameters)
             response = await self.wrapped.request(
                 messages, model_settings, model_request_parameters
             )
@@ -274,7 +333,7 @@ class RecordingModel(WrapperModel):
         model_request_parameters: ModelRequestParameters,
         run_context: RunContext[Any] | None = None,
     ) -> AsyncGenerator[StreamedResponse]:
-        self.recorder.observe_request(messages, model_settings, model_request_parameters)
+        await check_model_context()
         started, clock = datetime.now(UTC), time.perf_counter()
         # Both halves inside the guard, because both can raise and each leaves the
         # same hole: a manifest carrying the prompt and no entry for the request
@@ -282,6 +341,7 @@ class RecordingModel(WrapperModel):
         # streaming path is where a provider refusal usually surfaces - opening the
         # response is one exception, consuming it another.
         try:
+            self._observe_request(messages, model_settings, model_request_parameters)
             async with self.wrapped.request_stream(
                 messages, model_settings, model_request_parameters, run_context
             ) as stream:
@@ -337,12 +397,26 @@ def _tools(parameters: ModelRequestParameters) -> list[RecordedTool]:
             description=tool.description,
             parameters_json_schema=dict(tool.parameters_json_schema),
             kind=kind,
+            visibility=(
+                parameters.visibility_of(tool.name)
+                if parameters.tool_visibility is not None
+                else None
+            ),
         )
         for kind, tools in (
             ("function", parameters.function_tools),
             ("output", parameters.output_tools),
         )
         for tool in tools
+    ] + [
+        RecordedTool(
+            name=tool.unique_id,
+            description=None,
+            parameters_json_schema={},
+            kind="native",
+            visibility="visible" if parameters.tool_visibility is not None else None,
+        )
+        for tool in parameters.native_tools
     ]
 
 
@@ -371,10 +445,16 @@ def as_payload(recorder: RunRecorder) -> dict[str, Any]:
                 "description": tool.description,
                 "parameters_json_schema": tool.parameters_json_schema,
                 "kind": tool.kind,
+                **({"visibility": tool.visibility} if tool.visibility is not None else {}),
             }
             for tool in recorder.tools
         ],
         "settings": dict(recorder.settings),
+        **(
+            {"tool_search": asdict(recorder.tool_search)}
+            if recorder.tool_search is not None
+            else {}
+        ),
         "requests": [
             {
                 "index": request.index,
@@ -391,6 +471,14 @@ def as_payload(recorder: RunRecorder) -> dict[str, Any]:
                 "failed": request.failed,
                 "cache": request.cache,
                 "cache_missed_tokens": request.cache_missed_tokens,
+                **(
+                    {
+                        "tool_counts": dict(request.tool_counts),
+                        "visible_tool_names": request.visible_tool_names,
+                    }
+                    if request.tool_counts is not None
+                    else {}
+                ),
             }
             for request in recorder.requests
         ],
@@ -424,7 +512,21 @@ def carried_over(previous: dict[str, Any], payload: dict[str, Any]) -> dict[str,
     if not earlier_reviews and not earlier_scripts:
         return payload
     reviews = [*earlier_reviews, *payload.get("reviews", [])]
-    scripts = [*earlier_scripts, *payload.get("code_runs", [])]
+    scripts = list(earlier_scripts)
+    for script in payload.get("code_runs", []):
+        existing = next(
+            (
+                i
+                for i, previous_script in enumerate(scripts)
+                if previous_script.get("tool_call_id") == script.get("tool_call_id")
+                and script.get("tool_call_id")
+            ),
+            None,
+        )
+        if existing is None:
+            scripts.append(script)
+        else:
+            scripts[existing] = script
     return {
         **payload,
         "reviews": reviews[:MAX_RECORDED_REVIEWS],
@@ -467,6 +569,16 @@ def fit(payload: dict[str, Any], limit: int = MAX_PAYLOAD_BYTES) -> tuple[dict[s
     trimmed = {**payload, "messages": []}
     if "transcript" in trimmed:
         trimmed["transcript"] = []
+    if _size(trimmed) <= limit:
+        return trimmed, True
+    # Counts survive even when a long run's repeated visible-name lists do not.
+    trimmed = {
+        **trimmed,
+        "requests": [
+            {**request, "visible_tool_names": None} if "visible_tool_names" in request else request
+            for request in trimmed.get("requests", [])
+        ],
+    }
     if _size(trimmed) <= limit:
         return trimmed, True
     # Then each script's calls lose their arguments and its code is clipped: what

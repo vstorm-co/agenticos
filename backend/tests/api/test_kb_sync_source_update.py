@@ -60,12 +60,15 @@ class _Fakes:
         self.sources.get_source = AsyncMock(
             return_value=MagicMock(collection_name="handbook", organization_id=self.org_id)
         )
+        self.sources.prepare_update = AsyncMock(return_value=MagicMock())
         self.sources.update_source = AsyncMock(
             return_value=_read(name="Renamed", schedule_minutes=60)
         )
         self.role = OrgRoleName.OWNER
 
-    async def kb_sync_source(self, kb: MagicMock, source_id: str) -> MagicMock:
+    async def kb_sync_source(
+        self, ctx: AuthContext, kb: MagicMock, source_id: str, *, for_update: bool
+    ) -> MagicMock:
         """`CollectionAccessService.kb_sync_source` for an organization's base.
 
         The rule itself is `tests/test_collection_access.py`'s; this stands in at the

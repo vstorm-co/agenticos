@@ -19,15 +19,18 @@ const BOB = { user_id: "u-bob", email: "bob@acme.example", full_name: null };
 function Harness({
   onChange,
   withOnlyMe,
+  withChosen,
 }: {
   onChange: (audience: Audience) => void;
   withOnlyMe?: boolean;
+  withChosen?: boolean;
 }) {
   const [value, setValue] = useState<Audience>(EVERYONE);
   return (
     <AudiencePicker
       value={value}
       withOnlyMe={withOnlyMe}
+      withChosen={withChosen}
       onChange={(next) => {
         setValue(next);
         onChange(next);
@@ -42,6 +45,16 @@ function given(groupRows: unknown[], memberRows: unknown[] = []) {
 }
 
 describe("AudiencePicker", () => {
+  it("offers only visibility choices where creation does not support grants", async () => {
+    given([FINANCE]);
+    const onChange = vi.fn();
+    render(<Harness onChange={onChange} withChosen={false} />);
+    expect(screen.getAllByRole("radio")).toHaveLength(2);
+    expect(screen.queryByRole("radio", { name: /Some people/ })).toBeNull();
+    await userEvent.click(screen.getByRole("radio", { name: /Only me/ }));
+    expect(onChange).toHaveBeenLastCalledWith({ mode: "private", group_ids: [], user_ids: [] });
+  });
+
   it("starts with the whole organization", () => {
     given([FINANCE]);
     render(<Harness onChange={vi.fn()} />);

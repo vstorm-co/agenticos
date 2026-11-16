@@ -21,7 +21,7 @@ class ProjectCreate(AudienceChoice):
     # one only its creator could see, whatever the request said. Narrowed here
     # rather than by a validator, so the API schema lists the two values; the
     # only write the base class makes is `PRIVATE`, which this type admits.
-    visibility: Literal[Visibility.PRIVATE, Visibility.ORG] = Field(  # ty: ignore[invalid-mutable-override]
+    visibility: Literal[Visibility.PRIVATE, Visibility.ORG] = Field(  # ty: ignore[incompatible-mutable-override]
         default=Visibility.PRIVATE,
         description=(
             "`private` - the default - is the creator and whoever they share it with; "

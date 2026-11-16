@@ -19,6 +19,8 @@ from pydantic_ai.tools import ToolDefinition
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import get as capability
+from app.agents.capabilities._registry import READ_SKILL
+from app.agents.capabilities.skills._loader import SKILL_LOAD_KIND
 from app.agents.mcp import McpSourceIdentity, McpToolOrigin, needs_approval, tool_origin
 from app.agents.routine_actions import RoutineToolDecision
 from app.agents.spec import AgentSpec
@@ -175,10 +177,24 @@ class RoutineAuthority:
         local_target_hash: str | None = None
         reviewed_sources: RoutineSourcePolicy | None = None
         result_mode: Literal["report", "inbox"] = "report"
+        acts_as_creator = (
+            ctx.fired_as_creator is not None
+            if run is None
+            else not run.initiated_by_publisher_fallback
+        )
         if kind == "trigger":
             trigger = await agent_trigger_repo.get(db, origin, organization_id=ctx.organization_id)
             if trigger is None:
                 raise _refused()
+            if run is not None:
+                # Older snapshots predate this flag. Their reviewed source scope
+                # includes runs_as_creator, so check_in still refuses a changed mode.
+                recorded_actor = (run.routine_policy or {}).get(
+                    "acts_as_creator", trigger.runs_as_creator and acts_as_creator
+                )
+                if not isinstance(recorded_actor, bool):
+                    raise _refused()
+                acts_as_creator = recorded_actor
             mode = (
                 trigger.result_mode
                 if run is None
@@ -231,11 +247,7 @@ class RoutineAuthority:
             user_id=person,
             root_agent_id=agent_id,
             role=member.role,
-            acts_as_creator=(
-                ctx.fired_as_creator is not None
-                if run is None
-                else not run.initiated_by_publisher_fallback
-            ),
+            acts_as_creator=acts_as_creator,
             routine_kind="watch" if kind == "watch" else "trigger",
             result_mode=result_mode,
             sources=sources,
@@ -414,6 +426,16 @@ class RoutineAuthority:
         """Default to approval for effects; only current, snapshotted consent may waive it."""
         async with get_db_context() as db:
             await self.check_in(db, agent_id)
+            # The native loader has no registry capability_id. Its owned kind,
+            # not an MCP tool's claimed name/read-only hint, identifies a skill
+            # instruction read. Explicit agent gates still run in ApprovalGate.
+            if (
+                tool.name == READ_SKILL
+                and tool.tool_kind == SKILL_LOAD_KIND.id
+                and tool_origin(tool) is None
+                and any(binding.id == "skills" and binding.enabled for binding in spec.capabilities)
+            ):
+                return RoutineToolDecision()
             if tool.capability_id is None:
                 origin = tool_origin(tool)
                 if origin is not None:

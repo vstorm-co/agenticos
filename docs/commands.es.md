@@ -1,5 +1,5 @@
 ---
-source_sha: "705eb09a7704"
+source_sha: "6afbc24a10fe"
 ---
 
 # Comandos { #commands }
@@ -39,6 +39,7 @@ Ejecútalos desde el directorio raíz del proyecto.
 | `make desktop-check` | `bun test` sobre la mascota, luego rustfmt, clippy con los avisos denegados y los tests de Rust del envoltorio. No está en `lint` ni en `check`, porque CI todavía no tiene un toolchain de Rust |
 | `make audit` | Audita el conjunto de dependencias bloqueadas en busca de vulnerabilidades conocidas. Necesita red —una petición por distribución bloqueada—, así que su última línea dice en cuál de cuatro estados terminó en lugar de dejar ambigua una ejecución en rojo. Ver más abajo |
 | `make sandbox-token` | Genera el `SANDBOXD_TOKEN` propio del servicio de sandbox en `backend/.env`, una sola vez. `make dev` lo ejecuta por ti; nunca lo regenera, porque un token nuevo deja huérfano cada workspace que el servicio esté guardando. El formulario de conexión ofrece guardar ese mismo valor en el vault, así que no hay que pegarlo en ninguna parte |
+| `make seed-skills-lab` | Construye la organización Skills lab en un stack en marcha, para recorrer la mejora de un skill: un skill, `returns-policy`, que comparten varios agents, sus preguntas de prueba y chats valorados. Habla con el stack por HTTP, así que crea solo lo que falta y una segunda ejecución conserva lo que la gente cambió. El inicio de sesión del propietario y la clave del proveedor salen de `SKILLS_LAB_EMAIL`, `SKILLS_LAB_PASSWORD` y `SKILLS_LAB_OPENROUTER_KEY`; `SKILLS_LAB_URL` indica el stack. `PROBE=v1`, `broad`, `narrow` o `gift` mide una redacción del skill en una organización propia, y `DROP_PROBES=1` borra esas organizaciones |
 | `make clean` | Borra los archivos de caché (__pycache__, .pytest_cache, etc.) |
 
 ### Antes de un pull request { #before-a-pull-request }
@@ -328,6 +329,10 @@ uv run agenticos cmd <command-name> [options]
 
 ```bash
 # An organization, an owner, a model profile and a published agent. Idempotent.
+# --org names the organization bootstrap sets up. An account that already
+# exists gets one by that name, even if it runs another; its personal
+# organization is left alone. Without --org, it is the one the owner lands in.
+# A deployment's default organization still opens first at sign-in.
 uv run agenticos cmd bootstrap \
     --email owner@example.com --password secret \
     --org "Acme" --provider anthropic --api-key sk-ant-...
@@ -591,7 +596,8 @@ uv run agenticos cmd rag-drop docs --knowledge-base <knowledge-base-id> --yes
 un worker borra la tabla de vectores y los archivos guardados después del commit del
 comando. Un nombre que tienen varias bases de conocimiento - también en organizaciones
 distintas - se rechaza, con sus ids, hasta que `--knowledge-base` indique una; la tabla
-se queda entonces para las demás.
+se queda entonces para las demás. A diferencia del borrado desde la consola, también
+elimina la tabla de la última base aunque tenga fragmentos que no son de ninguna base.
 
 #### Sincronización con Google Drive { #google-drive-sync }
 

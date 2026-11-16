@@ -1,6 +1,6 @@
 "use client";
 
-import { TriangleAlert } from "lucide-react";
+import { ChevronDown, TriangleAlert } from "lucide-react";
 import { InboxIcon as Inbox } from "@/components/icons/product-icons";
 import type { LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -147,20 +147,19 @@ export function WidgetEmptyBody({
   icon?: LucideIcon;
 }) {
   return (
-    <div className="flex flex-1 items-center justify-center gap-3 py-3">
-      <span
-        aria-hidden
-        className="bg-foreground/[0.04] text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-xl"
-      >
-        <Icon className="size-4" />
-      </span>
-      <div className="max-w-64 min-w-0 space-y-1 text-left">
-        <p className="text-foreground text-sm font-medium">{title}</p>
-        {description ? (
-          <p className="text-muted-foreground text-xs leading-relaxed">{description}</p>
-        ) : null}
-      </div>
-    </div>
+    <details data-widget-empty className="group/empty min-w-0">
+      <summary className="focus-visible:outline-foreground flex cursor-pointer list-none items-center gap-2 rounded-md text-sm focus-visible:outline-2 [&::-webkit-details-marker]:hidden">
+        <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
+        <span className="text-foreground min-w-0 flex-1 text-xs font-medium">{title}</span>
+        <ChevronDown
+          className="text-muted-foreground size-3.5 shrink-0 transition-transform group-open/empty:rotate-180"
+          aria-hidden
+        />
+      </summary>
+      {description && (
+        <p className="text-muted-foreground mt-2 text-xs leading-relaxed">{description}</p>
+      )}
+    </details>
   );
 }
 

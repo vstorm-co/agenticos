@@ -18,6 +18,7 @@ the visitor typed.
 """
 
 import asyncio
+import logging
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -459,6 +460,86 @@ class TestAFileFromAStranger:
 
 
 class TestWhichFilesAFrameMayAttach:
+    async def test_oversized_invalid_attachment_lists_are_rejected_without_parsing_or_logging(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        session = _session(_embed(allow_files=True))
+        with (
+            caplog.at_level(logging.INFO, logger=MODULE),
+            patch(f"{MODULE}._attached_ids", wraps=_attached_ids) as parse,
+        ):
+            await session.handle({"type": "message", "file_ids": ["invalid"] * 10_000})
+        parse.assert_not_called()
+        assert _kinds(session) == ["error"]
+        assert "3 files" in _sent(session)[0][1]["message"]
+        assert not [record for record in caplog.records if record.name == MODULE]
+
+    def test_the_id_parser_bounds_oversized_lists_without_logging(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        with caplog.at_level(logging.INFO, logger=MODULE):
+            assert _attached_ids(["invalid"] * 10_000) == []
+        assert not [record for record in caplog.records if record.name == MODULE]
+
+    async def test_malformed_empty_messages_consume_the_connection_allowance(self) -> None:
+        session = _session(_embed(allow_files=True))
+        session.embed.rate_limit_per_minute = 1
+        await session.handle({"type": "message", "file_ids": ["invalid"] * 10_000})
+        await session.handle({"type": "message", "file_ids": ["invalid"]})
+        assert _sent(session)[-1][1]["message"] == "You are sending messages too quickly."
+
+    @pytest.mark.parametrize("visitor", ["anonymous", "signed-in-visitor"])
+    async def test_malformed_frames_do_not_spend_another_connections_visitor_allowance(
+        self, visitor: str
+    ) -> None:
+        embed = _embed(allow_files=True)
+        embed.rate_limit_per_minute = 1
+        noisy, legitimate = _session(embed), _session(embed)
+        noisy.visitor = legitimate.visitor = visitor
+        await noisy.handle({"type": "message", "file_ids": ["invalid"] * 10_000})
+        with patch.object(EmbedSession, "_turn_frames", AsyncMock(return_value=None)) as turn:
+            await legitimate.handle({"type": "message", "text": "hello"})
+        turn.assert_awaited_once()
+        assert _kinds(legitimate) == ["complete"]
+
+    async def test_valid_messages_still_share_the_visitor_allowance_across_connections(
+        self,
+    ) -> None:
+        embed = _embed(allow_files=True)
+        embed.rate_limit_per_minute = 1
+        first, second = _session(embed), _session(embed)
+        with patch.object(EmbedSession, "_turn_frames", AsyncMock(return_value=None)) as turn:
+            await first.handle({"type": "message", "text": "hello"})
+            await second.handle({"type": "message", "text": "hello"})
+        turn.assert_awaited_once()
+        assert _sent(second)[-1][1]["message"] == "You are sending messages too quickly."
+
+    def test_invalid_ids_produce_one_log_without_rendering_untrusted_values(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        with caplog.at_level(logging.INFO, logger=MODULE):
+            assert _attached_ids(["invalid", {"secret": "untrusted"}, "x" * 100_000]) == []
+        records = [record for record in caplog.records if record.name == MODULE]
+        assert len(records) == 1
+        assert records[0].__dict__["rejected_count"] == 3
+        assert "untrusted" not in caplog.text
+
+    async def test_valid_file_ids_reach_the_turn_in_order_without_rejection_logs(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        session = _session(_embed(allow_files=True))
+        ids = [uuid.uuid4(), uuid.uuid4()]
+        with (
+            caplog.at_level(logging.INFO, logger=MODULE),
+            patch.object(EmbedSession, "_turn_frames", AsyncMock(return_value=None)) as turn,
+        ):
+            await session.handle(
+                {"type": "message", "text": "look", "file_ids": [str(ids[0]), ids[1].hex]}
+            )
+        turn.assert_awaited_once_with("look", ids)
+        assert _kinds(session) == ["complete"]
+        assert not [record for record in caplog.records if record.name == MODULE]
+
     async def test_a_frame_naming_more_than_the_cap_is_refused_whole(self) -> None:
         session = _session(_embed(allow_files=True))
 

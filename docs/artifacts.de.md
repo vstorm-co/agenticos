@@ -1,5 +1,5 @@
 ---
-source_sha: "df184b376180"
+source_sha: "bbe82e47bf65"
 ---
 
 # Apps { #artifacts }
@@ -16,6 +16,10 @@ Workspace haben bereits ein Zuhause im Chat und im [Workspace](sandbox.md). Eine
 App ist das, was *ausgeliefert* wird: Sie hat einen Besitzer, eine
 Sichtbarkeit und Grants wie ein Agent oder ein Skill, und sie kann einen
 öffentlichen Link für jemanden ohne Konto bekommen.
+
+## Kennzeichnung geteilter Seiten { #shared-page-attribution }
+
+Öffentliche App-Ansichten zeigen standardmäßig ein schwebendes Badge mit dem AgenticOS-Logo und einem GitHub-Link. Geteilte Unterhaltungen zeigen dasselbe Badge unter der Unterhaltung. Owner oder Admins können die Fußzeile für die gesamte Organisation unter **Organisationseinstellungen → Governance → AgenticOS auf geteilten Seiten** ausblenden. Beim nächsten Seitenaufruf gilt die aktuelle Einstellung. Passwortgeschützte Apps zeigen die Fußzeile erst nach dem Entsperren. Die Fußzeile gehört zur Ansicht; heruntergeladene Dateien und eingebettete App-Inhalte werden nicht verändert.
 
 ## App-Darstellung { #app-appearance }
 
@@ -1010,7 +1014,7 @@ Schalten Sie **Preview screenshot** in den Einstellungen der Capability für ein
 Modell aus, das keine Bilder lesen kann; der Bericht kommt weiterhin zurück.
 `agenticos cmd doctor` sagt, ob der Renderer antwortet.
 
-Drei weitere mitgelieferte Skills bauen eine **Präsentation** als App: `presentation-decks` (eine fertige Vorlage mit 16:9-Folienrahmen, Tastatur- und Touch-Navigation, Sprechernotizen auf `n` und einer Folie pro Seite beim PDF-Druck), `deck-storyline` (Publikum, Entscheidung und eine Linie aus Aussagen, bevor eine Folie entsteht) und `deck-review` (Titel, die sich als Argument lesen, eine Aussage pro Folie, jede Zahl belegt, aus der Ferne lesbar). Sie bringen keine Bibliothek und keinen PowerPoint-Export mit.
+Drei weitere mitgelieferte Skills bauen eine **Präsentation** als App: `presentation-decks` (die abwechslungsreiche 16:9-HTML-Präsentation aus `artifact-pages`, mit Tastaturnavigation, Übersicht, Palettenauswahl und einer Folie pro Druckseite), `deck-storyline` (Publikum, Entscheidung und eine Linie aus Aussagen, bevor eine Folie entsteht) und `deck-review` (Titel, die sich als Argument lesen, eine Aussage pro Folie, jede Zahl belegt, aus der Ferne lesbar). Sie bringen keine Bibliothek und keinen PowerPoint-Export mit.
 
 ## Visuals { #visuals }
 
@@ -1070,7 +1074,7 @@ seiner Antwort: dass kein Kartenserver angebunden ist und dass ein Administrator
 echte Karten mit dieser Einstellung einschaltet. Das Bild einer Karte in
 einer Chat-App wird fertig gezeichnet, mit allen Pins an ihrem Platz.
 
-**Weltkarten brauchen keinen.** Für alles rund um Länder - Kunden nach Land, Standorte, eine Route zwischen zwei Städten - zeichnet `AOWorldMap` eine SVG-Karte aus Ländergrenzen, die das Deployment selbst ausliefert: kein Kachelserver, kein Netz, kein zusätzlicher Container. Der Agent bevorzugt sie; die Kachelkarte bleibt für die Straßenebene.
+**Weltkarten brauchen keinen.** Für alles rund um Länder - Kunden nach Land, Standorte, eine Route zwischen zwei Städten - zeichnet `AOWorldMap` eine SVG-Karte aus Ländergrenzen, die das Deployment selbst ausliefert: kein Kachelserver, kein Netz, kein zusätzlicher Container. Dies ist der Standard für neue Karten, auch für Reiserouten zwischen Städten. Der Agent lädt die mitgelieferten Ländergrenzen und zeichnet Pins und Verbindungen ohne zusätzliche Konfiguration. Straßenkarten bleiben über `VISUAL_MAP_TILES` eine Option für Administratoren; bei nicht verfügbaren Kacheln soll der Agent diese SVG-Karte verwenden.
 
 **Die Form wählen.** Der Skill `visual-design` sagt dem Agent, wann eine Zeichnung
 überhaupt die richtige Antwort ist: Text für eine Tatsache oder einen Rat, eine
@@ -1566,3 +1570,13 @@ Deployments, unter `artifacts/<organization>/<artifact>/`.
 - Archivieren behält eine Seite und liefert nichts von ihr aus, den öffentlichen
   Link ausgeschaltet, bis jemand, der sie bearbeiten darf, sie wiederherstellt.
 - Eine eigene Aufbewahrungsklasse, gemessen ab der letzten Veröffentlichung.
+
+## Vorschauen laden und teilen { #preview-loading-and-sharing }
+
+Chat-Vorschauen reservieren Platz, während der Visual-Renderer oder das App-Vorschaubild lädt. Sie werden nach dem Rendern oder Dekodieren eingeblendet; die Einstellung für reduzierte Bewegung deaktiviert die Animation. App-Listen verwenden zwischengespeicherte statische Vorschaubilder pro Version, statt beim Zurückkehren jede App erneut auszuführen.
+
+Der Apps-Skill enthält interaktive HTML-Präsentationen, PDF-Druckstile und wiederverwendbare Komponentenbeispiele. PDF-Export benötigt den konfigurierten Renderer; reine Validierung beweist keine erfolgreiche Skriptausführung. Diagramme, Tabellen und interaktive Inhalte müssen in der gerenderten Vorschau geprüft werden. PowerPoint-Export ist nicht enthalten.
+
+Das Plattform-MCP-Tool `create_app_public_link` benötigt Bearbeitungszugriff und die ausdrückliche Bestätigung der öffentlichen Freigabe. Es verwendet vorhandene Links weiter und erhält Passwort, Ablaufdatum und festgelegte Version. Live-Daten benötigen eine separate Zustimmung des Eigentümers. Ein Aufruf ist erst erfolgreich, wenn die API die öffentliche URL bestätigt.
+
+Das mitgelieferte Präsentationsbeispiel nutzt fünf unterschiedliche Kompositionen: illustriertes Titelblatt, große Kennzahl, Vergleich, Ablauf und Entscheidung. Das Berichtsbeispiel berechnet ausgewählte Summen und Diagramm aus denselben Anzahlen. Visual design enthält außerdem ein prozedurales Produktstudio mit abgerundeten Formen, Materialvarianten, lokaler Studiobeleuchtung, Bauteiltrennung, benannten Ansichten und einer WebGL-Ersatzansicht. Dies sind anpassbare HTML-Beispiele, kein PowerPoint- oder Fertigungsmodellexport. Bestehende Organisationen erhalten Skill-Versionen über den normalen Bibliotheks- und Prüfablauf; lokal bearbeitete Kopien bleiben geschützt.

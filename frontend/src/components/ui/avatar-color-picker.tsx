@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -15,7 +16,7 @@ export interface AvatarColorPickerProps {
 }
 
 const SWATCH =
-  "h-7 w-7 touch:h-11 touch:w-11 touch-manipulation rounded-full border border-border/60 transition-shadow outline-none";
+  "h-7 w-7 touch:h-11 touch:w-11 touch-manipulation rounded-full border border-border/60 transition-shadow appearance-none forced-colors:appearance-auto focus-visible:ring-2 focus-visible:ring-foreground/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background outline-none";
 const SELECTED = "ring-ring ring-offset-background ring-2 ring-offset-2";
 
 /**
@@ -34,36 +35,39 @@ export function AvatarColorPicker({
   className,
 }: AvatarColorPickerProps) {
   const t = useTranslations("avatarColor");
+  const name = useId();
   return (
     <div
       role="radiogroup"
       aria-label={t("label")}
       className={cn("flex flex-wrap items-center gap-2", className)}
     >
-      <button
-        type="button"
-        role="radio"
-        aria-checked={value == null}
-        aria-label={t("auto")}
-        disabled={disabled}
-        onClick={() => onChange(null)}
-        className={cn(
-          SWATCH,
-          "bg-muted text-muted-foreground flex items-center justify-center disabled:opacity-50",
-          value == null && SELECTED,
-        )}
-      >
-        <Sparkles className="h-3.5 w-3.5" aria-hidden />
-      </button>
+      <label className="relative grid place-items-center">
+        <input
+          type="radio"
+          name={name}
+          value="auto"
+          checked={value == null}
+          aria-label={t("auto")}
+          disabled={disabled}
+          onChange={() => onChange(null)}
+          className={cn(SWATCH, "bg-muted disabled:opacity-50", value == null && SELECTED)}
+        />
+        <Sparkles
+          className="text-muted-foreground pointer-events-none absolute size-3.5 forced-colors:hidden"
+          aria-hidden
+        />
+      </label>
       {AVATAR_COLORS.map(({ slot, palette }) => (
-        <button
+        <input
           key={slot}
-          type="button"
-          role="radio"
-          aria-checked={value === slot}
+          type="radio"
+          name={name}
+          value={slot}
+          checked={value === slot}
           aria-label={t("option", { n: slot })}
           disabled={disabled}
-          onClick={() => onChange(slot)}
+          onChange={() => onChange(slot)}
           className={cn(SWATCH, palette.bg, "disabled:opacity-50", value === slot && SELECTED)}
         />
       ))}

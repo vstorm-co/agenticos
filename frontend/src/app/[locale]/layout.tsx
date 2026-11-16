@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
+import { AccountNotices } from "@/components/layout/account-notices";
 import { CookieBanner } from "@/components/legal/cookie-banner";
 import { locales, type Locale } from "@/i18n";
 import { OG_LOCALE, SITE, siteOrigin } from "@/lib/seo";
@@ -57,13 +58,14 @@ export default async function LocaleLayout({
   const t = await getTranslations("common");
 
   return (
-    <Providers>
+    <Providers toastCloseLabel={t("close")}>
       <NextIntlClientProvider messages={messages}>
         <a href="#main" className="skip-link">
           {t("skipToContent")}
         </a>
         {children}
         <DesktopAccessBridge />
+        <AccountNotices />
         <CookieBanner />
       </NextIntlClientProvider>
     </Providers>

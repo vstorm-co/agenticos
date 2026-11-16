@@ -172,11 +172,32 @@ class TestAnOrgBaseNewerThanAPersonalBaseOfTheName:
         assert source.knowledge_base_id == org_base.id
         assert [s.id for s in await access.kb_sync_sources(ctx, org_base)] == [source.id]
         assert await access.kb_sync_sources(ctx, personal) == []
-        assert (await access.kb_sync_source(org_base, str(source.id))).id == source.id
+        assert (await access.kb_sync_source(ctx, org_base, str(source.id))).id == source.id
         with pytest.raises(NotFoundError):
-            await access.kb_sync_source(personal, str(source.id))
+            await access.kb_sync_source(ctx, personal, str(source.id))
         logs = await access.readable_sync_log_scope(ctx, NAME)
         assert logs.sync_source_ids == [source.id]
+
+    @pytest.mark.parametrize("manual", [False, True], ids=["scheduled", "manual"])
+    async def test_sync_admission_keeps_the_pinned_base_in_the_run_log(
+        self, db: AsyncSession, manual: bool
+    ) -> None:
+        seeded = await self._seed(db)
+        source, ctx = seeded["source"], seeded["ctx"]
+        org_base = seeded["org_base"]
+        assert isinstance(source, SyncSource) and isinstance(ctx, AuthContext)
+        assert isinstance(org_base, KnowledgeBase)
+        service = SyncSourceService(db)
+
+        log = (
+            await service.trigger_sync(str(source.id), user_id=ctx.user_id)
+            if manual
+            else await service.open_sync_log(source, collection_name=NAME)
+        )
+
+        assert log.knowledge_base_id == org_base.id
+        assert log.organization_id == source.organization_id
+        assert log.sync_source_id == source.id
 
     async def test_its_sync_writes_under_the_org_base(self, db: AsyncSession) -> None:
         """The content: the sync stamps and scopes every row by the base it reads here."""
@@ -431,7 +452,7 @@ def _migration() -> ModuleType:
         Path(__file__).resolve().parents[2]
         / "alembic"
         / "versions"
-        / "0296_sync_source_knowledge_base.py"
+        / "0333_sync_source_knowledge_base.py"
     )
     spec = importlib.util.spec_from_file_location("sync_source_knowledge_base_under_test", path)
     assert spec is not None and spec.loader is not None
@@ -474,7 +495,7 @@ class TestTheUpgradesBackfill:
         db.add_all([oldest_of_org, app_fallback, unattributable, paused, template, already, tie])
         await db.flush()
         expected = {}
-        for source in (oldest_of_org, app_fallback, unattributable):
+        for source in (oldest_of_org, app_fallback, unattributable, tie):
             assert source.collection_name is not None
             chosen = knowledge_base_repo.choose_for_collection(
                 await knowledge_base_repo.list_by_collection_name(db, source.collection_name),
@@ -494,19 +515,18 @@ class TestTheUpgradesBackfill:
             oldest_of_org.id: personal.id,
             app_fallback.id: app_base.id,
             unattributable.id: None,
+            tie.id: min(tied_a.id, tied_b.id),
         }
-        for source in (oldest_of_org, app_fallback, unattributable):
+        for source in (oldest_of_org, app_fallback, unattributable, tie):
             assert source.knowledge_base_id == expected[source.id]
         assert oldest_of_org.is_active and app_fallback.is_active
         assert not unattributable.is_active and unattributable.collection_name == "manuals"
         assert sorted(reported) == sorted(
             [
-                (str(unattributable.id), str(org_3.id), "manuals", False),
-                # The earlier code ordered by `created_at` alone: no defined winner.
-                (str(tie.id), str(org_4.id), "tied", True),
+                (str(unattributable.id), str(org_3.id), "manuals"),
             ]
         )
-        assert tie.knowledge_base_id is None and not tie.is_active
+        assert tie.knowledge_base_id == min(tied_a.id, tied_b.id) and tie.is_active
         assert paused.knowledge_base_id is None and not paused.is_active
         # Kept where it synced, and reported: org 1 also has an org base of the name.
         assert on_personal == [(str(oldest_of_org.id), str(org_1.id), NAME)]
@@ -567,12 +587,12 @@ class TestTheUpgradesBackfill:
         assert carried.knowledge_base_id == app_of_org_4.id
         assert sorted(reported) == sorted(
             [
-                (str(on_tied_apps.id), str(org_2.id), "apps", True),
                 # A personal base of no organization is nobody's to sync into.
-                (str(not_a_members.id), str(org_5.id), "mine", False),
+                (str(not_a_members.id), str(org_5.id), "mine"),
             ]
         )
-        assert on_tied_apps.knowledge_base_id is None and not on_tied_apps.is_active
+        assert on_tied_apps.knowledge_base_id == min(app_tie_a.id, app_tie_b.id)
+        assert on_tied_apps.is_active
         assert not_a_members.knowledge_base_id is None and not not_a_members.is_active
 
 
@@ -603,7 +623,9 @@ class TestTheDowngrade:
         on_oldest = _source(organization.id, kb=oldest)
         paused = _source(organization.id, kb=newer)
         paused.is_active = False
-        on_a_tie = _source(organization.id, kb=tied_a, name="tied")
+        tie_winner, tie_other = sorted([tied_a, tied_b], key=lambda kb: kb.id)
+        on_a_tie = _source(organization.id, kb=tie_other, name="tied")
+        on_tie_winner = _source(organization.id, kb=tie_winner, name="tied")
         # Its base went without the teardown: the foreign key set it to NULL.
         unpinned = _source(organization.id, kb=None)
         # Unpinned on a name with no single answer, or none at all: the earlier
@@ -617,6 +639,7 @@ class TestTheDowngrade:
             on_oldest,
             paused,
             on_a_tie,
+            on_tie_winner,
             unpinned,
             unpinned_on_a_tie,
             unpinned_nowhere,
@@ -636,8 +659,8 @@ class TestTheDowngrade:
         assert sorted(reported) == sorted(
             [
                 (str(on_newer.id), org, NAME, "elsewhere"),
-                # No single base the earlier code would pick: stopped as well.
-                (str(on_a_tie.id), org, "tied", "unresolved"),
+                # Downgrade must preserve the current deterministic winner.
+                (str(on_a_tie.id), org, "tied", "elsewhere"),
                 # This revision never syncs them; the earlier code would, by name.
                 (str(unpinned.id), org, NAME, "unpinned"),
                 (str(unpinned_on_a_tie.id), org, "tied", "unpinned"),
@@ -649,4 +672,5 @@ class TestTheDowngrade:
         assert template.is_active
         assert not on_newer.is_active
         assert on_oldest.is_active
+        assert on_tie_winner.is_active
         assert not paused.is_active

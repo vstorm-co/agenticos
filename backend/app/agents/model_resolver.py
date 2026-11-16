@@ -9,7 +9,7 @@ So the model is constructed **per run** from the vault:
     profile -> credential -> unsealed secret -> provider client -> Model
 
 There used to be one hand-written builder per provider, and four providers. That
-does not scale to the thirty-one Pydantic AI ships, and it does not need to:
+does not scale to the provider set Pydantic AI ships, and it does not need to:
 :func:`pydantic_ai.providers.infer_provider_class` finds the class and
 :func:`pydantic_ai.models.infer_model` picks the right model wrapper for it. What
 this module still owns is the part inference cannot know - **which credential
@@ -29,8 +29,9 @@ Four provider names Pydantic AI knows are deliberately absent. `bedrock-mantle`,
 point at - the last two are embedding models - and `gateway` does not resolve
 to a provider class at all: it is a routing prefix over the others.
 
-Everything else Pydantic AI ships is here. Three of them (`xai`, `cohere`,
-`huggingface`) need an SDK of their own, so they are in this repository's
+The catalog is the subset with credential contracts implemented here. Exposing
+another SDK provider also needs those contracts and construction tests. Three
+entries (`xai`, `cohere`, `huggingface`) need an SDK of their own, so they are in this repository's
 `pydantic-ai-slim` extras: a provider selectable in the Builder that raises
 `ImportError` when a run reaches it would be worse than one nobody can pick.
 
@@ -71,7 +72,7 @@ from app.core.secret_kinds import (
 if TYPE_CHECKING:
     from pydantic_ai.providers.openai_codex import OpenAICodexCredentialSource
 
-ModelApi = Literal["chat", "responses"]
+ModelApi = Literal["chat", "responses", "decisions"]
 """Which of OpenAI's two APIs a profile's requests go to: Chat Completions or Responses."""
 
 
@@ -147,7 +148,18 @@ class ProviderSpec:
     @property
     def apis(self) -> tuple[ModelApi, ...]:
         """The APIs a profile may choose between; empty where there is no choice."""
-        return ("responses", "chat") if self.native_api is not None else ()
+        ordinary: tuple[ModelApi, ...] = (
+            ("chat",)
+            if self.id in {"google", "openrouter"}
+            else ("responses", "chat")
+            if self.native_api is not None
+            else ()
+        )
+        return (
+            (*ordinary, "decisions")
+            if self.id in {"openai", "google", "openrouter", "typesafe", "system-one"}
+            else ordinary
+        )
 
     def default_api(self, base_url: str | None) -> ModelApi | None:
         """The API a profile gets when it names none.
@@ -157,6 +169,10 @@ class ProviderSpec:
         a gateway or a regional OpenAI endpoint that serves Responses is a choice
         the profile makes explicitly.
         """
+        if self.id in {"typesafe", "system-one"}:
+            return "decisions"
+        if self.id in {"google", "openrouter"}:
+            return "chat"
         if self.native_api is None:
             return None
         return self.native_api if base_url is None else "chat"
@@ -256,6 +272,14 @@ PROVIDERS: dict[str, ProviderSpec] = {
         ),
         _api_key("anthropic", "Anthropic", base_url_param="base_url"),
         _api_key("google", "Google Gemini", base_url_param="base_url"),
+        _api_key("typesafe", "TypeSafe (Jev)", base_url_param="base_url"),
+        _api_key(
+            "system-one",
+            "System One API",
+            base_url_param="base_url",
+            keyless=True,
+            requires_base_url=True,
+        ),
         _api_key("openrouter", "OpenRouter", base_url_param="base_url"),
         _api_key(
             "otari",
@@ -567,6 +591,8 @@ def build_model(credential: ResolvedCredential, model: str) -> Model:
 
 def _build_model(credential: ResolvedCredential, model: str) -> Model:
     spec = get_provider(credential.provider)
+    if is_decision_api(credential.provider, credential.api):
+        return _build_decision_model(credential, model)
     if credential.api == "responses":
         # Local for the reason `_build_provider`'s are: a deployment that never
         # configures OpenAI should not import its SDK at startup.
@@ -591,6 +617,47 @@ def _build_model(credential: ResolvedCredential, model: str) -> Model:
         f"{spec.prefix}:{model}",
         provider_factory=lambda _: _build_provider(spec, credential),
     )
+
+
+def is_decision_api(provider: str, api: ModelApi | str | None) -> bool:
+    """Decision-only endpoints must not be mistaken for conversational models."""
+    return api == "decisions" or provider in {"typesafe", "system-one"}
+
+
+def _build_decision_model(credential: ResolvedCredential, model: str) -> Model:
+    """Use Pydantic AI's native decision transports, preserving the chosen account."""
+    from pydantic_ai.models.google_decisions import GoogleDecisionsModel
+    from pydantic_ai.models.openai_decisions import OpenAIDecisionsModel
+    from pydantic_ai.models.system_one import SystemOneModel
+    from pydantic_ai.models.typesafe import TypeSafeModel
+    from pydantic_ai.providers.google import GoogleProvider
+    from pydantic_ai.providers.system_one import SystemOneProvider
+    from pydantic_ai.providers.typesafe import TypeSafeProvider
+
+    if credential.provider in {"openrouter", "system-one"}:
+        secret = credential.secret
+        if not isinstance(secret, (ApiKeySecret, NoSecret)):
+            raise BadRequestError(
+                message="A decision endpoint requires an API key or keyless connection"
+            )
+        endpoint = credential.base_url or "https://openrouter.ai/api/v1"
+        return SystemOneModel(
+            model,
+            provider=SystemOneProvider(
+                base_url=endpoint,
+                api_key=secret.api_key.get_secret_value()
+                if isinstance(secret, ApiKeySecret)
+                else "",
+            ),
+        )
+    provider = _build_provider(get_provider(credential.provider), credential)
+    if credential.provider == "openai" and isinstance(provider, OpenAIProvider):
+        return OpenAIDecisionsModel(model, provider=provider)
+    if credential.provider == "google" and isinstance(provider, GoogleProvider):
+        return GoogleDecisionsModel(model, provider=provider)
+    if credential.provider == "typesafe" and isinstance(provider, TypeSafeProvider):
+        return TypeSafeModel(model, provider=provider)
+    raise BadRequestError(message="This provider does not serve a supported decision API")
 
 
 def _openrouter_model(spec: ProviderSpec, credential: ResolvedCredential, model: str) -> Model:

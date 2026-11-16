@@ -1,16 +1,10 @@
 import { fireEvent, render } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { PageTransition } from "./page-transition";
 import { PAGE_CLEARANCE } from "@/lib/page-clearance";
 
 let pathname = "/";
-const motion = vi.hoisted(() => ({ reduced: false }));
-vi.mock("@/lib/motion", () => ({ prefersReducedMotion: () => motion.reduced }));
-afterEach(() => {
-  motion.reduced = false;
-  vi.restoreAllMocks();
-});
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname,
 }));
@@ -45,48 +39,6 @@ describe("the page transition wrapper", () => {
     expect(view.container.firstElementChild).toBe(frame);
     expect(view.getByRole("textbox")).toBe(input);
     expect(input).toHaveValue("Still writing");
-  });
-
-  it("cancels an in-progress reveal and honors reduced motion", () => {
-    const cancel = vi.fn();
-    const animate = vi.fn(() => ({ cancel }));
-    const previousAnimate = HTMLElement.prototype.animate;
-    Object.defineProperty(HTMLElement.prototype, "animate", { configurable: true, value: animate });
-    try {
-      pathname = "/agents";
-      const view = render(
-        <PageTransition>
-          <span />
-        </PageTransition>,
-      );
-      expect(animate).not.toHaveBeenCalled();
-      pathname = "/projects";
-      view.rerender(
-        <PageTransition>
-          <span />
-        </PageTransition>,
-      );
-      expect(animate).toHaveBeenCalledWith(
-        [{ opacity: 0.65 }, { opacity: 1 }],
-        expect.objectContaining({ duration: 160 }),
-      );
-      motion.reduced = true;
-      pathname = "/settings/account";
-      view.rerender(
-        <PageTransition>
-          <span />
-        </PageTransition>,
-      );
-      expect(cancel).toHaveBeenCalledTimes(1);
-      expect(animate).toHaveBeenCalledTimes(1);
-      view.unmount();
-    } finally {
-      Object.defineProperty(HTMLElement.prototype, "animate", {
-        configurable: true,
-        value: previousAnimate,
-      });
-      vi.unstubAllGlobals();
-    }
   });
 
   it("constrains its height on the chat route so only the message pane scrolls", () => {
@@ -135,19 +87,8 @@ describe("the page transition wrapper", () => {
     expect(rootClasses("/en/chat")).not.toContain("pb-");
   });
 
-  it("does not constrain Activity, which has been an ordinary scrolling page since #914", () => {
-    // The run detail is `sticky` inside the page's own scroll, not a pane with a
-    // scrollbar of its own - the page's root says so (`flex flex-col`). This
-    // test asserted the opposite, which was true before the page was rebuilt.
-    expect(rootClasses("/en/runs")).not.toContain("min-h-0");
-  });
-
-  it("leaves Activity to place its own room, because a sticky panel is clamped to it", () => {
-    // Padding on this box shortens the containing block the run detail may pin
-    // in: 64px of it put the panel's top at -48px at maximum scroll and cut its
-    // own header off by 56px, measured at 1440x800 in Chromium. Activity
-    // declares `PAGE_CLEARANCE` on its list column instead, where it lands under
-    // the last row and the row itself still ends at the viewport (#1206).
+  it("constrains Activity so the history and inspector fill the viewport", () => {
+    expect(rootClasses("/en/runs")).toContain("min-h-0");
     expect(rootClasses("/en/runs")).not.toContain("pb-");
   });
 
@@ -163,4 +104,11 @@ it("bounds paged admin lists without constraining organization detail pages", ()
   expect(rootClasses("/en/admin/users")).toContain("min-h-0");
   expect(rootClasses("/pl/admin/organizations")).toContain("min-h-0");
   expect(rootClasses("/en/admin/organizations/org-id")).not.toContain("min-h-0");
+});
+
+it("bounds the permission matrix while keeping other organization forms scrollable", () => {
+  expect(rootClasses("/orgs/org-id/roles")).toContain("min-h-0");
+  expect(rootClasses("/pl/orgs/org-id/roles")).toContain("min-h-0");
+  expect(rootClasses("/orgs/org-id/retention")).not.toContain("min-h-0");
+  expect(rootClasses("/orgs/org-id/directory")).not.toContain("min-h-0");
 });
