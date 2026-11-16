@@ -175,7 +175,11 @@ for (const platform of ["ios", "android"] as const) {
     test("uses touch targets throughout settings and preserves the viewport", async ({ page }) => {
       test.setTimeout(60_000);
       await page.goto("/settings/profile");
-      await expectTouchTarget(page.getByRole("radio", { name: /^Standard/ }));
+      await expectTouchTarget(
+        page
+          .getByRole("radiogroup", { name: "Style", exact: true })
+          .getByRole("radio", { name: /^Standard/ }),
+      );
       const theme = page
         .locator('[data-tour="settings-appearance"]')
         .getByRole("radio", { name: "Dark", exact: true });

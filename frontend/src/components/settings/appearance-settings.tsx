@@ -178,6 +178,7 @@ function AppearanceEditor({
             className="inline-block px-4 py-2"
             style={{
               borderRadius: APPEARANCE_RADII[draft.radius],
+              // i18n-exempt: CSS colour coordinates for the preview.
               background: `oklch(48% ${draft.accent === "default" ? 0 : 0.16} ${ACCENT_HUES[draft.accent]})`,
               color: "white",
             }}

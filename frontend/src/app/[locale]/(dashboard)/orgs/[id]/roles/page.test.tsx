@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Suspense } from "react";
@@ -20,11 +21,16 @@ vi.mock("@/hooks", () => ({
 vi.mock("@/components/dashboard/page-header", () => ({ PageHeader: () => null }));
 
 it("makes the wide permission matrix reachable by keyboard and names its headers", async () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
   await act(async () => {
     render(
-      <Suspense>
-        <RolesPage params={Promise.resolve({ id: "org-1" })} />
-      </Suspense>,
+      <QueryClientProvider client={queryClient}>
+        <Suspense>
+          <RolesPage params={Promise.resolve({ id: "org-1" })} />
+        </Suspense>
+      </QueryClientProvider>,
     );
   });
   const matrix = await screen.findByRole("region", { name: "Permission matrix" });

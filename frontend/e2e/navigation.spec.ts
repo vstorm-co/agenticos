@@ -153,7 +153,9 @@ test.describe("Dashboard navigation", () => {
   test("the role matrix is reachable from an organization", async ({ page }) => {
     await gotoRoleMatrix(page);
 
-    await expect(page.getByText("Permission matrix")).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "Permission matrix", exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole("columnheader", { name: "Permission" })).toBeVisible();
 
     // The matrix is served by the backend, so a row from the real catalog is

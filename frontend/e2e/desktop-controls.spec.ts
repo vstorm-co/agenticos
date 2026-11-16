@@ -241,6 +241,7 @@ test.describe("desktop pointer controls", () => {
     await page.goto("/settings/profile");
     const appearance = page.locator('[data-tour="settings-appearance"]');
     await expect(appearance).toBeVisible();
+    const styles = appearance.getByRole("radiogroup", { name: "Style", exact: true });
     for (const theme of ["Light", "Dark"]) {
       await page.setViewportSize(
         theme === "Light" ? { width: 1440, height: 1000 } : { width: 900, height: 640 },
@@ -258,11 +259,11 @@ test.describe("desktop pointer controls", () => {
         if (name === "Standard")
           await expect(page.locator("html")).not.toHaveAttribute("data-look");
         else await expect(page.locator("html")).toHaveAttribute("data-look", name.toLowerCase());
-        await expect(appearance.getByRole("radio", { name: new RegExp(`^${name}`) })).toBeChecked();
+        await expect(styles.getByRole("radio", { name: new RegExp(`^${name}`) })).toBeChecked();
         await expect(appearance.getByRole("radio", { name: theme, exact: true })).toBeChecked();
       }
       await page.reload();
-      await expect(appearance.getByRole("radio", { name: /^Paper/ })).toBeChecked();
+      await expect(styles.getByRole("radio", { name: /^Paper/ })).toBeChecked();
       await expect(appearance.getByRole("radio", { name: theme, exact: true })).toBeChecked();
       await appearance.scrollIntoViewIfNeeded();
       await page
