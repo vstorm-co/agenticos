@@ -1,14 +1,26 @@
 ---
-source_sha: "843319d0a892"
+source_sha: "55783c9dd015"
 ---
 
 # Wbudowane integracje { #built-in-integrations }
 
 Konta osobiste podłączysz w **Ustawienia czatu → Preferencje → Twoje konta** pod `/chat` albo **Ustawienia → Profil → Twoje podłączone konta**. Konta organizacji podłącza się w **Vault → Podłącz konto**. Możesz dodać kilka kont tej samej usługi. Każdy produkt Google, Microsoft lub Slack jest osobną capability w **Toolbox** agenta. Integracje korzystają bezpośrednio z API dostawców; nie wymagają ich serwerów MCP, Google Workspace MCP preview ani licencji Microsoft Copilot.
 
+
+## Kontynuuj z AgenticOS { #continue-with-agenticos }
+
+Okno konta oferuje **Kontynuuj z AgenticOS** lub **Użyj własnych credentials**. Pierwsza opcja korzysta ze wspólnej aplikacji OAuth przez [AgenticOS Bridge](https://github.com/vstorm-co/agenticos-bridge), działający wyłącznie jako API, bez klienta OAuth organizacji. Ustaw `OAUTH_BRIDGE_URL=https://bridge-agenticos.testapp.ovh` w backendzie. Pusta wartość wyłącza bridge. Opcja jest niedostępna, jeśli bridge lub aplikacja dostawcy nie są gotowe. Operator może też uruchomić własny bridge pod adresem HTTPS.
+
+Przez bridge przechodzą tylko wymiana kodu OAuth i odświeżanie. Tokeny są szyfrowane w Vault tej instancji, przypisanym do właściciela; dane robocze trafiają bezpośrednio do Google, Microsoft lub Slacka. Bridge ma credentials aplikacji i klucz szyfrowania w konfiguracji serwera, bez bazy tokenów użytkowników. Szyfrowane bilety mają termin ważności i wymagają PKCE; odświeżanie wymaga potwierdzenia przypisanego do tokena i aplikacji OAuth. Operator bridge’a pozostaje zaufaną stroną, bo tokeny chwilowo są w pamięci jego procesu. Nadal obowiązują weryfikacja dostawcy, zasady dystrybucji i zgody administratorów tenantów.
+
+Bridge obsługuje natywne capabilities produktów oraz konta osobiste i organizacji, także kilka równocześnie. Mounty Mirage wymagające sekretu aplikacji OAuth nadal korzystają z własnych credentials. Ponowne połączenie zachowuje źródło credentials. Zmiana adresu bridge’a wymaga ponownego podłączenia kont; tokeny nigdy nie są przekazywane innemu brokerowi.
+
+Bridge domyślnie dopuszcza wskazane originy instancji. Jawny wildcard można włączyć po weryfikacji dostawców i przeglądzie ryzyka nadużyć. Nie czyni to niezaufanych instancji docelowych bezpiecznymi. Przed uruchomieniem wspólnego brokera przeczytaj jego dokumentację bezpieczeństwa.
+
+
 ## Konfiguracja konta { #set-up-an-account }
 
-Najpierw administrator otwiera **Vault → Integracje**, konfiguruje aplikację dostawcy i zapisuje jednego klienta OAuth widocznego dla organizacji. Ten etap pokazuje dokładny callback, konsolę i uprawnienia. „Zapisano klienta OAuth” potwierdza tylko zapis konfiguracji; dostawca może nadal wymagać zgody lub zatwierdzenia aplikacji. Brak klienta albo kilka klientów blokuje logowanie i wskazuje potrzebę działania administratora. Potem użytkownik wybiera aplikacje i loguje się z czatu lub profilu, bez konfigurowania konsoli dostawcy. Domyślny jest odczyt; zapis wymaga jawnego wyboru.
+Przy własnych credentials najpierw administrator otwiera **Vault → Integracje**, konfiguruje aplikację dostawcy i zapisuje jednego klienta OAuth widocznego dla organizacji. Ten etap pokazuje dokładny callback, konsolę i uprawnienia. „Zapisano klienta OAuth” potwierdza tylko zapis konfiguracji; dostawca może nadal wymagać zgody lub zatwierdzenia aplikacji. Brak klienta albo kilka klientów blokuje logowanie i wskazuje potrzebę działania administratora. Potem użytkownik wybiera aplikacje i loguje się z czatu lub profilu, bez konfigurowania konsoli dostawcy. Domyślny jest odczyt; zapis wymaga jawnego wyboru.
 
 Google: utwórz projekt Cloud, włącz wskazane API (kreator podaje polecenie `gcloud services enable`), skonfiguruj ekran zgody i klienta OAuth typu **Web application**. Skopiuj callback i zapisz `google_oauth_app`. Internal służy organizacji Workspace będącej właścicielem projektu. Tokeny odświeżania aplikacji External w trybie Testing mogą wygasać po siedmiu dniach. Zwykła integracja API nie wymaga klienta AI-powered-agent ani API hostowanego MCP.
 

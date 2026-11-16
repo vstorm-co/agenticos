@@ -7571,7 +7571,14 @@
           "askAdministrator": "Bitten Sie einen Administrator um die Einrichtung unter Tresor → Integrationen.",
           "manageCredentials": "Zugangsdaten im Tresor verwalten",
           "accountOptions": "Kontooptionen",
-          "manageIntegrations": "Integrationen"
+          "manageIntegrations": "Integrationen",
+          "credentialsSource": "Verbindungsmethode",
+          "continueAgenticos": "Mit AgenticOS fortfahren",
+          "ownCredentials": "Eigene Zugangsdaten verwenden",
+          "bridgePrivacy": "Die OAuth-App von AgenticOS verwenden. Tokens werden über unsere Bridge ausgetauscht und im Vault dieser Instanz gespeichert. Arbeitsdaten gehen direkt an den Anbieter.",
+          "bridgeUnavailable": "In dieser Instanz noch nicht verfügbar.",
+          "ownCredentialsHelp": "Die OAuth-App Ihrer Organisation verwenden.",
+          "bridgeHelp": "Ohne Einrichtung einer OAuth-App verbinden."
         },
         "userAccountsTitle": "Verbundene Konten des jeweiligen Nutzers",
         "accountOwner": "Wessen Konten soll der Agent verwenden",

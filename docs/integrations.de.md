@@ -1,14 +1,26 @@
 ---
-source_sha: "843319d0a892"
+source_sha: "55783c9dd015"
 ---
 
 # Integrierte Integrationen { #built-in-integrations }
 
 Persönliche Konten verbinden Sie unter **Chat-Steuerung → Einstellungen → Ihre Konten** in `/chat` oder **Einstellungen → Profil → Ihre verbundenen Konten**. Organisationskonten werden unter **Vault → Konto verbinden** verbunden. Mehrere Konten desselben Anbieters sind möglich. Jedes Google-, Microsoft- oder Slack-Produkt ist eine eigene Capability in der **Toolbox**. Die Integrationen verwenden Anbieter-APIs direkt; Anbieter-MCP-Server, Google Workspace MCP Preview und eine Microsoft-Copilot-Lizenz sind nicht erforderlich.
 
+
+## Mit AgenticOS fortfahren { #continue-with-agenticos }
+
+Der Kontodialog bietet **Mit AgenticOS fortfahren** oder **Eigene Zugangsdaten verwenden**. Die erste Option verwendet unsere gemeinsame OAuth-App über die reine API [AgenticOS Bridge](https://github.com/vstorm-co/agenticos-bridge), ohne OAuth-Client der Organisation. Im Backend aktiviert `OAUTH_BRIDGE_URL=https://bridge-agenticos.testapp.ovh` den Broker; eine leere Einstellung deaktiviert ihn. Ist die Bridge oder Anbieter-App nicht bereit, bleibt die Option nicht verfügbar. Betreiber können eine eigene Bridge unter einem HTTPS-Origin betreiben.
+
+Nur OAuth-Codeaustausch und Erneuerung laufen über die Bridge. Tokens liegen verschlüsselt im eigentümergebundenen Vault dieser Instanz; Arbeitsdaten gehen direkt an Google, Microsoft oder Slack. Die Bridge speichert App-Zugangsdaten und einen Verschlüsselungsschlüssel in der Serverkonfiguration, ohne Benutzertoken-Datenbank. Verschlüsselte, befristete Übergabetickets verlangen PKCE; Erneuerungen benötigen eine an Token und OAuth-App gebundene Bestätigung. Der Betreiber bleibt vertrauenswürdig, da Tokens vorübergehend im Prozessspeicher existieren. Anbieterprüfung, Vertriebsregeln und Mandantenzustimmung gelten weiterhin.
+
+Die Bridge unterstützt native Produkt-Capabilities sowie persönliche und Organisationskonten, auch mehrere gleichzeitig. Mirage-Mounts mit benötigtem OAuth-App-Secret verwenden weiterhin eigene Zugangsdaten. Eine erneute Verbindung behält die ursprüngliche Quelle. Ein geänderter Broker-Origin erfordert erneutes Verbinden; Tokens gehen niemals an einen anderen Broker.
+
+Die Bridge erlaubt standardmäßig nur eingetragene Instanz-Origins. Ein ausdrücklicher Wildcard-Zugang ist nach Anbieterprüfung und Missbrauchsprüfung möglich. Nicht vertrauenswürdige Zielinstanzen werden dadurch nicht sicher. Lesen Sie vor dem Betrieb eines gemeinsamen Brokers dessen Sicherheitsdokumentation.
+
+
 ## Ein Konto einrichten { #set-up-an-account }
 
-Zuerst öffnet ein Administrator **Vault → Integrationen**, registriert die Anbieter-App und speichert einen organisationsweit sichtbaren OAuth-Client. Hier stehen Callback-URL, Konsole und Berechtigungen. „OAuth-Client gespeichert“ bestätigt nur die gespeicherte Konfiguration; Zustimmung oder App-Freigabe durch den Anbieter kann weiterhin nötig sein. Fehlende oder mehrere Clients blockieren die Kontoanmeldung mit einem Hinweis an den Administrator. Mitglieder wählen danach Apps und melden sich im Chat oder Profil an, ohne die Anbieter-Konsole einzurichten. Lesezugriff ist Standard; Schreibrechte sind optional.
+Bei eigenen Zugangsdaten öffnet zuerst ein Administrator **Vault → Integrationen**, registriert die Anbieter-App und speichert einen organisationsweit sichtbaren OAuth-Client. Hier stehen Callback-URL, Konsole und Berechtigungen. „OAuth-Client gespeichert“ bestätigt nur die gespeicherte Konfiguration; Zustimmung oder App-Freigabe durch den Anbieter kann weiterhin nötig sein. Fehlende oder mehrere Clients blockieren die Kontoanmeldung mit einem Hinweis an den Administrator. Mitglieder wählen danach Apps und melden sich im Chat oder Profil an, ohne die Anbieter-Konsole einzurichten. Lesezugriff ist Standard; Schreibrechte sind optional.
 
 Google: Cloud-Projekt anlegen, die aufgeführten APIs aktivieren (`gcloud services enable` steht im Assistenten), Zustimmungsbildschirm konfigurieren und einen OAuth-Client **Web application** erstellen. Callback exakt kopieren und `google_oauth_app` speichern. Internal gilt für die Workspace-Organisation des Projekts. Bei External/Testing können Refresh-Tokens nach sieben Tagen ablaufen. Der normale API-Zugriff braucht weder einen AI-powered-agent-Client noch gehostete MCP-APIs.
 

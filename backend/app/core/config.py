@@ -461,6 +461,30 @@ class Settings(BaseSettings):
     # after the first change, so a burst of them is one run on the end state.
     EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS: int = 600
     ALGORITHM: str = "HS256"
+    OAUTH_BRIDGE_URL: str = ""
+    """Trusted HTTPS OAuth broker origin; empty keeps account consent fully local."""
+
+    @field_validator("OAUTH_BRIDGE_URL")
+    @classmethod
+    def validate_oauth_bridge_url(cls, value: str) -> str:
+        if not value:
+            return value
+        url = urlsplit(value)
+        if (
+            url.scheme != "https"
+            or not url.hostname
+            or url.username
+            or url.password
+            or url.query
+            or url.fragment
+            or url.path not in {"", "/"}
+        ):
+            raise ValueError("OAUTH_BRIDGE_URL must be an HTTPS origin")
+        if any(ord(char) <= 32 or char == "\\" for char in value):
+            raise ValueError("OAUTH_BRIDGE_URL must not contain whitespace or backslashes")
+        _ = url.port
+        return value.rstrip("/")
+
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"
 

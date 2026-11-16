@@ -34,6 +34,7 @@ SOURCE_GENERATION = uuid4()
 
 @pytest.fixture(autouse=True)
 def live_source(monkeypatch):
+    monkeypatch.setattr(service_module.settings, "OAUTH_BRIDGE_URL", "")
     from app.repositories import member_repo, organization_secret_repo
 
     monkeypatch.setattr(
@@ -2033,6 +2034,7 @@ async def test_setup_reports_only_current_organization_client_readiness(
         "enable_apis_command",
         "manifest_url",
         "oauth_client_status",
+        "bridge_status",
     }
 
 
@@ -2044,3 +2046,203 @@ async def test_setup_does_not_hide_database_failures(monkeypatch, ctx):
     )
     with pytest.raises(RuntimeError, match="database unavailable"):
         await McpConnectionService(AsyncMock()).integration_setup_for(ctx, "google")
+
+
+@pytest.mark.parametrize("for_organization", [False, True])
+async def test_managed_account_stages_pkce_without_any_organization_client(
+    ctx, repo, monkeypatch, for_organization
+):
+    from app.services.integrations import bridge
+
+    monkeypatch.setattr(service_module.settings, "OAUTH_BRIDGE_URL", "https://bridge.example")
+    start = AsyncMock(
+        return_value=bridge.BridgeStart(
+            authorization_url="https://accounts.google.com/o/oauth2/v2/auth?state=encrypted",
+            client_id="shared-app",
+        )
+    )
+    monkeypatch.setattr(bridge, "start", start)
+    local = AsyncMock(side_effect=AssertionError("Managed consent opened an organization secret"))
+    monkeypatch.setattr(service_module.OrganizationSecretService, "oauth_app_identity", local)
+    staged = AsyncMock()
+    service = McpConnectionService(AsyncMock())
+    monkeypatch.setattr(service, "_stage_pending_oauth", staged)
+    result = await service.account_start(
+        ctx,
+        browser_nonce=NONCE,
+        credentials_source="agenticos",
+        for_organization=for_organization,
+        products=["gmail"],
+    )
+    payload = staged.await_args.kwargs["payload"]
+    assert payload.bridge_url == "https://bridge.example"
+    assert payload.client_id == "shared-app" and payload.client_secret is None
+    assert payload.account_source_secret_id is None and payload.account_source_generation is None
+    assert payload.account_source_organization_id == ctx.organization_id
+    assert payload.code_verifier and len(payload.code_verifier) >= 43
+    assert start.await_args.kwargs["challenge"] == bridge_challenge(payload.code_verifier)
+    assert payload.browser_nonce_digest == hashlib.sha256(NONCE.encode()).hexdigest()
+    assert result == start.return_value.authorization_url
+    local.assert_not_awaited()
+
+
+def bridge_challenge(verifier: str) -> str:
+    import base64
+
+    return (
+        base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    )
+
+
+@pytest.mark.parametrize(
+    "change", ["valid", "wrong_org", "left_org", "bridge_changed", "secret_mix", "not_native"]
+)
+async def test_bridge_source_still_requires_the_original_tenant_and_owner_membership(
+    monkeypatch, change
+):
+    monkeypatch.setattr(service_module.settings, "OAUTH_BRIDGE_URL", "https://bridge.example")
+    row = _account(purpose="mcp" if change == "not_native" else "account")
+    payload = _payload(
+        bridge_url="https://other.example"
+        if change == "bridge_changed"
+        else "https://bridge.example",
+        client_secret="forbidden" if change == "secret_mix" else None,
+        account_source_secret_id=None,
+        account_source_generation=None,
+    )
+    if change == "left_org":
+        monkeypatch.setattr(service_module, "decider_context", AsyncMock(return_value=None))
+    assert await McpConnectionService(AsyncMock())._account_source_current(
+        row, payload, uuid4() if change == "wrong_org" else SOURCE_ORG
+    ) is (change == "valid")
+
+
+async def test_bridge_callback_keeps_tokens_and_receipt_in_owner_bound_vault(repo, monkeypatch):
+    from app.services.integrations import bridge
+
+    monkeypatch.setattr(service_module.settings, "OAUTH_BRIDGE_URL", "https://bridge.example")
+    row = _account(user_id=INITIATOR)
+    pending = _payload(
+        bridge_url="https://bridge.example",
+        client_secret=None,
+        account_source_secret_id=None,
+        account_source_generation=None,
+        access_token=None,
+        refresh_token=None,
+        code_verifier="v" * 64,
+    )
+    row.oauth_pending_payload = _sealed(row, pending)
+    repo.get_by_oauth_state = AsyncMock(return_value=row)
+
+    async def update(db, *, db_connection, update_data):
+        for key, value in update_data.items():
+            setattr(db_connection, key, value)
+        return db_connection
+
+    repo.update.side_effect = update
+    grant = bridge.BridgeGrant(
+        access_token="fresh-secret",
+        refresh_token="refresh-secret",
+        receipt="receipt-secret",
+        scope="openid email",
+        expires_in=3600,
+    )
+    exchange = AsyncMock(return_value=grant)
+    monkeypatch.setattr(bridge, "token", exchange)
+    service = McpConnectionService(AsyncMock())
+    monkeypatch.setattr(service, "_name_account", AsyncMock(return_value=row))
+    await service.oauth_callback(
+        state="opaque-state", code="encrypted-ticket", browser_nonce=NONCE, acting_user_id=INITIATOR
+    )
+    stored = service_module._decode_payload(row, row.oauth_payload)
+    assert stored.access_token.get_secret_value() == "fresh-secret"
+    assert stored.bridge_receipt.get_secret_value() == "receipt-secret"
+    assert stored.code_verifier is None and stored.client_secret is None
+    assert "fresh-secret" not in row.oauth_payload and "receipt-secret" not in repr(stored)
+    assert row.oauth_pending_payload is None and row.granted_scopes == ["openid", "email"]
+    exchange.assert_awaited_once_with(pending, code="encrypted-ticket")
+
+
+async def test_bridge_refresh_persists_rotated_receipt_with_rotated_token(monkeypatch):
+    from app.services.integrations import bridge
+
+    row = _account()
+    payload = _payload(
+        bridge_url="https://bridge.example",
+        client_secret=None,
+        bridge_receipt="old-receipt",
+        expires_at=0,
+    )
+    row.oauth_payload = _sealed(row, payload)
+    monkeypatch.setattr(
+        McpConnectionService, "_account_source_current", AsyncMock(return_value=True)
+    )
+    refresh = AsyncMock(
+        return_value=bridge.BridgeGrant(
+            access_token="new-access",
+            refresh_token="new-refresh",
+            receipt="new-receipt",
+            expires_in=3600,
+        )
+    )
+    monkeypatch.setattr(bridge, "token", refresh)
+    direct = AsyncMock(side_effect=AssertionError("Managed refresh went directly to provider"))
+    monkeypatch.setattr(service_module.mcp_oauth, "refresh_tokens", direct)
+    update = AsyncMock()
+    monkeypatch.setattr(service_module.mcp_connection_repo, "update", update)
+    assert await service_module._rotate_token(AsyncMock(), row) == "new-access"
+    sealed = update.await_args.kwargs["update_data"]["oauth_payload"]
+    stored = service_module._decode_payload(row, sealed)
+    assert stored.refresh_token.get_secret_value() == "new-refresh"
+    assert stored.bridge_receipt.get_secret_value() == "new-receipt"
+    direct.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "original,requested", [("own", "agenticos"), ("missing", "agenticos"), ("agenticos", "own")]
+)
+async def test_reconnect_refuses_silent_credential_source_changes(
+    ctx, repo, client, monkeypatch, original, requested
+):
+    from app.core.exceptions import BadRequestError
+    from app.services.integrations import bridge
+
+    row = _account()
+    payload = _payload(bridge_url="https://bridge.example" if original == "agenticos" else None)
+    row.oauth_payload = None if original == "missing" else _sealed(row, payload)
+    service = McpConnectionService(AsyncMock())
+    monkeypatch.setattr(service, "_reconnect_account", AsyncMock(return_value=row))
+    start = AsyncMock()
+    monkeypatch.setattr(bridge, "start", start)
+    with pytest.raises(BadRequestError):
+        await service.account_start(
+            ctx,
+            for_organization=False,
+            browser_nonce=NONCE,
+            credentials_source=requested,
+            connection_id=row.id,
+            products=["gmail"],
+        )
+    start.assert_not_awaited()
+
+
+@pytest.mark.parametrize("mode", ["own", "agenticos", "pending", "missing"])
+def test_account_listing_reports_credential_source_without_exposing_its_payload(mode):
+    row = _account()
+    payload = _payload(
+        bridge_url="https://bridge.example" if mode in {"agenticos", "pending"} else None
+    )
+    if mode == "pending":
+        row.oauth_pending_payload = _sealed(row, payload)
+    elif mode != "missing":
+        row.oauth_payload = _sealed(row, payload)
+    assert McpConnectionService.account_credentials_source(row) == (
+        "agenticos" if mode in {"agenticos", "pending"} else "own"
+    )
+
+
+async def test_local_source_without_credential_identity_is_refused():
+    row = _account()
+    assert not await McpConnectionService(AsyncMock())._account_source_current(
+        row, _payload(account_source_secret_id=None), SOURCE_ORG
+    )

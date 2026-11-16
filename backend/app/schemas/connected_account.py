@@ -29,15 +29,21 @@ class ConnectedAccountRead(BaseSchema):
     needs_reconnect: bool
     """Its grant expired, was revoked, or lost its source credential and must be reconnected."""
     auth_type: str = "oauth"
+    credentials_source: Literal["own", "agenticos"] = "own"
     polling_failed: bool = False
     created_at: datetime
 
     @classmethod
     def from_model(
-        cls, account: McpConnection, *, needs_reconnect: bool = False
+        cls,
+        account: McpConnection,
+        *,
+        needs_reconnect: bool = False,
+        credentials_source: Literal["own", "agenticos"] = "own",
     ) -> ConnectedAccountRead:
         return cls(
             id=account.id,
+            credentials_source=credentials_source,
             auth_type=account.auth_type or "oauth",
             polling_failed=account.last_status == "error",
             name=account.name,
@@ -67,6 +73,7 @@ class ConnectedAccountList(BaseSchema):
 
 
 class ConnectedAccountStart(BaseSchema):
+    credentials_source: Literal["own", "agenticos"] = "own"
     connection_id: UUID | None = Field(
         default=None,
         description="Reconnect this owned account in place, preserving its ID and authentication method.",

@@ -16,6 +16,7 @@ interface IntegrationProduct {
   application_write_scopes: string[];
 }
 export interface IntegrationSetup {
+  bridge_status: "disabled" | "unavailable" | "unconfigured" | "ready";
   provider: IntegrationProvider;
   identity_scopes: string[];
   redirect_uri: string;

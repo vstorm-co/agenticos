@@ -155,3 +155,70 @@ it("blocks personal consent until an administrator registers the organization cl
   expect(screen.queryByText(info.redirect_uri)).not.toBeInTheDocument();
   expect(secrets).toHaveBeenCalledWith({ enabled: false });
 });
+
+it("connects through AgenticOS without asking for an organization OAuth app", async () => {
+  setup.mockReturnValue({
+    data: { ...info, bridge_status: "ready", oauth_client_status: "missing" },
+    error: null,
+  });
+  render(
+    <IntegrationSetupDialog
+      provider="google"
+      owner="personal"
+      initialProducts={["gmail"]}
+      onClose={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("radio", { name: /Continue with AgenticOS/ })).toBeChecked();
+  expect(screen.queryByText(/Ask an administrator/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Continue to account consent" }));
+  expect(connect).toHaveBeenCalledWith(
+    "/en/vault",
+    expect.objectContaining({ credentials_source: "agenticos", products: ["gmail"], write: false }),
+  );
+});
+
+it("lets a person choose their organization app instead of the ready bridge", async () => {
+  setup.mockReturnValue({ data: { ...info, bridge_status: "ready" }, error: null });
+  render(
+    <IntegrationSetupDialog
+      provider="google"
+      owner="personal"
+      initialProducts={["gmail"]}
+      onClose={vi.fn()}
+    />,
+  );
+  await userEvent.click(screen.getByRole("radio", { name: /Use your own credentials/ }));
+  await userEvent.click(screen.getByRole("button", { name: "Continue to account consent" }));
+  expect(connect).toHaveBeenCalledWith("/en/vault", {
+    provider: "google",
+    products: ["gmail"],
+    write: false,
+    label: "",
+  });
+});
+
+it("keeps managed reconnects on their original source when the bridge is unavailable", () => {
+  setup.mockReturnValue({ data: { ...info, bridge_status: "unavailable" }, error: null });
+  render(
+    <IntegrationSetupDialog
+      provider="google"
+      owner="personal"
+      initialProducts={["gmail"]}
+      onClose={vi.fn()}
+      reconnectAccount={{
+        id: "managed",
+        provider: "google",
+        email: "user@example.com",
+        owner: "personal",
+        scopes: [],
+        needs_reconnect: true,
+        created_at: "2026-11-16",
+        credentials_source: "agenticos",
+      }}
+    />,
+  );
+  expect(screen.getByRole("radio", { name: /Continue with AgenticOS/ })).toBeChecked();
+  expect(screen.getByRole("radio", { name: /Use your own credentials/ })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Continue to account consent" })).toBeDisabled();
+});

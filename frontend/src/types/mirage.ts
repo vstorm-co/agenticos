@@ -41,6 +41,7 @@ export interface MirageMountSpec {
 
 /** A connected account: an OAuth grant a mount signs in as. */
 export interface ConnectedAccount {
+  credentials_source?: "own" | "agenticos";
   auth_type?: string;
   polling_failed?: boolean;
   name?: string;

@@ -8298,7 +8298,14 @@
           "askAdministrator": "Ask an administrator to configure it in Vault → Integrations.",
           "manageCredentials": "Manage credentials in Vault",
           "accountOptions": "Account options",
-          "manageIntegrations": "Integrations"
+          "manageIntegrations": "Integrations",
+          "credentialsSource": "Connection method",
+          "continueAgenticos": "Continue with AgenticOS",
+          "ownCredentials": "Use your own credentials",
+          "bridgePrivacy": "Use the AgenticOS OAuth app. Tokens are exchanged through our bridge and stored in this deployment’s Vault. Your work data goes directly to the provider.",
+          "bridgeUnavailable": "Not available on this deployment yet.",
+          "ownCredentialsHelp": "Use your organization’s OAuth app.",
+          "bridgeHelp": "Connect without setting up an OAuth app."
         },
         "userAccountsTitle": "Each user’s connected accounts",
         "accountOwner": "Whose accounts to use",

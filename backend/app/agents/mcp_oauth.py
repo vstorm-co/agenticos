@@ -297,6 +297,8 @@ class McpOAuthPayload(BaseModel):
     account_source_organization_id: UUID | None = None
     account_source_secret_id: UUID | None = None
     account_source_generation: UUID | None = None
+    bridge_url: str | None = None
+    bridge_receipt: SealedStr | None = None
 
 
 @dataclass(frozen=True)

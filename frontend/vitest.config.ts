@@ -251,6 +251,7 @@ export default defineConfig({
         "src/components/chat/your-connections.tsx",
         "src/components/chat/native-personal-connections.tsx",
         "src/components/vault/connected-account-setup.tsx",
+        "src/components/vault/account-credentials-source.tsx",
         "src/components/chat/chat-empty-state.tsx",
         "src/components/chat/chat-welcome.tsx",
         "src/components/chat/conversation-filters.tsx",

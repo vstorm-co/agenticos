@@ -22,6 +22,7 @@ import {
 } from "@/components/ui";
 import { ErrorState, LoadingState } from "@/components/states";
 import { IntegrationProviderSetup } from "./integration-providers";
+import { AccountCredentialsSource } from "./account-credentials-source";
 import { AddSecretDialog } from "@/components/vault/secret-dialog";
 import { useIntegrationSetup } from "@/hooks/use-integration-setup";
 import {
@@ -52,6 +53,7 @@ export function IntegrationSetupDialog({
   const t = useTranslations("pages.vault.connectedAccounts.setup");
   const errors = useTranslations("errors");
   const [write, setWrite] = useState(false);
+  const [source, setSource] = useState<"own" | "agenticos" | null>(null);
   const setup = useIntegrationSetup(provider, write);
   const { connect, isConnecting, connectToken, connectApplication } = useConnectedAccounts(owner, {
     provider,
@@ -79,11 +81,16 @@ export function IntegrationSetupDialog({
   const pathname = usePathname();
   const returnTo = oauthReturnTo ?? pathname;
   const info = setup.data;
+  const credentialsSource =
+    source ??
+    reconnectAccount?.credentials_source ??
+    (info?.bridge_status === "ready" && !reconnectAccount ? "agenticos" : "own");
+  const oauthReady =
+    credentialsSource === "agenticos"
+      ? info?.bridge_status === "ready"
+      : info?.oauth_client_status === "ready";
   const canChooseApps =
-    method !== "oauth" ||
-    info?.oauth_client_status === "ready" ||
-    allowApplication ||
-    provider === "slack";
+    method !== "oauth" || oauthReady || allowApplication || provider === "slack";
   const scopes =
     info?.products
       .filter((p) => products.includes(p.id))
@@ -108,18 +115,28 @@ export function IntegrationSetupDialog({
           {setup.error && <ErrorState description={getErrorMessage(setup.error, errors)} />}
           {info && (
             <div className={`${DIALOG_BODY} space-y-4`}>
-              {method === "oauth" && info.oauth_client_status !== "ready" && (
-                <div className="space-y-2 rounded-lg border p-3">
-                  <p className="text-sm">{t("organizationSetupRequired")}</p>
-                  {can("secrets:edit") ? (
-                    <Button size="sm" variant="outline" onClick={() => setProviderSetup(true)}>
-                      {t("configureProvider", { provider: t(`provider.${provider}`) })}
-                    </Button>
-                  ) : (
-                    <p className="text-muted-foreground text-xs">{t("askAdministrator")}</p>
-                  )}
-                </div>
+              {method === "oauth" && reconnectAccount?.auth_type !== "bearer" && (
+                <AccountCredentialsSource
+                  value={credentialsSource}
+                  available={info.bridge_status === "ready"}
+                  locked={!!reconnectAccount}
+                  onChange={setSource}
+                />
               )}
+              {method === "oauth" &&
+                credentialsSource === "own" &&
+                info.oauth_client_status !== "ready" && (
+                  <div className="space-y-2 rounded-lg border p-3">
+                    <p className="text-sm">{t("organizationSetupRequired")}</p>
+                    {can("secrets:edit") ? (
+                      <Button size="sm" variant="outline" onClick={() => setProviderSetup(true)}>
+                        {t("configureProvider", { provider: t(`provider.${provider}`) })}
+                      </Button>
+                    ) : (
+                      <p className="text-muted-foreground text-xs">{t("askAdministrator")}</p>
+                    )}
+                  </div>
+                )}
               {provider !== "slack" && allowApplication && (
                 <div className="grid gap-3">
                   <div className="flex gap-2">
@@ -274,7 +291,7 @@ export function IntegrationSetupDialog({
               <Button
                 disabled={
                   reconnectAccount?.auth_type === "bearer" ||
-                  (method === "oauth" && info.oauth_client_status !== "ready") ||
+                  (method === "oauth" && !oauthReady) ||
                   !products.length ||
                   isConnecting ||
                   connectApplication.isPending ||
@@ -299,6 +316,9 @@ export function IntegrationSetupDialog({
                         { onSuccess: onClose },
                       )
                     : connect(returnTo, {
+                        ...(credentialsSource === "agenticos"
+                          ? { credentials_source: "agenticos" as const }
+                          : {}),
                         provider,
                         products,
                         write,

@@ -2,9 +2,21 @@
 
 Personal accounts are connected in **Chat controls → Preferences → Your accounts** under `/chat`, or **Settings → Profile → Your connected accounts**. Organization accounts are connected in **Vault → Connect account**. You can connect several accounts for the same provider. Each Google, Microsoft or Slack product is a separate capability in an agent’s **Toolbox**. These integrations use provider APIs directly; vendor MCP servers, Google Workspace MCP preview and a Microsoft Copilot licence are not required.
 
+
+## Continue with AgenticOS
+
+The account dialog offers **Continue with AgenticOS** or **Use your own credentials**. The first uses our shared OAuth app through an API-only [AgenticOS Bridge](https://github.com/vstorm-co/agenticos-bridge); it does not require an organization OAuth client. Set `OAUTH_BRIDGE_URL=https://bridge-agenticos.testapp.ovh` in the backend to enable the broker. Empty disables it. The option stays unavailable when the bridge or the provider app is not ready. An operator may also host the bridge and configure its own HTTPS origin.
+
+Only OAuth code exchange and refresh pass through the bridge. Tokens are sealed in this deployment's owner-bound Vault; business data goes directly to Google, Microsoft or Slack. The bridge keeps its app credentials and an encryption key in server configuration, with no user-token database. Its encrypted, expiring handoff tickets require PKCE; refresh requires a receipt bound to the token and OAuth app. The bridge operator remains trusted because tokens exist transiently in its memory. Provider verification, distribution and tenant consent policies still apply.
+
+The bridge supports native product capabilities and personal/organization accounts, including several accounts at once. Mirage mounts that require the OAuth application's client secret continue to use your own credentials. Reconnect preserves the original credential source. Changing the configured broker origin requires reconnecting managed accounts; tokens are never forwarded to a different broker.
+
+Public enrollment is controlled on the bridge: exact deployment origins by default, or an explicit wildcard after provider verification and abuse review. This does not make untrusted destination deployments safe. See the bridge security document before operating a shared broker.
+
+
 ## Set up an account
 
-First, an administrator opens **Vault → Integrations**, configures the provider app and saves one organization-visible OAuth client. This setup shows the exact callback URL, provider console and permissions. “OAuth client saved” only confirms a stored client; the provider may still require consent or app approval. Missing or multiple clients block account consent with guidance to the administrator. Members then choose apps and sign in from chat or their profile, without configuring the provider console. Read access is the default; write permissions are opt-in.
+When using your own credentials, an administrator first opens **Vault → Integrations**, configures the provider app and saves one organization-visible OAuth client. This setup shows the exact callback URL, provider console and permissions. “OAuth client saved” only confirms a stored client; the provider may still require consent or app approval. Missing or multiple clients block account consent with guidance to the administrator. Members then choose apps and sign in from chat or their profile, without configuring the provider console. Read access is the default; write permissions are opt-in.
 
 Google: create a Cloud project, enable the listed APIs (the wizard supplies a `gcloud services enable` command), configure the consent screen and create a **Web application** OAuth client. Copy the callback exactly and store `google_oauth_app`. Choose Internal only for a Workspace organization that owns the project. External apps in Testing can issue refresh tokens that expire after seven days. A normal API integration does not need an AI-powered-agent client or the hosted MCP APIs.
 

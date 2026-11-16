@@ -4447,7 +4447,14 @@
           "askAdministrator": "Poproś administratora o konfigurację w Sejf → Integracje.",
           "manageCredentials": "Zarządzaj danymi dostępu w Sejfie",
           "accountOptions": "Opcje konta",
-          "manageIntegrations": "Integracje"
+          "manageIntegrations": "Integracje",
+          "credentialsSource": "Sposób połączenia",
+          "continueAgenticos": "Kontynuuj z AgenticOS",
+          "ownCredentials": "Użyj własnych credentials",
+          "bridgePrivacy": "Użyj aplikacji OAuth AgenticOS. Tokeny przechodzą przez nasz bridge i trafiają do Vault tej instancji. Dane robocze są przesyłane bezpośrednio do dostawcy.",
+          "bridgeUnavailable": "Jeszcze niedostępne w tej instancji.",
+          "ownCredentialsHelp": "Użyj aplikacji OAuth swojej organizacji.",
+          "bridgeHelp": "Połącz bez konfigurowania aplikacji OAuth."
         },
         "userAccountsTitle": "Podłączone konta użytkownika",
         "accountOwner": "Z czyich kont ma korzystać agent",

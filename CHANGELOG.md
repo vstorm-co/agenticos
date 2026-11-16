@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Native account consent can use an API-only AgenticOS Bridge or the organization's own OAuth app. Managed tokens stay in the deployment's Vault, with PKCE handoff and token-bound refresh receipts. Configure `OAUTH_BRIDGE_URL` to opt in; provider app readiness is shown before consent.
+
 ## [1.78.0] - 2026-11-16
 
 ### Added

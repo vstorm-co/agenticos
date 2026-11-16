@@ -1,14 +1,26 @@
 ---
-source_sha: "843319d0a892"
+source_sha: "55783c9dd015"
 ---
 
 # Integraciones incorporadas { #built-in-integrations }
 
 Las cuentas personales se conectan en **Controles del chat → Preferencias → Tus cuentas** en `/chat`, o **Configuración → Perfil → Tus cuentas conectadas**. Las cuentas de la organización se conectan en **Vault → Conectar cuenta**. Se admiten varias cuentas del mismo proveedor. Cada producto de Google, Microsoft y Slack es una capability independiente en la **Toolbox**. Las integraciones usan las API directamente; no requieren servidores MCP del proveedor, Google Workspace MCP Preview ni licencia de Microsoft Copilot.
 
+
+## Continuar con AgenticOS { #continue-with-agenticos }
+
+El diálogo de cuenta ofrece **Continuar con AgenticOS** o **Usar credenciales propias**. La primera opción usa nuestra aplicación OAuth compartida mediante [AgenticOS Bridge](https://github.com/vstorm-co/agenticos-bridge), una API sin interfaz, y no necesita un cliente OAuth de la organización. Configure `OAUTH_BRIDGE_URL=https://bridge-agenticos.testapp.ovh` en el backend; vacío lo desactiva. Si el bridge o la aplicación del proveedor no están preparados, la opción permanece deshabilitada. También puede alojar su propio bridge bajo un origen HTTPS.
+
+Solo el intercambio de códigos OAuth y la renovación pasan por el bridge. Los tokens se cifran en el Vault de esta instancia, vinculado a su propietario; los datos de trabajo van directamente a Google, Microsoft o Slack. El bridge mantiene credenciales de aplicación y una clave de cifrado en la configuración del servidor, sin base de datos de tokens de usuarios. Sus tickets cifrados y temporales requieren PKCE; renovar requiere un comprobante vinculado al token y la aplicación OAuth. Se debe confiar en el operador porque los tokens existen temporalmente en la memoria del proceso. Siguen vigentes la verificación del proveedor, las reglas de distribución y el consentimiento del tenant.
+
+El bridge admite capabilities nativas y cuentas personales o de organización, incluso varias simultáneamente. Los montajes Mirage que necesitan el secreto de la aplicación OAuth siguen usando credenciales propias. Reconectar conserva la fuente original. Cambiar el origen del broker exige reconectar; nunca se envían tokens a otro broker.
+
+El bridge permite por defecto orígenes de instancias concretos. Un comodín explícito puede habilitarse tras verificar proveedores y revisar posibles abusos. No convierte en seguras las instancias de destino no confiables. Lea la documentación de seguridad del bridge antes de operar un broker compartido.
+
+
 ## Configurar una cuenta { #set-up-an-account }
 
-Primero, un administrador abre **Vault → Integraciones**, registra la aplicación del proveedor y guarda un único cliente OAuth visible para la organización. Este paso muestra callback, consola y permisos. «Cliente OAuth guardado» solo confirma la configuración almacenada; el proveedor puede exigir consentimiento o aprobación. La ausencia o duplicación de clientes bloquea el inicio de sesión e indica que debe intervenir un administrador. Después, los miembros eligen aplicaciones e inician sesión desde el chat o su perfil, sin configurar la consola del proveedor. La lectura es el valor predeterminado; la escritura requiere una elección explícita.
+Al usar credenciales propias, primero un administrador abre **Vault → Integraciones**, registra la aplicación del proveedor y guarda un único cliente OAuth visible para la organización. Este paso muestra callback, consola y permisos. «Cliente OAuth guardado» solo confirma la configuración almacenada; el proveedor puede exigir consentimiento o aprobación. La ausencia o duplicación de clientes bloquea el inicio de sesión e indica que debe intervenir un administrador. Después, los miembros eligen aplicaciones e inician sesión desde el chat o su perfil, sin configurar la consola del proveedor. La lectura es el valor predeterminado; la escritura requiere una elección explícita.
 
 Google: cree un proyecto Cloud, active las API indicadas (el asistente proporciona `gcloud services enable`), configure el consentimiento y un cliente OAuth **Web application**. Copie el callback exactamente y guarde `google_oauth_app`. Internal corresponde a la organización Workspace propietaria del proyecto. En External/Testing, los refresh tokens pueden caducar a los siete días. El acceso normal no necesita un cliente AI-powered-agent ni las API MCP alojadas.
 

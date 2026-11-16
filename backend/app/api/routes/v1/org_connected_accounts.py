@@ -39,6 +39,7 @@ async def list_org_accounts(service: McpConnectionSvc, ctx: Auth, provider: str 
         items=[
             ConnectedAccountRead.from_model(
                 account,
+                credentials_source=service.account_credentials_source(account),
                 needs_reconnect=await service.account_needs_reconnect(
                     account, organization_id=ctx.organization_id
                 ),
@@ -64,6 +65,7 @@ async def start_org_account(
     authorization_url = await service.account_start(
         ctx,
         browser_nonce=data.browser_nonce,
+        credentials_source=data.credentials_source,
         connection_id=data.connection_id,
         provider=data.provider,
         products=data.products,

@@ -31,6 +31,7 @@ class IntegrationSetup(BaseModel):
     enable_apis_command: str | None = None
     manifest_url: str | None = None
     oauth_client_status: Literal["missing", "ready", "ambiguous"] = "missing"
+    bridge_status: Literal["disabled", "unavailable", "unconfigured", "ready"] = "disabled"
 
 
 def setup_for(provider: Provider, *, write: bool = False) -> IntegrationSetup:

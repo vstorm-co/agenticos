@@ -3759,7 +3759,14 @@
           "askAdministrator": "Bir yöneticiden Kasa → Entegrasyonlar bölümünde yapılandırmasını isteyin.",
           "manageCredentials": "Kasa içindeki kimlik bilgilerini yönet",
           "accountOptions": "Hesap seçenekleri",
-          "manageIntegrations": "Entegrasyonlar"
+          "manageIntegrations": "Entegrasyonlar",
+          "credentialsSource": "Bağlantı yöntemi",
+          "continueAgenticos": "AgenticOS ile devam et",
+          "ownCredentials": "Kendi kimlik bilgilerinizi kullanın",
+          "bridgePrivacy": "AgenticOS OAuth uygulamasını kullanın. Tokenlar köprümüz üzerinden aktarılır ve bu kurulumun Vault alanında saklanır. İş verileri doğrudan sağlayıcıya gider.",
+          "bridgeUnavailable": "Bu kurulumda henüz kullanılamıyor.",
+          "ownCredentialsHelp": "Kuruluşunuzun OAuth uygulamasını kullanın.",
+          "bridgeHelp": "OAuth uygulaması kurmadan bağlanın."
         },
         "connect": "{provider} hesabını bağla",
         "disconnectDetail": "Aracılar, iş akışları, bilgi senkronizasyonu ve izlemeler bu hesaba erişimini kaybeder. Kayıtlı yetkilendirme Vault içinden silinir.",

@@ -14,6 +14,7 @@ export const INTEGRATION_PROVIDERS = ["google", "microsoft", "slack", "imap", "o
 
 export type IntegrationProvider = "google" | "microsoft" | "slack" | "imap" | "odoo";
 export interface AccountConnectOptions {
+  credentials_source?: "own" | "agenticos";
   connection_id?: string;
   label?: string;
   provider: IntegrationProvider;

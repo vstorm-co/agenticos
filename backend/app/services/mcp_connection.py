@@ -596,7 +596,13 @@ async def _rotate_token(
     if not payload.refresh_token:
         return None
     try:
-        if payload.provider == "slack":
+        if payload.bridge_url:
+            from app.services.integrations import bridge
+
+            grant = await bridge.token(payload)
+            token = grant.token()
+            payload = payload.model_copy(update={"bridge_receipt": grant.receipt})
+        elif payload.provider == "slack":
             refreshed = await slack_oauth.refresh_user_token(
                 client_id=payload.client_id,
                 client_secret=_revealed(payload.client_secret) or "",
@@ -924,7 +930,15 @@ class McpConnectionService:
         setup.oauth_client_status = (
             "missing" if not clients else "ready" if len(clients) == 1 else "ambiguous"
         )
+        from app.services.integrations import bridge
+
+        setup.bridge_status = await bridge.status(provider)
         return setup
+
+    @staticmethod
+    def account_credentials_source(account: McpConnection) -> Literal["own", "agenticos"]:
+        payload = _decode_payload(account, account.oauth_payload or account.oauth_pending_payload)
+        return "agenticos" if payload is not None and payload.bridge_url else "own"
 
     async def list_for_user(self, *, user_id: UUID) -> tuple[list[McpConnection], int]:
         return await mcp_connection_repo.list_for_user(self.db, user_id=user_id)
@@ -2002,6 +2016,7 @@ class McpConnectionService:
         *,
         for_organization: bool,
         browser_nonce: str,
+        credentials_source: Literal["own", "agenticos"] = "own",
         provider: str = "google",
         products: list[str] | None = None,
         write: bool = False,
@@ -2065,18 +2080,25 @@ class McpConnectionService:
                 )
             )
         account_scopes = list(dict.fromkeys(account_scopes))
-        creds, source_id, source_generation = await OrganizationSecretService(
-            self.db
-        ).oauth_app_identity(
-            ctx,
-            kind={
-                "google": SecretKind.GOOGLE_OAUTH_APP,
-                "microsoft": SecretKind.MICROSOFT_OAUTH_APP,
-                "slack": SecretKind.SLACK_OAUTH_APP,
-            }[provider],
-        )
+        creds = None
+        source_id = source_generation = None
+        if credentials_source == "own":
+            creds, source_id, source_generation = await OrganizationSecretService(
+                self.db
+            ).oauth_app_identity(
+                ctx,
+                kind={
+                    "google": SecretKind.GOOGLE_OAUTH_APP,
+                    "microsoft": SecretKind.MICROSOFT_OAUTH_APP,
+                    "slack": SecretKind.SLACK_OAUTH_APP,
+                }[provider],
+            )
         redirect_uri = _oauth_redirect_uri()
-        verifier = secrets.token_urlsafe(48) if provider == "microsoft" else None
+        verifier = (
+            secrets.token_urlsafe(48)
+            if provider == "microsoft" or credentials_source == "agenticos"
+            else None
+        )
         challenge = (
             base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
             .rstrip(b"=")
@@ -2101,14 +2123,36 @@ class McpConnectionService:
             authorization_endpoint = slack_oauth.AUTHORIZE_ENDPOINT
             token_endpoint = slack_oauth.TOKEN_ENDPOINT
         state = secrets.token_urlsafe(32)
+        bridge_start = None
+        if credentials_source == "agenticos":
+            from app.services.integrations import bridge
+
+            if existing is not None:
+                live = _decode_payload(existing, existing.oauth_payload)
+                if live is None or not live.bridge_url:
+                    raise BadRequestError(
+                        message="Reconnect with the account's original credential source"
+                    )
+            bridge_start = await bridge.start(
+                provider=provider,
+                redirect_uri=redirect_uri,
+                state=state,
+                scopes=account_scopes,
+                challenge=challenge or "",
+            )
+        elif existing is not None:
+            live = _decode_payload(existing, existing.oauth_payload)
+            if live is not None and live.bridge_url:
+                raise BadRequestError(message="Reconnect this account through AgenticOS")
         payload = McpOAuthPayload(
             # The token is spent only at this provider's fixed API endpoint.
             server_url=server_url,
             started_at=_now_epoch(),
             authorization_endpoint=authorization_endpoint,
             token_endpoint=token_endpoint,
-            client_id=creds.client_id,
-            client_secret=creds.client_secret,
+            client_id=bridge_start.client_id if bridge_start else creds.client_id if creds else "",
+            client_secret=creds.client_secret if creds else None,
+            bridge_url=settings.OAUTH_BRIDGE_URL if bridge_start else None,
             scope=" ".join(account_scopes),
             resource=server_url,
             redirect_uri=redirect_uri,
@@ -2184,9 +2228,11 @@ class McpConnectionService:
                 state=state,
                 label=label or (existing.label if existing else None),
             )
+        if bridge_start is not None:
+            return bridge_start.authorization_url
         if provider == "slack":
             return slack_oauth.authorization_url(
-                client_id=creds.client_id,
+                client_id=payload.client_id,
                 redirect_uri=redirect_uri,
                 scopes=account_scopes,
                 state=state,
@@ -2194,14 +2240,14 @@ class McpConnectionService:
         if provider == "microsoft":
             return microsoft_oauth.authorization_url(
                 tenant_id=tenant_id,
-                client_id=creds.client_id,
+                client_id=payload.client_id,
                 redirect_uri=redirect_uri,
                 scopes=account_scopes,
                 state=state,
                 code_challenge=challenge or "",
             )
         return google_oauth.authorization_url(
-            client_id=creds.client_id,
+            client_id=payload.client_id,
             redirect_uri=redirect_uri,
             scopes=account_scopes,
             state=state,
@@ -2896,11 +2942,8 @@ class McpConnectionService:
     ) -> bool:
         from app.repositories import organization_secret_repo
 
-        if (
-            payload.account_source_organization_id != organization_id
-            or payload.account_source_secret_id is None
-            or payload.account_source_generation is None
-            or (account.scope == "org" and account.organization_id != organization_id)
+        if payload.account_source_organization_id != organization_id or (
+            account.scope == "org" and account.organization_id != organization_id
         ):
             return False
         if account.scope == "user":
@@ -2913,7 +2956,7 @@ class McpConnectionService:
             )
             if membership is None:
                 return False
-            if account.auth_type == "application":
+            if account.auth_type == "application" and payload.account_source_secret_id is not None:
                 # A personal application grant carries the member's permission to
                 # use this vault credential; unlike delegated OAuth it has no
                 # provider-side user consent limiting the resulting authority.
@@ -2928,6 +2971,19 @@ class McpConnectionService:
                     )
                 except NotFoundError:
                     return False
+        if payload.bridge_url is not None:
+            return (
+                account.purpose == "account"
+                and account.auth_type == "oauth"
+                and payload.provider in {"google", "microsoft", "slack"}
+                and payload.client_secret is None
+                and payload.account_source_secret_id is None
+                and payload.account_source_generation is None
+                and bool(settings.OAUTH_BRIDGE_URL)
+                and payload.bridge_url == settings.OAUTH_BRIDGE_URL
+            )
+        if payload.account_source_secret_id is None or payload.account_source_generation is None:
+            return False
         return (
             await organization_secret_repo.authorization_generation(
                 self.db, payload.account_source_secret_id, organization_id=organization_id
@@ -3107,7 +3163,15 @@ class McpConnectionService:
             raise OAuthError(
                 "The account's organization or OAuth client changed; start consent again."
             )
-        if payload.provider == "slack":
+        if payload.bridge_url:
+            from app.services.integrations import bridge
+
+            grant = await bridge.token(payload, code=code)
+            payload = _apply_token(payload, grant.token()).model_copy(
+                update={"bridge_receipt": grant.receipt, "code_verifier": None}
+            )
+            granted_scopes = (grant.scope or "").replace(",", " ").split()
+        elif payload.provider == "slack":
             slack_token = await slack_oauth.exchange_code(
                 client_id=payload.client_id,
                 client_secret=_revealed(payload.client_secret) or "",
