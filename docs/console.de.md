@@ -1,5 +1,5 @@
 ---
-source_sha: "63fad5394956"
+source_sha: "570cd7eb6b6a"
 ---
 
 # Die Konsole { #the-console }
@@ -228,6 +228,10 @@ statt still den Snapshot zu überschreiben, den Sie behalten wollten.
     eigenen gespeicherten Anordnung stammt.
 
 ## Routinen und Beobachtungen { #routines-and-watches }
+
+Neue Zeitpläne und API-Trigger werden pausiert gespeichert. Danach erscheint **Zugriff der Routine prüfen**. Prüfen Sie die Quellen und wählen Sie Aktionen ohne Rückfrage aus; **Routine aktivieren** speichert beide Entscheidungen und aktiviert die Routine. **Später fortfahren** lässt sie pausiert. Explizite Freigaben des Agenten bleiben verbindlich.
+
+Verhindert **Skip this run** eine überlappende Ausführung, speichert der Verlauf den Grund ohne neue Ausführung oder Kosten. Sie können eine wartende Ausführung direkt im Verlauf stoppen, wenn der Server dies erlaubt. Ihre bisherigen Kosten bleiben erhalten; der nächste geplante Termin kann wieder starten.
 
 Routinennamen werden auf Telefonen umgebrochen. Ohne Suchtreffer erscheint **Suche löschen**; **Erneut versuchen** lädt Aufgaben und Beobachtungen nach einem Lesefehler neu. Zeitpläne und Ereignisauslöser werden zwischen festem Kopf und Aktionsleiste bearbeitet. Schreibvorgänge sperren Felder und Schließen bis zum Abschluss; eine Ablehnung erhält den Entwurf.
 

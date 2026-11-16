@@ -252,7 +252,8 @@ export interface TriggerAttempt {
     | "platform_identity_required"
     | "source_review_required"
     | "agent_unavailable"
-    | "preparation_failed";
+    | "preparation_failed"
+    | "previous_run_active";
   occurred_at: string;
 }
 

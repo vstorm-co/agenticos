@@ -177,10 +177,24 @@ class RoutineAuthority:
         local_target_hash: str | None = None
         reviewed_sources: RoutineSourcePolicy | None = None
         result_mode: Literal["report", "inbox"] = "report"
+        acts_as_creator = (
+            ctx.fired_as_creator is not None
+            if run is None
+            else not run.initiated_by_publisher_fallback
+        )
         if kind == "trigger":
             trigger = await agent_trigger_repo.get(db, origin, organization_id=ctx.organization_id)
             if trigger is None:
                 raise _refused()
+            if run is not None:
+                # Older snapshots predate this flag. Their reviewed source scope
+                # includes runs_as_creator, so check_in still refuses a changed mode.
+                recorded_actor = (run.routine_policy or {}).get(
+                    "acts_as_creator", trigger.runs_as_creator and acts_as_creator
+                )
+                if not isinstance(recorded_actor, bool):
+                    raise _refused()
+                acts_as_creator = recorded_actor
             mode = (
                 trigger.result_mode
                 if run is None
@@ -233,11 +247,7 @@ class RoutineAuthority:
             user_id=person,
             root_agent_id=agent_id,
             role=member.role,
-            acts_as_creator=(
-                ctx.fired_as_creator is not None
-                if run is None
-                else not run.initiated_by_publisher_fallback
-            ),
+            acts_as_creator=acts_as_creator,
             routine_kind="watch" if kind == "watch" else "trigger",
             result_mode=result_mode,
             sources=sources,

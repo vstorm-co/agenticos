@@ -1205,6 +1205,12 @@ class TestClaiming:
         assert queued_fires == []
         assert busy.next_fire_at == now + timedelta(seconds=300)
         assert busy.fire_in_flight_since == earlier
+        service._record_attempt.assert_awaited_once_with(
+            busy,
+            service._record_attempt.await_args.args[1],
+            stage="preparation",
+            reason="previous_run_active",
+        )
 
     async def test_an_allowing_trigger_that_is_busy_fires_without_a_ticket(
         self, queued_fires: list[FireTrigger]

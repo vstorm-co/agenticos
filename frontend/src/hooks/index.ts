@@ -126,6 +126,7 @@ export {
   useRunTranscript,
   useSpend,
 } from "./use-runs";
+export { useStopParkedRun } from "./use-stop-parked-run";
 export {
   useAgentAttention,
   usePeopleUsage,

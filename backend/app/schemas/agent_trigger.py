@@ -941,6 +941,7 @@ TriggerAttemptReason = Literal[
     "source_review_required",
     "agent_unavailable",
     "preparation_failed",
+    "previous_run_active",
 ]
 
 

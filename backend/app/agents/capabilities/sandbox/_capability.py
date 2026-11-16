@@ -89,6 +89,9 @@ def build_workspace(*, include_execute: bool) -> CombinedCapability[Any]:
 
 def _console(*, include_execute: bool) -> ConsoleCapability:
     return ConsoleCapability(
+        # CombinedCapability flattens its children; the container's registry id
+        # does not become the console tools' owner in Pydantic AI.
+        id="sandbox",
         include_execute=include_execute,
         # So `read_file` on an image returns something a multimodal model can
         # see. Without it an agent cannot look at the chart it just rendered,

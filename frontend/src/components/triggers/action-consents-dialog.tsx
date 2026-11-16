@@ -7,6 +7,7 @@ import { SourceConsentsPanel } from "@/components/triggers/source-consents-panel
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRoutineActions } from "@/hooks/use-routine-actions";
+import { useRoutineSources } from "@/hooks/use-routine-sources";
 import {
   Button,
   Dialog,
@@ -24,11 +25,17 @@ import { routineActionIdentity as identity, routineActionKey } from "@/lib/routi
 export function ActionConsentsDialog({
   trigger,
   onClose,
+  onSaved,
 }: {
   trigger: Trigger;
   onClose: () => void;
+  /** Finish a newly created routine only after its displayed access is saved. */
+  onSaved?: () => Promise<void>;
 }) {
   const t = useTranslations("triggers.actionConsents");
+  const setup = useTranslations("triggers");
+  const sources = useRoutineSources(trigger.agent_id, trigger.id);
+  const [saving, setSaving] = useState(false);
   const { data, isLoading, error, replace, refetch } = useRoutineActions(
     trigger.agent_id,
     trigger.id,
@@ -39,15 +46,46 @@ export function ActionConsentsDialog({
     new Set(data?.items.filter((item) => item.consented && item.waivable).map(identity));
   const maxActions = data?.max_actions ?? 100;
   const overLimit = selected.size > maxActions;
+  const pending = saving || replace.isPending || sources.replace.isPending;
+  const sourceUnavailable =
+    !sources.data ||
+    !!sources.error ||
+    sources.isLoading ||
+    sources.data.unavailable_sources.length > 0;
+  async function save() {
+    if (!data || !sources.data || pending || sourceUnavailable) return;
+    setSaving(true);
+    try {
+      if (!sources.data.current) await sources.replace.mutateAsync(sources.data.review_token);
+      if (data.can_waive || onSaved) {
+        await replace.mutateAsync(
+          data.can_waive
+            ? data.items
+                .filter((item) => item.waivable && selected.has(identity(item)))
+                .map(routineActionKey)
+            : [],
+        );
+      }
+      await onSaved?.();
+      onClose();
+    } catch {
+      // Each mutation reports its refusal and refreshes its review; keep the
+      // displayed selection available for correction instead of closing it.
+    } finally {
+      setSaving(false);
+    }
+  }
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
       <DialogContent className={cn(DIALOG_WIDE, DIALOG_COLUMN)}>
         <DialogHeader>
-          <DialogTitle>{t("title")}</DialogTitle>
-          <DialogDescription>{t("description")}</DialogDescription>
+          <DialogTitle>{onSaved ? setup("setupReviewTitle") : t("title")}</DialogTitle>
+          <DialogDescription>
+            {onSaved ? setup("setupReviewDescription") : t("description")}
+          </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
-          <SourceConsentsPanel trigger={trigger} />
+          <SourceConsentsPanel trigger={trigger} showApprove={false} />
           {isLoading ? (
             <Spinner />
           ) : error ? (
@@ -77,7 +115,7 @@ export function ActionConsentsDialog({
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={replace.isPending || !data.can_waive}
+                    disabled={pending || !data.can_waive}
                     onClick={() =>
                       setChosen({
                         token: data.review_token,
@@ -102,7 +140,7 @@ export function ActionConsentsDialog({
                 <ActionSelection
                   items={data.items}
                   selected={selected}
-                  disabled={replace.isPending || !data.can_waive}
+                  disabled={pending || !data.can_waive}
                   onChange={(keys) => setChosen({ token: data.review_token, keys })}
                 />
               </div>
@@ -110,27 +148,32 @@ export function ActionConsentsDialog({
           )}
         </div>
         <DialogFooter>
+          {onSaved && (
+            <Button variant="outline" disabled={pending} onClick={onClose}>
+              {setup("finishLater")}
+            </Button>
+          )}
+          {!onSaved && (
+            <Button
+              variant="outline"
+              disabled={!data || pending}
+              onClick={() => replace.mutate([], { onSuccess: onClose })}
+            >
+              {t("revokeAll")}
+            </Button>
+          )}
           <Button
-            variant="outline"
-            disabled={!data || replace.isPending}
-            onClick={() => replace.mutate([], { onSuccess: onClose })}
-          >
-            {t("revokeAll")}
-          </Button>
-          <Button
-            disabled={!data || !data.can_waive || replace.isPending || !!error || overLimit}
-            onClick={() =>
-              replace.mutate(
-                data?.items
-                  .filter((item) => item.waivable && selected.has(identity(item)))
-                  .map(routineActionKey) ?? [],
-                {
-                  onSuccess: onClose,
-                },
-              )
+            disabled={
+              !data ||
+              (!data.can_waive && !onSaved && sources.data?.current !== false) ||
+              pending ||
+              !!error ||
+              overLimit ||
+              sourceUnavailable
             }
+            onClick={() => void save()}
           >
-            {t("save")}
+            {onSaved ? setup("enableRoutine") : t("save")}
           </Button>
         </DialogFooter>
       </DialogContent>

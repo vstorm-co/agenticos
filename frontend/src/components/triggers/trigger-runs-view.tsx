@@ -18,6 +18,7 @@ import {
 } from "@/components/ui";
 import { useRuns } from "@/hooks";
 import { useTriggerAttempts } from "@/hooks/use-triggers";
+import { useStopParkedRun } from "@/hooks/use-stop-parked-run";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
@@ -218,6 +219,10 @@ const STOPPED = new Set<AgentRun["status"]>([
 /** One fire: when it ran, how it went, what it cost, and a way into it. */
 function FireRow({ run }: { run: AgentRun }) {
   const t = useTranslations("triggers");
+  const { canStop, stop } = useStopParkedRun(
+    run.id,
+    run.status === "awaiting_approval" || run.status === "awaiting_answer",
+  );
   const locale = useLocale();
   // Every way a run ends without finishing its work: the run view is where "why" is.
   const failed = STOPPED.has(run.status);
@@ -253,6 +258,11 @@ function FireRow({ run }: { run: AgentRun }) {
           })}
         </p>
       </div>
+      {canStop && (
+        <Button variant="outline" size="sm" disabled={stop.isPending} onClick={() => stop.mutate()}>
+          {t("stopWaitingRun")}
+        </Button>
+      )}
       {/* Into the run itself, which is where "why did this fail" is answered -
           the requests, the tools and what each turn cost. */}
       <Button variant="ghost" size="sm" asChild>

@@ -2480,6 +2480,9 @@ class AgentTriggerService:
             trigger.next_fire_at = _next_fire_from(trigger, now=now)
             if busy:
                 if trigger.overlap == TriggerOverlap.SKIP.value:
+                    await self._record_attempt(
+                        trigger, uuid4(), stage="preparation", reason="previous_run_active"
+                    )
                     logger.info("trigger_occurrence_skipped", extra={"trigger_id": str(trigger.id)})
                     continue
                 fired.append((trigger, None))

@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -398,4 +399,62 @@ it("shows paused setup status without granting non-owners a source-review contro
   );
   expect(screen.getByText("Setup required")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Setup required" })).not.toBeInTheDocument();
+});
+
+it.each([true, false])(
+  "shows stop for a parked routine only when the server allows it (%s)",
+  async (allowed) => {
+    vi.mocked(apiClient.post).mockClear();
+    serveRuns([run({ status: "awaiting_approval" })]);
+    const normal = vi.mocked(apiClient.get).getMockImplementation()!;
+    let stopped = false;
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+      if (path.endsWith("/can-stop")) return allowed;
+      if (path === "/runs" && stopped) return { items: [run({ status: "cancelled" })], total: 1 };
+      return normal(path, options);
+    });
+    vi.mocked(apiClient.post).mockImplementation(async () => {
+      stopped = true;
+      return null;
+    });
+    render(<TriggerRunsView trigger={trigger({ conversation_id: "c1" })} pendingSince={null} />, {
+      wrapper,
+    });
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith("/runs/r1/can-stop", {
+        signal: expect.any(AbortSignal),
+      }),
+    );
+    if (allowed) {
+      await userEvent.click(await screen.findByRole("button", { name: "Stop waiting run" }));
+      expect(apiClient.post).toHaveBeenCalledWith("/runs/r1/cancel");
+      expect(await screen.findByText(/cancelled/i)).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Stop waiting run" })).toBeNull();
+    } else {
+      expect(screen.queryByRole("button", { name: "Stop waiting run" })).toBeNull();
+      expect(apiClient.post).not.toHaveBeenCalled();
+    }
+  },
+);
+
+it("explains a skipped overlap in the routine's history", async () => {
+  serveRuns([], 0, { items: [attempt("previous_run_active")], total: 1 });
+  render(<TriggerRunsView trigger={trigger()} pendingSince={null} />, { wrapper });
+  expect(await screen.findByText(/Skipped because a previous run is still running/)).toBeVisible();
+});
+
+it("keeps a waiting run visible and reports a refused stop", async () => {
+  serveRuns([run({ status: "awaiting_approval" })]);
+  const normal = vi.mocked(apiClient.get).getMockImplementation()!;
+  vi.mocked(apiClient.get).mockImplementation(async (path, options) =>
+    path.endsWith("/can-stop") ? true : normal(path, options),
+  );
+  vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("Cannot stop now"));
+  render(<TriggerRunsView trigger={trigger({ conversation_id: "c1" })} pendingSince={null} />, {
+    wrapper,
+  });
+  await userEvent.click(await screen.findByRole("button", { name: "Stop waiting run" }));
+  await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  expect(screen.getByRole("button", { name: "Stop waiting run" })).toBeEnabled();
+  expect(screen.getByText(/awaiting approval/i)).toBeVisible();
 });
