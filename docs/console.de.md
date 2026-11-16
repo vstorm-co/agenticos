@@ -1,5 +1,5 @@
 ---
-source_sha: "a0384ef79df4"
+source_sha: "dce4a3c21c3f"
 ---
 
 # Die Konsole { #the-console }
@@ -40,7 +40,7 @@ neben dem Mikrofon.
 
 Ressourcenlisten, darunter Inbox und Routines, füllen auch im leeren Zustand die verbleibende Seitenhöhe. Routines bietet Vorlagen im Erstellungsformular statt in einem eigenen Ideenbereich an.
 
-Im Chat sind Agentenporträts größer und ohne Ringe. Der Files-Schalter bleibt beim Öffnen und Schließen des Bereichs in den Bedienelementen rechts; reduzierte Bewegung wird berücksichtigt. Die Chat-Einstellungen zeigen zuerst das aktuelle Modell. Unter **Modell ändern** lassen sich vorausgefüllter Anbieter und Modell bearbeiten; erst die Bestätigung übernimmt die Änderung. Anhangskarten stehen ohne zusätzliches Schattenpanel über dem Eingabefeld.
+Im Chat sind Agentenporträts größer und ohne Ringe. In der vollständigen Desktop-Chatansicht bleibt der Files-Schalter beim Öffnen und Schließen des Bereichs in den Bedienelementen des Arbeitsbereichs; reduzierte Bewegung wird berücksichtigt. Die Chat-Einstellungen zeigen zuerst das aktuelle Modell. Unter **Modell ändern** lassen sich vorausgefüllter Anbieter und Modell bearbeiten; erst die Bestätigung übernimmt die Änderung. Anhangskarten stehen ohne zusätzliches Schattenpanel über dem Eingabefeld.
 
 Seiteneinführungen und Erläuterungen zu Einstellungen sind über das Informationssymbol neben der Überschrift erreichbar. Aktuelle Zusammenfassungen und Warnungen vor destruktiven Aktionen bleiben sichtbar.
 
@@ -81,6 +81,10 @@ Auf Telefonen bleiben Beschreibung, Kategorie und Dateiverwaltung in Skill- und 
 Seitenüberschriften verwenden die Abstände des umgebenden Layouts ohne Verdopplung. Karten, Seitenleistenzeilen, Tabs und leere Zustände haben auf dem Desktop kompaktere Abstände; Bedienelemente behalten größere Touchflächen.
 
 Sekundäre Schaltflächen und Filter teilen eine deutlichere Füllfläche, kontrastreiche Beschriftungen und klare Zustände bei Hover, Betätigung und geöffnetem Menü. Die Modellauswahl im Chat verwendet denselben Stil.
+
+Der Kopf eines Agent-Chats zeigt das aktuelle Modell mit dem Provider-Symbol. Öffne die Modellauswahl, um gespeicherte Modelle zu suchen, den Provider oder das Konto zu wechseln oder **Use agent's model** zu wählen. Die Auswahl gilt ab der nächsten Nachricht und wird für dein Konto in der aktuellen Organisation gespeichert; sie bearbeitet den Agenten nicht. Ein laufender Turn behält sein Modell. Getrennte Verbindungen und Modelle ohne Chat-Unterstützung bleiben sichtbar, sind aber nicht auswählbar. Kann die Modellliste nicht gelesen werden, bietet sie **Retry**. **Controls** neben dem Nachrichtenfeld enthält weiterhin die vollständige Modell- und Verbindungseinrichtung.
+
+Die Modellauswahl im Kopf erfordert `connections:manage`, wie die bisherigen Modellkontrollen. In schreibgeschützten Gesprächen und ohne diese Berechtigung bleibt das aktuelle Modell sichtbar.
 
 Persönliche Einstellungen behalten horizontale Tabs am oberen Rand, einschließlich der Desktop-Seiten innerhalb der App. Beschreibungen stehen direkt im Panel; Formulare passen sich ihrem Inhalt an. Konto enthält Passwortänderung und aktive Sitzungen; die Passwortaktion steht unter den Feldern.
 
@@ -707,11 +711,15 @@ als Karte in seiner Antwort. Jeder Teil hat ein eigenes Kopiersymbol, das reinen
 kopiert; mehrere Varianten eines Entwurfs sind Tabs in derselben Karte. Das eigene
 **Kopieren** einer Nachricht enthält auch ihre Entwürfe.
 
-**Browser, Computer und Dateien (Files).** Die Schaltflächen rechts in jedem Chat
-öffnen das Panel Browser, Computer oder Dateien. Browser und Computer lassen sich
+**Browser, Computer und Dateien (Files).** In der vollständigen Desktop-Chatansicht
+stehen die Schaltflächen rechts und öffnen das Panel Browser, Computer oder Dateien.
+Diese Leiste ist auf Telefonen und in kompakten Chats ausgeblendet.
+
+Browser und Computer lassen sich
 bereits öffnen, bevor der Agent sie verwendet hat. Das Öffnen eines leeren Panels
-startet weder einen Run noch eine gehostete Sitzung. Geben Sie im Browser-Panel
-zuerst die Website-Adresse ein. Hat der ausgewählte Agent die
+startet weder einen Run noch eine gehostete Sitzung.
+
+Geben Sie im Browser-Panel zuerst die Website-Adresse ein. Hat der ausgewählte Agent die
 entsprechende gehostete Capability und dürfen Sie ihn ausführen, bittet eine
 ausdrückliche Startaktion ihn, den Browser zu öffnen oder ein Desktop-Bild
 aufzunehmen. Andernfalls erklärt das Panel, was nicht verfügbar ist. Die
