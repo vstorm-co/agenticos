@@ -1,12 +1,20 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { ConsoleToaster } from "./console-toaster";
 
-afterEach(() => {
-  act(() => {
+beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+});
+
+afterEach(async () => {
+  await act(async () => {
     toast.dismiss();
+    await vi.runOnlyPendingTimersAsync();
   });
+  cleanup();
+  vi.clearAllTimers();
+  vi.useRealTimers();
 });
 
 it("dismisses a clicked notification through its native close control", async () => {

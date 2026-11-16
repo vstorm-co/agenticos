@@ -2946,10 +2946,6 @@ class McpConnectionService:
             account.scope == "org" and account.organization_id != organization_id
         ):
             return False
-        if payload.bridge_url is None and (
-            payload.account_source_secret_id is None or payload.account_source_generation is None
-        ):
-            return False
         if account.scope == "user":
             membership = (
                 await decider_context(
@@ -3071,7 +3067,13 @@ class McpConnectionService:
         if account.authorization_expired:
             return None
         payload = _decode_payload(account, account.oauth_payload)
-        if payload is None or payload.refresh_token is None or payload.client_secret is None:
+        if (
+            payload is None
+            or payload.refresh_token is None
+            or payload.client_secret is None
+            or payload.account_source_secret_id is None
+            or payload.account_source_generation is None
+        ):
             return None
         if not await self._account_source_current(account, payload, organization_id):
             return None
