@@ -239,14 +239,37 @@ class OutlookTriggerConfig(BaseSchema):
 
 
 class WebhookTriggerConfig(BaseSchema):
-    """The generic webhook source carries no filter - a signed delivery fires.
+    """Signature verification for generic JSON webhooks; filtering is the sender's job.
 
-    The catch-all for anything that can POST signed JSON. Filtering is the
-    sender's job (it chose to deliver); an empty model rather than no model so an
-    unknown key is still refused instead of stored to mean nothing.
+    The default preserves the original relay signature and optional signed time.
+    Raw-body HMAC modes use the named header and do not authenticate a timestamp.
     """
 
     model_config = ConfigDict(extra="forbid")
+    signature_scheme: Literal["legacy", "hmac-sha256-hex", "hmac-sha256-base64"] = "legacy"
+    signature_header: str | None = Field(default=None, min_length=1, max_length=128)
+
+    @model_validator(mode="after")
+    def _signature_header_matches_scheme(self) -> WebhookTriggerConfig:
+        if self.signature_scheme == "legacy":
+            if self.signature_header is not None:
+                raise ValueError("signature_header is only valid with a raw-body HMAC scheme")
+        elif self.signature_header is None or not re.fullmatch(
+            r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", self.signature_header
+        ):
+            raise ValueError("raw-body HMAC requires a valid signature_header")
+        if self.signature_header is not None:
+            self.signature_header = self.signature_header.lower()
+        return self
+
+
+class LinearTriggerConfig(BaseSchema):
+    """Optional filters on Linear payload types and actions."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event_types: list[str] | None = Field(default=None, min_length=1, max_length=50)
+    actions: list[str] | None = Field(default=None, min_length=1, max_length=50)
 
 
 class HubspotTriggerConfig(BaseSchema):
@@ -288,6 +311,7 @@ EventSourceName = Literal[
     "google_calendar",
     "google_drive",
     "hubspot",
+    "linear",
     "microsoft_files",
     "outlook",
     "outlook_calendar",
@@ -396,6 +420,7 @@ _EVENT_CONFIG_MODELS: dict[str, type[BaseSchema]] = {
     EventSource.GOOGLE_CALENDAR.value: CalendarTriggerConfig,
     EventSource.GOOGLE_DRIVE.value: GoogleDriveTriggerConfig,
     EventSource.HUBSPOT.value: HubspotTriggerConfig,
+    EventSource.LINEAR.value: LinearTriggerConfig,
     EventSource.MICROSOFT_FILES.value: MicrosoftFilesTriggerConfig,
     EventSource.OUTLOOK_CALENDAR.value: CalendarTriggerConfig,
     EventSource.OUTLOOK.value: OutlookTriggerConfig,
@@ -610,7 +635,9 @@ class TriggerCreate(BaseSchema):
         # (a GitHub trigger with no actions fires on issue creation) and refuses
         # an unknown key. `model_validate({})` cannot fail for any source.
         config_model = _EVENT_CONFIG_MODELS[self.event_source]
-        self.event_config = config_model.model_validate(self.event_config or {}).model_dump()
+        self.event_config = config_model.model_validate(self.event_config or {}).model_dump(
+            exclude_defaults=self.event_source == EventSource.WEBHOOK.value
+        )
 
     def _reject_event_fields(self) -> None:
         if self.event_source is not None:

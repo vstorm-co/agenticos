@@ -21,6 +21,40 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- A retrieval benchmark over 34 documentation questions, including negative and
+  cross-language answers. `make eval-retrieval` compares retrieval depth, query
+  expansion and chunk settings, with per-question results and reproducible run
+  metadata. [Retrieval evaluation](docs/retrieval-eval.md) records the measured
+  comparison and the decision on knowledge-agent defaults (#2482).
+
+### Fixed
+
+- Workflow **knowledge.search** citations omit page numbers for formats without
+  pages, including Markdown, text, HTML and `.docx`. PDF pages and presentation
+  slides keep their locations (#2482).
+
+## [1.76.1] - 2026-11-15
+
+### Documentation
+
+- README links to RepoCloud and Railway hosting templates in all four languages, with provider configuration and version limitations.
+
+## [1.76.0] - 2026-11-15
+
+### Added
+
+- Native Linear webhook triggers verify signed deliveries and start agent routines directly.
+
+## [1.75.0] - 2026-11-15
+
+### Added
+
+- Generic API webhook triggers can verify raw-body HMAC-SHA256 signatures in a configured header, with hex or base64 encoding.
+
+## [1.74.0] - 2026-11-14
+
+### Added
+
 - Opt-in automatic channel participation with a separate decision model, focus instructions, bounded message windows and configurable pre-/post-mention intervals. Automatic replies can use bound organization MCP accounts; private accounts and calls needing human approval require a direct mention.
 
 - Organization groups in workflow human/MCP approvals and agent notification audiences. Decisions use current eligible membership; empty or deleted configured groups never become unrestricted approval.
@@ -38,12 +72,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Channel history supports bounded text, author and time filters with destination-bound continuation cursors for Mattermost and Slack. Other platforms report unsupported paging explicitly.
 
 - Activity separates the runtime tool catalog from provider-resolved visibility, records Tool Search policy and per-request tool counts, and puts model settings and cache usage beside readable prompt/source views. Run history fills the available viewport even when it contains few records.
-
-- A retrieval benchmark over 34 documentation questions, including negative and
-  cross-language answers. `make eval-retrieval` compares retrieval depth, query
-  expansion and chunk settings, with per-question results and reproducible run
-  metadata. [Retrieval evaluation](docs/retrieval-eval.md) records the measured
-  comparison and the decision on knowledge-agent defaults (#2482).
 
 ### Fixed
 
@@ -85,10 +113,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Read Mattermost thread history in creation-time order and honor result limits even when the platform returns an unordered or oversized thread. Use the thread endpoint's native paging parameters for both text and attachment backfill.
 - Discover both search and fetch tools from multi-query local tool search, including MCP tools with long descriptions.
 - Keep channel author metadata separate from user messages, without inserting an empty message marker. Ignore Mattermost system housekeeping posts before they can start paid agent runs.
-
-- Workflow **knowledge.search** citations omit page numbers for formats without
-  pages, including Markdown, text, HTML and `.docx`. PDF pages and presentation
-  slides keep their locations (#2482).
 
 ### Changed
 
@@ -21753,7 +21777,11 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.73.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.76.1...HEAD
+[1.76.1]: https://github.com/vstorm-co/agenticos/compare/v1.76.0...v1.76.1
+[1.76.0]: https://github.com/vstorm-co/agenticos/compare/v1.75.0...v1.76.0
+[1.75.0]: https://github.com/vstorm-co/agenticos/compare/v1.74.0...v1.75.0
+[1.74.0]: https://github.com/vstorm-co/agenticos/compare/v1.73.0...v1.74.0
 [1.73.0]: https://github.com/vstorm-co/agenticos/compare/v1.72.0...v1.73.0
 [1.72.0]: https://github.com/vstorm-co/agenticos/compare/v1.71.2...v1.72.0
 [1.71.2]: https://github.com/vstorm-co/agenticos/compare/v1.71.1...v1.71.2
