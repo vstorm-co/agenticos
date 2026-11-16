@@ -18,6 +18,13 @@ const org = vi.hoisted(() => ({
 vi.mock("@/hooks", () => ({ useMembers: () => ({ members: org.members }) }));
 
 vi.mock("@/stores", () => ({ useOrgStore: () => "org-1" }));
+vi.mock("@/hooks/use-groups", () => ({
+  useGroups: () => ({
+    groups: [{ id: "finance", name: "Finance" }],
+    error: null,
+    isLoading: false,
+  }),
+}));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -235,4 +242,11 @@ describe("the alerts panel", () => {
 
     expect(saved(onChange).budget.to).toEqual(["admins", "owner", "chosen"]);
   });
+});
+
+it("saves selected notification groups without changing the people audience", async () => {
+  const { onChange } = mount(withChosen(["u-1"]));
+  await userEvent.click(screen.getByRole("checkbox", { name: "Finance" }));
+  expect(saved(onChange).approvals.group_ids).toEqual(["finance"]);
+  expect(saved(onChange).approvals.user_ids).toEqual(["u-1"]);
 });

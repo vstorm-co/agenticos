@@ -36,10 +36,18 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
-def session():
+def session(monkeypatch):
     """A session with no bind: the queued job is captured before it would reach one."""
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    monkeypatch.setattr(
+        "app.services.sync_source.knowledge_base_repo.list_by_collection_name",
+        AsyncMock(return_value=[]),
+    )
+    monkeypatch.setattr(
+        "app.services.rag_sync.knowledge_base_repo.get_by_id",
+        AsyncMock(return_value=None),
+    )
     return AsyncSession()
 
 

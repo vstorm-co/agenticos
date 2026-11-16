@@ -438,3 +438,34 @@ async def test_withdrawing_a_waiting_update_stops_its_check(db, monkeypatch) -> 
     await SkillService(db).refresh_from_library(ctx, KEY)
 
     assert stopped == [older.id]
+
+
+@pytest.mark.security
+async def test_a_same_named_custom_skill_is_not_adopted_as_bundled_instructions(db):
+    ctx = await _owner_ctx(db)
+    bundled = skill_library.get(KEY)
+    assert bundled is not None
+    custom = Skill(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        name=bundled.name,
+        description="Custom historical copy",
+        content="Different instructions",
+        owner_user_id=ctx.user_id,
+    )
+    db.add(custom)
+    await db.flush()
+    await db.refresh(custom, ["resources"])
+    assert not await SkillService(db).trusted_template_copy(custom, bundled)
+
+
+async def test_an_edited_official_installation_retains_provenance_without_a_fingerprint(db):
+    ctx = await _owner_ctx(db)
+    await SkillService(db).install_from_library(ctx, KEY)
+    row = await _copy(db, ctx)
+    row.content = "An administrator's deliberate customization"
+    row.library_fingerprint = None
+    await db.flush()
+    bundled = skill_library.get(KEY)
+    assert bundled is not None
+    assert await SkillService(db).trusted_template_copy(row, bundled)

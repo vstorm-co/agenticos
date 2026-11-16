@@ -183,6 +183,116 @@ def migration_database() -> Iterator[None]:
         _outside_a_transaction(maintenance, drop)
 
 
+def test_provider_account_migration_preserves_existing_grant_and_refuses_lossy_downgrade() -> None:
+    """The new defaults retain old consent and downgrade will not collapse accounts."""
+    from app.db.models.organization import Organization
+
+    assert _alembic("upgrade", "head").returncode == 0
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    account_id, generation = uuid4(), uuid4()
+    try:
+        with DatabaseSession(engine) as db:
+            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            db.add(owner)
+            db.flush()
+            org = Organization(
+                name="Provider accounts",
+                slug=f"provider-accounts-{uuid4()}",
+                created_by_user_id=owner.id,
+            )
+            db.add(org)
+            db.commit()
+            owner_id, organization_id = owner.id, org.id
+
+        assert _alembic("downgrade", "0325_merge_t3_rooms_v173").returncode == 0
+        with engine.begin() as db:
+            db.execute(
+                text(
+                    "INSERT INTO coding_accounts "
+                    "(id, organization_id, user_id, harness, label, secret_kind, sealed_secret, "
+                    "key_version, enabled, generation) "
+                    "VALUES (:id, :organization, :user, 'codex', 'Existing', 'openai_codex', "
+                    "'sealed-existing-value', 1, false, :generation)"
+                ),
+                {
+                    "id": account_id,
+                    "organization": organization_id,
+                    "user": owner_id,
+                    "generation": generation,
+                },
+            )
+        assert _alembic("upgrade", "head").returncode == 0
+        with engine.connect() as db:
+            preserved = db.execute(
+                text(
+                    "SELECT id, enabled, generation, sealed_secret, is_default, pool_member, "
+                    "provider_identity_fingerprint FROM coding_accounts WHERE id = :id"
+                ),
+                {"id": account_id},
+            ).one()
+        assert preserved == (
+            account_id,
+            False,
+            generation,
+            "sealed-existing-value",
+            True,
+            False,
+            None,
+        )
+
+        with engine.begin() as db:
+            db.execute(
+                text(
+                    "INSERT INTO coding_accounts "
+                    "(id, organization_id, user_id, harness, label, secret_kind, sealed_secret, "
+                    "key_version, enabled, generation, is_default, pool_member, "
+                    "provider_identity_fingerprint) "
+                    "VALUES (:id, :organization, :user, 'codex', 'Second', 'openai_codex', "
+                    "'sealed-second-value', 1, false, :generation, false, false, :identity)"
+                ),
+                {
+                    "id": uuid4(),
+                    "organization": organization_id,
+                    "user": owner_id,
+                    "generation": uuid4(),
+                    "identity": "a" * 64,
+                },
+            )
+        downgrade = _alembic("downgrade", "0325_merge_t3_rooms_v173")
+        assert downgrade.returncode != 0
+        assert "Cannot downgrade while multiple coding accounts exist" in downgrade.stderr
+        with engine.connect() as db:
+            assert (
+                db.execute(
+                    text("SELECT count(*) FROM coding_accounts WHERE organization_id = :org"),
+                    {"org": organization_id},
+                ).scalar_one()
+                == 2
+            )
+        with engine.begin() as db:
+            db.execute(
+                text("DELETE FROM coding_accounts WHERE organization_id = :org AND id != :id"),
+                {"org": organization_id, "id": account_id},
+            )
+        downgrade = _alembic("downgrade", "0325_merge_t3_rooms_v173")
+        assert downgrade.returncode == 0, downgrade.stderr
+        upgrade = _alembic("upgrade", "head")
+        assert upgrade.returncode == 0, upgrade.stderr
+        with engine.connect() as db:
+            assert (
+                db.execute(
+                    text(
+                        "SELECT id, enabled, generation, sealed_secret, is_default, pool_member, "
+                        "provider_identity_fingerprint FROM coding_accounts WHERE id = :id"
+                    ),
+                    {"id": account_id},
+                ).one()
+                == preserved
+            )
+    finally:
+        engine.dispose()
+
+
 def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs() -> None:
     """0322_coding_task_revert.py and 0323_coding_revert_admission.py preserve legacy diffs."""
     from app.db.models.conversation import Conversation
@@ -1793,18 +1903,18 @@ class TestConnectedAccountSources:
 class TestRoomThreadMigration:
     def test_revision_follows_the_room_merge_and_keeps_one_head(self) -> None:
         script = ScriptDirectory.from_config(Config("alembic.ini"))
-        revision = script.get_revision("0326_room_threads")
+        revision = script.get_revision("0333_room_threads")
         assert revision is not None
-        assert revision.down_revision == "0325_merge_t3_rooms_v173"
-        relations = script.get_revision("0327_virtual_table_relations")
+        assert revision.down_revision == "0332_merge_t3_pools_v1761"
+        relations = script.get_revision("0334_virtual_table_relations")
         assert relations is not None
-        assert relations.down_revision == "0326_room_threads"
-        assert script.get_heads() == ["0327_virtual_table_relations"]
+        assert relations.down_revision == "0333_room_threads"
+        assert script.get_heads() == ["0334_virtual_table_relations"]
 
     def test_existing_quotes_survive_roundtrip_and_models_match_head(self) -> None:
         reset = _alembic("downgrade", "base")
         assert reset.returncode == 0, reset.stderr
-        previous = _alembic("upgrade", "0325_merge_t3_rooms_v173")
+        previous = _alembic("upgrade", "0332_merge_t3_pools_v1761")
         assert previous.returncode == 0, previous.stderr
         root_id, quote_id, conversation_id = uuid4(), uuid4(), uuid4()
         engine = create_engine(_url(MIGRATION_DATABASE))
@@ -1812,7 +1922,7 @@ class TestRoomThreadMigration:
             with engine.begin() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0325_merge_t3_rooms_v173"]
+                ).all() == ["0332_merge_t3_pools_v1761"]
                 connection.execute(text("SET LOCAL session_replication_role = replica"))
                 connection.execute(
                     text(
@@ -1827,7 +1937,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0327_virtual_table_relations"]
+                ).all() == ["0334_virtual_table_relations"]
                 rows = connection.execute(
                     text(
                         "SELECT id,reply_to_message_id,thread_root_message_id FROM messages "
@@ -1891,13 +2001,13 @@ class TestRoomThreadMigration:
                     ),
                     {"id": child_id, "room": conversation_id, "root": root_id},
                 )
-            refused = _alembic("downgrade", "0325_merge_t3_rooms_v173")
+            refused = _alembic("downgrade", "0332_merge_t3_pools_v1761")
             assert refused.returncode != 0
             assert "Cannot remove room thread scopes" in refused.stderr
             with engine.begin() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0327_virtual_table_relations"]
+                ).all() == ["0334_virtual_table_relations"]
                 assert (
                     connection.scalar(
                         text("SELECT thread_root_message_id FROM messages WHERE id=:id"),
@@ -1906,12 +2016,12 @@ class TestRoomThreadMigration:
                     == root_id
                 )
                 connection.execute(text("DELETE FROM messages WHERE id=:id"), {"id": child_id})
-            down = _alembic("downgrade", "0325_merge_t3_rooms_v173")
+            down = _alembic("downgrade", "0332_merge_t3_pools_v1761")
             assert down.returncode == 0, down.stderr
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0325_merge_t3_rooms_v173"]
+                ).all() == ["0332_merge_t3_pools_v1761"]
                 assert (
                     connection.scalar(
                         text("SELECT reply_to_message_id FROM messages WHERE id=:id"),
@@ -1924,7 +2034,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0327_virtual_table_relations"]
+                ).all() == ["0334_virtual_table_relations"]
             check = _alembic("check")
             assert check.returncode == 0, check.stderr
         finally:
@@ -1947,7 +2057,7 @@ class TestRoomThreadMigration:
                 == 1
             )
 
-        downgraded = _alembic("downgrade", "0325_merge_t3_rooms_v173")
+        downgraded = _alembic("downgrade", "0332_merge_t3_pools_v1761")
         assert downgraded.returncode == 0, downgraded.stderr
         with engine.connect() as connection:
             assert (
@@ -1974,7 +2084,7 @@ class TestRoomThreadMigration:
         _outside_a_transaction(maintenance, f'CREATE DATABASE "{database}"')
         engine = create_engine(_url(database))
         try:
-            previous = _alembic("upgrade", "0325_merge_t3_rooms_v173")
+            previous = _alembic("upgrade", "0332_merge_t3_pools_v1761")
             assert previous.returncode == 0, previous.stderr
             yield engine
         finally:
@@ -1985,7 +2095,7 @@ class TestRoomThreadMigration:
     def _assert_thread_revision_pending(engine: Engine, *, column_exists: bool = False) -> None:
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0325_merge_t3_rooms_v173"
+                "0332_merge_t3_pools_v1761"
             ]
             assert (
                 connection.scalar(
@@ -2127,7 +2237,7 @@ class TestRoomThreadMigration:
         assert resumed.returncode == 0, resumed.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0327_virtual_table_relations"
+                "0334_virtual_table_relations"
             ]
             assert connection.execute(
                 text("SELECT content, thread_root_message_id FROM messages WHERE id = :id"),
@@ -2189,7 +2299,7 @@ class TestRoomThreadMigration:
                 "    return original(operations, operation, *args, **kwargs)\n"
                 "with patch.object(Operations, 'create_index', track_index), "
                 "patch.object(Operations, 'execute', interrupt):\n"
-                "    command.upgrade(Config('alembic.ini'), '0326_room_threads')\n",
+                "    command.upgrade(Config('alembic.ini'), '0333_room_threads')\n",
                 "true" if prebuilt else "false",
             ],
             capture_output=True,

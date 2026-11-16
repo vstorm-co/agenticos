@@ -205,6 +205,7 @@ export interface AlertSpec {
   enabled: boolean;
   to: AlertAudience[];
   user_ids: string[];
+  group_ids?: string[];
 }
 
 /**
@@ -644,6 +645,9 @@ export interface Agent {
 
 export interface AgentDetail extends Agent {
   draft_spec: AgentSpec;
+  /** Resolved for this caller, including resource grants. Absent on older servers. */
+  can_edit?: boolean;
+  can_publish?: boolean;
 }
 
 /**
@@ -903,6 +907,7 @@ export interface JsonSchemaProperty {
   default?: unknown;
   minimum?: number;
   maximum?: number;
+  "x-percent"?: boolean;
   maxLength?: number;
   enum?: unknown[];
   /**

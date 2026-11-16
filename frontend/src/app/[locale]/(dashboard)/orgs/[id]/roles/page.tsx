@@ -1,11 +1,21 @@
 "use client";
 
-import { use, useId } from "react";
-import { ShieldCheck } from "lucide-react";
+import { use, useId, useState } from "react";
+import { Search } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
-import { EmptyState, LoadingState } from "@/components/states";
-import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
+import { ErrorState, LoadingState } from "@/components/states";
+import {
+  Badge,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  SearchInput,
+  Skeleton,
+  ListCardEmpty,
+} from "@/components/ui";
 import { usePermissions, useRoleCatalog } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import type { PermissionScope } from "@/types/permissions";
@@ -38,6 +48,7 @@ const SCOPE_VARIANT: Record<PermissionScope, "default" | "secondary" | "outline"
 export default function RolesPage({ params }: PageProps) {
   const t = useTranslations("pages.orgs");
   const matrixId = useId();
+  const [query, setQuery] = useState("");
   const { id: orgId } = use(params);
   const { catalog, isLoading } = useRoleCatalog();
   const { role: myRole, isAppAdmin } = usePermissions();
@@ -55,15 +66,30 @@ export default function RolesPage({ params }: PageProps) {
     />
   );
 
+  const toolbar = (
+    <div className="border-b px-4 py-3 sm:px-5">
+      <SearchInput
+        value={query}
+        onChange={setQuery}
+        placeholder={t("searchPermissions")}
+        className="w-full sm:max-w-sm"
+      />
+    </div>
+  );
+
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         {breadcrumbHeader}
-        <Card>
+        <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader className="border-b px-5 py-4">
             <CardTitle className="text-sm">{t("permissionMatrix")}</CardTitle>
+            <CardDescription>
+              <Skeleton className="h-4 w-full" />
+            </CardDescription>
           </CardHeader>
-          <CardContent className="p-5">
+          {toolbar}
+          <CardContent className="flex-1 p-0">
             {/* The permission name plus one column per role - six roles ship in
                 the catalog. A wrong guess costs a column of width, not the
                 page's height, which is what the reader is waiting on. */}
@@ -76,26 +102,31 @@ export default function RolesPage({ params }: PageProps) {
 
   if (!catalog) {
     return (
-      <EmptyState
-        icon={ShieldCheck}
-        title={t("permissionCatalogUnavailable")}
-        description={t("serverDidNotReturn")}
-      />
+      <div className="flex flex-1 flex-col gap-4">
+        {breadcrumbHeader}
+        <ErrorState
+          title={t("permissionCatalogUnavailable")}
+          description={t("serverDidNotReturn")}
+        />
+      </div>
     );
   }
 
   const resourcePerms = new Set(catalog.resource_permissions);
   const scopeFor = (roleName: string, permission: string): PermissionScope =>
-    (catalog.roles
+    catalog.roles
       .find((role) => role.name === roleName)
-      ?.permissions.find((entry) => entry.permission === permission)?.scope as PermissionScope) ??
-    "none";
+      ?.permissions.find((entry) => entry.permission === permission)?.scope ?? "none";
+
+  const shown = catalog.all_permissions.filter((permission) =>
+    permission.toLowerCase().includes(query.trim().toLowerCase()),
+  );
 
   return (
-    <div className="space-y-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       {breadcrumbHeader}
 
-      <Card data-tour="org-roles">
+      <Card data-tour="org-roles" className="flex min-h-0 flex-1 flex-col">
         <CardHeader className="border-b px-5 py-4">
           <CardTitle id={matrixId} className="text-sm">
             {t("permissionMatrix2")}
@@ -120,26 +151,30 @@ export default function RolesPage({ params }: PageProps) {
             ) : null}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        {toolbar}
+        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           {/* Wide table: scrolls inside its own container so the page never scrolls sideways. */}
           <div
             role="region"
             aria-labelledby={matrixId}
             // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- A scroll region needs focus for native arrow-key scrolling.
             tabIndex={0}
-            className="-mx-1 overflow-x-auto rounded-md px-1"
+            className="focus-visible:outline-ring min-h-64 flex-1 overflow-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2"
           >
-            <table className="w-full min-w-[46rem] text-sm">
-              <thead>
+            <table className="w-full min-w-[46rem] border-separate border-spacing-0 text-sm">
+              <thead className="bg-card sticky top-0 z-20">
                 <tr className="border-b">
-                  <th scope="col" className="py-2 pr-4 text-left font-medium">
+                  <th
+                    scope="col"
+                    className="bg-card text-muted-foreground sticky left-0 z-30 border-b px-5 py-3 text-left text-xs font-medium"
+                  >
                     {t("permission")}
                   </th>
                   {catalog.roles.map((role) => (
                     <th
                       key={role.name}
                       scope="col"
-                      className="px-3 py-2 text-left font-medium capitalize"
+                      className="bg-card text-muted-foreground border-b px-3 py-3 text-left text-xs font-medium capitalize"
                     >
                       {role.name}
                     </th>
@@ -147,9 +182,12 @@ export default function RolesPage({ params }: PageProps) {
                 </tr>
               </thead>
               <tbody>
-                {catalog.all_permissions.map((permission) => (
+                {shown.map((permission) => (
                   <tr key={permission} className="border-b last:border-0">
-                    <th scope="row" className="py-2 pr-4 text-left font-mono text-xs font-normal">
+                    <th
+                      scope="row"
+                      className="bg-card sticky left-0 z-10 border-b px-5 py-3 text-left font-mono text-xs font-normal shadow-[1px_0_0_var(--border)]"
+                    >
                       {permission}
                       {resourcePerms.has(permission) ? (
                         <span className="text-muted-foreground"> {t("scoped")}</span>
@@ -159,7 +197,7 @@ export default function RolesPage({ params }: PageProps) {
                       const scope = scopeFor(role.name, permission);
                       const isResource = resourcePerms.has(permission);
                       return (
-                        <td key={role.name} className="px-3 py-2">
+                        <td key={role.name} className="border-b px-3 py-3">
                           {scope === "none" ? (
                             <span className="text-muted-foreground">-</span>
                           ) : (
@@ -172,6 +210,17 @@ export default function RolesPage({ params }: PageProps) {
                     })}
                   </tr>
                 ))}
+                {shown.length === 0 && (
+                  <tr>
+                    <td colSpan={catalog.roles.length + 1}>
+                      <ListCardEmpty
+                        icon={Search}
+                        title={t("noPermissionsMatch")}
+                        onClearFilters={() => setQuery("")}
+                      />
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

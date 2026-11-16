@@ -1345,6 +1345,10 @@ class McpConnectionService:
         existing = await mcp_connection_repo.get_org_scoped_by_name(
             self.db, organization_id=ctx.organization_id, name=name
         )
+        if existing is not None and not await resolve_access(
+            self.db, ctx, existing, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+        ):
+            raise NotFoundError(message="MCP connection not found")
         # Only a new row: authorizing an existing account again is not a second one.
         if existing is None and catalog_key is not None:
             await self._refuse_an_unnamed_second_org_account(
@@ -2480,6 +2484,10 @@ class McpConnectionService:
             )
             if authority is None or not authority.has(Perm.MCP_MANAGE):
                 raise OAuthError("Your organization access changed; start the connection again.")
+            if connection.purpose == "mcp" and not await resolve_access(
+                self.db, authority, connection, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+            ):
+                raise OAuthError("Your connection access changed; start the connection again.")
         if connection.purpose == "account":
             if (
                 browser_nonce is None
@@ -2653,24 +2661,35 @@ class McpConnectionService:
         return db_connection
 
     async def list_for_org(self, ctx: AuthContext) -> tuple[list[McpConnection], int]:
-        """The organization's servers the caller reaches: every one not narrowed to
-        groups, and those narrowed to theirs (#2072)."""
+        """Connections the caller may administer, including their private ones."""
         rows, _ = await mcp_connection_repo.list_org_scoped(
             self.db, organization_id=ctx.organization_id
         )
-        narrowed = [row for row in rows if row.visibility != Visibility.ORG.value]
         reached = await accessible_ids(
-            self.db, ctx, narrowed, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+            self.db, ctx, rows, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
         )
-        kept = [row for row in rows if row.visibility == Visibility.ORG.value or row.id in reached]
+        kept = [row for row in rows if row.id in reached]
         return kept, len(kept)
 
     async def list_usable(self, ctx: AuthContext) -> list[McpConnection]:
         """The organization servers a workflow step may bind, disabled ones included
         (a step can still name one): the same set the step's publish check resolves
         (`get_org_connection`), which needs no `mcp:manage`."""
-        rows, _ = await self.list_for_org(ctx)
-        return rows
+        rows, _ = await mcp_connection_repo.list_org_scoped(
+            self.db, organization_id=ctx.organization_id
+        )
+        narrowed = [row for row in rows if row.visibility != Visibility.ORG.value]
+        usable = await accessible_ids(
+            self.db, ctx, narrowed, Perm.MCP_USE, resource_type=MCP_CONNECTION
+        )
+        return [
+            row
+            for row in rows
+            if (
+                row.visibility == Visibility.ORG.value
+                or (ctx.user_id is not None and row.id in usable)
+            )
+        ]
 
     async def used_by(
         self, ctx: AuthContext, connections: list[McpConnection]
@@ -2689,7 +2708,7 @@ class McpConnectionService:
         the server's current name gives it. The caller must reach the server;
         arguments and results are never read.
         """
-        connection = await self._get_org(ctx, connection_id)
+        connection = await self._get_managed_org(ctx, connection_id)
         prefix = tool_prefix(connection.name)
         calls = await conversation_repo.recent_tool_calls(
             self.db, organization_id=ctx.organization_id, connection_id=connection.id, limit=limit
@@ -2802,7 +2821,7 @@ class McpConnectionService:
         self, ctx: AuthContext, *, connection_id: UUID, data: OrgMcpConnectionUpdate
     ) -> McpConnection:
         # Locked from the read - same reason as `update` above.
-        db_connection = await self._get_org(ctx, connection_id, for_update=True)
+        db_connection = await self._get_managed_org(ctx, connection_id, for_update=True)
         update_data: dict[str, Any] = writable(
             data, over=McpConnection, exclude={"clear_allowed_tools"}
         )
@@ -2897,7 +2916,7 @@ class McpConnectionService:
         return connection
 
     async def delete_for_org(self, ctx: AuthContext, *, connection_id: UUID) -> None:
-        db_connection = await self._get_org(ctx, connection_id)
+        db_connection = await self._get_managed_org(ctx, connection_id)
         # Any trigger webhook this account registered is deregistered first,
         # while its token still exists, and the trigger falls back to manual -
         # otherwise the trigger FK's SET NULL trips the shape CHECK (a registered
@@ -2927,7 +2946,7 @@ class McpConnectionService:
         self, ctx: AuthContext, *, connection_id: UUID
     ) -> tuple[McpConnection, list[McpToolInfo], str | None]:
         """Probe an organization server, persist the result, return its tools."""
-        db_connection = await self._get_org(ctx, connection_id)
+        db_connection = await self._get_managed_org(ctx, connection_id)
         return await self._probe(db_connection)
 
     async def webhook_access_token(
@@ -3088,6 +3107,20 @@ class McpConnectionService:
         """
         return await self._get_org(ctx, connection_id)
 
+    async def _get_managed_org(
+        self, ctx: AuthContext, connection_id: UUID, *, for_update: bool = False
+    ) -> McpConnection:
+        """Administrative actions need edit authority, beyond the existing use lookup."""
+        connection = await self._get_org(ctx, connection_id, for_update=for_update)
+        if not await resolve_access(
+            self.db, ctx, connection, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+        ):
+            raise NotFoundError(
+                message="MCP connection not found",
+                details={"connection_id": str(connection_id)},
+            )
+        return connection
+
     async def _get_org(
         self, ctx: AuthContext, connection_id: UUID, *, for_update: bool = False
     ) -> McpConnection:
@@ -3103,14 +3136,13 @@ class McpConnectionService:
             organization_id=ctx.organization_id,
             for_update=for_update,
         )
-        # A server narrowed to groups is not there for anybody outside them - the
-        # same refusal as a missing one (#2072). One left to the organization is
-        # everybody's who got past the route's gate, including a trigger's author
-        # reaching a portal grant without managing servers at all.
+        # Preserve the existing binding and trigger policy. Organization-wide
+        # rows are usable after their caller's resource gate; private rows need
+        # a use grant. Administrative operations add _get_managed_org's check.
         if db_connection is None or (
             db_connection.visibility != Visibility.ORG.value
             and not await resolve_access(
-                self.db, ctx, db_connection, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+                self.db, ctx, db_connection, Perm.MCP_USE, resource_type=MCP_CONNECTION
             )
         ):
             raise NotFoundError(

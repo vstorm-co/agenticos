@@ -351,6 +351,8 @@ def build_coding_toolset(
                         return report.model_copy(
                             update={
                                 "account_label": personal.label,
+                                "account_id": str(personal.account_id),
+                                "selection_reason": personal.selection_reason,
                                 "execution": "isolated_task",
                                 "base_revision": personal.base_revision,
                                 "result_archive": personal.result_archive,

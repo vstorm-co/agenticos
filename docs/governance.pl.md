@@ -1,5 +1,5 @@
 ---
-source_sha: "0500be2db6f4"
+source_sha: "14136b984ce9"
 ---
 
 # Governance { #governance }
@@ -47,9 +47,9 @@ którego podpis nie weryfikuje się względem własnego sekretu triggera, to 403
 które w ogóle nie dociera do runnera.
 
 Awarie zapisywane przez platformę zasilają też
-[pętlę uczenia się na błędach](failure-learning.md), która wydobywa
-powtarzające się awarie do rejestru i sprawdza poprawkę na tle starego
-zachowania, zanim cokolwiek zostanie zastosowane.
+[pętlę uczenia się na błędach](failure-learning.md), która gromadzi
+powtarzające się awarie w rejestrze i sprawdza poprawkę względem
+dotychczasowego zachowania, zanim cokolwiek zostanie zastosowane.
 
 ## Dostarczanie wyników rutyny { #routine-delivery }
 
@@ -2537,3 +2537,11 @@ rutyna. Narzędzia MCP do Inbox działają w zalogowanej sesji i przez zaufane
 poświadczenia prywatnej rozmowy; te ostatnie obejmują wyłącznie sprawy tej rozmowy.
 Zwykłe klucze API, uruchomienia w tle i zastępcza tożsamość publikującego nie mogą
 czytać ani zamykać prywatnych spraw.
+
+## Grupy zatwierdzające { #approval-groups }
+
+Kroki workflow wymagające zatwierdzenia przez człowieka oraz kroki wywołań MCP mogą wskazywać osoby, grupy organizacji lub jedne i drugie. Decyzję może podjąć dowolna uprawniona osoba, która niezależnie musi mieć `approvals:decide`. Gdy nie skonfigurowano ani osób, ani grup, obowiązuje dotychczasowa reguła oparta na tym uprawnieniu. Skonfigurowana pusta lub usunięta grupa nigdy nie sprawia, że prośba staje się dostępna dla wszystkich.
+
+Członkostwo w grupie i aktywność konta są sprawdzane przy podejmowaniu decyzji. Powiadomienia trafiają do uprawnionych członków przy tworzeniu prośby; osoby wskazane kilkoma sposobami dostają je raz. Późniejsze dołączenie może dać prawo do decyzji bez nowego powiadomienia; wyjście lub utrata uprawnienia je odbiera.
+
+Alerty agenta dotyczące zatwierdzania, budżetu i wykorzystania również pozwalają wybierać grupy jako odbiorców. To wyłącznie grupy odbiorców powiadomień: nie nadają prawa do zatwierdzania ani nie ograniczają tego, kto może decydować. Osobiste preferencje powiadomień nadal obowiązują.

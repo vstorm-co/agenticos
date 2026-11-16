@@ -54,6 +54,7 @@ const BAR_CLEARANCE =
   "max-sm:pt-[calc(max(var(--shell-inset-top,0px),env(safe-area-inset-top))+4rem)]";
 
 interface ArtifactViewerProps {
+  backHref?: string | null;
   artifactId: string;
   /** The version a link asked for; null opens the current one. */
   initialVersionId: string | null;
@@ -75,6 +76,7 @@ export function ArtifactViewer({
   artifactId,
   initialVersionId,
   openRequests = false,
+  backHref = null,
 }: ArtifactViewerProps) {
   const t = useTranslations("artifacts");
   const ts = useTranslations("states");
@@ -177,7 +179,7 @@ export function ArtifactViewer({
         : null;
     return (
       <div className={cn(VIEWER, BAR_CLEARANCE)}>
-        <ArtifactViewerBar artifact={null} />
+        <ArtifactViewerBar backHref={backHref} artifact={null} />
         <div className={cn("flex min-h-0 flex-1", !isLoading && "items-center justify-center p-6")}>
           {isLoading ? (
             <Skeleton
@@ -214,7 +216,7 @@ export function ArtifactViewer({
       loading={remove.isPending}
       onConfirm={async () => {
         await remove.mutateAsync();
-        router.push(ROUTES.ARTIFACTS);
+        router.push(backHref ?? ROUTES.ARTIFACTS);
       }}
     />
   );
@@ -224,7 +226,11 @@ export function ArtifactViewer({
   if (artifact.archived_at !== null) {
     return (
       <div className={cn(VIEWER, BAR_CLEARANCE)}>
-        <ArtifactViewerBar artifact={artifact} onDelete={() => setConfirming(true)} />
+        <ArtifactViewerBar
+          backHref={backHref}
+          artifact={artifact}
+          onDelete={() => setConfirming(true)}
+        />
         <div className="flex flex-1 items-center justify-center p-6">
           <ArchivedArtifactNotice
             archivedAt={artifact.archived_at}
@@ -242,7 +248,7 @@ export function ArtifactViewer({
   if (artifact.current_version === null) {
     return (
       <div className={cn(VIEWER, BAR_CLEARANCE)}>
-        <ArtifactViewerBar artifact={null} />
+        <ArtifactViewerBar backHref={backHref} artifact={null} />
         <div className="flex flex-1 items-center justify-center p-6">
           <EmptyState
             icon={FileClock}
@@ -283,6 +289,7 @@ export function ArtifactViewer({
   return (
     <div className={cn(VIEWER, BAR_CLEARANCE)}>
       <ArtifactViewerBar
+        backHref={backHref}
         artifact={artifact}
         live={
           live ? (bridge === null ? "steady" : (liveHealth(bridge.status) ?? undefined)) : undefined

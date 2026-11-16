@@ -77,7 +77,7 @@ export function DirectoryMappingList({
           onClick={() => onDelete(mapping)}
           aria-label={tc("removeNamed", { name: mapping.external_group })}
         >
-          <Trash2 className="h-4 w-4" />
+          <Trash2 className="h-4 w-4" aria-hidden />
         </Button>
       ),
     });
@@ -86,12 +86,19 @@ export function DirectoryMappingList({
   return (
     <ListCard
       title={t("listTitle")}
+      namedByPage
+      fill
+      empty={!isLoading && !error && mappings.length === 0}
       counted={isLoading || error ? null : t("mappingCount", { count: mappings.length })}
       contentClassName="p-0"
       controls={
         canEdit ? (
-          <Button size="sm" onClick={onAdd} data-tour="org-directory-new">
-            <Plus className="h-4 w-4" />
+          <Button
+            size="sm"
+            onClick={onAdd}
+            data-tour={mappings.length > 0 || isLoading || error ? "org-directory-new" : undefined}
+          >
+            <Plus className="h-4 w-4" aria-hidden />
             {t("addMapping")}
           </Button>
         ) : null
@@ -104,7 +111,14 @@ export function DirectoryMappingList({
           icon={Network}
           title={t("emptyTitle")}
           description={t("emptyBody")}
-          cta={canEdit ? { label: t("addMapping"), onClick: onAdd } : undefined}
+          cta={
+            canEdit
+              ? {
+                  label: <span data-tour="org-directory-new">{t("addMapping")}</span>,
+                  onClick: onAdd,
+                }
+              : undefined
+          }
         />
       ) : (
         <DataTable<DirectoryMapping>
@@ -112,6 +126,8 @@ export function DirectoryMappingList({
           rows={mappings}
           loading={isLoading}
           skeletonRows={3}
+          fillHeight
+          stackOnNarrow
           getRowKey={(mapping) => mapping.id}
           className="rounded-none border-0 bg-transparent"
         />

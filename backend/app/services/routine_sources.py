@@ -180,6 +180,29 @@ async def require_bound_sources(
             != expected
         ):
             raise RoutineSourcesRequired()
+    if policy.channel_sources:
+        from app.repositories import agent_exposure_repo, channel_bot_repo
+        from app.services.channel_actions import grant_fingerprint
+
+        for identifier, expected in policy.channel_sources.items():
+            exposure = await agent_exposure_repo.get(
+                db, identifier, organization_id=organization_id
+            )
+            bot = (
+                None
+                if exposure is None
+                else await channel_bot_repo.get_for_org(
+                    db, exposure.channel_bot_id, organization_id=organization_id
+                )
+            )
+            if (
+                exposure is None
+                or bot is None
+                or not exposure.is_active
+                or not bot.is_active
+                or grant_fingerprint(exposure, bot) != expected
+            ):
+                raise RoutineSourcesRequired()
     if policy.phone_sources:
         from app.repositories import channel_bot_repo
         from app.repositories import telephony as phone_repo
@@ -491,6 +514,16 @@ class RoutineSourceService:
                     unavailable.add(name)
                     continue
                 sources[account.id] = candidate
+        from app.services.channel_actions import grant_fingerprint, granted_connections
+
+        channel_sources: dict[UUID, str] = {}
+        for exposure, bot in (
+            await granted_connections(
+                self.db, organization_id=ctx.organization_id, agent_id=trigger.agent_id
+            )
+        ).values():
+            resources.add(f"Chat connection · {bot.name}")
+            channel_sources[exposure.id] = grant_fingerprint(exposure, bot)
         input_source = None
         if trigger.connection_id is not None:
             connection = await mcp_connection_repo.get_by_id(
@@ -524,6 +557,7 @@ class RoutineSourceService:
                 root_mcp_ids=tuple(sorted(root_sources)),
                 external_sources=external_sources,
                 phone_sources=phone_sources,
+                channel_sources=channel_sources,
                 secret_sources=secret_sources,
                 mirage_accounts=mirage_accounts,
                 input_connection_id=trigger.connection_id if input_source is not None else None,

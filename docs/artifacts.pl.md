@@ -1,5 +1,5 @@
 ---
-source_sha: "dd46ea746100"
+source_sha: "fa76644c347a"
 ---
 
 # Aplikacje { #artifacts }
@@ -886,7 +886,7 @@ Sprawdzane są:
 ### Udostępnianie kontekstu asystentowi { #sharing-context-with-the-assistant }
 
 `agenticos.setAssistantContext` pozwala aplikacji statycznej lub aplikacji z
-bindingami danych opisać bieżący widok pływającemu asystentowi. Funkcja jest
+powiązaniami danych opisać bieżący widok pływającemu asystentowi. Funkcja jest
 dostępna w głównym widoku `/apps/{artifactId}` konsoli dla zalogowanego
 użytkownika. Wywołuj ją ponownie po zmianie widoku, filtrów lub wybranych
 rekordów:
@@ -916,7 +916,7 @@ limitów, a nadmiarowe wpisy są pomijane:
 Konsola dostarcza ID, tytuł i wersję aplikacji oraz bieżącą ścieżkę. Ramka iframe
 nie może zastąpić tej tożsamości ani nadać dodatkowych uprawnień. API korzysta z
 istniejącego mostu sandboxa; nie odczytuje DOM ani nie zbiera automatycznie pól
-formularzy lub parametrów zapytania w adresie URL. Oglądający kontroluje
+formularzy lub parametrów zapytania w adresie URL. Osoba korzystająca z aplikacji kontroluje
 udostępnianie w [oknie asystenta](console.md#the-assistant).
 
 ### Jak wygląda strona: podgląd { #seeing-the-page-preview }
@@ -1459,3 +1459,11 @@ wdrożenia, pod `artifacts/<organization>/<artifact>/`.
 - Archiwizacja zachowuje stronę i nie serwuje z niej niczego, przy wyłączonym
   publicznym linku, dopóki ktoś, kto może ją edytować, jej nie przywróci.
 - Osobna klasa retencji, liczona od ostatniej publikacji.
+
+## Ładowanie podglądów i udostępnianie { #preview-loading-and-sharing }
+
+Podglądy w chacie rezerwują miejsce podczas ładowania renderera wizualizacji lub miniatury Apps. Pojawiają się płynnie po zakończeniu renderowania lub dekodowania obrazu; preferencja ograniczonego ruchu wyłącza animację. Lista Apps używa buforowanych, statycznych miniatur przypisanych do wersji, zamiast ponownie uruchamiać każdą aplikację po powrocie do listy.
+
+Skill Apps zawiera interaktywne prezentacje HTML, style wydruku PDF i przykłady komponentów do wielokrotnego użytku. Eksport PDF wymaga skonfigurowanego renderera; podgląd ograniczony do walidacji nie dowodzi poprawnego wykonania skryptu. Wykresy, tabele i treści interaktywne sprawdzaj w wyrenderowanym podglądzie. Eksport PowerPoint nie jest dostępny.
+
+Narzędzie MCP platformy `create_app_public_link` wymaga prawa edycji i jawnego potwierdzenia publicznego udostępnienia aplikacji. Używa istniejącego linku, zachowując hasło, termin ważności i przypiętą wersję. Dane na żywo wymagają osobnej zgody właściciela. Wywołanie kończy się sukcesem dopiero po potwierdzeniu publicznego URL-a przez API.

@@ -1,5 +1,5 @@
 ---
-source_sha: "4dec8f2641eb"
+source_sha: "bfd97a18b5a9"
 ---
 
 # Uprawnienia { #permissions }
@@ -166,10 +166,20 @@ Uprawnienia **zasobowe** niosą `Scope`, ponieważ odpowiadają na drugie pytani
 na które rola nie potrafi: nie „czy ta rola może ruszać agentów?”, lecz _których_
 agentów.
 
-Jednym z nich jest `mcp:manage`: serwer MCP organizacji można zawęzić do grup lub
-osób, tak jak skill ([Działy](departments.md#a-departments-mcp-servers)). Rola z
-nim na poziomie `SHARED` widzi serwery organizacji, własne i te jej udostępnione;
-`ALL` widzi każdy.
+`mcp:use` i `mcp:manage` rozdzielają wybór połączenia od zarządzania nim. Serwer MCP
+organizacji można ograniczyć do grup lub osób, tak jak skill
+([Działy](departments.md#a-departments-mcp-servers)). Grant `use` pozwala przypiąć
+narzędzia, a `edit` pozwala zarządzać połączeniem. Zakresy ról nadal obowiązują:
+Owner i Admin zachowują `ALL`, a Builder zachowuje `SHARED`.
+
+Istniejące granty `use` pozostają bez zmian, bez podnoszenia do `edit`. Builder
+korzystający z prywatnego serwera potrzebuje jawnego grantu `edit`, aby go zmienić,
+usunąć, sprawdzić lub dalej udostępnić. Istniejące klucze API ze scope'em
+zarządzania zachowują możliwość używania połączenia; klucz ze scope'em używania
+nie może nim zarządzać. Delegacja opublikowanych agentów oraz obecny wybór w
+workflowach i triggerach zachowują dotychczasowych odbiorców. Lista zarządzania
+nadal wymaga `mcp:manage`; zmiana nie dodaje endpointu odkrywania ani uprawnienia
+roli Viewer.
 
 ### Scope { #scope }
 
@@ -198,9 +208,9 @@ własnych.
 
 | Rola | Zamysł | Agents | Secrets | Globalne |
 | --- | --- | --- | --- | --- |
-| `owner` | jest właścicielem organizacji | wszystko `ALL` | `ALL` | wszystko, łącznie z `org:delete` |
-| `admin` | prowadzi ją na co dzień | wszystko `ALL` | `ALL` | wszystko **poza** `org:delete` |
-| `builder` | buduje i uczy się od całej organizacji | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `owner` | jest właścicielem organizacji | wszystko `ALL` | `ALL` | wszystko, łącznie z `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
+| `admin` | prowadzi ją na co dzień | wszystko `ALL` | `ALL` | wszystko **poza** `org:delete`; `mcp:use`/`mcp:manage` `ALL` |
+| `builder` | buduje i uczy się od całej organizacji | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:use`/`mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `operator` | utrzymuje działający system w zdrowiu | `view`/`run` `ALL`, bez edycji | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
 | `member` | codzienny użytkownik | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
 | `viewer` | czyta | `view` `SHARED` | żadne | `members:view` |

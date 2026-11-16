@@ -1,10 +1,29 @@
 """Tests for repository layer."""
 
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
+from app.repositories import coding_account as coding_account_repo
 from app.repositories import user as user_repo
+
+
+@pytest.mark.anyio
+async def test_get_default_coding_account_filters_out_non_default_accounts() -> None:
+    session = MagicMock()
+    account = MagicMock()
+    session.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=lambda: account))
+
+    result = await coding_account_repo.get(
+        session, organization_id=uuid4(), user_id=uuid4(), default_only=True
+    )
+
+    statement = session.execute.call_args.args[0]
+    sql = str(statement.compile(dialect=postgresql.dialect()))
+    assert "coding_accounts.is_default IS true" in sql
+    assert result is account
 
 
 class TestUserRepository:

@@ -25,6 +25,7 @@ async def deliver_handback(job: ChannelHandback) -> None:
         bot_id=job.bot_id,
         platform_chat_id=job.platform_chat_id,
         private_chat=job.private_chat,
+        message_id=job.message_id,
     )
     if job.notice:
         await send_notice(ChatNotice(job.organization_id, job.run_id, destination, job.output))

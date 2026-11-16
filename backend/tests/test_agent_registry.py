@@ -1418,6 +1418,105 @@ class TestMayRun:
             assert await AgentRegistryService(_db()).may_run(ctx, agent) is False
 
 
+class TestConfigurationAccess:
+    @pytest.mark.anyio
+    async def test_an_explicit_edit_grant_enables_this_agents_editor_and_publish(self):
+        ctx = _ctx(OrgRoleName.VIEWER)
+        agent = _agent(ctx, owner_user_id=uuid.uuid4())
+        with patch(
+            "app.services.access.resource_grant_repo.get_level",
+            new=AsyncMock(return_value=GrantLevel.EDIT),
+        ):
+            assert await AgentRegistryService(_db()).configuration_access(ctx, agent) == (
+                True,
+                True,
+            )
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("grant", [None, GrantLevel.READ, GrantLevel.USE])
+    async def test_read_and_run_grants_do_not_offer_editing(self, grant):
+        ctx = _ctx(OrgRoleName.VIEWER)
+        agent = _agent(ctx, owner_user_id=uuid.uuid4())
+        with patch(
+            "app.services.access.resource_grant_repo.get_level",
+            new=AsyncMock(return_value=grant),
+        ):
+            assert await AgentRegistryService(_db()).configuration_access(ctx, agent) == (
+                False,
+                False,
+            )
+
+    @pytest.mark.anyio
+    async def test_role_scope_still_enables_the_owners_editor(self):
+        ctx = _ctx()
+        assert await AgentRegistryService(_db()).configuration_access(ctx, _agent(ctx)) == (
+            True,
+            True,
+        )
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_another_tenant_remains_unreachable_even_for_the_owner(self):
+        ctx = _ctx()
+        agent = _agent(ctx, organization_id=uuid.uuid4())
+        assert await AgentRegistryService(_db()).configuration_access(ctx, agent) == (False, False)
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "changes", [{"workflow_id": uuid.uuid4()}, {"status": AgentStatus.ARCHIVED.value}]
+    )
+    async def test_workflow_and_archived_agents_keep_the_listings_resource_access(self, changes):
+        ctx = _ctx()
+        agent = _agent(ctx, **changes)
+        service = AgentRegistryService(_db())
+        with (
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.list_visible",
+                new=AsyncMock(return_value=([agent], 1)),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.resource_grant_repo.count_for_resources",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_exposure_repo.active_surfaces_for_agents",
+                new=AsyncMock(return_value={}),
+            ),
+        ):
+            rows, _total = await service.list_agents(ctx, include_archived=True)
+        assert (
+            (rows[0].can_edit, rows[0].can_publish)
+            == await service.configuration_access(ctx, agent)
+            == (True, True)
+        )
+
+    @pytest.mark.anyio
+    async def test_the_detail_response_carries_resolved_edit_access(self):
+        from app.api.routes.v1.agents import get_agent
+
+        ctx = _ctx(OrgRoleName.VIEWER)
+        agent = _agent(
+            ctx,
+            owner_user_id=uuid.uuid4(),
+            local_coding_agent=None,
+            personal_coding_harness=None,
+            published_model=None,
+            starter_titles={},
+            starter_icons={},
+        )
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=GrantLevel.EDIT),
+            ),
+        ):
+            result = await get_agent(agent.id, AgentRegistryService(_db()), ctx)
+        assert result.can_edit is True
+        assert result.can_publish is True
+        assert result.can_run is True
+
+
 class TestCreate:
     @pytest.mark.anyio
     async def test_a_user_agent_cannot_use_the_internal_helper_creation_path(self) -> None:
@@ -3554,6 +3653,7 @@ class TestArchiveAndDelete:
             patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()) as audit,
             patch("app.services.agent_trigger.AgentTriggerService") as triggers_cls,
             patch("app.repositories.task.has_agent_execution", new=AsyncMock(return_value=False)),
+            patch("app.services.tasks.TaskService.purge_scope", new=AsyncMock()) as purge_board,
         ):
             triggers = triggers_cls.return_value
             triggers.deregister_agent_webhooks = AsyncMock()
@@ -3567,6 +3667,7 @@ class TestArchiveAndDelete:
         # The provider side is swept before the rows cascade away - after that the
         # stored webhook ids the hooks are removable by are gone for good.
         triggers.deregister_agent_webhooks.assert_awaited_once_with(ctx, agent.id)
+        purge_board.assert_awaited_once_with("agent", agent.id, organization_id=ctx.organization_id)
 
 
 class TestGetVersion:
@@ -3843,7 +3944,7 @@ class TestGetCandidateSpec:
                 ctx, agent.id, UnpublishedCandidate(draft)
             )
 
-        validate.assert_awaited_once_with(ctx, draft, agent_id=agent.id)
+        validate.assert_awaited_once_with(ctx, draft, agent_id=agent.id, decision_model=False)
         assert spec is draft
         assert version_id is None
 
@@ -5268,6 +5369,7 @@ class TestAgentTemplates:
                 AgentRegistryService, "create", new=AsyncMock(return_value=created)
             ) as create,
         ):
+            skills.return_value.trusted_template_copy = AsyncMock(return_value=True)
             result = await AgentRegistryService(_db()).install_template(_ctx(), "general/agenticos")
 
         skills.return_value.install_gallery.assert_not_called()
@@ -5876,8 +5978,11 @@ class TestUndoingADraft:
         monkeypatch.setattr(
             "app.repositories.task.has_agent_execution", AsyncMock(return_value=False)
         )
+        purge = AsyncMock()
+        monkeypatch.setattr("app.services.tasks.TaskService.purge_scope", purge)
         await AgentRegistryService(db).delete(ctx, agent.id, draft_only=True)
 
+        purge.assert_awaited_once_with("agent", agent.id, organization_id=ctx.organization_id)
         delete.assert_awaited_once_with(db, agent)
 
 
@@ -6512,3 +6617,91 @@ async def test_a_fallback_owned_by_another_person_cannot_be_published() -> None:
     assert refused.value.details["problems"] == [
         "Remove the personal fallback that this signed-in user cannot use"
     ]
+
+
+@pytest.mark.security
+@pytest.mark.anyio
+async def test_a_template_refuses_a_same_named_bundled_skill_without_an_installation_receipt():
+    from app.services import agent_templates
+
+    template = agent_templates.get(agent_templates.STARTER_TEMPLATE)
+    assert template is not None
+    row = MagicMock(id=uuid4())
+    row.name = "artifact-pages"
+    with (
+        patch(f"{REGISTRY_PATH}.skill_repo.get_by_name", AsyncMock(return_value=row)),
+        patch(f"{REGISTRY_PATH}.resolve_access", AsyncMock(return_value=True)),
+        patch(f"{REGISTRY_PATH}.SkillService.trusted_template_copy", AsyncMock(return_value=False)),
+        pytest.raises(BadRequestError, match="trusted installation receipt"),
+    ):
+        await AgentRegistryService(_db()).template_skills(_ctx(), template, install_missing=False)
+
+
+@pytest.mark.security
+@pytest.mark.anyio
+@pytest.mark.parametrize("present", [True, False])
+async def test_agent_notification_groups_are_checked_in_the_publishing_organization(present):
+    group_id = uuid4()
+    spec = _spec(notifications={"budget": {"to": ["chosen"], "group_ids": [group_id]}})
+    ctx = _ctx()
+    names = AsyncMock(return_value={group_id: "Finance"} if present else {})
+    with (
+        patch(f"{REGISTRY_PATH}.group_repo.get_names", names),
+        pytest.raises(BadRequestError) as caught,
+    ):
+        await AgentRegistryService(_db()).validate_spec(ctx, spec)
+    fields = {problem["field"] for problem in caught.value.details["fields"]}
+    assert fields == (
+        {"model_profile_id"}
+        if present
+        else {"model_profile_id", "notifications.budget.group_ids.0"}
+    )
+    assert names.await_args.kwargs == {
+        "organization_id": ctx.organization_id,
+        "group_ids": [group_id],
+    }
+
+
+@pytest.mark.anyio
+async def test_model_validation_distinguishes_decision_profiles_and_fallbacks():
+    from types import SimpleNamespace
+
+    ctx = _ctx()
+    profile = SimpleNamespace(
+        id=uuid4(),
+        provider="openai",
+        api="decisions",
+        model="gpt-6-luna",
+        label="Classifier",
+        base_url=None,
+        secret_id=uuid4(),
+        usage_scope="organization",
+        personal_owner_user_id=None,
+        runs_without_key=False,
+        fallback_profile_ids=[],
+    )
+    service = AgentRegistryService(_db())
+    with (
+        patch(f"{REGISTRY_PATH}.credential_repo.get_profile", AsyncMock(return_value=profile)),
+        patch(f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids", AsyncMock(return_value={})),
+    ):
+        assert "not conversation" in (await service.model_profile_problems(ctx, profile.id))[0]
+        assert await service.model_profile_problems(ctx, profile.id, decision=True) == []
+        profile.fallback_profile_ids = [str(uuid4())]
+        assert (
+            "without automatic fallbacks"
+            in (await service.model_profile_problems(ctx, profile.id, decision=True))[0]
+        )
+        fallback = SimpleNamespace(
+            provider="typesafe",
+            api="decisions",
+            label="Fallback",
+            usage_scope="organization",
+            personal_owner_user_id=None,
+        )
+        profile.api = None
+        with patch(
+            f"{REGISTRY_PATH}.credential_repo.get_profiles_by_ids",
+            AsyncMock(return_value={uuid.UUID(profile.fallback_profile_ids[0]): fallback}),
+        ):
+            assert "not conversation" in (await service.model_profile_problems(ctx, profile.id))[0]

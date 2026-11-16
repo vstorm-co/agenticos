@@ -364,16 +364,29 @@ function SchemaField({
         <Input
           id={id}
           type="number"
-          min={property.minimum}
-          max={property.maximum}
+          min={
+            property.minimum === undefined
+              ? undefined
+              : property.minimum * (property["x-percent"] ? 100 : 1)
+          }
+          max={
+            property.maximum === undefined
+              ? undefined
+              : property.maximum * (property["x-percent"] ? 100 : 1)
+          }
+          step="any"
           placeholder={placeholder}
-          value={numberText(value, fallback)}
+          value={numberText(value, fallback, property["x-percent"] ? 100 : 1)}
           disabled={disabled}
           // Empty means "unset", which is not the same as zero: an unset field
           // falls back to the capability's own default, and coercing it to 0
           // would silently pick a different behaviour.
           onChange={(event) =>
-            onChange(event.target.value === "" ? undefined : Number(event.target.value))
+            onChange(
+              event.target.value === ""
+                ? undefined
+                : Number(event.target.value) / (property["x-percent"] ? 100 : 1),
+            )
           }
           {...invalid}
         />
@@ -773,9 +786,13 @@ function defaultOf(property: JsonSchemaProperty): unknown {
 }
 
 /** A number input's text, showing the schema's default until somebody types. */
-function numberText(value: unknown, fallback: unknown): string {
+function numberText(value: unknown, fallback: unknown, scale = 1): string {
   const shown = value === undefined || value === null ? fallback : value;
-  return typeof shown === "number" || typeof shown === "string" ? String(shown) : "";
+  return typeof shown === "number"
+    ? String(Number((shown * scale).toFixed(8)))
+    : typeof shown === "string"
+      ? shown
+      : "";
 }
 
 function CatalogChoiceMark({ name }: { name: string }) {
