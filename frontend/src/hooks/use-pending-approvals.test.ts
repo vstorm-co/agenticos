@@ -123,3 +123,11 @@ it("reads both queues again on a retry", async () => {
   expect(state.refetchTools).toHaveBeenCalledOnce();
   expect(state.refetchSteps).toHaveBeenCalledOnce();
 });
+
+it("reads neither queue on a retry for somebody who may not decide", async () => {
+  state.allowed = false;
+  const { result } = renderHook(() => usePendingApprovals());
+  await result.current.refetch();
+  expect(state.refetchTools).not.toHaveBeenCalled();
+  expect(state.refetchSteps).not.toHaveBeenCalled();
+});
