@@ -107,6 +107,7 @@ TENANT_REQUIRED = [
     (conversation_share_repo, "has_edit_share"),
     (virtual_table_repo, "delete_receipts_for_table"),
     (personal_data_repo, "forget_system_runs_of"),
+    (personal_data_repo, "forget_briefings_of"),
     (dataset_repo, "lock"),
     (dataset_repo, "list_visible"),
     (dataset_repo, "testing_agent"),

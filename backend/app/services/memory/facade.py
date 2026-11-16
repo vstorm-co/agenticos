@@ -503,6 +503,9 @@ class MemoryService:
         await personal_data_repo.forget_system_runs_of(
             self.db, user_id, organization_id=ctx.organization_id
         )
+        await personal_data_repo.forget_briefings_of(
+            self.db, user_id, organization_id=ctx.organization_id
+        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

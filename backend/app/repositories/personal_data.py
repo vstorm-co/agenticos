@@ -87,7 +87,7 @@ from app.db.models.run_manifest import RunManifest
 from app.db.models.session import Session
 from app.db.models.skill_improvement import SkillImprovementRun
 from app.db.models.skill_proposal import SkillProposal
-from app.db.models.suggestion import Suggestion
+from app.db.models.suggestion import Suggestion, SuggestionKind
 from app.db.models.system_agent_profile import SYSTEM_ROLES
 from app.db.models.task_board import TaskBoard
 from app.db.models.telephony import PhoneCall, PhoneContact
@@ -860,6 +860,44 @@ async def forget_system_runs_of(db: AsyncSession, user_id: UUID, *, organization
     await _forget_in_batches(
         db, _system_runs_of(user_id).where(AgentRun.organization_id == organization_id)
     )
+
+
+BRIEFING_SUGGESTION_KINDS = (
+    SuggestionKind.ROUTINE,
+    SuggestionKind.AGENT,
+    SuggestionKind.PROFILE,
+    SuggestionKind.ROLE_PACK,
+)
+"""What a daily briefing proposes, each drawn from the person's requests and notes."""
+
+
+async def forget_briefings_of(db: AsyncSession, user_id: UUID, *, organization_id: UUID) -> int:
+    """Remove what daily briefings kept for this person in one organization.
+
+    The first messages written for them on their membership, and the proposals the
+    briefings made, which quote their requests and what was learned about them. A
+    watch's findings stay: they come from a connection, not from the person's memory.
+
+    Returns:
+        How many proposals were removed.
+    """
+    await db.execute(
+        sql_update(OrganizationMember)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+        )
+        .values(personal_starters=None, personal_starters_at=None)
+    )
+    removed = await db.execute(
+        sa_delete(Suggestion).where(
+            Suggestion.organization_id == organization_id,
+            Suggestion.user_id == user_id,
+            Suggestion.kind.in_([kind.value for kind in BRIEFING_SUGGESTION_KINDS]),
+        )
+    )
+    await db.flush()
+    return int(getattr(removed, "rowcount", 0) or 0)
 
 
 async def forget_all_system_runs_of(db: AsyncSession, user_id: UUID) -> None:
