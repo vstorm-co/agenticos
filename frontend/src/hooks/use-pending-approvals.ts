@@ -15,7 +15,8 @@ import { Perm } from "@/types/permissions";
  * its approval audience - its named approvers and the deciding members of its
  * approver groups - which the server answers as `can_decide`. A row without it
  * falls back to the named approvers alone. Counted from the queue's first page,
- * which is what the inbox lists from.
+ * which is what the inbox lists from. While either queue loads or after one
+ * fails, nothing here is known, and `isLoading` / `error` say so.
  */
 export function usePendingApprovals() {
   const { can } = usePermissions();
@@ -33,5 +34,8 @@ export function usePendingApprovals() {
     tools: allowed ? tools.approvals : [],
     steps: allowed ? mine : [],
     count: allowed ? tools.total + mine.length : 0,
+    isLoading: allowed && (tools.isLoading || steps.isLoading),
+    error: allowed ? (tools.error ?? steps.error) : null,
+    refetch: () => Promise.all([tools.refetch(), steps.refetch()]),
   };
 }

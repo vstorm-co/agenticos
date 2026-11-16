@@ -9,6 +9,10 @@ const state = vi.hoisted(() => ({
   steps: [] as { id: string; approver_user_ids: string[]; can_decide?: boolean }[],
   toolsEnabled: [] as (boolean | undefined)[],
   stepsEnabled: [] as (boolean | undefined)[],
+  toolsRead: { isLoading: false, error: null as Error | null },
+  stepsRead: { isLoading: false, error: null as Error | null },
+  refetchTools: vi.fn(),
+  refetchSteps: vi.fn(),
 }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: () => state.allowed }),
@@ -20,13 +24,18 @@ vi.mock("@/stores/auth-store", () => ({
 vi.mock("@/hooks/use-runs", () => ({
   useApprovals: (options?: { enabled?: boolean }) => {
     state.toolsEnabled.push(options?.enabled);
-    return { approvals: [{ id: "t1" }], total: 3 };
+    return { approvals: [{ id: "t1" }], total: 3, ...state.toolsRead, refetch: state.refetchTools };
   },
 }));
 vi.mock("@/hooks/use-workflow-approvals", () => ({
   useWorkflowApprovals: (options?: { enabled?: boolean }) => {
     state.stepsEnabled.push(options?.enabled);
-    return { approvals: state.steps, total: state.steps.length };
+    return {
+      approvals: state.steps,
+      total: state.steps.length,
+      ...state.stepsRead,
+      refetch: state.refetchSteps,
+    };
   },
 }));
 
@@ -36,6 +45,10 @@ beforeEach(() => {
   state.steps = [{ id: "s1", approver_user_ids: [] }];
   state.toolsEnabled = [];
   state.stepsEnabled = [];
+  state.toolsRead = { isLoading: false, error: null };
+  state.stepsRead = { isLoading: false, error: null };
+  state.refetchTools.mockReset();
+  state.refetchSteps.mockReset();
 });
 
 it("counts both queues for somebody who may decide", () => {
@@ -81,7 +94,32 @@ it("keeps no named step while the reader is not known yet", () => {
 it("asks neither queue for somebody who may not decide, and waits on nothing", () => {
   state.allowed = false;
   const { result } = renderHook(() => usePendingApprovals());
-  expect(result.current).toEqual({ tools: [], steps: [], count: 0 });
+  expect(result.current).toMatchObject({
+    tools: [],
+    steps: [],
+    count: 0,
+    isLoading: false,
+    error: null,
+  });
   expect(state.toolsEnabled.every((enabled) => enabled === false)).toBe(true);
   expect(state.stepsEnabled.every((enabled) => enabled === false)).toBe(true);
+});
+
+it("says it is loading while either queue is, and which read failed", () => {
+  state.stepsRead = { isLoading: true, error: null };
+  const loading = renderHook(() => usePendingApprovals());
+  expect(loading.result.current.isLoading).toBe(true);
+
+  const offline = new Error("offline");
+  state.stepsRead = { isLoading: false, error: null };
+  state.toolsRead = { isLoading: false, error: offline };
+  const failed = renderHook(() => usePendingApprovals());
+  expect(failed.result.current).toMatchObject({ isLoading: false, error: offline });
+});
+
+it("reads both queues again on a retry", async () => {
+  const { result } = renderHook(() => usePendingApprovals());
+  await result.current.refetch();
+  expect(state.refetchTools).toHaveBeenCalledOnce();
+  expect(state.refetchSteps).toHaveBeenCalledOnce();
 });
