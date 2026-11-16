@@ -144,9 +144,9 @@ export function CommandPalette() {
       label={t("commandPalette")}
       shouldFilter
       overlayClassName="fixed inset-0 z-[60] bg-black/40"
-      contentClassName={cn("panel text-foreground z-[61] flex", DIALOG_COMMAND)}
+      contentClassName={cn("panel bg-card text-foreground z-[61] flex", DIALOG_COMMAND)}
     >
-      <div className="border-foreground/10 flex items-center gap-3 border-b px-4 py-3">
+      <div className="border-foreground/10 flex items-center gap-3 border-b px-4 py-4">
         <Search className="text-muted-foreground h-4 w-4" />
         <Command.Input
           autoFocus
@@ -251,7 +251,7 @@ export function CommandPalette() {
         </Group>
       </Command.List>
 
-      <div className="border-foreground/10 text-muted-foreground flex items-center justify-between border-t px-4 py-2 font-mono text-xs tracking-wider uppercase">
+      <div className="border-foreground/10 text-muted-foreground flex items-center justify-between border-t px-4 py-2.5 text-xs">
         <span className="inline-flex items-center gap-1.5">
           <kbd className="border-foreground/15 rounded border px-1 py-0.5">↑↓</kbd>
           {t("navigate")}
@@ -269,7 +269,7 @@ function Group({ heading, children }: { heading: string; children: React.ReactNo
   return (
     <Command.Group
       heading={heading}
-      className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:uppercase"
+      className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold"
     >
       {children}
     </Command.Group>
@@ -288,11 +288,11 @@ function PaletteItem({
   return (
     <Command.Item
       onSelect={onSelect}
-      className="text-foreground/85 hover:bg-foreground/5 data-[selected=true]:bg-foreground/8 data-[selected=true]:text-foreground touch:min-h-11 flex min-h-10 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors"
+      className="text-foreground/85 hover:bg-foreground/5 data-[selected=true]:bg-foreground/8 data-[selected=true]:text-foreground touch:min-h-11 group flex min-h-10 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors"
     >
       <Icon className="h-4 w-4 shrink-0 opacity-70" />
       <span className="flex-1 truncate">{label}</span>
-      <ArrowRight className="text-muted-foreground h-3.5 w-3.5 opacity-0 transition-opacity data-[selected=true]:opacity-100" />
+      <ArrowRight className="text-muted-foreground h-3.5 w-3.5 opacity-0 transition-opacity group-data-[selected=true]:opacity-100" />
     </Command.Item>
   );
 }

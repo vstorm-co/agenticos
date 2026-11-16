@@ -80,10 +80,10 @@ test.describe("Refusals", () => {
     // appears once one is named.
     await openAgent(page, DRAFT_AGENT_NAME);
 
-    await page.locator("#add-model-provider").click();
+    await page.locator('[id$="-add-model-provider"]:visible').click();
     await page.getByRole("option", { name: "OpenAI", exact: true }).click();
 
-    await page.locator("#add-model-key").click();
+    await page.locator('[id$="-add-model-key"]:visible').click();
     await expect(page.getByRole("option", { name: new RegExp(FAKE_KEY_LABEL) })).toBeVisible();
     await expectNoRenderedSecret(page);
   });

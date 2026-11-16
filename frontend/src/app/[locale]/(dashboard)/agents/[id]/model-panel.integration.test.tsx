@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Suspense } from "react";
@@ -39,6 +40,7 @@ const validate = vi.hoisted(() => vi.fn());
 const refetchAgent = vi.hoisted(() => vi.fn());
 
 const state = {
+  canEdit: true,
   agentError: null as Error | null,
   permissions: [] as Permission[],
   profiles: [MODEL_PROFILE] as (typeof MODEL_PROFILE)[],
@@ -63,7 +65,7 @@ vi.mock("@/hooks", async () => {
             name: "Support",
             status: "draft",
             has_avatar: false,
-            can_edit: true,
+            can_edit: state.canEdit,
             can_publish: true,
             draft_spec: {
               name: "Support",
@@ -184,6 +186,7 @@ async function mount() {
 }
 
 beforeEach(() => {
+  state.canEdit = true;
   state.agentError = null;
   refetchAgent.mockReset();
   validate.mockResolvedValue({ problems: [], fields: [], fixes: [] });
@@ -385,4 +388,15 @@ describe("agent read failures", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Could not load the agent");
     expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
   });
+});
+
+it("keeps sharing and export available to a reader through More actions", async () => {
+  state.canEdit = false;
+  state.permissions = [Perm.agentsView];
+  await mount();
+  expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+  expect(screen.getByRole("menuitem", { name: "Share" })).toBeVisible();
+  expect(screen.getByRole("menuitem", { name: /Export YAML/ })).toBeVisible();
+  expect(screen.queryByRole("menuitem", { name: /Upload avatar/ })).toBeNull();
 });

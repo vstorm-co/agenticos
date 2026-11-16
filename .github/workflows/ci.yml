@@ -817,6 +817,7 @@ jobs:
         working-directory: frontend
         env:
           CI: true
+          E2E_WORKER: "1"
           # No provider key here, and none needed. The full journey runs an agent
           # against `e2e/stub-model-server.ts`, an OpenAI-compatible server
           # Playwright starts beside the app - so the one spec covering the seams

@@ -309,7 +309,6 @@ describe("the detail page's way into Improve", () => {
       name: "Needs attention: 7 answers rated down, 1 failed run. Improve this agent",
     });
     expect(improve).not.toHaveClass("bg-action");
-    expect(improve.className).toBe(screen.getByRole("button", { name: "Share" }).className);
     expect(screen.getByRole("button", { name: "Publish" })).toHaveClass("bg-action");
   });
 

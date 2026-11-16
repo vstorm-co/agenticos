@@ -131,7 +131,7 @@ export function AgentPicker() {
           // `min-w-0` so the name inside can actually give way: the trigger is
           // in a row that runs out of room at 390px, and `max-w-[160px]` on the
           // name is a cap rather than permission to shrink.
-          className="bg-foreground/[0.06] hover:bg-foreground/[0.1] text-foreground touch:min-h-11 inline-flex min-w-0 touch-manipulation items-center gap-1.5 rounded-lg py-1 pr-2 pl-1 transition-colors"
+          className="group/agent bg-foreground/[0.06] hover:bg-foreground/[0.1] data-[state=open]:bg-foreground/[0.12] text-foreground focus-visible:ring-ring touch:min-h-11 inline-flex min-w-0 touch-manipulation items-center gap-1.5 rounded-lg py-1 pr-2 pl-1 transition-colors outline-none focus-visible:ring-2"
         >
           {isLoading && !selected && !selectedWorkflow ? (
             <Skeleton
@@ -160,7 +160,10 @@ export function AgentPicker() {
               (answererName ?? t("none"))
             )}
           </span>
-          <ChevronDown className="text-muted-foreground h-3 w-3" />
+          <ChevronDown
+            aria-hidden
+            className="text-muted-foreground h-3 w-3 transition-transform group-data-[state=open]/agent:rotate-180 motion-reduce:transition-none"
+          />
         </button>
       </PopoverTrigger>
 

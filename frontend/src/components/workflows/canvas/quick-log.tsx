@@ -21,6 +21,7 @@ import {
   type Port,
 } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
+import { Label } from "@/components/ui/label";
 
 interface QuickLogProps {
   instance: NodeInstance;
@@ -132,9 +133,9 @@ function QuickLogForm({
     <div className="space-y-3">
       <p className="text-sm font-medium">{t("quickLogTitle")}</p>
       <div className="space-y-1">
-        <label htmlFor={`${id}-message`} className="text-muted-foreground text-xs">
+        <Label htmlFor={`${id}-message`} className="text-muted-foreground text-xs">
           {t("quickLogMessage")}
-        </label>
+        </Label>
         <Textarea
           id={`${id}-message`}
           value={message}

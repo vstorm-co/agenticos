@@ -105,8 +105,32 @@ async def test_a_profile_is_provisioned_once_and_spends_nothing_until_a_model_is
     first = await system_agent_repo.provision(db, organization_id=org.id, role=MEMORY_MAINTENANCE)
     again = await system_agent_repo.provision(db, organization_id=org.id, role=MEMORY_MAINTENANCE)
 
-    assert first.enabled and first.model_profile_id is None and first.role == MEMORY_MAINTENANCE
+    assert not first.enabled and first.model_profile_id is None and first.role == MEMORY_MAINTENANCE
     assert (again.organization_id, again.role) == (first.organization_id, first.role)
+
+
+async def test_legacy_enabled_memory_without_a_model_reads_as_off(db: AsyncSession) -> None:
+    _, org, _, _, _, ctx = await _world(db)
+    profile = await system_agent_repo.provision(db, organization_id=org.id, role=MEMORY_MAINTENANCE)
+    profile.enabled = True
+    await db.flush()
+
+    memory = (await SystemAgentService(db).overview(ctx)).items[1]
+
+    assert not memory.enabled
+    assert memory.model_profile_id is None
+
+
+async def test_legacy_enabled_briefing_without_a_model_reads_as_off(db: AsyncSession) -> None:
+    _, org, _, _, _, ctx = await _world(db)
+    org.proactive_enabled = True
+    org.proactive_model_profile_id = None
+    await db.flush()
+
+    briefing = (await SystemAgentService(db).overview(ctx)).items[0]
+
+    assert not briefing.enabled
+    assert briefing.model_profile_id is None
 
 
 async def test_the_overview_lists_both_roles_with_the_briefing_read_from_proactivity(

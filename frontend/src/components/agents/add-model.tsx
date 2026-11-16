@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Check, KeyRound, Plus, Save } from "lucide-react";
 
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
@@ -224,6 +224,7 @@ export function AddModel({
   selected,
   purpose,
 }: AddModelProps) {
+  const fieldId = useId();
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   // Root, for the absolute keys `modelPlaceholder` answers with - see the note on
@@ -553,8 +554,7 @@ export function AddModel({
   return (
     <div className="border-border bg-muted/20 space-y-4 rounded-xl border p-4">
       <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-        <div className="space-y-1.5">
-          <Label htmlFor="add-model-provider">{t("provider")}</Label>
+        <FormField htmlFor={`${fieldId}-add-model-provider`} label={t("provider")}>
           <Select
             value={providerId}
             onValueChange={(value) => {
@@ -567,7 +567,7 @@ export function AddModel({
               setFailure(NO_FAILURE);
             }}
           >
-            <SelectTrigger id="add-model-provider">
+            <SelectTrigger id={`${fieldId}-add-model-provider`} className="h-10">
               <SelectValue placeholder={t("chooseProvider")} />
             </SelectTrigger>
             <SelectContent className="max-h-80">
@@ -596,7 +596,7 @@ export function AddModel({
               })}
             </SelectContent>
           </Select>
-        </div>
+        </FormField>
 
         {/*
           The provider's catalog, searchable, and still able to carry an id that
@@ -607,9 +607,13 @@ export function AddModel({
           after a matching prefix is typed, so six hundred known models looked
           like none.
         */}
-        <FormField htmlFor="add-model-id" label={t("model")} error={failure.fields.model}>
+        <FormField
+          htmlFor={`${fieldId}-add-model-id`}
+          label={t("model")}
+          error={failure.fields.model}
+        >
           <ModelCombobox
-            id="add-model-id"
+            id={`${fieldId}-add-model-id`}
             value={model}
             onChange={(next) => {
               setModel(next);
@@ -642,12 +646,12 @@ export function AddModel({
 
           {(keys.length > 1 || (offersNoKey && keys.length > 0)) && (
             <>
-              <Label htmlFor="add-model-key">{t("key")}</Label>
+              <Label htmlFor={`${fieldId}-add-model-key`}>{t("key")}</Label>
               <Select
                 value={chosenKey || NO_KEY}
                 onValueChange={(value) => chooseKey(value === NO_KEY ? "" : value)}
               >
-                <SelectTrigger id="add-model-key">
+                <SelectTrigger id={`${fieldId}-add-model-key`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -714,7 +718,7 @@ export function AddModel({
       {provider !== undefined && acceptsEndpoint && (
         <div className="space-y-2">
           <FormField
-            htmlFor="add-model-endpoint"
+            htmlFor={`${fieldId}-add-model-endpoint`}
             label={t("endpoint")}
             error={failure.fields.base_url}
             description={
@@ -730,7 +734,7 @@ export function AddModel({
             }
           >
             <Input
-              id="add-model-endpoint"
+              id={`${fieldId}-add-model-endpoint`}
               value={baseUrl}
               onChange={(event) => {
                 setBaseUrl(event.target.value);
@@ -786,7 +790,7 @@ export function AddModel({
 
       {provider !== undefined && choosesApi && api !== null && (
         <FormField
-          htmlFor="add-model-api"
+          htmlFor={`${fieldId}-add-model-api`}
           label={t("modelApi")}
           description={providerId === "azure" ? t("modelApiHintAzure") : t("modelApiHint")}
         >
@@ -797,7 +801,7 @@ export function AddModel({
               setFailure(NO_FAILURE);
             }}
           >
-            <SelectTrigger id="add-model-api">
+            <SelectTrigger id={`${fieldId}-add-model-api`}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -819,7 +823,7 @@ export function AddModel({
 
       {provider !== undefined && region !== null && (
         <FormField
-          htmlFor="add-model-region"
+          htmlFor={`${fieldId}-add-model-region`}
           label={t("modelRegion")}
           description={t("modelRegionHint")}
         >
@@ -830,7 +834,7 @@ export function AddModel({
               setFailure(NO_FAILURE);
             }}
           >
-            <SelectTrigger id="add-model-region">
+            <SelectTrigger id={`${fieldId}-add-model-region`}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -853,9 +857,9 @@ export function AddModel({
           apart. Behind a disclosure rather than in the way. */}
       {naming ? (
         <div className="space-y-1.5">
-          <Label htmlFor="add-model-label">{t("name")}</Label>
+          <Label htmlFor={`${fieldId}-add-model-label`}>{t("name")}</Label>
           <Input
-            id="add-model-label"
+            id={`${fieldId}-add-model-label`}
             value={label}
             onChange={(event) => setLabel(event.target.value)}
             placeholder={derivedLabel}

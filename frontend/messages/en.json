@@ -79,6 +79,7 @@
     "sessionsCouldNotBeRead": "The sessions could not be read."
   },
   "agents": {
+    "voiceUnreportedTokenUsage": "This provider does not report token charges. Calls cannot start with a spending budget; recorded audio cost is a lower bound.",
     "accentColour": "Accent colour",
     "actsOutsideWorld": "acts on the outside world",
     "actsWorld": "acts on the world",
@@ -1955,6 +1956,8 @@
       "spokenBy": "Voice: {voice}",
       "generateVideo": "Video",
       "generatingVideo": "Making a video",
+      "selectingWorkspace": "Selecting a project workspace",
+      "selectedWorkspace": "Select project workspace",
       "videoNotStored": "The video was made but not saved.",
       "suggestingNextSteps": "Suggesting next steps",
       "nextSteps": "Next steps",
@@ -2442,7 +2445,8 @@
       },
       "makeSkill": "Make a skill of this",
       "makeSkillAsk": "Make a skill of this, so any agent can do it the same way next time.\n\nWhat I asked:\n{request}\n\nHow it was answered:\n{answer}",
-      "makeSkillFromConversation": "Make a skill of this, so any agent can do it the same way next time. Read the whole conversation first with read_conversation - its id is {conversation}.\n\nWhat I asked:\n{request}"
+      "makeSkillFromConversation": "Make a skill of this, so any agent can do it the same way next time. Read the whole conversation first with read_conversation - its id is {conversation}.\n\nWhat I asked:\n{request}",
+      "projectsUsed": "Projects used"
     },
     "suggestions": {
       "label": "Suggestions for you",
@@ -4566,6 +4570,9 @@
     "serverUrl": "Server URL",
     "client": "MCP client",
     "servers": "Servers",
+    "catalogLoadFailed": "Could not load servers",
+    "noServersMatch": "No servers found",
+    "noServersMatchHint": "Try a different search or clear the filters. You can also add a custom server.",
     "settings": "Settings",
     "stateDisabled": "Disabled",
     "storedEncryptedNeverShown": "Stored encrypted and never shown again.",
@@ -4735,7 +4742,8 @@
     "whatsNewDescription": "Recent changes in the version you are using.",
     "whatsNewDone": "Got it",
     "monitoring": "Monitoring",
-    "backgroundWork": "Background work"
+    "backgroundWork": "Background work",
+    "developerAccess": "API & MCP"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -5526,7 +5534,7 @@
       },
       "agent-share": {
         "title": "Share it",
-        "body": "Add a person or a group and choose what they can do, or open it to the whole organization. The owner always keeps access."
+        "body": "Open More actions and choose Share to add a person or group and choose what they can do. The owner always keeps access."
       },
       "skills-groups": {
         "title": "By department",
@@ -7066,7 +7074,7 @@
       "addTagPlaceholder": "Add a tag",
       "removeTag": "Remove tag {value}",
       "history": "History",
-      "howAgentAsksIts": "How this agent asks its model to behave, on top of whatever the model profile already sets. A setting nobody touches is not sent at all - that is deliberate rather than tidy: reasoning models reject a temperature outright, so an agent that never chose one must not have one sent on its behalf. A provider that does not implement a setting ignores it. Reasoning itself is a capability, below.",
+      "howAgentAsksIts": "Adjust how the agent responds. Unchanged settings use the model profile defaults.",
       "howManyModelRequests": "How many model requests one run may make. A tool loop hits this long before it costs enough to hit a budget.",
       "instructions": "Instructions",
       "instructions2": "Instructions",
@@ -7472,6 +7480,7 @@
       "termsOfService": "Terms of Service"
     },
     "orgs": {
+      "searchOrganizations": "Search organizations…",
       "searchPermissions": "Search permissions…",
       "noPermissionsMatch": "No permissions match your search",
       "retention": "Retention",
@@ -7538,12 +7547,17 @@
       "workspaces": "Organizations",
       "you": "(you)",
       "yourRoleHere": "Your role here is <badge>{role}</badge>",
-      "tabProfile": "Workspace",
       "tabGovernance": "Budget and approvals",
-      "tabProactivity": "Proactivity",
       "tabAssistant": "AI & services",
-      "workspaceSettingsHint": "Organization identity and the default voice experience inherited by agents and channel bots.",
-      "aiServicesHint": "Configure the organization’s Architect and the background services that maintain memory and build briefings. Suggestion and monitoring policies are under Proactivity."
+      "editWorkspace": "Edit workspace",
+      "workspaceAppearanceHint": "Name, avatar and colour for this workspace.",
+      "searchMembers": "Search members…",
+      "filterRole": "Filter by role",
+      "allRoles": "All roles",
+      "noMatchingMembers": "No members match your search.",
+      "lastAction": "Last recorded action",
+      "lastActionHint": "Audited actions in this workspace. Visits and actions performed through impersonation are not included.",
+      "noRecordedAction": "No recorded action"
     },
     "rag": {
       "active": "Active",
@@ -7694,6 +7708,7 @@
       "perVersionCostPerRun": "per run",
       "perVersionLatency": "p95",
       "personColumn": "Person",
+      "visibleColumns": "Columns",
       "askedByColumn": "Asked by",
       "personFilter": "Filter by person",
       "previousRun": "Previous run",
@@ -7727,7 +7742,6 @@
       "runDetail": "Run detail",
       "runHistory2": "Run history",
       "runHistoryCouldNot": "Run history could not be read",
-      "runHistoryDescription": "Every run records the agent <em>version</em> it executed, so what happened last week stays answerable after the agent has been rewritten.",
       "runResumed": "Run resumed - the agent picked up where it parked.",
       "runs": "Runs",
       "runs2": "Runs",
@@ -8162,7 +8176,9 @@
       "notificationNoMatches": "No matching notifications",
       "notificationSearchHint": "Try an event name or a word from its description.",
       "notificationClearSearch": "Clear search",
-      "notificationEventCount": "{count, plural, =1 {1 event} other {# events}}"
+      "notificationEventCount": "{count, plural, =1 {1 event} other {# events}}",
+      "mobileAccountHint": "Use AgenticOS on your phone with the same account.",
+      "openMobileApp": "Set up mobile app"
     },
     "skills": {
       "allCategories": "All categories",
@@ -9058,7 +9074,6 @@
   "skills": {
     "addFile": "Add file",
     "apply": "Apply",
-    "applyChangeTo": "Apply the change to {name}",
     "availableEveryAgentOrganization": "Choose below who can use it. An agent reads it once it is added to that agent.",
     "cancel": "Cancel",
     "cancel2": "Cancel",
@@ -9066,8 +9081,6 @@
     "category2": "Category",
     "changeApplied": "Applied to {name}",
     "changeDiscarded": "Discarded the change to {name}",
-    "changesAgentProposed": "Changes an agent proposed",
-    "changesWaitingDetail": "{count, plural, =1 {1 change is waiting} other {# changes are waiting}}. Accepting one rewrites the skill, which reaches every agent bound to it on its next run.",
     "close": "Close",
     "create": "Create",
     "created": "Created {name}",
@@ -9088,7 +9101,6 @@
     "fileSaved": "File saved",
     "fileTree": "Skill files",
     "files": "Files",
-    "files2": "Files",
     "files3": "Files",
     "filesUploaded": "{count, plural, =1 {1 file uploaded} other {# files uploaded}}",
     "folder": "Folder",
@@ -9152,7 +9164,6 @@
     "moreFiles": "{count, plural, =1 {+1 file} other {+# files}}",
     "bodyPlaceholder": "# Refunds\n\nUse this when a customer asks for their money back.\n\n## Steps\n\n1. Check the order date.\n2. Within 14 days, refund without asking.\n3. After that, ask a person to approve it.",
     "whoCanUseIt": "Who can use it",
-    "expectedEffect": "Expected effect:",
     "page": {
       "skills": "Skills",
       "mainVersion": "v{number} on main",
@@ -9437,8 +9448,6 @@
       "skillDetails": "Skill details",
       "openFullView": "Open full view"
     },
-    "checkOnAgents": "Check on agents",
-    "checkChangeTo": "Check the change to {name} on the agents that use it",
     "check": {
       "title": "Check this change on every agent that uses it",
       "description": "Each agent answers its questions with the skill as it is and with this change. Nothing changes until you decide.",
@@ -9491,12 +9500,32 @@
       },
       "nobody": "None of these agents can be checked, so the check would measure nothing. Add test questions so it can, or go on without a check and confirm that nobody was checked.",
       "startUnchecked": "Go on without a check",
-      "noReaders": "No agent reads this line, so there is nobody to check. Going on applies the change at once."
+      "noReaders": "No agent reads this line, so there is nobody to check. Going on applies the change at once.",
+      "proposalGoneTitle": "This update is no longer pending",
+      "proposalGoneDescription": "It was applied, discarded or replaced in another session. The list has been refreshed.",
+      "backToChanges": "Back to updates"
     },
     "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs.",
     "instructions": "Instructions",
     "architect": "Architect",
-    "architectHint": "Installed for the AI Architect, which reads it. Editing it changes how the Architect works."
+    "architectHint": "Installed for the AI Architect, which reads it. Editing it changes how the Architect works.",
+    "reviewUpdates": {
+      "title": "Skill updates",
+      "summary": "{count, plural, =1 {1 update ready to review} other {# updates ready to review}}",
+      "agents": "{count, plural, =1 {1 affected agent} other {# affected agents}}",
+      "files": "{count, plural, =1 {1 reference file} other {# reference files}}",
+      "library": "Library update",
+      "impact": "Affected agents",
+      "instructions": "Proposed instructions",
+      "preview": "Preview",
+      "compare": "Compare with current skill",
+      "compareFailed": "The current skill could not be loaded. Reopen the review to try again.",
+      "apply": "Apply update",
+      "testOptional": "Test before applying (optional)",
+      "hiddenAgents": "{count, plural, one {# other agent} other {# other agents}}",
+      "testOptionalShort": "Test (optional)",
+      "compareShort": "Changes"
+    }
   },
   "states": {
     "loading": "Loading"
@@ -9611,8 +9640,8 @@
       "cancel": "Cancel",
       "save": "Save changes",
       "saved": "Voice settings saved",
-      "providerNoKey": "{name} (no usable key)",
-      "notReadyNoKey": "No key is chosen for {provider}. Agents and bots that inherit it can't transcribe with a provider until you choose one below."
+      "notReadyNoKey": "No key is chosen for {provider}. Agents and bots that inherit it can't transcribe with a provider until you choose one below.",
+      "summary": "Default transcription provider and recording limits."
     },
     "publicAttribution": "AgenticOS on shared pages",
     "publicAttributionDescription": "Show a small floating AgenticOS badge with a GitHub link on public apps, dashboards and reports, and below shared conversations.",
@@ -9666,7 +9695,8 @@
       "watchMinutesHint": "How often one watch may look at most. More often costs more.",
       "switchOrganizationHint": "Switch to this organization before configuring proactivity so its model profiles and keys are used.",
       "switchOrganization": "Switch to {name}",
-      "runAttribution": "Suggestions use a dedicated model; monitoring uses its selected agent. Both share a monthly background-work budget per member."
+      "runAttribution": "Suggestions use a dedicated model; monitoring uses its selected agent. Both share a monthly background-work budget per member.",
+      "summary": "Suggestions, monitoring and delivery schedules."
     },
     "systemAgents": {
       "configure": "Configure model and budget",
@@ -9674,8 +9704,6 @@
       "description": "Model-powered platform services. Expand a service to configure its model and budget. Usage and recent runs stay visible below.",
       "on": "On",
       "off": "Off",
-      "managedIn": "Runs on {model}. Configured in the Proactivity tab, with one shared model and limit.",
-      "managedInNoModel": "No model chosen yet. Configure it in the Proactivity tab.",
       "enabled": "Run this role",
       "model": "Model",
       "modelHint": "Chosen, never defaulted: the role spends money nobody asked for in the moment.",
@@ -9700,7 +9728,8 @@
           "what": "Reads a finished chat once and records the durable facts, preferences and decisions in it, in the conversation's own scope. Nothing runs while it is off or has no model."
         }
       },
-      "starterAgentMissing": "This role does nothing right now: the AgenticOS starter agent it is recorded under is missing, unpublished or renamed. Publish it again under the agenticos handle."
+      "starterAgentMissing": "This role does nothing right now: the AgenticOS starter agent it is recorded under is missing, unpublished or renamed. Publish it again under the agenticos handle.",
+      "summary": "Models, budgets and recent runs for platform services."
     }
   },
   "theme": {
@@ -12993,18 +13022,15 @@
     "defaultName": "Architect"
   },
   "assistantSettings": {
-    "notForYou": "Your role doesn't include running agents, so the assistant isn't available to you. An administrator can change that.",
     "yours": "Your tips",
     "yoursDescription": "The speech bubbles the assistant shows you around the console. This browser remembers them.",
     "showTips": "Show tips in speech bubbles",
     "unsilence": "{count, plural, =1 {Show tips again on the 1 page I silenced} other {Show tips again on the # pages I silenced}}",
     "organization": "For the organization",
-    "organizationDescription": "The AI Architect is an agent like any other: change its name, model and knowledge in the Agent Builder. Switching it off and its greeting are on the organization's page.",
     "openBuilder": "Open in Agent Builder",
-    "openOrganization": "Organization settings",
     "suggestions": {
       "title": "Automatic suggestions",
-      "description": "Control whether AgenticOS sends you proactive suggestions in Inbox and briefing. This page shows their history and lets you restore dismissed suggestions. It does not configure replies in your conversations.",
+      "description": "Choose whether AgenticOS prepares automatic suggestions for you. Review suggestions and restore dismissed items in Inbox.",
       "forMe": "Nightly suggestions for me",
       "orgOff": "Your organization has nightly suggestions off, so none are made yet.",
       "turnedOn": "Nightly suggestions are on for you",
@@ -13016,8 +13042,7 @@
         "open": "Waiting",
         "accepted": "Taken",
         "dismissed": "Declined"
-      },
-      "openInbox": "Open Inbox"
+      }
     }
   },
   "orgAssistant": {
@@ -13029,7 +13054,8 @@
     "needsModel": "It has no model yet, so it cannot answer. Choose one under Model in the Agent Builder.",
     "greeting": "Greeting",
     "greetingHint": "What it says when somebody opens it. Leave empty for the default.",
-    "save": "Save"
+    "save": "Save",
+    "summary": "Configure the workspace assistant and its greeting."
   },
   "capabilityGuide": {
     "artifacts": {
@@ -14527,7 +14553,6 @@
     "accountNamed": "{server} ({account})",
     "createdWhere": "It is under Routines, and what it finds lands in your inbox.",
     "seeIt": "See it",
-    "manageInRoutines": "Manage your watches in Routines",
     "attemptedAt": "Last attempt {when}",
     "attempt": {
       "source_unavailable": "Source unavailable — no successful check.",
@@ -14582,7 +14607,9 @@
       "role_pack": "Routine pack",
       "finding": "Routine"
     },
-    "openWorkingChat": "Open conversation"
+    "openWorkingChat": "Open conversation",
+    "preferences": "Inbox preferences",
+    "preferencesDescription": "Choose which automatic suggestions reach your Inbox."
   },
   "datasets": {
     "scoring": {
@@ -17139,9 +17166,9 @@
   },
   "setupHints": {
     "title": "Setup available",
-    "voiceModel": "Voice has no default provider or model. Choose them in Workspace → Voice to use provider-based transcription.",
-    "voiceKey": "Voice has a provider and model, but no key. Select an organization key in Workspace → Voice.",
-    "proactivityOff": "Nightly suggestions are off. Enable them in Proactivity if you want the assistant to prepare suggestions for your team.",
+    "voiceModel": "Voice has no default provider or model. Choose them in AI & services → Voice to use provider-based transcription.",
+    "voiceKey": "Voice has a provider and model, but no key. Select an organization key in AI & services → Voice.",
+    "proactivityOff": "Nightly suggestions are off. Enable them in AI & services → Assistant suggestions and monitoring if you want the assistant to prepare suggestions for your team.",
     "proactivityModel": "Nightly suggestions are on, but no model is selected. Choose a model in Proactivity.",
     "memoryModel": "Memory maintenance has no model selected. Choose one in AI & services → Background services to use automatic memory maintenance.",
     "architectModel": "The Architect needs a model. Open it in Agent Builder from AI & services and select one.",

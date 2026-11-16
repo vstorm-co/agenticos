@@ -11,11 +11,9 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import {
   Button,
   Badge,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+  ListCard,
+  ListCardEmpty,
+  SearchInput,
   Skeleton,
   EntityAvatar,
 } from "@/components/ui";
@@ -24,38 +22,47 @@ import { ROUTES } from "@/lib/constants";
 import { useChanged } from "@/hooks/use-changed";
 import { useTranslations } from "next-intl";
 
-/**
- * The list's frame, drawn whether or not there is anything in it - the same
- * always-visible container the vault draws around its keys. Same header, same
- * border, in every state: what changes is what is inside it.
- */
-function WorkspacesCard({ count, children }: { count: number | null; children: ReactNode }) {
+/** A gallery shares the page surface, including while its count is loading. */
+function WorkspacesCard({
+  count,
+  controls,
+  children,
+}: {
+  count: number | null;
+  controls: ReactNode;
+  children: ReactNode;
+}) {
   const t = useTranslations("pages.orgs");
   return (
-    <Card className="flex flex-1 flex-col">
-      <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
-        <div className="space-y-1">
-          <CardTitle className="text-sm">{t("workspaces")}</CardTitle>
-          <CardDescription className="text-xs">
-            {/* `null` is "the request has not answered". Rendering "0 workspaces"
-                there would state something nothing has said yet. */}
-            {count === null ? <Skeleton className="h-3 w-24" /> : t("storedCount", { count })}
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="flex-1 p-4">{children}</CardContent>
-    </Card>
+    <ListCard
+      fill
+      namedByPage
+      layout="grid"
+      title={t("workspaces")}
+      counted={count === null ? null : t("storedCount", { count })}
+      controls={controls}
+      contentClassName="p-0 pt-2"
+    >
+      {children}
+    </ListCard>
   );
 }
 
 export default function OrgsPage() {
   const t = useTranslations("pages.orgs");
   const tc = useTranslations("common");
+  const ui = useTranslations("ui");
+  const [query, setQuery] = useState("");
   const { orgs, activeOrgId, fetchOrgs, switchOrg } = useOrganizations();
   const [createOpen, setCreateOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const search = query.trim().toLocaleLowerCase();
+  const filteredOrgs = orgs.filter((org) =>
+    [org.name, org.slug].some((value) => value?.toLocaleLowerCase().includes(search)),
+  );
 
   // `?create=1` opens the dialog. Read during render rather than written from
   // an effect: it is a value the URL already carries, not a thing to sync.
@@ -87,7 +94,12 @@ export default function OrgsPage() {
         }
       />
 
-      <WorkspacesCard count={isLoading ? null : orgs.length}>
+      <WorkspacesCard
+        count={isLoading ? null : filteredOrgs.length}
+        controls={
+          <SearchInput value={query} onChange={setQuery} placeholder={t("searchOrganizations")} />
+        }
+      >
         {isLoading ? (
           // The same tiles the populated grid draws, as skeletons - a skeleton
           // that draws a different shape is a layout jump on every load.
@@ -126,9 +138,15 @@ export default function OrgsPage() {
               {t("createOrganization")}
             </Button>
           </div>
+        ) : filteredOrgs.length === 0 ? (
+          <ListCardEmpty
+            icon={Building2}
+            title={ui("noResults")}
+            onClearFilters={() => setQuery("")}
+          />
         ) : (
           <ul className="rise-in grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {orgs.map((org) => {
+            {filteredOrgs.map((org) => {
               const isActive = org.id === activeOrgId;
               return (
                 <li

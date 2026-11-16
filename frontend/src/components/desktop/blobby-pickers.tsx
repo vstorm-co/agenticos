@@ -13,6 +13,7 @@ import type { BlobbyCharacter } from "@/lib/desktop/commands";
 import { cn } from "@/lib/utils";
 
 import "blobatar/motion.css";
+import { Label } from "@/components/ui/label";
 
 /**
  * The ways to pick who blobby is - the cast, one of the person's agents, a face
@@ -149,9 +150,9 @@ export function CustomPicker({
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
-        <label htmlFor="blobby-seed" className="text-foreground text-sm font-medium">
+        <Label htmlFor="blobby-seed" className="text-foreground text-sm font-medium">
           {t("seed")}
-        </label>
+        </Label>
         <Input
           id="blobby-seed"
           value={seed}

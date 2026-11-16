@@ -1,5 +1,5 @@
 ---
-source_sha: "c62000d2cc6e"
+source_sha: "6c8511e3595e"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -137,7 +137,7 @@ zatrzymania po przejściu przez granicę sandboxa.
 | `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | przekazana |
 | `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | dla daemona | przekazana |
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — | bez zmian |
-| `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony | przekazana |
+| `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace` | `sandbox:execute` | dla Daytony | przekazana |
 | `mirage` | Wirtualny terminal | analiza | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | dla każdego folderu, przez extra `mirage` | przekazana |
 | `charts` | Wykresy | analiza | `create_chart` | — | — | bez zmian |
 | `visuals` | Wizualizacje | analiza | `draw`, `revise_visual`, `read_visual` | — | — | bez zmian |
@@ -229,7 +229,7 @@ wstrzymuje i zapisuje:
 | `image_generation` | `generate_image` |
 | `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
 | `memory_mem0` | `remember` |
-| `sandbox` | `write_file`, `edit_file`, `execute` |
+| `sandbox` | `write_file`, `edit_file`, `execute`, `select_project_workspace` |
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
 
 Każde inne narzędzie powyżej tylko czyta. Delegowanie liczy się jako czytanie:
@@ -1201,6 +1201,8 @@ jedynymi limitami wartymi ustawienia.
     ograniczone, a nie otwarte.
 
 ## Sandbox { #files-shell }
+
+`select_project_workspace` wybiera dostępny projekt dla narzędzi plikowych i powłoki do końca runu. Pominięcie identyfikatora przywraca pierwotny workspace. Wznowienie po zatwierdzeniu zachowuje wybór; kolejna tura zaczyna w pierwotnym workspace. Rozmowa pozostaje w swoim wątku. Każda operacja sprawdza dostęp, a rutyny pozostają ograniczone do zatwierdzonego źródła projektu. Izolowane ewaluacje nie mogą przełączać się na trwałe projekty.
 
 `ls`, `read_file`, `glob`, `grep` — _odczyt._
 `write_file`, `edit_file`, `execute` — _zapis i uruchamianie._

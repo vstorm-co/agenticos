@@ -506,7 +506,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
               proOptions={{ hideAttribution: true }}
               aria-label={t("canvasGraphLabel")}
             >
-              <Background gap={20} size={1.5} />
+              <Background gap={28} size={1} />
               {/* Bottom-left, in a row with the minimap above it: the bottom-right
                   corner is the assistant's launcher on every dashboard page. */}
               <Controls showInteractive={false} position="bottom-left" orientation="horizontal" />

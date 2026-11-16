@@ -7,7 +7,7 @@ from fastapi import APIRouter, Query, Response
 
 from app.api.deps import Auth, VisualSvc
 from app.api.routes.v1._artifact_bytes import visual_image_response
-from app.schemas.visual import VisualList
+from app.schemas.visual import VisualList, VisualPreview
 
 router = APIRouter()
 
@@ -26,3 +26,9 @@ async def list_recent_visuals(
 async def get_visual_thumbnail(visual_id: UUID, service: VisualSvc, ctx: Auth) -> Response:
     """A drawing's thumbnail, for the person it was drawn for."""
     return visual_image_response(await service.thumbnail(ctx, visual_id), "image/png")
+
+
+@router.get("/{visual_id}/preview", response_model=VisualPreview)
+async def get_visual_preview(visual_id: UUID, service: VisualSvc, ctx: Auth) -> Any:
+    """One caller-owned drawing for rendering in the console's isolated visual frame."""
+    return await service.preview(ctx, visual_id)

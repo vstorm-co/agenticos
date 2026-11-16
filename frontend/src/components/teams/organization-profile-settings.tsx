@@ -18,10 +18,12 @@ export function OrganizationProfileSettings({
   org,
   onContinue,
   saveLabel,
+  inDialog = false,
 }: {
   org: Organization;
   onContinue?: () => void;
   saveLabel?: string;
+  inDialog?: boolean;
 }) {
   const t = useTranslations("pages.orgs");
   const tc = useTranslations("common");
@@ -109,6 +111,7 @@ export function OrganizationProfileSettings({
       className={cn(
         "border-border bg-card @container flex flex-wrap items-start gap-5 rounded-xl border p-5 sm:p-6",
         onContinue && styles.guided,
+        inDialog && "border-0 bg-transparent p-0 sm:p-0",
       )}
     >
       <button
@@ -159,7 +162,7 @@ export function OrganizationProfileSettings({
           onContinue ? styles.details : "@max-sm:basis-full",
         )}
       >
-        {!onContinue && heading}
+        {!onContinue && !inDialog && heading}
         {canManage && (
           <Button
             type="button"

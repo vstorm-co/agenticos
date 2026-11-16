@@ -165,7 +165,14 @@ function FlatFiles() {
 
   if (listing.items.length === 0)
     return (
-      <ListCard fill namedByPage title={t("workspaces.allFiles")} counted={null} empty>
+      <ListCard
+        layout="grid"
+        fill
+        namedByPage
+        title={t("workspaces.allFiles")}
+        counted={null}
+        empty
+      >
         <ListCardEmpty
           icon={FolderOpen}
           title={t("noAgentHoldingFile")}

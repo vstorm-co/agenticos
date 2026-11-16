@@ -9,10 +9,12 @@ from decimal import Decimal
 
 import pytest
 from pydantic_ai.providers.azure import AzureProvider
+from pydantic_ai.providers.elevenlabs import ElevenLabsProvider
 from pydantic_ai.providers.google import GoogleProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.xai import XaiProvider
 from pydantic_ai.realtime.azure import AzureRealtimeModel
+from pydantic_ai.realtime.elevenlabs import ElevenLabsRealtimeModel
 from pydantic_ai.realtime.google import GoogleRealtimeModel
 from pydantic_ai.realtime.openai import OpenAIRealtimeModel
 from pydantic_ai.realtime.xai import XaiRealtimeModel
@@ -37,17 +39,19 @@ def _library_model(provider: str, model: str):
         )
     if provider == "google":
         return GoogleRealtimeModel(model, provider=GoogleProvider(api_key=_DUMMY))
-    return XaiRealtimeModel(model, provider=XaiProvider(api_key=_DUMMY))
+    if provider == "xai":
+        return XaiRealtimeModel(model, provider=XaiProvider(api_key=_DUMMY))
+    return ElevenLabsRealtimeModel(model, provider=ElevenLabsProvider(api_key=_DUMMY))
 
 
 def _profile_value(profile, key: str):
     return profile[key] if isinstance(profile, dict) else getattr(profile, key)
 
 
-def test_the_four_providers_are_offered_with_their_credential_kinds():
+def test_voice_providers_are_offered_with_their_credential_kinds():
     offered = {p.provider: p for p in realtime_models.providers()}
 
-    assert set(offered) == {"openai", "azure", "google", "xai"}
+    assert set(offered) == {"openai", "azure", "google", "xai", "elevenlabs"}
     assert offered["azure"].secret_kind is SecretKind.AZURE_OPENAI
     assert offered["azure"].deployment is True
     assert offered["openai"].secret_kind is SecretKind.API_KEY

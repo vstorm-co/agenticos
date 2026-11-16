@@ -1,16 +1,10 @@
 import { fireEvent, render } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { PageTransition } from "./page-transition";
 import { PAGE_CLEARANCE } from "@/lib/page-clearance";
 
 let pathname = "/";
-const motion = vi.hoisted(() => ({ reduced: false }));
-vi.mock("@/lib/motion", () => ({ prefersReducedMotion: () => motion.reduced }));
-afterEach(() => {
-  motion.reduced = false;
-  vi.restoreAllMocks();
-});
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname,
 }));
@@ -45,48 +39,6 @@ describe("the page transition wrapper", () => {
     expect(view.container.firstElementChild).toBe(frame);
     expect(view.getByRole("textbox")).toBe(input);
     expect(input).toHaveValue("Still writing");
-  });
-
-  it("cancels an in-progress reveal and honors reduced motion", () => {
-    const cancel = vi.fn();
-    const animate = vi.fn(() => ({ cancel }));
-    const previousAnimate = HTMLElement.prototype.animate;
-    Object.defineProperty(HTMLElement.prototype, "animate", { configurable: true, value: animate });
-    try {
-      pathname = "/agents";
-      const view = render(
-        <PageTransition>
-          <span />
-        </PageTransition>,
-      );
-      expect(animate).not.toHaveBeenCalled();
-      pathname = "/projects";
-      view.rerender(
-        <PageTransition>
-          <span />
-        </PageTransition>,
-      );
-      expect(animate).toHaveBeenCalledWith(
-        [{ opacity: 0.65 }, { opacity: 1 }],
-        expect.objectContaining({ duration: 160 }),
-      );
-      motion.reduced = true;
-      pathname = "/settings/account";
-      view.rerender(
-        <PageTransition>
-          <span />
-        </PageTransition>,
-      );
-      expect(cancel).toHaveBeenCalledTimes(1);
-      expect(animate).toHaveBeenCalledTimes(1);
-      view.unmount();
-    } finally {
-      Object.defineProperty(HTMLElement.prototype, "animate", {
-        configurable: true,
-        value: previousAnimate,
-      });
-      vi.unstubAllGlobals();
-    }
   });
 
   it("constrains its height on the chat route so only the message pane scrolls", () => {

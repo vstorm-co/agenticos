@@ -89,7 +89,7 @@ export function NotificationGlyph({ item }: { item: Notification }) {
   return (
     <span
       aria-hidden
-      className="bg-foreground/[0.06] text-foreground/75 grid size-8 shrink-0 place-items-center rounded-lg"
+      className="text-foreground/70 grid size-8 shrink-0 place-items-center rounded-lg"
     >
       <Icon className="size-[18px]" strokeWidth={1.75} />
     </span>

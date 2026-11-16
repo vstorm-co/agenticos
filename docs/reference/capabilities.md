@@ -129,7 +129,7 @@ across the sandbox boundary.
 | `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra | handed off |
 | `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | for a daemon | handed off |
 | `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — | as-is |
-| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona | handed off |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace` | `sandbox:execute` | for Daytona | handed off |
 | `mirage` | Virtual terminal | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | per folder, via the `mirage` extra | handed off |
 | `charts` | Charts | analysis | `create_chart` | — | — | as-is |
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | as-is |
@@ -216,7 +216,7 @@ and records:
 | `image_generation` | `generate_image` |
 | `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
 | `memory_mem0` | `remember` |
-| `sandbox` | `write_file`, `edit_file`, `execute` |
+| `sandbox` | `write_file`, `edit_file`, `execute`, `select_project_workspace` |
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
 
 Every other tool above only reads. Delegation counts as reading: a delegate's
@@ -1153,6 +1153,8 @@ memory are the only limits worth setting.
     operator or a redeploy — and the ceilings are capped rather than open-ended.
 
 ## Sandbox { #files-shell }
+
+`select_project_workspace` selects an accessible project for file and shell tools until the run ends. Omit its project id to restore the original workspace. Approval continuations retain the selection; the next turn starts in the original workspace. The conversation stays in its own thread. Access is checked on every operation, and routines remain limited to their reviewed project source. Isolated evaluations cannot switch into persistent projects.
 
 `ls`, `read_file`, `glob`, `grep` — *reading.*
 `write_file`, `edit_file`, `execute` — *writing and running.*
