@@ -35,6 +35,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Bound retained channel job counts and payload bytes, including terminal jobs, independently of active queue capacity. Completed work cannot reset its storage quota before cleanup.
+
 - Bound channel admission before enqueueing, encrypt attachment handles through the vault, keep `/btw` tool-free across workers, and preserve rendered answers and native delivery receipts. Stale workers cannot persist terminal replies; delayed turns do not import future thread messages. Publication diagnostics no longer require the channel manager to run the agent.
 
 - Admit Slack Socket Mode commands and message shortcuts durably before acknowledgement, preserve Telegram updates when job admission fails, and keep Discord metadata lookups off its Gateway receive loop.

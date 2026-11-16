@@ -1,5 +1,5 @@
 ---
-source_sha: "d632bac3e0cd"
+source_sha: "b4526b73f389"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2012,6 +2012,8 @@ para mostrar diferencias entre la consola y Mattermost.
     La respuesta final se guarda en la transacción terminal del run. Una respuesta cuyo envío no se ha intentado puede entregarse desde esa copia sin volver a ejecutar el modelo. Se reclama el intento antes de contactar al proveedor: un resultado de transporte ambiguo queda sin confirmar y no se reintenta a ciegas. Los indicadores de streaming y las interacciones opcionales de UI siguen siendo best-effort. Los comandos `/agent` y atajos de mensajes de Slack usan admisión duradera tanto por HTTP como por Socket Mode; la confirmación sigue al commit del trabajo. El polling de Telegram guarda cada lote antes de que el SDK avance el offset. Discord resuelve los metadatos fuera del bucle de recepción del Gateway para no bloquear interacciones posteriores. Las decisiones de prompts y otras acciones nativas de UI conservan su gestión actual.
 
     Antes de encolar se comprueban la política de acceso del bot y un límite separado por remitente con el RPM configurado. Las transacciones serializan los límites de trabajos activos: 100 mensajes / 2 MiB por bot y 1000 / 16 MiB por organización; los controles tienen límites separados de 8 / 32 KiB y 64 / 256 KiB. Los mensajes excesivos o demasiado grandes se confirman y descartan sin guardar otro trabajo. La entrada admite hasta 64 KiB de texto, diez archivos y 128 KiB normalizados. Las referencias de adjuntos se cifran con el vault de la organización y participan en `vault-rotate`.
+
+    Los trabajos retenidos siguen contando hasta la limpieza, incluidos los completados, fallidos y cancelados. La retención de mensajes tiene un límite de 10 000 trabajos / 32 MiB por bot y 100 000 / 256 MiB por organización; los controles, de 1000 / 2 MiB y 10 000 / 16 MiB. Terminar un trabajo libera capacidad activa, pero no almacenamiento retenido. La limpieza habitual a los 14 días libera estos contadores y bytes.
 
 - **El remitente puede añadir contexto durante el run.** Antes de la siguiente petición al modelo, el worker consume hasta ocho añadidos de texto pendientes de la misma persona en el mismo hilo. Vuelve a comprobar acceso y guardrails de entrada. Los mensajes de otra persona, archivos, otros comandos y añadidos tardíos esperan su propio turno. Solo se incorporan mensajes dirigidos al bot; también funciona entre workers. `/status` y `/stop` (o `status` y `stop`) afectan únicamente al último run principal del remitente en ese hilo. Stop actúa antes de la siguiente petición al modelo; una acción en curso puede terminar. `/btw` utiliza un trabajo independiente y siempre se ejecuta sin herramientas, incluso cuando otro worker ejecuta el turno principal.
 

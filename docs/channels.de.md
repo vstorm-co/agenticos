@@ -1,5 +1,5 @@
 ---
-source_sha: "d632bac3e0cd"
+source_sha: "b4526b73f389"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2105,6 +2105,8 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
     Die endgültige Antwort wird in der Abschlusstransaktion des Laufs gespeichert. Eine noch nicht versuchte Zustellung kann daraus ohne erneuten Modelllauf erfolgen. Der Versandversuch wird vor dem Anbieteraufruf beansprucht: Ein mehrdeutiger Transportausgang bleibt unbestätigt und wird nicht blind wiederholt. Streaming-Platzhalter und optionale UI-Interaktionen bleiben best-effort. Slack-Befehle `/agent` und Nachrichten-Kurzbefehle werden über HTTP und Socket Mode dauerhaft angenommen; die Bestätigung folgt erst nach dem Commit des Jobs. Telegram-Polling speichert jeden Nachrichtenstapel, bevor das SDK den Offset erhöht. Discord löst Nachrichtenmetadaten außerhalb der Gateway-Empfangsschleife auf, damit spätere Interaktionen reaktionsfähig bleiben. Prompt-Entscheidungen und andere native UI-Aktionen behalten ihre bisherige Verarbeitung.
 
     Vor dem Einreihen werden die Zugriffsrichtlinie des Bots und ein separates Absenderlimit mit dem konfigurierten RPM geprüft. Transaktionen serialisieren Grenzen aktiver Jobs: 100 Nachrichten / 2 MiB pro Bot und 1.000 / 16 MiB pro Organisation; Steuerbefehle haben separate Grenzen von 8 / 32 KiB und 64 / 256 KiB. Überzählige oder zu große Nachrichten werden bestätigt und ohne weiteren Job verworfen. Eingaben sind auf 64 KiB Text, zehn Dateien und 128 KiB normalisierte Nutzlast begrenzt. Anhangsreferenzen werden organisationsgebunden im Vault verschlüsselt und von `vault-rotate` erfasst.
+
+    Aufbewahrte Jobs zählen bis zur Bereinigung weiter, auch erfolgreiche, fehlgeschlagene und abgebrochene. Die Aufbewahrung ist für Nachrichten auf 10.000 Jobs / 32 MiB pro Bot und 100.000 / 256 MiB pro Organisation begrenzt; für Steuerbefehle auf 1.000 / 2 MiB und 10.000 / 16 MiB. Der Abschluss gibt aktive Kapazität frei, aber keinen aufbewahrten Speicher. Die reguläre Bereinigung nach 14 Tagen gibt diese Zähler und Bytes frei.
 
 - **Der Absender kann während eines Laufs Kontext ergänzen.** Vor der nächsten Modellanfrage übernimmt der Worker bis zu acht wartende Textergänzungen derselben Person im selben Thread. Zugriff und Eingabe-Guardrails werden erneut geprüft. Andere Personen, Dateien, andere Befehle und zu spät eingegangene Ergänzungen bleiben für eine eigene Runde in der Warteschlange. Nur an den Bot gerichtete Nachrichten werden übernommen, auch über Worker-Grenzen hinweg. `/status` und `/stop` (auch `status` und `stop`) betreffen nur den letzten eigenen Hauptlauf in diesem Thread. Stop wirkt vor der nächsten Modellanfrage; eine laufende Aktion kann noch enden. `/btw` verwendet einen unabhängigen Job und läuft immer ohne Werkzeuge, auch wenn ein anderer Worker die Hauptrunde ausführt.
 

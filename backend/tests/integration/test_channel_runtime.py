@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.background_job import BackgroundJob
@@ -560,6 +561,47 @@ async def test_channel_queue_caps_payload_bytes_even_before_the_count_limit(
     await db.flush()
     assert not await jobs.channel_queue_has_room(
         db, organization_id=org, bot_id=bot, control=control, size=1
+    )
+
+
+@pytest.mark.parametrize("status", ["succeeded", "dead", "cancelled"])
+@pytest.mark.parametrize("quota", ["count", "bytes"])
+async def test_terminal_channel_payloads_keep_their_quota_until_cleanup(
+    db: AsyncSession, status: str, quota: str
+) -> None:
+    org, bot = uuid4(), uuid4()
+    for _ in range(1_000 if quota == "count" else 1):
+        db.add(
+            BackgroundJob(
+                kind="process-channel-control",
+                pool="system",
+                organization_id=org,
+                status=status,
+                max_attempts=1,
+                payload={
+                    "bot_id": str(bot),
+                    "text": "x" * (2 * 1024 * 1024 if quota == "bytes" else 1),
+                },
+            )
+        )
+    await db.flush()
+
+    assert not await jobs.channel_queue_has_room(
+        db, organization_id=org, bot_id=bot, control=True, size=1
+    )
+    assert await jobs.channel_queue_has_room(
+        db, organization_id=org, bot_id=uuid4(), control=True, size=1
+    )
+    assert await jobs.channel_queue_has_room(
+        db, organization_id=uuid4(), bot_id=bot, control=True, size=1
+    )
+    assert await jobs.channel_queue_has_room(
+        db, organization_id=org, bot_id=bot, control=False, size=1
+    )
+
+    await db.execute(delete(BackgroundJob).where(BackgroundJob.organization_id == org))
+    assert await jobs.channel_queue_has_room(
+        db, organization_id=org, bot_id=bot, control=True, size=1
     )
 
 
