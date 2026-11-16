@@ -1,0 +1,220 @@
+"""Durable channel admission and safe, sender-owned additions to an active turn."""
+
+import hashlib
+from dataclasses import asdict
+from uuid import UUID, uuid4
+
+from pydantic import JsonValue, TypeAdapter
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.agents.deps import AgentDeps
+from app.agents.steering import ChannelTurnStopped
+from app.core.exceptions import BadRequestError
+from app.db.models.channel_bot import ChannelBot
+from app.db.session import get_db_context
+from app.repositories import agent_run_repo, channel_bot_repo, conversation_repo
+from app.repositories import background_job as job_repo
+from app.services.background_jobs import enqueue
+from app.services.channels.base import IncomingAttachment, IncomingMessage, is_run_control
+from app.worker.jobs import (
+    PROCESS_CHANNEL_CONTROL,
+    PROCESS_CHANNEL_MESSAGE,
+    ChannelMessage,
+    ChannelMessageFile,
+)
+
+_JSON = TypeAdapter(JsonValue)
+
+
+def conversation_queue(bot_id: UUID, chat_id: str) -> str:
+    return f"channel:{bot_id}:{hashlib.sha256(chat_id.encode()).hexdigest()}"
+
+
+def normalize(bot: ChannelBot, incoming: IncomingMessage) -> ChannelMessage:
+    metadata: dict[str, JsonValue] = {}
+    for key in ("event", "guild_id"):
+        value = incoming.raw.get(key)
+        if isinstance(value, str):
+            metadata[key] = value
+    if incoming.platform == "discord":
+        member = incoming.raw.get("member")
+        if isinstance(member, dict) and isinstance(roles := member.get("roles"), list):
+            metadata["member"] = {"roles": [role for role in roles if isinstance(role, str)]}
+    if incoming.platform == "telegram":
+        raw = incoming.raw.get("message") or incoming.raw.get("edited_message")
+        if isinstance(raw, dict):
+            telegram_message: dict[str, JsonValue] = {
+                key: _JSON.validate_python(raw[key])
+                for key in ("entities", "caption_entities")
+                if key in raw
+            }
+            reply = raw.get("reply_to_message")
+            if isinstance(reply, dict) and isinstance(author := reply.get("from"), dict):
+                reply_id = author.get("id")
+                if isinstance(reply_id, int):
+                    telegram_message["reply_to_message"] = {"from": {"id": reply_id}}
+            metadata["message"] = telegram_message
+    return ChannelMessage.model_validate(
+        {
+            "receipt_id": uuid4(),
+            "organization_id": bot.organization_id,
+            "bot_id": bot.id,
+            "authorization_generation": bot.authorization_generation,
+            **{
+                key: getattr(incoming, key)
+                for key in (
+                    "platform",
+                    "platform_user_id",
+                    "platform_chat_id",
+                    "chat_type",
+                    "text",
+                    "platform_username",
+                    "platform_display_name",
+                    "message_id",
+                    "broadcast_mention",
+                    "addressed",
+                    "platform_team_id",
+                )
+            },
+            "attachments": [
+                ChannelMessageFile.model_validate(asdict(file)) for file in incoming.attachments
+            ],
+            "metadata": metadata,
+        }
+    )
+
+
+def restore(message: ChannelMessage) -> IncomingMessage:
+    return IncomingMessage(
+        **{
+            key: getattr(message, key)
+            for key in (
+                "platform",
+                "platform_user_id",
+                "platform_chat_id",
+                "chat_type",
+                "text",
+                "platform_username",
+                "platform_display_name",
+                "message_id",
+                "broadcast_mention",
+                "addressed",
+                "platform_team_id",
+            )
+        },
+        bot_id=str(message.bot_id),
+        raw=dict(message.metadata),
+        attachments=[IncomingAttachment(**file.model_dump()) for file in message.attachments],
+    )
+
+
+async def queue_message(db: AsyncSession, bot: ChannelBot, incoming: IncomingMessage) -> None:
+    message = normalize(bot, incoming)
+    control = is_run_control(incoming.text) and incoming.addressed is not False
+    # Edits have their own admission, but the router's observed-original receipt
+    # still decides whether an edit may start a run. Persist no arbitrary raw envelope.
+    native = incoming.message_id
+    if native is not None and incoming.raw.get("event") == "post_edited":
+        native += ":edit:" + hashlib.sha256(incoming.text.encode()).hexdigest()
+    key = (
+        None
+        if native is None
+        else "channel-message:"
+        + hashlib.sha256(f"{bot.id}:{incoming.platform_chat_id}:{native}".encode()).hexdigest()
+    )
+    if key and await job_repo.get_by_idempotency_key(
+        db, organization_id=bot.organization_id, idempotency_key=key
+    ):
+        return
+    try:
+        async with db.begin_nested():
+            await enqueue(
+                db,
+                PROCESS_CHANNEL_CONTROL if control else PROCESS_CHANNEL_MESSAGE,
+                message,
+                organization_id=bot.organization_id,
+                idempotency_key=key,
+                concurrency_key=None
+                if control
+                else conversation_queue(bot.id, incoming.platform_chat_id),
+            )
+    except IntegrityError:
+        if key and await job_repo.get_by_idempotency_key(
+            db, organization_id=bot.organization_id, idempotency_key=key
+        ):
+            return
+        raise
+
+
+async def admit_message(incoming: IncomingMessage) -> None:
+    """Used by native streams; the context commits before the stream accepts another event."""
+    async with get_db_context() as db:
+        bot = await channel_bot_repo.get_for_inbound(db, UUID(incoming.bot_id))
+        if bot is not None and bot.is_active:
+            await queue_message(db, bot, incoming)
+
+
+async def collect_steering(
+    receipt_id: UUID,
+    incoming: IncomingMessage,
+    deps: AgentDeps,
+) -> list[str]:
+    from app.services.channels.router import ChannelMessageRouter
+
+    if deps.run_id is None or deps.conversation_id is None or deps.organization_id is None:
+        return []
+    stopped = False
+    added: list[str] = []
+    async with get_db_context() as db:
+        if not await job_repo.channel_message_is_running(db, receipt_id=receipt_id):
+            raise ChannelTurnStopped("lease_lost")
+        run = await agent_run_repo.get_run(db, deps.run_id, organization_id=deps.organization_id)
+        if run is not None and run.channel_stop_requested_at is not None:
+            raise ChannelTurnStopped()
+        if run is None or not await ChannelMessageRouter().may_continue(db, run, incoming):
+            return []
+        bot = await channel_bot_repo.get_for_inbound(db, UUID(incoming.bot_id))
+        if bot is None:
+            return []
+        pending = await job_repo.queued_channel_additions(
+            db,
+            organization_id=bot.organization_id,
+            concurrency_key=conversation_queue(bot.id, incoming.platform_chat_id),
+            sender=incoming.platform_user_id,
+        )
+        for job in pending:
+            message = ChannelMessage.model_validate(job.payload)
+            if (
+                message.receipt_id == receipt_id
+                or message.authorization_generation != bot.authorization_generation
+            ):
+                continue
+            next_message = restore(message)
+            if (
+                next_message.attachments
+                or not next_message.text.strip()
+                or next_message.addressed is False
+            ):
+                continue
+            command = next_message.text.strip().casefold()
+            if command.startswith("/") and command != "/stop":
+                continue
+            if command in {"stop", "/stop"}:
+                await job_repo.finish_channel_addition(db, job_id=job.id, run_id=run.id)
+                stopped = True
+                break
+            text = next_message.text
+            if run.channel_identity_id is not None:
+                await ChannelMessageRouter()._check_rate_limit(bot, str(run.channel_identity_id))
+            if message.message_id:
+                await conversation_repo.remember_channel_source(
+                    db, conversation_id=deps.conversation_id, source_id=message.message_id
+                )
+            else:
+                raise BadRequestError(message="A queued addition needs its native message id")
+            await job_repo.finish_channel_addition(db, job_id=job.id, run_id=run.id)
+            added.append(text)
+    if stopped:
+        raise ChannelTurnStopped()
+    return added

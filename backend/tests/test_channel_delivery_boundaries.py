@@ -145,3 +145,53 @@ async def test_numbered_channel_choices_reach_their_original_feedback_or_next_st
     await channel_tasks._route_inbound(incoming, db)
     assert rated.await_count == int(kind == "feedback")
     assert routed.await_count == int(kind == "next")
+
+
+@pytest.mark.parametrize(
+    "change", ["none", "missing", "inactive", "tenant", "platform", "generation"]
+)
+async def test_message_worker_rechecks_frozen_admission_before_routing(worker, monkeypatch, change):
+    from app.core.exceptions import BadRequestError
+    from app.repositories import channel_bot_repo
+    from app.services.channels.steering import current_receipt
+    from app.worker.jobs import ChannelMessage
+
+    bot, db = worker
+    bot.platform = "mattermost"
+    bot.authorization_generation = uuid4()
+    job = ChannelMessage(
+        receipt_id=uuid4(),
+        organization_id=bot.organization_id,
+        bot_id=bot.id,
+        authorization_generation=bot.authorization_generation,
+        platform="mattermost",
+        platform_user_id="alice",
+        platform_chat_id="room:thread",
+        chat_type="group",
+        text="Hi",
+        message_id="native",
+    )
+    if change == "missing":
+        channel_bot_repo.get_for_inbound.return_value = None
+    elif change == "inactive":
+        bot.is_active = False
+    elif change == "tenant":
+        bot.organization_id = uuid4()
+    elif change == "platform":
+        bot.platform = "slack"
+    elif change == "generation":
+        bot.authorization_generation = uuid4()
+
+    async def route(incoming, session):
+        assert current_receipt() == job.receipt_id
+        assert incoming.message_id == "native" and session is db
+
+    routed = AsyncMock(side_effect=route)
+    monkeypatch.setattr(channel_tasks, "_route_inbound", routed)
+    if change in {"platform", "generation"}:
+        with pytest.raises(BadRequestError):
+            await channel_tasks.process_channel_message(job)
+    else:
+        await channel_tasks.process_channel_message(job)
+    assert routed.await_count == int(change == "none")
+    assert current_receipt() is None

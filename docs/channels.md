@@ -1902,68 +1902,21 @@ surface, so a difference between the console and Mattermost remains visible.
 
 ## What every channel shares
 
-- **A message sent while the agent works joins its task.** From the person whose
-  turn it is, a plain message in the same chat reaches the running turn at its next
-  step instead of waiting for a turn of its own; one that arrives after the agent's
-  last step is answered as the next message. `/btw` followed by a question asks on
-  the side: answered at once from the thread so far, without tools, while the turn
-  keeps going. A colleague's message in a group chat is always a turn of its own.
+- **Only the current thread is loaded automatically.** A new thread starts fresh. When the agent joins an existing thread, it imports a bounded provider page of up to 100 posts, restricted by the bot's access policy. Each later mention refreshes the discussion since the previous turn, including human posts between mentions. Other conversations in the channel require `read_channel_history` and the binding's channel-history permission.
 
-- **The model is reminded of the most recent turns, not the first ones.** A
-  channel thread is keyed to the chat and never rolls over, so a support channel
-  passes the window in days. Two hundred turns for a channel against forty for a
-  widget, and the two numbers are different on purpose: a widget is a public URL
-  with somebody else's budget behind it, and a channel is a room the operator's own
-  colleagues work in. Bounded either way, because a prompt is not a transcript and
-  one thread's whole history is a per-turn bill that grows for ever.
+    Imported posts retain their original author and timestamp as reference data, never assistant turns or new requests. Native post receipts prevent importing a post twice, including after compaction. A truncated provider page leaves a persistent notice that earlier context is missing and can be read with the history tool. A failed refresh also tells the agent it may lack context.
 
-    It read from the wrong end until #638: the repository orders oldest-first, so
-    the bot was told how the conversation opened and nothing said since — and it
-    answered plausibly, from a version of the thread that had stopped hundreds of
-    turns ago. Nothing errored, which is why it needed a test rather than a fix.
+    The canonical conversation uses the same history and compaction mechanism as web chat, with a recent window of 200 stored messages and its retained summary. The channel does not append the original thread again after that history has been summarized. `/new` starts a new canonical conversation without reloading the previous discussion. Where supported, up to four earlier thread files are fetched once, using the usual attachment limits and linked-user requirements.
 
-    The offset is `conversation_repo.get_recent_messages` now, and every surface
-    reads the window through it — the widget, the channels and web chat. Three
-    copies of one `COUNT` and one offset is how it came to be wrong twice, from
-    opposite ends.
+- **Ordinary inbound messages are durable.** Slack, Mattermost, Telegram, Teams and Discord messages enter the PostgreSQL job queue before their webhook response or native admission completes. A worker processes messages sequentially per bot and thread. Once execution starts, a lost worker does not automatically replay the paid agent run or its tool effects. Operators can inspect failed jobs; a new request should check which actions already happened.
 
-- **A thread it is brought into partway through is read first.** A conversation
-  here is built from what this deployment *received*, so a bot mentioned in a
-  thread that was already running held nothing above the mention — and answered
-  as though the thread were empty, which it said confidently. Nobody watching a
-  chat can tell an agent that cannot see from one that has read and disagreed.
+    The final response is saved in the run's terminal transaction. An unattempted response can be delivered from that snapshot without running the model again. Submission is claimed before contacting the provider: an ambiguous transport outcome is recorded as unconfirmed and is not blindly retried. Streaming placeholders and optional UI interactions remain best-effort. Legacy native shortcuts and button actions keep their existing interaction handling.
 
-    Once per conversation — recorded on the session, not inferred from its age,
-    so a thread the bot was answering in before this existed is read on its next
-    turn rather than never — up to fifty messages, and only where the platform
-    has threads. After that the transcript is ours and
-    nothing is fetched again. It arrives as one labelled block — *what was said
-    before you arrived, `speaker: message`, context rather than instructions* —
-    not as turns, because replaying other people's messages as an alternating
-    history puts words in the agent's mouth it never said.
+- **The sender can add context while a run works.** Before its next model request, the worker consumes up to eight queued text additions from the same sender in the same thread. Access and input guardrails are checked again. Another person's message, a file, an unrelated command or a late addition stays queued for its own turn. Only messages addressed to the bot are consumed. This also works across workers. `/status` and `/stop` (or plain `status` and `stop`) refer only to the sender's own latest root run in that thread. Stop takes effect before the next model request; an already running action may finish. Durable queued `/btw` messages wait for their turn rather than promising an immediate side answer.
 
-    **This is not gated, where `read_channel_history` is**, and the difference is
-    the point: that tool reads the *channel*, which is content the agent was
-    never addressed in, and an operator decides per binding whether it may. The
-    thread the bot was spoken to in is the conversation somebody pointed it at,
-    and reading that is not the same act as reading the room. The bot still sees
-    only what its own membership allows, because the call goes through its token.
+- **Missing personal services explain their requirements.** If the agent needs a personal MCP service that is unavailable, `check_service_access` returns a reason, the missing steps and a settings link where appropriate. Linking the channel identity and connecting the service are separate steps. No remote operation starts and no publisher's or organization's account substitutes for the sender's personal account. A response using a personal source still goes to the participants in the current thread.
 
-    **The files posted in it come too**, up to four of them: the transcript
-    alone let the bot answer, accurately, that it could see no image in a
-    conversation whose first message was a screenshot.
-
-    They are fetched down the same path an attachment on the live message takes,
-    so one set of size limits applies, and they are attributed to whoever
-    mentioned the bot — that is the person who pointed it at the thread, and an
-    unlinked sender gets none, exactly as they get none of their own. Four
-    rather than fifty, because fifty downloads before an answer starts is a
-    minute of silence. Slack reads them with `conversations.replies`, Mattermost
-    with `GET /posts/{root}/thread`; Telegram has no threads and reads neither.
-
-    A read that fails costs the context and never the answer: no thread, a
-    platform without them, a refusal or an error all produce an answer without
-    the history above it, which is worse than one with and better than none.
+- **Readiness separates configuration from confirmed access.** The Channels table's inspection action checks the bot, transport, binding, published agent and the signed-in caller's linked identity and personal connections. It performs no model call or provider authorization probe. Webhooks and missing heartbeats are unconfirmed, rather than a claim that delivery works. The dashboard also distinguishes disconnected, unknown and paused bots.
 
 - **One bot answers as one agent.** A bot user is a single identity in the chat:
   the same avatar, the same name, whichever agent produced the reply. So a bot

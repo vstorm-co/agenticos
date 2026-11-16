@@ -3157,11 +3157,18 @@
         "platforms": {
           "telegram": "Telegram",
           "slack": "Slack",
-          "mattermost": "Mattermost"
+          "mattermost": "Mattermost",
+          "teams": "Microsoft Teams",
+          "sms": "SMS",
+          "email": "Email",
+          "imessage": "iMessage",
+          "discord": "Discord"
         },
         "webhook": "hört zu",
         "polling": "fragt ab",
         "switchedOff": "ausgeschaltet",
+        "disconnected": "getrennt",
+        "unknown": "Verbindungsstatus unbekannt",
         "empty": {
           "title": "Noch keine Kanäle",
           "description": "Registrieren Sie einen Bot, und seine Agents werden aus Slack, Telegram oder Mattermost erreichbar."
@@ -5962,6 +5969,10 @@
       "chat-coding-revert": {
         "title": "Eine Programmieraufgabe prüfen und rückgängig machen",
         "body": "Öffne eine Programmieraufgabe, um ihre geänderten Dateien zu prüfen. Die Aufgabe lässt sich nur rückgängig machen, wenn keine dieser Dateien seitdem geändert wurde."
+      },
+      "channels-diagnostics": {
+        "title": "Bereitschaft prüfen",
+        "body": "Prüfen Sie Bot-Verbindung, Agent-Veröffentlichung und Ihre verknüpften Konten, ohne eine Aufgabe zu starten."
       }
     },
     "chooseLanguage": "Sprache",
@@ -6612,7 +6623,30 @@
       "imessageWebhookRegistered": "iMessage-Webhook registriert",
       "imessageReactionHint": "Optional. iMessage-Tapbacks benötigen die BlueBubbles Private API; bei reinem AppleScript-Betrieb ausgeschaltet lassen.",
       "mapDiscordRoles": "Discord-Rollen für {bot}",
-      "emailAddress": "E-Mail-Adresse"
+      "emailAddress": "E-Mail-Adresse",
+      "diagnostics": {
+        "open": "{bot} prüfen",
+        "title": "Bereitschaft: {bot}",
+        "description": "Persönliche Prüfungen betreffen Ihr angemeldetes Konto. Gespeicherte Verbindungen werden nicht beim Anbieter getestet.",
+        "loading": "Konfiguration wird geprüft…",
+        "error": "Konfiguration konnte nicht geprüft werden.",
+        "refresh": "Aktualisieren",
+        "audience": "Antworten sind für die Teilnehmer dieses Threads sichtbar. Eine persönliche Quelle macht das Ziel nicht privat.",
+        "checks": {
+          "active": "Bot aktiviert",
+          "transport": "Eingehende Verbindung",
+          "binding": "Agent zugewiesen",
+          "published": "Veröffentlichter Agent für Sie verfügbar",
+          "identity": "Ihr Kanalkonto verknüpft",
+          "personal_service": "Ihr persönlicher Dienst verbunden"
+        },
+        "states": {
+          "ok": "Bereit",
+          "warning": "Prüfung nötig",
+          "blocked": "Blockiert",
+          "unknown": "Unbestätigt"
+        }
+      }
     },
     "invitations": {
       "acceptInvitation": "Einladung annehmen",

@@ -208,7 +208,7 @@ async def deliver_in_chat(
     run_id: UUID,
     destination: ChannelDestination,
     said: ChatDelivery,
-) -> None:
+) -> bool:
     """Post a continuation somebody ran by hand (Resume, an answer) to its chat.
 
     The run already ran and committed, so a room that definitely no longer admits
@@ -216,7 +216,7 @@ async def deliver_in_chat(
     """
     bot_id = destination.bot_id
     async with chat_lock(str(bot_id), destination.platform_chat_id), get_db_context() as db:
-        await _post_if_admitted(
+        return await _post_if_admitted(
             db,
             organization_id=organization_id,
             run_id=run_id,
@@ -232,20 +232,20 @@ async def _post_if_admitted(
     run_id: UUID,
     destination: ChannelDestination,
     said: ChatDelivery,
-) -> None:
+) -> bool:
     bot_id = destination.bot_id
     bot = await channel_bot_repo.get_for_org(db, bot_id, organization_id=organization_id)
     if bot is None or not bot.is_active:
-        return
+        return False
     run = await agent_run_repo.get_run(db, run_id, organization_id=organization_id)
     if run is None:
-        return
+        return False
     incoming = await incoming_for_run(
         db, run, bot_id=bot_id, platform_chat_id=destination.platform_chat_id
     )
     if incoming is None:
         logger.info("channel_delivery_chat_moved_on run_id=%s bot_id=%s", run_id, bot_id)
-        return
+        return False
     admission = await ChannelMessageRouter().admission(db, run, incoming)
     if admission.verdict == "refused":
         logger.info(
@@ -254,7 +254,7 @@ async def _post_if_admitted(
             bot_id,
             admission.reason,
         )
-        return
+        return False
     if admission.verdict == "unconfirmed":
         logger.warning(
             "channel_delivery_unconfirmed run_id=%s bot_id=%s reason=%s",
@@ -270,7 +270,7 @@ async def _post_if_admitted(
         settled={},
         generated_files=said.generated_files,
     )
-    await ChannelPrompts(db).deliver(
+    return await ChannelPrompts(db).deliver(
         bot,
         platform=run.surface,
         platform_chat_id=destination.platform_chat_id,

@@ -1,0 +1,385 @@
+"""Durable admission keeps identity and source references, not webhook secrets."""
+
+from contextlib import asynccontextmanager
+from dataclasses import replace
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
+
+import pytest
+from sqlalchemy.exc import IntegrityError
+
+from app.agents.deps import AgentDeps
+from app.agents.steering import ChannelTurnStopped
+from app.services.channels import ingress
+from app.services.channels.base import IncomingAttachment, IncomingMessage
+from app.worker.jobs import PROCESS_CHANNEL_MESSAGE
+
+pytestmark = pytest.mark.anyio
+
+
+def bot():
+    return SimpleNamespace(
+        id=uuid4(), organization_id=uuid4(), authorization_generation=uuid4(), is_active=True
+    )
+
+
+def message(owner=None, **changes):
+    owner = owner or bot()
+    return IncomingMessage(
+        platform="mattermost",
+        bot_id=str(owner.id),
+        platform_user_id="alice",
+        platform_chat_id="room:thread",
+        chat_type="group",
+        text="Use Friday",
+        message_id="post-1",
+        **changes,
+    )
+
+
+def test_normalization_keeps_files_and_drops_tokens_and_raw_provider_envelopes():
+    owner = bot()
+    incoming = message(
+        owner,
+        raw={
+            "token": "must-not-persist",
+            "event": "posted",
+            "guild_id": "server",
+            "arbitrary": {"secret": "hidden"},
+        },
+        attachments=[
+            IncomingAttachment(
+                filename="a.pdf", mime_type="application/pdf", size=12, handle="native-file-id"
+            )
+        ],
+    )
+    queued = ingress.normalize(owner, incoming)
+    assert (
+        "must-not-persist" not in queued.model_dump_json()
+        and "arbitrary" not in queued.model_dump_json()
+    )
+    restored = ingress.restore(queued)
+    assert restored.attachments == incoming.attachments
+    assert restored.text == incoming.text and restored.raw == {
+        "event": "posted",
+        "guild_id": "server",
+    }
+    assert not restored.dedupe_claimed
+    assert ingress.conversation_queue(owner.id, "room:thread") != ingress.conversation_queue(
+        owner.id, "room:other"
+    )
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        {},
+        {"message": {}},
+        {"message": {"entities": [], "reply_to_message": {"from": {"id": 7}, "text": "unneeded"}}},
+        {"edited_message": {"caption_entities": [], "reply_to_message": {"from": {"id": "bad"}}}},
+    ],
+)
+def test_telegram_admission_retains_only_addressing_metadata(raw):
+    incoming = replace(message(), platform="telegram", raw=raw)
+    queued = ingress.normalize(bot(), incoming)
+    assert "unneeded" not in queued.model_dump_json()
+
+
+def test_discord_role_evidence_excludes_interaction_tokens():
+    queued = ingress.normalize(
+        bot(),
+        replace(
+            message(),
+            platform="discord",
+            raw={
+                "guild_id": "g",
+                "member": {"roles": ["r1", None], "token": "secret"},
+                "token": "secret",
+            },
+        ),
+    )
+    assert queued.metadata == {"guild_id": "g", "member": {"roles": ["r1"]}}
+
+
+@pytest.mark.parametrize("known", [False, True])
+async def test_admission_deduplicates_durably_without_committing_the_request(monkeypatch, known):
+    db = MagicMock(begin_nested=MagicMock())
+    db.begin_nested.return_value.__aenter__ = AsyncMock()
+    db.begin_nested.return_value.__aexit__ = AsyncMock(return_value=False)
+    owner, incoming = bot(), message()
+    lookup = AsyncMock(return_value=object() if known else None)
+    enqueue = AsyncMock()
+    monkeypatch.setattr(ingress.job_repo, "get_by_idempotency_key", lookup)
+    monkeypatch.setattr(ingress, "enqueue", enqueue)
+    await ingress.queue_message(db, owner, incoming)
+    assert enqueue.await_count == (0 if known else 1)
+    if not known:
+        assert enqueue.await_args.args[1] is PROCESS_CHANNEL_MESSAGE
+        assert enqueue.await_args.kwargs["idempotency_key"]
+        assert enqueue.await_args.kwargs["concurrency_key"] == ingress.conversation_queue(
+            owner.id, incoming.platform_chat_id
+        )
+        assert PROCESS_CHANNEL_MESSAGE.max_attempts == 1
+    db.commit.assert_not_called()
+
+
+@pytest.mark.parametrize("raced", [False, True])
+async def test_a_raced_receipt_is_accepted_but_an_unrelated_constraint_error_escapes(
+    monkeypatch, raced
+):
+    db = MagicMock()
+    db.begin_nested.return_value.__aenter__ = AsyncMock()
+    db.begin_nested.return_value.__aexit__ = AsyncMock(return_value=False)
+    monkeypatch.setattr(
+        ingress.job_repo,
+        "get_by_idempotency_key",
+        AsyncMock(side_effect=[None, object() if raced else None]),
+    )
+    monkeypatch.setattr(
+        ingress, "enqueue", AsyncMock(side_effect=IntegrityError("statement", {}, Exception()))
+    )
+    if raced:
+        await ingress.queue_message(db, bot(), message())
+    else:
+        with pytest.raises(IntegrityError):
+            await ingress.queue_message(db, bot(), message())
+
+
+@pytest.mark.parametrize("active", [False, True])
+async def test_stream_admission_reads_current_bot_before_queuing(monkeypatch, active):
+    owner, db = bot(), MagicMock()
+    owner.is_active = active
+
+    @asynccontextmanager
+    async def session():
+        yield db
+
+    monkeypatch.setattr(ingress, "get_db_context", session)
+    monkeypatch.setattr(ingress.channel_bot_repo, "get_for_inbound", AsyncMock(return_value=owner))
+    queue = AsyncMock()
+    monkeypatch.setattr(ingress, "queue_message", queue)
+    await ingress.admit_message(message(owner))
+    assert queue.await_count == int(active)
+
+
+@pytest.mark.parametrize("stop", [False, True])
+async def test_same_sender_additions_are_recorded_before_the_queue_receipt_is_consumed(
+    monkeypatch, stop
+):
+    from app.services.channels.router import ChannelMessageRouter
+
+    owner, incoming, db = bot(), message(), MagicMock()
+    run = SimpleNamespace(id=uuid4(), channel_identity_id=uuid4(), channel_stop_requested_at=None)
+    deps = AgentDeps(run_id=run.id, conversation_id=uuid4(), organization_id=owner.organization_id)
+    queued = ingress.normalize(owner, replace(incoming, text="stop" if stop else "Use Friday"))
+    row = SimpleNamespace(
+        id=uuid4(), payload=queued.model_dump(mode="json"), created_at=datetime.now(UTC)
+    )
+
+    @asynccontextmanager
+    async def session():
+        yield db
+
+    monkeypatch.setattr(ingress, "get_db_context", session)
+    monkeypatch.setattr(
+        ingress.job_repo, "channel_message_is_running", AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(ingress.agent_run_repo, "get_run", AsyncMock(return_value=run))
+    monkeypatch.setattr(ChannelMessageRouter, "may_continue", AsyncMock(return_value=True))
+    monkeypatch.setattr(ChannelMessageRouter, "_check_rate_limit", AsyncMock())
+    monkeypatch.setattr(ingress.channel_bot_repo, "get_for_inbound", AsyncMock(return_value=owner))
+    monkeypatch.setattr(ingress.job_repo, "queued_channel_additions", AsyncMock(return_value=[row]))
+    consume, record = AsyncMock(), AsyncMock()
+    monkeypatch.setattr(ingress.job_repo, "finish_channel_addition", consume)
+    monkeypatch.setattr(ingress.conversation_repo, "remember_channel_source", record)
+    if stop:
+        with pytest.raises(ChannelTurnStopped):
+            await ingress.collect_steering(uuid4(), incoming, deps)
+        record.assert_not_awaited()
+    else:
+        assert await ingress.collect_steering(uuid4(), incoming, deps) == ["Use Friday"]
+        record.assert_awaited_once()
+    consume.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        "missing_deps",
+        "lost_lease",
+        "stopped",
+        "missing_run",
+        "access_revoked",
+        "missing_bot",
+        "own_receipt",
+        "rotated",
+        "file",
+        "empty",
+        "overheard",
+        "command",
+        "no_source",
+        "no_identity",
+    ],
+)
+async def test_queued_additions_respect_ownership_liveness_and_message_shape(monkeypatch, scenario):
+    from app.core.exceptions import BadRequestError
+    from app.services.channels.router import ChannelMessageRouter
+
+    owner, incoming, db = bot(), message(), MagicMock()
+    receipt_id = uuid4()
+    run = SimpleNamespace(
+        id=uuid4(),
+        channel_identity_id=None if scenario == "no_identity" else uuid4(),
+        channel_stop_requested_at=datetime.now(UTC) if scenario == "stopped" else None,
+    )
+    deps = AgentDeps(
+        run_id=None if scenario == "missing_deps" else run.id,
+        conversation_id=uuid4(),
+        organization_id=owner.organization_id,
+    )
+    queued = ingress.normalize(owner, incoming)
+    if scenario == "own_receipt":
+        queued = queued.model_copy(update={"receipt_id": receipt_id})
+    if scenario == "rotated":
+        queued = queued.model_copy(update={"authorization_generation": uuid4()})
+    if scenario == "file":
+        queued = queued.model_copy(
+            update={
+                "attachments": [
+                    ingress.ChannelMessageFile(
+                        filename="a.txt", mime_type="text/plain", size=1, handle="a"
+                    )
+                ]
+            }
+        )
+    if scenario == "empty":
+        queued = queued.model_copy(update={"text": " "})
+    if scenario == "overheard":
+        queued = queued.model_copy(update={"addressed": False})
+    if scenario == "command":
+        queued = queued.model_copy(update={"text": "/new"})
+    if scenario == "no_source":
+        queued = queued.model_copy(update={"message_id": None})
+
+    @asynccontextmanager
+    async def context():
+        yield db
+
+    monkeypatch.setattr(ingress, "get_db_context", context)
+    monkeypatch.setattr(
+        ingress.job_repo,
+        "channel_message_is_running",
+        AsyncMock(return_value=scenario != "lost_lease"),
+    )
+    monkeypatch.setattr(
+        ingress.agent_run_repo,
+        "get_run",
+        AsyncMock(return_value=None if scenario == "missing_run" else run),
+    )
+    monkeypatch.setattr(
+        ChannelMessageRouter, "may_continue", AsyncMock(return_value=scenario != "access_revoked")
+    )
+    monkeypatch.setattr(ChannelMessageRouter, "_check_rate_limit", AsyncMock())
+    monkeypatch.setattr(
+        ingress.channel_bot_repo,
+        "get_for_inbound",
+        AsyncMock(return_value=None if scenario == "missing_bot" else owner),
+    )
+    monkeypatch.setattr(
+        ingress.job_repo,
+        "queued_channel_additions",
+        AsyncMock(
+            return_value=[SimpleNamespace(id=uuid4(), payload=queued.model_dump(mode="json"))]
+        ),
+    )
+    consume = AsyncMock()
+    monkeypatch.setattr(ingress.job_repo, "finish_channel_addition", consume)
+    monkeypatch.setattr(ingress.conversation_repo, "remember_channel_source", AsyncMock())
+    if scenario in {"lost_lease", "stopped", "no_source"}:
+        with pytest.raises(BadRequestError if scenario == "no_source" else ChannelTurnStopped):
+            await ingress.collect_steering(receipt_id, incoming, deps)
+    else:
+        assert await ingress.collect_steering(receipt_id, incoming, deps) == (
+            [incoming.text] if scenario == "no_identity" else []
+        )
+    assert consume.await_count == int(scenario == "no_identity")
+
+
+async def test_controls_have_their_own_lane_and_edits_their_own_receipt(monkeypatch):
+    from app.worker.jobs import PROCESS_CHANNEL_CONTROL
+
+    db = MagicMock()
+    db.begin_nested.return_value.__aenter__ = AsyncMock()
+    db.begin_nested.return_value.__aexit__ = AsyncMock(return_value=False)
+    owner = bot()
+    monkeypatch.setattr(ingress.job_repo, "get_by_idempotency_key", AsyncMock(return_value=None))
+    enqueue = AsyncMock()
+    monkeypatch.setattr(ingress, "enqueue", enqueue)
+    await ingress.queue_message(db, owner, replace(message(owner), text="stop"))
+    assert enqueue.await_args.args[1] is PROCESS_CHANNEL_CONTROL
+    assert enqueue.await_args.kwargs["concurrency_key"] is None
+    await ingress.queue_message(db, owner, message(owner, raw={"event": "post_edited"}))
+    edit_key = enqueue.await_args.kwargs["idempotency_key"]
+    await ingress.queue_message(db, owner, message(owner))
+    assert enqueue.await_args.kwargs["idempotency_key"] != edit_key
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        {"message": {"reply_to_message": {"from": {"id": 42}}}},
+        {"message": {"reply_to_message": {"from": {"id": 42}}, "entities": []}},
+        {"message": {"reply_to_message": {"from": {"id": "bad"}}}},
+        {"member": {}},
+        {"member": {"roles": "invalid"}},
+    ],
+)
+def test_optional_metadata_is_narrowed(raw):
+    incoming = replace(message(), platform="discord" if "member" in raw else "telegram", raw=raw)
+    normalized = ingress.normalize(bot(), incoming)
+    assert (
+        "reply_to_message" not in normalized.model_dump_json()
+        or "42" in normalized.model_dump_json()
+    )
+
+
+def test_a_telegram_reply_without_a_native_author_id_does_not_invent_one():
+    queued = ingress.normalize(
+        bot(),
+        replace(
+            message(), platform="telegram", raw={"message": {"reply_to_message": {"from": None}}}
+        ),
+    )
+    assert queued.metadata == {"message": {}}
+
+
+async def test_workers_share_channel_limits_and_caches_for_their_full_lifetime(monkeypatch):
+    from app.services import rate_limit
+    from app.services.channels import connection_state, dedupe, email_state, membership, teams
+
+    client = MagicMock(connect=AsyncMock(), close=AsyncMock())
+    monkeypatch.setattr(email_state, "RedisClient", lambda: client)
+    stores = [rate_limit, connection_state, dedupe, membership, teams]
+    with_clients = [MagicMock(wraps=store.configure) for store in stores]
+    for store, configure in zip(stores, with_clients, strict=True):
+        monkeypatch.setattr(store, "configure", configure)
+    async with email_state.in_worker():
+        for configure in with_clients:
+            configure.assert_called_once_with(client)
+    for configure in with_clients:
+        assert configure.call_args.args == (None,)
+    client.close.assert_awaited_once()
+
+
+async def test_webhook_admission_uses_the_request_transaction(monkeypatch):
+    from app.services.channel_bot import ChannelBotService
+
+    owner, db = bot(), MagicMock()
+    incoming = message(owner)
+    queue = AsyncMock()
+    monkeypatch.setattr(ingress, "queue_message", queue)
+    await ChannelBotService(db).queue_message(owner, incoming)
+    queue.assert_awaited_once_with(db, owner, incoming)
+    db.commit.assert_not_called()

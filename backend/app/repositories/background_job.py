@@ -902,3 +902,99 @@ async def retained_payload_usage(
         )
     ).one()
     return count, size
+
+
+async def queued_channel_additions(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    concurrency_key: str,
+    sender: str,
+) -> list[BackgroundJob]:
+    """Lock bounded, unstarted additions; the conversation's running job owns consumption."""
+    result = await db.execute(
+        select(BackgroundJob)
+        .where(
+            BackgroundJob.organization_id == organization_id,
+            BackgroundJob.concurrency_key == concurrency_key,
+            BackgroundJob.kind == "process-channel-message",
+            BackgroundJob.status == "queued",
+            BackgroundJob.payload["platform_user_id"].astext == sender,
+        )
+        .order_by(BackgroundJob.created_at, BackgroundJob.id)
+        .limit(8)
+        .with_for_update(skip_locked=True)
+    )
+    return list(result.scalars().all())
+
+
+async def finish_channel_addition(db: AsyncSession, *, job_id: UUID, run_id: UUID) -> None:
+    await db.execute(
+        update(BackgroundJob)
+        .where(BackgroundJob.id == job_id, BackgroundJob.status == "queued")
+        .values(
+            status="succeeded",
+            finished_at=func.now(),
+            result={"incorporated_in_run": str(run_id)},
+        )
+    )
+
+
+async def channel_message_is_running(db: AsyncSession, *, receipt_id: UUID) -> bool:
+    result = await db.execute(
+        select(
+            exists().where(
+                BackgroundJob.kind == "process-channel-message",
+                BackgroundJob.status == "running",
+                BackgroundJob.payload["receipt_id"].astext == str(receipt_id),
+                BackgroundJob.lease_until > func.now(),
+            )
+        )
+    )
+    return bool(result.scalar_one())
+
+
+async def claim_channel_reply(db: AsyncSession, *, job_id: UUID) -> bool:
+    """Commit this fence before submitting; a timeout must not send the answer twice."""
+    result = await db.execute(
+        update(BackgroundJob)
+        .where(
+            BackgroundJob.id == job_id,
+            BackgroundJob.kind == "deliver-channel-reply",
+            BackgroundJob.status.in_(("queued", "running")),
+            BackgroundJob.payload["submission_started"].astext == "false",
+        )
+        .values(payload=BackgroundJob.payload.op("||")({"submission_started": True}))
+        .returning(BackgroundJob.id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def settle_channel_reply(db: AsyncSession, *, job_id: UUID, delivered: bool) -> None:
+    await db.execute(
+        update(BackgroundJob)
+        .where(
+            BackgroundJob.id == job_id,
+            BackgroundJob.kind == "deliver-channel-reply",
+        )
+        .values(
+            status="succeeded" if delivered else "dead",
+            finished_at=func.now(),
+            result={"delivery": "delivered" if delivered else "unconfirmed"},
+            last_error=None
+            if delivered
+            else "The final answer submission could not be confirmed; do not repeat the agent's actions",
+        )
+    )
+
+
+async def get_channel_reply(db: AsyncSession, *, reply_id: UUID | None) -> BackgroundJob | None:
+    if reply_id is None:
+        return None
+    result = await db.execute(
+        select(BackgroundJob).where(
+            BackgroundJob.kind == "deliver-channel-reply",
+            BackgroundJob.payload["initial_reply_id"].astext == str(reply_id),
+        )
+    )
+    return result.scalar_one_or_none()

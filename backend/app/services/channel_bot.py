@@ -39,6 +39,8 @@ from app.schemas.channel_bot import (
     ChannelBotCreate,
     ChannelBotRead,
     ChannelBotUpdate,
+    ChannelDiagnosticCheck,
+    ChannelDiagnosticsRead,
     InheritedSpeechToTextRead,
 )
 from app.services.channels import (
@@ -250,6 +252,12 @@ class ChannelBotService:
             ),
             name=f"open_channel_stream:{bot_id}",
         )
+
+    async def queue_message(self, bot: ChannelBot, incoming: IncomingMessage) -> None:
+        """Commit-safe admission of a normalized message before the provider is acknowledged."""
+        from app.services.channels.ingress import queue_message
+
+        await queue_message(self.db, bot, incoming)
 
     async def queue_delivery(
         self, bot: ChannelBot, payload: dict[str, JsonValue], incoming: IncomingMessage
@@ -613,6 +621,85 @@ class ChannelBotService:
                 details={"bot_id": str(bot_id)},
             )
         return bot
+
+    async def diagnostics(self, bot_id: UUID, ctx: AuthContext) -> ChannelDiagnosticsRead:
+        """Inspect configuration without invoking a model or refreshing credentials."""
+        from app.core.exceptions import AppException
+        from app.repositories import channel_identity_repo, mcp_connection_repo
+        from app.services.agent_registry import AgentRegistryService
+
+        bot = await self.get(bot_id)
+        checks = [
+            ChannelDiagnosticCheck(code="active", status="ok" if bot.is_active else "blocked")
+        ]
+        state = None if bot.webhook_mode else await connection_state.read(bot.id)
+        missing = (
+            (bot.platform == "slack" and not bot.webhook_mode and not bot.slack_app_token_encrypted)
+            or (
+                bot.platform == "slack"
+                and bot.webhook_mode
+                and not bot.slack_signing_secret_encrypted
+            )
+            or (
+                bot.platform == "mattermost"
+                and bot.webhook_mode
+                and not bot.webhook_secret_encrypted
+            )
+        )
+        checks.append(
+            ChannelDiagnosticCheck(
+                code="transport",
+                status="blocked"
+                if missing or (state is not None and state.state == "down")
+                else "unknown"
+                if bot.webhook_mode or state is None
+                else "ok",
+                detail=None if state is None else state.reason,
+            )
+        )
+        binding = await agent_exposure_repo.bound_to_bot(self.db, channel_bot_id=bot.id)
+        checks.append(
+            ChannelDiagnosticCheck(
+                code="binding",
+                status="ok" if binding is not None and binding.is_active else "blocked",
+            )
+        )
+        identities = (
+            (await channel_identity_repo.list_for_user(self.db, user_id=ctx.user_id))
+            if ctx.user_id is not None
+            else []
+        )
+        linked = any(identity.platform == bot.platform for identity in identities)
+        checks.append(ChannelDiagnosticCheck(code="identity", status="ok" if linked else "warning"))
+        if binding is not None and binding.is_active:
+            try:
+                _, spec, _ = await AgentRegistryService(self.db).get_runnable_spec(
+                    ctx, binding.agent_id, environment_id=binding.environment_id
+                )
+            except AppException:
+                checks.append(ChannelDiagnosticCheck(code="published", status="blocked"))
+            else:
+                checks.append(ChannelDiagnosticCheck(code="published", status="ok"))
+                for reference in spec.mcp_servers:
+                    if reference.account != "personal":
+                        continue
+                    accounts = (
+                        (
+                            await mcp_connection_repo.list_user_scoped_by_catalog_key(
+                                self.db, user_id=ctx.user_id, catalog_key=reference.catalog_key
+                            )
+                        )
+                        if ctx.user_id is not None
+                        else []
+                    )
+                    checks.append(
+                        ChannelDiagnosticCheck(
+                            code="personal_service",
+                            status="ok" if linked and accounts else "warning",
+                            detail=reference.catalog_key,
+                        )
+                    )
+        return ChannelDiagnosticsRead(checks=checks)
 
     async def read(self, bot_id: UUID) -> ChannelBotRead:
         """One bot as its form reads it, with what "inherit" would transcribe on.

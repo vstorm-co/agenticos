@@ -57,7 +57,6 @@ from app.agents.capabilities.channel_tools._directory import (
     HistoryQuery,
 )
 from app.core.security import encode_untrusted
-from app.db.session import get_db_context
 from app.services.channels import connection_state
 from app.services.channels.attachments import routed_type
 from app.services.channels.base import (
@@ -76,7 +75,6 @@ from app.services.channels.base import (
     thread_key,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
-from app.services.channels.router import ChannelMessageRouter
 from app.services.channels.webhooks import inbound_actions_url, inbound_dialogs_url, sign_press
 
 
@@ -325,7 +323,7 @@ class MattermostAdapter(ChannelAdapter):
             posted.raise_for_status()
         return True
 
-    async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
+    async def send_message(self, bot_token: str, msg: OutgoingMessage) -> str | None:
         """Post a reply.
 
         `platform_chat_id` is `channel_id` or `channel_id:root_id`; the second
@@ -375,6 +373,8 @@ class MattermostAdapter(ChannelAdapter):
 
             response = await client.post(f"{base_url}/api/v4/posts", headers=headers, json=body)
             response.raise_for_status()
+            post_id = response.json().get("id")
+            return str(post_id) if post_id else None
 
     async def begin_reply(self, bot_token: str, msg: OutgoingMessage) -> str | None:
         """Post the message that will become the answer, and return its id."""
@@ -1427,9 +1427,9 @@ class MattermostAdapter(ChannelAdapter):
         incoming = self.parse_incoming(payload, bot_id)
         if incoming is None:
             return
-        router = ChannelMessageRouter()
-        async with get_db_context() as db:
-            await router.route(incoming, db)
+        from app.services.channels.ingress import admit_message
+
+        await admit_message(incoming)
 
     async def register_webhook(self, bot_token: str, url: str, secret: str | None) -> bool:
         """Mattermost has no API for this: outgoing webhooks are created in its

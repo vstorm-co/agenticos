@@ -77,6 +77,7 @@ from app.services.channels.formatting import (
 )
 from app.services.channels.live_reply import with_preview_links
 from app.services.channels.next_steps import next_steps_of
+from app.services.channels.reply_receipts import segment_sink
 from app.services.channels.steering import current_steering, is_asked_aside
 from app.services.file_storage import get_file_storage
 from app.services.transcript import RecordedToolCall
@@ -508,6 +509,7 @@ class ChannelAgentRouter:
             tool_calls=called,
             generated_files=generated_files,
             stream=stream,
+            on_segment=segment_sink(),
             surface=_SURFACES.get(platform, RunSurface.API),
             # A question is asked here as buttons and answered later (#2064) - of
             # a linked member. An unlinked sender's turn runs as the publisher,
@@ -640,6 +642,7 @@ class ChannelAgentRouter:
             tool_calls=called,
             generated_files=generated_files,
             stream=stream,
+            on_segment=segment_sink(),
             surface=_SURFACES.get(platform, RunSurface.API),
             # A question is asked here as buttons and answered later (#2064) - of
             # a linked member. An unlinked sender's turn runs as the publisher,

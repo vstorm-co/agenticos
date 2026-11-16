@@ -7036,8 +7036,14 @@ class TestTellingTheAgentWhatItCannotReach:
     is wrong advice to somebody whose chat account is simply not linked.
     """
 
-    _SERVERS = "http://localhost:3000/mcp-servers"
-    _CONNECT = "http://localhost:3000/mcp-servers?connect=notion"
+    _SERVERS = "https://console.test/mcp-servers"
+    _CONNECT = "https://console.test/mcp-servers?connect=notion"
+
+    @pytest.fixture(autouse=True)
+    def _console_origin(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "app.services.agent_runner.settings.FRONTEND_URL", "https://console.test"
+        )
 
     @staticmethod
     def _briefed(
@@ -11138,3 +11144,23 @@ def test_native_approval_catalogs_do_not_confuse_ids_reused_by_another_owner(
         owner: frozenset({name}) if owner in owners else frozenset()
         for owner, name in names.items()
     }
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("reason", ["sender", "lease_lost"])
+async def test_channel_stop_finishes_as_cancelled_without_replaying_the_run(reason):
+    from app.agents.steering import ChannelTurnStopped
+
+    db = _db()
+    service = AgentRunnerService(db)
+    prepared = _prepared()
+    stop = ChannelTurnStopped(reason)
+    prepared.built.agent.run = AsyncMock(side_effect=stop)
+    with (
+        patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+        patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+    ):
+        await service.execute(_ctx(), uuid.uuid4(), "hello")
+    assert finish.await_args.kwargs["status"] == RunStatus.CANCELLED.value
+    assert finish.await_args.kwargs["error"] == str(stop)
+    assert db.commit.await_count == 2

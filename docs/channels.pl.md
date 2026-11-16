@@ -1,5 +1,5 @@
 ---
-source_sha: "b1235c5eddfc"
+source_sha: "6be8cc8a6c17"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1950,72 +1950,21 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
 
 ## Co jest wspólne dla każdego kanału { #what-every-channel-shares }
 
-- **Wiadomość wysłana, gdy agent pracuje, dołącza do jego zadania.** Od osoby,
-  której to tura, zwykła wiadomość w tym samym czacie trafia do trwającej tury w
-  jej następnym kroku, zamiast czekać na własną turę; ta, która przyjdzie po
-  ostatnim kroku agenta, dostaje odpowiedź jako następna wiadomość. `/btw` z
-  pytaniem pyta na boku: odpowiedź przychodzi od razu, na podstawie dotychczasowego
-  wątku, bez narzędzi, a tura trwa dalej. Wiadomość kolegi w czacie grupowym to
-  zawsze osobna tura.
+- **Automatycznie ładowany jest tylko bieżący wątek.** Nowy wątek zaczyna się bez wcześniejszej dyskusji. Gdy agent dołącza do istniejącego wątku, importuje ograniczoną stronę API dostawcy, do 100 postów, zgodnie z polityką dostępu bota. Każda kolejna wzmianka uzupełnia dyskusję od poprzedniej tury, także wiadomości ludzi między wzmiankami. Inne rozmowy w kanale wymagają `read_channel_history` i uprawnienia do historii kanału w powiązaniu.
 
-- **Modelowi przypominane są najnowsze tury, a nie pierwsze.** Wątek kanałowy
-  jest kluczowany na czat i nigdy się nie przewija, więc kanał wsparcia
-  przekracza okno w kilka dni. Dwieście tur dla kanału wobec czterdziestu dla
-  widgetu, a te dwie liczby różnią się celowo: widget to publiczny URL, za którym
-  stoi cudzy budżet, a kanał to pokój, w którym pracują właśni koledzy operatora.
-  Ograniczone w obu przypadkach, bo prompt to nie zapis rozmowy, a cała historia
-  jednego wątku to rachunek za turę, który rośnie bez końca.
+    Importowane posty zachowują autora i oryginalny czas jako dane referencyjne, nigdy jako odpowiedzi agenta lub nowe polecenia. Identyfikatory postów zapobiegają ponownemu importowi, również po compaction. Niepełna strona pozostawia trwałą informację o brakującym kontekście i możliwości doczytania historii toolem. Błąd odświeżania również informuje agenta o możliwej luce.
 
-    Do #638 czytało to z niewłaściwego końca: repozytorium sortuje od
-    najstarszych, więc botowi mówiono, jak rozmowa się zaczęła, i nic z tego, co
-    powiedziano od tamtej pory — a on odpowiadał wiarygodnie, z wersji wątku,
-    która zatrzymała się setki tur wcześniej. Nic nie rzucało błędu i dlatego
-    potrzebny był test, a nie poprawka.
+    Historia rozmowy korzysta z tego samego mechanizmu co web chat i compaction: okna 200 zapisanych wiadomości oraz zachowanego podsumowania. Kanał nie dokleja ponownie oryginalnego wątku po jego podsumowaniu. `/new` tworzy nową rozmowę bez ponownego ładowania wcześniejszej dyskusji. Jeśli platforma to obsługuje, maksymalnie cztery wcześniejsze pliki wątku są pobierane raz, z normalnymi limitami załączników i wymaganiem powiązanego użytkownika.
 
-    Offset siedzi teraz w `conversation_repo.get_recent_messages` i każda
-    powierzchnia czyta przez niego okno — widget, kanały i czat webowy. Trzy
-    kopie jednego `COUNT` i jednego offsetu to sposób, w jaki stało się to błędne
-    dwa razy, z przeciwnych końców.
+- **Zwykłe wiadomości przychodzące są trwałe.** Wiadomości Slacka, Mattermosta, Telegrama, Teams i Discorda trafiają do kolejki Postgresa przed odpowiedzią webhooka lub zakończeniem przyjęcia ze strumienia. Worker wykonuje je kolejno dla bota i wątku. Po rozpoczęciu wykonania utrata workera nie powoduje automatycznego powtórzenia płatnego runa ani skutków narzędzi. Operator może sprawdzić nieudane zadanie; nowe polecenie powinno uwzględnić już wykonane działania.
 
-- **Wątek, do którego bot zostaje wciągnięty w połowie, jest najpierw czytany.**
-  Rozmowa jest tu budowana z tego, co ten deployment *odebrał*, więc bot zawołany
-  w wątku, który już trwał, nie trzymał niczego sprzed wzmianki — i odpowiadał
-  tak, jakby wątek był pusty, i mówił to pewnym tonem. Nikt, kto patrzy na czat,
-  nie odróżni agenta, który nie widzi, od takiego, który przeczytał i się nie
-  zgodził.
+    Końcowa odpowiedź jest zapisywana w transakcji kończącej run. Niewysłaną odpowiedź można dostarczyć z zapisu bez kolejnego wywołania modelu. Przed kontaktem z dostawcą zajmowana jest próba wysyłki: niejednoznaczny wynik transportu pozostaje niepotwierdzony i nie jest ponawiany w ciemno. Placeholdery streamingu i opcjonalne interakcje UI pozostają best-effort. Starsze skróty natywne i przyciski zachowują dotychczasową obsługę interakcji.
 
-    Raz na rozmowę — zapisane na sesji, a nie wnioskowane z jej wieku, więc
-    wątek, w którym bot odpowiadał, zanim to istniało, jest czytany przy swojej
-    następnej turze, a nie nigdy — do pięćdziesięciu wiadomości i tylko tam,
-    gdzie platforma ma wątki. Potem zapis rozmowy należy do nas i nic nie jest
-    pobierane ponownie. Przychodzi jako jeden oznaczony blok — *co zostało
-    powiedziane, zanim przyszedłeś, `speaker: message`, kontekst, a nie
-    instrukcje* — a nie jako tury, bo odtwarzanie cudzych wiadomości jako
-    naprzemiennej historii wkłada agentowi w usta słowa, których nigdy nie
-    powiedział.
+- **Nadawca może dopisać kontekst podczas pracy.** Przed następnym wywołaniem modelu worker pobiera do ośmiu oczekujących dopisków tekstowych tej samej osoby w tym samym wątku. Ponownie sprawdza dostęp i guardrails wejścia. Wiadomość innej osoby, plik, inne polecenie lub spóźniony dopisek pozostają w kolejce na własną turę. Pobierane są tylko wiadomości skierowane do bota. Działa to także między workerami. `/status` i `/stop` (także samo `status` i `stop`) dotyczą wyłącznie ostatniego głównego runa nadawcy w tym wątku. Stop działa przed kolejnym wywołaniem modelu; rozpoczęta akcja może się zakończyć. Trwałe wiadomości `/btw` czekają na swoją turę i nie obiecują natychmiastowej odpowiedzi na boku.
 
-    **To nie jest za bramką, a `read_channel_history` jest**, i o tę różnicę
-    chodzi: tamto narzędzie czyta *kanał*, czyli treść, w której nikt się do
-    agenta nie zwracał, i operator decyduje per powiązanie, czy wolno. Wątek,
-    w którym do bota mówiono, to rozmowa, na którą ktoś go skierował, a czytanie
-    jej to nie ten sam czyn co czytanie pokoju. Bot nadal widzi tylko to, na co
-    pozwala jego własne członkostwo, bo wywołanie idzie przez jego token.
+- **Brak osobistej usługi zwraca konkretne wymagania.** Jeśli agent potrzebuje niedostępnej osobistej usługi MCP, `check_service_access` zwraca powód, brakujące kroki i odpowiedni link do ustawień. Powiązanie tożsamości kanału i połączenie usługi to osobne kroki. Żadna operacja zewnętrzna nie rusza, a konto publikującego lub organizacji nie zastępuje osobistego konta nadawcy. Odpowiedź oparta na osobistym źródle nadal widzą uczestnicy bieżącego wątku.
 
-    **Wrzucone w nim pliki też przychodzą**, do czterech: sam zapis rozmowy
-    pozwalał botowi odpowiedzieć, zgodnie z prawdą, że nie widzi żadnego obrazu
-    w rozmowie, której pierwszą wiadomością był zrzut ekranu.
-
-    Są pobierane tą samą ścieżką co załącznik na bieżącej wiadomości, więc
-    obowiązuje jeden zestaw limitów rozmiaru, i są przypisywane temu, kto zawołał
-    bota — to osoba, która skierowała go na wątek, a nadawca bez powiązania nie
-    dostaje żadnych, dokładnie tak, jak nie dostaje żadnych własnych. Cztery,
-    a nie pięćdziesiąt, bo pięćdziesiąt pobrań przed rozpoczęciem odpowiedzi to
-    minuta ciszy. Slack czyta je przez `conversations.replies`, Mattermost przez
-    `GET /posts/{root}/thread`; Telegram nie ma wątków i nie czyta żadnego z nich.
-
-    Nieudany odczyt kosztuje kontekst, a nigdy odpowiedź: brak wątku, platforma
-    bez wątków, odmowa albo błąd — wszystkie dają odpowiedź bez historii nad nią,
-    co jest gorsze niż z nią i lepsze niż żadna.
+- **Diagnostyka odróżnia konfigurację od potwierdzonego dostępu.** Akcja sprawdzania w tabeli kanałów ocenia bota, transport, powiązanie, opublikowanego agenta oraz tożsamość i osobiste połączenia zalogowanej osoby. Nie wywołuje modelu ani nie sprawdza autoryzacji u dostawcy. Webhook i brak heartbeat pozostają niepotwierdzone. Dashboard odróżnia rozłączenie, stan nieznany i wstrzymanie bota.
 
 - **Jeden bot odpowiada jako jeden agent.** Użytkownik-bot to pojedyncza
   tożsamość w czacie: ten sam awatar, ta sama nazwa, niezależnie od tego, który

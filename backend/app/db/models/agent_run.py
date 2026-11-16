@@ -468,6 +468,10 @@ class AgentRun(Base, TimestampMixin):
     # column rather than a `paused_state` key: `PausedRunState` is
     # `extra="forbid"`, so a key there would make the run unreadable to an older
     # process on a rollback or a rolling deploy.
+    channel_stop_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    """A verified channel sender asked this active run to stop at its next model boundary."""
     chat_notice_sent_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

@@ -92,6 +92,37 @@ class ChannelDelivery(Payload):
     payload: dict[str, JsonValue]
 
 
+class ChannelMessageFile(Payload):
+    filename: str
+    mime_type: str
+    size: int
+    handle: str
+    duration_seconds: float | None = None
+    author_id: str | None = None
+
+
+class ChannelMessage(Payload):
+    """An authenticated native event, without webhook credentials or raw provider envelopes."""
+
+    receipt_id: UUID
+    organization_id: UUID
+    bot_id: UUID
+    authorization_generation: UUID
+    platform: Literal["slack", "telegram", "mattermost", "teams", "discord"]
+    platform_user_id: str
+    platform_chat_id: str
+    chat_type: Literal["private", "group"]
+    text: str
+    platform_username: str | None = None
+    platform_display_name: str | None = None
+    message_id: str | None = None
+    broadcast_mention: bool = False
+    addressed: bool | None = None
+    platform_team_id: str | None = None
+    attachments: list[ChannelMessageFile] = Field(default_factory=list)
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
+
+
 class EmailDelivery(Payload):
     organization_id: UUID
     bot_id: UUID
@@ -109,6 +140,8 @@ class ChannelHandbackCall(Payload):
 
 
 class ChannelHandback(Payload):
+    initial_reply_id: UUID | None = None
+    submission_started: bool = False
     message_id: str | None = None
     organization_id: UUID
     run_id: UUID
@@ -831,6 +864,26 @@ MOVE_PROJECT_WORKSPACE = Task(
     priority=Priority.INTERACTIVE,
 )
 
+PROCESS_CHANNEL_CONTROL = Task(
+    kind="process-channel-control",
+    payload_type=ChannelMessage,
+    pool=Pool.SYSTEM,
+    max_attempts=1,
+    timeout=timedelta(minutes=1),
+    priority=Priority.INTERACTIVE,
+    retry_refusal="Send the control command again; the previous request is not replayed",
+)
+
+PROCESS_CHANNEL_MESSAGE = Task(
+    kind="process-channel-message",
+    payload_type=ChannelMessage,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(hours=1),
+    priority=Priority.INTERACTIVE,
+    retry_refusal="Send a new message after checking the run; an interrupted action may already have executed",
+)
+
 PROCESS_CHANNEL_DELIVERY = Task(
     kind="process-channel-delivery",
     payload_type=ChannelDelivery,
@@ -849,6 +902,16 @@ PROCESS_EMAIL_DELIVERY = Task(
     priority=Priority.INTERACTIVE,
 )
 
+DELIVER_CHANNEL_REPLY = Task(
+    kind="deliver-channel-reply",
+    payload_type=ChannelHandback,
+    pool=Pool.SYSTEM,
+    max_attempts=1,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+    retry_refusal="Check whether the answer arrived before sending the saved response again",
+)
+
 DELIVER_CHANNEL_HANDBACK = Task(
     kind="deliver-channel-handback",
     payload_type=ChannelHandback,
@@ -861,8 +924,11 @@ DELIVER_CHANNEL_HANDBACK = Task(
 TASKS: dict[str, TaskKind] = {
     task.kind: task
     for task in (
+        PROCESS_CHANNEL_CONTROL,
+        PROCESS_CHANNEL_MESSAGE,
         PROCESS_CHANNEL_DELIVERY,
         PROCESS_EMAIL_DELIVERY,
+        DELIVER_CHANNEL_REPLY,
         DELIVER_CHANNEL_HANDBACK,
         MOVE_PROJECT_WORKSPACE,
         REVERT_CODING_TASK,

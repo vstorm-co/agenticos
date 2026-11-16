@@ -18,6 +18,8 @@ agent pipeline as the web chat.
 | `imessage.py`, `imessage_transport.py` | Company BlueBubbles Mac: bounded HTTP, separately authenticated webhook, text/files, optional tapbacks and numbered prompts; no polling |
 | `teams.py`, `teams_auth.py` | Microsoft Teams over the Bot Connector's HTTP protocol (#1985): JWT-verified activities, Adaptive Cards, conversation references in `teams_conversations` |
 | `discord.py`, `discord_protocol.py` | Discord over its Gateway and REST API, no library (#2079); the protocol module holds the pure payloads, chunking and the channel-visibility arithmetic |
+| `ingress.py` | Durable normalized admission, per-thread queue and same-sender additions at model boundaries |
+| `reply_receipts.py` | Terminal reply snapshot and single submission fence; never replay model/tool effects |
 | `router.py` | Inbound platform message → conversation/session → agent run → reply |
 | `mentions.py` | `@slug` resolution, and the identity rules below |
 
@@ -162,3 +164,11 @@ as well as request tracing.
 ## Admission transaction
 
 `ChannelMessageRouter._route_inner` commits the admitted identity, session and conversation after access and rate-limit checks, before prompt resumption or run preparation. Platform MCP credentials are minted in an independent transaction and their provenance references the conversation. A flush alone leaves that foreign key target invisible. A failed admission commit must prevent preparation and credential minting.
+
+## Thread context and admission
+
+Ordinary native messages and webhooks enqueue `PROCESS_CHANNEL_MESSAGE` in the receiving transaction. Keep provider credentials and arbitrary raw envelopes out of its payload. Per-thread concurrency is enforced by the durable queue. Commands `status` and `stop` use the system pool to reach a running task; only its sender can control it.
+
+Automatic context is thread-only. `_sync_thread_context` imports a bounded page and later deltas, stores native receipts in `channel_message_sources`, and appends reference-only messages to the canonical transcript. Reuse `ConversationService.model_history` and its compaction; never rebuild the original transcript over an existing summary. A partial read must say what was omitted. `/new` advances the native cursor so it does not reload the conversation just reset.
+
+Personal service diagnostics report missing identity and connection separately. A personal source does not make a group destination private. Readiness is configuration-only, for the current caller; it must not refresh credentials or claim provider authorization was tested.

@@ -1057,7 +1057,7 @@ class DiscordAdapter(ChannelAdapter):
         ):
             return
         elif event == "MESSAGE_CREATE":
-            spawn(self._on_message(data, bot_id, bot_token), name=f"discord-message:{bot_id}")
+            await self._on_message(data, bot_id, bot_token)
         elif event == "INTERACTION_CREATE":
             spawn(self._on_interaction(data, bot_id), name=f"discord-interaction:{bot_id}")
 
@@ -1068,7 +1068,9 @@ class DiscordAdapter(ChannelAdapter):
             return
         incoming = self.parse_incoming(data, bot_id)
         if incoming is not None:
-            spawn(process_channel_event(incoming), name=f"discord-routed:{bot_id}")
+            from app.services.channels.ingress import admit_message
+
+            await admit_message(incoming)
 
     async def _learn_channel(self, bot_token: str, channel_id: str) -> bool:
         """Look a channel up the first time a message names it, to know whether it is a thread."""

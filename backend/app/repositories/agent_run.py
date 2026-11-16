@@ -3297,3 +3297,32 @@ async def list_tool_consents(
         .order_by(ToolApproval.decided_at.desc())
     )
     return [(row[0], row[1]) for row in rows]
+
+
+async def latest_for_channel_sender(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    conversation_id: UUID | None,
+    identity_id: UUID,
+) -> AgentRun | None:
+    if conversation_id is None:
+        return None
+    result = await db.execute(
+        select(AgentRun)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.conversation_id == conversation_id,
+            AgentRun.channel_identity_id == identity_id,
+            AgentRun.parent_run_id.is_(None),
+        )
+        .order_by(AgentRun.created_at.desc(), AgentRun.id)
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def request_channel_stop(db: AsyncSession, *, run: AgentRun) -> None:
+    run.channel_stop_requested_at = datetime.now(UTC)
+    await db.flush()
+    await db.refresh(run)

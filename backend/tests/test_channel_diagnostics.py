@@ -1,0 +1,158 @@
+"""Readiness is scoped and never borrows another person's MCP credentials."""
+
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
+
+import pytest
+
+from app.agents.spec import PersonalMcpServerRef
+from app.core.exceptions import BadRequestError, NotFoundError
+from app.repositories import (
+    agent_exposure_repo,
+    channel_bot_repo,
+    channel_identity_repo,
+    mcp_connection_repo,
+)
+from app.services.agent_registry import AgentRegistryService
+from app.services.channel_bot import ChannelBotService
+from app.services.channels import connection_state
+
+pytestmark = pytest.mark.anyio
+
+
+@pytest.mark.parametrize(
+    "linked,connected,published",
+    [(False, False, True), (True, False, True), (True, True, True), (True, True, False)],
+)
+async def test_personal_checks_describe_only_this_caller(monkeypatch, linked, connected, published):
+    org, user, botid = uuid4(), uuid4(), uuid4()
+    bot = SimpleNamespace(id=botid, platform="mattermost", is_active=True, webhook_mode=False)
+    monkeypatch.setattr(channel_bot_repo, "get_for_org", AsyncMock(return_value=bot))
+    monkeypatch.setattr(
+        connection_state, "read", AsyncMock(return_value=SimpleNamespace(state="up", reason=None))
+    )
+    monkeypatch.setattr(
+        agent_exposure_repo,
+        "bound_to_bot",
+        AsyncMock(
+            return_value=SimpleNamespace(is_active=True, agent_id=uuid4(), environment_id=None)
+        ),
+    )
+    monkeypatch.setattr(
+        channel_identity_repo,
+        "list_for_user",
+        AsyncMock(return_value=[SimpleNamespace(platform="mattermost")] if linked else []),
+    )
+    accounts = AsyncMock(return_value=[object()] if connected else [])
+    monkeypatch.setattr(mcp_connection_repo, "list_user_scoped_by_catalog_key", accounts)
+    published_spec = SimpleNamespace(
+        mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="notion")]
+    )
+    registry = AsyncMock(
+        return_value=(object(), published_spec, uuid4()),
+        side_effect=None if published else BadRequestError(message="Not published"),
+    )
+    monkeypatch.setattr(AgentRegistryService, "get_runnable_spec", registry)
+    result = await ChannelBotService(MagicMock(), org).diagnostics(
+        botid, SimpleNamespace(user_id=user)
+    )
+    assert not result.credentials_probed and result.account_scope == "current_user"
+    checks = {check.code: check.status for check in result.checks}
+    assert checks["identity"] == ("ok" if linked else "warning")
+    assert checks["published"] == ("ok" if published else "blocked")
+    if published:
+        assert checks["personal_service"] == ("ok" if linked and connected else "warning")
+        assert accounts.await_args.kwargs["user_id"] == user
+    else:
+        accounts.assert_not_awaited()
+
+
+async def test_a_foreign_bot_is_missing_before_reading_any_diagnostics(monkeypatch):
+    lookup = AsyncMock(return_value=None)
+    monkeypatch.setattr(channel_bot_repo, "get_for_org", lookup)
+    org = uuid4()
+    with pytest.raises(NotFoundError):
+        await ChannelBotService(MagicMock(), org).diagnostics(
+            uuid4(), SimpleNamespace(user_id=uuid4())
+        )
+    assert lookup.await_args.kwargs["organization_id"] == org
+
+
+@pytest.mark.parametrize(
+    "platform,webhook,credential,state,expected",
+    [
+        ("slack", False, False, "up", "blocked"),
+        ("slack", True, False, None, "blocked"),
+        ("slack", True, True, None, "unknown"),
+        ("slack", False, True, "down", "blocked"),
+        ("slack", False, True, None, "unknown"),
+        ("mattermost", True, False, None, "blocked"),
+        ("mattermost", True, True, None, "unknown"),
+        ("mattermost", False, True, "up", "ok"),
+    ],
+)
+async def test_transport_health_never_claims_an_unobserved_webhook_is_ready(
+    monkeypatch, platform, webhook, credential, state, expected
+):
+    bot = SimpleNamespace(
+        id=uuid4(),
+        platform=platform,
+        is_active=False,
+        webhook_mode=webhook,
+        slack_app_token_encrypted="sealed" if credential else None,
+        slack_signing_secret_encrypted="sealed" if credential else None,
+        webhook_secret_encrypted="sealed" if credential else None,
+    )
+    monkeypatch.setattr(channel_bot_repo, "get_for_org", AsyncMock(return_value=bot))
+    monkeypatch.setattr(
+        connection_state,
+        "read",
+        AsyncMock(
+            return_value=None
+            if state is None
+            else SimpleNamespace(state=state, reason="Reconnect" if state == "down" else None)
+        ),
+    )
+    monkeypatch.setattr(agent_exposure_repo, "bound_to_bot", AsyncMock(return_value=None))
+    identities = AsyncMock()
+    monkeypatch.setattr(channel_identity_repo, "list_for_user", identities)
+    result = await ChannelBotService(MagicMock(), uuid4()).diagnostics(
+        bot.id, SimpleNamespace(user_id=None)
+    )
+    states = {check.code: check.status for check in result.checks}
+    assert states == {
+        "active": "blocked",
+        "transport": expected,
+        "binding": "blocked",
+        "identity": "warning",
+    }
+    identities.assert_not_awaited()
+
+
+async def test_nonpersonal_bindings_and_api_keys_do_not_borrow_a_persons_account(monkeypatch):
+    bot = SimpleNamespace(id=uuid4(), platform="telegram", is_active=True, webhook_mode=True)
+    monkeypatch.setattr(channel_bot_repo, "get_for_org", AsyncMock(return_value=bot))
+    monkeypatch.setattr(
+        agent_exposure_repo,
+        "bound_to_bot",
+        AsyncMock(
+            return_value=SimpleNamespace(is_active=True, agent_id=uuid4(), environment_id=None)
+        ),
+    )
+    spec = SimpleNamespace(
+        mcp_servers=[
+            SimpleNamespace(account="org"),
+            PersonalMcpServerRef(account="personal", catalog_key="notion"),
+        ]
+    )
+    monkeypatch.setattr(
+        AgentRegistryService, "get_runnable_spec", AsyncMock(return_value=(object(), spec, uuid4()))
+    )
+    accounts = AsyncMock()
+    monkeypatch.setattr(mcp_connection_repo, "list_user_scoped_by_catalog_key", accounts)
+    result = await ChannelBotService(MagicMock(), uuid4()).diagnostics(
+        bot.id, SimpleNamespace(user_id=None)
+    )
+    accounts.assert_not_awaited()
+    assert result.checks[-1].code == "personal_service" and result.checks[-1].status == "warning"

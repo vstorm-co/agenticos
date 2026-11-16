@@ -1,0 +1,400 @@
+"""Native context and delivery receipts use real PostgreSQL uniqueness and fencing."""
+
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.models.background_job import BackgroundJob
+from app.db.models.conversation import Conversation
+from app.db.models.organization import Organization
+from app.db.models.user import User
+from app.repositories import background_job as jobs
+from app.repositories import conversation as conversations
+from app.services.background_jobs import enqueue
+from app.services.conversation import ConversationService
+from app.worker.jobs import (
+    DELIVER_CHANNEL_REPLY,
+    PROCESS_CHANNEL_MESSAGE,
+    ChannelHandback,
+    ChannelMessage,
+)
+
+pytestmark = pytest.mark.anyio
+
+
+async def test_thread_context_is_imported_once_and_replayed_by_the_shared_history(
+    db: AsyncSession,
+) -> None:
+    user = User(email="thread-test@example.test", hashed_password="unused", full_name="Thread test")
+    db.add(user)
+    await db.flush()
+    org = Organization(name="Thread test", slug="thread-test", created_by_user_id=user.id)
+    db.add(org)
+    await db.flush()
+    conversation = Conversation(organization_id=org.id)
+    db.add(conversation)
+    await db.flush()
+    args = {
+        "conversation_id": conversation.id,
+        "source_id": "native-1",
+        "content": "We agreed on Friday.",
+        "identity_id": None,
+        "posted_at": datetime(2026, 11, 16, tzinfo=UTC),
+    }
+    assert await conversations.add_channel_reference(db, **args)
+    assert not await conversations.add_channel_reference(db, **args)
+    history = await ConversationService(db).model_history(conversation.id, limit=200)
+    assert len(history) == 1
+    assert "We agreed on Friday." in str(history[0])
+    assert "2026-11-16" in str(history[0])
+    assert "Thread reference, posted" in str(history[0])
+    assert await conversations.known_channel_posts(
+        db, conversation_id=conversation.id, source_ids=["native-1", "other"]
+    ) == {"native-1"}
+    other = Conversation(organization_id=org.id)
+    db.add(other)
+    await db.flush()
+    assert await conversations.add_channel_reference(db, **{**args, "conversation_id": other.id})
+
+
+async def test_a_final_answer_is_claimed_once_and_records_transport_separately(
+    db: AsyncSession,
+) -> None:
+    payload = ChannelHandback(
+        initial_reply_id=uuid4(),
+        organization_id=uuid4(),
+        run_id=uuid4(),
+        bot_id=uuid4(),
+        platform_chat_id="room:thread",
+        private_chat=False,
+        output="Saved answer",
+    )
+    job_id = await enqueue(db, DELIVER_CHANNEL_REPLY, payload)
+    assert job_id is not None
+    assert await jobs.claim_channel_reply(db, job_id=job_id)
+    assert not await jobs.claim_channel_reply(db, job_id=job_id)
+    await jobs.settle_channel_reply(db, job_id=job_id, delivered=False)
+    record = await jobs.get_channel_reply(db, reply_id=payload.initial_reply_id)
+    assert record is not None and record.status == "dead"
+    assert record.result == {"delivery": "unconfirmed"}
+    assert record.max_attempts == 1
+    await jobs.settle_channel_reply(db, job_id=job_id, delivered=True)
+    await db.refresh(record)
+    assert record.status == "succeeded" and record.result == {"delivery": "delivered"}
+    assert await jobs.get_channel_reply(db, reply_id=None) is None
+
+
+async def test_steering_consumes_only_the_same_senders_unstarted_messages(db: AsyncSession) -> None:
+    organization_id, bot_id, generation = uuid4(), uuid4(), uuid4()
+    first_id = None
+    for sender in ("alice", "bob"):
+        payload = ChannelMessage(
+            receipt_id=uuid4(),
+            organization_id=organization_id,
+            bot_id=bot_id,
+            authorization_generation=generation,
+            platform="mattermost",
+            platform_user_id=sender,
+            platform_chat_id="room:thread",
+            chat_type="group",
+            text="Use Friday",
+            message_id=sender,
+        )
+        job_id = await enqueue(
+            db,
+            PROCESS_CHANNEL_MESSAGE,
+            payload,
+            organization_id=organization_id,
+            concurrency_key="thread",
+        )
+        if sender == "alice":
+            first_id = job_id
+    additions = await jobs.queued_channel_additions(
+        db, organization_id=organization_id, concurrency_key="thread", sender="alice"
+    )
+    assert [item.id for item in additions] == [first_id]
+    assert first_id is not None
+    run_id = uuid4()
+    await jobs.finish_channel_addition(db, job_id=first_id, run_id=run_id)
+    assert not await jobs.queued_channel_additions(
+        db, organization_id=organization_id, concurrency_key="thread", sender="alice"
+    )
+    assert (
+        len(
+            await jobs.queued_channel_additions(
+                db, organization_id=organization_id, concurrency_key="thread", sender="bob"
+            )
+        )
+        == 1
+    )
+    assert not await jobs.queued_channel_additions(
+        db, organization_id=uuid4(), concurrency_key="thread", sender="bob"
+    )
+
+
+async def test_an_expired_or_unstarted_job_cannot_steer_as_the_active_worker(
+    db: AsyncSession,
+) -> None:
+    receipt = uuid4()
+    row = BackgroundJob(
+        kind="process-channel-message",
+        pool="agent",
+        payload={"receipt_id": str(receipt)},
+        status="queued",
+        max_attempts=1,
+    )
+    db.add(row)
+    await db.flush()
+    assert not await jobs.channel_message_is_running(db, receipt_id=receipt)
+    row.status, row.lease_until = "running", datetime.now(UTC) + timedelta(minutes=1)
+    await db.flush()
+    assert await jobs.channel_message_is_running(db, receipt_id=receipt)
+    row.lease_until = datetime.now(UTC) - timedelta(seconds=1)
+    await db.flush()
+    assert not await jobs.channel_message_is_running(db, receipt_id=receipt)
+
+
+async def test_consumed_native_receipts_survive_compaction(db: AsyncSession) -> None:
+    from sqlalchemy import delete
+
+    from app.db.models.conversation import Message
+
+    user = User(email="compaction@example.test", hashed_password="unused", full_name="Test")
+    db.add(user)
+    await db.flush()
+    org = Organization(name="Compaction", slug="compaction", created_by_user_id=user.id)
+    db.add(org)
+    await db.flush()
+    conversation = Conversation(organization_id=org.id)
+    db.add(conversation)
+    await db.flush()
+    assert await conversations.add_channel_reference(
+        db,
+        conversation_id=conversation.id,
+        source_id="old-post",
+        content="Already summarized",
+        identity_id=None,
+        posted_at=None,
+    )
+    await db.execute(delete(Message).where(Message.conversation_id == conversation.id))
+    assert not await conversations.add_channel_reference(
+        db,
+        conversation_id=conversation.id,
+        source_id="old-post",
+        content="Already summarized",
+        identity_id=None,
+        posted_at=None,
+    )
+    # A steer is already carried by the run's own parts; remembering its native
+    # id must not append another copy to the transcript.
+    assert await conversations.remember_channel_source(
+        db, conversation_id=conversation.id, source_id="steer"
+    )
+    assert not await conversations.add_channel_reference(
+        db,
+        conversation_id=conversation.id,
+        source_id="steer",
+        content="Use Friday",
+        identity_id=None,
+        posted_at=None,
+    )
+    assert not await ConversationService(db).model_history(conversation.id, limit=200)
+
+
+async def test_erasure_removes_durable_messages_from_the_linked_native_sender(
+    db: AsyncSession,
+) -> None:
+    from sqlalchemy import select
+
+    from app.db.models.channel_identity import ChannelIdentity
+    from app.repositories import personal_data_repo
+
+    user = User(email="erase-queue@example.test", hashed_password="unused", full_name="Test")
+    db.add(user)
+    await db.flush()
+    db.add(ChannelIdentity(platform="mattermost", platform_user_id="alice", user_id=user.id))
+    own = BackgroundJob(
+        kind="process-channel-message",
+        pool="agent",
+        max_attempts=1,
+        payload={"platform": "mattermost", "platform_user_id": "alice", "text": "private words"},
+    )
+    other = BackgroundJob(
+        kind="process-channel-message",
+        pool="agent",
+        max_attempts=1,
+        payload={"platform": "mattermost", "platform_user_id": "bob", "text": "other words"},
+    )
+    db.add_all([own, other])
+    await db.flush()
+    await personal_data_repo.purge_identities_of(db, user.id)
+    assert list((await db.scalars(select(BackgroundJob.id))).all()) == [other.id]
+
+
+async def test_two_workers_do_not_run_the_same_thread_together(engine) -> None:
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    payload = ChannelMessage(
+        receipt_id=uuid4(),
+        organization_id=uuid4(),
+        bot_id=uuid4(),
+        authorization_generation=uuid4(),
+        platform="mattermost",
+        platform_user_id="alice",
+        platform_chat_id="room:thread",
+        chat_type="group",
+        text="first",
+        message_id="first",
+    )
+    async with factory.begin() as db:
+        first = await enqueue(db, PROCESS_CHANNEL_MESSAGE, payload, concurrency_key="one-thread")
+    async with factory.begin() as db:
+        second = await enqueue(
+            db,
+            PROCESS_CHANNEL_MESSAGE,
+            payload.model_copy(update={"receipt_id": uuid4(), "message_id": "second"}),
+            concurrency_key="one-thread",
+        )
+    async with factory.begin() as db:
+        claimed = await jobs.claim(
+            db, pool="agent", worker_id="worker-1", lease=timedelta(minutes=1)
+        )
+        assert claimed is not None and claimed.id == first
+    async with factory.begin() as db:
+        assert (
+            await jobs.claim(db, pool="agent", worker_id="worker-2", lease=timedelta(minutes=1))
+            is None
+        )
+        assert await jobs.complete(db, claimed.id, fence=claimed.attempts)
+    async with factory.begin() as db:
+        next_job = await jobs.claim(
+            db, pool="agent", worker_id="worker-2", lease=timedelta(minutes=1)
+        )
+        assert next_job is not None and next_job.id == second
+
+
+async def test_new_migration_matches_the_postgres_models(engine) -> None:
+    import importlib.util
+    from pathlib import Path
+
+    from alembic.autogenerate import compare_metadata
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+
+    from app.db.base import Base
+
+    path = Path(__file__).parents[2] / "alembic/versions/0332_channel_thread_context.py"
+    spec = importlib.util.spec_from_file_location("channel_pg_migration", path)
+    assert spec is not None and spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+
+    def verify(connection):
+        context = MigrationContext.configure(connection)
+        with Operations.context(context):
+            migration.downgrade()
+            migration.upgrade()
+        assert compare_metadata(context, Base.metadata) == []
+
+    async with engine.begin() as connection:
+        await connection.run_sync(verify)
+
+
+async def test_native_turn_receipts_and_controls_are_bound_to_the_actual_sender(
+    db: AsyncSession,
+) -> None:
+    from app.db.models.agent import Agent
+    from app.db.models.agent_run import AgentRun
+    from app.db.models.channel_identity import ChannelIdentity
+    from app.db.models.conversation import Message
+    from app.repositories import agent_run_repo
+
+    user = User(email="controls@example.test", hashed_password="unused", full_name="Test")
+    db.add(user)
+    await db.flush()
+    org = Organization(name="Controls", slug="controls", created_by_user_id=user.id)
+    db.add(org)
+    await db.flush()
+    agent = Agent(organization_id=org.id, name="QA", slug="qa", draft_spec={})
+    conversation = Conversation(organization_id=org.id)
+    alice = ChannelIdentity(platform="mattermost", platform_user_id="alice")
+    bob = ChannelIdentity(platform="mattermost", platform_user_id="bob")
+    db.add_all([agent, conversation, alice, bob])
+    await db.flush()
+    now = datetime.now(UTC)
+    older = AgentRun(
+        organization_id=org.id,
+        agent_id=agent.id,
+        conversation_id=conversation.id,
+        channel_identity_id=alice.id,
+        created_at=now - timedelta(seconds=1),
+    )
+    root = AgentRun(
+        organization_id=org.id,
+        agent_id=agent.id,
+        conversation_id=conversation.id,
+        channel_identity_id=alice.id,
+        created_at=now,
+    )
+    other = AgentRun(
+        organization_id=org.id,
+        agent_id=agent.id,
+        conversation_id=conversation.id,
+        channel_identity_id=bob.id,
+        created_at=now + timedelta(seconds=1),
+    )
+    db.add_all([older, root, other])
+    await db.flush()
+    child = AgentRun(
+        organization_id=org.id,
+        agent_id=agent.id,
+        conversation_id=conversation.id,
+        channel_identity_id=alice.id,
+        parent_run_id=root.id,
+        created_at=now + timedelta(seconds=2),
+    )
+    db.add(child)
+    await db.flush()
+    found = await agent_run_repo.latest_for_channel_sender(
+        db, organization_id=org.id, conversation_id=conversation.id, identity_id=alice.id
+    )
+    assert found is not None and found.id == root.id
+    assert (
+        await agent_run_repo.latest_for_channel_sender(
+            db, organization_id=uuid4(), conversation_id=conversation.id, identity_id=alice.id
+        )
+        is None
+    )
+    assert (
+        await agent_run_repo.latest_for_channel_sender(
+            db, organization_id=org.id, conversation_id=None, identity_id=alice.id
+        )
+        is None
+    )
+    await agent_run_repo.request_channel_stop(db, run=root)
+    assert root.channel_stop_requested_at is not None and other.channel_stop_requested_at is None
+    db.add_all(
+        [
+            Message(
+                conversation_id=conversation.id, run_id=root.id, role="user", content="Question"
+            ),
+            Message(
+                conversation_id=conversation.id, run_id=root.id, role="assistant", content="Answer"
+            ),
+        ]
+    )
+    await db.flush()
+    await conversations.bind_channel_source(db, run_id=root.id, role="user", source_id="question")
+    await conversations.bind_channel_source(
+        db, run_id=root.id, role="assistant", source_id="answer"
+    )
+    await conversations.bind_channel_source(db, run_id=root.id, role="assistant", source_id=None)
+    await conversations.bind_channel_source(
+        db, run_id=uuid4(), role="assistant", source_id="not-posted"
+    )
+    assert await conversations.known_channel_posts(
+        db, conversation_id=conversation.id, source_ids=["question", "answer", "not-posted"]
+    ) == {"question", "answer"}

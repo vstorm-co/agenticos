@@ -213,6 +213,8 @@ from app.agents.connect_on_use import (
     ConnectionRequest,
     ConnectOnUse,
     PendingService,
+    ServiceAccessStatus,
+    UnavailableServices,
 )
 from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink, QuestionsCallback
 from app.agents.ephemeral_media import dump_messages
@@ -253,7 +255,7 @@ from app.agents.spec import (
     TraceContent,
     trace_content_block,
 )
-from app.agents.steering import SteeringInbox
+from app.agents.steering import ChannelTurnStopped, SteeringInbox
 from app.agents.subagent_events import SubagentEvent
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
@@ -2801,6 +2803,40 @@ def _personal_gap_briefing(
     )
 
 
+def _service_access_status(gap: PersonalServiceGap, surface: RunSurface) -> ServiceAccessStatus:
+    if gap.gap == "nobody_to_speak_as":
+        steps = (
+            (
+                "Open a direct message with this bot and send plain `link` without a slash.",
+                "Sign in to AgenticOS and confirm the private identity link. Never post that link in a room.",
+                f"Connect or authorize your own {gap.name} account on the MCP servers page under You.",
+                "Return to the original thread and ask again.",
+            )
+            if surface in _CHANNEL_SURFACES
+            else (
+                "Use a signed-in personal conversation; this surface does not act as your personal account.",
+            )
+        )
+        return ServiceAccessStatus(
+            service=gap.catalog_key,
+            name=gap.name,
+            reason="identity_not_linked",
+            required_steps=steps,
+        )
+    return ServiceAccessStatus(
+        service=gap.catalog_key,
+        name=gap.name,
+        reason=gap.gap,
+        required_steps=(
+            f"Authorize your existing {gap.name} connection again under You."
+            if gap.gap == "unauthorized"
+            else f"Connect your own {gap.name} account under You.",
+            "Return to the original thread and ask again.",
+        ),
+        settings_url=mcp_servers_link(gap.catalog_key if gap.gap == "not_connected" else None),
+    )
+
+
 ASIDE_PREFIX = (
     "A side question about this conversation, asked while you are still working on "
     "the task. Answer it briefly from what has been said so far. Do not continue, "
@@ -4421,6 +4457,12 @@ class AgentRunnerService:
                 update={"instructions": f"{spec.instructions}\n\n{context}{guidance}"}
             )
         spec = _with_personal_service_gaps(spec, briefed, surface, sender_present=sender_present)
+        missing_services = [
+            _service_access_status(personal_service_gap(gap), surface)
+            for gap in briefed
+            if isinstance(gap, UnavailablePersonalService)
+        ]
+        unavailable_services = UnavailableServices(missing_services) if missing_services else None
         spec = _with_account_notes(spec, resolved.accounts)
         if routine is not None and routine.routine_kind == "trigger":
             assert routine.source_policy is not None
@@ -5144,6 +5186,11 @@ class AgentRunnerService:
             ],
             extra_capabilities=(
                 *(() if on_use is None else (on_use,)),
+                *(
+                    ()
+                    if unavailable_services is None or answer_only or organization_mcp_only
+                    else (unavailable_services,)
+                ),
                 *(() if computer_on_use is None else (computer_on_use,)),
                 *guard_for(routine_check, agent_id=agent.id),
             ),
@@ -8557,6 +8604,10 @@ class AgentRunnerService:
                 logger.info(
                     "Run %s parked on %d approval(s)", prepared.run.id, len(paused.tool_call_ids)
                 )
+            finished_cleanly = True
+        except ChannelTurnStopped as exc:
+            status = RunStatus.CANCELLED
+            error = str(exc)
             finished_cleanly = True
         except ConversationTaskStopped:
             status = RunStatus.CANCELLED

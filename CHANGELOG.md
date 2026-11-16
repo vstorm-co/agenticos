@@ -21,9 +21,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- Apply `0332_channel_thread_context.py` before starting the new API and workers. Ordinary Slack, Mattermost, Telegram, Teams and Discord messages require the background worker. Legacy thread cursors are preserved so compacted conversations are not imported again. Queued runs are attempted once; after a lost worker or an unconfirmed reply, inspect existing actions before asking again.
+
 - Unlinked channel senders no longer trigger an automatic approval for every MCP or Mirage call. Review agents exposed to unlinked participants: select Ask first for tools needing confirmation, or require linked accounts in the bot's access policy. Existing pending approvals still need a decision or a stopped run; this change does not approve them automatically.
 
 ### Added
+
+- Channel thread refresh shares web-chat history and compaction, with native-post deduplication, bounded imports and explicit missing-context notices. Durable message admission, same-sender queued additions, own-run status/stop commands and final-response receipts work across workers. Personal-service feedback names missing requirements; channel readiness and dashboard connection states distinguish configuration from confirmed access.
 
 - Add ElevenLabs Scribe v3/v2 transcription and Eleven Realtime Mini/Max voice conversations with explicit vault keys. Realtime audio costs remain a floor because token charges are unreported; calls with spending budgets are refused before connecting.
 

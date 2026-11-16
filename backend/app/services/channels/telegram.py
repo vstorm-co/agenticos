@@ -38,7 +38,6 @@ from app.agents.capabilities.channel_tools import (
     ChannelMember,
 )
 from app.core.security import encode_untrusted
-from app.db.session import get_db_context
 from app.services.channels import connection_state, stream_lease
 from app.services.channels.base import (
     CHANNEL_COMMANDS,
@@ -55,7 +54,6 @@ from app.services.channels.base import (
     supervise_stream,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
-from app.services.channels.router import ChannelMessageRouter
 from app.services.channels.telegram_format import to_telegram_html
 from app.services.channels.telegram_press import parse_press
 
@@ -808,7 +806,6 @@ class TelegramAdapter(ChannelAdapter):
         if incoming is None:
             return
 
-        router = ChannelMessageRouter()
+        from app.services.channels.ingress import admit_message
 
-        async with get_db_context() as db:
-            await router.route(incoming, db)
+        await admit_message(incoming)
