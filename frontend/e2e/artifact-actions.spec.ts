@@ -43,8 +43,8 @@ test.use({ storageState: AUTH_STATE });
  * colleague declines once (and nothing starts) and confirms once (and the page
  * gets the workflow's answer, a run recorded as started by an app).
  *
- * The run's end needs the workflow worker (`make dev` starts it; CI's e2e job has
- * none, so it sets no `E2E_WORKER=1`). Without it the journey still proves the run
+ * The run's end needs the workflow worker (`make dev` and CI start it; CI sets
+ * `E2E_WORKER=1`). Without it the journey still proves the run
  * was admitted - the page's progress shows it queued or running and an app run
  * exists - and the answer is asserted only with the worker.
  */

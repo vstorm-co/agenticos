@@ -111,6 +111,24 @@ class TestEveryPullRequestIsChecked:
         )
 
 
+class TestWorkerBackedJourneys:
+    """A started worker must enable the journeys' durable-completion assertions."""
+
+    def test_the_started_worker_enables_completion_assertions(
+        self, workflow: dict[str, Any]
+    ) -> None:
+        job = workflow["jobs"]["e2e-shards"]
+        steps = job["steps"]
+        worker = next(i for i, step in enumerate(steps) if "-m app.worker" in step.get("run", ""))
+        run = next(i for i, step in enumerate(steps) if "test:e2e" in step.get("run", ""))
+        assert worker < run
+        environment = {**workflow.get("env", {}), **job.get("env", {}), **steps[run].get("env", {})}
+        assert environment.get("E2E_WORKER") == "1", (
+            "The CI worker is running, but E2E_WORKER=1 is absent: workflow journeys skip "
+            "their completion assertions and teardown can cancel work still being settled."
+        )
+
+
 class TestEveryJobBoundsItsOwnRuntime:
     """Six hours of a hung job is a required check nothing in this repository ends."""
 
