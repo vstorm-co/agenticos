@@ -1,5 +1,6 @@
 "use client";
 
+import { NativeSelect } from "@/components/ui/native-select";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, LoaderCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -57,7 +58,7 @@ export function StartTasks({ data }: { data: Onboarding }) {
           {agent ? (
             <div className={styles.agentChoice}>
               <Label htmlFor="start-agent">{t("agent")}</Label>
-              <select
+              <NativeSelect
                 id="start-agent"
                 value={agent.id}
                 onChange={(event) => setSelectedAgent(event.target.value)}
@@ -67,7 +68,7 @@ export function StartTasks({ data }: { data: Onboarding }) {
                     {item.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </div>
           ) : (
             <p className={styles.actionHint}>

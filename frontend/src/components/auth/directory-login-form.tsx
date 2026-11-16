@@ -75,7 +75,6 @@ export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
           autoComplete="username"
           autoCapitalize="none"
           spellCheck={false}
-          className="h-11 rounded-lg text-base md:text-[15px]"
         />
       </div>
 
@@ -91,7 +90,6 @@ export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
           required
           disabled={isLoading}
           autoComplete="current-password"
-          className="h-11 rounded-lg text-base md:text-[15px]"
         />
       </div>
 
@@ -101,7 +99,7 @@ export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
         </p>
       )}
 
-      <Button type="submit" disabled={isLoading} className="h-11 w-full text-[15px]">
+      <Button type="submit" disabled={isLoading} size="lg" className="w-full">
         {isLoading ? (
           t("loggingIn")
         ) : (

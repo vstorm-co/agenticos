@@ -1,5 +1,5 @@
 ---
-source_sha: "8ca784f8a0b0"
+source_sha: "8893d5c7fe0b"
 ---
 
 # Der Code der Konsole { #the-consoles-code }
@@ -32,6 +32,8 @@ Verwende `PageHeader` für kompakte Titel und Aktionen. Kartenkataloge verwenden
 Aktionsschaltflächen nutzen neutrale `action`-Tokens, unabhängig von den
 `primary`-Tokens für aktivierte Steuerelemente und Badges. Fokus und
 Eingabefeldränder bleiben sichtbar.
+
+Formularfelder stammen aus `components/ui`: `Input`, `Textarea`, `SelectTrigger`, `NativeSelect`, `Button`, `Checkbox` und `Switch`. Eigene Combobox-Auslöser verwenden `control-styles.ts`. Gefüllte Flächen, weiche 2px-Ränder, Tastaturfokus sowie Fehler- und deaktivierte Zustände folgen dem aktiven Stil; Seiten-Stylesheets dürfen nicht alle untergeordneten Eingabefelder überschreiben. Standardfelder und Aktionen sind auf dem Desktop 40px hoch, mit ausdrücklich kompakten/großen Varianten und 44px-Touch-Zielen. Anmeldung und Registrierung beachten das gewählte Theme und den Stil. Die Komponentengalerie im Entwicklungsmodus zeigt alle fünf Stile in Hell und Dunkel.
 
 Personen und Organisationen verwenden `EntityAvatar`: Fotos werden kreisförmig
 zugeschnitten; Initialen auf einer stabilen Farbe dienen als Ersatz. Agenten

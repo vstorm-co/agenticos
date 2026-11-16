@@ -1,5 +1,6 @@
 "use client";
 
+import { NativeSelect } from "@/components/ui/native-select";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Building2, ArrowRight } from "lucide-react";
@@ -80,7 +81,7 @@ export function StartWorkspace({
           <summary>{t("usePersonal")}</summary>
           <p className={styles.explanation}>{t("personalExplanation")}</p>
           <Label htmlFor="setup-personal">{t("personalChoice")}</Label>
-          <select
+          <NativeSelect
             id="setup-personal"
             value={activeOrgId ?? ""}
             onChange={(event) => onSelect(event.target.value)}
@@ -95,7 +96,7 @@ export function StartWorkspace({
                   {org.name}
                 </option>
               ))}
-          </select>
+          </NativeSelect>
           {organizations.some((org) => org.id === activeOrgId && org.is_personal) && (
             <Button
               variant="outline"

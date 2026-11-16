@@ -343,12 +343,7 @@
   color: var(--color-muted-foreground);
 }
 .agentChoice select {
-  width: 100%;
-  min-width: 0;
   max-width: 250px;
-  padding: 4px 24px 4px 0;
-  font-size: 13px;
-  background: transparent;
 }
 .error {
   padding: 0 28px 20px;
