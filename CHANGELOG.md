@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.78.0] - 2026-11-16
+
 ### Added
 
 - Add ElevenLabs Scribe v3/v2 transcription and Eleven Realtime Mini/Max voice conversations with explicit vault keys. Realtime audio costs remain a floor because token charges are unreported; calls with spending budgets are refused before connecting.
@@ -21832,7 +21834,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.77.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.78.0...HEAD
+[1.78.0]: https://github.com/vstorm-co/agenticos/compare/v1.77.0...v1.78.0
 [1.77.0]: https://github.com/vstorm-co/agenticos/compare/v1.76.2...v1.77.0
 [1.76.2]: https://github.com/vstorm-co/agenticos/compare/v1.76.1...v1.76.2
 [1.76.1]: https://github.com/vstorm-co/agenticos/compare/v1.76.0...v1.76.1
