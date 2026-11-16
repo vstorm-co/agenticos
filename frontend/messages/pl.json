@@ -11550,6 +11550,7 @@
     "publishedVersion": "Opublikowana wersja {version}",
     "validationTriggerNotEntry": "Użyj po jednym wyzwalaczu każdego rodzaju automatycznego.",
     "triggerHintManual": "Uruchom go przyciskiem Run w prawym górnym rogu edytora albo ze strony runów. Zadeklaruj pola, żeby prosił o nie przy starcie.",
+    "dataValueSetOnce": "Ustawiana raz na run i nigdy nienadpisywana: kolejne kroki czytają tę wartość, ale nie mogą jej zmienić. Aby ją zmienić, dodaj krok, który zbuduje z niej nową wartość.",
     "triggerHintChat": "Członkowie wybierają ten workflow w czacie. Kolejne kroki czytają wiadomość jako prompt, razem z rozmową i nadawcą.",
     "triggerHintWebhook": "Publikacja daje temu workflow własny adres i sekret do podpisu, które zostają takie same przy kolejnych publikacjach. Kolejne kroki czytają JSON dostawy jako body.",
     "publishTrigger": "Startuje od: {trigger}. Webhook, harmonogram lub wyzwalacz tabeli po publikacji działa jako Ty.",
@@ -17803,6 +17804,10 @@
       "data_map": {
         "name": "Mapuj pola",
         "description": "Wybierz wartości z wcześniejszych wyjść i nadaj każdej z nich typ."
+      },
+      "data_value": {
+        "name": "Dane",
+        "description": "Przechowaj obiekt, listę lub wartość dla kolejnych kroków. Ustawiane raz na run."
       },
       "debug_echo": {
         "name": "Echo",

@@ -122,6 +122,8 @@ const TRIGGER_HINTS: Record<string, string> = {
 /** `agent.run`'s answer-shape override, edited as the Builder edits an agent's own. */
 const AGENT_RUN = "agent.run";
 const HTTP_REQUEST = "http.request";
+/** The Data step: its value is a constant for the run, which the form says up front. */
+const DATA_VALUE = "data.value";
 const STRUCTURED_OUTPUT = "structured_output_schema";
 /**
  * The fields that hold an answer's JSON Schema, edited as the Builder edits an
@@ -176,6 +178,7 @@ const PRIMARY_INPUT: Readonly<Record<string, readonly string[]>> = {
   "html.parse": ["html", "file"],
   "debug.echo": ["message"],
   "data.map": ["source"],
+  "data.value": ["value"],
   "logic.if": ["value"],
   "logic.switch": ["value"],
   "transform.crypto": ["text"],
@@ -1411,6 +1414,9 @@ function NodeFields({
           disabled={disabled}
           onChange={(changes) => updateNodeConfig(node.id, { ...node.config, ...changes })}
         />
+      )}
+      {definition.id === DATA_VALUE && (
+        <p className="text-muted-foreground text-xs">{t("dataValueSetOnce")}</p>
       )}
       {definition.id === HTTP_REQUEST && (
         <CurlImport

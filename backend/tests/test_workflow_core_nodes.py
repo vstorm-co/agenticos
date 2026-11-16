@@ -23,6 +23,8 @@ from app.workflows.nodes.core_input._handler import handle as core_input
 from app.workflows.nodes.core_output._handler import handle as core_output
 from app.workflows.nodes.data_map import DataMapConfig, DataMapInput, FieldMapping, coerce
 from app.workflows.nodes.data_map._handler import handle as data_map
+from app.workflows.nodes.data_value import DataValueInput
+from app.workflows.nodes.data_value._handler import handle as data_value
 from app.workflows.nodes.logic_if import LogicIfConfig, LogicIfInput
 from app.workflows.nodes.logic_if._handler import handle as logic_if
 from app.workflows.nodes.logic_if._handler import routes
@@ -106,6 +108,25 @@ class TestLogicIf:
 
     def test_the_stored_branch_is_the_port_followed(self):
         assert routes({"branch": "true", "value": None}) == frozenset({"true"})
+
+
+class TestDataValue:
+    @pytest.mark.parametrize(
+        "value",
+        [{"customer": {"email": "ada@example.com"}}, [1, {"a": None}], "text", 0, False, None],
+    )
+    async def test_the_value_is_handed_on_unchanged(self, value: Any):
+        result = await data_value(None, DataValueInput(value=value))
+        assert isinstance(result, Completed)
+        assert result.output.model_dump() == {"value": value}
+
+    async def test_a_step_with_no_value_fails(self):
+        result = await data_value(None, None)
+        assert isinstance(result, Failed) and result.error.code == "DATA_NOT_SET"
+
+    def test_the_value_is_required(self):
+        with pytest.raises(ValidationError):
+            DataValueInput.model_validate({})
 
 
 class TestDataMap:
@@ -241,7 +262,7 @@ class TestBoundaryNodes:
 
 def test_every_core_node_is_in_the_catalog():
     ids = {definition.id for definition in _registry.all_node_definitions()}
-    assert {"core.input", "core.output", "data.map", "logic.if", "logic.merge"} <= ids
+    assert {"core.input", "core.output", "data.map", "data.value", "logic.if", "logic.merge"} <= ids
 
 
 @pytest.mark.parametrize(

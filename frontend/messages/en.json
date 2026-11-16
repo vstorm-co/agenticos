@@ -11355,6 +11355,7 @@
     "bindingJsonInvalid": "This is not valid JSON, so it was not saved.",
     "validationTriggerNotEntry": "Use one trigger of each unattended kind.",
     "triggerHintManual": "Start it with Run - at the editor's top right - or from its runs page. Declare fields to be asked for them when it starts.",
+    "dataValueSetOnce": "Set once per run and never overwritten: later steps read this value but cannot change it. To change it, add a step that builds a new value from it.",
     "triggerHintChat": "Members pick this workflow in the chat. The steps after it read the message as prompt, with the conversation and who sent it.",
     "triggerHintWebhook": "Publishing gives this workflow its own address and signing secret, which stay the same when you publish again. The steps after it read the delivery's JSON as body.",
     "publishTrigger": "It starts from {trigger}. A webhook, schedule or table trigger runs as you once it is published.",
@@ -18030,6 +18031,10 @@
       "data_map": {
         "name": "Map fields",
         "description": "Pick values out of earlier outputs and give each one a type."
+      },
+      "data_value": {
+        "name": "Data",
+        "description": "Hold an object, a list or a value for later steps. Set once per run."
       },
       "debug_echo": {
         "name": "Echo",

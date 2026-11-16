@@ -187,6 +187,56 @@ async def test_a_value_that_cannot_take_its_declared_type_fails_the_run_before_t
     assert output.id not in await node_statuses(seeded)
 
 
+def _held_value_graph(value: Any, *text_path: str) -> tuple[WorkflowGraph, NodeInstance]:
+    """input -> data.value (typed in) -> output, with `text` read from a path into the
+    held value and `structured` from the whole of it."""
+    entry = _node("core.input")
+    data = _node("data.value")
+    output = _node("core.output")
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, data, output),
+        edges=(_edge(entry, data), _edge(data, output)),
+        bindings=(
+            Binding(target_node_id=data.id, target_field="value", source=LiteralValue(value=value)),
+            _bind(output, "text", data, "out", "value", *text_path),
+            _bind(output, "structured", data, "out", "value"),
+        ),
+    )
+    return graph, data
+
+
+async def test_a_typed_in_object_is_held_for_later_steps_whole_and_by_path(engine: AsyncEngine):
+    held = {"customer": {"email": "ada@example.com"}, "tags": ["vip", "eu"], "limit": 10}
+    graph, data = _held_value_graph(held, "customer", "email")
+    seeded = await _run(engine, graph, {})
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert (await node_statuses(seeded))[data.id] == NodeRunStatus.SUCCEEDED.value
+    assert run.output == {
+        "text": "ada@example.com",
+        "sources": [],
+        "artifacts": [],
+        "structured": held,
+    }
+
+
+async def test_a_path_into_the_held_value_of_the_wrong_type_fails_at_dispatch(
+    engine: AsyncEngine,
+):
+    """The held value has no schema, so a path into it publishes and is checked when
+    the step reading it runs: a list where text is wanted fails that step."""
+    graph, _ = _held_value_graph({"tags": ["vip", "eu"]}, "tags")
+    seeded = await _run(engine, graph, {})
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.FAILED.value
+    assert run.error is not None and run.error["code"] == "INVALID_BINDING"
+
+
 async def test_a_bound_path_the_payload_lacks_fails_the_target_node_at_dispatch(
     engine: AsyncEngine,
 ):
