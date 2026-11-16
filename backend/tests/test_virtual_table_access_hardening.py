@@ -18,7 +18,7 @@ from app.schemas.virtual_table import (
     RecordRead,
     RowPolicy,
 )
-from app.services.virtual_tables import computed, records
+from app.services.virtual_tables import computed, record_access, records
 from app.services.virtual_tables._base import Operations
 from app.services.virtual_tables.exceptions import InvalidRecordError, InvalidRowPolicyError
 from app.services.virtual_tables.records import RecordOperations, _export_cell, _merge
@@ -109,6 +109,7 @@ def linked_data(monkeypatch: pytest.MonkeyPatch) -> VirtualTable:
     monkeypatch.setattr(virtual_table_repo, "get_record_cells_by_ids", AsyncMock(return_value=rows))
     monkeypatch.setattr(computed, "resolve_access", AsyncMock(return_value=True))
     monkeypatch.setattr(records, "resolve_access", AsyncMock(return_value=True))
+    monkeypatch.setattr(computed.resource_grant_repo, "record_levels", AsyncMock(return_value={}))
     return target
 
 
@@ -204,6 +205,10 @@ async def test_invalid_policy_refuses_batch_before_write_or_receipt(
 async def test_batch_import_hides_conflict_metadata_for_an_unreadable_external_id(
     monkeypatch: pytest.MonkeyPatch,
 ):
+    monkeypatch.setattr(record_access, "resolve_access", AsyncMock(return_value=True))
+    monkeypatch.setattr(
+        record_access.resource_grant_repo, "record_levels", AsyncMock(return_value={})
+    )
     source = table()
     now = datetime.now(UTC)
     hidden = VirtualTableRecord(
@@ -351,7 +356,7 @@ async def test_explicit_hidden_ids_are_refused_even_when_the_update_would_be_a_n
     )
     service = RecordOperations(MagicMock())
     monkeypatch.setattr(service, "_columns", AsyncMock(return_value=[LINK]))
-    monkeypatch.setattr(records, "may_edit_row", AsyncMock(return_value=True))
+    monkeypatch.setattr(records, "can_write_record", AsyncMock(return_value=True))
     monkeypatch.setattr(
         records, "normalize_task_cells", AsyncMock(return_value={KEY: [str(HIDDEN)]})
     )

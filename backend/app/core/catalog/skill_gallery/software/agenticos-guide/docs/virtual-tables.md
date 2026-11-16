@@ -300,6 +300,12 @@ An update or delete that names an old revision is refused with `REVISION_CONFLIC
 and retry. An upsert that finds an existing record and no `expected_revision` gets
 `REVISION_REQUIRED` (428), again with the revision to send.
 
+Current Write access is checked before disclosing a stored revision. An upsert
+for a hidden existing external ID and one for a new ID the caller cannot create
+both return `NOT_FOUND` (404), with the same message and table ID. Creating a row
+also requires table Edit and a row policy that lets its creator read that row;
+a row Write grant alone does not grant creation rights.
+
 An external id is 1 to 255 characters and may contain `/`, as in `2026/ORD-1`. It cannot
 contain NUL or a line break. The service checks this as well as the routes. Over HTTP the route refuses it first,
 with `VALIDATION_ERROR`; a caller that uses the service directly gets `INVALID_RECORD`.
@@ -427,8 +433,13 @@ same string and one caller can use it for a create and an upsert. Only successes
 stored: a refused write leaves no receipt, so you correct it and retry with the
 same key.
 
-A replay is answered only to a caller who can still edit the table. Once access is
-revoked, the same retry is a 404.
+A replay checks the caller's current table access, API-key scopes and row Write
+permission. Revocation makes the retry a 404 without disclosing a hidden row's ID or
+revision. Archiving a table permits an already authorized receipt to be read, with
+read-only record flags; it does not permit a fresh write. Batch imports still require
+table Edit because they can create records. Their retries preserve the original counts
+and `as_of`, but recheck rows named by external IDs or cached error details before
+returning the report.
 
 A receipt lasts 24 hours. After that the key is forgotten, and the same key with the same
 body is a new write: it executes again instead of returning the first answer. Retry within
@@ -719,6 +730,69 @@ idea, one level down (see [Saved views](#saved-views)).
 
 Another organization's table, and one the caller may not reach, are both a 404. A
 context with no signed-in subject reaches nothing.
+
+### Read and Write on individual rows { #row-read-write }
+
+Row access has two levels. **Read** shows the row and its visible linked records.
+**Write** includes Read and changes to ordinary cells. Write alone does not allow
+deleting a row, sharing it, changing its access fields, creating records, or changing
+the table schema. Existing table administrators retain their existing rights.
+A person still needs access to the parent table; a row grant never opens another
+table or a linked record on its own.
+
+In the table's sharing dialog, **Row access rules** chooses the default:
+
+| Rule | Read access | Write access |
+|---|---|---|
+| `none` | Everyone who can read the table | Existing table editors, plus row Write grants |
+| `grants` | A live Read or Write grant on the row | A live Write grant on the row |
+| `assignee` | The Read field, Write field, optional project membership, or a row grant | The Write field or a row Write grant |
+
+The table owner, organization Owner/Admin roles and deployment administrator retain
+their policy bypass. They must still pass table access and API-key ceilings. In
+`grants` mode, configure grants before switching existing users over.
+
+Creating a new row still requires table administration. In `grants` mode, a direct
+create that would hide the row from its table editor returns 403:
+`You do not have permission to write this row`. Batch creation reports
+`AUTHORIZATION_ERROR` for that row. Upsert returns the same 404 for a hidden existing
+external ID and unavailable creation, so the refusal does not reveal whether that ID exists.
+
+Managed task boards keep their board-specific access rules and do not offer these
+row-sharing controls.
+
+Open a row and choose **Row access** to add a member or group, select Read or Write,
+set an optional expiry, change a level, or revoke access. Member grants may be permanent;
+group grants default to 90 days. Effective access uses current organization and group
+membership and unexpired grants. The strongest live grant wins. Revoking one grant
+does not remove access provided by another grant or a table rule.
+
+The REST endpoints live under `/tables/{table_id}/records/{record_id}/access`:
+
+- `GET` lists explicit grants for a table administrator who can read the row.
+- `PUT /grants` upserts one `subject_user_id` or `subject_group_id`, a
+  `level` of `read` or `write`, and optional `expires_at`.
+- `DELETE /grants/{subject_user_id}` and
+  `DELETE /group-grants/{subject_group_id}` revoke the named grant.
+
+The same service protects console, API, agent and workflow writes. Row grants are stored
+in the existing `resource_grants` table under `table_record`; only there, API `write`
+maps to stored `edit`. They never become table administration grants. API keys need the
+`tables:view` scope to read and `tables:edit` to write; a grant cannot widen a key.
+Deleting a record removes its grants in the same transaction.
+
+Every returned record carries `access`, `can_delete`, `can_manage_access` and
+`read_only_column_ids`. The last list includes policy-driving fields and project
+membership fields used by another table. Grid cells, the record sheet and kanban moves
+use these answers. Record lists, catalog counts, exports and linked labels use the same
+read rule. An idempotent write replay checks current authority again, so a saved receipt
+cannot retain a revoked Write permission.
+
+Workflow triggers recheck the publisher's current Read permission on the source row.
+Their filters and run inputs use only readable linked records, including both the
+current and previous values. An update that changes only hidden links does not start
+a workflow. Invalid destination policies expose no linked IDs; an invalid source
+policy filters the event. The original stored event and history remain unchanged.
 
 ## Errors { #errors }
 

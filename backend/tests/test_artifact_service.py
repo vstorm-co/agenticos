@@ -650,6 +650,7 @@ class TestDelete:
         with (
             patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
             patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.hold_subject", new=AsyncMock()),
             patch(f"{PATH}.resource_grant_repo.delete_for_resource", new=AsyncMock()) as grants,
             patch(f"{PATH}.artifact_repo.delete_artifact", new=AsyncMock()) as delete,
             patch(f"{PATH}.record_audit", new=AsyncMock()),

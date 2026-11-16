@@ -58,9 +58,10 @@ the local results above do not replace them.
 ## Subsequent T3 integration (2026-11-16)
 
 The candidate also preserves T3 through
-`c716a6ada4cc40e784b2d44c4244ea42b5372641`, including the table screenshot
-checks and named coding accounts with opt-in pools. The account-pool schema
-arrives through its original `0326_provider_account_pools` revision.
+`605427bd398ce0585b52987d54e15b99d12796a4`, including explicit row Read/Write
+access, table screenshot checks and named coding accounts with opt-in pools.
+The account-pool schema arrives through its original
+`0326_provider_account_pools` revision; row grants add no migration.
 
 The new no-op `0332_merge_t3_pools_v1761` joins that pool revision with
 `0331_merge_t3_rooms_and_v1761`. The published definition of `0331` remains
@@ -72,3 +73,9 @@ The release gates above apply to the resulting combined candidate. Earlier
 local and CI results apply to their recorded source revisions and do not
 replace validation of this integration. No production database is migrated
 by publishing or merging the candidate.
+
+CI now enables the artifact-action journey's existing workflow-completion
+assertions because its workflow worker is running. Artifact deletion takes the
+same organization guards as workflow worker mutations before writing, preventing
+the observed deadlock with a late event update after cancellation. The regression
+uses two real PostgreSQL transactions and an observed lock-state barrier.

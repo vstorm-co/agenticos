@@ -1097,6 +1097,8 @@ export const qk = {
       ["tables", tableId, "records", "count", query] as const,
     // One record, as "reload and reapply" refetches it after a conflict.
     record: (tableId: string, recordId: string) => ["tables", tableId, "record", recordId] as const,
+    recordAccess: (tableId: string, recordId: string) =>
+      ["tables", tableId, "record-access", recordId] as const,
     views: (tableId: string) => ["tables", tableId, "views"] as const,
     // One kind's views, as the picker for that tab reads them; under `views` so
     // one invalidation refreshes every kind.

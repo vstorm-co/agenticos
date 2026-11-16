@@ -62,6 +62,7 @@ from app.core.security import (
     verify_password,
     verify_special_token,
 )
+from app.db.locks import LockScope, hold_subject
 from app.db.models.artifact import (
     SERVED_STATES,
     Artifact,
@@ -3204,6 +3205,10 @@ class ArtifactService:
         at what is stored.
         """
         artifact = await self.get(ctx, artifact_id, perm=Perm.ARTIFACTS_EDIT, archived=True)
+        # A late workflow update can recheck its artifact foreign key while holding
+        # the run row. Take the workers' guards before DELETE locks the artifact.
+        await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
+        await hold_subject(self.db, LockScope.WORKFLOW_INLINE_RESULTS_PER_ORG, ctx.organization_id)
         await resource_grant_repo.delete_for_resource(
             self.db,
             organization_id=ctx.organization_id,

@@ -1348,6 +1348,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "page-secondary-actions",
   },
   { id: "table-view-tabs", page: TABLE_DETAIL, target: "table-view-tabs" },
+  { id: "table-row-access", page: TABLE_DETAIL, target: "table-row-access", optional: true },
+  { id: "record-access", page: TABLE_DETAIL, target: "record-access", optional: true },
 
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },
 

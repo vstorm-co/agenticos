@@ -215,8 +215,20 @@ export interface TableSummary {
   can_edit: boolean;
 }
 
+export interface RowPolicy {
+  rule: "none" | "grants" | "assignee";
+  view_column_id?: string | null;
+  edit_column_id?: string | null;
+  view_project_link_column_id?: string | null;
+  view_projects_table_id?: string | null;
+  view_project_members_column_id?: string | null;
+}
+
 export interface TableRead extends TableSummary {
   columns: ColumnDef[];
+  row_policy?: RowPolicy | null;
+  row_policy_valid?: boolean;
+  can_manage_row_access?: boolean;
   /**
    * Whether the table is archived and this caller may restore it. `can_edit` is
    * false on an archived table, since no write to one succeeds.
@@ -330,6 +342,11 @@ export interface RecordSource {
 export interface RecordRead {
   id: string;
   table_id: string;
+  /** Server-resolved authority on this row; Write includes Read. */
+  access?: "read" | "write";
+  can_delete?: boolean;
+  can_manage_access?: boolean;
+  read_only_column_ids?: string[];
   external_id: string | null;
   schema_version: number;
   values: Record<string, CellValue>;
