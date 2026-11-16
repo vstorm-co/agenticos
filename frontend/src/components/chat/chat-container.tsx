@@ -32,6 +32,7 @@ import { AgentPicker, isChattable } from "./agent-picker";
 import { ChatApprovalSelector } from "./chat-approval-selector";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
+import { ChatModelHeader } from "./chat-model-header";
 import { SheetRow } from "./composer-sheet";
 import { ChatEmptyState } from "./chat-empty-state";
 import { ChatRoomBar } from "./chat-room-bar";
@@ -1603,6 +1604,17 @@ function ChatUI({
           )}
         >
           {!compact && <TurnRail entries={railEntries} />}
+          {!compact && roomProjectId === null && hasAgent && (
+            <ChatModelHeader
+              key={`${authUser?.id}:${activeOrgId}:${selectedAgentId}`}
+              name={callAgent?.name ?? t("rail.agent")}
+              agentModel={agentModel}
+              readOnly={readOnly || isArchived === true || isLoadingConversation === true}
+              isProcessing={isProcessing}
+              home={showWorkspaceHome}
+              onChange={(profileId) => onModelProfileChange?.(profileId)}
+            />
+          )}
           <div
             ref={scrollContainerRef}
             data-chat-scroller

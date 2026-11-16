@@ -1,5 +1,5 @@
 ---
-source_sha: "5f01365cb00a"
+source_sha: "4cdebab6f99e"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -199,12 +199,12 @@ runner zostanie w ogóle osiągnięty; sekret jest zapieczętowany w
 
 Dla Linear odpowiedzią sukcesu jest `200`, także gdy filtr niczego nie dopasuje.
 
-!!! info "`202` znaczy przyjęte, a nie zakończone"
+!!! info "Przyjęcie nie oznacza zakończenia runa"
 
     Dopasowane dostarczenie jest kolejkowane jako zadanie `fire-trigger` we
     własnej transakcji żądania, a agent działa w workerze, więc provider dostaje
     swoją odpowiedź po jednym insercie, zamiast czekać na model.
-    Nie czytaj `202` jako „agent odpowiedział” - od tego jest przeczytanie runa w
+    Nie czytaj odpowiedzi sukcesu jako „agent odpowiedział” - od tego jest przeczytanie runa w
     **Aktywności** (Activity).
 
 Zweryfikowane dostarczenie, przy którym nie ma nic do zrobienia - nieaktywny

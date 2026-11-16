@@ -1,5 +1,5 @@
 ---
-source_sha: "dd46ea746100"
+source_sha: "fa76644c347a"
 ---
 
 # Aplikacje { #artifacts }
@@ -1464,6 +1464,6 @@ wdrożenia, pod `artifacts/<organization>/<artifact>/`.
 
 Podglądy w chacie rezerwują miejsce podczas ładowania renderera wizualizacji lub miniatury Apps. Pojawiają się płynnie po zakończeniu renderowania lub dekodowania obrazu; preferencja ograniczonego ruchu wyłącza animację. Lista Apps używa buforowanych, statycznych miniatur przypisanych do wersji, zamiast ponownie uruchamiać każdą aplikację po powrocie do listy.
 
-Skill Apps zawiera interaktywne prezentacje HTML, style wydruku PDF i przykłady gotowych komponentów. Eksport PDF wymaga skonfigurowanego renderera; sama walidacja podglądu nie dowodzi wykonania skryptu. Wykresy, tabele i treści interaktywne sprawdzaj w wyrenderowanym podglądzie. Eksport PowerPoint nie jest dostępny.
+Skill Apps zawiera interaktywne prezentacje HTML, style wydruku PDF i przykłady komponentów do wielokrotnego użytku. Eksport PDF wymaga skonfigurowanego renderera; podgląd ograniczony do walidacji nie dowodzi poprawnego wykonania skryptu. Wykresy, tabele i treści interaktywne sprawdzaj w wyrenderowanym podglądzie. Eksport PowerPoint nie jest dostępny.
 
 Narzędzie MCP platformy `create_app_public_link` wymaga prawa edycji i jawnego potwierdzenia publicznego udostępnienia aplikacji. Używa istniejącego linku, zachowując hasło, termin ważności i przypiętą wersję. Dane na żywo wymagają osobnej zgody właściciela. Wywołanie kończy się sukcesem dopiero po potwierdzeniu publicznego URL-a przez API.

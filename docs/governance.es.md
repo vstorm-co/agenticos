@@ -1,5 +1,5 @@
 ---
-source_sha: "0500be2db6f4"
+source_sha: "14136b984ce9"
 ---
 
 # Governance { #governance }
@@ -2549,7 +2549,7 @@ publicador no pueden leer ni resolver casos privados de Inbox.
 
 ## Grupos de aprobación { #approval-groups }
 
-Los pasos de aprobación humana y llamadas MCP de workflows pueden indicar personas, grupos de la organización o ambos. Una sola persona elegible decide y debe tener `approvals:decide` de forma independiente. Sin personas ni grupos configurados sigue vigente la regla anterior basada en ese permiso. Un grupo configurado vacío o eliminado nunca permite que decida cualquiera.
+Los pasos de aprobación humana y llamadas MCP de workflows pueden indicar personas, grupos de la organización o ambos. Cualquier persona elegible puede decidir por sí sola y debe tener `approvals:decide` de forma independiente. Sin personas ni grupos configurados sigue vigente la regla anterior basada en ese permiso. Un grupo configurado vacío o eliminado nunca permite que decida cualquiera.
 
 La pertenencia al grupo y la cuenta activa se comprueban al decidir. Las notificaciones resuelven miembros elegibles al crear la solicitud y eliminan duplicados con personas indicadas. Incorporarse después puede dar derecho a decidir sin otra notificación; salir o perder permisos lo retira.
 

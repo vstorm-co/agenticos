@@ -2731,6 +2731,28 @@
         "cancelled": "Abgebrochen",
         "interrupted": "Unterbrochen"
       }
+    },
+    "modelSelector": {
+      "choose": "Chat-Modell auswählen: {model}",
+      "chooseUnavailable": "Chat-Modell auswählen: {model} (nicht verfügbar)",
+      "title": "Chat-Modell",
+      "default": "Standard",
+      "override": "Eigene Auswahl",
+      "unavailable": "Modell nicht verfügbar",
+      "useDefault": "Modell des Agents verwenden",
+      "scope": "Wähle ein gespeichertes Modell für deine nächste Nachricht. Diese Chat-Auswahl wird für dein Konto in dieser Organisation gespeichert.",
+      "afterTurn": "Der laufende Run behält sein Modell. Deine Auswahl gilt für die nächste Nachricht und wird als Chat-Einstellung gespeichert.",
+      "providers": "Modell-Provider",
+      "search": "Gespeicherte Modelle oder Konten suchen…",
+      "account": "Provider-Konto",
+      "allAccounts": "Alle Konten",
+      "personalAccount": "Dein persönliches Konto",
+      "savedModels": "Gespeicherte Modelle",
+      "empty": "Noch keine gespeicherten Modelle. Öffne Controls neben dem Eingabefeld, um eines hinzuzufügen.",
+      "noMatches": "Keine gespeicherten Modelle passen zu dieser Suche.",
+      "advancedHint": "Öffne Controls neben dem Eingabefeld, um ein Modell hinzuzufügen oder seine Verbindung zu verwalten. Deine Chat-Auswahl ändert den Agent nicht.",
+      "missingKey": "Verbindung nicht verfügbar — in Controls erneut verbinden",
+      "notChatModel": "Für Chats nicht verfügbar"
     }
   },
   "common": {
@@ -5133,6 +5155,10 @@
       "chat-model-picker": {
         "body": "Wählen Sie, welches Modell der Organisation antwortet - nur für diese Unterhaltung, ohne den Agent zu ändern.",
         "title": "Das Modell einstellen"
+      },
+      "chat-model-selector": {
+        "body": "Öffne die Modellauswahl, um gespeicherte Modelle zu suchen, zwischen Providern oder Konten zu wechseln und zum Modell des Agents zurückzukehren. Deine Auswahl gilt für die nächste Nachricht und wird als Chat-Einstellung gespeichert. Die vollständige Verbindungseinrichtung findest du in Controls neben dem Eingabefeld.",
+        "title": "Ein Modell in der Kopfzeile auswählen"
       },
       "chat-plan": {
         "body": "Ein Agent, der plant, führt hier über dem Eingabefeld eine Checkliste – den Schritt in Arbeit und wie viel noch aussteht. Öffnen Sie sie für den ganzen Plan; sie bleibt aktuell, während der Run sie abarbeitet.",

@@ -1,5 +1,5 @@
 ---
-source_sha: "5f01365cb00a"
+source_sha: "4cdebab6f99e"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -203,11 +203,11 @@ aparece en una lectura, en un listado ni en la URL.
 
 Para Linear el estado de éxito es `200`, también cuando el filtro no coincide.
 
-!!! info "El `202` significa aceptado, no terminado"
+!!! info "Aceptar la entrega no significa que el run haya terminado"
 
     Una entrega que coincide se encola como un job `fire-trigger` en la propia
     transacción de la petición y el agent se ejecuta en el worker, así que el
-    provider recibe su respuesta tras un insert en vez de esperar a un modelo. No leas un `202` como «el agent ya ha respondido» - para
+    provider recibe su respuesta tras un insert en vez de esperar a un modelo. No leas una respuesta de éxito como «el agent ya ha respondido» - para
     eso lee el run en Activity.
 
 Una entrega verificada que no tiene nada que hacer - un trigger inactivo, o una

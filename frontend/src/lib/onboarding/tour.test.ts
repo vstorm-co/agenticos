@@ -307,12 +307,24 @@ describe("stepsForPage", () => {
       "chat-background-tasks",
       "chat-plan",
       "chat-visual",
+      "chat-model-selector",
       "chat-model-picker",
       "chat-voice-call",
       "chat-approval-mode",
       "chat-your-connections",
       "chat-subscription-model",
     ]);
+  });
+
+  it("only offers the model selector stop to someone who can choose a model", () => {
+    expect(stepsForPage(ROUTES.CHAT, () => false).map((step) => step.id)).not.toContain(
+      "chat-model-selector",
+    );
+    expect(
+      stepsForPage(ROUTES.CHAT, (permission) => permission === Perm.connectionsManage).find(
+        (step) => step.id === "chat-model-selector",
+      ),
+    ).toMatchObject({ optional: true });
   });
 
   it("walks the list and then the whole builder when asked from the Agents list", () => {

@@ -1,0 +1,101 @@
+{
+  "date": "2026-11-15",
+  "scope": "Isolated renderer using the actual ChatModelHeader and WorkspacePanels components, production container classes, and seeded model/query state. No production requests or paid model calls.",
+  "workspace_base_before": "bcc11e4237c1451c3395ab680297d5fe853a436e",
+  "workspace_base_after": "4d42f83d5cefa97477d44ae1bd4046cbbeb87021",
+  "narrow_desktop_before": {
+    "chat": {
+      "bottom": 855,
+      "height": 855,
+      "width": 780,
+      "x": 0,
+      "y": 0
+    },
+    "host": {
+      "bottom": 855,
+      "height": 855,
+      "width": 780,
+      "x": 0,
+      "y": 0
+    },
+    "rail": {
+      "bottom": 1027,
+      "height": 172,
+      "width": 48,
+      "x": 0,
+      "y": 855
+    },
+    "railClipped": true,
+    "railDisplay": "flex",
+    "viewport": 1280
+  },
+  "narrow_desktop_after": {
+    "chat": {
+      "bottom": 855,
+      "height": 855,
+      "width": 732,
+      "x": 0,
+      "y": 0
+    },
+    "host": {
+      "bottom": 855,
+      "height": 855,
+      "width": 780,
+      "x": 0,
+      "y": 0
+    },
+    "rail": {
+      "bottom": 855,
+      "height": 855,
+      "width": 48,
+      "x": 732,
+      "y": 0
+    },
+    "railClipped": false,
+    "railDisplay": "flex",
+    "viewport": 1280
+  },
+  "full_desktop_after": {
+    "container": 1280,
+    "display": "flex",
+    "rail": {
+      "height": 855,
+      "width": 48,
+      "x": 1232,
+      "y": 0
+    },
+    "viewport": 1280
+  },
+  "phone_after": {
+    "chat": {
+      "bottom": 855,
+      "height": 855,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    "composer": {
+      "bottom": 831,
+      "height": 104,
+      "width": 351,
+      "x": 19.5,
+      "y": 727
+    },
+    "host": {
+      "bottom": 855,
+      "height": 855,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    "railDisplay": "none",
+    "scrollWidth": 390,
+    "viewport": 390
+  },
+  "screenshots": [
+    "model-workspace-desktop-20261115.jpg",
+    "model-workspace-mobile-20261115.jpg",
+    "model-workspace-narrow-before-20261115.jpg",
+    "model-workspace-narrow-after-20261115.jpg"
+  ]
+}

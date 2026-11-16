@@ -2738,6 +2738,28 @@
         "cancelled": "Cancelled",
         "interrupted": "Interrupted"
       }
+    },
+    "modelSelector": {
+      "choose": "Choose chat model: {model}",
+      "chooseUnavailable": "Choose chat model: {model} (unavailable)",
+      "title": "Chat model",
+      "default": "Default",
+      "override": "Override",
+      "unavailable": "Model unavailable",
+      "useDefault": "Use agent's model",
+      "scope": "Choose a saved model for your next message. This chat preference is remembered for your account in this organization.",
+      "afterTurn": "The running turn keeps its model. Your selection applies to the next message and is remembered as your chat preference.",
+      "providers": "Model providers",
+      "search": "Search saved models or accounts…",
+      "account": "Provider account",
+      "allAccounts": "All accounts",
+      "personalAccount": "Your personal account",
+      "savedModels": "Saved models",
+      "empty": "No saved models yet. Open Controls beside the message box to add one.",
+      "noMatches": "No saved models match this search.",
+      "advancedHint": "Open Controls beside the message box to add a model or manage its connection. Your chat selection does not edit the agent.",
+      "missingKey": "Connection unavailable — reconnect in Controls",
+      "notChatModel": "Unavailable for chat"
     }
   },
   "common": {
@@ -5279,6 +5301,10 @@
       "chat-model-picker": {
         "body": "Pick which of the organization's models answers - just for this conversation, without changing the agent.",
         "title": "Tune the model"
+      },
+      "chat-model-selector": {
+        "body": "Open the model pill to search saved models, switch providers or accounts, and return to the agent's model. Your selection applies to the next message and is remembered as your chat preference. Controls beside the message box has the full connection setup.",
+        "title": "Choose a model from the header"
       },
       "chat-plan": {
         "body": "An agent that plans keeps a checklist here, above the composer - the step in flight, and how much is left. Open it for the whole plan; it stays current as the run works through it.",

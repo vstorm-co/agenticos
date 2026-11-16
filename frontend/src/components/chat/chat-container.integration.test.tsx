@@ -24,6 +24,7 @@ import type { Project } from "@/types/projects";
 import type { ConversationCost, ConversationMessage } from "@/types";
 import { qk } from "@/lib/query-keys";
 import { initialCall } from "@/lib/voice/call-reducer";
+import { useChatControlsStore, currentChatControlScope } from "@/stores/chat-controls-store";
 import {
   useAgentSelectionStore,
   useAuthStore,
@@ -329,6 +330,109 @@ beforeEach(() => {
   useConversationStore.getState().reset();
   useChatStore.getState().clearMessages();
   voiceCall.call = initialCall;
+});
+
+describe("the chat header's model selection reaches the next request", () => {
+  beforeEach(() => {
+    useChatControlsStore.setState({ byScope: {} });
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) => {
+      if (url === "/me/permissions")
+        return Promise.resolve({
+          permissions: [
+            { permission: "agents:view", scope: "all" },
+            { permission: "agents:run", scope: "all" },
+            { permission: "connections:manage", scope: "all" },
+          ],
+        });
+      if (url.startsWith("/agents") && !url.includes("/dictation") && !url.includes("/voice"))
+        return Promise.resolve({
+          items: [
+            {
+              id: "model-agent",
+              slug: "model-agent",
+              name: "Model agent",
+              status: "published",
+              can_run: true,
+              published_model: {
+                profile_id: "agent-default",
+                provider: "openai",
+                model: "gpt-5",
+                label: "Default GPT",
+              },
+            },
+          ],
+          total: 1,
+        });
+      if (url === "/providers/model-profiles")
+        return Promise.resolve({
+          items: [
+            {
+              id: "saved-fast",
+              provider: "openai",
+              model: "gpt-fast",
+              label: "Saved fast model",
+              secret_id: "team-key",
+              params: {},
+              fallback_profile_ids: [],
+            },
+          ],
+          total: 1,
+        });
+      if (url === "/providers/catalog")
+        return Promise.resolve({ items: [{ id: "openai", name: "OpenAI" }] });
+      return base(url);
+    });
+    useAgentSelectionStore.setState({ selectedAgentId: "model-agent", selectedWorkflowId: null });
+  });
+
+  afterEach(() => act(() => useChatControlsStore.setState({ byScope: {} })));
+
+  it("sends the header's selected profile without editing the agent or discarding the draft", async () => {
+    mount();
+    const composer = await screen.findByRole("textbox", { name: "Type a message..." });
+    await userEvent.type(composer, "Use the selected model");
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Choose chat model: Default GPT" }),
+    );
+    await userEvent.click(await screen.findByRole("radio", { name: "Saved fast model" }));
+    expect(messageOf(composer)).toBe("Use the selected model");
+    await userEvent.click(screen.getByRole("button", { name: "Send message" }));
+    await waitFor(() =>
+      expect(
+        socket.send.mock.calls.map(([frame]) => frame).find((frame) => frame.message),
+      ).toMatchObject({
+        message: "Use the selected model",
+        model_profile_id: "saved-fast",
+        agent_id: "model-agent",
+      }),
+    );
+    expect(apiClient.patch).not.toHaveBeenCalled();
+  });
+
+  it("omits the override from the next request after restoring the agent's model", async () => {
+    useChatControlsStore
+      .getState()
+      .update(currentChatControlScope(), { modelProfileId: "saved-fast" });
+    mount();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Choose chat model: Saved fast model" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Use agent's model/ }));
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Type a message..." }),
+      "Use the agent default",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Send message" }));
+    await waitFor(() =>
+      expect(
+        socket.send.mock.calls.map(([frame]) => frame).find((frame) => frame.message),
+      ).toBeDefined(),
+    );
+    const sent = socket.send.mock.calls.map(([frame]) => frame).find((frame) => frame.message);
+    expect(sent).not.toHaveProperty("model_profile_id");
+    expect(apiClient.patch).not.toHaveBeenCalled();
+  });
 });
 
 describe("the chat container - project room workspace", () => {

@@ -1,5 +1,5 @@
 ---
-source_sha: "c7784f62508b"
+source_sha: "058b139501b2"
 ---
 
 # Skills { #skills }
@@ -1099,6 +1099,6 @@ Die Beispiele enthalten einen Belegfilter, veränderbare Entscheidungskriterien,
 
 Apps exportiert veröffentlichte HTML-/Markdown-Seiten oder Browserpräsentationen über `export_artifact`. Der Betreiber konfiguriert `ARTIFACT_RENDER_CDP_URL` und installiert das Extra `browser`; der Agent benötigt einen Workspace für die echte PDF-Datei. Es gelten die Zugriffs- und Zielgruppenregeln der App-Vorschau; nicht verfügbare gebundene Daten verhindern den Export. Dateien sind auf 50 Seiten und 20 MB begrenzt und erhalten eindeutige Namen. PDF, Seitenumbrüche und vollständige Folien prüfen. Ein PowerPoint-Format wird nicht eingeführt.
 
-Chat kann interaktive Inhalte einbetten. Mattermost und andere Textkanäle erhalten einen berechtigten App-Link, ein gerendertes Bild soweit unterstützt oder eine angeforderte PDF-Datei; HTML läuft nicht in diesen Nachrichten. Ein Link gewährt keinen öffentlichen Zugriff. Bestehende Installationen nutzen die normale Bibliotheksaktualisierung: unveränderte Kopien werden aktualisiert, verwendete Skills warten auf ihre Prüfung, eigene Anpassungen bleiben geschützt.
+Chat kann interaktive Inhalte einbetten. Mattermost und andere Textkanäle erhalten einen berechtigten App-Link, ein gerendertes Bild soweit unterstützt oder eine angeforderte PDF-Datei; HTML läuft nicht in diesen Nachrichten. Ein Link gewährt keinen öffentlichen Zugriff. Bestehende Installationen nutzen die normale Bibliotheksaktualisierung: unveränderte Kopien werden aktualisiert, Skills mit verfolgten Aktualisierungen warten auf ihre Prüfung, eigene Anpassungen bleiben geschützt.
 
 Mitgelieferte Plattform-Skills und die Skills des AI Architect können nach den normalen Ressourcenrechten gelesen und verwendet werden. Änderungen an Inhalt, Dateien, Versionen oder Forks, das Löschen und das Belegen eines reservierten Namens erfordern jedoch organisationsweite Agenten-Bearbeitungsrechte (Owner/Admin bei den eingebauten Rollen). Eine Bearbeitungsfreigabe für den Skill umgeht diesen Schutz nicht. Gewöhnliche Organisations-Skills behalten ihre bisherigen Eigentums- und Freigaberegeln.

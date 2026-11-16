@@ -1,5 +1,5 @@
 ---
-source_sha: "144975623fb4"
+source_sha: "cd351d048f37"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2180,7 +2180,7 @@ Kachelpfad des Deployments. Siehe [Visuals](../artifacts.md#visuals).
 
 ## Apps { #artifacts }
 
-`export_artifact` speichert die aktuell veröffentlichte Version als echte PDF-Datei im Workspace. Der isolierte Renderer unterstützt A4-Berichte und 16:9-Browserpräsentationen, behält die Zugriffs- und Zielgruppenprüfung der Vorschau bei und verweigert nicht verfügbare gebundene Daten. Renderer und Extra `browser` müssen konfiguriert sein. Dateien erhalten eindeutige Namen und sind auf 50 Seiten und 20 MB begrenzt. Siehe [Designressourcen](../skills.de.md#design-resources).
+`export_artifact` speichert die aktuell veröffentlichte Version als echte PDF-Datei im Workspace. Der isolierte Renderer unterstützt A4-Berichte und 16:9-Browserpräsentationen, behält die Zugriffs- und Zielgruppenprüfung der Vorschau bei und verweigert nicht verfügbare gebundene Daten. Renderer und Extra `browser` müssen konfiguriert sein. Dateien erhalten eindeutige Namen und sind auf 50 Seiten und 20 MB begrenzt. Siehe [Designressourcen](../skills.md#design-resources).
 
 `publish_artifact` — _veröffentlicht eine fertige Seite — einen Bericht, ein
 kleines Dashboard, eine Zusammenfassung — unter einem stabilen Link._

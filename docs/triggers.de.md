@@ -1,5 +1,5 @@
 ---
-source_sha: "5f01365cb00a"
+source_sha: "4cdebab6f99e"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -208,12 +208,12 @@ nicht in der URL auf.
 
 Für Linear ist der Erfolgsstatus `200`, auch wenn der Filter nichts trifft.
 
-!!! info "Die `202` bedeutet angenommen, nicht fertig"
+!!! info "Angenommen bedeutet nicht, dass der Run fertig ist"
 
     Eine passende Zustellung wird in der eigenen Transaktion der Anfrage als
     `fire-trigger`-Job eingereiht, und der Agent läuft im Worker, der Provider
     bekommt seine Antwort also nach einem Insert, statt ein Modell abzuwarten. Lesen Sie
-    eine `202` nicht als "der Agent hat geantwortet" - lesen Sie dafür den Run in
+    eine Erfolgsantwort nicht als "der Agent hat geantwortet" - lesen Sie dafür den Run in
     **Aktivität** (Activity).
 
 Eine verifizierte Zustellung, für die es nichts zu tun gibt - ein inaktiver

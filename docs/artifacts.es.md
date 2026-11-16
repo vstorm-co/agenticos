@@ -1,5 +1,5 @@
 ---
-source_sha: "dd46ea746100"
+source_sha: "fa76644c347a"
 ---
 
 # Aplicaciones { #artifacts }
@@ -1484,4 +1484,4 @@ Las vistas previas del chat reservan espacio mientras carga el renderizador visu
 
 El skill Apps incluye presentaciones HTML interactivas, estilos de impresión PDF y ejemplos de componentes reutilizables. Exportar PDF requiere configurar el renderizador; validar una vista previa no demuestra que el script se ejecutara correctamente. Comprueba gráficos, tablas y contenido interactivo en la vista renderizada. No se incluye exportación a PowerPoint.
 
-La herramienta MCP de la plataforma `create_app_public_link` requiere acceso de edición y confirmación explícita de publicación. Reutiliza los enlaces existentes y conserva contraseña, caducidad y versión fijada. Los datos en vivo requieren consentimiento separado del propietario. La llamada solo tiene éxito cuando la API confirma la URL pública.
+La herramienta MCP de la plataforma `create_app_public_link` requiere acceso de edición y confirmación explícita de que la App puede compartirse públicamente. Reutiliza los enlaces existentes y conserva contraseña, caducidad y versión fijada. Los datos en vivo requieren consentimiento separado del propietario. La llamada solo tiene éxito cuando la API confirma la URL pública.

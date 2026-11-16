@@ -1,5 +1,5 @@
 ---
-source_sha: "144975623fb4"
+source_sha: "cd351d048f37"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2105,7 +2105,7 @@ propia ruta de teselas del despliegue. Consulte [Visuals](../artifacts.md#visual
 
 ## Aplicaciones { #artifacts }
 
-`export_artifact` guarda la versión publicada actual como PDF real en el workspace. Usa el renderer aislado, admite informes A4 y presentaciones web 16:9, conserva las comprobaciones de acceso y audiencia de la vista previa y rechaza datos vinculados no disponibles. Requiere configurar el renderer y el extra `browser`. Los archivos tienen nombres únicos y un límite de 50 páginas y 20 MB. Consulta los [recursos de diseño](../skills.es.md#design-resources).
+`export_artifact` guarda la versión publicada actual como PDF real en el workspace. Usa el renderer aislado, admite informes A4 y presentaciones web 16:9, conserva las comprobaciones de acceso y audiencia de la vista previa y rechaza datos vinculados no disponibles. Requiere configurar el renderer y el extra `browser`. Los archivos tienen nombres únicos y un límite de 50 páginas y 20 MB. Consulta los [recursos de diseño](../skills.md#design-resources).
 
 `publish_artifact` — _Publica una página terminada — un informe, un pequeño
 dashboard, un resumen — bajo un enlace estable._

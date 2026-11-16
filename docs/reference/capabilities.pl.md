@@ -1,5 +1,5 @@
 ---
-source_sha: "144975623fb4"
+source_sha: "cd351d048f37"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2055,7 +2055,7 @@ Zobacz [Wizualizacje](../artifacts.md#visuals).
 
 ## Aplikacje { #artifacts }
 
-`export_artifact` zapisuje bieżącą opublikowaną wersję jako prawdziwy PDF w workspace. Korzysta z izolowanego renderera, obsługuje raporty A4 i prezentacje przeglądarkowe 16:9, zachowuje kontrolę dostępu oraz odbiorców podglądu i odmawia przy niedostępnych danych powiązanych. Wymaga skonfigurowanego renderera i dodatku `browser`. Pliki mają unikalne nazwy oraz limit 50 stron i 20 MB. Zobacz [materiały projektowe](../skills.pl.md#design-resources).
+`export_artifact` zapisuje bieżącą opublikowaną wersję jako prawdziwy PDF w workspace. Korzysta z izolowanego renderera, obsługuje raporty A4 i prezentacje przeglądarkowe 16:9, zachowuje kontrolę dostępu oraz odbiorców podglądu i odmawia przy niedostępnych danych powiązanych. Wymaga skonfigurowanego renderera i dodatku `browser`. Pliki mają unikalne nazwy oraz limit 50 stron i 20 MB. Zobacz [materiały projektowe](../skills.md#design-resources).
 
 `publish_artifact` — _Opublikuj gotową stronę — raport, mały dashboard,
 podsumowanie — pod stałym linkiem._
@@ -3573,7 +3573,7 @@ Zadania coding w sandboxie w tym samym zestawie narzędzi wykonują się kolejno
 
 ## Podłączone komunikatory (`channel_actions`) { #connected-chat-apps-channel_actions }
 
-Jawne uprawnienia bota do znajdowania kanałów, wyszukiwania wiadomości i dostarczania raportów z dowolnego uruchomienia.
+Jawne uprawnienia bota do znajdowania kanałów, wyszukiwania wiadomości i dostarczania żądanych raportów z dowolnego runa.
 
 | Narzędzie | Działanie |
 | --- | --- |
