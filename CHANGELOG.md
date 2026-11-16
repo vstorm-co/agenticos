@@ -48,7 +48,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Lock an App's source workflow runs in sweep order before deleting it, preventing deadlocks with event settlement while preserving run history and commit-only file cleanup (#3021).
+- Prevent App deletion from deadlocking with workflow event writes. Release partial source locks before bounded retries, return a retryable 409 when busy, and preserve run history and commit-only file cleanup (#3021).
 
 - Remove the duplicate MCP setup frame and consolidate personal Assistant settings into Account tips and Inbox preferences. Organization service configuration stays in AI & services.
 - Standardize form label, help, input and select geometry across the console, including touch targets; label the remaining unlabeled selectors and cover adjacent field alignment on desktop and touch screens.
