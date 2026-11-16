@@ -452,13 +452,28 @@ describe("useNodeCatalog", () => {
           },
           input_schema: null,
         },
+        {
+          id: "trigger.table_record",
+          name: "Record changed",
+          description: "served",
+          ports: [],
+          config_schema: {
+            type: "object",
+            properties: { events: { "x-enum-labels": { created: "Served", "odd-one": "Own" } } },
+          },
+          input_schema: null,
+        },
         { id: "vendor.new", name: "Brand new step", description: "Not translated yet", ports: [] },
       ] as never,
-      total: 2,
+      total: 3,
     });
     const { result } = renderHook(() => useNodeCatalog(), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    const [approval, added] = result.current.nodes;
+    const [approval, record, added] = result.current.nodes;
+    // A choice's values are named by the catalog; one it does not hold keeps its own words.
+    expect(record?.config_schema).toMatchObject({
+      properties: { events: { "x-enum-labels": { created: "Added", "odd-one": "Own" } } },
+    });
     expect(approval).toMatchObject({
       id: "human.approval",
       name: "Ask for approval",
