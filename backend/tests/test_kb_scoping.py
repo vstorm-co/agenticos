@@ -620,7 +620,15 @@ class TestKBAccessControl:
         lock.assert_awaited_once_with(mock_db, kb.id)
         get_all.assert_awaited_once_with(mock_db, knowledge_base_id=kb.id, for_update=True)
         update.assert_awaited_once_with(
-            mock_db, source.id, collection_name=None, knowledge_base_id=None, is_active=False
+            mock_db,
+            source.id,
+            collection_name=None,
+            knowledge_base_id=None,
+            is_active=False,
+            sync_state=None,
+            last_sync_at=None,
+            last_sync_status=None,
+            last_error=None,
         )
         dispatch.assert_awaited_once_with(mock_db, [], [kb.collection_name], base_purges=[])
 

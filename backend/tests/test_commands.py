@@ -625,7 +625,7 @@ class TestRagDropGoesThroughTheTeardown:
         from app.repositories import collection_teardown_repo, knowledge_base_repo, sync_source_repo
         from app.repositories import rag_document as rag_document_repo
 
-        db = MagicMock(execute=AsyncMock())
+        db = MagicMock(execute=AsyncMock(), flush=AsyncMock())
 
         @asynccontextmanager
         async def session() -> AsyncGenerator[object]:
