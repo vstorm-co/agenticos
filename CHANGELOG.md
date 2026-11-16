@@ -19,24 +19,32 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Pin each sync source to its knowledge base instead of resolving its collection name again. Sources, logs and ingested documents stay with the selected base, including same-named personal, organization and deployment bases. Deleting or clearing a base detaches and deactivates exactly its sources; another base does not inherit them. Deleting a base archives its historical source links so its logs cannot fall back to a reassigned source (#2551).
+
+### Added
+
+- Select an organization knowledge base explicitly with `rag-source-add --knowledge-base <id>` when several bases share a collection name. Sync source responses include `knowledge_base_id`.
+
 ### Upgrading
-
-- Apply `0333_channel_thread_context.py` before starting the new API and workers. Ordinary Slack, Mattermost, Telegram, Teams and Discord messages require the background worker. Legacy thread cursors are preserved so compacted conversations are not imported again. Queued runs are attempted once; after a lost worker or an unconfirmed reply, inspect existing actions before asking again.
-
-- Unlinked channel senders no longer trigger an automatic approval for every MCP or Mirage call. Review agents exposed to unlinked participants: select Ask first for tools needing confirmation, or require linked accounts in the bot's access policy. Existing pending approvals still need a decision or a stopped run; this change does not approve them automatically.
-
 
 - **Breaking:** Apply `0334_sync_source_knowledge_base.py` before starting the API and worker. The migration preserves the current resolver's target, including its ID tie-break for equal creation times. Sources with no eligible base are deactivated and listed in migration logs; configuration is retained, and no separate console notification is created. Reassign these sources to a knowledge base and reactivate them before syncing again.
 - Review migration log entries for sources kept on a member's personal base beside an organization base of the same name. They keep their previous target; move them explicitly if they belong to the organization base.
 - Add `--knowledge-base <id>` to `rag-source-add` scripts when the organization has several bases with that collection name. A source with no assigned base cannot sync.
 - Downgrade deactivates and logs sources whose pinned target would change under the older name resolver. It retains existing pauses; reassign and reactivate affected sources before syncing again.
 
+## [1.79.0] - 2026-11-16
+
+### Upgrading
+
+- Apply `0333_channel_thread_context.py` before starting the new API and workers. Ordinary Slack, Mattermost, Telegram, Teams and Discord messages require the background worker. Legacy thread cursors are preserved so compacted conversations are not imported again. Queued runs are attempted once; after a lost worker or an unconfirmed reply, inspect existing actions before asking again.
+
+- Unlinked channel senders no longer trigger an automatic approval for every MCP or Mirage call. Review agents exposed to unlinked participants: select Ask first for tools needing confirmation, or require linked accounts in the bot's access policy. Existing pending approvals still need a decision or a stopped run; this change does not approve them automatically.
+
 ### Added
 
 - Channel thread refresh shares web-chat history and compaction, with native-post deduplication, bounded imports and explicit missing-context notices. Durable message admission, same-sender queued additions, own-run status/stop commands and final-response receipts work across workers. Personal-service feedback names missing requirements; channel readiness and dashboard connection states distinguish configuration from confirmed access.
-
-
-- Select an organization knowledge base explicitly with `rag-source-add --knowledge-base <id>` when several bases share a collection name. Sync source responses include `knowledge_base_id`.
 
 ### Changed
 
@@ -54,8 +62,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Standardize fields, native and custom selects, buttons and switches across the console and authentication screens. Respect the chosen look at sign-in, stack connected accounts before appearance, restore fallback avatar colours and make working-day selection clear.
 
-
-- Pin each sync source to its knowledge base instead of resolving its collection name again. Sources, logs and ingested documents stay with the selected base, including same-named personal, organization and deployment bases. Deleting or clearing a base detaches and deactivates exactly its sources; another base does not inherit them. Deleting a base archives its historical source links so its logs cannot fall back to a reassigned source (#2551).
 
 ## [1.78.1] - 2026-11-16
 
@@ -21895,7 +21901,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.78.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.79.0...HEAD
+[1.79.0]: https://github.com/vstorm-co/agenticos/compare/v1.78.1...v1.79.0
 [1.78.1]: https://github.com/vstorm-co/agenticos/compare/v1.78.0...v1.78.1
 [1.78.0]: https://github.com/vstorm-co/agenticos/compare/v1.77.0...v1.78.0
 [1.77.0]: https://github.com/vstorm-co/agenticos/compare/v1.76.2...v1.77.0
