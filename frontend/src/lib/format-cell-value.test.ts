@@ -152,6 +152,10 @@ describe("a number in the viewer's locale", () => {
     expect(formatCellValue(column({ type: "number" }), 1.2345678e-15, boolLabel, "pl")).toBe(
       "1,2345678E-15",
     );
+    // As many digits as the shortest form holds - seventeen at most.
+    expect(
+      formatCellValue(column({ type: "number" }), 1.2345678901234566e-21, boolLabel, "pl"),
+    ).toBe("1,2345678901234566E-21");
     expect(formatCellValue(column({ type: "number" }), 0, boolLabel, "pl")).toBe("0");
     expect(formatCellValue(column({ type: "integer" }), 2026, boolLabel, "en")).toBe("2026");
     expect(formatCellValue(column({ type: "integer" }), 1234567, boolLabel, "en")).toBe(

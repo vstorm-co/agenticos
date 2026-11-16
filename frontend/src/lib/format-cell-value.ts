@@ -92,7 +92,7 @@ function scientificFormat(locale: string): Intl.NumberFormat {
   if (format === undefined) {
     format = new Intl.NumberFormat(locale, {
       notation: "scientific",
-      maximumSignificantDigits: 15,
+      maximumSignificantDigits: 17,
     });
     scientificFormats.set(locale, format);
   }
