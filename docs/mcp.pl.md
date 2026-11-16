@@ -1,5 +1,5 @@
 ---
-source_sha: "c11105a501c2"
+source_sha: "e7e6baca79ef"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -576,6 +576,8 @@ szesnastkowych skrótu, więc dwie długie nazwy pozostają dwoma narzędziami. 
 jest nadal wywoływany pod prawdziwą nazwą.
 
 !!! warning "Nieosiągalny serwer zostaje pominięty z ostrzeżeniem, a nie podnosi wyjątku"
+
+    Inicjalizacja jest ponawiana raz, zanim wykona się jakiekolwiek narzędzie. Ochrona obejmuje świeżo odpytane serwery, zapamiętane połączenia i wbudowane MCP platformy. Błąd odkrywania narzędzi pozostawia pozostałe narzędzia dostępne. Błąd transportu podczas wywołania trafia do modelu jako nieudane żądanie o nieznanym wyniku; zapisy nigdy nie są automatycznie powtarzane. Lokalna inicjalizacja platformy ma limit 15 sekund na uwierzytelnienie i pierwsze przygotowanie, a połączenia zdalne zachowują limit 3 sekund.
 
     Pydantic AI wchodzi w każdy toolset przy starcie runa, więc martwy serwer
     przerwałby inaczej całą turę: jeden wygasły token na jednym połączeniu

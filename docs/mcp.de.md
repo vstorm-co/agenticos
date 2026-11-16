@@ -1,5 +1,5 @@
 ---
-source_sha: "c11105a501c2"
+source_sha: "e7e6baca79ef"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -601,6 +601,8 @@ Hex-Ziffern eines Hashs angehängt, sodass zwei lange Namen zwei Tools bleiben. 
 Server wird weiterhin unter seinem echten Namen aufgerufen.
 
 !!! warning "Ein nicht erreichbarer Server wird mit einer Warnung übersprungen, nicht ausgelöst"
+
+    Die Initialisierung wird einmal wiederholt, bevor ein Tool ausgeführt wird. Dieser Schutz gilt für frisch geprüfte Server, zwischengespeicherte Connections und das integrierte Plattform-MCP. Bei einem Fehler der Tool-Erkennung bleiben die übrigen Tools verfügbar. Ein Transportfehler während eines Tool-Aufrufs wird dem Modell als fehlgeschlagene Anfrage mit unbekanntem Ergebnis gemeldet; Schreibzugriffe werden nie automatisch wiederholt. Die lokale Plattforminitialisierung hat für Authentifizierung und Kaltstart ein Zeitlimit von 15 Sekunden; entfernte Verbindungen behalten ihr Limit von 3 Sekunden.
 
     Pydantic AI betritt beim Start eines Runs jedes Toolset, ein toter Server würde
     sonst also den ganzen Zug abbrechen: Ein abgelaufenes Token auf einer

@@ -1,5 +1,5 @@
 ---
-source_sha: "c11105a501c2"
+source_sha: "e7e6baca79ef"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -593,6 +593,8 @@ añaden ocho dígitos hexadecimales de un hash, así que dos nombres largos sigu
 siendo dos herramientas. Al servidor se le sigue llamando por su nombre real.
 
 !!! warning "Un servidor inalcanzable se salta con un aviso, no lanza un error"
+
+    La inicialización se reintenta una vez antes de ejecutar cualquier herramienta. Esta protección cubre los servidores recién comprobados, las conexiones en caché y el MCP integrado de la plataforma. Un fallo al descubrir herramientas deja disponibles las demás. Un fallo de transporte durante una llamada se comunica al modelo como una petición fallida con resultado desconocido; las escrituras nunca se repiten automáticamente. La inicialización local de la plataforma tiene un límite de 15 segundos para autenticación y arranque en frío; las conexiones remotas conservan su límite de 3 segundos.
 
     Pydantic AI entra en todos los toolsets cuando arranca un run, así que un
     servidor muerto abortaría si no el turno entero: un token caducado en una

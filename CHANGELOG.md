@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep a run alive when an MCP server fails during initialization, discovery or a tool request. Retry initialization once, report unavailable services and uncertain tool outcomes explicitly, and never replay tool writes. Give the built-in platform MCP its own bounded initialization deadline so cold worker startup does not abort Mattermost turns before the model runs (#3077).
+
 - Pin each sync source to its knowledge base instead of resolving its collection name again. Sources, logs and ingested documents stay with the selected base, including same-named personal, organization and deployment bases. Deleting or clearing a base detaches and deactivates exactly its sources; another base does not inherit them. Deleting a base archives its historical source links so its logs cannot fall back to a reassigned source (#2551).
 
 - **Deleting an account.** Deleting a person whose runs belong to their own conversations no longer fails on `agent_runs_conversation_id_fkey`, whichever order the database runs the delete cascades in.
