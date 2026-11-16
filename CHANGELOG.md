@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.78.0] - 2026-11-16
+
 ### Added
 
 - Native integration capabilities can use several organization or personal accounts in one request. Personal accounts can be connected and repaired from chat settings; agents receive account choices and setup guidance when access is missing. Routine source reviews retain the exact approved accounts.
@@ -21844,7 +21846,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.77.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.78.0...HEAD
+[1.78.0]: https://github.com/vstorm-co/agenticos/compare/v1.77.0...v1.78.0
 [1.77.0]: https://github.com/vstorm-co/agenticos/compare/v1.76.2...v1.77.0
 [1.76.2]: https://github.com/vstorm-co/agenticos/compare/v1.76.1...v1.76.2
 [1.76.1]: https://github.com/vstorm-co/agenticos/compare/v1.76.0...v1.76.1
