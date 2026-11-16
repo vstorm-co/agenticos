@@ -30,7 +30,7 @@ def _request(payload: dict) -> MagicMock:
 
 
 def _bot_service(bot: MagicMock | None) -> MagicMock:
-    return MagicMock(find_active=AsyncMock(return_value=bot))
+    return MagicMock(find_active=AsyncMock(return_value=bot), queue_message=AsyncMock())
 
 
 @pytest.fixture(autouse=True)
@@ -109,10 +109,12 @@ class TestVerification:
             patch(f"{_MODULE}.unseal_slack_signing_secret", return_value="bot-secret"),
             patch(f"{_MODULE}.spawn", side_effect=lambda coro, **_: coro.close()) as spawn,
         ):
-            response = await slack_events(uuid.uuid4(), request, _bot_service(bot))
+            service = _bot_service(bot)
+            response = await slack_events(uuid.uuid4(), request, service)
 
         assert response.status_code == 200
-        spawn.assert_called_once()
+        service.queue_message.assert_awaited_once_with(bot, _adapter.parse_incoming.return_value)
+        spawn.assert_not_called()
 
     async def test_a_redelivered_challenge_still_echoes_the_challenge(self):
         """URL verification is answered on its own terms whatever the retry

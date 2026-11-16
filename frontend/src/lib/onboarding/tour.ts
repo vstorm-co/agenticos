@@ -1474,6 +1474,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "phone-contact", page: SETTINGS_DETAIL, target: "phone-contact", optional: true },
   { id: "phone-dial", page: SETTINGS_DETAIL, target: "phone-dial", optional: true },
 
+  {
+    id: "channels-diagnostics",
+    page: ROUTES.CHANNELS,
+    target: "channels-diagnostics",
+    permission: Perm.channelsManage,
+    optional: true,
+  },
   // A Discord bot's role mappings (#2569): only on a Discord row, and only for
   // somebody who may manage members, so optional - most organizations have none.
   {

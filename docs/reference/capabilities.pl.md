@@ -1,5 +1,5 @@
 ---
-source_sha: "4f3a31df37a1"
+source_sha: "7d56de6cfe78"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1430,7 +1430,7 @@ oraz tekstowy grep; semantyczne wyszukiwanie wymagające modelu nie jest włącz
 Zgodę na połączenie konta należy dokończyć w tej samej przeglądarce i na tym samym
 zalogowanym koncie, na którym ją rozpoczęto.
 
-Sekret z vaulta musi odpowiadać przeznaczeniu backendu; `custom` pozwala świadomie użyć własnej integracji. OneDrive i SharePoint przyjmują aplikację Entra o przeznaczeniu `sharepoint`, a usługi Hugging Face — `huggingface`. Ta sama reguła obowiązuje przy publikacji i uruchomieniu. Każdy host z listy serwerów PostgreSQL musi znajdować się na liście dozwolonych hostów deploymentu. MongoDB i GridFS wymagają jednego hosta `mongodb://`: platforma wymusza `directConnection=true` i odrzuca odkrywanie przez SRV. Nadawca z kanału bez połączonego konta wymaga zgody na każde narzędzie Mirage, także odczyt; połączenie konta przywraca zwykłe zasady folderów ustalone przez autora.
+Sekret z vaulta musi odpowiadać przeznaczeniu backendu; `custom` pozwala świadomie użyć własnej integracji. OneDrive i SharePoint przyjmują aplikację Entra o przeznaczeniu `sharepoint`, a usługi Hugging Face — `huggingface`. Ta sama reguła obowiązuje przy publikacji i uruchomieniu. Każdy host z listy serwerów PostgreSQL musi znajdować się na liście dozwolonych hostów deploymentu. MongoDB i GridFS wymagają jednego hosta `mongodb://`: platforma wymusza `directConnection=true` i odrzuca odkrywanie przez SRV. Uruchomienia w kanałach stosują zwykłe ustawienia akceptacji powiązania Mirage i poszczególnych narzędzi ustalone przez autora, także dla nadawców bez połączonego konta.
 
 Montowania PostgreSQL wymagają niepustego hasła w DSN z vaulta; puste hasła i uwierzytelnianie bez hasła nie są obsługiwane. Nie korzystają zastępczo z `PGPASSWORD` ani `.pgpass`. Parametry DSN wskazujące pliki poświadczeń lub TLS na hoście (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`) są odrzucane.
 

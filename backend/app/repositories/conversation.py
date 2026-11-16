@@ -39,7 +39,7 @@ from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.channel_identity import ChannelIdentity
-from app.db.models.channel_session import ChannelSession
+from app.db.models.channel_session import ChannelMessageSource, ChannelSession
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.conversation_favourite import ConversationFavourite
@@ -2883,3 +2883,73 @@ async def set_model_content(
         .values(model_content=content)
     )
     await db.flush()
+
+
+async def add_channel_reference(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    source_id: str,
+    content: str,
+    identity_id: UUID | None,
+    posted_at: datetime | None,
+) -> bool:
+    """Import a native post at most once, including after its transcript was compacted."""
+    if not await remember_channel_source(db, conversation_id=conversation_id, source_id=source_id):
+        return False
+    stamp = posted_at.isoformat() if posted_at is not None else "unknown"
+    result = await db.execute(
+        pg_insert(Message)
+        .values(
+            conversation_id=conversation_id,
+            role="user",
+            content=content,
+            channel_identity_id=identity_id,
+            model_content=f"[Thread reference, posted {stamp}]\n{content}",
+        )
+        .returning(Message.id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def bind_channel_source(
+    db: AsyncSession,
+    *,
+    run_id: UUID,
+    role: Literal["user", "assistant"],
+    source_id: str | None,
+) -> None:
+    """Associate the native prompt/reply with the turn already written by the runner."""
+    if source_id is None:
+        return
+    conversation_id = await db.scalar(
+        select(Message.conversation_id)
+        .where(Message.run_id == run_id, Message.role == role)
+        .limit(1)
+    )
+    if conversation_id is not None:
+        await remember_channel_source(db, conversation_id=conversation_id, source_id=source_id)
+
+
+async def remember_channel_source(
+    db: AsyncSession, *, conversation_id: UUID, source_id: str
+) -> bool:
+    result = await db.execute(
+        pg_insert(ChannelMessageSource)
+        .values(conversation_id=conversation_id, post_id=source_id)
+        .on_conflict_do_nothing()
+        .returning(ChannelMessageSource.post_id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def known_channel_posts(
+    db: AsyncSession, *, conversation_id: UUID, source_ids: Sequence[str]
+) -> set[str]:
+    result = await db.execute(
+        select(ChannelMessageSource.post_id).where(
+            ChannelMessageSource.conversation_id == conversation_id,
+            ChannelMessageSource.post_id.in_(source_ids),
+        )
+    )
+    return set(result.scalars())

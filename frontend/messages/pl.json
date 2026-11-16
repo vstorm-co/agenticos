@@ -2644,7 +2644,30 @@
       "discordGuilds": "Zatwierdzone ID serwerów Discorda",
       "discordGuildsHint": "Włącz tryb deweloperski Discorda i skopiuj ID każdego zatwierdzonego serwera. Oddziel ID przecinkami lub spacjami. Pusta lista pozwala tylko na wiadomości prywatne; wiadomości z serwerów pozostają zablokowane.",
       "discordGuildsInvalid": "Wpisz liczbowe ID serwerów, oddzielone przecinkami lub spacjami (maksymalnie 2500 serwerów).",
-      "emailAddress": "Adres e-mail"
+      "emailAddress": "Adres e-mail",
+      "diagnostics": {
+        "open": "Sprawdź {bot}",
+        "title": "Gotowość: {bot}",
+        "description": "Kontrole osobiste dotyczą Twojego zalogowanego konta. Zapisane połączenia nie są sprawdzane u dostawców.",
+        "loading": "Sprawdzanie konfiguracji…",
+        "error": "Nie udało się sprawdzić konfiguracji.",
+        "refresh": "Odśwież",
+        "audience": "Odpowiedzi widzą uczestnicy wątku. Osobiste źródło nie oznacza prywatnego miejsca publikacji.",
+        "checks": {
+          "active": "Bot włączony",
+          "transport": "Połączenie przychodzące",
+          "binding": "Przypisany agent",
+          "published": "Opublikowany agent dostępny dla Ciebie",
+          "identity": "Twoje konto kanału powiązane",
+          "personal_service": "Twoja osobista usługa połączona"
+        },
+        "states": {
+          "ok": "Gotowe",
+          "warning": "Wymaga uwagi",
+          "blocked": "Zablokowane",
+          "unknown": "Niepotwierdzone"
+        }
+      }
     },
     "invitations": {
       "acceptInvitation": "Przyjmij zaproszenie",
@@ -5171,11 +5194,18 @@
         "platforms": {
           "telegram": "Telegram",
           "slack": "Slack",
-          "mattermost": "Mattermost"
+          "mattermost": "Mattermost",
+          "teams": "Microsoft Teams",
+          "sms": "SMS",
+          "email": "Email",
+          "imessage": "iMessage",
+          "discord": "Discord"
         },
         "webhook": "nasłuchuje",
         "polling": "odpytuje",
         "switchedOff": "wyłączony",
+        "disconnected": "rozłączony",
+        "unknown": "stan połączenia nieznany",
         "empty": {
           "title": "Brak kanałów",
           "description": "Zarejestruj bota, a jego agenci staną się dostępni ze Slacka, Telegrama albo Mattermosta."
@@ -7677,6 +7707,10 @@
       "chat-coding-revert": {
         "title": "Sprawdź i cofnij zadanie programistyczne",
         "body": "Otwórz zadanie programistyczne, aby sprawdzić zmienione pliki. Cofnięcie przywraca te pliki tylko wtedy, gdy żaden nie zmienił się od zakończenia zadania."
+      },
+      "channels-diagnostics": {
+        "title": "Sprawdź gotowość",
+        "body": "Sprawdź połączenie bota, publikację agenta i własne powiązane konta bez uruchamiania zadania."
       }
     },
     "chooseLanguage": "Język",

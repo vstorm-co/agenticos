@@ -15,6 +15,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
+from uuid import UUID
 
 from app.agents.steering import SteeringInbox
 
@@ -82,3 +83,19 @@ def answering_aside() -> Generator[None]:
         yield
     finally:
         _aside.reset(token)
+
+
+_queued_receipt: ContextVar[UUID | None] = ContextVar("channel_queued_receipt", default=None)
+
+
+@contextmanager
+def queued_turn(receipt_id: UUID) -> Generator[None]:
+    token = _queued_receipt.set(receipt_id)
+    try:
+        yield
+    finally:
+        _queued_receipt.reset(token)
+
+
+def current_receipt() -> UUID | None:
+    return _queued_receipt.get()

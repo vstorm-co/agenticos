@@ -1,5 +1,6 @@
 "use client";
 
+import { Textarea } from "@/components/ui/textarea";
 import { useState, type MouseEvent } from "react";
 import { useTranslations } from "next-intl";
 
@@ -135,7 +136,7 @@ export function BrowserCommentLayer({
               bottom: spot.y > 0.6 ? `calc(${(1 - spot.y) * 100}% + 1.25rem)` : undefined,
             }}
           >
-            <textarea
+            <Textarea
               autoFocus
               value={note}
               onChange={(event) => setNote(event.target.value)}
@@ -152,7 +153,7 @@ export function BrowserCommentLayer({
               placeholder={t("browserCommentPlaceholder")}
               aria-label={t("browserCommentPlaceholder")}
               rows={2}
-              className="bg-muted/60 placeholder:text-muted-foreground w-full resize-none rounded-lg px-2.5 py-2 text-base outline-none md:text-sm"
+              className="min-h-0 resize-none px-2.5 py-2"
             />
             <div className="flex justify-end gap-1.5">
               <Button type="button" size="sm" variant="ghost" onClick={onDone}>

@@ -1,5 +1,6 @@
 "use client";
 
+import { NativeSelect } from "@/components/ui/native-select";
 import { useTranslations } from "next-intl";
 
 import { Badge, Input, Textarea } from "@/components/ui";
@@ -103,15 +104,15 @@ export function FieldDiff({
   return (
     <div className="space-y-2">
       {editing !== null && kind === "boolean" ? (
-        <select
+        <NativeSelect
           aria-label={t("editLabel")}
-          className="border-input bg-background h-9 rounded-md border px-2 text-sm"
+          className="h-9 px-2"
           value={editing}
           onChange={(event) => onEdit(event.target.value)}
         >
           <option value="true">{t("yes")}</option>
           <option value="false">{t("no")}</option>
-        </select>
+        </NativeSelect>
       ) : editing !== null && kind === "number" ? (
         <Input
           aria-label={t("editLabel")}

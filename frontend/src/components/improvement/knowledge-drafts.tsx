@@ -1,5 +1,6 @@
 "use client";
 
+import { NativeSelect } from "@/components/ui/native-select";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
@@ -123,18 +124,14 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
         <>
           <label className="block space-y-2 text-sm">
             <span>{t("chooseDraft")}</span>
-            <select
-              className="bg-background w-full rounded-lg border p-2"
-              value={topicId}
-              onChange={(event) => setTopicId(event.target.value)}
-            >
+            <NativeSelect value={topicId} onChange={(event) => setTopicId(event.target.value)}>
               <option value="">{t("chooseDraft")}</option>
               {drafts.map((topic) => (
                 <option key={topic.id} value={topic.id}>
                   {topic.label}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           {topicId && (
             <DraftFacts

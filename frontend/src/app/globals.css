@@ -229,11 +229,7 @@
      the loudest. */
   --color-warning: oklch(64% 0.1 72);
   --color-success: oklch(58% 0.1 155);
-  /* Fields use a soft filled surface and a quiet edge. Focus adds a wider,
-     low-opacity halo rather than a bright hairline. */
   --color-border: #e1e1dc;
-  --color-input: #8a8a85;
-  --color-switch-off: #72727c;
   --color-destructive-ink: #a52a34;
   --color-warning-ink: #795000;
   --color-success-ink: #236846;
@@ -266,14 +262,15 @@
 }
 
 /* Dark surfaces rise from navigation to page, cards and floating panels.
-   Fields use the card surface. Their edge stays stronger than decorative
-   card borders. Keep both root dark mappings aligned. */
+   Fields use a filled surface and a soft edge derived from the current look.
+   Keep both root dark mappings aligned. */
 @theme inline {
   /* Neutral controls resolve against the current look, not whatever sits behind them. */
   --color-control: color-mix(in oklab, var(--color-card) 92%, var(--color-foreground));
   --color-control-hover: color-mix(in oklab, var(--color-card) 87%, var(--color-foreground));
   --color-control-active: color-mix(in oklab, var(--color-card) 82%, var(--color-foreground));
-  --color-field: var(--color-card);
+  --color-input: color-mix(in oklab, var(--color-card) 82%, var(--color-foreground));
+  --color-field: color-mix(in oklab, var(--color-card) 94%, var(--color-foreground));
   --color-sidebar-secondary: color-mix(in oklab, var(--color-sidebar) 45%, var(--color-background));
   /* Dataset accents follow the foreground lightness, keeping their hue visible in both themes. */
   --color-dataset-blue-foreground: oklch(
@@ -386,8 +383,6 @@
     --color-accent: #38383f;
     --color-accent-foreground: oklch(95% 0 0);
     --color-border: #3c3c40;
-    --color-input: #85858e;
-    --color-switch-off: #777781;
     --color-destructive-ink: #ffb4b4;
     --color-warning-ink: #f0cc84;
     --color-success-ink: #99d5b1;
@@ -439,8 +434,6 @@
   --color-accent: #38383f;
   --color-accent-foreground: oklch(95% 0 0);
   --color-border: #3c3c40;
-  --color-input: #85858e;
-  --color-switch-off: #777781;
   --color-destructive-ink: #ffb4b4;
   --color-warning-ink: #f0cc84;
   --color-success-ink: #99d5b1;
@@ -462,8 +455,6 @@
    ========================================================================= */
 
 .theme-light {
-  --color-input: #8a8a85;
-  --color-switch-off: #72727c;
   --color-destructive-ink: #a52a34;
   --color-warning-ink: #795000;
   --color-success-ink: #236846;
@@ -511,8 +502,6 @@
 }
 
 .theme-dark {
-  --color-input: #85858e;
-  --color-switch-off: #777781;
   --color-destructive-ink: #ffb4b4;
   --color-warning-ink: #f0cc84;
   --color-success-ink: #99d5b1;
@@ -593,9 +582,9 @@
 
   /* Visible focus ring on every interactive element. Browsers handle :focus-visible
      correctly only when we don't override outline universally; here we set a
-     consistent brand ring with a 2px offset. */
+     consistent neutral outline with a 2px offset. */
   :focus-visible {
-    outline: 2px solid var(--color-ring);
+    outline: 2px solid color-mix(in oklab, var(--color-foreground) 60%, transparent);
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -646,7 +635,7 @@
   .skip-link:focus,
   .skip-link:focus-visible {
     transform: translateY(0);
-    outline: 2px solid var(--color-ring);
+    outline: 2px solid color-mix(in oklab, var(--color-foreground) 60%, transparent);
     outline-offset: 2px;
   }
 }

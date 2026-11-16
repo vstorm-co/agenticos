@@ -40,7 +40,7 @@ export function TimeZonePicker({ value, onChange, ...props }: Props) {
           aria-controls={listId}
           className={cn(
             FORM_CONTROL,
-            "flex min-h-10 w-full items-center gap-2 px-3 py-2 text-left text-sm",
+            "touch:min-h-11 flex min-h-10 w-full items-center gap-2 px-3 py-2 text-left text-sm",
           )}
         >
           <span className={cn("min-w-0 flex-1 truncate", !value && "text-muted-foreground")}>

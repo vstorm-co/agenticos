@@ -9,7 +9,7 @@ import { useTranslations } from "next-intl";
 /**
  * Sign in, sign up, and the password and magic-link pages around them.
  *
- * A white page with the form in a narrow column and, beside it on wide screens,
+ * A themed page with the form in a narrow column and, beside it on wide screens,
  * a soft grey panel holding the orb the chat shows while an agent works - the
  * one moving thing on the page, and the first glimpse of the product somebody
  * is signing in to. No badges, no licence line: the page asks for an email and
@@ -21,7 +21,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   useOnScreenKeyboard();
 
   return (
-    <div className="theme-light bg-background text-foreground grid h-[calc(var(--app-height,100dvh)-var(--shell-inset-top,0px))] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+    <div className="bg-background text-foreground grid h-[calc(var(--app-height,100dvh)-var(--shell-inset-top,0px))] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <main
         id="main"
         className="bg-card flex min-h-0 flex-col overflow-y-auto pb-[var(--safe-bottom)]"

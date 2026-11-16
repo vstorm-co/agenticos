@@ -1,5 +1,6 @@
 "use client";
 
+import { NativeSelect } from "@/components/ui/native-select";
 import { useId } from "react";
 import { useTranslations } from "next-intl";
 import { useLocalCodingOptions } from "@/hooks/use-desktop";
@@ -63,10 +64,10 @@ export function LocalCodingSettings({ harness }: { harness: CodingHarness }) {
         <Label htmlFor={`${id}-model`} className="text-muted-foreground text-xs">
           {t("model")}
         </Label>
-        <select
+        <NativeSelect
           id={`${id}-model`}
           value={preferences.model ?? ""}
-          className="bg-background border-input h-8 w-full rounded-md border px-2 text-xs"
+          className="h-8 px-2 text-xs"
           onChange={(event) => {
             const model = event.target.value || null;
             const next = models.find((entry) => entry.value === (model ?? data.current_model));
@@ -89,17 +90,17 @@ export function LocalCodingSettings({ harness }: { harness: CodingHarness }) {
               {model.name}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       <div className="min-w-0 space-y-1">
         <Label htmlFor={`${id}-effort`} className="text-muted-foreground text-xs">
           {t("effort")}
         </Label>
-        <select
+        <NativeSelect
           id={`${id}-effort`}
           value={preferences.effort ?? ""}
           disabled={efforts.length === 0 && preferences.effort === null}
-          className="bg-background border-input h-8 w-full rounded-md border px-2 text-xs disabled:opacity-50"
+          className="h-8 px-2 text-xs"
           onChange={(event) => save({ ...preferences, effort: event.target.value || null })}
         >
           <option value="">{efforts.length === 0 ? t("effortUnsupported") : t("ownEffort")}</option>
@@ -115,7 +116,7 @@ export function LocalCodingSettings({ harness }: { harness: CodingHarness }) {
                 : effort.name}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       <div className="col-span-full">
         {state.error && (

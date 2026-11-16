@@ -30,6 +30,7 @@ import contextlib
 import json
 import logging
 import random
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -91,7 +92,6 @@ from app.services.channels.discord_protocol import (
 )
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.worker.background.channel import (
-    process_channel_event,
     process_channel_press,
     process_feedback_comment,
     refusal_before_publishing,
@@ -1068,7 +1068,9 @@ class DiscordAdapter(ChannelAdapter):
             return
         incoming = self.parse_incoming(data, bot_id)
         if incoming is not None:
-            spawn(process_channel_event(incoming), name=f"discord-routed:{bot_id}")
+            from app.services.channels.ingress import admit_message
+
+            await admit_message(incoming)
 
     async def _learn_channel(self, bot_token: str, channel_id: str) -> bool:
         """Look a channel up the first time a message names it, to know whether it is a thread."""
@@ -1342,7 +1344,6 @@ class DiscordAdapter(ChannelAdapter):
             if refusal is not None:
                 await self._complete_ask_response(app_id, token, refusal)
                 return
-            await self._complete_ask_response(app_id, token, "On it.")
             # The deferred response is private and cannot become public. Publish
             # a separate bot message only after admission, then thread its reply.
             try:
@@ -1374,26 +1375,42 @@ class DiscordAdapter(ChannelAdapter):
             text = f"/{name}"
         else:
             return
-        spawn(
-            process_channel_event(
-                IncomingMessage(
-                    platform=self.platform,
-                    bot_id=bot_id,
-                    platform_user_id=str(user.get("id") or ""),
-                    platform_chat_id=key,
-                    chat_type="group" if guild else "private",
-                    text=text,
-                    raw=data,
-                    platform_username=user.get("username"),
-                    platform_display_name=user.get("global_name"),
-                    message_id=interaction_id,
-                    addressed=True,
-                    attachments=attachments,
-                    discord_roles_checked_for=checked_for,
-                )
-            ),
-            name=f"discord-command:{bot_id}",
+        from app.services.channels.ingress import admit_message
+
+        await admit_message(
+            IncomingMessage(
+                platform=self.platform,
+                bot_id=bot_id,
+                platform_user_id=str(user.get("id") or ""),
+                platform_chat_id=key,
+                chat_type="group" if guild else "private",
+                text=text,
+                raw=data,
+                platform_username=user.get("username"),
+                platform_display_name=user.get("global_name"),
+                message_id=interaction_id,
+                addressed=True,
+                attachments=attachments,
+                discord_roles_checked_for=checked_for,
+                discord_interaction=(self._app_id(data, bot_id), token)
+                if self._interactions.get(interaction_id) is not None
+                else None,
+            )
         )
+
+        if name == ASK:
+            await self._complete_ask_response(self._app_id(data, bot_id), token, "On it.")
+
+    @contextlib.contextmanager
+    def restored_interaction(self, incoming: IncomingMessage) -> Generator[None]:
+        """Expose only this job's decrypted reply handle for the duration of routing."""
+        if incoming.discord_interaction is not None and incoming.message_id is not None:
+            self._interactions.put(incoming.message_id, incoming.discord_interaction)
+        try:
+            yield
+        finally:
+            if incoming.discord_interaction is not None and incoming.message_id is not None:
+                self._interactions.pop(incoming.message_id)
 
     async def _on_press(
         self, data: dict[str, Any], bot_id: str, interaction_id: str, token: str

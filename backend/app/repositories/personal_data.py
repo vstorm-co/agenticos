@@ -48,6 +48,7 @@ from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.api_key import ApiKey
 from app.db.models.authoring import AuthoringRequest, SpecProposalHunk
+from app.db.models.background_job import BackgroundJob
 from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.case_generation import CaseProposal
 from app.db.models.case_score import CaseScore
@@ -545,6 +546,29 @@ async def purge_identities_of(db: AsyncSession, user_id: UUID) -> int:
     Returns:
         How many identities were removed, for the audit entry.
     """
+    # Durable ingress retains the native author, not a publisher fallback user.
+    # Clear it while the personal link can still resolve that native identity.
+    authored = exists(
+        select(ChannelIdentity.id).where(
+            ChannelIdentity.user_id == user_id,
+            ChannelIdentity.platform == BackgroundJob.payload["platform"].astext,
+            ChannelIdentity.platform_user_id == BackgroundJob.payload["platform_user_id"].astext,
+        )
+    )
+    own_run = BackgroundJob.payload["run_id"].astext.in_(
+        select(cast(AgentRun.id, Text)).where(AgentRun.id.in_(_runs_they_asked(user_id)))
+    )
+    await db.execute(
+        sa_delete(BackgroundJob).where(
+            or_(
+                and_(
+                    BackgroundJob.kind.in_(("process-channel-message", "process-channel-control")),
+                    authored,
+                ),
+                and_(BackgroundJob.kind == "deliver-channel-reply", own_run),
+            )
+        )
+    )
     result = await db.execute(sa_delete(ChannelIdentity).where(ChannelIdentity.user_id == user_id))
     await db.flush()
     return result.rowcount or 0  # ty: ignore[missing-attribute]

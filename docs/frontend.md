@@ -28,6 +28,8 @@ Use `PageHeader` for compact titles and actions. Grid catalogs use
 Action buttons use neutral `action` tokens, independently of the `primary`
 ink used by checked controls and badges. Keep focus and input edges visible.
 
+Form controls come from `components/ui`: `Input`, `Textarea`, `SelectTrigger`, `NativeSelect`, `Button`, `Checkbox` and `Switch`. Reuse `control-styles.ts` for custom combobox triggers. Filled fields, soft 2px edges, keyboard focus, invalid and disabled states derive from the active look; do not override all descendant inputs in a page stylesheet. Standard fields and actions are 40px high on desktop, with explicit compact/large variants and 44px touch targets. Sign-in and registration respect the selected theme and look. Use the development component gallery to compare all five looks in light and dark.
+
 People and organizations use `EntityAvatar`: uploaded photos are cropped into
 circles, with stable colours and initials as the fallback. Agents retain their
 generated faces. Gallery descriptions reserve two lines; opening an item shows

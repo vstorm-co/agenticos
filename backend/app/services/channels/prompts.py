@@ -38,6 +38,7 @@ from app.repositories import (
     channel_bot_repo,
     channel_identity_repo,
     channel_prompt_repo,
+    conversation_repo,
     member_repo,
 )
 from app.services.agent_runner import AgentRunnerService, PausedRunState, RunSegment
@@ -405,22 +406,32 @@ class ChannelPrompts:
         return True
 
     async def deliver(
-        self, bot: ChannelBot, *, platform: str, platform_chat_id: str, segment: RunSegment
-    ) -> None:
+        self,
+        bot: ChannelBot,
+        *,
+        platform: str,
+        platform_chat_id: str,
+        segment: RunSegment,
+    ) -> bool:
         """Post a continued run's answer, then what it is waiting on, then its next steps.
 
         The one order every continuation uses, whoever continued the run: a press
         in the chat, or a decision made somewhere else.
         """
-        await self._send_segment(bot, platform, platform_chat_id, segment)
+        delivered = await self._send_segment(bot, platform, platform_chat_id, segment)
         await self.offer(
             bot, platform=platform, platform_chat_id=platform_chat_id, run_id=segment.run.id
         )
         self._follow_ups(bot, segment, platform_chat_id)
+        return delivered
 
     async def _send_segment(
-        self, bot: ChannelBot, platform: str, platform_chat_id: str, segment: RunSegment
-    ) -> None:
+        self,
+        bot: ChannelBot,
+        platform: str,
+        platform_chat_id: str,
+        segment: RunSegment,
+    ) -> bool:
         """A resumed answer carries its new picture just like the initial turn."""
         notices: list[str] = []
         picture = await drawn_picture(
@@ -438,10 +449,14 @@ class ChannelPrompts:
                 [await with_preview_links(segment.output or "Done.", segment.run.id), *notices]
             ),
             image_png=picture,
+            attachments=list(segment.outbound),
             api_base_url=bot.api_base_url,
+            reply_to_message_id=None
+            if segment.channel_destination is None
+            else segment.channel_destination.message_id,
         )
         try:
-            await adapter.send_message(token, message)
+            native_id = await adapter.send_message(token, message)
         except Exception:
             if picture is None:
                 raise
@@ -449,6 +464,14 @@ class ChannelPrompts:
             await adapter.send_message(
                 token, replace(message, text=PICTURE_DELIVERY_UNCONFIRMED, image_png=None)
             )
+
+        else:
+            if isinstance(native_id, str):
+                await conversation_repo.bind_channel_source(
+                    self.db, run_id=segment.run.id, role="assistant", source_id=native_id
+                )
+            return True
+        return False
 
     def _follow_ups(self, bot: ChannelBot, segment: RunSegment, platform_chat_id: str) -> None:
         run = segment.run

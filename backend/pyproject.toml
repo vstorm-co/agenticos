@@ -786,6 +786,8 @@ include = [
     # Approvals and questions offered as buttons in a chat, and the Slack app
     # around the bot (#2064, #2067, #2068).
     "app/services/channels/prompts.py",
+    "app/services/channels/ingress.py",
+    "app/services/channels/reply_receipts.py",
     # Next steps offered as buttons, a press of which is the next message (#2301).
     "app/services/channels/next_steps.py",
     "app/services/channels/notification_send.py",
@@ -1671,6 +1673,8 @@ include = [
     # Approvals and questions offered as buttons in a chat, and the Slack app
     # around the bot (#2064, #2067, #2068).
     "app/services/channels/prompts.py",
+    "app/services/channels/ingress.py",
+    "app/services/channels/reply_receipts.py",
     # Next steps offered as buttons, a press of which is the next message (#2301).
     "app/services/channels/next_steps.py",
     "app/services/channels/notification_send.py",

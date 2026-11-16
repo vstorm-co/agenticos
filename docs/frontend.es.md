@@ -1,5 +1,5 @@
 ---
-source_sha: "8ca784f8a0b0"
+source_sha: "8893d5c7fe0b"
 ---
 
 # El código de la consola { #the-consoles-code }
@@ -32,6 +32,8 @@ usan `ListCard layout="grid"` sin un panel adicional; las tablas conservan el
 panel. Los botones usan tokens neutros `action`, independientes de `primary`
 para controles seleccionados e insignias. El foco y los bordes de los campos
 siguen siendo visibles.
+
+Los controles de formulario proceden de `components/ui`: `Input`, `Textarea`, `SelectTrigger`, `NativeSelect`, `Button`, `Checkbox` y `Switch`. Los activadores de combobox personalizados reutilizan `control-styles.ts`. Los campos con relleno, bordes suaves de 2px, foco de teclado y estados de error y desactivación derivan del estilo activo; las hojas de una página no deben sobrescribir todos los inputs descendientes. Los campos y acciones estándar miden 40px en escritorio, con variantes compactas/grandes explícitas y objetivos táctiles de 44px. El acceso y el registro respetan el tema y estilo elegidos. La galería de componentes en desarrollo permite comparar los cinco estilos en claro y oscuro.
 
 Las personas y organizaciones usan `EntityAvatar`: las fotos se recortan en
 círculos, con iniciales sobre un color estable como alternativa. Los agentes

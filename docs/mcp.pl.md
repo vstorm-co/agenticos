@@ -1,5 +1,5 @@
 ---
-source_sha: "64b3eac00c71"
+source_sha: "c11105a501c2"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -252,10 +252,12 @@ narzędzia na serwerze. Grupa, której narzędzia się różnią, pokazuje
 **Dla każdego narzędzia**, a wybór dla grupy znów ustawia wszystkie jej
 narzędzia. Narzędzie dodane później przez serwer podąża za swoją grupą.
 
-W dwóch miejscach decyduje wskazówka serwera. W komunikatorze narzędzie, którego
-serwer nie oznaczył jako tylko do odczytu, najpierw pyta, nawet gdy ma działać bez
-pytania, a obserwacja nigdy nie czyta narzędzia, przed którym jej powiązanie pyta,
-bo nikt nie może wtedy odpowiedzieć.
+Uruchomienia w kanałach stosują politykę powiązania i poszczególnych narzędzi dla
+każdego dopuszczonego nadawcy, także bez powiązanego konta. Kanał nie dodaje
+osobnej bramki akceptacji. Konta osobiste nadal wymagają powiązanej tożsamości
+nadawcy i jego autoryzowanego połączenia; połączenia platformy zachowują minimum
+`writes`. Obserwacja nie odczytuje narzędzia wymagającego akceptacji, bo nikt
+nie może wtedy odpowiedzieć.
 
 ### Przez czyje konto mówi powiązanie { #whose-account-a-binding-speaks-through }
 
