@@ -2395,3 +2395,11 @@ The Inbox MCP tools are for signed-in sessions and trusted private-chat run
 credentials; the latter are restricted to cases belonging to that chat. Ordinary
 API keys, unattended runs and publisher fallback identities cannot read or settle
 private Inbox cases.
+
+## Approval groups
+
+Workflow human-approval and MCP-call steps can name individual approvers, organization groups, or both. Any one eligible person may decide, and they must independently hold `approvals:decide`. With neither users nor groups configured, the existing unrestricted permission-based rule applies. A configured empty or deleted group never makes a request unrestricted.
+
+Group membership and active account status are checked at decision time. Notifications resolve eligible group members when the request is created and deduplicate overlap with named users. Joining later can grant decision eligibility without sending another notification; leaving or losing permission removes it.
+
+Agent approval, budget and usage alerts can also name groups under chosen recipients. These are notification audiences only: they neither grant approval permission nor restrict who may decide. Existing personal notification preferences remain effective.

@@ -130,7 +130,7 @@ describe("ScheduledTab", () => {
 
     expect(await screen.findByText("Routine 0")).toBeVisible();
     expect(screen.queryByText("Routine 57")).toBeNull();
-    expect(screen.getByText("58 routines · page 1 of 2")).toBeVisible();
+    expect(screen.getByText("1 / 2")).toBeVisible();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Next page" }));
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "1d738a8f00d6"
+source_sha: "63fad5394956"
 ---
 
 # La consola { #the-console }
@@ -67,6 +67,8 @@ Los ajustes del chat tienen un encabezado fijo y un botón de cierre sobre el co
 Los agentes de una conversación se ordenan por su último mensaje o ejecución principal, del más reciente al más antiguo. La barra de chat contraída mantiene los avatares a tamaño completo, superpone hasta tres y oculta a los participantes más antiguos; la lista completa sigue disponible en la ayuda emergente.
 
 Cuando **Approve everything** no está disponible, los ajustes del chat distinguen entre la falta de permiso para decidir aprobaciones y una política de la organización que desactiva el consentimiento permanente. Quien puede decidir aprobaciones recibe un enlace a **Presupuesto y aprobaciones** para cambiar esa política expresamente. El chat nunca modifica la política de la organización automáticamente.
+
+El área de mensaje muestra el modo de aprobación activo junto al selector del agente. Abre la etiqueta para cambiar el modo guardado antes de enviar. Se aplican los mismos permisos y la política de la organización que en Chat controls. Las llamadas aprobadas automáticamente conservan sus registros de auditoría aprobados; solo las llamadas realmente pendientes muestran controles para decidir.
 
 Los diálogos mantienen un margen de 12 px en todos los bordes del teléfono. Los encabezados compactos muestran título y acciones en una línea cuando caben. La descripción de Context se abre desde la barra del editor.
 

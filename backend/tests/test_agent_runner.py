@@ -138,6 +138,15 @@ from tests.workspaces import document_workspace
 
 
 @pytest.fixture(autouse=True)
+def _no_connected_chat_bindings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These runs have no bot grants; test_channel_actions exercises actual audiences."""
+    monkeypatch.setattr(
+        "app.services.channel_actions.agent_exposure_repo.list_for_agent",
+        AsyncMock(return_value=[]),
+    )
+
+
+@pytest.fixture(autouse=True)
 def _nobody_the_account_describes(monkeypatch: pytest.MonkeyPatch) -> None:
     """No account behind these runs' facts; `test_prompt_variables` covers the person (#2301).
 
@@ -6503,6 +6512,16 @@ class TestWhatTheChannelLetsTheAgentLookUp:
         assert CHANNEL_DIRECTORY_RESOURCE not in built["resources"]
         assert spec.capabilities == []
 
+    @pytest.mark.anyio
+    async def test_connected_action_grants_reach_the_factory_resource(self):
+        with patch(
+            "app.services.channel_actions.ChannelActionService.tools",
+            new=AsyncMock(return_value=["react_to_chat_message"]),
+        ):
+            spec, built = await self._built(exposure=None, directory=None)
+        assert "channel_actions" in built["resources"]
+        assert any(binding.id == "channel_actions" for binding in spec.capabilities)
+
 
 class TestTheBrowsersStepModel:
     """A fast model for `browse_web`'s steps reaches the capability built, not the run."""
@@ -6520,7 +6539,7 @@ class TestTheBrowsersStepModel:
         )
         step_model = MagicMock(name="fast-model")
         resolve = AsyncMock(
-            side_effect=lambda ctx, profile_id=None: MagicMock(
+            side_effect=lambda ctx, profile_id=None, decision=False: MagicMock(
                 label="m", build=MagicMock(return_value=step_model)
             )
         )
@@ -6562,7 +6581,9 @@ class TestTheBrowsersStepModel:
         )
         resolver = AsyncMock(
             side_effect=resolve
-            or (lambda ctx, profile_id=None: MagicMock(label="m", build=MagicMock()))
+            or (
+                lambda ctx, profile_id=None, decision=False: MagicMock(label="m", build=MagicMock())
+            )
         )
         with (
             patch.object(
@@ -6630,7 +6651,7 @@ class TestTheBrowsersStepModel:
             ],
         )
 
-        def resolve(ctx, profile_id=None):
+        def resolve(ctx, profile_id=None, decision=False):
             if profile_id == gone:
                 raise NotFoundError(message="Model profile not found")
             return MagicMock(label="m", build=MagicMock())

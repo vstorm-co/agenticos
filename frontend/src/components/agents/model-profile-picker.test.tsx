@@ -507,3 +507,10 @@ it("lets the compact selector restore the assistant's default model", async () =
   await userEvent.click(screen.getByRole("option", { name: "Use default model" }));
   expect(onChange).toHaveBeenCalledWith(null);
 });
+
+it("labels a required independent model without promising the default model", () => {
+  mount({ compact: true, emptyLabel: "Choose a decision model" });
+  expect(screen.getByRole("combobox", { name: "Model" })).toHaveTextContent(
+    "Choose a decision model",
+  );
+});

@@ -12,7 +12,7 @@ Four edges, each configured independently:
 - **input** — the user's prompt, before the first model request. A prompt with a
   picture is screened by its text parts alone (an inline UTF-8 text file as
   text, a link too, where a redaction blocks), and a redaction rewrites those
-  parts and keeps the picture (`ScreenedPrompt`, #2566).
+  parts and keeps the picture (`ScreenedPrompt`, #2566). The original human transcript remains intact; a separate screened replay copy includes attachment briefings and survives later guardrail changes. Legacy user turns and compaction summaries are screened before context management.
 - **output** — the agent's final answer, and everything a streaming surface shows
   on the way to it. `ScreenedStream` holds each text and reasoning part back until
   it is complete and runs the same detector over it, so a redacted key never reaches the screen or the transcript's parts (#1900).

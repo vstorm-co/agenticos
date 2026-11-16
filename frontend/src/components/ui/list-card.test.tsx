@@ -6,7 +6,24 @@ import { describe, expect, it, vi } from "vitest";
 import { ListCard, ListCardEmpty, ListCardFootRow } from "./list-card";
 
 describe("ListCard", () => {
-  it("keeps a grid toolbar and its loading state without nesting another surface", () => {
+  it("omits a redundant count-only header but retains actual controls", () => {
+    const { rerender } = render(
+      <ListCard namedByPage title="Channels">
+        <p>rows</p>
+      </ListCard>,
+    );
+    expect(screen.getByText("Channels").parentElement).toHaveAttribute("hidden");
+    expect(screen.getByText("rows")).toBeVisible();
+    rerender(
+      <ListCard namedByPage title="Channels" controls={<input aria-label="Find channel" />}>
+        <p>rows</p>
+      </ListCard>,
+    );
+    expect(screen.getByRole("textbox", { name: "Find channel" })).toBeVisible();
+    expect(screen.getByText("Channels").parentElement).not.toHaveAttribute("hidden");
+  });
+
+  it("keeps one shared container and toolbar for grid catalogs in every state", () => {
     const { container, rerender } = render(
       <ListCard
         layout="grid"
@@ -18,7 +35,7 @@ describe("ListCard", () => {
         <p>cards</p>
       </ListCard>,
     );
-    expect(container.firstElementChild).toHaveClass("bg-transparent", "border-0", "shadow-none");
+    expect(container.firstElementChild).toHaveClass("bg-card", "border");
     expect(container.querySelector(".animate-pulse")).not.toBeNull();
     expect(screen.getByRole("button", { name: "search" })).toBeVisible();
     rerender(
@@ -27,7 +44,7 @@ describe("ListCard", () => {
       </ListCard>,
     );
     expect(screen.getByText("2 skills")).toBeVisible();
-    expect(container.firstElementChild).toHaveClass("bg-transparent", "border-0");
+    expect(container.firstElementChild).toHaveClass("bg-card", "border");
   });
 
   it("keeps the frame and title in every state, counting once the server answered", () => {
@@ -171,6 +188,17 @@ describe("ListCardEmpty", () => {
     expect(screen.getByText("No skills yet")).toBeInTheDocument();
     expect(screen.getByText("Write one down.")).toBeInTheDocument();
     expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps filtered results near the toolbar with a shared clear action", async () => {
+    const clear = vi.fn();
+    const { container } = render(
+      <ListCardEmpty icon={BookOpen} title="No matches" onClearFilters={clear} />,
+    );
+    expect(container.firstElementChild).not.toHaveClass("flex-1");
+    expect(container.querySelector(".lucide-search")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(clear).toHaveBeenCalledOnce();
   });
 
   it("offers no button when there is nothing the reader may do", () => {

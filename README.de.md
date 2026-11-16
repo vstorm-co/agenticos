@@ -1,4 +1,4 @@
-<!-- source_sha: 3aeccb10a78f -->
+<!-- source_sha: 8dc02e0ed861 -->
 
 <div align="center">
 
@@ -260,6 +260,13 @@ Manuelle Einrichtung mit Docker Compose, festgelegte Versionen und Fehlerbehebun
 </details>
 
 </details>
+
+## ☁️ Mit einem Klick bereitstellen
+
+<a href="https://repocloud.io/details/Agenticos/"><img src="https://d16t0pc4846x52.cloudfront.net/deploylobe.svg" alt="Auf RepoCloud bereitstellen" height="42"></a>
+<a href="https://railway.com/deploy/agenticos"><img src="https://railway.com/button.svg" alt="Auf Railway bereitstellen" height="42"></a>
+
+Prüfe vor der Bereitstellung die Anweisungen des Anbieters, die Image-Versionen und die enthaltenen Dienste. Diese Hosting-Vorlagen werden unabhängig von diesem Repository gepflegt. Die Railway-Vorlage verwendet derzeit eine ältere AgenticOS-Version und enthält keine lokale Sandbox zur Codeausführung.
 
 ## Auf deinem Server. Auf jedem Gerät.
 

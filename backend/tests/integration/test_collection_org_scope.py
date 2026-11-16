@@ -603,3 +603,33 @@ class TestWhatABaseReportsStaysItsOwn:
         assert member_a.items == []
         assert [item.id for item in owner_a.items] == [str(seeded["tenant_run"].id)]
         assert [item.id for item in org_b.items] == [str(seeded["app_run"].id)]
+
+    @pytest.mark.security
+    async def test_deleted_sources_keep_proven_run_ownership_and_hide_unknown_legacy_runs(self, db):
+        seeded = await self._seed(db)
+        for run_key, ctx_key, kb_key, source_key in (
+            ("tenant_run", "ctx_owner_a", "kb_a", "tenants"),
+            ("app_run", "ctx_b", "kb_app", "apps"),
+        ):
+            row = seeded[run_key]
+            row.organization_id = seeded[ctx_key].organization_id
+            row.knowledge_base_id = seeded[kb_key].id
+            await db.delete(seeded[source_key])
+        unknown = SyncLog(source="local", collection_name="both", mode="full")
+        db.add(unknown)
+        await db.flush()
+        await db.refresh(seeded["tenant_run"])
+        await db.refresh(seeded["app_run"])
+        assert seeded["tenant_run"].sync_source_id is None
+        assert seeded["app_run"].sync_source_id is None
+        access = CollectionAccessService(db)
+        runs = RAGSyncService(db)
+        for ctx_key, expected in (
+            ("ctx_owner_a", [str(seeded["tenant_run"].id)]),
+            ("ctx_member_a", []),
+            ("ctx_b", [str(seeded["app_run"].id)]),
+        ):
+            result = await runs.list_sync_logs(
+                scope=await access.readable_sync_log_scope(seeded[ctx_key], "both")
+            )
+            assert [item.id for item in result.items] == expected

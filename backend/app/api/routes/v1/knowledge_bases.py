@@ -437,7 +437,7 @@ async def clone_kb_sync_source(
     """
     kb = await service.get_for_write(kb_id, ctx=ctx)
     await access.new_source_feeds(ctx, kb)
-    source = await access.sync_source(ctx, str(source_id))
+    source = await access.writable_sync_source(ctx, str(source_id))
     clone_data = data.model_copy(update={"collection_name": kb.collection_name})
     return await sync_source_svc.clone_source(str(source.id), clone_data, ctx=ctx)
 
@@ -516,12 +516,14 @@ async def update_kb_sync_source(
     A key set to `null` in `config` removes it from the stored config.
     """
     kb = await service.get_for_write(kb_id, ctx=ctx)
-    await access.kb_sync_source(ctx, kb, str(source_id), for_update=True)
+    await access.kb_sync_source(ctx, kb, str(source_id), for_update=False)
     if "collection_name" in data.model_fields_set and data.collection_name != kb.collection_name:
         raise refused_field(
             "collection_name", "A source cannot be moved to another knowledge base from here"
         )
-    return await sync_source_svc.update_source(str(source_id), data, ctx=ctx)
+    prepared = await sync_source_svc.prepare_update(str(source_id), data, ctx=ctx)
+    await access.kb_sync_source(ctx, kb, str(source_id), for_update=True)
+    return await sync_source_svc.update_source(str(source_id), data, ctx=ctx, prepared=prepared)
 
 
 @router.delete(

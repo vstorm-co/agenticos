@@ -9,6 +9,7 @@ import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type { UsageReporting } from "@/types/channels";
 import type { Exposure, ExposureList, ExposureTarget, ExposureTargetList } from "@/types/exposures";
+import type { ChannelObservationConfig } from "@/types/exposures";
 
 /**
  * Where one agent is available, and where it could be.
@@ -88,10 +89,12 @@ export function useExposures(agentId: string | null) {
 
   const setPrompt = useMutation({
     mutationFn: ({ exposureId, prompt }: { exposureId: string; prompt: string | null }) =>
-      // Only this field goes, for the reason `setActive` says: the server
-      // applies what it was sent, so reading a value back and returning it would
-      // overwrite whatever somebody changed in between.
-      apiClient.patch<Exposure>(`${base}/${exposureId}`, { prompt }),
+      // Prompt and its interpretation change together; never overwrite the
+      // binding's independently edited tools, environment or workspace scope.
+      apiClient.patch<Exposure>(`${base}/${exposureId}`, {
+        prompt,
+        prompt_replaces_defaults: prompt !== null,
+      }),
     onSuccess: invalidate,
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
@@ -118,6 +121,18 @@ export function useExposures(agentId: string | null) {
       // what it was sent, so reading a value back and returning it alongside
       // would overwrite whatever somebody changed in between.
       apiClient.patch<Exposure>(`${base}/${exposureId}`, { usage_reporting: usageReporting }),
+    onSuccess: invalidate,
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
+  const setObservation = useMutation({
+    mutationFn: ({
+      exposureId,
+      observation,
+    }: {
+      exposureId: string;
+      observation: ChannelObservationConfig;
+    }) => apiClient.patch<Exposure>(`${base}/${exposureId}`, { observation }),
     onSuccess: invalidate,
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
@@ -151,6 +166,7 @@ export function useExposures(agentId: string | null) {
     setPrompt,
     setTools,
     setUsageReporting,
+    setObservation,
     revoke,
   };
 }

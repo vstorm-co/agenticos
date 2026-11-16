@@ -316,3 +316,14 @@ it("retries a failed department read without labelling it not found", async () =
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
   expect(await screen.findByText("Shared with this group")).toBeVisible();
 });
+
+it("clears an unmatched group search from the shared empty state", async () => {
+  serve("viewer");
+  await mount(<GroupsPage />);
+  await screen.findByRole("link", { name: "Finance" });
+  const search = screen.getByRole("textbox", { name: "Search departments…" });
+  await userEvent.type(search, "unmatched");
+  await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  expect(search).toHaveValue("");
+  expect(screen.getByText("Finance")).toBeVisible();
+});

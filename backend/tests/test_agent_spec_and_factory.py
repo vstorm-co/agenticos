@@ -1294,7 +1294,7 @@ class TestWhoHearsAboutAnAgent:
         """
         fields = set(AlertSpec.model_fields)
 
-        assert fields == {"enabled", "to", "user_ids"}
+        assert fields == {"enabled", "to", "user_ids", "group_ids"}
         assert not any("mail" in name or "address" in name for name in fields)
 
     def test_a_rendered_spec_carries_no_address(self):

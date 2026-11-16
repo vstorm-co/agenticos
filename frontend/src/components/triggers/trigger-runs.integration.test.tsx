@@ -384,3 +384,18 @@ it("returns to the newest attempt page when another fire starts", async () => {
   expect(await screen.findByText(/Enable Act as creator/)).toBeVisible();
   expect(screen.queryByText("Starting…")).toBeNull();
 });
+
+it("shows paused setup status without granting non-owners a source-review control", () => {
+  render(
+    <TriggerRow
+      trigger={trigger({
+        setup_required: true,
+        can_manage: false,
+        created_by_user_id: "someone-else",
+      })}
+    />,
+    { wrapper },
+  );
+  expect(screen.getByText("Setup required")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Setup required" })).not.toBeInTheDocument();
+});

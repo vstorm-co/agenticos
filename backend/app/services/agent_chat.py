@@ -79,6 +79,7 @@ from app.services.mentions import MentionService, ResolvedMentions
 from app.services.message_history import ModelHistory
 from app.services.run_heartbeat import run_heartbeat
 from app.services.sandbox_workspace import SandboxWaitSink
+from app.services.screened_replay import screen_history, screened_copy
 from app.services.usage_report import UsageReport, UsageReportService, context_fill
 
 logger = logging.getLogger(__name__)
@@ -599,6 +600,8 @@ class ChatAgentRunner:
         # This runner is the console's, which draws a draft as a card.
         prepared.deps.shows_drafts = True
         input_edge = input_screen_for(prepared.spec)
+        replay_prompt = _as_text(user_input)
+        replay_attachments: str | None = None
         if steering is not None:
             steering.screen = input_edge
         # Before the model answers, not after: the model is about to say it cannot
@@ -640,6 +643,7 @@ class ChatAgentRunner:
                 screen=input_edge,
             )
             user_input = await router.build_prompt(_as_text(user_input), attachments)
+            replay_attachments = router.context or None
             # Kept on the prompt's row so the next turn's history still carries
             # the file - it is otherwise in this one request and nowhere else.
             if router.context and prompt_message_id is not None and conversation_id is not None:
@@ -668,6 +672,19 @@ class ChatAgentRunner:
         finished_cleanly = False
         # The transaction ends before the model is asked anything - the same
         # boundary `AgentRunnerService._run` sets, and for its reasons (#12).
+        model_content = screened_copy(replay_prompt, replay_attachments, input_edge)
+        if (
+            model_content is not None
+            and prompt_message_id is not None
+            and conversation_id is not None
+        ):
+            await conversation_repo.set_model_content(
+                self.db,
+                message_id=prompt_message_id,
+                conversation_id=conversation_id,
+                content=model_content,
+            )
+        message_history = screen_history(message_history, input_edge)
         prepared.model_context_check = model_context_check(conversation_id, message_history)
         try:
             if isinstance(message_history, ModelHistory):
@@ -784,7 +801,11 @@ class ChatAgentRunner:
             agent_id=prepared.agent.id,
             agent_version_id=prepared.run.agent_version_id,
             run_id=prepared.run.id,
-            parked=tuple(prepared.approvals.requested),
+            parked=tuple(
+                entry
+                for entry in prepared.approvals.requested
+                if str(entry.approval_id) in prepared.approvals.parked
+            ),
             questions=tuple(paused.questions) if paused is not None else (),
             mcp_origins=prepared.mcp_origins,
             draft_tools=draft_tool_names(prepared.spec),
