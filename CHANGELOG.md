@@ -25,6 +25,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Restore dependency freshness checks with ty 0.0.104 by updating renamed diagnostic rules and the minimum checker version, and allow the full backend CI runtime for the upgrade canary.
 - **Deleting an account.** Deleting a person whose runs belong to their own conversations no longer fails on `agent_runs_conversation_id_fkey`, whichever order the database runs the delete cascades in.
 - **Memory writes after "forget me".** A run that began before a person's memory or an agent's memory was erased, one waiting for an approval included, saves nothing more to that memory and tells the model why. Memory extraction holds off clearing an agent's memory while it writes.
 - **Memory-maintenance and daily-briefing manifests.** Erasing a person's memory, or deleting their account, trims the conversation text, facts, notes and requests these runs kept to what the spec decided, including a run that finishes after the erasure.

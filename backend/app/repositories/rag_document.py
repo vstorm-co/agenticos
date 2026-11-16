@@ -354,7 +354,7 @@ async def update_status(
             .values(**values)
             .execution_options(synchronize_session="fetch")
         )
-        if not result.rowcount:  # ty: ignore[unresolved-attribute]
+        if not result.rowcount:  # ty: ignore[missing-attribute]
             return None
         await db.flush()
         return await db.get(RAGDocument, doc_id)

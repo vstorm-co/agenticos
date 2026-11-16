@@ -364,7 +364,7 @@ async def purge_knowledge_searches_of(db: AsyncSession, user_id: UUID) -> int:
     await db.flush()
     # `execute` is typed to return `Result`, which has no `rowcount`; a DML
     # statement actually returns a `CursorResult`, which does (see `resource_grant`).
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+    return result.rowcount or 0  # ty: ignore[missing-attribute]
 
 
 async def clear_gap_reasons_of(db: AsyncSession, user_id: UUID) -> int:
@@ -390,7 +390,7 @@ async def clear_gap_reasons_of(db: AsyncSession, user_id: UUID) -> int:
     await db.flush()
     # `execute` is typed to return `Result`, which has no `rowcount`; a DML
     # statement actually returns a `CursorResult`, which does (see `resource_grant`).
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+    return result.rowcount or 0  # ty: ignore[missing-attribute]
 
 
 async def memory_about(db: AsyncSession, owner_key: str) -> list[AgentMemoryFile]:
@@ -533,7 +533,7 @@ async def purge_memory_about(db: AsyncSession, owner_key: str) -> int:
     # The ledger is the same personal data in another table, and so are the copies
     # somebody shared out of it (`derived_from`), which do not outlive their source.
     claims = await memory_claim_repo.delete_everywhere_about(db, scope_key=owner_key)
-    return (result.rowcount or 0) + claims  # ty: ignore[unresolved-attribute]
+    return (result.rowcount or 0) + claims  # ty: ignore[missing-attribute]
 
 
 async def purge_identities_of(db: AsyncSession, user_id: UUID) -> int:
@@ -549,7 +549,7 @@ async def purge_identities_of(db: AsyncSession, user_id: UUID) -> int:
     """
     result = await db.execute(sa_delete(ChannelIdentity).where(ChannelIdentity.user_id == user_id))
     await db.flush()
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+    return result.rowcount or 0  # ty: ignore[missing-attribute]
 
 
 _NO_SOURCE: dict[str, None] = {
@@ -589,7 +589,7 @@ async def unlink_dataset_cases_from_conversation(
         .values(**_NO_SOURCE)
     )
     await db.flush()
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+    return result.rowcount or 0  # ty: ignore[missing-attribute]
 
 
 async def unlink_dataset_cases_of(db: AsyncSession, user_id: UUID) -> int:
@@ -618,7 +618,7 @@ async def unlink_dataset_cases_of(db: AsyncSession, user_id: UUID) -> int:
         .values(**_NO_SOURCE)
     )
     await db.flush()
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+    return result.rowcount or 0  # ty: ignore[missing-attribute]
 
 
 async def delete_case_proposals_of(db: AsyncSession, user_id: UUID) -> int:
@@ -632,7 +632,7 @@ async def delete_case_proposals_of(db: AsyncSession, user_id: UUID) -> int:
     """
     result = await db.execute(sa_delete(CaseProposal).where(_proposals_drafted_from(user_id)))
     await db.flush()
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+    return result.rowcount or 0  # ty: ignore[missing-attribute]
 
 
 async def purge_scored_answers_of(db: AsyncSession, user_id: UUID) -> int:
@@ -795,7 +795,7 @@ async def purge_case_copies(db: AsyncSession, revision_ids: list[UUID]) -> int:
         forget_answer(score)
     await forget_runs(db, runs)
     await db.flush()
-    return (attempts.rowcount or 0) + len(scores)  # ty: ignore[unresolved-attribute]
+    return (attempts.rowcount or 0) + len(scores)  # ty: ignore[missing-attribute]
 
 
 _LOCK_NOT_AVAILABLE = "55P03"
@@ -1033,7 +1033,7 @@ async def clear_case_notes_of(
         .where(DatasetCase.noted_by_user_id == user_id)
         .values(note=None, noted_by_user_id=None)
     )
-    cleared = noted.rowcount or 0  # ty: ignore[unresolved-attribute]
+    cleared = noted.rowcount or 0  # ty: ignore[missing-attribute]
     if not comments:
         await db.flush()
         return cleared
@@ -1271,7 +1271,7 @@ async def clear_gap_drafts_of(db: AsyncSession, user_id: UUID) -> int:
         )
     )
     await db.flush()
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+    return result.rowcount or 0  # ty: ignore[missing-attribute]
 
 
 async def forget_knowledge_runs(db: AsyncSession, run_ids: Iterable[UUID]) -> None:
@@ -1364,7 +1364,7 @@ async def purge_workspaces_of(db: AsyncSession, owner_ref: str) -> int:
         )
     )
     await db.flush()
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+    return result.rowcount or 0  # ty: ignore[missing-attribute]
 
 
 def as_rows(items: list[Any], fields: tuple[str, ...]) -> list[dict[str, Any]]:
