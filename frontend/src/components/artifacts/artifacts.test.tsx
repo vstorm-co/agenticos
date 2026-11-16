@@ -50,6 +50,7 @@ const IDLE_READ = {
 const useArtifactReasonsMock = vi.fn().mockReturnValue(IDLE_READ);
 const unlockMock = vi.fn();
 vi.mock("@/hooks/use-artifacts", () => ({
+  useArtifactThumbnail: () => ({ data: { state: "unavailable", image: null }, isPending: false }),
   useArtifactView: (...args: unknown[]) => useArtifactViewMock(...args),
   useArtifactData: (...args: unknown[]) => useArtifactDataMock(...args),
   useArtifactReasons: (...args: unknown[]) => useArtifactReasonsMock(...args),

@@ -1,5 +1,5 @@
 ---
-source_sha: "bfe431b65940"
+source_sha: "88782c453516"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -350,6 +350,7 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 | OpenAI | `openai` | clave de API, o ninguna | ✓ |
 | Anthropic | `anthropic` | clave de API | ✓ |
 | Google Gemini | `google` | clave de API | ✓ |
+| TypeSafe (Jev) | `typesafe` | API key | ✓ |
 | OpenRouter | `openrouter` | clave de API |  ✓ |
 | Otari | `otari` | clave de API | ✓ |
 | Alibaba Cloud | `alibaba` | clave de API | ✓ |
@@ -376,6 +377,7 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 
 | Provider | id | Credencial | Custom URL |
 |---|---|---|---|
+| System One API | `system-one` | API key, or none | ✓ |
 | Ollama | `ollama` | ninguna | ✓ |
 | LiteLLM proxy | `litellm` | ninguna | ✓ (`api_base`) |
 
@@ -800,3 +802,15 @@ Un endpoint regional sirve menos modelos de embeddings que el global: `eu.openro
 Actualiza todos los procesos de API y workers antes de configurar endpoints regionales. Las versiones anteriores ignoran el endpoint personalizado de OpenRouter.
 
 Para otro endpoint con el mismo proveedor y modelo, elija **Añadir modelo separado** en el Builder. El nombre automático incluye el endpoint y el perfil existente no cambia. **Actualizar modelo** modifica el perfil compartido. Los catálogos personalizados están limitados a 2 MiB, 2048 modelos y longitudes de campos acotadas, con un máximo de 16 catálogos en caché por proceso. Una respuesta comprimida o demasiado grande permite escribir el ID del modelo sin recurrir a una lista global.
+
+## Modelos de decisión { #decision-models }
+
+Los perfiles de decisión usan la API nativa `decisions` en lugar de generar texto. Elige proveedor, modelo y clave del almacén en el formulario del modelo. OpenAI, Google y OpenRouter ofrecen APIs de chat y decisiones; TypeSafe y un endpoint System One propio sirven decisiones. Un perfil de decisión no puede ser el modelo conversacional de un agente ni recurrir a un modelo de chat como alternativa.
+
+Los adaptadores proceden de Pydantic AI. Las sugerencias actuales incluyen OpenAI `gpt-6-luna`, Google `gemini-decision-1` y TypeSafe `jev-1.14.0` / `jev-latest`. OpenRouter consulta el catálogo de decisiones por separado del catálogo de texto. System One propio requiere URL e identificador de modelo. La disponibilidad depende del proveedor y de la cuenta; una sugerencia no garantiza acceso.
+
+Los pasos **Decision models** de los workflows eligen un perfil nativo. Los identificadores `decide.*` y las configuraciones existentes con clave TypeSafe siguen siendo válidos. Por debajo del umbral de confianza se utiliza el puerto `unsure`. Cada ejecución comprueba de nuevo permisos y claves; el coste cuenta para los presupuestos del workflow y la organización.
+
+La participación automática en canales admite un modelo nativo o un LLM habitual con salida estructurada. La decisión nativa sí/no devuelve la probabilidad de intervenir; un campo numérico acotado conserva ese valor. Un LLM devuelve una valoración de utilidad de 0 a 100, no una probabilidad calibrada. Ambos se comparan con el control deslizante del umbral, incluyendo la igualdad. El clasificador no tiene herramientas. La función requiere activación y respeta los intervalos; el agente principal puede usar cuentas MCP de la organización, nunca credenciales privadas de un participante.
+
+Referencias: [Pydantic AI](https://pydantic.dev/docs/ai/models/decision/), [OpenAI](https://developers.openai.com/api/docs/guides/decisions), [Google](https://ai.google.dev/gemini-api/docs/decisions-api), [TypeSafe](https://docs.typesafe.ai/models), [OpenRouter](https://github.com/OpenRouterTeam/skills/tree/main/skills/openrouter-decisions).

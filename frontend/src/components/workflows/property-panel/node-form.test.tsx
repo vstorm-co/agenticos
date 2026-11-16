@@ -37,6 +37,25 @@ vi.mock("@/components/workflows/agent-step/agent-source-field", () => ({
   ),
 }));
 
+vi.mock("@/components/orgs/group-picker", () => ({
+  GroupPicker: ({
+    selected,
+    onChange,
+  }: {
+    selected: string[];
+    onChange: (ids: string[]) => void;
+  }) => (
+    <div>
+      <span>{`approval-groups:${selected.join(",")}`}</span>
+      <button
+        type="button"
+        aria-label="pick-approval-group"
+        onClick={() => onChange(["engineering"])}
+      />
+    </div>
+  ),
+}));
+
 const mcpTool = vi.hoisted(() => ({ schema: null as Record<string, unknown> | null }));
 
 vi.mock("@/components/workflows/pickers/mcp-tool-picker", () => ({
@@ -1527,4 +1546,22 @@ it("writes the explicitly chosen mailbox into the await reply node", async () =>
     expect.any(String),
     expect.objectContaining({ connection_id: "reviewed-mailbox" }),
   );
+});
+
+it("uses group selection for an approval audience and saves group ids", () => {
+  const { updateNodeConfig } = renderForm({
+    definition: makeDefinition({
+      id: "human.approval",
+      config_schema: {
+        type: "object",
+        properties: {
+          approver_group_ids: { type: "array", items: { type: "string" }, "x-resource": "group" },
+        },
+      },
+    }),
+    config: { approver_group_ids: ["finance"] },
+  });
+  expect(screen.getByText("approval-groups:finance")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "pick-approval-group" }));
+  expect(updateNodeConfig).toHaveBeenCalledWith("N", { approver_group_ids: ["engineering"] });
 });

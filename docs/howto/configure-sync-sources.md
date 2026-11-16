@@ -586,25 +586,11 @@ There is no admin role in it. The paragraphs below say which sources each one
 reaches. See
 [who may reach a collection](../file-processing.md#who-may-reach-a-collection).
 
-`GET /api/v1/rag/sync/sources` lists every source of your organization, unassigned
-ones included, only with `connections:manage`, as `/org/integrations` does. Without
-it, the list has only the sources that feed a base you can read, and
-`collection_name` must name a collection you can read, or the answer is 404. If
-you create or detach an unassigned source without the permission, keep its id from
-the response, because no list shows it to you. The list of existing integrations that the knowledge base wizard offers to reuse also needs
-`connections:manage`. See [Permissions](../permissions.md).
+`GET /api/v1/rag/sync/sources` lists all sources, including unassigned templates, only with `connections:manage`. Otherwise it lists sources feeding readable bases. Creating, detaching, editing, deleting or cloning an unassigned template requires **Manage connections**. Assigned sources require edit access to their base, including when managed through `/org/integrations`; that page's organization permission does not bypass base access. Cloning checks the source and target separately.
 
-To update, delete or trigger a source through `/api/v1/rag/sync/sources/{id}`, you
-must also be able to write the base the source feeds. This includes a `PATCH` that
-sets `collection_name` to `null`. An unassigned source needs only your
-organization. `/org/integrations` manages sources at the organization level and
-needs `connections:manage` instead.
+Source edits validate remote addresses before taking mutation locks. The locked write checks the validated revision and refuses stale changes. Queued syncs recheck their original target before ingestion. Account and organization purges use the same ownership and teardown fences as deleting a base; CLI ingestion also records provenance and participates in those fences.
 
-Sync history and a source's run log show the runs of your organization's sources,
-also through an app-scoped base that every organization reads. A platform admin
-also sees the other organizations' sources of the bases they read. A run with no
-source, such as a local sync or a run whose source was deleted, is listed by its
-collection name to everyone who reads that collection.
+Sync history retains the initiating organization and target base after a source is deleted. A source-less run is visible only with proven ownership and access to that base. Legacy source-less logs without proven ownership are hidden, never attributed by a shared collection name.
 
 ### Sync sources CRUD
 

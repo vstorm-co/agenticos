@@ -2258,3 +2258,48 @@ async def test_personal_transcript_reads_use_windows_without_changing_ownership(
             "for_model": True,
         },
     )
+
+
+class TestAppPublicLink:
+    @pytest.mark.parametrize("existing", [False, True])
+    async def test_public_link_reuses_existing_settings_without_rotating(self, api, existing):
+        state = {
+            "public_url": "https://example.com/shared/token",
+            "public_link": {"password_protected": True, "expires_at": "2026-12-01T00:00:00Z"},
+            "public_data": {"state": "pending"},
+        }
+        api.request.side_effect = [state] if existing else [{**state, "public_url": None}, state]
+        tool = next(t for t in platform_tools(api) if t.name == "create_app_public_link")
+        result = await tool.function(artifact_id=AGENT, confirm_public=True)
+        assert tool.writes and not tool.ungated
+        assert result["url"] == state["public_url"]
+        assert result["settings"] == state["public_link"]
+        assert result["public_data"] == {"state": "pending"}
+        assert result["created"] is not existing
+        assert api.request.await_count == (1 if existing else 2)
+        if not existing:
+            api.request.assert_awaited_with("PUT", f"/artifacts/{AGENT}/public-link")
+
+    async def test_refused_public_link_is_not_claimed_successful(self, api):
+        api.request.side_effect = ToolError("No edit access")
+        tool = next(t for t in platform_tools(api) if t.name == "create_app_public_link")
+        with pytest.raises(ToolError, match="No edit access"):
+            await tool.function(artifact_id=AGENT, confirm_public=True)
+        assert api.request.await_count == 1
+
+    async def test_a_successful_write_without_a_url_is_not_a_published_link(self, api):
+        api.request.side_effect = [
+            {"public_url": None, "public_link": {}},
+            {"public_url": None, "public_link": {}},
+        ]
+        tool = next(t for t in platform_tools(api) if t.name == "create_app_public_link")
+        with pytest.raises(ToolError, match="did not confirm a public URL"):
+            await tool.function(artifact_id=AGENT, confirm_public=True)
+        assert api.request.await_count == 2
+
+    @pytest.mark.security
+    async def test_public_access_needs_explicit_confirmation_before_any_request(self, api):
+        tool = next(t for t in platform_tools(api) if t.name == "create_app_public_link")
+        with pytest.raises(ToolError, match="Explicit confirmation"):
+            await tool.function(artifact_id=AGENT, confirm_public=False)
+        api.request.assert_not_awaited()

@@ -10,7 +10,7 @@ This capability provides channel lookups and an explicitly granted file action:
 | `get_channel_info` | Name, purpose, topic, size |
 | `list_channel_members` | Who is here |
 | `search_channels` | Which other channels exist, by name and purpose |
-| `read_channel_history` | Recent channel messages, or `scope="thread"` for this thread |
+| `read_channel_history` | Recent messages or filtered pages, with `scope="thread"` for this thread |
 | `send_channel_file` | Send a workspace file when the user requests delivery |
 
 ## One contract across chat platforms
@@ -87,3 +87,14 @@ pictures retain their separate delivery path.
 History defaults to the current channel's recent messages and supports the bound
 thread as an explicit scope. Neither accepts a channel or thread ID. Automatic
 thread context backfill continues to use only the bound thread.
+
+## Filtered pages
+
+`read_channel_history` accepts literal `query`, `author_id`, aware `after`/`before`
+(exclusive), and a cursor. `cursor="start"` selects paging without filters.
+Mattermost anchors team-channel searches in its index and then pages natively by
+post ID; Slack uses native cursors and timestamp bounds. Empty matching pages may
+still have a next cursor. Exact filters apply after retrieval. Other adapters
+refuse filtered paging explicitly. Results are bounded to the existing limit and
+500 characters per message. Cursors are signed against the server, destination,
+scope, filters and limit with the bound bot credential; they grant no new access.

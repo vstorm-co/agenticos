@@ -17,6 +17,15 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.services.agent_runner import AgentRunnerService, PreparedRun, VoiceRun
 
 
+@pytest.fixture(autouse=True)
+def _no_connected_chat_bindings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These agents have no bot grants; channel_actions tests cover connected audiences."""
+    monkeypatch.setattr(
+        "app.services.channel_actions.agent_exposure_repo.list_for_agent",
+        AsyncMock(return_value=[]),
+    )
+
+
 def _prepared() -> PreparedRun:
     built = MagicMock()
     run = MagicMock(id=uuid.uuid4(), conversation_id=uuid.uuid4())

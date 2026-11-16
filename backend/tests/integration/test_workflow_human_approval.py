@@ -26,8 +26,9 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.group import Group, GroupMember
 from app.db.models.notification import Notification
-from app.db.models.organization import OrganizationMember
+from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.db.models.workflow_approval import WorkflowApproval, WorkflowApprovalStatus
 from app.db.models.workflow_run import NodeAttempt, NodeRun, NodeRunStatus, WorkflowRunStatus
@@ -1073,6 +1074,89 @@ class TestTheQueueCarriesTheProposal:
             "markdown",
             "Reply",
         )
+
+
+class TestGroupApprovers:
+    @pytest.mark.parametrize(
+        "change", ["empty", "left", "inactive", "permission_lost", "deleted", "foreign"]
+    )
+    async def test_configured_groups_never_become_unrestricted(
+        self, engine: AsyncEngine, wakes, change: str
+    ):
+        group_id = uuid.uuid4()
+        shape = Graph(approver_groups=[str(group_id)])
+        seeded = await seed_run(engine, shape.graph)
+        async with seeded.factory() as db:
+            group = Group(id=group_id, organization_id=seeded.org.id, name="Finance")
+            db.add(group)
+            await db.flush()
+            if change != "empty":
+                db.add(
+                    GroupMember(
+                        id=uuid.uuid4(),
+                        group_id=group_id,
+                        user_id=seeded.ctx.user_id,
+                        source="manual",
+                    )
+                )
+            await db.commit()
+        await drive(seeded)
+        request = await _request(seeded)
+        assert request.approver_group_ids == [str(group_id)]
+        async with seeded.factory() as db:
+            if change == "left":
+                await db.execute(delete(GroupMember).where(GroupMember.group_id == group_id))
+            elif change == "inactive":
+                await db.execute(
+                    update(User).where(User.id == seeded.ctx.user_id).values(is_active=False)
+                )
+            elif change == "permission_lost":
+                await db.execute(
+                    update(OrganizationMember)
+                    .where(
+                        OrganizationMember.organization_id == seeded.org.id,
+                        OrganizationMember.user_id == seeded.ctx.user_id,
+                    )
+                    .values(role="member")
+                )
+            elif change == "foreign":
+                foreign_org = Organization(
+                    id=uuid.uuid4(),
+                    name="Other",
+                    slug=f"other-{uuid.uuid4().hex}",
+                    created_by_user_id=seeded.ctx.user_id,
+                )
+                db.add(foreign_org)
+                await db.flush()
+                await db.execute(
+                    update(Group).where(Group.id == group_id).values(organization_id=foreign_org.id)
+                )
+            elif change == "deleted":
+                await db.execute(delete(Group).where(Group.id == group_id))
+            await db.commit()
+        with pytest.raises(AuthorizationError):
+            await _decide(seeded, request.id, approved=True)
+
+    async def test_joining_a_group_after_the_request_allows_a_decision(
+        self, engine: AsyncEngine, wakes
+    ):
+        group_id = uuid.uuid4()
+        seeded = await seed_run(engine, Graph(approver_groups=[str(group_id)]).graph)
+        async with seeded.factory() as db:
+            db.add(Group(id=group_id, organization_id=seeded.org.id, name="Finance"))
+            await db.commit()
+        await drive(seeded)
+        request = await _request(seeded)
+        async with seeded.factory() as db:
+            db.add(
+                GroupMember(
+                    id=uuid.uuid4(), group_id=group_id, user_id=seeded.ctx.user_id, source="manual"
+                )
+            )
+            await db.commit()
+        result = await _decide(seeded, request.id, approved=True)
+        assert result.status == WorkflowApprovalStatus.APPROVED
+        assert result.approver_group_ids == [group_id]
 
 
 async def _approval_step(seeded: SeededRun, shape: Graph) -> dict[str, Any] | None:

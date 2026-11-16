@@ -495,6 +495,7 @@ class TestTheWidgetRemembersWhatWasSaid:
             role=role,
             content=content,
             attachment_context=None,
+            model_content=None,
             author_user_id=None,
             reply_to_message_id=None,
             guardrail_refused=False,

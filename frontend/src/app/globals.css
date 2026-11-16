@@ -233,6 +233,7 @@
      low-opacity halo rather than a bright hairline. */
   --color-border: #dddde3;
   --color-input: #c6c6ce;
+  --color-switch-off: #72727c;
   --color-destructive-ink: #a52a34;
   --color-warning-ink: #795000;
   --color-success-ink: #236846;
@@ -386,6 +387,7 @@
     --color-accent-foreground: oklch(95% 0 0);
     --color-border: #3b3b43;
     --color-input: #51515c;
+    --color-switch-off: #777781;
     --color-destructive-ink: #ffb4b4;
     --color-warning-ink: #f0cc84;
     --color-success-ink: #99d5b1;
@@ -438,6 +440,7 @@
   --color-accent-foreground: oklch(95% 0 0);
   --color-border: #3b3b43;
   --color-input: #51515c;
+  --color-switch-off: #777781;
   --color-destructive-ink: #ffb4b4;
   --color-warning-ink: #f0cc84;
   --color-success-ink: #99d5b1;
@@ -460,6 +463,7 @@
 
 .theme-light {
   --color-input: #c6c6ce;
+  --color-switch-off: #72727c;
   --color-destructive-ink: #a52a34;
   --color-warning-ink: #795000;
   --color-success-ink: #236846;
@@ -508,6 +512,7 @@
 
 .theme-dark {
   --color-input: #51515c;
+  --color-switch-off: #777781;
   --color-destructive-ink: #ffb4b4;
   --color-warning-ink: #f0cc84;
   --color-success-ink: #99d5b1;
@@ -2986,11 +2991,15 @@ body .tour-spotlight {
   .chat-input-form[data-editing] .chat-input-send {
     order: 3;
     align-self: flex-end;
+    min-block-size: 2.75rem;
+    align-items: center;
     padding-bottom: 0;
+  }
+  .chat-input-form[data-editing] .composer-editor-shell {
+    --composer-padding: 0.625rem;
   }
   .chat-input-form[data-editing] .composer-editor {
     min-height: 44px;
-    padding-block: 10px;
   }
   /* Keep the scroll gesture, without a scrollbar beside the send action. */
   .chat-input-form .composer-editor {
@@ -3017,7 +3026,13 @@ body .tour-spotlight {
     min-height: 44px;
     min-width: 44px;
   }
-  .chat-input-form[data-editing] .chat-input-selection,
+  /* Agent and permission mode remain visible before sending, even while the
+     compact phone editor is focused. They share one context row above it. */
+  .chat-input-form[data-editing] .chat-input-selection {
+    display: flex;
+    order: 0;
+    flex: 0 0 100%;
+  }
   .chat-input-form[data-editing] .chat-input-mic {
     display: none;
   }
