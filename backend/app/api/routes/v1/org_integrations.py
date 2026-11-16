@@ -155,4 +155,5 @@ async def list_org_integration_logs(
 ) -> Any:
     """List sync run history for a specific org integration."""
     source = await access.sync_source(ctx, str(source_id))
-    return await sync_source_svc.list_logs(source.id, limit=limit)
+    scope = await access.readable_sync_log_scope(ctx, None)
+    return await sync_source_svc.list_logs(source.id, scope=scope, limit=limit)

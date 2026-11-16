@@ -1,5 +1,5 @@
 ---
-source_sha: "321e44fc604c"
+source_sha: "9acf7a5db2e7"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1496,15 +1496,17 @@ zostawiał kolekcję bez żadnego z dwóch dokumentów — na stałe, bo nieudan
 ingestia jest zwracana, a nie rzucana, i nic jej nie ponawia. Oba dokumenty przez
 czas trwania wstawienia to stan, który wyszukiwanie przeżyje; żaden — nie.
 
-Własną historią jednego source'a jest
-`GET /kb/{kb_id}/sync-sources/{source_id}/logs`. Source jest najpierw rozwiązywany
-względem tej bazy wiedzy, więc source należący do innej bazy odpowiada **404**, a
-nie pustą listą — inaczej oba renderują ten sam ekran, a jedno z nich jest
-requestem, który powinien był zawieść. Jego przebiegi czytane są następnie po id
-source'a, co utrzymuje `limit` i `total` w opisie tego samego zbioru wierszy:
-source przecelowany na inną bazę zachowuje swoje wcześniejsze przebiegi pod
-nazwą kolekcji, którą miał wtedy, a te wypadały kiedyś ze strony już po tym, jak
-`limit` ją przyciął.
+Historia źródła jest dostępna pod `GET /kb/{kb_id}/sync-sources/{source_id}/logs`.
+Źródło musi należeć do tej bazy; w przeciwnym razie trasa zwraca **404**.
+Każdy zapisany przebieg zachowuje swoją pierwotną bazę i organizację jako granicę
+dostępu: przepięcie źródła nie udostępnia nowej bazie wcześniejszych prywatnych
+przebiegów. Filtrowanie następuje przed limitem strony. Starsze przebiegi bez
+zapisanej bazy pozostają przypisane przez swoje źródło.
+
+Uzgadnianie dokumentów, przypisywanie niezmienionych dokumentów i śledzenie
+wektorów używają zakresu dokumentów bazy docelowej. Przepięcie źródła czyści jego
+stan pamięci synchronizacji i ostatni status; zakończenie przebiegu przyjętego dla
+starej bazy nie może ich przywrócić.
 
 ### Czego source synchronizacji nie może rozstrzygać { #what-a-sync-source-is-not-allowed-to-decide }
 

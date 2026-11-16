@@ -1407,14 +1407,16 @@ used to leave the collection holding neither document — permanently, because a
 failed ingest is returned rather than raised and nothing retries it. Both for the
 length of an insert is a state a search survives; neither is not.
 
-One source's own history is `GET /kb/{kb_id}/sync-sources/{source_id}/logs`. The
-source is resolved against that knowledge base first, so a source belonging to
-another base answers **404** rather than an empty list — the two render the same
-screen otherwise, and one of them is a request that should have failed. Its runs
-are then read by source id, which is what keeps `limit` and `total` describing the
-same set of rows: a source repointed at another base keeps its earlier runs under
-the collection name it had then, and those used to be dropped from the page after
-`limit` had already cut it.
+One source's history is `GET /kb/{kb_id}/sync-sources/{source_id}/logs`.
+The source must belong to that base, otherwise the route returns **404**.
+Each recorded run keeps its original base and organization as its access boundary:
+reassigning a source does not grant the new base access to earlier private runs.
+Filtering happens before the page limit. Legacy runs without a recorded base
+remain attributable through their source.
+
+Reconciliation, unchanged-document claims and vector tracking use the target
+base's document scope. Reassigning a source clears its cached sync state and last
+status; completion of a run admitted for the old target cannot restore them.
 
 ### What a sync source is not allowed to decide
 

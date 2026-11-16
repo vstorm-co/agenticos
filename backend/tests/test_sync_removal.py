@@ -20,6 +20,7 @@ import pytest
 
 from app.core.exceptions import BadRequestError
 from app.db.vector_tables import VectorScope
+from app.repositories.rag_document import CollectionScope
 from app.services.rag.connectors import RemoteFile, RemoteListing, WithdrawnFile
 from app.services.rag.models import IngestionStatus
 from app.worker.tasks import rag_tasks
@@ -222,7 +223,7 @@ class TestAgainstACompleteListing:
             pass
 
         run["documents"].unlisted_by_source.assert_awaited_once_with(
-            sync_source_id=SOURCE_ID, collection_name="docs", listed={KEPT.source_path}
+            sync_source_id=SOURCE_ID, scope=CollectionScope.of(_BASE), listed={KEPT.source_path}
         )
         assert run["completed"]["removed"] == 0
 
@@ -276,7 +277,7 @@ class TestAgainstACompleteListing:
             pass
 
         run["documents"].unlisted_by_source.assert_awaited_once_with(
-            sync_source_id=SOURCE_ID, collection_name="docs", listed={KEPT.source_path}
+            sync_source_id=SOURCE_ID, scope=CollectionScope.of(_BASE), listed={KEPT.source_path}
         )
         completed = run["completed"]
         assert (completed["status"], completed["failed"], completed["removed"]) == ("done", 0, 1)

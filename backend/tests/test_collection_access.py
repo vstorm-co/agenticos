@@ -509,6 +509,7 @@ class TestResolvingACollectionName:
             sync_source_ids=[ours.id, theirs.id],
             organization_id=HOME_ORG,
             knowledge_base_ids=(app_kb.id,),
+            all_organizations=True,
         )
 
     async def test_a_document_listing_carries_each_collection_s_knowledge_base(

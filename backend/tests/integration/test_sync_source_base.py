@@ -15,6 +15,7 @@ import importlib.util
 import uuid
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import ModuleType
@@ -34,15 +35,19 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
-from app.db.models.rag_document import RAGDocument
+from app.db.models.rag_document import DocumentStatus, RAGDocument
+from app.db.models.rag_document_claim import RAGDocumentClaim
+from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
 from app.db.models.user import User
-from app.repositories import knowledge_base_repo
+from app.repositories import knowledge_base_repo, rag_document_repo, sync_log_repo
 from app.repositories import sync_source as sync_source_repo
-from app.schemas.sync_source import SyncSourceCreate
+from app.repositories.rag_document import CollectionScope
+from app.schemas.sync_source import SyncSourceCreate, SyncSourceUpdate
 from app.services.collection_access import CollectionAccessService
 from app.services.knowledge_base import KnowledgeBaseService
-from app.services.sync_source import SyncSourceService
+from app.services.rag_document import RAGDocumentService
+from app.services.sync_source import SyncSourceService, SyncState
 from app.worker.tasks import rag_tasks
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
@@ -674,3 +679,252 @@ class TestTheDowngrade:
         assert on_oldest.is_active
         assert on_tie_winner.is_active
         assert not paused.is_active
+
+
+@dataclass(frozen=True)
+class _HistoryTargets:
+    source: SyncSource
+    private: KnowledgeBase
+    shared: KnowledgeBase
+    owner: AuthContext
+    reader: AuthContext
+    private_log: SyncLog
+    shared_log: SyncLog
+    legacy_log: SyncLog
+
+
+@pytest.fixture
+async def history_targets(db: AsyncSession) -> _HistoryTargets:
+    owner, reader = _user(), _user()
+    db.add_all([owner, reader])
+    await db.flush()
+    org = await _org(db, owner)
+    db.add(
+        OrganizationMember(
+            id=uuid.uuid4(), organization_id=org.id, user_id=reader.id, role="builder"
+        )
+    )
+    private = _base(org.id, scope=KBScope.PERSONAL, owner=owner.id)
+    shared = _base(org.id, owner=reader.id)
+    db.add_all([private, shared])
+    await db.flush()
+    source = _source(org.id, kb=private)
+    source.last_sync_status = "error"
+    source.last_error = "private-path.pdf"
+    source.sync_state = {"version": "old", "fingerprint": "same-config"}
+    db.add(source)
+    await db.flush()
+    private_log = await sync_log_repo.create(
+        db,
+        source="gdrive",
+        collection_name=NAME,
+        mode="full",
+        sync_source_id=source.id,
+        organization_id=org.id,
+        knowledge_base_id=private.id,
+    )
+    owner_ctx = _owner(owner, org)
+    service = SyncSourceService(db)
+    await service.update_source(
+        str(source.id), SyncSourceUpdate(collection_name=None), ctx=owner_ctx
+    )
+    await service.update_source(
+        str(source.id), SyncSourceUpdate(collection_name=NAME), ctx=owner_ctx, knowledge_base=shared
+    )
+    shared_log = await sync_log_repo.create(
+        db,
+        source="gdrive",
+        collection_name=NAME,
+        mode="full",
+        sync_source_id=source.id,
+        organization_id=org.id,
+        knowledge_base_id=shared.id,
+    )
+    legacy_log = await sync_log_repo.create(
+        db,
+        source="gdrive",
+        collection_name=NAME,
+        mode="full",
+        sync_source_id=source.id,
+        organization_id=org.id,
+    )
+    return _HistoryTargets(
+        source,
+        private,
+        shared,
+        owner_ctx,
+        AuthContext(user_id=reader.id, organization_id=org.id, role=OrgRoleName.BUILDER),
+        private_log,
+        shared_log,
+        legacy_log,
+    )
+
+
+@pytest.mark.parametrize("surface", ["scope", "knowledge_base", "integration"])
+async def test_moved_source_history_keeps_each_runs_recorded_audience(
+    db: AsyncSession, history_targets: _HistoryTargets, surface: str
+) -> None:
+    from app.api.routes.v1 import knowledge_bases, org_integrations
+
+    estate = history_targets
+    access = CollectionAccessService(db)
+    expected = {str(estate.shared_log.id), str(estate.legacy_log.id)}
+    if surface == "scope":
+        scope = await access.readable_sync_log_scope(estate.reader, None)
+        logs = await sync_log_repo.get_all(db, scope=scope)
+        assert {str(log.id) for log in logs} == expected
+    else:
+        common = {
+            "source_id": estate.source.id,
+            "sync_source_svc": SyncSourceService(db),
+            "access": access,
+            "ctx": estate.reader,
+            "limit": 20,
+        }
+        result = (
+            await knowledge_bases.list_kb_sync_source_logs(
+                kb_id=estate.shared.id, service=KnowledgeBaseService(db), **common
+            )
+            if surface == "knowledge_base"
+            else await org_integrations.list_org_integration_logs(**common)
+        )
+        assert {item.id for item in result.items} == expected
+    with pytest.raises(NotFoundError):
+        await access.sync_log(estate.reader, str(estate.private_log.id))
+    assert (
+        await access.sync_log(estate.owner, str(estate.private_log.id))
+    ).id == estate.private_log.id
+    assert (
+        await access.sync_log(estate.reader, str(estate.shared_log.id))
+    ).id == estate.shared_log.id
+
+
+async def test_old_target_settlement_cannot_restore_its_state_or_private_error(
+    db: AsyncSession, history_targets: _HistoryTargets
+) -> None:
+    estate = history_targets
+    assert estate.source.sync_state is None and estate.source.last_error is None
+    assert estate.source.last_sync_status is None and estate.source.last_sync_at is None
+    assert not await SyncSourceService(db).update_after_sync(
+        str(estate.source.id),
+        "error",
+        "private-path.pdf",
+        expected_knowledge_base_id=estate.private.id,
+        sync_state=SyncState(version="old", fingerprint="same-config"),
+    )
+    await db.refresh(estate.source)
+    assert estate.source.sync_state is None and estate.source.last_error is None
+    assert estate.source.last_sync_status is None
+    assert await SyncSourceService(db).update_after_sync(
+        str(estate.source.id),
+        "done",
+        expected_knowledge_base_id=estate.shared.id,
+        sync_state=SyncState(version="new", fingerprint="current-config"),
+    )
+    await db.refresh(estate.source)
+    assert estate.source.last_sync_status == "done"
+    assert estate.source.sync_state == {"version": "new", "fingerprint": "current-config"}
+
+
+async def _target_document(
+    db: AsyncSession,
+    *,
+    base: KnowledgeBase,
+    source: SyncSource,
+    status: DocumentStatus,
+    vector_id: str,
+) -> RAGDocument:
+    doc = RAGDocument(
+        id=uuid.uuid4(),
+        collection_name=NAME,
+        filename="shared.md",
+        source_path="shared.md",
+        filesize=1,
+        filetype="md",
+        storage_path="",
+        status=status,
+        vector_document_id=vector_id,
+        chunk_count=1,
+        ingestion_config={},
+        organization_id=source.organization_id,
+        knowledge_base_id=base.id,
+    )
+    db.add(doc)
+    await db.flush()
+    db.add(RAGDocumentClaim(rag_document_id=doc.id, sync_source_id=source.id))
+    await db.flush()
+    return doc
+
+
+@pytest.mark.parametrize("status", [DocumentStatus.PROCESSING, DocumentStatus.DONE])
+async def test_reconciliation_cannot_reach_the_previous_same_named_base(
+    db: AsyncSession, history_targets: _HistoryTargets, status: DocumentStatus
+) -> None:
+    estate = history_targets
+    private = await _target_document(
+        db, base=estate.private, source=estate.source, status=status, vector_id="same-vector"
+    )
+    shared = await _target_document(
+        db, base=estate.shared, source=estate.source, status=status, vector_id="same-vector"
+    )
+    scope = CollectionScope.of(estate.shared)
+    documents = RAGDocumentService(db)
+    stale = await documents.stale_for_source(sync_source_id=estate.source.id, scope=scope)
+    unlisted = await documents.unlisted_by_source(
+        sync_source_id=estate.source.id, scope=scope, listed=set()
+    )
+    assert {row.id for row in stale} == (
+        {shared.id} if status == DocumentStatus.PROCESSING else set()
+    )
+    assert {row.id for row in unlisted} == ({shared.id} if status == DocumentStatus.DONE else set())
+    assert await db.get(RAGDocument, private.id) is not None
+
+
+async def test_claims_and_tracking_do_not_cross_a_same_named_target(
+    db: AsyncSession, history_targets: _HistoryTargets
+) -> None:
+    estate = history_targets
+    private = await _target_document(
+        db,
+        base=estate.private,
+        source=estate.source,
+        status=DocumentStatus.DONE,
+        vector_id="collision",
+    )
+    scope = CollectionScope.of(estate.shared)
+    documents = RAGDocumentService(db)
+    assert (
+        await documents.tracked_vector_ids(scope=scope, vector_document_ids={"collision"}) == set()
+    )
+    shared = await _target_document(
+        db,
+        base=estate.shared,
+        source=estate.source,
+        status=DocumentStatus.DONE,
+        vector_id="collision",
+    )
+    claimant = _source(estate.source.organization_id, kb=estate.shared)
+    db.add(claimant)
+    await db.flush()
+    await documents.claim_listed(
+        sync_source_id=claimant.id, scope=scope, documents={("shared.md", "collision")}
+    )
+    claimed = set(
+        (
+            await db.scalars(
+                select(RAGDocumentClaim.rag_document_id).where(
+                    RAGDocumentClaim.sync_source_id == claimant.id
+                )
+            )
+        ).all()
+    )
+    assert claimed == {shared.id} and private.id not in claimed
+    assert not await rag_document_repo.is_claimed_by_another_source(
+        db, private.id, sync_source_id=estate.source.id
+    )
+    claimant.knowledge_base_id = estate.private.id
+    db.add(RAGDocumentClaim(rag_document_id=private.id, sync_source_id=claimant.id))
+    await db.flush()
+    assert await rag_document_repo.is_claimed_by_another_source(
+        db, private.id, sync_source_id=estate.source.id
+    )

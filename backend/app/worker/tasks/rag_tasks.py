@@ -35,6 +35,7 @@ from app.repositories import (
 )
 from app.repositories import sync_log as sync_log_repo
 from app.repositories import sync_source as sync_source_repo
+from app.repositories.rag_document import CollectionScope
 from app.services import rag_scratch
 from app.services.embedding_resolution import (
     ResolvedEmbeddings,
@@ -1104,7 +1105,7 @@ async def _remove_unlisted(
     listing: RemoteListing,
     withdrawn: set[str],
     source_id: UUID,
-    collection_name: str,
+    scope: CollectionScope,
     notes: list[str],
 ) -> tuple[int, int]:
     """Remove what this source brought in earlier and no longer lists.
@@ -1131,6 +1132,7 @@ async def _remove_unlisted(
     this run rather than a detail: the caller counts it, so the run does not
     report success while a document its source no longer holds stays searchable.
     """
+    collection_name = scope.collection_name
     if not listing.complete:
         # First, so it is never among the notes the summary counts rather than names.
         notes.insert(
@@ -1144,7 +1146,7 @@ async def _remove_unlisted(
     async with get_worker_db_context() as db:
         unlisted = await RAGDocumentService(db).unlisted_by_source(
             sync_source_id=source_id,
-            collection_name=collection_name,
+            scope=scope,
             listed={file.source_path for file in listing.files} - withdrawn,
         )
         row_ids = [str(row.id) for row in unlisted]
@@ -1175,14 +1177,12 @@ async def _remove_unlisted(
     return removed, unremoved
 
 
-async def _stale_rows(*, source_id: UUID, collection_name: str) -> dict[str, list[str]]:
+async def _stale_rows(*, source_id: UUID, scope: CollectionScope) -> dict[str, list[str]]:
     """Row ids a dead run of this source left `PROCESSING`, by the address each was for."""
     from app.services.rag_document import RAGDocumentService
 
     async with get_worker_db_context() as db:
-        rows = await RAGDocumentService(db).stale_for_source(
-            sync_source_id=source_id, collection_name=collection_name
-        )
+        rows = await RAGDocumentService(db).stale_for_source(sync_source_id=source_id, scope=scope)
         by_path: dict[str, list[str]] = {}
         for row in rows:
             if row.source_path is not None:
@@ -1195,7 +1195,7 @@ async def _reconcile_stale_rows(
     *,
     stale: dict[str, list[str]],
     source_id: UUID,
-    collection_name: str,
+    scope: CollectionScope,
     notes: list[str],
 ) -> tuple[int, dict[str, frozenset[UUID]]]:
     """Settle what a worker that died mid-file left.
@@ -1220,6 +1220,7 @@ async def _reconcile_stale_rows(
     address and counts it, so the run records no state and the next one tries
     again - a row is never dropped without its address having been read.
     """
+    collection_name = scope.collection_name
     from app.services.rag_document import RAGDocumentService
 
     unsettled = 0
@@ -1230,7 +1231,7 @@ async def _reconcile_stale_rows(
             async with get_worker_db_context() as db:
                 documents = RAGDocumentService(db)
                 tracked = await documents.tracked_vector_ids(
-                    collection_name=collection_name, vector_document_ids=stored
+                    scope=scope, vector_document_ids=stored
                 )
                 # Only rows filed under the base this run writes for: `stored` was
                 # read in its scope, so a row filed under another base - the
@@ -1241,7 +1242,7 @@ async def _reconcile_stale_rows(
                     str(row.id)
                     for row in await documents.settled_at(
                         sync_source_id=source_id,
-                        collection_name=collection_name,
+                        scope=scope,
                         source_path=source_path,
                     )
                     if row.vector_document_id
@@ -1358,6 +1359,10 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
             )
             return {"status": "error", "message": message}
         assigned_collection = source.collection_name
+        admitted_target_id = source.knowledge_base_id
+        status_target_id = (
+            source.knowledge_base_id if queued_log is None else queued_log.knowledge_base_id
+        )
         if assigned_collection is not None:
             # Deletion detaches sources under this lock. Refresh after waiting
             # so a queued run cannot resolve the old name into a different base.
@@ -1378,7 +1383,9 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                 started_at=attempt_started_at,
                 message=message,
             )
-            await source_svc.update_after_sync(source_id, "error", message)
+            await source_svc.update_after_sync(
+                source_id, "error", message, expected_knowledge_base_id=status_target_id
+            )
             return {"status": "error", "message": message}
 
         config = source.config if isinstance(source.config, dict) else json.loads(source.config)
@@ -1395,7 +1402,9 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
         collection_name = source.collection_name
         if collection_name is None:
             message = "Source has no assigned collection."
-        elif collection_name != assigned_collection:
+        elif (
+            collection_name != assigned_collection or source.knowledge_base_id != admitted_target_id
+        ):
             message = "Source collection changed before this sync started. Run it again."
         else:
             knowledge_base = await _source_knowledge_base(db, source)
@@ -1408,7 +1417,9 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                 started_at=attempt_started_at,
                 message=message,
             )
-            await source_svc.update_after_sync(source_id, "error", message)
+            await source_svc.update_after_sync(
+                source_id, "error", message, expected_knowledge_base_id=status_target_id
+            )
             return {"status": "error", "message": message}
         if not source.is_active:
             await _notify_sync_start_failure(
@@ -1418,7 +1429,9 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                 started_at=attempt_started_at,
                 message=PAUSED_SOURCE,
             )
-            await source_svc.update_after_sync(source_id, "error", PAUSED_SOURCE)
+            await source_svc.update_after_sync(
+                source_id, "error", PAUSED_SOURCE, expected_knowledge_base_id=status_target_id
+            )
             return {"status": "error", "message": PAUSED_SOURCE}
         sync_mode = source.sync_mode
         organization_id = source.organization_id
@@ -1458,7 +1471,12 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                 log = await RAGSyncService(db).complete_sync(
                     log_id, status="error", error_message=reason
                 )
-                await source_svc.update_after_sync(source_id, status="error", error=reason)
+                await source_svc.update_after_sync(
+                    source_id,
+                    status="error",
+                    error=reason,
+                    expected_knowledge_base_id=status_target_id,
+                )
                 if log is not None:
                     # The write attaches to this `complete_sync` call, not to
                     # `update_after_sync` above: both report the same outcome,
@@ -1482,6 +1500,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
         # (#992).
         ingestion_config = IngestionConfig.model_validate(knowledge_base.ingestion_config)
         knowledge_base_id = knowledge_base.id
+        document_scope = CollectionScope.of(knowledge_base)
         if (
             queued_log is not None
             and queued_log.knowledge_base_id is not None
@@ -1550,7 +1569,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                 else None
             )
             version = await connector.remote_version(config, credential, previous)
-            stale = await _stale_rows(source_id=UUID(source_id), collection_name=collection_name)
+            stale = await _stale_rows(source_id=UUID(source_id), scope=document_scope)
             unchanged = (
                 version is not None
                 and sync_mode != "full"
@@ -1568,7 +1587,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                 ingester,
                 stale=stale,
                 source_id=UUID(source_id),
-                collection_name=collection_name,
+                scope=document_scope,
                 notes=notes,
             )
             files = listing.files
@@ -1740,7 +1759,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                 async with get_worker_db_context() as db:
                     await RAGDocumentService(db).claim_listed(
                         sync_source_id=UUID(source_id),
-                        collection_name=collection_name,
+                        scope=document_scope,
                         documents=kept,
                     )
             # An early stop listed nothing, which is no evidence anything went.
@@ -1750,7 +1769,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                     listing=listing,
                     withdrawn=withdrawn,
                     source_id=UUID(source_id),
-                    collection_name=collection_name,
+                    scope=document_scope,
                     notes=notes,
                 )
                 failed += unremoved
@@ -1799,6 +1818,7 @@ async def _sync_source(source_id: str, sync_log_id: str | None) -> dict[str, Any
                     if status == "done" and version is not None
                     else None
                 ),
+                expected_knowledge_base_id=knowledge_base_id,
             )
             if log is not None:
                 # Attached to `complete_sync` above, not to `update_after_sync`:
@@ -1960,9 +1980,16 @@ async def settle_lost_source_sync(job: SyncConnectorSource, reason: str) -> None
     when it is queued, as a manual one does. Never the source's newest running
     log, which can be a later sync's (Codex, #2248).
     """
-    async with get_worker_db_context() as db:
-        await SyncSourceService(db).update_after_sync(str(job.source_id), "error", _stopped(reason))
     if job.sync_log_id is not None:
+        async with get_worker_db_context() as db:
+            log = await sync_log_repo.get_by_id(db, job.sync_log_id)
+            if log is not None:
+                await SyncSourceService(db).update_after_sync(
+                    str(job.source_id),
+                    "error",
+                    _stopped(reason),
+                    expected_knowledge_base_id=log.knowledge_base_id,
+                )
         await _close_running_log(str(job.sync_log_id), reason)
 
 

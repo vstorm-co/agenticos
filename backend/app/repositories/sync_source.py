@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import func, literal_column, or_, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.sync_source import SyncSource
@@ -200,23 +201,33 @@ async def update_sync_status(
     db: AsyncSession,
     source_id: UUID,
     *,
+    expected_knowledge_base_id: UUID | None,
     last_sync_at: datetime,
     last_sync_status: str,
     last_error: str | None = None,
     sync_state: dict[str, str] | None = None,
 ) -> SyncSource | None:
-    """Update the sync status fields after a sync operation.
+    """Update status only while the source still records this attempt's target.
 
     `sync_state` is written when given and kept when not: only a clean run
     records one, and a failed run must leave the last clean one in place.
     """
-    source = await db.get(SyncSource, source_id)
-    if not source:
-        return None
-    source.last_sync_at = last_sync_at
-    source.last_sync_status = last_sync_status
-    source.last_error = last_error
+    values: dict[str, object] = {
+        "last_sync_at": last_sync_at,
+        "last_sync_status": last_sync_status,
+        "last_error": last_error,
+    }
     if sync_state is not None:
-        source.sync_state = sync_state
+        values["sync_state"] = sync_state
+    result = await db.execute(
+        sql_update(SyncSource)
+        .where(
+            SyncSource.id == source_id,
+            SyncSource.knowledge_base_id.is_not_distinct_from(expected_knowledge_base_id),
+        )
+        .values(**values)
+        .returning(SyncSource)
+        .execution_options(populate_existing=True)
+    )
     await db.flush()
-    return source
+    return result.scalar_one_or_none()

@@ -488,7 +488,8 @@ async def list_kb_sync_source_logs(
     """
     kb = await service.get(kb_id, ctx=ctx)
     source = await access.kb_sync_source(ctx, kb, str(source_id))
-    return await sync_source_svc.list_logs(source.id, limit=limit)
+    scope = await access.kb_sync_log_scope(ctx, kb)
+    return await sync_source_svc.list_logs(source.id, scope=scope, limit=limit)
 
 
 @router.patch("/{kb_id}/sync-sources/{source_id}", response_model=SyncSourceRead)

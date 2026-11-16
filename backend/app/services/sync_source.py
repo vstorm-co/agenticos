@@ -5,6 +5,7 @@ import asyncio
 import hashlib
 from dataclasses import dataclass
 import json
+import logging
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -32,6 +33,7 @@ from app.services.background_jobs import enqueue
 from app.services.rag.connectors import CONNECTOR_REGISTRY
 from app.repositories import background_job as background_job_repo
 from app.repositories import knowledge_base_repo
+from app.repositories.sync_log import SyncLogScope
 from app.repositories import organization_secret_repo
 from app.repositories import sync_log as sync_log_repo
 from app.repositories import sync_source as sync_source_repo
@@ -50,6 +52,7 @@ from app.worker.jobs import SYNC_SOURCE, Priority, SyncConnectorSource, sync_sou
 # `is_active` is how an operator pauses a source; a run refuses a paused one
 # whoever asked for it, and the scheduler already never selects one.
 PAUSED_SOURCE = "This source is paused; activate it to sync."
+logger = logging.getLogger(__name__)
 
 # The credential field names the two shipped connectors used to hold in `config`.
 # Kept as a list so a caller posting the old shape is told what to do instead of
@@ -228,18 +231,13 @@ class SyncSourceService:
             )
         return source
 
-    async def list_logs(self, source_id: UUID, *, limit: int = 20) -> RAGSyncLogList:
-        """One source's run history, newest first.
-
-        Both surfaces that show a source's history - a knowledge base's sync row
-        and an org integration - read it here rather than each holding its own
-        query and its own copy of this mapping. Whoever calls it has already
-        decided the caller may see this source: an org integration resolves it
-        through `CollectionAccessService`, and a KB route resolves it against the
-        base in the path. Scope is not this method's to add, which is why it takes
-        an id that has been through one of those.
-        """
-        logs = await sync_log_repo.get_all(self.db, sync_source_id=source_id, limit=limit)
+    async def list_logs(
+        self, source_id: UUID, *, scope: SyncLogScope, limit: int = 20
+    ) -> RAGSyncLogList:
+        """One source's history within its runs' immutable authorized base scope."""
+        logs = await sync_log_repo.get_all(
+            self.db, scope=scope, sync_source_id=source_id, limit=limit
+        )
         items = [
             RAGSyncLogItem(
                 id=str(log.id),
@@ -688,7 +686,9 @@ class SyncSourceService:
         )
         updates["knowledge_base_id"] = knowledge_base_id
         if knowledge_base_id != existing.knowledge_base_id:
-            updates["sync_state"] = None
+            updates.update(
+                sync_state=None, last_sync_at=None, last_sync_status=None, last_error=None
+            )
 
     async def delete_source(self, source_id: str, *, ctx: AuthContext) -> None:
         """Delete a sync source.
@@ -822,21 +822,27 @@ class SyncSourceService:
         status: str,
         error: str | None = None,
         *,
+        expected_knowledge_base_id: UUID | None,
         sync_state: SyncState | None = None,
-    ) -> None:
-        """Update sync source status after a sync operation completes.
+    ) -> bool:
+        """Settle only the target this run admitted; False means deleted or retargeted.
 
         `sync_state` is what a clean run read; omitted, the source keeps the one
         it had, so a failed run is retried in full rather than skipped as current.
         """
-        await sync_source_repo.update_sync_status(
+        updated = await sync_source_repo.update_sync_status(
             self.db,
             UUID(source_id),
+            expected_knowledge_base_id=expected_knowledge_base_id,
             last_sync_at=datetime.now(UTC),
             last_sync_status=status,
             last_error=error,
             sync_state=None if sync_state is None else sync_state.model_dump(),
         )
+
+        if updated is None:
+            logger.info("sync_source_settlement_skipped", extra={"source_id": source_id})
+        return updated is not None
 
     @staticmethod
     def list_connectors() -> ConnectorList:

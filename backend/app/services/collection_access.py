@@ -244,25 +244,32 @@ class CollectionAccessService:
     async def readable_sync_log_scope(self, ctx: AuthContext, name: str | None) -> SyncLogScope:
         """The sync runs a listing may include: the collection asked for, or all of theirs.
 
-        A run started by a sync source is listed when that source feeds a base
-        the caller reads (:func:`_feeds`, the rule the per-source routes apply)
-        and is the caller organization's (:func:`_reaches_source`); on the name
-        alone, a member reading only an app-scoped base listed the runs - errors
-        and file counts - of a private base sharing its name (#2486), and on the
-        base alone, those of every organization feeding that app base (#2745). A
-        run with no source is constrained by its recorded organization and base.
+        Recorded runs are constrained by their immutable base and organization,
+        even after their source is reassigned. Only legacy runs without a base
+        use the source's current target and tenant. A shared collection name
+        must expose neither a private base's history (#2486) nor another
+        organization's runs into an app-scoped base (#2745).
         The unfiltered case means "mine", never "everything".
         """
-        kbs = await self._readable_kbs_for(ctx, name)
-        names = list(dict.fromkeys(kb.collection_name for kb in kbs))
+        return await self._sync_log_scope(ctx, await self._readable_kbs_for(ctx, name))
+
+    async def kb_sync_log_scope(self, ctx: AuthContext, kb: KnowledgeBase) -> SyncLogScope:
+        """Run history for one already resolved base, including moved-source history."""
+        if not await readable_kb(self.db, ctx, kb):
+            raise _no_collection(kb.collection_name)
+        return await self._sync_log_scope(ctx, [kb])
+
+    async def _sync_log_scope(self, ctx: AuthContext, kbs: list[KnowledgeBase]) -> SyncLogScope:
+        visible = [kb for kb in kbs if await readable_kb(self.db, ctx, kb)]
         sources = await sync_source_repo.list_for_knowledge_bases(
-            self.db, list(dict.fromkeys(kb.id for kb in kbs))
+            self.db, [kb.id for kb in visible]
         )
         return SyncLogScope(
-            collections=names,
+            collections=list(dict.fromkeys(kb.collection_name for kb in visible)),
             organization_id=ctx.organization_id,
-            knowledge_base_ids=tuple(kb.id for kb in kbs),
+            knowledge_base_ids=tuple(kb.id for kb in visible),
             sync_source_ids=[source.id for source in sources if _reaches_source(ctx, source)],
+            all_organizations=ctx.is_app_admin,
         )
 
     async def readable_sync_sources(self, ctx: AuthContext, name: str | None) -> list[SyncSource]:
@@ -670,7 +677,7 @@ class CollectionAccessService:
         """
         parsed = _as_uuid(sync_id)
         log = None if parsed is None else await sync_log_repo.get_by_id(self.db, parsed)
-        if log is not None and log.sync_source_id is not None:
+        if log is not None and log.sync_source_id is not None and log.knowledge_base_id is None:
             try:
                 await self.writable_sync_source(ctx, str(log.sync_source_id))
             except NotFoundError as exc:
@@ -682,12 +689,24 @@ class CollectionAccessService:
         return log
 
     async def _writes_run(self, ctx: AuthContext, log: SyncLog) -> bool:
-        candidates = await knowledge_base_repo.list_by_collection_name(self.db, log.collection_name)
         source = (
             None
             if log.sync_source_id is None
             else await sync_source_repo.get_by_id(self.db, log.sync_source_id)
         )
+        if log.knowledge_base_id is not None:
+            if log.organization_id is None:
+                if source is None or not _reaches_source(ctx, source):
+                    return False
+            elif log.organization_id != ctx.organization_id and not ctx.is_app_admin:
+                return False
+            kb = await knowledge_base_repo.get_by_id(self.db, log.knowledge_base_id)
+            return (
+                kb is not None
+                and kb.collection_name == log.collection_name
+                and await writable_kb(self.db, ctx, kb)
+            )
+        candidates = await knowledge_base_repo.list_by_collection_name(self.db, log.collection_name)
         if source is None and log.organization_id != ctx.organization_id:
             return False
         for kb in candidates:

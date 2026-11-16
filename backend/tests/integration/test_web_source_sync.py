@@ -38,6 +38,7 @@ from app.db.models.sync_log import SyncLog
 from app.db.models.user import User
 from app.repositories import sync_log as sync_log_repo
 from app.repositories import sync_source as sync_source_repo
+from app.repositories.rag_document import CollectionScope
 from app.services.rag.connectors.web import WebConnector
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.filters import RetrievalQuery, UnscopedScope
@@ -334,6 +335,11 @@ async def _add_claimed(
 ) -> None:
     """A row, and the claim `source_id` holds on it when there is one."""
     row = _row(path, status)
+    if source_id is not None:
+        source = await sync_source_repo.get_by_id(session, source_id)
+        assert source is not None
+        row.knowledge_base_id = source.knowledge_base_id
+        row.organization_id = source.organization_id
     session.add(row)
     # The claim's foreign key needs its row written first.
     await session.flush()
@@ -361,8 +367,12 @@ async def test_only_this_sources_settled_documents_are_candidates_for_removal(
             await _add_claimed(session, claimant, path, status)
         await session.commit()
 
+    source = await sync_source_repo.get_by_id(db, mine)
+    assert source is not None and source.knowledge_base_id is not None
+    base = await db.get(KnowledgeBase, source.knowledge_base_id)
+    assert base is not None
     unlisted = await RAGDocumentService(db).unlisted_by_source(
-        sync_source_id=mine, collection_name=COLLECTION, listed={"web://docs.example.com/kept"}
+        sync_source_id=mine, scope=CollectionScope.of(base), listed={"web://docs.example.com/kept"}
     )
 
     assert {row.source_path for row in unlisted} == {

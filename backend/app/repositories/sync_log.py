@@ -7,10 +7,11 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, false, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.sync_log import SyncLog
+from app.db.models.sync_source import SyncSource
 
 
 async def get_by_id(db: AsyncSession, sync_id: UUID) -> SyncLog | None:
@@ -32,6 +33,7 @@ class SyncLogScope:
     sync_source_ids: list[UUID]
     organization_id: UUID | None = None
     knowledge_base_ids: tuple[UUID, ...] = ()
+    all_organizations: bool = False
 
 
 async def get_all(
@@ -47,14 +49,27 @@ async def get_all(
     """
     query = select(SyncLog)
     if scope is not None:
+        tenant = true() if scope.all_organizations else false()
+        if not scope.all_organizations and scope.organization_id is not None:
+            tenant = or_(
+                SyncLog.organization_id == scope.organization_id,
+                and_(
+                    SyncLog.organization_id.is_(None),
+                    SyncLog.sync_source_id.in_(
+                        select(SyncSource.id).where(
+                            SyncSource.organization_id == scope.organization_id
+                        )
+                    ),
+                ),
+            )
         query = query.where(
             SyncLog.collection_name.in_(scope.collections),
             or_(
+                and_(SyncLog.knowledge_base_id.in_(scope.knowledge_base_ids), tenant),
                 and_(
-                    SyncLog.organization_id == scope.organization_id,
-                    SyncLog.knowledge_base_id.in_(scope.knowledge_base_ids),
+                    SyncLog.knowledge_base_id.is_(None),
+                    SyncLog.sync_source_id.in_(scope.sync_source_ids),
                 ),
-                SyncLog.sync_source_id.in_(scope.sync_source_ids),
             ),
         )
     if sync_source_id:

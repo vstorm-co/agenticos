@@ -1,5 +1,5 @@
 ---
-source_sha: "321e44fc604c"
+source_sha: "9acf7a5db2e7"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1597,16 +1597,18 @@ denn eine gescheiterte Ingestion wird zurückgegeben statt geworfen, und nichts
 versucht sie erneut. Beide für die Dauer eines Einfügens ist ein Zustand, den eine
 Suche übersteht; keines nicht.
 
-Die eigene Historie einer Source ist
-`GET /kb/{kb_id}/sync-sources/{source_id}/logs`. Die Source wird zuerst gegen
-diese Wissensdatenbank aufgelöst, eine Source, die zu einer anderen
-Wissensdatenbank gehört, antwortet also mit **404** statt mit einer leeren Liste —
-die beiden stellen sonst denselben Bildschirm dar, und eine davon ist eine
-Anfrage, die hätte scheitern sollen. Ihre Durchläufe werden dann nach Source-Id
-gelesen, und das ist es, was `limit` und `total` dieselbe Menge von Zeilen
-beschreiben lässt: eine auf eine andere Wissensdatenbank umgehängte Source behält
-ihre früheren Durchläufe unter dem Collection-Namen, den sie damals hatte, und die
-fielen früher von der Seite, nachdem `limit` sie bereits beschnitten hatte.
+Die Historie einer Source ist unter `GET /kb/{kb_id}/sync-sources/{source_id}/logs`
+verfügbar. Die Source muss zu dieser Wissensdatenbank gehören, sonst antwortet die
+Route mit **404**. Jeder gespeicherte Lauf behält seine ursprüngliche Datenbank
+und Organisation als Zugriffsgrenze: Eine Neuzuordnung gibt der neuen Datenbank
+keinen Zugriff auf frühere private Läufe. Die Filterung erfolgt vor dem
+Seitenlimit. Ältere Läufe ohne gespeicherte Datenbank bleiben über ihre Source
+zuordenbar.
+
+Dokumentabgleich, Ansprüche auf unveränderte Dokumente und Vektorverfolgung
+verwenden den Dokumentbereich der Zieldatenbank. Eine Neuzuordnung löscht den
+zwischengespeicherten Sync-Zustand und letzten Status; der Abschluss eines für
+das alte Ziel zugelassenen Laufs kann sie nicht wiederherstellen.
 
 ### Was eine Sync-Source nicht entscheiden darf { #what-a-sync-source-is-not-allowed-to-decide }
 

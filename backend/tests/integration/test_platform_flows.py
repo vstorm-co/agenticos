@@ -1366,20 +1366,27 @@ class TestReadingOneSyncSourcesHistory:
     ) -> None:
         """`limit` and `total` have to describe the same set of rows.
 
-        This source ran twice against this base and once, before it was moved,
-        against another. Asking for three runs used to answer with two and call it
-        the whole history.
+        Three runs in this base are interleaved with private-base history. Scope
+        filtering must happen before SQL pagination rather than thinning a page.
         """
-        for collection_name in (
-            rag_estate.home_collection.collection_name,
-            rag_estate.home_private.collection_name,
-            rag_estate.home_collection.collection_name,
+        now = datetime.now(UTC)
+        for index, kb in enumerate(
+            (
+                rag_estate.home_collection,
+                rag_estate.home_private,
+                rag_estate.home_collection,
+                rag_estate.home_private,
+                rag_estate.home_collection,
+            )
         ):
-            await _sync_log_row(
+            log = await _sync_log_row(
                 db,
-                collection_name=collection_name,
+                collection_name=kb.collection_name,
+                organization_id=rag_estate.home.organization.id,
+                knowledge_base_id=kb.id,
                 sync_source_id=rag_estate.home_source.id,
             )
+            log.started_at = now + timedelta(seconds=index)
 
         response = await kb_api(rag_estate.home).get(
             f"{settings.API_V1_STR}/kb/{rag_estate.home_collection.id}"

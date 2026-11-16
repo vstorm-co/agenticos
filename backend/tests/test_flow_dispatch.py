@@ -134,7 +134,10 @@ async def test_a_source_with_nowhere_to_write_is_not_queued(
     """A source naming a collection but no base - its base deleted, or the upgrade
     could not attribute it - is refused rather than synced by its name (#2551)."""
     source = SimpleNamespace(
-        id=uuid4(), collection_name=collection_name, knowledge_base_id=knowledge_base_id
+        id=uuid4(),
+        collection_name=collection_name,
+        knowledge_base_id=knowledge_base_id,
+        is_active=True,
     )
     monkeypatch.setattr(sync_source_repo, "get_by_id", AsyncMock(return_value=source))
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "321e44fc604c"
+source_sha: "9acf7a5db2e7"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1524,15 +1524,17 @@ permanente, porque una ingesta fallida se devuelve en vez de lanzarse y nada la
 reintenta. Tener los dos durante lo que dura una inserción es un estado que una
 búsqueda sobrevive; no tener ninguno, no.
 
-El historial propio de una fuente está en
-`GET /kb/{kb_id}/sync-sources/{source_id}/logs`. La fuente se resuelve primero
-contra esa base de conocimiento, así que una fuente que pertenece a otra base
-responde **404** en vez de una lista vacía — por lo demás las dos pintan la misma
-pantalla, y una de ellas es una petición que debería haber fallado. Sus ejecuciones
-se leen por id de fuente, que es lo que mantiene a `limit` y `total` describiendo
-el mismo conjunto de filas: una fuente reapuntada a otra base conserva sus
-ejecuciones anteriores bajo el nombre de colección que tenía entonces, y antes se
-caían de la página después de que `limit` ya la hubiera recortado.
+El historial de una fuente está en `GET /kb/{kb_id}/sync-sources/{source_id}/logs`.
+La fuente debe pertenecer a esa base; de lo contrario, la ruta devuelve **404**.
+Cada ejecución guardada conserva su base y organización originales como límite
+de acceso: reasignar una fuente no concede a la nueva base acceso a ejecuciones
+privadas anteriores. El filtrado se aplica antes del límite de página. Las
+ejecuciones antiguas sin una base guardada siguen atribuyéndose mediante su fuente.
+
+La reconciliación, las reclamaciones de documentos sin cambios y el seguimiento
+de vectores usan el ámbito documental de la base de destino. Reasignar una fuente
+borra su estado de sincronización en caché y su último estado; la finalización de
+una ejecución admitida para el destino anterior no puede restaurarlos.
 
 ### Qué no le corresponde decidir a una fuente de sincronización { #what-a-sync-source-is-not-allowed-to-decide }
 
