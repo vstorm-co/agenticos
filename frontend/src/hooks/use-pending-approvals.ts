@@ -36,6 +36,8 @@ export function usePendingApprovals() {
     count: allowed ? tools.total + mine.length : 0,
     isLoading: allowed && (tools.isLoading || steps.isLoading),
     error: allowed ? (tools.error ?? steps.error) : null,
-    refetch: () => Promise.all([tools.refetch(), steps.refetch()]),
+    refetch: allowed
+      ? () => Promise.all([tools.refetch(), steps.refetch()])
+      : () => Promise.resolve([]),
   };
 }
