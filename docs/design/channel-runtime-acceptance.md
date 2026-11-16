@@ -53,7 +53,8 @@ Reply **inside that thread**, as separate posts:
 > @agenticos-qa Podsumuj ustalenia tego wątku: termin, sala, osoba kontaktowa i kod. Nie szukaj innych rozmów w kanale.
 
 Expected: all four facts are available, with their original authors and times.
-`QA-OUTSIDE` is absent. The current question appears once, and imported posts
+`QA-OUTSIDE` is absent. A short complete thread carries no missing-history warning.
+The current question appears once, and imported posts
 are reference data rather than fake assistant answers.
 
 ## 3. Discussion between mentions

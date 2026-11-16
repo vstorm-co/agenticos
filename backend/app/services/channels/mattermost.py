@@ -88,6 +88,7 @@ class _HistoryPost(BaseModel):
 
 
 class _HistoryPayload(BaseModel):
+    has_next: bool | None = None
     posts: dict[str, _HistoryPost]
     order: list[str]
 
@@ -1052,7 +1053,19 @@ class MattermostAdapter(ChannelAdapter):
             if thread_id:
                 params: dict[str, str | int] = {"perPage": min(200, limit + 1), "direction": "up"}
                 if filters.cursor is not None:
+                    anchor_response = await client.get(
+                        f"{base}/api/v4/posts/{filters.cursor}", headers=headers
+                    )
+                    anchor_response.raise_for_status()
+                    anchor = _HistoryPost.model_validate(anchor_response.json())
+                    if anchor.channel_id != channel_id or (
+                        filters.cursor != thread_id and anchor.root_id != thread_id
+                    ):
+                        raise ChannelDirectoryUnsupported(
+                            "The history cursor no longer belongs to this thread."
+                        )
                     params["fromPost"] = filters.cursor
+                    params["fromCreateAt"] = anchor.create_at
                 else:
                     upper = filters.before or datetime.now(UTC)
                     params["fromCreateAt"] = math.ceil(upper.timestamp() * 1000)
@@ -1097,7 +1110,10 @@ class MattermostAdapter(ChannelAdapter):
                 )
             response.raise_for_status()
             payload = _HistoryPayload.model_validate(response.json())
-        ordered = sorted(
+        # Mattermost repeats the root on partial pages; it is an oldest boundary
+        # only when the provider confirms that no older replies were omitted.
+        complete_thread = thread_id is not None and payload.has_next is False
+        available = sorted(
             (
                 (post_id, post)
                 for post_id, post in payload.posts.items()
@@ -1106,14 +1122,16 @@ class MattermostAdapter(ChannelAdapter):
                 and (thread_id is None or post_id == thread_id or post.root_id == thread_id)
                 and post_id != filters.cursor
                 and (
-                    thread_id is None
+                    complete_thread
+                    or thread_id is None
                     or post_id != thread_id
                     or not any(key != thread_id and key != filters.cursor for key in payload.posts)
                 )
             ),
             key=lambda item: (item[1].create_at, item[0]),
             reverse=True,
-        )[:limit]
+        )
+        ordered = available[:limit]
         posts = [
             ChannelPost(
                 author=post.user_id or "unknown",
@@ -1130,8 +1148,9 @@ class MattermostAdapter(ChannelAdapter):
             if ordered
             and (
                 searched
-                or len(ordered) == limit
-                or (thread_id is not None and ordered[-1][0] != thread_id)
+                or len(available) > limit
+                or (not complete_thread and len(ordered) == limit)
+                or (thread_id is not None and not complete_thread and ordered[-1][0] != thread_id)
             )
             else None
         )

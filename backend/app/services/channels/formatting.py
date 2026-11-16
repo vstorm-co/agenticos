@@ -58,7 +58,8 @@ MCP_APPROVAL_GUIDANCE = (
     "MCP calls follow the agent binding and per-tool approval settings, the same as web chat, "
     "whether or not the sender has linked their identity. Run freely does not require an extra "
     "channel confirmation. Personal MCP services still require the sender's linked identity "
-    "and their own authorized connection."
+    "and their own authorized connection. Linking a chat identity alone neither connects "
+    "a service nor adds it to the published agent. Confirm tool availability before promising access."
 )
 
 

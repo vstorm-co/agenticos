@@ -370,3 +370,10 @@ def test_runtime_marks_only_test_deployments_and_does_not_pretend_connected_serv
     )
     assert ("local test deployment" in context) is testing
     assert ("external effects can still be real" in context) is testing
+
+
+def test_channel_guidance_does_not_promise_service_access_after_linking_identity():
+    from app.services.channels.formatting import MCP_APPROVAL_GUIDANCE
+
+    assert "Linking a chat identity alone neither connects a service" in MCP_APPROVAL_GUIDANCE
+    assert "Confirm tool availability before promising access" in MCP_APPROVAL_GUIDANCE
