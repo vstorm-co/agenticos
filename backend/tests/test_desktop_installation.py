@@ -42,13 +42,12 @@ def test_windows_and_linux_installation_requires_a_disposable_runner(
 @pytest.mark.parametrize(
     "library",
     [
+        "libwayland-client.so",
         "libwayland-client.so.0",
-        "libwayland-cursor.so.0.23.0",
-        "libwayland-egl.so.1",
-        "libwayland-server.so.0",
+        "libwayland-client.so.0.23.0",
     ],
 )
-def test_appimage_rejects_bundled_wayland_in_nested_library_directories(
+def test_appimage_rejects_bundled_wayland_clients_in_nested_library_directories(
     tmp_path: Path, library: str
 ) -> None:
     (tmp_path / "AppRun").touch()
@@ -64,7 +63,7 @@ def test_appimage_rejects_wayland_symlinks_even_when_their_target_is_missing(
 ) -> None:
     (tmp_path / "AppRun").touch()
     (tmp_path / "libwayland-client.so.0").symlink_to("libwayland-client.so.0.23.0")
-    with pytest.raises(RuntimeError, match="host Wayland"):
+    with pytest.raises(RuntimeError, match="host Wayland client"):
         installer.verify_appimage_tree(tmp_path)
 
 
@@ -95,7 +94,7 @@ def test_appimage_extraction_validates_payload_and_cleans_up(
     )
     image.chmod(0o755)
     if bundled_wayland:
-        with pytest.raises(RuntimeError, match="host Wayland"):
+        with pytest.raises(RuntimeError, match="host Wayland client"):
             installer.appimage(tmp_path)
     else:
         installer.appimage(tmp_path)
@@ -189,3 +188,17 @@ def test_mac_validation_rejects_mismatched_extensions_and_unexpected_permissions
     )
     with pytest.raises(RuntimeError, match="unexpected permissions"):
         installer.verify_mac_app(app)
+
+
+@pytest.mark.parametrize(
+    "library", ["libwayland-cursor.so.0", "libwayland-egl.so.1", "libwayland-server.so.0"]
+)
+def test_appimage_allows_wayland_helpers_that_do_not_replace_the_host_client(
+    tmp_path: Path,
+    library: str,
+) -> None:
+    (tmp_path / "AppRun").touch()
+    bundled = tmp_path / "usr/lib" / library
+    bundled.parent.mkdir(parents=True)
+    bundled.touch()
+    installer.verify_appimage_tree(tmp_path)

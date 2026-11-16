@@ -1,5 +1,5 @@
 ---
-source_sha: "232192c4da2d"
+source_sha: "7e7a3aa5ce5f"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -656,7 +656,7 @@ permisos de consola ni archivos; solo pueden notificar una toma de control.
 
 El workflow Apps también genera instaladores de desarrollo y comprueba la instalación sin automatizar la interfaz: copia de la app Mac desde el DMG, instalación y desinstalación silenciosas en Windows, instalación y eliminación de Debian y extracción del AppImage portátil. Verifica el widget integrado de macOS y las firmas, el aislamiento de la sesión persistente y el rechazo de descargas de actualización modificadas. Usa compilaciones ad-hoc o sin firma y no acredita notarización pública ni aprobación de tiendas.
 
-La CI de instaladores y las compilaciones de versiones para Linux también inspeccionan el AppImage extraído y rechazan las bibliotecas Wayland incluidas, que pueden entrar en conflicto con el controlador Mesa del sistema y provocar un fallo de WebKitGTK. La validación se ejecuta antes de subir los instaladores y las firmas de actualización. Esta comprobación de bibliotecas no confirma la compatibilidad de renderizado con todos los compositores Wayland o GPU.
+La CI de instaladores y las compilaciones de versiones para Linux también inspeccionan el AppImage extraído y rechazan la biblioteca cliente de Wayland incluida (`libwayland-client.so*`), que puede entrar en conflicto con el controlador Mesa del sistema y provocar un fallo de WebKitGTK. La validación se ejecuta antes de subir los instaladores y las firmas de actualización. Esta comprobación de bibliotecas no confirma la compatibilidad de renderizado con todos los compositores Wayland o GPU.
 
 El workflow **Apps** de GitHub Actions comprueba los crates nativos en macOS,
 Windows y Linux y construye APK de depuración Android y la aplicación del

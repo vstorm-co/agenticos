@@ -109,11 +109,13 @@ def windows(folder: Path) -> None:
 def verify_appimage_tree(root: Path) -> None:
     if not (root / "AppRun").is_file():
         raise RuntimeError("The portable AppImage launcher is missing")
-    # Bundled Wayland libraries can shadow the host's display stack and crash
-    # Mesa's EGL initialization. See tauri-apps/tauri#15976.
-    bundled = sorted(str(path.relative_to(root)) for path in root.rglob("libwayland-*.so*"))
+    # Mesa must use the host Wayland client. Match AppImage's excludelist:
+    # https://github.com/probonopd/AppImages/blob/master/excludelist
+    bundled = sorted(str(path.relative_to(root)) for path in root.rglob("libwayland-client.so*"))
     if bundled:
-        raise RuntimeError(f"AppImage must use host Wayland libraries; found: {', '.join(bundled)}")
+        raise RuntimeError(
+            f"AppImage must use the host Wayland client library; found: {', '.join(bundled)}"
+        )
 
 
 def appimage(folder: Path) -> None:
@@ -127,7 +129,7 @@ def appimage(folder: Path) -> None:
             timeout=120,
         )
         verify_appimage_tree(Path(temporary) / "squashfs-root")
-    print("APPIMAGE_INSTALL: extraction and host Wayland library policy verified")
+    print("APPIMAGE_INSTALL: extraction and host Wayland client policy verified")
 
 
 def linux(folder: Path) -> None:
@@ -152,7 +154,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("bundle", type=Path)
     parser.add_argument(
-        "--appimage-only", action="store_true", help="Validate AppImage without installing packages"
+        "--appimage-only",
+        action="store_true",
+        help="Validate AppImage without installing packages",
     )
     args = parser.parse_args()
     folder = args.bundle.resolve()
