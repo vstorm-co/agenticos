@@ -23,9 +23,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 - **Table calls read in the table's own names.** When an agent queries, reads,
   adds, updates, upserts or deletes Virtual Table records through the platform
-  tools, the chat step shows the table, its conditions, sort order, page size and
-  written cells by column and option label, and the records it found as a short
-  table. Approval cards for table writes, in chat and under Runs, and each table
+  tools, the chat step shows the table, the record it targets, its conditions,
+  sort order, page size and written cells by column and option label, and the
+  records it found as a short table. Approval cards for table writes, in chat and under Runs, and each table
   step of a run's timeline show the same summary above the raw arguments, and a
   pending table write no longer leads with its table's id. When the reader cannot
   open the table, and on hosted pages, the call is shown as sent.

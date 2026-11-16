@@ -1,6 +1,6 @@
 "use client";
 
-import { createElement, useState } from "react";
+import { createElement, useState, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -166,9 +166,12 @@ function Fields({ args, nested = false }: { args: Record<string, unknown>; neste
 export function ApprovalDetails({
   toolName,
   args,
+  fallback,
 }: {
   toolName: string;
   args: Record<string, unknown>;
+  /** What a table write leads with instead while its table cannot be read. */
+  fallback?: ReactNode;
 }) {
   const t = useTranslations("pages.runs");
   const [open, setOpen] = useState(false);
@@ -176,7 +179,7 @@ export function ApprovalDetails({
   return (
     <div className="space-y-2">
       {/* A table write in the table's own labels, above the ids it will run with. */}
-      <TableCallReadout toolName={toolName} args={args} />
+      <TableCallReadout toolName={toolName} args={args} fallback={fallback} />
       <button
         type="button"
         onClick={() => setOpen((shown) => !shown)}

@@ -2043,7 +2043,8 @@
         "recordUntitled": "Record · revision {revision}",
         "table": "Table",
         "column": "Column",
-        "value": "Value"
+        "value": "Value",
+        "recordLabel": "Record"
       }
     },
     "turnWasStopped": "stopped",

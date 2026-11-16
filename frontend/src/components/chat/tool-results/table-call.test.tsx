@@ -112,10 +112,21 @@ const queued = {
   },
 };
 
+/** Answer the table's own read, and each record read from `records` - else as missing. */
+function serve(served: TableRead, records: Record<string, unknown> = {}) {
+  vi.mocked(apiClient.get).mockImplementation((url: string) => {
+    const record = /\/records\/([^/]+)$/.exec(url)?.[1];
+    if (record === undefined) return Promise.resolve(served);
+    return record in records
+      ? Promise.resolve(records[record])
+      : Promise.reject(new Error("Not found"));
+  });
+}
+
 describe("table tool results", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiClient.get).mockResolvedValue(table);
+    serve(table);
   });
 
   it("reads a query's conditions and its page in the table's own labels", async () => {
@@ -178,7 +189,7 @@ describe("table tool results", () => {
 
   it("reads a page of a table with no text column, and cells a record left empty", async () => {
     const flag = column({ id: "flag", label: "Shared", type: "boolean" });
-    vi.mocked(apiClient.get).mockResolvedValue({
+    serve({
       ...table,
       columns: [table.columns[2]!, table.columns[3]!, flag],
     });
@@ -216,6 +227,7 @@ describe("table tool results", () => {
   });
 
   it("reads the cells a write sends, and the record it answered with", async () => {
+    serve(table, { r1: row("r1", "Agents in prod") });
     shown(
       call(
         "agenticos_update_virtual_table_record",
@@ -224,11 +236,14 @@ describe("table tool results", () => {
       ),
     );
     expect(await screen.findByText("Worth sharing")).toBeVisible();
-    // Each part says what it is: the table, then the column and the value it gets.
+    // The record it changes is named by its title once read.
+    expect(await screen.findByText("Agents in prod", { selector: "dd" })).toBeVisible();
+    // Each part says what it is: the table, the record, then the column and its value.
     expect(
       screen.getAllByRole("term").map((term) => [term.textContent, term.nextSibling?.textContent]),
     ).toEqual([
       ["Table", "hacker_news_table"],
+      ["Record", "Agents in prod"],
       ["Column", "status"],
       ["Value", "Worth sharing"],
     ]);
@@ -272,7 +287,7 @@ describe("table tool results", () => {
   });
 
   it("titles a record only from a text column the table has", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ ...table, columns: [table.columns[3]!] });
+    serve({ ...table, columns: [table.columns[3]!] });
     shown(call("agenticos_get_virtual_table_record", { record_id: "r1" }, row("r1", "x")));
     expect(await screen.findByText("Record · revision 1")).toBeVisible();
   });
@@ -283,6 +298,86 @@ describe("table tool results", () => {
     await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
     expect(screen.getByText("Arguments")).toBeVisible();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("names a pending deletion's record by its id when the record cannot be read", async () => {
+    shown(call("agenticos_delete_virtual_table_record", { record_id: "r9", expected_revision: 2 }));
+    expect(await screen.findByRole("link", { name: "hacker_news_table" })).toBeVisible();
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith(`/tables/${TABLE}/records/r9`));
+    expect(screen.getByText("r9")).toHaveClass("font-mono");
+  });
+
+  it("shows the columns a query projected to, and none for metadata only", async () => {
+    const page = { items: [row("r1", "Agents in prod")], has_more: false };
+    const { unmount } = shown(
+      call("agenticos_query_virtual_table", { query: { columns: [STATUS, "gone"] } }, page),
+    );
+    expect(await screen.findByRole("columnheader", { name: "status" })).toBeVisible();
+    expect(screen.getAllByRole("columnheader")).toHaveLength(1);
+    unmount();
+
+    shown(call("agenticos_query_virtual_table", { query: { columns: [] } }, page));
+    expect(await screen.findByText("1 record found")).toBeVisible();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("names a contains operand on a list column, and linked records by their labels", async () => {
+    const tags = column({
+      id: "tags",
+      label: "Tags",
+      type: "multi_select",
+      options: [{ id: "o1", label: "Agents", archived: false }],
+    });
+    const related = column({ id: "rel", label: "Related", type: "link" });
+    serve({ ...table, columns: [...table.columns, tags, related] });
+    shown(
+      call(
+        "agenticos_query_virtual_table",
+        {
+          query: {
+            filters: [
+              { op: "contains", value: "o1", column_id: "tags" },
+              { op: "is_null", value: false, column_id: "rel" },
+            ],
+          },
+        },
+        {
+          items: [
+            {
+              ...row("r1", "Agents in prod"),
+              links: { rel: [{ id: "r2", label: "Evals at scale" }] },
+            },
+          ],
+        },
+      ),
+    );
+    expect(await screen.findByText("Agents", { selector: "li span" })).toBeVisible();
+    expect(screen.getByRole("cell", { name: "Evals at scale" })).toBeVisible();
+  });
+
+  it("bounds a long written value, which the raw arguments keep whole", async () => {
+    shown(call("agenticos_add_virtual_table_record", { values: { [CONTENT]: "x".repeat(5000) } }));
+    const value = await screen.findByText(/^x+…$/);
+    expect(value.textContent).toHaveLength(280);
+    expect(value).toHaveClass("line-clamp-4");
+  });
+
+  it("keeps a failed call in the generic view, with its failure", async () => {
+    const ok = call("agenticos_query_virtual_table", queued, { items: [] });
+    const failed = {
+      ...call("agenticos_query_virtual_table", queued),
+      status: "error",
+    } as ToolCall;
+    show(
+      <>
+        <TableToolResult toolCall={ok} toolName={ok.name} resultText="" />
+        <TableToolResult toolCall={failed} toolName={failed.name} resultText="" />
+      </>,
+    );
+    // The table is read - the call beside it names it - and the failure still wins.
+    expect(await screen.findByRole("link", { name: "hacker_news_table" })).toBeVisible();
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+    expect(screen.getByText("Tool failed.")).toBeVisible();
   });
 
   it("reads no table on a hosted page, whose visitor has no session", () => {
@@ -301,7 +396,7 @@ describe("table tool results", () => {
 describe("table call readout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiClient.get).mockResolvedValue(table);
+    serve(table);
   });
 
   it("names a parked write's table and cells", async () => {
@@ -326,6 +421,20 @@ describe("table call readout", () => {
     );
     expect(await screen.findByText("1 record found")).toBeVisible();
     expect(screen.getByRole("cell", { name: "Agents in prod" })).toBeVisible();
+  });
+
+  it("shows its fallback while the table cannot be read", async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("Forbidden"));
+    show(
+      <TableCallReadout
+        toolName="agenticos_delete_virtual_table_record"
+        args={{ table_id: TABLE, record_id: "r1" }}
+        fallback={<p>{TABLE}</p>}
+      />,
+    );
+    expect(screen.getByText(TABLE)).toBeVisible();
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+    expect(screen.getByText(TABLE)).toBeVisible();
   });
 
   it("reads nothing for any other tool", () => {

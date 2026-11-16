@@ -10,15 +10,24 @@ import {
 } from "@/lib/table-tool-calls";
 import type { ColumnDef, RecordRead, TableRead } from "@/types/tables";
 
-import { useCellText } from "./table-call-data";
+import { useRecordText } from "./table-call-data";
 
 /** Enough rows to recognize what a page held; the table itself has the rest. */
 const SHOWN = 10;
 /** Columns too long for one line of a transcript: the article, never its status. */
 const LONG = new Set(["long_text", "rich_text"]);
 
-/** The title column, then each short column the query filtered or sorted on. */
+/**
+ * The columns a page of records is shown by: the ones the query projected to,
+ * in its order - an empty projection asked for metadata only, and shows none -
+ * or else the title column and each short column it filtered or sorted on.
+ */
 function shownColumns(query: TableCallQuery, table: TableRead): ColumnDef[] {
+  if (query.columns !== null) {
+    return query.columns
+      .map((id) => table.columns.find((column) => column.id === id))
+      .filter((column): column is ColumnDef => column !== undefined);
+  }
   const title = titleColumn(table.columns);
   const named = [...query.filters.map((filter) => filter.column_id), query.sort?.by];
   const picked = table.columns.filter(
@@ -39,7 +48,7 @@ function Records({
   hasMore: boolean;
 }) {
   const t = useTranslations("chat.tools.tableCall");
-  const cellText = useCellText();
+  const recordText = useRecordText();
   const columns = shownColumns(query, table);
   return (
     <div className="space-y-1.5">
@@ -64,7 +73,7 @@ function Records({
                 <tr key={record.id} className="border-foreground/5 border-t">
                   {columns.map((column) => (
                     <td key={column.id} className="max-w-64 truncate px-2 py-1">
-                      {cellText(column, record.values[column.id] ?? null)}
+                      {recordText(column, record)}
                     </td>
                   ))}
                 </tr>
@@ -96,7 +105,7 @@ export function TableCallAnswerView({
   result: unknown;
 }) {
   const t = useTranslations("chat.tools.tableCall");
-  const cellText = useCellText();
+  const recordText = useRecordText();
   const answer = result === undefined ? null : readTableAnswer(call.tool, result);
   if (answer === null) return null;
   if (answer.kind === "records") {
@@ -115,7 +124,7 @@ export function TableCallAnswerView({
   }
   if (answer.kind === "deleted") return <p className="text-xs">{t("deleted")}</p>;
   const title = titleColumn(table.columns);
-  const label = title === null ? "" : cellText(title, answer.record.values[title.id] ?? null);
+  const label = title === null ? "" : recordText(title, answer.record);
   return (
     <p className="text-xs">
       {label === ""

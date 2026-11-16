@@ -9,6 +9,7 @@ import type { CellValue, RecordFilter, TableRead } from "@/types/tables";
 import { useCellText } from "./table-call-data";
 
 const DATED = new Set(["date", "datetime"]);
+const LISTS = new Set(["multi_select", "multi_user", "multi_agent"]);
 
 function Condition({ filter, table }: { filter: RecordFilter; table: TableRead }) {
   const t = useTranslations("tables.filters");
@@ -27,6 +28,9 @@ function Condition({ filter, table }: { filter: RecordFilter; table: TableRead }
       : Array.isArray(filter.value) && choice === "in"
         ? (filter.value as CellValue[])
         : [filter.value as CellValue];
+  // `contains` on a list column names one member - an option id - while the
+  // column's formatter reads a whole list, so it is handed a list of one.
+  const listed = column !== undefined && LISTS.has(column.type);
   return (
     <li className="flex flex-wrap items-baseline gap-x-1.5 text-xs">
       <span className="text-foreground font-medium">
@@ -35,7 +39,11 @@ function Condition({ filter, table }: { filter: RecordFilter; table: TableRead }
       <span className="text-muted-foreground">{operator}</span>
       {operands.length > 0 && (
         <span className="text-foreground">
-          {operands.map((operand) => cellText(column, operand)).join(", ")}
+          {operands
+            .map((operand) =>
+              cellText(column, listed && !Array.isArray(operand) ? [String(operand)] : operand),
+            )
+            .join(", ")}
         </span>
       )}
     </li>

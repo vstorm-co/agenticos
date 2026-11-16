@@ -59,6 +59,7 @@ vi.mock("@/components/datasets/add-to-dataset-button", () => ({
 vi.mock("@/lib/tables-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/tables-api")>()),
   getTable: vi.fn(),
+  getRecord: vi.fn().mockRejectedValue(new Error("Not found")),
 }));
 
 vi.mock("@/hooks", async (importOriginal) => ({
@@ -312,6 +313,8 @@ describe("a tool call, raw", () => {
     const step = screen
       .getByText("agenticos_update_virtual_table_record")
       .closest("details") as HTMLElement;
+    // Folded, the step reads nothing: a long run must not fetch every table it touched.
+    expect(getTable).not.toHaveBeenCalled();
     await userEvent.click(within(step).getByText("agenticos_update_virtual_table_record"));
 
     expect(await within(step).findByRole("link", { name: "hacker_news_table" })).toBeVisible();

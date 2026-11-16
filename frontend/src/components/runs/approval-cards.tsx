@@ -24,8 +24,8 @@ function useCallLine(approval: ToolApproval, withArguments: boolean): string | n
   const t = useTranslations("pages.runs");
   const tTools = useTranslations("chat.tools");
   if (approval.content_hidden) return t("contentHidden");
-  // A table write's first string argument is its table's id; `TableCallReadout`
-  // names the table and its cells instead.
+  // A table write's first string argument is its table's id: the card shows it
+  // only as the fallback of `TableCallReadout`, which names the table instead.
   const argumentLine =
     withArguments && !isTableTool(approval.tool_id) ? callSummary(approval.tool_args) : null;
   return approvalSummary(approval.capability_tool_id, approval.context, tTools) ?? argumentLine;
@@ -82,6 +82,12 @@ export function PendingApproval({
   const phrase = useActionPhrase();
   const ago = approval.created_at ? timeAgo(approval.created_at, tTime, locale) : null;
   const summary = useCallLine(approval, true);
+  // Kept for a table write whose table this approver cannot read, so the card
+  // still says what it targets; replaced by the named summary when it can.
+  const tableLine =
+    isTableTool(approval.tool_id) && !approval.content_hidden
+      ? callSummary(approval.tool_args)
+      : null;
   const askedLine = useAskedLine(approval);
   const mayApprove = !(approval.always_asks && approval.content_hidden);
 
@@ -129,7 +135,17 @@ export function PendingApproval({
               </p>
             </div>
             <ApprovalDelegate approval={approval} />
-            <ApprovalDetails toolName={approval.tool_id} args={approval.tool_args} />
+            <ApprovalDetails
+              toolName={approval.tool_id}
+              args={approval.tool_args}
+              fallback={
+                tableLine !== null && (
+                  <p className="text-foreground/80 truncate text-sm" title={tableLine}>
+                    {tableLine}
+                  </p>
+                )
+              }
+            />
           </div>
         </div>
         <div className="flex shrink-0 gap-2 sm:flex-col">

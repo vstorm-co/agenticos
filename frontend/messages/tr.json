@@ -9458,7 +9458,8 @@
         "recordUntitled": "Kayıt · revizyon {revision}",
         "table": "Tablo",
         "column": "Sütun",
-        "value": "Değer"
+        "value": "Değer",
+        "recordLabel": "Kayıt"
       }
     },
     "turnWasStopped": "durduruldu",

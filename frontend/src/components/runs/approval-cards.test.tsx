@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
@@ -15,7 +15,7 @@ vi.mock("@/components/dashboard/agent-face", () => ({
 }));
 vi.mock("@/components/runs/approval-delegate", () => ({ ApprovalDelegate: () => null }));
 vi.mock("@/lib/mobile/haptics", () => ({ haptic: vi.fn() }));
-vi.mock("@/lib/tables-api", () => ({ getTable: vi.fn() }));
+vi.mock("@/lib/tables-api", () => ({ getTable: vi.fn(), getRecord: vi.fn() }));
 
 function approval(overrides: Partial<ToolApproval> = {}): ToolApproval {
   return {
@@ -234,6 +234,33 @@ describe("PendingApproval - a call from an MCP server", () => {
     expect(await screen.findByRole("link", { name: "hacker_news_table" })).toBeVisible();
     expect(screen.getByText("Not worth sharing")).toBeVisible();
     expect(screen.queryByText(table)).toBeNull();
+  });
+
+  it("keeps a table write's target line for an approver who cannot read the table", async () => {
+    const table = "638b016e-c0fd-4e4d-b916-c4810a49a54c";
+    vi.mocked(getTable).mockRejectedValue(new Error("Forbidden"));
+    render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <ul>
+            <PendingApproval
+              approval={approval({
+                tool_id: "agenticos_delete_virtual_table_record",
+                tool_args: { table_id: table, record_id: "r1", expected_revision: 2 },
+              })}
+              deciding={false}
+              onDecide={vi.fn()}
+              onOpenRun={vi.fn()}
+            />
+          </ul>
+        </NextIntlClientProvider>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(getTable).toHaveBeenCalled());
+    expect(await screen.findByText(table)).toBeVisible();
+    expect(screen.queryByRole("link")).toBeNull();
   });
 
   it("has no telling line for a call with nothing to say", () => {

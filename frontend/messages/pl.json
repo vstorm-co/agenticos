@@ -1059,7 +1059,8 @@
         "recordUntitled": "Rekord · wersja {revision}",
         "table": "Tabela",
         "column": "Kolumna",
-        "value": "Wartość"
+        "value": "Wartość",
+        "recordLabel": "Rekord"
       }
     },
     "turnWasStopped": "zatrzymano",

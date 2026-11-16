@@ -22,6 +22,8 @@ const TOOLS: Record<string, TableTool> = {
 };
 
 export interface TableCallQuery {
+  /** The columns the answer was projected to; null when it returned every column. */
+  columns: string[] | null;
   filters: RecordFilter[];
   sort: RecordSort | null;
   search: string | null;
@@ -71,6 +73,9 @@ function readQuery(value: unknown): TableCallQuery {
     : [];
   const sort = object(query.sort);
   return {
+    columns: Array.isArray(query.columns)
+      ? query.columns.filter((id): id is string => typeof id === "string")
+      : null,
     filters,
     sort:
       sort !== null && typeof sort.by === "string"

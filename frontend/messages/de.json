@@ -2043,7 +2043,8 @@
         "recordUntitled": "Datensatz · Revision {revision}",
         "table": "Tabelle",
         "column": "Spalte",
-        "value": "Wert"
+        "value": "Wert",
+        "recordLabel": "Datensatz"
       }
     },
     "turnWasStopped": "gestoppt",

@@ -47,6 +47,7 @@ describe("parseTableCall", () => {
       externalId: null,
       values: null,
       query: {
+        columns: null,
         filters: [{ op: "eq", value: QUEUED, column_id: STATUS }],
         sort: { by: "created_at", direction: "asc" },
         search: "agents",
@@ -58,15 +59,20 @@ describe("parseTableCall", () => {
   it("reads arguments that arrived as a JSON string, and a query left out", () => {
     const call = parseTableCall(
       "agenticos_query_virtual_table",
-      JSON.stringify({ table_id: TABLE, query: { sort: { by: STATUS, direction: "desc" } } }),
+      JSON.stringify({
+        table_id: TABLE,
+        query: { columns: [STATUS, 7], sort: { by: STATUS, direction: "desc" } },
+      }),
     );
     expect(call?.query).toEqual({
+      columns: [STATUS],
       filters: [],
       sort: { by: STATUS, direction: "desc" },
       search: null,
       limit: null,
     });
     expect(parseTableCall("agenticos_query_virtual_table", { table_id: TABLE })?.query).toEqual({
+      columns: null,
       filters: [],
       sort: null,
       search: null,
