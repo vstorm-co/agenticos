@@ -387,6 +387,7 @@ nav:
           - adding_features.md
           - testing.md
           - load-testing.md
+          - retrieval-eval.md
           - task-queue-benchmark.md
           - code-review.md
           - branching.md

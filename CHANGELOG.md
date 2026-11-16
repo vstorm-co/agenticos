@@ -41,9 +41,19 @@ Two things are versioned separately from this file and worth knowing about:
 - Explain a decimal comma in a Virtual Table formula with a translated error that shows the dot, translate every formula refusal by a stable `details.formula.reason`, and show numbers in tables with the reader's decimal separator. A function given the wrong number of values is refused when its formula is saved; one saved before keeps working until it is edited.
 - Translate workflow step settings - labels, help text and placeholders, including fields inside lists - into the console's language, checked against the registry by a guard.
 
+- Workflow **knowledge.search** citations omit page numbers for formats without
+  pages, including Markdown, text, HTML and `.docx`. PDF pages and presentation
+  slides keep their locations (#2482).
+
 ### Added
 
 - Select an organization knowledge base explicitly with `rag-source-add --knowledge-base <id>` when several bases share a collection name. Sync source responses include `knowledge_base_id`.
+
+- A retrieval benchmark over 34 documentation questions, including negative and
+  cross-language answers. `make eval-retrieval` compares retrieval depth, query
+  expansion and chunk settings, with per-question results and reproducible run
+  metadata. [Retrieval evaluation](docs/retrieval-eval.md) records the measured
+  comparison and the decision on knowledge-agent defaults (#2482).
 
 ### Upgrading
 
