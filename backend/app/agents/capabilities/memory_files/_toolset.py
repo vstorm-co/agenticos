@@ -56,12 +56,14 @@ _READ_ONLY = (
     "Mention in your answer anything worth remembering instead."
 )
 _ERASED_DELETE = (
-    "Nothing was removed: this memory was erased after this conversation began, so a note "
-    "of that name was written since and is not the one this conversation knows."
+    "Nothing was removed: this conversation no longer has a current memory snapshot. "
+    "Its memory may have been erased or the database restarted. Start a new conversation "
+    "before changing memory."
 )
 _ERASED = (
-    "Nothing was saved: this memory was erased after this conversation began, so what "
-    "the conversation holds about it must not be written back. Do not try again."
+    "Nothing was saved: this conversation no longer has a current memory snapshot. "
+    "Its memory may have been erased or the database restarted. Start a new conversation "
+    "before saving memory; do not retry from this conversation."
 )
 
 # The `agent_memory_files` metadata column widths: a write past them is an asyncpg

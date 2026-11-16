@@ -105,7 +105,7 @@ async def test_remember_after_forget_me_records_nothing_and_says_why(db: AsyncSe
 
     said = await MemoryToolset().remember(_ctx(user, org, agent, run), "Prefers short answers")
 
-    assert "erased after this conversation began" in said
+    assert "no longer has a current memory snapshot" in said
     assert await _claims(db, person_owner_key(user.id)) == 0
 
 
@@ -115,7 +115,7 @@ async def test_write_memory_after_forget_me_saves_nothing_and_says_why(db: Async
 
     said = await MemoryToolset().write_memory(_ctx(user, org, agent, run), "prefs", "Short")
 
-    assert "erased after this conversation began" in said
+    assert "no longer has a current memory snapshot" in said
     assert await _notes(db, person_owner_key(user.id)) == 0
 
 
@@ -142,7 +142,7 @@ async def test_edit_memory_after_forget_me_changes_nothing_and_says_why(db: Asyn
 
     said = await tools.edit_memory(ctx, "prefs", "Short, as before the erasure")
 
-    assert "erased after this conversation began" in said
+    assert "no longer has a current memory snapshot" in said
     note = await db.scalar(
         select(AgentMemoryFile.content).where(
             AgentMemoryFile.owner_key == person_owner_key(user.id)
@@ -353,7 +353,7 @@ async def test_a_correction_after_its_agent_was_cleared_changes_nothing_and_says
 
     said = await tools.correct_memory(_ctx(user, org, agent, run), str(claim_id), "Coffee")
 
-    assert "erased after this conversation began" in said
+    assert "no longer has a current memory snapshot" in said
     assert await _claim_id(db, person_owner_key(user.id)) == claim_id
     assert await _claims(db, person_owner_key(user.id)) == 1
 
@@ -532,7 +532,7 @@ async def test_a_database_that_refuses_the_cluster_identifier_still_admits_runs(
     await db.execute(text("RESET ROLE"))
     await _forget(db, user, org)
     said = await MemoryToolset().remember(_ctx(user, org, agent, run), "Prefers short answers")
-    assert "erased after this conversation began" in said
+    assert "no longer has a current memory snapshot" in said
 
 
 async def test_database_boot_identity_is_stable_across_connections_and_rollback(
@@ -568,7 +568,7 @@ async def test_a_deletion_after_forget_me_removes_nothing_and_says_why(db: Async
 
     said = await tools.delete_memory(_ctx(user, org, agent, run), "prefs")
 
-    assert "erased after this conversation began" in said
+    assert "no longer has a current memory snapshot" in said
     assert await _notes(db, person_owner_key(user.id)) == 1
 
 

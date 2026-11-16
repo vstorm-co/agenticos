@@ -99,7 +99,7 @@ def _person_of(owner_key: str) -> UUID | None:
 
 
 class ErasedDuringRun(Exception):
-    """The store was erased after the run writing to it began, so nothing was written."""
+    """The run no longer has evidence that its memory view is current."""
 
 
 async def refuse_if_erased_during_run(
