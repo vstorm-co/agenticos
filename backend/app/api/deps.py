@@ -87,6 +87,7 @@ from app.services.mentions import MentionService
 from app.services.mfa import MfaService
 from app.services.personal_data import PersonalDataService
 from app.services.browser_sign_in import BrowserSignInService
+from app.services.browser_teaching import BrowserTeachingService
 from app.services.user import UserService
 from app.services.session import SessionService
 from app.services.web_push import WebPushService
@@ -1297,6 +1298,14 @@ def get_browser_sign_in_service(db: DBSession) -> BrowserSignInService:
 
 
 BrowserSignInSvc = Annotated[BrowserSignInService, Depends(get_browser_sign_in_service)]
+
+
+def get_browser_teaching_service(db: DBSession, redis: Redis) -> BrowserTeachingService:
+    """Create BrowserTeachingService over the request's session and the shared Redis."""
+    return BrowserTeachingService(db, redis)
+
+
+BrowserTeachingSvc = Annotated[BrowserTeachingService, Depends(get_browser_teaching_service)]
 
 
 def get_skill_proposal_service(db: DBSession) -> SkillProposalService:

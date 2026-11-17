@@ -1124,6 +1124,42 @@ class CdpPage:
             with suppress(RuntimeError, ConnectionError, OSError):
                 await self._client.send.Page.stopScreencast(session_id=self._session)
 
+    async def observe_structure(  # pragma: no cover - needs a live browser
+        self, function: str, mode: str, x: float, y: float
+    ) -> object:
+        """Run a fixed observer function in an isolated world of the top frame.
+
+        Browser teaching uses it to describe what a person's input landed on. The
+        isolated world shares the DOM but not the page's scripts, so the page
+        cannot replace the functions the observer calls. The point arrives in
+        picture pixels, like `click_at`, and is converted to CSS pixels here.
+        """
+        tree = await self._client.send.Page.getFrameTree(session_id=self._session)
+        world = await self._client.send.Page.createIsolatedWorld(
+            params={"frameId": tree["frameTree"]["frame"]["id"], "worldName": "t3os-teaching"},
+            session_id=self._session,
+        )
+        answer = await asyncio.wait_for(
+            self._client.send.Runtime.callFunctionOn(
+                params={
+                    "functionDeclaration": function,
+                    "executionContextId": world["executionContextId"],
+                    "arguments": [
+                        {"value": mode},
+                        {"value": x / self._scale},
+                        {"value": y / self._scale},
+                    ],
+                    "returnByValue": True,
+                    "silent": True,
+                },
+                session_id=self._session,
+            ),
+            timeout=_COMMAND_TIMEOUT,
+        )
+        if answer.get("exceptionDetails") is not None:
+            return None
+        return answer.get("result", {}).get("value")
+
     async def click_at(  # pragma: no cover - needs a live browser
         self, x: float, y: float
     ) -> None:

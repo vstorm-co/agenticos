@@ -62,6 +62,7 @@ from app.agents.capabilities.browser_use._endpoint import EndpointError
 from app.agents.capabilities.browser_use._page import DomainRefused, StaleElement
 from app.agents.capabilities.browser_use._plans import PlanStep, record, replay
 from app.agents.capabilities.browser_use._preview import Preview
+from app.agents.capabilities.browser_use._teach import TeachCapture
 
 REPEAT_LIMIT = 3
 """How often the identical action on the identical page is tried before giving up.
@@ -221,6 +222,8 @@ class BrowseSession:
     """Steps taken in this tab across every call, which is what the frames number."""
     last: Snapshot | None = None
     """The page as the agent last read it, whose element numbers a direct action names."""
+    teaching: TeachCapture | None = None
+    """Structural capture for a person's input while they hold this tab, if admitted."""
 
     def restart(self) -> None:
         """Forget the task, keep the tab - for a call that starts a new one in it."""
@@ -788,6 +791,9 @@ async def held(
         )
     )
     kept: str | None = None
+    teaching = session.teaching
+    if teaching is not None:
+        await teaching.begin(call_id, by_user_id)
 
     async def pictures() -> None:
         location: tuple[str, str] | None = None
@@ -844,7 +850,12 @@ async def held(
                             kept = await remember(page, command)
                         break
                     try:
+                        prepared = (
+                            None if teaching is None else await teaching.before_input(command)
+                        )
                         await _person_input(page, command)
+                        if teaching is not None:
+                            await teaching.after_input(prepared)
                         if command.type in {"navigate", "back", "forward", "reload"}:
                             url, title = await page.location()
                             await emit(
@@ -874,6 +885,8 @@ async def held(
                         )
         finally:
             tasks.cancel_scope.cancel()
+            if teaching is not None:
+                await teaching.end()
     await emit(
         BrowserEvent(kind="browser_released", call_id=call_id, step=session.steps, detail=kept)
     )

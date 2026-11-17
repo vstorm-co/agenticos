@@ -52,6 +52,7 @@ from app.api.routes.v1 import secrets
 from app.api.routes.v1 import runs as agent_runs
 from app.api.routes.v1 import stats
 from app.api.routes.v1 import skill_changes
+from app.api.routes.v1 import browser_teaching
 from app.api.routes.v1 import auto_skill_learning
 from app.api.routes.v1 import context_changes, skill_checks
 from app.api.routes.v1 import workspaces as agent_workspaces
@@ -310,6 +311,9 @@ v1_router.include_router(workflow_run_socket.router, tags=["workflow-runs"])
 v1_router.include_router(change_events.router, tags=["change-events"])
 v1_router.include_router(device_hub.router, tags=["devices"])
 v1_router.include_router(browse_live.router, tags=["browse-live"])
+v1_router.include_router(
+    browser_teaching.router, prefix="/browser-teachings", tags=["browser-teaching"]
+)
 
 v1_router.include_router(rag.router, prefix="/rag", tags=["rag"])
 

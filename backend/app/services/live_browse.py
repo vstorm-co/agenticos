@@ -104,6 +104,11 @@ async def connect_in_worker() -> None:
     _redis = client
 
 
+def client() -> RedisClient | None:
+    """The shared Redis client, for state the API and a run's worker must both read."""
+    return _redis
+
+
 def available() -> bool:
     """Whether this process can publish a live view at all - a CLI or a test cannot."""
     return _redis is not None

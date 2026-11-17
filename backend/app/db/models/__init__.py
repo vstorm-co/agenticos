@@ -25,6 +25,7 @@ from app.db.models.sync_source import SyncSource
 from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.conversation_last_read import ConversationLastRead
 from app.db.models.browser_sign_in import BrowserSignIn
+from app.db.models.browser_teaching import BrowserTeachingSession
 from app.db.models.coding_account import CodingAccount
 from app.db.models.conversation_share import ConversationShare
 from app.db.models.channel_bot import ChannelBot
@@ -251,6 +252,7 @@ __all__ = [
     "Visual",
     "ApiKey",
     "BrowserSignIn",
+    "BrowserTeachingSession",
     "CodingAccount",
     "OrganizationAssistant",
     "ChannelPrompt",
