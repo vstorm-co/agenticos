@@ -1,5 +1,5 @@
 ---
-source_sha: "21a474aff367"
+source_sha: "06ec99687e52"
 ---
 
 # Protección de datos { #data-protection }
@@ -435,7 +435,7 @@ pedirá la revisión, distinta de la capacidad técnica que la hace posible.
 Comprobaciones reproducibles, desde el host, contra el deployment en marcha. Cada
 una imprime hechos que la revisión puede adjuntar; ninguna imprime una credencial
 ni los datos de una persona. Ejecútalas desde `backend/`, o a través de
-`docker compose exec api`.
+`docker compose exec app`.
 
 ```bash
 # 1. ¿Arranca siquiera, y van cifradas las conexiones a los almacenes?

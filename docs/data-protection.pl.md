@@ -1,5 +1,5 @@
 ---
-source_sha: "21a474aff367"
+source_sha: "06ec99687e52"
 ---
 
 # Ochrona danych { #data-protection }
@@ -422,7 +422,7 @@ umożliwia.
 
 Powtarzalne sprawdzenia, z hosta, na działającym wdrożeniu. Każde wypisuje
 fakty, które przegląd może załączyć; żadne nie wypisuje poświadczenia ani
-danych osoby. Uruchamiaj je z `backend/` albo przez `docker compose exec api`.
+danych osoby. Uruchamiaj je z `backend/` albo przez `docker compose exec app`.
 
 ```bash
 # 1. Czy to w ogóle ruszy i czy połączenia do magazynów są szyfrowane?
