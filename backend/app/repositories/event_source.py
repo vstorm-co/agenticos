@@ -24,7 +24,7 @@ async def get(
     if organization_id is not None:
         query = query.where(EventSource.organization_id == organization_id)
     if lock:
-        query = query.with_for_update()
+        query = query.with_for_update().execution_options(populate_existing=True)
     return await db.scalar(query)
 
 

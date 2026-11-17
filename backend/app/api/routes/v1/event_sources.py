@@ -94,7 +94,7 @@ async def receive(
     body = await read_workflow_body(request.stream())
     source, receipt, _ = await service.receive(source_id, body=body, headers=request.headers)
     assert receipt.body is not None
-    await samples.capture(
+    samples.capture_after_commit(
         source.id, body=receipt.body, delivery_id=receipt.external_id or str(receipt.id)
     )
     return Response(status_code=200 if source.provider == "linear" else 202)

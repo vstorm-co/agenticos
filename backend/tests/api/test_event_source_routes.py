@@ -1,16 +1,20 @@
 """Source routes expose write-only credentials and bounded, authenticated live ingress."""
 
+from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
+import anyio
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
+from app.core.background import drain
 from app.core.config import settings
 from app.core.permissions import AuthContext
+from app.db import session
 from app.main import app
 from app.schemas.event_source import (
     EventSourceCreated,
@@ -54,7 +58,6 @@ async def wired():
     service.receive = AsyncMock(
         return_value=(source, MagicMock(body={"x": 1}, external_id="one", id=uuid4()), True)
     )
-    samples.capture = AsyncMock()
     samples.listen = AsyncMock(
         return_value=SourceListening(listener_id="listener-id", expires_at=datetime.now(UTC))
     )
@@ -109,7 +112,49 @@ async def test_live_ingress_returns_provider_success_and_captures_without_second
     response = await client.post(f"/api/v1/webhooks/sources/{source.id}", json={"x": 1})
     assert response.status_code == status
     service.receive.assert_awaited_once()
-    samples.capture.assert_awaited_once_with(source.id, body={"x": 1}, delivery_id="one")
+    samples.capture_after_commit.assert_called_once_with(
+        source.id, body={"x": 1}, delivery_id="one"
+    )
+
+
+@pytest.mark.parametrize("commit_fails", [False, True])
+async def test_live_receipt_commits_and_responds_without_waiting_for_sample_cache(
+    wired, mock_db_session, mock_redis, monkeypatch, commit_fails
+):
+    client, _, _, source = wired
+    capture_started = anyio.Event()
+    release_capture = anyio.Event()
+
+    async def cache_lookup(_key):
+        mock_db_session.commit.assert_awaited_once()
+        capture_started.set()
+        await release_capture.wait()
+
+    @asynccontextmanager
+    async def session_factory():
+        yield mock_db_session
+
+    mock_redis.get.side_effect = cache_lookup
+    app.dependency_overrides.pop(deps.get_event_source_sample_service)
+    app.dependency_overrides[deps.get_redis] = lambda: mock_redis
+    monkeypatch.setattr(session, "async_session_maker", session_factory)
+    path = f"/api/v1/webhooks/sources/{source.id}"
+    try:
+        if commit_fails:
+            mock_db_session.commit.side_effect = RuntimeError("commit failed")
+            with pytest.raises(RuntimeError, match="commit failed"):
+                await client.post(path, json={"x": 1})
+        else:
+            with anyio.fail_after(2):
+                assert (await client.post(path, json={"x": 1})).status_code == 202
+                await capture_started.wait()
+            mock_db_session.commit.assert_awaited_once()
+            mock_redis.get.assert_awaited_once_with(f"source:listeners:{source.id}")
+    finally:
+        release_capture.set()
+        await drain()
+    if commit_fails:
+        mock_redis.get.assert_not_called()
 
 
 async def test_oversized_ingress_is_refused_before_authentication_or_capture(wired):
@@ -120,4 +165,4 @@ async def test_oversized_ingress_is_refused_before_authentication_or_capture(wir
     )
     assert response.status_code == 413
     service.receive.assert_not_called()
-    samples.capture.assert_not_called()
+    samples.capture_after_commit.assert_not_called()

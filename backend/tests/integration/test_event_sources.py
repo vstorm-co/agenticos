@@ -4,14 +4,17 @@ import asyncio
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
+from uuid import UUID
 
+import anyio
 import pytest
 from pydantic import SecretStr
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.permissions import AuthContext
 from app.db.models.background_job import BackgroundJob
 from app.db.models.event_source import (
     EventDelivery,
@@ -20,15 +23,22 @@ from app.db.models.event_source import (
     EventSourceCredential,
     EventSubscription,
 )
+from app.db.models.organization import Organization
 from app.db.models.resource_grant import ResourceGrant
+from app.db.models.user import User
 from app.db.models.workflow_run import WorkflowRun
+from app.schemas.agent_trigger import TriggerCreate
 from app.schemas.event_source import EventSourceCreate, SourceAuth, SourceCredentials
+from app.schemas.workflow import WorkflowPublish
 from app.services import event_sources as module
 from app.services import rate_limit
+from app.services.agent_trigger import AgentTriggerService
 from app.services.event_sources import EventSourceService
+from app.services.workflow_registry import WorkflowRegistryService
 from app.worker.jobs import DispatchSourceEvent
 from app.worker.tasks import event_source_tasks
 from app.workflows.graph.model import WorkflowGraph
+from tests.integration.test_routine_sources import world
 from tests.integration.test_workflow_exposures import (
     _ctx,
     _graph,
@@ -152,6 +162,82 @@ async def test_concurrent_duplicate_admission_persists_one_receipt_and_dispatch(
     assert sorted(admitted) == [False, True]
     assert await _count(db, EventDelivery) == 1
     assert await _count(db, EventDispatch) == 1
+
+
+@pytest.mark.parametrize("second_target", ["routine", "workflow"])
+async def test_concurrent_attachments_to_one_source_both_commit(
+    db: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, second_target: str
+) -> None:
+    """A second attachment must wait before acquiring a conflicting foreign-key or audit lock."""
+    ctx, existing, _, _ = await world(db)
+    source = await EventSourceService(db).create(ctx, EventSourceCreate(name="Shared events"))
+    owner = await db.get(User, ctx.subject_id)
+    org = await db.get(Organization, ctx.organization_id)
+    assert owner is not None and org is not None
+    workflow = await _workflow(db, org=org, owner=owner)
+    workflow.draft_graph = _graph("trigger.webhook", {"source_id": str(source.id)}).model_dump(
+        mode="json"
+    )
+    workflow_id, revision = workflow.id, workflow.draft_revision
+    source_id, agent_id = source.id, existing.agent_id
+    await db.commit()
+    sessions = async_sessionmaker(engine, expire_on_commit=False)
+    entered_binder = anyio.Event()
+    release_binder = anyio.Event()
+    original_bind = EventSourceService.bind_routine
+
+    async with sessions() as first, sessions() as second:
+        second_pid = await second.scalar(text("SELECT pg_backend_pid()"))
+
+        async def pause_first_binder(
+            service: EventSourceService, actor: AuthContext, selected: UUID, trigger_id: UUID
+        ) -> None:
+            if service.db is first:
+                entered_binder.set()
+                await release_binder.wait()
+            await original_bind(service, actor, selected, trigger_id)
+
+        monkeypatch.setattr(EventSourceService, "bind_routine", pause_first_binder)
+
+        async def create_routine(session: AsyncSession) -> None:
+            await AgentTriggerService(session).create(
+                ctx,
+                agent_id,
+                TriggerCreate(trigger_type="event", source_id=source_id, prompt="Process event"),
+            )
+            await session.commit()
+
+        async def attach_second() -> None:
+            if second_target == "routine":
+                await create_routine(second)
+            else:
+                await WorkflowRegistryService(second).publish(
+                    ctx, workflow_id, WorkflowPublish(expected_revision=revision)
+                )
+                await second.commit()
+
+        with anyio.fail_after(10):
+            async with anyio.create_task_group() as group:
+                group.start_soon(create_routine, first)
+                await entered_binder.wait()
+                group.start_soon(attach_second)
+                for _ in range(500):
+                    if await db.scalar(
+                        text("SELECT cardinality(pg_blocking_pids(:pid))"), {"pid": second_pid}
+                    ):
+                        break
+                    await anyio.sleep(0.01)
+                else:
+                    pytest.fail("The second attachment did not wait on PostgreSQL")
+                release_binder.set()
+
+    subscriptions = list(
+        await db.scalars(select(EventSubscription).where(EventSubscription.source_id == source_id))
+    )
+    assert len(subscriptions) == 2
+    assert sum(sub.trigger_id is not None for sub in subscriptions) == (
+        2 if second_target == "routine" else 1
+    )
 
 
 async def test_queue_failure_rolls_back_receipt_and_partial_dispatch(db, source_world, monkeypatch):

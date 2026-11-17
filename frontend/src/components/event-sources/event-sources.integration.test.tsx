@@ -225,6 +225,27 @@ describe("source authentication form", () => {
     );
     expect(vi.mocked(apiClient.patch).mock.calls[0]?.[1]).not.toHaveProperty("credentials");
   });
+  it("hides and clears a legacy delivery ID override on Standard Webhooks", async () => {
+    render(
+      <SourceForm
+        source={{
+          ...source,
+          provider: "webhook",
+          auth: { method: "standard_webhooks" },
+          delivery_id_header: "X-Old-Delivery-Id",
+        }}
+        onSaved={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+      { wrapper },
+    );
+    expect(screen.queryByLabelText("Delivery ID header (optional)")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(apiClient.patch).toHaveBeenCalledWith(
+      "/event-sources/s1",
+      expect.objectContaining({ delivery_id_header: null }),
+    );
+  });
 });
 
 describe("editor samples", () => {

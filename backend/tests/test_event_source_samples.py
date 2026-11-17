@@ -10,7 +10,7 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 from app.clients.redis import RedisClient
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.services.event_source_samples import EventSourceSampleService
+from app.services.event_source_samples import EventSourceSampleService, capture_source_sample
 from app.services.event_sources import EventSourceService
 
 pytestmark = pytest.mark.anyio
@@ -68,7 +68,9 @@ async def test_multiple_editors_capture_same_next_event_without_extra_runs(ctx, 
     source_id = uuid4()
     first = await service.listen(ctx, source_id)
     second = await service.listen(ctx, source_id)
-    await service.capture(source_id, body={"issue": {"title": "Fix"}}, delivery_id="event-1")
+    await capture_source_sample(
+        redis, source_id, body={"issue": {"title": "Fix"}}, delivery_id="event-1"
+    )
     for listener in (first, second):
         result = await service.caught(ctx, source_id, listener.listener_id)
         assert result.state == "caught"
@@ -76,7 +78,7 @@ async def test_multiple_editors_capture_same_next_event_without_extra_runs(ctx, 
             "body": {"issue": {"title": "Fix"}},
             "delivery_id": "event-1",
         }
-    await service.capture(source_id, body={"different": True}, delivery_id="event-2")
+    await capture_source_sample(redis, source_id, body={"different": True}, delivery_id="event-2")
     assert (
         await service.caught(ctx, source_id, first.listener_id)
     ).delivery.delivery_id == "event-1"
@@ -89,7 +91,7 @@ async def test_listening_expiry_does_not_turn_into_a_capture(ctx, cache, access)
     listener = await service.listen(ctx, source_id)
     assert (await service.caught(ctx, source_id, listener.listener_id)).state == "listening"
     values.pop(f"source:listener:{listener.listener_id}:open")
-    await service.capture(source_id, body={}, delivery_id="late")
+    await capture_source_sample(redis, source_id, body={}, delivery_id="late")
     assert (await service.caught(ctx, source_id, listener.listener_id)).state == "expired"
 
 
@@ -119,7 +121,7 @@ async def test_large_capture_is_visible_and_never_stores_payload(ctx, cache, acc
     service = EventSourceSampleService(AsyncMock(), redis)
     source_id = uuid4()
     listener = await service.listen(ctx, source_id)
-    await service.capture(source_id, body={"big": "s" * 64000}, delivery_id="large")
+    await capture_source_sample(redis, source_id, body={"big": "s" * 64000}, delivery_id="large")
     result = await service.caught(ctx, source_id, listener.listener_id)
     assert result.state == "too_large" and result.delivery is None
     assert "s" * 100 not in values[f"source:listener:{listener.listener_id}:caught"]
@@ -128,14 +130,12 @@ async def test_large_capture_is_visible_and_never_stores_payload(ctx, cache, acc
 async def test_cache_failure_does_not_fail_live_delivery(ctx, cache, access):
     redis, _ = cache
     redis.get.side_effect = RedisConnectionError("cache down")
-    await EventSourceSampleService(AsyncMock(), redis).capture(uuid4(), body={}, delivery_id="ok")
+    await capture_source_sample(redis, uuid4(), body={}, delivery_id="ok")
 
 
 async def test_no_listener_retains_no_sample(cache):
     redis, values = cache
-    await EventSourceSampleService(AsyncMock(), redis).capture(
-        uuid4(), body={}, delivery_id="unobserved"
-    )
+    await capture_source_sample(redis, uuid4(), body={}, delivery_id="unobserved")
     assert not values
 
 
@@ -145,7 +145,7 @@ async def test_expired_listener_registry_does_not_capture_later_delivery(ctx, ca
     source_id = uuid4()
     listener = await service.listen(ctx, source_id)
     values[f"source:listeners:{source_id}"] = '{"' + listener.listener_id + '":"0"}'
-    await service.capture(source_id, body={}, delivery_id="later")
+    await capture_source_sample(redis, source_id, body={}, delivery_id="later")
     assert f"source:listener:{listener.listener_id}:caught" not in values
 
 
@@ -154,6 +154,4 @@ async def test_corrupt_listener_cache_does_not_fail_live_delivery(cache, content
     redis, values = cache
     source_id = uuid4()
     values[f"source:listeners:{source_id}"] = contents
-    await EventSourceSampleService(AsyncMock(), redis).capture(
-        source_id, body={}, delivery_id="live"
-    )
+    await capture_source_sample(redis, source_id, body={}, delivery_id="live")

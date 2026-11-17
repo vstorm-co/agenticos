@@ -163,6 +163,7 @@ from app.services.routine_sources import (
 )
 from app.services.spend import month_start
 from app.worker.jobs import FIRE_TRIGGER, FireTrigger
+from app.workflows.graph.model import jsonb_value_fits
 
 logger = logging.getLogger(__name__)
 
@@ -917,7 +918,9 @@ class AgentTriggerService:
             if data.source_id is not None:
                 from app.services.event_sources import EventSourceService
 
-                source = await EventSourceService(self.db).require_use(ctx, data.source_id)
+                source = await EventSourceService(self.db).require_use(
+                    ctx, data.source_id, lock=True
+                )
                 event_source = source.provider
                 if data.event_source is not None and data.event_source != event_source:
                     raise refused_field(
@@ -1343,7 +1346,9 @@ class AgentTriggerService:
                 )
             from app.services.event_sources import EventSourceService
 
-            source = await EventSourceService(self.db).require_use(ctx, changes["source_id"])
+            source = await EventSourceService(self.db).require_use(
+                ctx, changes["source_id"], lock=True
+            )
             changes["event_source"] = source.provider
             changes["event_config"] = self._merged_source_config(
                 source.provider, changes.get("event_config", trigger.event_config)
@@ -2551,6 +2556,24 @@ class AgentTriggerService:
                     self.db, trigger_id=trigger_id, claimed_at=claimed_at
                 )
             return None
+        if event_body is not None and event_source_id is None:
+            # Legacy deliveries only persisted rendered context. Keep their literal
+            # path compatible with payloads that cannot be written as nested JSONB.
+            if trigger.prompt_mode == "literal":
+                event_body = None
+            else:
+                try:
+                    jsonb_value_fits(event_body)
+                except ValueError, RecursionError:
+                    await self._record_attempt(
+                        trigger,
+                        activation_id,
+                        stage="preparation",
+                        reason="prompt_template_failed",
+                        status="failed",
+                        error_message="The event body cannot be stored for prompt rendering.",
+                    )
+                    return None
         native: LocalTarget | None = None
         if trigger is not None and trigger.local_target is not None:
             try:

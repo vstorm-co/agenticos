@@ -1,5 +1,6 @@
-"""A shared source queues a real routine transaction with its complete event body."""
+"""Real PostgreSQL routine admissions for dedicated and shared webhook sources."""
 
+import hmac
 import json
 from unittest.mock import AsyncMock
 from uuid import uuid5
@@ -10,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.db.models.agent_run import AgentRun
+from app.db.models.agent_trigger import TriggerAttempt
 from app.db.models.background_job import BackgroundJob
 from app.db.models.event_source import EventDelivery, EventDispatch, EventSubscription
 from app.schemas.agent_trigger import TriggerCreate
@@ -132,4 +134,67 @@ async def test_shared_source_admits_one_routine_job_with_structured_input_across
         == 1
     )
     assert await db.scalar(select(func.count()).select_from(EventDispatch)) == 1
+    assert await db.scalar(select(func.count()).select_from(AgentRun)) == 0
+
+
+async def test_dedicated_webhooks_preserve_literal_input_and_validate_template_input(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx, existing, _, _ = await world(db)
+    service = AgentTriggerService(db)
+    secret = "integration-routine-secret"
+    literal_data = TriggerCreate(
+        trigger_type="event",
+        event_source="webhook",
+        event_secret=secret,
+        prompt="Review the delivery",
+        runs_as_creator=True,
+    )
+    literal = await service.create(ctx, existing.agent_id, literal_data)
+    template = await service.create(
+        ctx,
+        existing.agent_id,
+        literal_data.model_copy(
+            update={"prompt": "Review {{issue.title}}", "prompt_mode": "template"}
+        ),
+    )
+    monkeypatch.setattr(
+        rate_limit,
+        "trigger_delivery_allowed",
+        AsyncMock(return_value=rate_limit.Decision(allowed=True, retry_after_seconds=0)),
+    )
+
+    escaped_nul = b'{"nested":{"text":"before\\u0000after"}}'
+    structured = {"padding": "x" * 4000, "issue": {"title": "Full payload"}}
+    for trigger, body in (
+        (literal, escaped_nul),
+        (template, escaped_nul),
+        (template, json.dumps(structured).encode()),
+    ):
+        signature = hmac.digest(secret.encode(), body, "sha256").hex()
+        assert await service.queue_event_fire(
+            "webhook",
+            trigger.id,
+            body=body,
+            headers={"x-signature-256": f"sha256={signature}"},
+        )
+
+    jobs = await db.scalars(select(BackgroundJob).where(BackgroundJob.kind == "fire-trigger"))
+    queued = [FireTrigger.model_validate(job.payload) for job in jobs]
+    assert len(queued) == 2
+    by_trigger = {job.trigger_id: job for job in queued}
+    literal_job = by_trigger[literal.id]
+    assert literal_job.event_body is None
+    assert literal_job.event_context is not None
+    assert "before\\u0000after" in literal_job.event_context
+    assert by_trigger[template.id].event_body == structured
+
+    failed = await db.scalar(select(TriggerAttempt).where(TriggerAttempt.trigger_id == template.id))
+    assert failed is not None
+    assert (failed.stage, failed.status, failed.reason) == (
+        "preparation",
+        "failed",
+        "prompt_template_failed",
+    )
+    assert failed.error_message == "The event body cannot be stored for prompt rendering."
     assert await db.scalar(select(func.count()).select_from(AgentRun)) == 0

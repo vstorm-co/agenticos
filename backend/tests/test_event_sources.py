@@ -340,12 +340,39 @@ async def test_configured_and_standard_delivery_ids_remain_event_ids(
     db, source, repos, method, header
 ):
     source.auth = SourceAuth(method=method).model_dump()
-    source.delivery_id_header = header if method == "hmac" else None
+    source.delivery_id_header = "x-provider-event"
     with patch.object(module, "verify_source", return_value=True):
         _, receipt, _ = await EventSourceService(db).receive(
-            source.id, body=b"{}", headers={header: "event-123", "x-github-event": "issues"}
+            source.id,
+            body=b"{}",
+            headers={"x-provider-event": "configured", header: "event-123"},
         )
     assert receipt.external_id == "event-123"
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("header", ["x-github-event", "x-delivery-id"])
+async def test_api_key_header_does_not_become_delivery_metadata(db, source, repos, header):
+    source.auth = SourceAuth(method="api_key", header_name=header, signature_prefix="").model_dump()
+    _, receipt, admitted = await EventSourceService(db).receive(
+        source.id, body=b"{}", headers={header: "shared-secret"}
+    )
+    assert admitted
+    assert receipt.headers == {}
+    assert receipt.external_id is None
+
+
+async def test_github_event_header_is_preserved_for_subscription_filtering(db, source, repos):
+    source.provider = "github"
+    source.auth = SourceAuth(method="provider").model_dump()
+    _, receipt, _ = await EventSourceService(db).receive(
+        source.id,
+        body=b"{}",
+        headers={
+            "x-hub-signature-256": signed(b"{}")["x-signature-256"],
+            "x-github-event": "issues",
+        },
+    )
     assert receipt.headers == {"x-github-event": "issues"}
 
 

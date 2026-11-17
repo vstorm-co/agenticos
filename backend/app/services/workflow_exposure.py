@@ -397,7 +397,7 @@ class WorkflowExposureService:
         from app.services.event_sources import EventSourceService
 
         sources = EventSourceService(self.db)
-        await sources.require_use(ctx, source_id)
+        await sources.require_use(ctx, source_id, lock=True)
         if answers_webhook(entry_graph(self._pinned_graph(version), node_id)):
             raise BadRequestError(
                 message="A reusable event source cannot run Respond to webhook",

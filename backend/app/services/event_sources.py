@@ -125,8 +125,11 @@ class EventSourceService:
             raise NotFoundError(message="Event source not found")
         return source
 
-    async def require_use(self, ctx: AuthContext, source_id: UUID) -> EventSource:
-        return await self.get(ctx, source_id, perm=Perm.EVENT_SOURCES_USE)
+    async def require_use(
+        self, ctx: AuthContext, source_id: UUID, *, lock: bool = False
+    ) -> EventSource:
+        """Check use permission, optionally locking before a foreign-key write or audit."""
+        return await self.get(ctx, source_id, perm=Perm.EVENT_SOURCES_USE, lock=lock)
 
     async def read(self, ctx: AuthContext, source: EventSource) -> EventSourceRead:
         return EventSourceRead(
@@ -427,10 +430,13 @@ class EventSourceService:
             jsonb_value_fits(payload)
         except (ValueError, UnicodeError, RecursionError, ValidationError) as exc:
             raise BadRequestError(message="A webhook body must be a JSON object") from exc
-        if source.delivery_id_header:
-            external_id = headers.get(source.delivery_id_header) or None
-        elif auth.method == "standard_webhooks":
+        if auth.method == "standard_webhooks":
             external_id = headers.get("webhook-id") or None
+        elif source.delivery_id_header:
+            external_id = headers.get(source.delivery_id_header) or None
+        elif auth.method in {"api_key", "hmac"} and auth.header_name == "x-delivery-id":
+            # The default delivery ID header can also be configured for authentication.
+            external_id = None
         else:
             external_id = trigger_events.delivery_id(source.provider, headers, payload)
         if external_id and len(external_id) > 255:
@@ -442,7 +448,7 @@ class EventSourceService:
             external_id=external_id,
             body=payload,
             headers={"x-github-event": headers["x-github-event"]}
-            if "x-github-event" in headers
+            if source.provider == "github" and "x-github-event" in headers
             else {},
         )
         admitted = await repo.admit(self.db, receipt)

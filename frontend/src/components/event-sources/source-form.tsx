@@ -106,12 +106,13 @@ export function SourceForm({
   const [deliveryHeader, setDeliveryHeader] = useState(source?.delivery_id_header ?? "");
   const [credentials, setCredentials] = useState<SourceCredentials>({});
   const pending = writes.create.isPending || writes.update.isPending;
+  const supportsCustomDeliveryId = auth.method !== "standard_webhooks";
   const save = () => {
     const input = {
       name: name.trim(),
       auth,
       visibility,
-      delivery_id_header: deliveryHeader.trim() || null,
+      delivery_id_header: supportsCustomDeliveryId ? deliveryHeader.trim() || null : null,
     };
     if (source)
       writes.update.mutate(
@@ -186,15 +187,17 @@ export function SourceForm({
           </SelectContent>
         </Select>
       </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="source-delivery-header">{t("deliveryHeader")}</Label>
-        <Input
-          id="source-delivery-header"
-          value={deliveryHeader}
-          onChange={(e) => setDeliveryHeader(e.target.value)}
-        />
-        <p className="text-muted-foreground text-xs">{t("deliveryHelp")}</p>
-      </div>
+      {supportsCustomDeliveryId && (
+        <div className="space-y-1.5">
+          <Label htmlFor="source-delivery-header">{t("deliveryHeader")}</Label>
+          <Input
+            id="source-delivery-header"
+            value={deliveryHeader}
+            onChange={(e) => setDeliveryHeader(e.target.value)}
+          />
+          <p className="text-muted-foreground text-xs">{t("deliveryHelp")}</p>
+        </div>
+      )}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onCancel}>
           {t("cancel")}
