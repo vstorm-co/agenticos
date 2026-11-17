@@ -15848,7 +15848,7 @@
     "group": "{name} · {count, plural, =1 {1 run} other {# runs}}",
     "trend": {
       "label": "Pass rate by run",
-      "soFar": "{count, plural, one {One run so far.} other {# runs so far.}} A trend needs at least three; run another to see one.",
+      "soFar": "{count, plural, one {One run so far.} other {# runs so far.}} A trend needs at least three; {count, plural, one {run two more to see one.} other {run another to see one.}}",
       "legend": "Each point is a run, oldest on the left; hover one for what ran, against what and when, and click it to open the run.",
       "range": "Runs shown",
       "last": "Last {count}",

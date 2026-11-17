@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 import pytest
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
@@ -44,7 +44,13 @@ from app.db.models.workflow_run import (
 )
 from app.repositories import workflow_run as workflow_run_repo
 from app.services.approvals import ApprovalService
-from app.services.workflow_execution import WorkflowExecutionService, budget, context, dispatcher
+from app.services.workflow_execution import (
+    WorkflowExecutionService,
+    budget,
+    context,
+    dispatch_queue,
+    dispatcher,
+)
 from app.services.workflow_execution.approval_wake import wake_after_approval_decision
 from app.services.workflow_execution.reconciler import WorkflowReconcilerService
 from app.worker.jobs import DispatchWorkflowNode
@@ -1412,3 +1418,33 @@ async def test_waits_do_not_use_up_the_retries_a_later_failure_is_owed(
     statuses = await _attempt_statuses(seeded, seeded.entry.id)
     assert statuses == ["completed", "completed"] + ["failed"] * settings.WORKFLOW_RETRY_CEILING
     assert (await _run_row(seeded)).status == WorkflowRunStatus.FAILED.value
+
+
+async def test_delayed_dispatch_keeps_its_full_backoff_after_time_spent_in_transaction(
+    engine: AsyncEngine, node_kind
+):
+    async def handler(_config: object, _input: object) -> NodeResult:
+        return Waiting(reason="retry_backoff", resume_token="t")
+
+    seeded = await _seed(engine, _chain(node_kind(handler), 1))
+    delay = timedelta(seconds=1)
+    async with seeded.factory() as db:
+        [old] = list(
+            await db.scalars(
+                select(DispatchOutbox).where(
+                    DispatchOutbox.workflow_run_id == seeded.run.id,
+                    DispatchOutbox.status == DispatchOutboxStatus.PENDING.value,
+                )
+            )
+        )
+        await workflow_run_repo.mark_outbox_done(db, outbox=old)
+        # PostgreSQL now() stays at this transaction's beginning even across a wait.
+        await db.execute(select(func.pg_sleep(0.05)))
+        queued_at = await workflow_run_repo.database_time(db)
+        row = await dispatch_queue.queue_dispatch(
+            db, run=seeded.run, node_run_id=seeded.entry.id, delay=delay
+        )
+        after_queue = await workflow_run_repo.database_time(db)
+        assert queued_at + delay <= row.available_at <= after_queue + delay
+        await db.commit()
+    assert row.available_at in {job.run_after for job in await queued_dispatches(seeded.factory)}

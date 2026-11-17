@@ -485,7 +485,7 @@ export default function DatasetPage({ params }: PageProps) {
           onSave={editable && !editing.item?.masked ? save : undefined}
           startFrom={editing.startFrom}
           remote={
-            editing.item
+            editing.item && version === null
               ? {
                   datasetId: id,
                   stored: editedCase.kase && draftOf(editedCase.kase),

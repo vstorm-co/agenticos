@@ -72,9 +72,9 @@ export function notificationSummary(item: Notification, t: Translate, tStop: Tra
 
 /** A row worded from the values the server kept: by its `wording` when it names one. */
 function paramsSummary(item: Notification, t: Translate): string | null {
+  if (item.wording_params) return wordedSummary(item.wording_params, t);
   const params = item.params;
   if (!params) return null;
-  if (params.wording) return wordedSummary(params, t);
   switch (item.event_type) {
     case "approval_requested":
       return t("kind.approvalRequested", { agent: params.agent_name ?? "" });

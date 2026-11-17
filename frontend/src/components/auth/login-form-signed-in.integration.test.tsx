@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LoginForm } from "./login-form";
 import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
@@ -63,4 +63,27 @@ describe("opening the sign-in page while signed in", () => {
 
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith(ROUTES.CHAT));
   });
+});
+
+afterEach(() => vi.restoreAllMocks());
+
+it("replaces the document for an already signed-in fragment destination", async () => {
+  const replace = vi.fn();
+  const assign = vi.fn();
+  const location = window.location;
+  window.history.replaceState(
+    null,
+    "",
+    `/login?returnTo=${encodeURIComponent("/agents/a-1#tools")}`,
+  );
+  vi.spyOn(window, "location", "get").mockReturnValue({
+    ...location,
+    search: window.location.search,
+    replace,
+    assign,
+  } as Location);
+  mount();
+  await waitFor(() => expect(replace).toHaveBeenCalledWith("/agents/a-1#tools"));
+  expect(assign).not.toHaveBeenCalled();
+  expect(router.push).not.toHaveBeenCalled();
 });

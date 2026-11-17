@@ -1117,12 +1117,14 @@ class TestWhenTheJudgeCannotRun:
         assert {r.judge_said for r in judged} == {None}
         assert recorded.error is not None
         assert "Truly" not in recorded.error
+        assert "output schema" in recorded.error
 
     @pytest.mark.parametrize(
         "broken",
         [
             pytest.param(lambda grades: "all pass", id="not a list"),
             pytest.param(lambda grades: grades[:1], id="a criterion left out"),
+            pytest.param(lambda grades: [grades[0]] * len(grades), id="a criterion graded twice"),
             pytest.param(lambda grades: [{**grades[0], "score": 9}, *grades[1:]], id="off scale"),
             pytest.param(
                 lambda grades: [{**grades[0], "id": "x9"}, *grades[1:]], id="an id not asked"

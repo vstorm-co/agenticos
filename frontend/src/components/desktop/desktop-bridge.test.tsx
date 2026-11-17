@@ -229,6 +229,7 @@ describe("DesktopBridge", () => {
     env.inbox = [
       row("2", "2026-10-21T10:05:00Z", {
         agent: { id: "a", slug: "s", name: "Support", has_avatar: false, avatar_color: null },
+        wording_params: { wording: "run_completed", agent_name: "Support" },
       }),
       row("3", "2026-10-21T10:06:00Z", { context_url: null }),
       ...env.inbox,
@@ -239,7 +240,7 @@ describe("DesktopBridge", () => {
     expect(env.notify).toHaveBeenCalledWith({
       kind: "inbox",
       title: "Support",
-      body: "Your run finished.",
+      body: "Support finished a run.",
       path: "/runs/1",
     });
     expect(env.notify).toHaveBeenCalledWith({

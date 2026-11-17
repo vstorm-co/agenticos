@@ -227,7 +227,7 @@ it("words a workflow step's approval request from its title", () => {
 
 it("words a row by the wording the server named, and keeps the summary for one it does not know", () => {
   const worded = (params: Record<string, string>) =>
-    notificationSummary({ ...row("run_failed", null), params }, t, stop);
+    notificationSummary({ ...row("run_failed", null), wording_params: params }, t, stop);
   expect(worded({ wording: "run_completed", agent_name: "Refund desk" })).toBe(
     "kind.runCompleted(Refund desk)",
   );

@@ -95,7 +95,7 @@ export function GradingPanel({
     setCopy(restore.value);
   }
   const canEdit = dataset.can_edit;
-  const disabled = !canEdit || save.isPending;
+  const disabled = !canEdit || save.isPending || remote.held;
   const modelBacked = disabled;
   const set = <K extends Part>(key: K, value: DatasetScoring[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
@@ -120,12 +120,13 @@ export function GradingPanel({
   useEffect(() => onDirtyChange?.(unsaved), [onDirtyChange, unsaved]);
   useUnsavedChanges(`grading:${dataset.id}`, {
     dirty: unsaved,
-    save: problem === null ? submit : undefined,
+    save: problem === null && !remote.held ? submit : undefined,
     discard,
     copy: localCopy && { ...localCopy, value: { draft, defaults } satisfies GradingCopy },
   });
 
   async function submit(): Promise<boolean> {
+    if (remote.held) return false;
     const read = checksOf(defaults);
     if (read.problems.length > 0) {
       setDefaultsProblem(tDatasets(read.problems[0]!));
@@ -270,7 +271,7 @@ export function GradingPanel({
       {canEdit && unsaved && (
         <GradingSaveBar
           problem={problem === null ? null : t(problem)}
-          saving={save.isPending}
+          saving={save.isPending || remote.held}
           onSave={() => void submit()}
           onDiscard={discard}
         />

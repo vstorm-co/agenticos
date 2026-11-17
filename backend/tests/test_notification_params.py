@@ -213,7 +213,9 @@ def test_a_workflow_approval_hands_over_its_title_and_a_step_s_own_notice_nothin
 def test_a_worded_row_hands_over_its_wording_and_only_the_values_it_lists(
     event_type, context, served
 ):
-    assert _params(event_type, context) == served
+    read = NotificationRead.from_row(_row(event_type, context), strip_context_url=False)
+    assert read.params is None
+    assert read.wording_params == served
 
 
 @pytest.mark.parametrize(
@@ -229,4 +231,31 @@ def test_a_worded_row_hands_over_its_wording_and_only_the_values_it_lists(
     ],
 )
 def test_a_worded_row_the_console_cannot_word_keeps_its_english_summary(context):
-    assert _params(NotificationEventType.RUN_COMPLETED, context) is None
+    read = NotificationRead.from_row(
+        _row(NotificationEventType.RUN_COMPLETED, context), strip_context_url=False
+    )
+    assert read.params is None
+    assert read.wording_params is None
+
+
+@pytest.mark.parametrize("wording", ["routine_budget_paused", "routine_blocked"])
+def test_worded_budget_rows_do_not_expose_legacy_budget_params(wording: str):
+    context = {
+        "wording": wording,
+        "routine_kind": "watch",
+        "limit": "5",
+        "spent": "6",
+        "routine_detail": "run_budget",
+    }
+    read = NotificationRead.from_row(
+        _row(NotificationEventType.BUDGET_EXCEEDED, context), strip_context_url=False
+    )
+    assert read.params is None  # An older console must retain the stored summary.
+    assert read.wording_params is not None
+    degraded = NotificationRead.from_row(
+        _row(NotificationEventType.BUDGET_EXCEEDED, context),
+        strip_context_url=True,
+        summary_override="Redacted summary",
+    )
+    assert degraded.params is None
+    assert degraded.wording_params is None

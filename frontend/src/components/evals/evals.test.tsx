@@ -419,7 +419,7 @@ describe("EvalsPanel", () => {
     evalRuns.value = { ...evalRuns.value, runs: [evalRun()] };
     const { rerender } = render(<EvalsPanel agentId="agent-1" canStart />);
     expect(
-      screen.getByText("One run so far. A trend needs at least three; run another to see one."),
+      screen.getByText("One run so far. A trend needs at least three; run two more to see one."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Pass rate by run" })).toBeNull();
 
@@ -1040,3 +1040,22 @@ it.each([
     expect(screen.queryByText("Inconclusive")).not.toBeInTheDocument();
   },
 );
+
+it("keeps dataset identity on sparse run links with the same candidate", () => {
+  evalRuns.value = {
+    ...evalRuns.value,
+    runs: [evalRun(), evalRun({ id: "other", dataset_id: "ds-2", dataset_name: "shipping" })],
+  };
+  render(<EvalsPanel agentId="agent-1" canStart />);
+  expect(screen.getByRole("link", { name: /refunds.*Pass rate/ })).toHaveAttribute(
+    "href",
+    "/agents/agent-1/evals/run-1",
+  );
+  expect(screen.getByRole("link", { name: /shipping.*Pass rate/ })).toHaveAttribute(
+    "href",
+    "/agents/agent-1/evals/other",
+  );
+  expect(
+    screen.getByText("2 runs so far. A trend needs at least three; run another to see one."),
+  ).toBeInTheDocument();
+});

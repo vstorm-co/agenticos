@@ -14,6 +14,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 
+from app.agents.factory import OUTPUT_RETRIES, OutputSchemaRetry, _fits_schema
 from app.agents.isolation import RunIsolation
 from app.agents.system_agents import IMPROVER, JUDGE
 from app.core.exceptions import (
@@ -84,6 +85,10 @@ def _runner(
     )
     monkeypatch.setattr(system_agent_runner.ModelProfileService, "resolve", AsyncMock())
     finished = run or _run()
+    monkeypatch.setattr(
+        system_agent_runner.agent_run_repo, "get_run", AsyncMock(return_value=finished)
+    )
+    monkeypatch.setattr(system_agent_runner.agent_run_repo, "set_error", AsyncMock())
 
     async def answered(*args: object, structured: list[dict[str, object]], **kwargs: object):
         if answer is not None:
@@ -276,6 +281,12 @@ class TestRun:
         assert raised.value.run_id == run_id
         execute.assert_awaited_once()
 
+        system_agent_runner.agent_run_repo.set_error.assert_awaited_once()
+        assert (
+            "output schema"
+            in system_agent_runner.agent_run_repo.set_error.call_args.kwargs["error"]
+        )
+
 
 @pytest.fixture
 def chosen_helper(
@@ -449,3 +460,59 @@ async def test_a_missing_or_foreign_pinned_version_never_runs_the_current_judge(
             _ctx(), key=JUDGE.key, prompt="Grade it", output_type=Verdict, version_id=uuid.uuid4()
         )
     execute.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Tool 'search' exceeded max retries count of 2",
+        "MCP tool result has no matching tool call: private-query",
+    ],
+)
+async def test_protocol_and_tool_failures_keep_their_original_cause(
+    monkeypatch: pytest.MonkeyPatch, message: str
+) -> None:
+    runner, execute = _runner(monkeypatch)
+    cause = UnexpectedModelBehavior(message)
+    failure = RunFailedError(message="Run failed", details={"run_id": str(uuid.uuid4())})
+    failure.__cause__ = cause
+    execute.side_effect = failure
+    with pytest.raises(UnexpectedModelBehavior) as raised:
+        await runner.run(_ctx(), key=JUDGE.key, prompt="Grade it", output_type=Verdict)
+    assert raised.value is cause
+    system_agent_runner.agent_run_repo.set_error.assert_not_awaited()
+
+
+async def test_output_retry_diagnosis_keeps_only_the_schema_location(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner, execute = _runner(monkeypatch)
+    with pytest.raises(OutputSchemaRetry) as refused:
+        _fits_schema(output_schema(Verdict))({"passed": "PRIVATE_ANSWER", "reason": "x"})
+    wrapped = RuntimeError("output dispatch")
+    wrapped.__cause__ = refused.value
+    exhausted = UnexpectedModelBehavior(f"Exceeded maximum output retries ({OUTPUT_RETRIES})")
+    exhausted.__cause__ = wrapped
+    failure = RunFailedError(message="Run failed", details={"run_id": str(uuid.uuid4())})
+    failure.__cause__ = exhausted
+    execute.side_effect = failure
+    with pytest.raises(SystemAgentOutputError):
+        await runner.run(_ctx(), key=JUDGE.key, prompt="Grade it", output_type=Verdict)
+    diagnosis = system_agent_runner.agent_run_repo.set_error.call_args.kwargs["error"]
+    assert "properties/passed/type" in diagnosis
+    assert "PRIVATE_ANSWER" not in diagnosis
+
+
+async def test_an_erased_failed_run_does_not_hide_the_output_refusal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner, execute = _runner(monkeypatch)
+    system_agent_runner.agent_run_repo.get_run.return_value = None
+    failure = RunFailedError(message="Run failed", details={"run_id": str(uuid.uuid4())})
+    failure.__cause__ = UnexpectedModelBehavior(
+        f"Exceeded maximum output retries ({OUTPUT_RETRIES})"
+    )
+    execute.side_effect = failure
+    with pytest.raises(SystemAgentOutputError):
+        await runner.run(_ctx(), key=JUDGE.key, prompt="Grade it", output_type=Verdict)
+    system_agent_runner.agent_run_repo.set_error.assert_not_awaited()

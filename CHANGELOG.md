@@ -26,13 +26,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- Migration `0337_record_batch_receipt_table.py` adds table IDs to batch receipts. It erases older batch results whose table cannot be recovered, preserving their keys and original expiry to prevent duplicate writes. Retries return `IDEMPOTENCY_RESULT_PURGED` (409); check the table before submitting a fresh operation.
+- Migration `0340_record_batch_receipt_table.py` adds table IDs to batch receipts. It erases older batch results whose table cannot be recovered, preserving their keys and original expiry to prevent duplicate writes. Retries return `IDEMPOTENCY_RESULT_PURGED` (409); check the table before submitting a fresh operation.
 - **Workflow retry timing.** A step's retry backoff, a retry after an interrupted attempt and a spender's wait for the run's budget are measured on the database's clock, the one a claim compares against. An application host whose clock runs ahead no longer makes a retry wait longer than its backoff, and one that runs behind no longer lets it run early. A Wait step's absolute time is kept as set.
 - **Step tests in a workflow's run history.** A run started with **Test step** is stored as a step test and listed as **Step test** with the step's name, apart from **Draft (test)**, a test of the whole draft. The **Version** filter can show step tests alone, and **Draft (test)** now leaves them out. The run read and `GET /workflow-runs` carry `tested_step`, and the list takes `step_test`. Runs from before the upgrade keep the **Draft (test)** label.
 
 ### Upgrading
 
-- Migration `0338_workflow_run_tested_step` adds a nullable `tested_step_node_id` column to `workflow_runs`. It rewrites no rows.
+- Migration `0341_workflow_run_tested_step` adds a nullable `tested_step_node_id` column to `workflow_runs`. It rewrites no rows.
 - **Notifications in the reader's language.** The bell words every platform notification in the console's language: finished and failed runs and routines, routines that need attention or are waiting on their budget, ingestion and syncs, pages and shares, MCP servers, capability requests, suggestions and briefings, eval suites and promotions, shared changes, security and configuration notices, paused background jobs, usage reports, workflow log alerts and grouped notices. Each row keeps the values its sentence is built from and names its `wording`. A row written before the upgrade keeps its English sentence, and so does text a person or an agent wrote, such as a finding's title or a workflow step's message.
 ### Changed
 

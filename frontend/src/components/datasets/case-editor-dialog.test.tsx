@@ -739,3 +739,77 @@ describe("a case saved elsewhere while it is open", () => {
     expect(screen.getByRole("textbox", { name: "User message" })).toHaveValue("Changed by Ada");
   });
 });
+
+it("holds case and leave-dialog saves before the remote refetch and conflict decision", async () => {
+  const save = vi.fn();
+  const view = (input: string, at: number) => (
+    <CaseEditorDialog
+      open
+      onOpenChange={vi.fn()}
+      initial={draftOf(STORED)}
+      onSave={save}
+      title="Case"
+      remote={{ datasetId: "d1", stored: { ...draftOf(STORED), input }, fetchedAt: at }}
+    />
+  );
+  const { rerender } = render(view(STORED.input, 1));
+  await userEvent.type(screen.getByRole("textbox", { name: "User message" }), " Edited");
+  act(() =>
+    announceChange({
+      organization_id: "org-1",
+      resource: "dataset",
+      id: "d1",
+      action: "updated",
+      surface: "console",
+      actor_user_id: "other",
+      actor_name: "Ada",
+      origin_tab: "another-tab",
+    }),
+  );
+  expect(screen.getByRole("button", { name: "Save case" })).toBeDisabled();
+  expect(
+    Object.values(useUnsavedChangesStore.getState().sources).every(
+      (source) => source.save === undefined,
+    ),
+  ).toBe(true);
+  rerender(view("Ada's edit", 2));
+  expect(screen.getByRole("button", { name: "Save case" })).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: "Keep my changes" }));
+  await userEvent.click(screen.getByRole("button", { name: "Save case" }));
+  expect(save).toHaveBeenCalledTimes(1);
+});
+
+it("adopts remote case details visibly and keeps the adopted edit clean", async () => {
+  const close = vi.fn();
+  const view = (input: string, at: number) => (
+    <CaseEditorDialog
+      open
+      onOpenChange={close}
+      initial={draftOf(STORED)}
+      viewing={STORED}
+      onSave={vi.fn()}
+      title="Case"
+      remote={{ datasetId: "d1", stored: { ...draftOf(STORED), input }, fetchedAt: at }}
+    />
+  );
+  const { rerender } = render(view(STORED.input, 1));
+  act(() =>
+    announceChange({
+      organization_id: "org-1",
+      resource: "dataset",
+      id: "d1",
+      action: "updated",
+      surface: "console",
+      actor_user_id: "other",
+      actor_name: "Ada",
+      origin_tab: "another-tab",
+    }),
+  );
+  rerender(view("New stored question", 2));
+  expect(screen.getByText("New stored question")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+  expect(screen.getByRole("textbox", { name: "User message" })).toHaveValue("New stored question");
+  expect(useUnsavedChangesStore.getState().sources).toEqual({});
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(close).toHaveBeenCalledWith(false);
+});

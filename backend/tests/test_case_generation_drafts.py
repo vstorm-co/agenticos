@@ -5,6 +5,7 @@ import uuid
 from decimal import Decimal
 
 import pytest
+from jsonschema import Draft202012Validator
 from pydantic import TypeAdapter, ValidationError
 
 from app.db.models.case_generation import CaseOrigin
@@ -346,6 +347,7 @@ _MALFORMED = {"origin": "agent", "input": "Where is it?", "expected_tools": "loo
 def test_a_malformed_case_is_left_out_and_the_readable_ones_kept() -> None:
     answer = {"cases": [_READABLE, _MALFORMED, _READABLE, {"origin": "nope"}]}
 
+    Draft202012Validator(output_schema(DraftedCases)).validate(answer)
     drafted = read_output(answer, DraftedCases)
 
     assert [case.input for case in drafted.cases] == [_READABLE["input"]] * 2
@@ -374,5 +376,9 @@ def test_the_shape_asked_of_the_generator_is_unchanged_by_reading_case_by_case()
     schema = TypeAdapter(DraftedCases).json_schema()
 
     assert set(schema["properties"]) == {"cases"}
-    assert schema["properties"]["cases"]["items"] == {"$ref": "#/$defs/DraftedCase"}
+    assert schema["properties"]["cases"]["items"] == {
+        "anyOf": [{"$ref": "#/$defs/DraftedCase"}, {}]
+    }
+    serialized = TypeAdapter(DraftedCases).json_schema(mode="serialization")
+    assert serialized["properties"]["cases"]["items"] == {"$ref": "#/$defs/DraftedCase"}
     assert "unreadable" not in json.dumps(output_schema(DraftedCases))

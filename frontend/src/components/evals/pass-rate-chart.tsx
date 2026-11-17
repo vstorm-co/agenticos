@@ -146,18 +146,23 @@ export function PassRateChart({
   const points = lines.reduce((sum, line) => sum + line.points.length, 0);
   if (points === 0) return null;
   if (points < MIN_TREND_RUNS) {
-    const runs = lines.flatMap((line) => line.points).sort((a, b) => a.index - b.index);
+    const runs = lines
+      .flatMap((line) =>
+        line.points.map((run) => ({ ...run, series: line.name, seriesKey: line.key })),
+      )
+      .sort((a, b) => a.index - b.index);
     return (
       <div className="space-y-2" data-tour="evals-trend">
         <p className="text-muted-foreground text-sm">{t("trend.soFar", { count: points })}</p>
         <ul className="flex flex-wrap gap-2">
           {runs.map((run) => (
-            <li key={run.index}>
+            <li key={`${run.seriesKey}:${run.index}`}>
               <a
                 href={run.href}
                 className="hover:bg-muted/50 focus-visible:ring-ring flex flex-col rounded-lg border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
               >
-                <span className="font-medium">{run.title}</span>
+                <span className="font-medium">{run.series}</span>
+                <span>{run.title}</span>
                 <span className="text-muted-foreground text-xs">
                   {t("trend.rate", { rate: percent(run.rate, locale) })}
                 </span>

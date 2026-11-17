@@ -45,7 +45,7 @@ export function LoginForm() {
   useEffect(() => {
     if (checkingSession || !isAuthenticated) return;
     const returnTo = new URLSearchParams(window.location.search).get("returnTo");
-    goToDestination(postSignInDestination(returnTo), (href) => router.replace(href));
+    goToDestination(postSignInDestination(returnTo), (href) => router.replace(href), true);
   }, [checkingSession, isAuthenticated, router]);
 
   const emailValid = !email || EMAIL_RE.test(email);

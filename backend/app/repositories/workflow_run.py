@@ -1467,7 +1467,7 @@ async def create_outbox(
     """
     due: datetime | ColumnElement[datetime]
     if delay is not None:
-        due = func.now() + literal(delay, Interval())
+        due = func.clock_timestamp() + literal(delay, Interval())
     elif available_at is not None:
         due = available_at
     else:

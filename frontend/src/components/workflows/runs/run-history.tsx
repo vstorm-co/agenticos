@@ -104,8 +104,8 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
     if (step) {
       // An unnamed step reads as what it is - "Map fields" - not as its id.
       const name =
-        step.label ??
-        nodes.find((definition) => definition.id === step.definition_id)?.name ??
+        step.label?.trim() ||
+        nodes.find((definition) => definition.id === step.definition_id)?.name ||
         null;
       return name === null ? t("runModeStep") : t("runModeStepNamed", { step: name });
     }

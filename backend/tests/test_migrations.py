@@ -2471,7 +2471,7 @@ def test_memory_snapshot_upgrade_preserves_legacy_runs_and_downgrades_cleanly() 
 
 @pytest.mark.security
 def test_batch_receipts_keep_their_keys_when_legacy_results_are_erased() -> None:
-    """0337 erases unassociated results without forgetting live keys or their expiry."""
+    """0340 erases unassociated results without forgetting live keys or their expiry."""
     from sqlalchemy import inspect
     from sqlalchemy.exc import IntegrityError
 
@@ -2510,7 +2510,7 @@ def test_batch_receipts_keep_their_keys_when_legacy_results_are_erased() -> None
                     text("SELECT * FROM virtual_table_receipts")
                 ).mappings()
             }
-        result = _alembic("upgrade", "0337_record_batch_receipt_table")
+        result = _alembic("upgrade", "0340_record_batch_receipt_table")
         assert result.returncode == 0, result.stderr
         with engine.connect() as connection:
             kept = {

@@ -31,6 +31,7 @@ from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.knowledge import FoundPassage
+from app.agents.factory import OUTPUT_RETRIES, OutputSchemaRetry
 from app.agents.isolation import RunIsolation, RunKnowledge
 from app.agents.system_agents import system_agent
 from app.core.exceptions import (
@@ -96,6 +97,20 @@ def read_output[T](answer: object, output_type: type[T]) -> T:
             missing, `None`, for a run that answered no object.
     """
     return TypeAdapter(output_type).validate_python(answer)
+
+
+def _output_failure(cause: BaseException | None) -> str | None:
+    """Recognize the pinned SDK's output budget, separately from tool/protocol failures."""
+    if not isinstance(cause, UnexpectedModelBehavior) or str(cause) != (
+        f"Exceeded maximum output retries ({OUTPUT_RETRIES})"
+    ):
+        return None
+    nested = cause.__cause__
+    while nested is not None:
+        if isinstance(nested, OutputSchemaRetry):
+            return nested.diagnosis
+        nested = nested.__cause__
+    return f"The answer did not match its output schema after {OUTPUT_RETRIES} retries"
 
 
 class SystemAgentRunner:
@@ -190,8 +205,14 @@ class SystemAgentRunner:
         except RunFailedError as failure:
             cause = failure.__cause__
             recorded = failure.details or {}
-            if isinstance(cause, UnexpectedModelBehavior):
-                # The run spent its output retries without an answer that fits the schema.
+            diagnosis = _output_failure(cause)
+            if diagnosis is not None:
+                run_id = UUID(str(recorded["run_id"]))
+                failed_run = await agent_run_repo.get_run(
+                    self.db, run_id, organization_id=ctx.organization_id
+                )
+                if failed_run is not None:
+                    await agent_run_repo.set_error(self.db, run=failed_run, error=diagnosis)
                 raise SystemAgentOutputError(
                     message=(
                         f"'{agent.name}' answered in a form that could not be read. Its run "

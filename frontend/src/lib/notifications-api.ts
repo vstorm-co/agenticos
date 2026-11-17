@@ -36,6 +36,8 @@ export interface Notification {
   outcome_id?: string | null;
   /** An approval request's or a budget limit's named values, for the reader's own wording. */
   params?: Record<string, string> | null;
+  /** Versioned wording; legacy consoles ignore this and retain the stored summary. */
+  wording_params?: Record<string, string> | null;
 }
 
 export interface NotificationAgent {

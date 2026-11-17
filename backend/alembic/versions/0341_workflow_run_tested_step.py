@@ -17,8 +17,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0338_workflow_run_tested_step"
-down_revision: str = "0336_run_memory_snapshot"
+revision: str = "0341_workflow_run_tested_step"
+down_revision: str = "0340_record_batch_receipt_table"
 branch_labels: None = None
 depends_on: None = None
 

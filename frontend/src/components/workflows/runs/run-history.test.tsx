@@ -125,13 +125,14 @@ describe("RunHistory", () => {
       run({ id: "r1", tested_step: step("Shape the answer", "data.map") }),
       run({ id: "r2", tested_step: step(null, "data.map") }),
       run({ id: "r3", tested_step: step(null, null) }),
+      run({ id: "blank", tested_step: step("   ", "data.map") }),
       run({ id: "r4" }),
       run({ id: "r5", mode: "real" }),
     ];
     render(<RunHistory workflowId="wf" />);
 
     expect(screen.getByText("Step test · Shape the answer")).toBeTruthy();
-    expect(screen.getByText("Step test · Map fields")).toBeTruthy();
+    expect(screen.getAllByText("Step test · Map fields")).toHaveLength(2);
     expect(screen.getByText("Step test")).toBeTruthy();
     expect(screen.getByText("Draft (test)")).toBeTruthy();
     expect(screen.getByText("Published")).toBeTruthy();

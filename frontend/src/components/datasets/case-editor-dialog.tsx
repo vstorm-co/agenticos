@@ -237,6 +237,7 @@ export function CaseEditorDialog({
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
   const [draft, setDraft] = useState(startFrom?.draft ?? initial);
+  const [baseline, setBaseline] = useState(initial);
   const [errors, setErrors] = useState<Partial<Record<CaseField, string>>>({});
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(viewing === undefined || startFrom !== undefined);
@@ -249,7 +250,7 @@ export function CaseEditorDialog({
   } | null>(null);
   const [repeat, setRepeat] = useState(false);
   // An edit in the JSON view is compared as its text, so it always counts as an edit.
-  const elsewhere = useRemoteDraft<CaseDraft | string>({
+  const elsewhere = useRemoteDraft<CaseDraft>({
     resource: "dataset",
     id: remote?.datasetId ?? "",
     local: json ?? draft,
@@ -257,12 +258,14 @@ export function CaseEditorDialog({
     fetchedAt: remote?.fetchedAt ?? 0,
     // `stored` is always the case's fields; only `local` can be the JSON text.
     adopt: (stored) => {
-      setDraft(stored as CaseDraft);
+      setDraft(stored);
+      setBaseline(stored);
       setJson(null);
     },
   });
   const readOnly = onSave === undefined || !editing;
-  const changed = !readOnly && (json !== null || JSON.stringify(draft) !== JSON.stringify(initial));
+  const changed =
+    !readOnly && (json !== null || JSON.stringify(draft) !== JSON.stringify(baseline));
   const missing =
     json !== null
       ? null
@@ -275,7 +278,8 @@ export function CaseEditorDialog({
   const { forget } = useUnsavedChanges(source, {
     dirty: changed,
     // Only a case that would save as it stands can be saved on the way out.
-    save: onSave === undefined || missing !== null ? undefined : () => save(onSave),
+    save:
+      onSave === undefined || missing !== null || elsewhere.held ? undefined : () => save(onSave),
     discard: () => onOpenChange(false),
     copy: localCopy && { ...localCopy, value: { draft, json } satisfies CaseCopy },
   });
@@ -327,7 +331,7 @@ export function CaseEditorDialog({
     onSave: (content: DatasetCaseContent) => Promise<unknown>,
     anyway: boolean = repeat,
   ): Promise<boolean> {
-    if (saving) return false;
+    if (saving || elsewhere.held) return false;
     let content: DatasetCaseContent | null;
     if (json !== null) {
       content = parsed();
@@ -403,7 +407,7 @@ export function CaseEditorDialog({
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-8 sm:py-8">
-              <CaseView content={viewing} />
+              <CaseView content={{ ...viewing, ...(contentOf(draft).content ?? {}) }} />
             </div>
           </div>
         </SheetContent>
@@ -705,7 +709,7 @@ export function CaseEditorDialog({
               data-tour="case-save"
               loading={saving}
               onClick={() => void save(onSave)}
-              disabled={saving || missing !== null}
+              disabled={saving || missing !== null || elsewhere.held}
             >
               <Save className="size-4" aria-hidden />
               {saveLabel ?? t("saveCase")}

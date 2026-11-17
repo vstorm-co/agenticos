@@ -159,7 +159,7 @@ def _worded(context: dict[str, Any]) -> dict[str, str] | None:
 def _params_of(notification: Notification) -> dict[str, str] | None:
     context = notification.render_context or {}
     if "wording" in context:
-        return _worded(context)
+        return None
     keys = _PARAMS.get(notification.event_type)
     if keys is None or any(not isinstance(context.get(key), str | int) for key in keys):
         return None
@@ -196,11 +196,14 @@ class NotificationRead(BaseSchema):
     )
     params: dict[str, str] | None = Field(
         default=None,
-        description="The named values the row's sentence is built from, so the console can "
-        "word it in the reader's language; `wording` names the sentence when the kind has "
-        "more than one. Never a link or an id. Null for a row written before its values "
-        "were kept, for a sentence written by a person or an agent, and for a reader served "
-        "another wording.",
+        description="Legacy approval and budget sentence values. Null for versioned wording, "
+        "missing values, and readers served another summary; never links or ids.",
+    )
+
+    wording_params: dict[str, str] | None = Field(
+        default=None,
+        description="Versioned sentence values for the current console. Kept separate from "
+        "legacy params so older consoles fall back to the stored summary.",
     )
 
     @classmethod
@@ -226,6 +229,7 @@ class NotificationRead(BaseSchema):
             outcome=_outcome_of(notification),
             outcome_id=notification.outcome_id,
             params=None if summary_override else _params_of(notification),
+            wording_params=None if summary_override else _worded(notification.render_context or {}),
         )
 
 
@@ -292,6 +296,12 @@ class FailedDeliveryRead(BaseSchema):
     attempts: int
     last_error: str | None = None
     created_at: datetime
+
+    wording_params: dict[str, str] | None = Field(
+        default=None,
+        description="Versioned sentence values for the current console. Kept separate from "
+        "legacy params so older consoles fall back to the stored summary.",
+    )
 
     @classmethod
     def from_row(

@@ -456,12 +456,12 @@ class JudgeGrade(BaseModel):
 
     # Only the criterion id and the grade must be right for a grade to stand: a
     # judge that overruns a limit on what backs it loses the overrun, not the grade.
-    @field_validator("rule", mode="before")
+    @field_validator("rule", mode="before", json_schema_input_type=object)
     @classmethod
     def _rule_cut(cls, value: object) -> str:
         return value[:MAX_RULE] if isinstance(value, str) else ""
 
-    @field_validator("quotes", mode="before")
+    @field_validator("quotes", mode="before", json_schema_input_type=object)
     @classmethod
     def _quotes_kept(cls, value: object) -> list[str]:
         given = [value] if isinstance(value, str) else value if isinstance(value, list) else []
@@ -488,6 +488,14 @@ def verdict_schema(criteria: Sequence[JudgeCriterion], *, scale_max: int) -> dic
     grade["score"].update(minimum=1, maximum=scale_max)
     grades = schema["properties"]["grades"]
     grades["minItems"] = grades["maxItems"] = len(criteria)
+    grades["allOf"] = [
+        {
+            "contains": {"properties": {"id": {"const": criterion.id}}, "required": ["id"]},
+            "minContains": 1,
+            "maxContains": 1,
+        }
+        for criterion in criteria
+    ]
     return schema
 
 
