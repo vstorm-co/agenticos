@@ -34,7 +34,7 @@ async def test_custom_listing_uses_the_endpoint_without_opening_a_vault_key():
     assert response.items[0].id == "vendor/chat"
 
 
-@pytest.mark.parametrize("provider", ["stav", "otari"])
+@pytest.mark.parametrize("provider", ["stav", "otari", "zai"])
 async def test_a_custom_authenticated_listing_sends_the_selected_key(provider: str):
     secrets = MagicMock(spec=OrganizationSecretService)
     secrets.listing_key = AsyncMock(return_value="sk_stav_test")
@@ -105,7 +105,7 @@ async def test_custom_listing_refuses_unsupported_provider_or_unsafe_url(
         )
 
 
-@pytest.mark.parametrize("provider", ["stav", "otari"])
+@pytest.mark.parametrize("provider", ["stav", "otari", "zai"])
 async def test_custom_listing_cannot_use_an_implicit_organization_key(provider: str) -> None:
     secrets = MagicMock(spec=OrganizationSecretService)
     with (

@@ -205,6 +205,27 @@ def _db():
 
 
 class TestProviderCatalog:
+    @pytest.mark.parametrize(
+        "endpoint",
+        ["https://api.z.ai/api/coding/paas/v4", "https://open.bigmodel.cn/api/coding/paas/v4"],
+    )
+    def test_zai_coding_plan_keeps_the_selected_endpoint(self, endpoint: str) -> None:
+        assert PROVIDERS["zai"].supports_base_url
+        credential = ResolvedCredential(
+            provider="zai", secret=ApiKeySecret(api_key="coding-plan-key"), base_url=endpoint
+        )
+        model = build_model(credential, "glm-5")
+        assert isinstance(model, OpenAIChatModel)
+        assert str(model.client.base_url) == endpoint + "/"
+
+    def test_zai_without_an_endpoint_keeps_pay_per_token_api(self) -> None:
+        credential = ResolvedCredential(
+            provider="zai", secret=ApiKeySecret(api_key="regular-api-key")
+        )
+        model = build_model(credential, "glm-5")
+        assert isinstance(model, OpenAIChatModel)
+        assert str(model.client.base_url) == "https://api.z.ai/api/paas/v4/"
+
     @pytest.mark.parametrize("provider_id", sorted(PROVIDERS))
     def test_every_selectable_provider_actually_builds_a_model(self, provider_id):
         """The invariant a hand-written registry used to give, kept after inference.

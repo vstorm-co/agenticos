@@ -318,7 +318,9 @@ export function AddModel({
   const endpoint = baseUrl.trim().replace(/\/+$/, "");
   const manualDiscovery =
     providerId !== "system-one" &&
-    (providerId === "otari" || (capabilities?.requires_base_url ?? false));
+    (providerId === "otari" ||
+      (providerId === "zai" && endpoint !== "") ||
+      (capabilities?.requires_base_url ?? false));
   const confirmedGateway =
     gatewayDiscovery?.endpoint === endpoint && gatewayDiscovery?.secretId === chosenKey;
   const listingEndpoint = manualDiscovery && !confirmedGateway ? undefined : endpoint || undefined;
@@ -353,9 +355,9 @@ export function AddModel({
     source,
     isLoading: loadingModels,
   } = useProviderModels(
-    providerId,
-    ["openrouter", "stav", "otari"].includes(providerId) ? listingEndpoint : undefined,
-    ["stav", "otari"].includes(providerId) ? chosenKey || undefined : undefined,
+    providerId === "zai" && manualDiscovery && !confirmedGateway ? "" : providerId,
+    ["openrouter", "stav", "otari", "zai"].includes(providerId) ? listingEndpoint : undefined,
+    ["stav", "otari", "zai"].includes(providerId) ? chosenKey || undefined : undefined,
     (pickedApi ?? startingApi) === "decisions" || ["typesafe", "system-one"].includes(providerId),
   );
 

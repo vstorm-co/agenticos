@@ -363,10 +363,14 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | Stav.ai | `stav` | API key | ✓ |
 | Together AI | `together` | API key | |
 | Vercel AI Gateway | `vercel` | API key | |
-| Z.AI | `zai` | API key | |
+| Z.AI | `zai` | API key | ✓ |
 | xAI (Grok) | `xai` | API key | ✓ (`api_host`) |
 | Cohere | `cohere` | API key | |
 | Hugging Face | `huggingface` | API key | ✓ |
+
+For a **Z.AI GLM Coding Plan**, select **Z.AI** and explicitly set **Endpoint** to `https://api.z.ai/api/coding/paas/v4` (global) or `https://open.bigmodel.cn/api/coding/paas/v4` (China), using a key for that plan and region. Leaving Endpoint empty keeps the ordinary metered API; existing profiles do not change.
+
+Choose the vault key and confirm the destination before loading models. A custom catalog uses that key and endpoint only; an unavailable listing leaves the model field editable rather than substituting the general API catalog. AgenticOS budget estimates do not measure your remaining subscription allowance.
 
 ### Self-hosted
 

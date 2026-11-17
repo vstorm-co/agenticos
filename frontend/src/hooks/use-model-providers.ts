@@ -311,7 +311,7 @@ export function useProviderModels(
     enabled:
       providerId !== "" &&
       !(providerId === "otari" && !baseUrl) &&
-      !(["stav", "otari"].includes(providerId) && baseUrl && !secretId),
+      !(["stav", "otari", "zai"].includes(providerId) && baseUrl && !secretId),
   });
 
   // Both fields this fills choose a model to talk to, so a speech or embedding

@@ -316,7 +316,7 @@ PROVIDERS: dict[str, ProviderSpec] = {
             api_from_model=True,
         ),
         _api_key("vercel", "Vercel AI Gateway"),
-        _api_key("zai", "Z.AI"),
+        _api_key("zai", "Z.AI", base_url_param="base_url"),
         # `api_host`, not `base_url`: the xAI SDK names it differently, and a
         # credential carrying a base URL for a provider that ignores it is a
         # setting somebody will spend an afternoon on.

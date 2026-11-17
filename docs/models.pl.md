@@ -1,5 +1,5 @@
 ---
-source_sha: "52615751a50c"
+source_sha: "787da318dbe6"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -375,10 +375,14 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | Stav.ai | `stav` | klucz API | ✓ |
 | Together AI | `together` | klucz API | |
 | Vercel AI Gateway | `vercel` | klucz API | |
-| Z.AI | `zai` | klucz API | |
+| Z.AI | `zai` | klucz API | ✓ |
 | xAI (Grok) | `xai` | klucz API | ✓ (`api_host`) |
 | Cohere | `cohere` | klucz API | |
 | Hugging Face | `huggingface` | klucz API | ✓ |
+
+Dla **Z.AI GLM Coding Plan** wybierz **Z.AI** i ustaw **Endpoint** na `https://api.z.ai/api/coding/paas/v4` (globalny) lub `https://open.bigmodel.cn/api/coding/paas/v4` (Chiny), używając klucza właściwego dla planu i regionu. Puste pole Endpoint zachowuje zwykłe API rozliczane według użycia; istniejące profile się nie zmieniają.
+
+Przed wczytaniem modeli wybierz klucz z sejfu i potwierdź adres docelowy. Własny katalog korzysta tylko z tego klucza i endpointu; brak listy pozwala wpisać model ręcznie, bez zastępowania jej katalogiem zwykłego API. Szacunki budżetu AgenticOS nie określają pozostałego limitu subskrypcji.
 
 ### Samodzielnie hostowane { #self-hosted }
 

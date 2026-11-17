@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Z.AI model profiles accept explicit GLM Coding Plan endpoints, with authenticated model catalogs isolated from the ordinary API and other accounts.
+
 ## [1.82.2] - 2026-11-18
 
 ### Added

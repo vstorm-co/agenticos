@@ -627,7 +627,7 @@ it("isolates Stav catalogs by the selected vault key", async () => {
   );
 });
 
-it.each(["stav", "otari"])(
+it.each(["stav", "otari", "zai"])(
   "does not list a custom %s endpoint before a key is selected",
   (provider) => {
     vi.mocked(apiClient.get).mockClear();

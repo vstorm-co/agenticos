@@ -845,7 +845,7 @@ async def test_a_defect_while_listing_embedding_models_is_not_read_as_unconfirme
 
 @pytest.mark.anyio
 @pytest.mark.security
-@pytest.mark.parametrize("provider", ["stav", "otari"])
+@pytest.mark.parametrize("provider", ["stav", "otari", "zai"])
 async def test_custom_catalogs_do_not_leak_between_credentials(provider: str) -> None:
     received: list[str] = []
 
@@ -965,3 +965,41 @@ async def test_native_catalogs_never_reuse_text_suggestions_or_custom_fallbacks(
             "openrouter", api="decisions", base_url="http://local.test"
         )
         assert source == "unlisted" and not custom
+
+
+@pytest.mark.anyio
+async def test_zai_coding_plan_catalog_never_sends_its_key_to_the_general_api() -> None:
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"data": [{"id": "glm-5"}]})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with patch(f"{MODULE}._client", return_value=client):
+            models, source = await models_for(
+                "zai", api_key="coding-plan-key", base_url="https://api.z.ai/api/coding/paas/v4"
+            )
+    assert source == "live"
+    assert [model.id for model in models] == ["glm-5"]
+    assert len(requests) == 1
+    assert str(requests[0].url) == "https://api.z.ai/api/coding/paas/v4/models"
+    assert requests[0].headers["Authorization"] == "Bearer coding-plan-key"
+
+
+@pytest.mark.anyio
+async def test_zai_coding_plan_catalog_does_not_substitute_the_general_api_on_failure() -> None:
+    requests: list[httpx.Request] = []
+
+    def refuse(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(refuse)) as client:
+        with patch(f"{MODULE}._client", return_value=client):
+            models, source = await models_for(
+                "zai", api_key="coding-plan-key", base_url="https://api.z.ai/api/coding/paas/v4"
+            )
+    assert (models, source) == ([], "unlisted")
+    assert len(requests) == 1
+    assert requests[0].url.path == "/api/coding/paas/v4/models"

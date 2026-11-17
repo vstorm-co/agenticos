@@ -1846,3 +1846,24 @@ describe("native decision model setup", () => {
     expect(screen.queryByRole("option", { name: /OpenRouter/ })).not.toBeInTheDocument();
   });
 });
+
+it("confirms a Z.AI plan endpoint before listing and reconfirms after it changes", async () => {
+  state.purposes = [purpose("zai", "Z.AI")];
+  state.catalog = [capabilities("zai", "Z.AI", { supports_base_url: true })];
+  state.secrets = [secret({ id: "zai-plan", name: "Plan key", purpose: "zai" })];
+  mount();
+  expect(listingRequests).toHaveBeenLastCalledWith("zai", undefined, "zai-plan", false);
+  listingRequests.mockClear();
+  const endpoint = screen.getByLabelText("Endpoint");
+  await userEvent.type(endpoint, "https://api.z.ai/api/coding/paas/v4");
+  expect(listingRequests.mock.calls.every(([provider]) => provider === "")).toBe(true);
+  await userEvent.click(screen.getByRole("button", { name: "Load models" }));
+  expect(listingRequests).toHaveBeenLastCalledWith(
+    "zai",
+    "https://api.z.ai/api/coding/paas/v4",
+    "zai-plan",
+    false,
+  );
+  await userEvent.type(endpoint, "/changed");
+  expect(listingRequests).toHaveBeenLastCalledWith("", undefined, "zai-plan", false);
+});
