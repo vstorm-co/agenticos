@@ -233,3 +233,31 @@ it("words a row by the wording the server named, and keeps the summary for one i
   );
   expect(worded({ wording: "something_new" })).toBe("server summary");
 });
+
+it("names the criteria an attempt moved when no whole question flipped", () => {
+  const criteria = [
+    { name: "length", graded: 40, before: 40, after: 30, direction: "worse" as const },
+    { name: "price break", graded: 40, before: 9, after: 40, direction: "better" as const },
+  ];
+  expect(
+    notificationSummary(
+      row("improvement_finished", { status: "stopped", reason: "criteria_worse", criteria }),
+      t,
+      stop,
+    ),
+  ).toBe(
+    "outcome.improvement.attemptFinished(Refund desk) stop:criteria_worse " +
+      "outcome.improvement.criteria(outcome.improvement.criterion(price break,40,9,40,better)," +
+      "outcome.improvement.criterion(length,40,40,30,worse))",
+  );
+  expect(
+    notificationSummary(
+      row("improvement_finished", { status: "ready", reason: null, criteria: [criteria[1]!] }),
+      t,
+      stop,
+    ),
+  ).toBe(
+    "outcome.improvement.ready(Refund desk) outcome.improvement.criteria(" +
+      "outcome.improvement.criterion(price break,40,9,40,better),none)",
+  );
+});

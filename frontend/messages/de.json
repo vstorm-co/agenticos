@@ -10833,7 +10833,9 @@
           "changes": "Die Änderungen für {agent} sind bereit zur Prüfung; drücken Sie dann Nächster Schritt, um sie zu testen.",
           "blocked": "Die Verbesserung von {agent} hat Änderungen, aber es sind zu wenige Testfragen übrig, um sie zu prüfen: {needed, plural, one {# weitere ist} other {# weitere sind}} nötig, und die Fragen dieser Sitzung stehen fest. Beenden Sie sie, fügen Sie Fragen hinzu und starten Sie eine neue."
         },
-        "attemptFinished": "Die Verbesserung von {agent} hat einen Versuch abgeschlossen."
+        "attemptFinished": "Die Verbesserung von {agent} hat einen Versuch abgeschlossen.",
+        "criteria": "{better, select, none {} other {Besser bei {better}. }}{worse, select, none {} other {Schlechter bei {worse}. }}Keine ganze Frage ist umgeschlagen.",
+        "criterion": "{name} {before}/{graded} → {after}/{graded}"
       },
       "test": {
         "completed": "Ihr Test ist abgeschlossen.",
@@ -16289,14 +16291,18 @@
     "round": "Versuch {number} von {max}",
     "attempt": {
       "better": "Besser",
+      "criteria_better": "Besser bei Kriterien",
       "regression": "Gemischt",
       "worse": "Schlechter",
+      "criteria_worse": "Schlechter bei Kriterien",
       "no_change": "Keine Änderung",
       "inconclusive": "Nicht eindeutig",
       "unmeasured": "Nicht gemessen",
       "none": "Keine Änderungen",
       "working": "Läuft",
       "delta": "{heldOut, select, unknown {+{fixed} behoben · {broken} verschlechtert} other {+{fixed} behoben · {broken} verschlechtert von {heldOut} zurückgelegten}}",
+      "criteriaBetter": "{count, plural, one {# Kriterium besser} other {# Kriterien besser}}",
+      "criteriaWorse": "{count, plural, one {# Kriterium schlechter} other {# Kriterien schlechter}}",
       "best": "Bester Versuch",
       "chosen": "Gewählter Versuch",
       "cost": "Schreiben + Test: {cost}"
@@ -16351,7 +16357,28 @@
       "keep": "Versuch {number} behalten",
       "keepAnyway": "Versuch {number} trotzdem behalten",
       "broke": "Versuch {number} hat {broken, plural, one {# Frage} other {# Fragen}} verschlechtert. Wird er übernommen, antwortet {agent} darauf schlechter.",
-      "notBetter": "Versuch {number} hat {agent} nicht verbessert. Wird er übernommen, ändert sich {agent} ohne gemessenen Gewinn."
+      "notBetter": "Versuch {number} hat {agent} nicht verbessert. Wird er übernommen, ändert sich {agent} ohne gemessenen Gewinn.",
+      "criteriaWorse": "Versuch {number} hat {agent} bei {count, plural, one {# Kriterium} other {# Kriterien}} verschlechtert, ohne eine Frage zu verschlechtern. Wird er übernommen, bleibt dieser Verlust."
+    },
+    "criteria": {
+      "item": "{name} {before}/{graded} → {after}/{graded}",
+      "failingSkill": "{name} (Skill „{skill}“)",
+      "more": "{count, plural, one {# weiteres} other {# weitere}}",
+      "better": "Versuch {number} hat {agent} bei {count, plural, one {# Kriterium} other {# Kriterien}} verbessert: {list}.",
+      "stillFailing": "Noch besteht keine Frage, weil andere Kriterien weiter nicht erfüllt sind: {list}.",
+      "worse": "Versuch {number} hat {agent} bei {count, plural, one {# Kriterium} other {# Kriterien}} verschlechtert, ohne eine Frage zu verschlechtern: {list}.",
+      "worseBeside": "Versuch {number} hat {agent} außerdem bei {count, plural, one {# Kriterium} other {# Kriterien}} verschlechtert: {list}.",
+      "title": "Kriterien, nach denen die Antworten bewertet werden",
+      "criterion": "Kriterium",
+      "before": "Vorher",
+      "after": "Nachher",
+      "moved": "Bestätigte Änderung",
+      "passed": "{passed} von {graded}",
+      "movedFixed": "+{count} behoben",
+      "movedBroken": "{count} verschlechtert",
+      "movedBoth": "+{fixed} behoben · {broken} verschlechtert",
+      "movedNone": "Keine",
+      "skill": "Dem Skill „{skill}“ zugeordnet"
     },
     "noise": {
       "headlineSpread": "Der Test kann eine bessere Version nicht von einer schlechteren unterscheiden: Die heutige Version von {agent} erreichte auf den gemeinsamen Fragen ihrer Versuche {low} und {high}.",
@@ -16387,7 +16414,9 @@
     },
     "verdict": {
       "better": "Besser: behebt {fixed}, verschlechtert nichts",
+      "criteria_better": "Besser bei Kriterien, noch keine Frage umgeschlagen",
       "regression": "Gemischt: behebt {fixed}, verschlechtert {broken}",
+      "criteria_worse": "Schlechter bei Kriterien, keine Frage verschlechtert",
       "no_change": "Keine reproduzierbare Änderung",
       "inconclusive": "Kein verlässlich messbares Ergebnis"
     },
@@ -16422,7 +16451,8 @@
       "superseded": "Neuere Vorschläge haben diese Sitzung ersetzt.",
       "knowledge_only": "In der Wissensdatenbank fehlen einige Themen. Entwerfen Sie die, die Sie brauchen, prüfen Sie jeden Entwurf und fügen Sie ihn hinzu.",
       "draft": "Das Entwerfen fehlenden Wissens ist fehlgeschlagen.",
-      "expired": "Niemand hat diese Sitzung 7 Tage lang weitergeführt, daher wurde sie geschlossen. Starten Sie eine neue, um es erneut zu versuchen."
+      "expired": "Niemand hat diese Sitzung 7 Tage lang weitergeführt, daher wurde sie geschlossen. Starten Sie eine neue, um es erneut zu versuchen.",
+      "criteria_worse": "Die Änderungen haben ein Kriterium verschlechtert, nach dem die Antworten bewertet werden, aber keine Frage."
     },
     "before": "Vorher",
     "after": "Nachher",
@@ -16542,7 +16572,7 @@
     "acceptAgent": "Im Agent: {version, plural, =0 {die neue Version} other {Version #}} behebt {fixed, plural, one {# Frage} other {# Fragen}}, verschlechtert {broken}{costKnown, select, yes {, kostet {cost} pro Antwort} other {}}. Getestet mit {total, plural, one {# Frage} other {# Fragen}}, davon {heldOut} nicht zum Schreiben der Änderungen verwendet.",
     "guardedSwitch": "{environment} wechselt zu Version {version}, sobald die automatische Prüfung bestanden ist, meist innerhalb weniger Minuten.",
     "noChangesFound": "Wir haben keine Änderung gefunden, die zu den aktuellen Anweisungen passt. Das haben wir versucht:",
-    "triedAttempt": "Versuch {number}: {verdict, select, better {die Änderungen haben es verbessert} regression {die Änderungen haben funktionierende Fragen verschlechtert} no_change {keine messbare Änderung} inconclusive {das Ergebnis ließ sich nicht messen} unmeasured {Änderungen vorgeschlagen, noch nicht getestet} other {keine Änderung vorgeschlagen}}{dropped, plural, =0 {} one {; # Änderung passte nicht zu den aktuellen Anweisungen} other {; # Änderungen passten nicht zu den aktuellen Anweisungen}}.",
+    "triedAttempt": "Versuch {number}: {verdict, select, better {die Änderungen haben es verbessert} criteria_better {die Änderungen haben einige Kriterien verbessert, noch keine Frage umgeschlagen} regression {die Änderungen haben funktionierende Fragen verschlechtert} criteria_worse {die Änderungen haben einige Kriterien verschlechtert} no_change {keine messbare Änderung} inconclusive {das Ergebnis ließ sich nicht messen} unmeasured {Änderungen vorgeschlagen, noch nicht getestet} other {keine Änderung vorgeschlagen}}{dropped, plural, =0 {} one {; # Änderung passte nicht zu den aktuellen Anweisungen} other {; # Änderungen passten nicht zu den aktuellen Anweisungen}}.",
     "handledChange": "{before} → {after} von {total} Fragen gut beantwortet.",
     "newlyFixed": "Neu behoben",
     "newlyBroken": "Neu verschlechtert",
@@ -17527,7 +17557,9 @@
         "queued": "Wartet",
         "running": "Wird geprüft",
         "better": "Besser",
+        "criteria_better": "Besser bei Kriterien",
         "no_change": "Unverändert",
+        "criteria_worse": "Schlechter bei Kriterien",
         "within_noise": "Im Rauschen",
         "worse": "Schlechter",
         "unknown": "Unbekannt"

@@ -11147,7 +11147,9 @@
           "changes": "The changes for {agent} are ready to review, then press Next step to test them.",
           "blocked": "Your improvement of {agent} has changes, but too few test questions are left to check them: {needed, plural, one {# more is} other {# more are}} needed, and this session's questions are fixed. End it, add questions and start a new one."
         },
-        "attemptFinished": "Your improvement of {agent} finished an attempt."
+        "attemptFinished": "Your improvement of {agent} finished an attempt.",
+        "criteria": "{better, select, none {} other {Better on {better}. }}{worse, select, none {} other {Worse on {worse}. }}No whole question flipped.",
+        "criterion": "{name} {before}/{graded} → {after}/{graded}"
       },
       "test": {
         "completed": "Your test finished.",
@@ -16603,14 +16605,18 @@
     "round": "Attempt {number} of {max}",
     "attempt": {
       "better": "Better",
+      "criteria_better": "Better on criteria",
       "regression": "Mixed",
       "worse": "Worse",
+      "criteria_worse": "Worse on criteria",
       "no_change": "No change",
       "inconclusive": "Inconclusive",
       "unmeasured": "Not measured",
       "none": "No changes",
       "working": "Working",
       "delta": "{heldOut, select, unknown {+{fixed} fixed · {broken} broken} other {+{fixed} fixed · {broken} broken of {heldOut} kept aside}}",
+      "criteriaBetter": "{count, plural, one {# criterion better} other {# criteria better}}",
+      "criteriaWorse": "{count, plural, one {# criterion worse} other {# criteria worse}}",
       "best": "Best attempt",
       "chosen": "Chosen attempt",
       "cost": "writing + test: {cost}"
@@ -16665,7 +16671,28 @@
       "keep": "Keep attempt {number}",
       "keepAnyway": "Keep attempt {number} anyway",
       "broke": "Attempt {number} broke {broken, plural, one {# question} other {# questions}}. Accepting it will make {agent} worse on {broken, plural, one {that one} other {those}}.",
-      "notBetter": "Attempt {number} did not make {agent} better. Accepting it changes {agent} with no measured gain."
+      "notBetter": "Attempt {number} did not make {agent} better. Accepting it changes {agent} with no measured gain.",
+      "criteriaWorse": "Attempt {number} made {agent} worse on {count, plural, one {# criterion} other {# criteria}}, though no question broke. Accepting it keeps that loss."
+    },
+    "criteria": {
+      "item": "{name} {before}/{graded} → {after}/{graded}",
+      "failingSkill": "{name} (skill “{skill}”)",
+      "more": "{count, plural, one {# more} other {# more}}",
+      "better": "Attempt {number} made {agent} better on {count, plural, one {# criterion} other {# criteria}}: {list}.",
+      "stillFailing": "No question passes yet, because other criteria still fail: {list}.",
+      "worse": "Attempt {number} made {agent} worse on {count, plural, one {# criterion} other {# criteria}}, though no question broke: {list}.",
+      "worseBeside": "Attempt {number} also made {agent} worse on {count, plural, one {# criterion} other {# criteria}}: {list}.",
+      "title": "Criteria the answers are graded on",
+      "criterion": "Criterion",
+      "before": "Before",
+      "after": "After",
+      "moved": "Confirmed change",
+      "passed": "{passed} of {graded}",
+      "movedFixed": "+{count} fixed",
+      "movedBroken": "{count} broken",
+      "movedBoth": "+{fixed} fixed · {broken} broken",
+      "movedNone": "None",
+      "skill": "Put down to the skill “{skill}”"
     },
     "noise": {
       "headlineSpread": "The test can't tell a better version from a worse one: today's version of {agent} scored {low} and {high} on the questions its attempts shared.",
@@ -16701,7 +16728,9 @@
     },
     "verdict": {
       "better": "Better: fixes {fixed}, breaks nothing",
+      "criteria_better": "Better on criteria, no question flipped yet",
       "regression": "Mixed: fixes {fixed}, breaks {broken}",
+      "criteria_worse": "Worse on criteria, no question broke",
       "no_change": "No reproducible change",
       "inconclusive": "We could not measure a reliable result"
     },
@@ -16736,7 +16765,8 @@
       "superseded": "A newer set of suggestions replaced this one.",
       "knowledge_only": "Some topics are missing from the knowledge base. Draft the ones you want, check each draft and add it.",
       "draft": "Drafting knowledge failed.",
-      "expired": "Nobody took this session further for 7 days, so it closed. Start a new one to try again."
+      "expired": "Nobody took this session further for 7 days, so it closed. Start a new one to try again.",
+      "criteria_worse": "The changes made a criterion the answers are graded on worse, though no question broke."
     },
     "before": "Before",
     "after": "After",
@@ -16856,7 +16886,7 @@
     "acceptAgent": "In the agent: {version, plural, =0 {the new version} other {version #}} will fix {fixed, plural, one {# question} other {# questions}}, break {broken}{costKnown, select, yes {, cost {cost} per answer} other {}}. Tested on {total, plural, one {# question} other {# questions}}, {heldOut} of them not used to write the changes.",
     "guardedSwitch": "{environment} switches to version {version} after the automatic check passes, usually within a few minutes.",
     "noChangesFound": "We couldn't find a change that fits the current instructions. Here is what we tried:",
-    "triedAttempt": "Attempt {number}: {verdict, select, better {the changes made it better} regression {the changes broke questions that worked} no_change {no measurable change} inconclusive {the result could not be measured} unmeasured {changes proposed, not tested yet} other {no change was proposed}}{dropped, plural, =0 {} one {; # change did not fit the current instructions} other {; # changes did not fit the current instructions}}.",
+    "triedAttempt": "Attempt {number}: {verdict, select, better {the changes made it better} criteria_better {the changes made it better on some criteria, no question flipped yet} regression {the changes broke questions that worked} criteria_worse {the changes made some criteria worse} no_change {no measurable change} inconclusive {the result could not be measured} unmeasured {changes proposed, not tested yet} other {no change was proposed}}{dropped, plural, =0 {} one {; # change did not fit the current instructions} other {; # changes did not fit the current instructions}}.",
     "handledChange": "{before} → {after} of {total} questions handled well.",
     "newlyFixed": "Newly fixed",
     "newlyBroken": "Newly broken",
@@ -17841,7 +17871,9 @@
         "queued": "Waiting",
         "running": "Checking",
         "better": "Better",
+        "criteria_better": "Better on criteria",
         "no_change": "No change",
+        "criteria_worse": "Worse on criteria",
         "within_noise": "Within noise",
         "worse": "Worse",
         "unknown": "Unknown"
