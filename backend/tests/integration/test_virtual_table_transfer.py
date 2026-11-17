@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.core.exceptions import ExportTooLargeError, NotFoundError
-from app.db.models.virtual_table import VirtualTableOutbox
+from app.db.models.virtual_table import VirtualTableOutbox, VirtualTableReceipt
 from app.schemas.virtual_table import (
     ColumnDef,
     LinkedRecord,
@@ -205,6 +205,10 @@ async def test_a_batch_sent_again_under_its_key_writes_nothing_more(db):
 
     assert (first_replayed, again_replayed) == (False, True)
     assert again == first
+    receipt = await db.scalar(select(VirtualTableReceipt))
+    assert receipt.table_id == table.id
+    assert receipt.outcome == first.model_dump(mode="json")
+    assert "_table_id" not in again.model_dump(mode="json")
     listed = await service.list_records(ctx, table.id, RecordQuery())
     assert len(listed.items) == 1
     with pytest.raises(IdempotencyKeyReuseError):

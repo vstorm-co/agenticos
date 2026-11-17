@@ -1,5 +1,5 @@
 ---
-source_sha: "774a82d93b5e"
+source_sha: "4d8a6c479c11"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -447,6 +447,13 @@ Reintenta dentro de la ventana y trata una pausa más larga como una solicitud n
 clave, así que se cumple a la hora exacta; el barrido diario solo recupera el espacio de los
 receipts que nadie reintentó.
 
+Al eliminar un grupo, proyecto o cuenta se purgan los receipts asociados a la tabla
+de su tablero de tareas, incluidos los resultados de lotes. Durante la actualización
+se borran los resultados de lotes antiguos sin id de tabla, porque no se puede recuperar
+su tabla asociada. Sus claves se conservan hasta caducar: un reintento con la misma
+solicitud devuelve `IDEMPOTENCY_RESULT_PURGED` (409) y no escribe nada. Comprueba la tabla
+antes de iniciar una escritura nueva. Los demás tipos de receipts no cambian.
+
 ## Listar y filtrar { #listing-and-filtering }
 
 `GET /tables/{id}/records` recorre una tabla por páginas; `POST /tables/{id}/records/query`
@@ -770,6 +777,7 @@ un cliente usa para bifurcar.
 | `INVALID_QUERY` | 422 | Un filtro u orden que la tabla no puede responder |
 | `INVALID_SCHEMA` | 422 | Un cambio de esquema incoherente |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | La clave se usó para una solicitud distinta |
+| `IDEMPOTENCY_RESULT_PURGED` | 409 | Un resultado de lote antiguo se borró durante la actualización; su clave impide otra escritura hasta caducar |
 | `QUOTA_EXCEEDED` | 402 | La escritura superaría un límite de almacenamiento; `details` nombra el límite (`tables`, `records`, `record_bytes`, `storage_bytes`) y su techo |
 | `RATE_LIMIT_EXCEEDED` | 429 | Demasiadas escrituras de tablas en el último minuto; consulta `Retry-After` |
 | `VALIDATION_ERROR` | 422 | La solicitud misma es defectuosa: un tipo erróneo, un campo desconocido, un límite, o NUL, un salto de línea o un sustituto aislado en un id, clave o nombre. La ruta la rechaza antes de que se ejecute el servicio |

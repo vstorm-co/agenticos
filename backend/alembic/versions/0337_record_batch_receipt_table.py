@@ -8,17 +8,16 @@ rows - whose details can carry an external id such as an email - and the
 request itself is kept only as a hash. Nothing tied it to its table, so it
 outlived the purge until the receipt sweep.
 
-`table_id` is a column rather than a key in the stored outcome because the
-outcome is what a retry is answered with; adding a field there would change
-the API response. It has no foreign key, like the outcome references it sits
-beside: the purge deletes these receipts explicitly before the table goes.
+`table_id` is stored separately from the public outcome, and the CHECK keeps
+new batch receipts attributed. It has no foreign key, like the outcome
+references it sits beside: the purge deletes these receipts explicitly before
+the table goes.
 
-Receipts of the operation written before this revision cannot be attributed
-to a table: the outcome does not name it and the payload is a hash. They are
-deleted, and the CHECK then keeps every new one attributed. A batch retried
-across the upgrade under the same key is written again instead of replayed;
-receipts answer retries for a day at most, and a batch's rows with external
-ids are refused or updated rather than duplicated.
+Legacy batch results cannot be attributed: their outcome has no table id and
+the payload is a hash. Erase those results but preserve each key, digest,
+principal, organization and timestamp as a tombstone until normal expiry.
+Deleting a live key would let a retry repeat writes, including records without
+external ids. The runtime refuses to replay an erased result instead.
 
 The downgrade drops the CHECK and the column.
 """
@@ -41,11 +40,14 @@ def upgrade() -> None:
         "virtual_table_receipts",
         sa.Column("table_id", postgresql.UUID(as_uuid=True), nullable=True),
     )
-    op.execute("DELETE FROM virtual_table_receipts WHERE operation = 'record.batch'")
+    op.execute(
+        "UPDATE virtual_table_receipts SET outcome = '{\"_purged\": true}'::jsonb "
+        "WHERE operation = 'record.batch'"
+    )
     op.create_check_constraint(
         op.f(_CHECK),
         "virtual_table_receipts",
-        "operation <> 'record.batch' OR table_id IS NOT NULL",
+        "operation <> 'record.batch' OR table_id IS NOT NULL OR outcome = '{\"_purged\": true}'::jsonb",
     )
 
 

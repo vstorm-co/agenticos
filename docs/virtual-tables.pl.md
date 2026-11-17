@@ -1,5 +1,5 @@
 ---
-source_sha: "774a82d93b5e"
+source_sha: "4d8a6c479c11"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -445,6 +445,13 @@ oknie, a dłuższą przerwę traktuj jak nowe żądanie. Czas życia jest egzekw
 klucza, więc obowiązuje co do godziny; codzienny sweep tylko odzyskuje miejsce po receipts,
 których nikt nie ponowił.
 
+Usunięcie grupy, projektu albo konta usuwa potwierdzenia zapisów powiązane z tabelą
+jej tablicy zadań, w tym wyniki operacji zbiorczych. Podczas aktualizacji starsze wyniki
+operacji zbiorczych bez id tabeli są kasowane, bo nie można odtworzyć ich powiązania
+z tabelą. Ich klucze pozostają do wygaśnięcia: ponowienie tego samego żądania zwraca
+`IDEMPOTENCY_RESULT_PURGED` (409) i niczego nie zapisuje. Sprawdź tabelę przed
+rozpoczęciem nowego zapisu. Pozostałe rodzaje potwierdzeń pozostają bez zmian.
+
 ## Listowanie i filtrowanie { #listing-and-filtering }
 
 `GET /tables/{id}/records` przegląda tabelę stronami; `POST /tables/{id}/records/query`
@@ -765,6 +772,7 @@ według czego klient się rozgałęzia.
 | `INVALID_QUERY` | 422 | Filtr lub sortowanie, na które tabela nie odpowie |
 | `INVALID_SCHEMA` | 422 | Niespójna zmiana schematu |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | Klucz został użyty dla innego żądania |
+| `IDEMPOTENCY_RESULT_PURGED` | 409 | Wynik starszej operacji zbiorczej usunięto podczas aktualizacji; klucz blokuje kolejny zapis do wygaśnięcia |
 | `QUOTA_EXCEEDED` | 402 | Zapis przekroczyłby limit przechowywania; `details` nazywa limit (`tables`, `records`, `record_bytes`, `storage_bytes`) i jego pułap |
 | `RATE_LIMIT_EXCEEDED` | 429 | Za dużo zapisów do tabel w ostatniej minucie; zobacz `Retry-After` |
 | `VALIDATION_ERROR` | 422 | Samo żądanie jest wadliwe: zły typ, nieznane pole, limit albo NUL, znak nowego wiersza lub osamotniony surogat w id, kluczu lub nazwie. Trasa odrzuca je, zanim uruchomi się serwis |

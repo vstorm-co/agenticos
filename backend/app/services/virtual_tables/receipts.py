@@ -32,7 +32,10 @@ from app.core.config import settings
 from app.core.permissions import AuthContext
 from app.repositories import virtual_table_repo
 from app.schemas.virtual_table import RecordRead
-from app.services.virtual_tables.exceptions import IdempotencyKeyReuseError
+from app.services.virtual_tables.exceptions import (
+    IdempotencyKeyReuseError,
+    IdempotencyResultPurgedError,
+)
 
 
 class WriteOutcome(BaseModel):
@@ -87,8 +90,12 @@ async def run_once[Outcome: BaseModel](
     receipt for an operation whose outcome does not name its table, so purging
     the table finds the receipt.
 
+    An erased legacy result keeps its key until expiry so a retry cannot repeat
+    a write whose result is gone.
+
     Raises:
         IdempotencyKeyReuseError: The key was used before with a different request.
+        IdempotencyResultPurgedError: The previous result was erased, so it cannot be replayed.
     """
     async with db.begin_nested():
         if operation_key is None:
@@ -124,6 +131,8 @@ async def run_once[Outcome: BaseModel](
             )
             if not secrets.compare_digest(stored.payload_hash, digest):
                 raise IdempotencyKeyReuseError(operation=operation)
+            if stored.outcome.get("_purged") is True:
+                raise IdempotencyResultPurgedError(operation=operation)
             return outcome_type.model_validate(stored.outcome), True
         outcome = await action()
         await virtual_table_repo.set_receipt_outcome(

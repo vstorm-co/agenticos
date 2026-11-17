@@ -286,7 +286,8 @@ class VirtualTableReceipt(Base):
 
     `table_id` is set on a `record.batch` receipt only: its outcome holds the
     refused rows' details, which can carry personal data, and does not name the
-    table, so a table purge finds it by this column.
+    table, so a table purge finds it by this column. Legacy receipts whose result
+    was erased retain their key without a table until the normal expiry.
     """
 
     __tablename__ = "virtual_table_receipts"
@@ -318,7 +319,8 @@ class VirtualTableReceipt(Base):
             name="uq_virtual_table_receipt_key",
         ),
         CheckConstraint(
-            "operation <> 'record.batch' OR table_id IS NOT NULL", name="batch_names_table"
+            "operation <> 'record.batch' OR table_id IS NOT NULL OR outcome = '{\"_purged\": true}'::jsonb",
+            name="batch_names_table",
         ),
         Index("virtual_table_receipts_org_created_idx", "organization_id", "created_at"),
         CheckConstraint(

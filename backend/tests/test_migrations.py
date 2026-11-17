@@ -2469,9 +2469,9 @@ def test_memory_snapshot_upgrade_preserves_legacy_runs_and_downgrades_cleanly() 
         engine.dispose()
 
 
-def test_batch_receipts_name_their_table_and_unattributed_ones_are_dropped() -> None:
-    """0337: a batch receipt from before it names no table, so the upgrade deletes it,
-    keeps every other receipt, and refuses a new batch receipt without a table."""
+@pytest.mark.security
+def test_batch_receipts_keep_their_keys_when_legacy_results_are_erased() -> None:
+    """0337 erases unassociated results without forgetting live keys or their expiry."""
     from sqlalchemy import inspect
     from sqlalchemy.exc import IntegrityError
 
@@ -2483,7 +2483,7 @@ def test_batch_receipts_name_their_table_and_unattributed_ones_are_dropped() -> 
     insert = text(
         "INSERT INTO virtual_table_receipts (id, organization_id, principal_id, operation, "
         "operation_key, payload_hash, outcome) "
-        "VALUES (:id, :org, :user, :operation, :key, :hash, '{}'::jsonb)"
+        "VALUES (:id, :org, :user, :operation, :key, :hash, CAST(:outcome AS jsonb))"
     )
     batch, single = uuid4(), uuid4()
     try:
@@ -2499,13 +2499,30 @@ def test_batch_receipts_name_their_table_and_unattributed_ones_are_dropped() -> 
                         "operation": operation,
                         "key": str(receipt_id),
                         "hash": "0" * 64,
+                        "outcome": json.dumps(
+                            {"failed": [{"details": {"external_id": "private@example.com"}}]}
+                        ),
                     },
                 )
+            before = {
+                row.id: dict(row)
+                for row in connection.execute(
+                    text("SELECT * FROM virtual_table_receipts")
+                ).mappings()
+            }
         result = _alembic("upgrade", "0337_record_batch_receipt_table")
         assert result.returncode == 0, result.stderr
         with engine.connect() as connection:
-            kept = connection.scalars(text("SELECT id FROM virtual_table_receipts")).all()
-            assert kept == [single]
+            kept = {
+                row.id: dict(row)
+                for row in connection.execute(
+                    text("SELECT * FROM virtual_table_receipts")
+                ).mappings()
+            }
+            assert kept == {
+                batch: {**before[batch], "table_id": None, "outcome": {"_purged": True}},
+                single: {**before[single], "table_id": None},
+            }
         with pytest.raises(IntegrityError, match="batch_names_table"), engine.begin() as connection:
             connection.execute(text("SET LOCAL session_replication_role = replica"))
             connection.execute(
@@ -2517,6 +2534,7 @@ def test_batch_receipts_name_their_table_and_unattributed_ones_are_dropped() -> 
                     "operation": "record.batch",
                     "key": "new",
                     "hash": "0" * 64,
+                    "outcome": "{}",
                 },
             )
         result = _alembic("downgrade", "0336_run_memory_snapshot")
@@ -2526,5 +2544,7 @@ def test_batch_receipts_name_their_table_and_unattributed_ones_are_dropped() -> 
         }
         result = _alembic("upgrade", "head")
         assert result.returncode == 0, result.stderr
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
     finally:
         engine.dispose()

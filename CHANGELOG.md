@@ -21,7 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- **Task board purge and record batches.** Removing a group, a project or an account now also deletes the idempotency receipts of record batches written to its task board's table. A batch receipt keeps the refused rows' details, which can include an external id such as an email, and now records its table so the purge finds it. Batch receipts written before the upgrade cannot be attributed to a table and are deleted by the migration, so a batch retried across the upgrade under the same key is written again instead of replayed.
+- Purge task-board batch-write receipts with their table, including failure details that can hold personal data (#3000).
+
+### Upgrading
+
+- Migration `0337_record_batch_receipt_table.py` adds table IDs to batch receipts. It erases older batch results whose table cannot be recovered, preserving their keys and original expiry to prevent duplicate writes. Retries return `IDEMPOTENCY_RESULT_PURGED` (409); check the table before submitting a fresh operation.
 
 ## [1.80.0] - 2026-11-16
 
