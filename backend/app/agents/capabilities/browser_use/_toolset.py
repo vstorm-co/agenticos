@@ -89,8 +89,9 @@ from app.agents.capabilities.browser_use._plans import plan_key
 from app.agents.capabilities.browser_use._preview import Preview
 from app.agents.capabilities.browser_use._route import BrowserRoute, recheck
 from app.agents.deps import AgentDeps
+from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
-from app.services import browse_plans, browser_sign_in, live_browse
+from app.services import browse_plans, browser_sign_in, browser_teaching, live_browse
 
 BROWSER_TAB_REQUIREMENT = "agenticos_browser_tab_requirement"
 
@@ -647,7 +648,7 @@ def build_toolset(
             sign_ins = [entry for entry in sign_ins if entry.site != restored.sign_in.site]
             sign_ins.append(restored.sign_in)
         try:
-            return await toolset.open(
+            opened = await toolset.open(
                 open_browser,
                 **options,
                 cdp_url=cdp_url,
@@ -669,6 +670,18 @@ def build_toolset(
                 type(exc).__name__,
             )
             return UNREACHABLE
+        # Teaching capture only in the deployment's own server browser, never in a
+        # hosted endpoint or a person's native desktop tab.
+        provisioned = (
+            not hosted
+            and not resume_local
+            and bool(settings.BROWSER_SIGN_IN_CDP_URL)
+            and cdp_url.rstrip("/") == settings.BROWSER_SIGN_IN_CDP_URL.rstrip("/")
+        )
+        opened.teaching = browser_teaching.attach(
+            ctx.deps, opened.page, provisioned=provisioned, tab_id=opened.tab_id
+        )
+        return opened
 
     async def direct_view(ctx: RunContext[AgentDeps], goal: str) -> tuple[DirectView, bool]:
         """The view this run's direct actions are drawn in, and whether it is new."""

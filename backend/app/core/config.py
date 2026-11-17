@@ -6,6 +6,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
+from uuid import UUID
 
 from pydantic import (
     Field,
@@ -1234,6 +1235,12 @@ class Settings(BaseSettings):
     # service, `http://browser:9222`. Its host has to be in
     # `BROWSER_CDP_ALLOWED_HOSTS` like any agent's. Empty hides the option.
     BROWSER_SIGN_IN_CDP_URL: str = ""
+
+    # Browser teaching capture (#113). Off by default; when on, only the listed
+    # organizations may record, and only in the browser `BROWSER_SIGN_IN_CDP_URL`
+    # names. Retention keeps running while it is off.
+    BROWSER_TEACHING_ENABLED: bool = False
+    BROWSER_TEACHING_ORGANIZATION_IDS: list[UUID] = []
 
     # The browser a visual is drawn to a picture with (#2171), where no frame can
     # run it: a chat app's reply and a dashboard thumbnail of a page. The compose

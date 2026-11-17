@@ -69,6 +69,8 @@ SCHEDULES: tuple[Schedule, ...] = (
     Schedule(
         "reconcile-conversation-tasks", jobs.RECONCILE_CONVERSATION_TASKS, timedelta(seconds=15)
     ),
+    # Expire teaching payloads after 24 hours and pause recordings whose hold ended.
+    Schedule("sweep-browser-teachings", jobs.SWEEP_BROWSER_TEACHINGS, _MINUTE),
     # Fire the agent triggers that have come due.
     Schedule("check-agent-triggers", jobs.CHECK_AGENT_TRIGGERS, _MINUTE),
     Schedule("channel-observation", jobs.CHANNEL_OBSERVATION_SWEEP, _MINUTE),

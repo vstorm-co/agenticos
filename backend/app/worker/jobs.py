@@ -780,6 +780,7 @@ ADVANCE_SKILL_CHECK = Task(
 )
 SWEEP_SKILL_CHECKS = _sweep("sweep-skill-checks")
 
+SWEEP_BROWSER_TEACHINGS = _sweep("sweep-browser-teachings", timeout=timedelta(minutes=2))
 CHECK_AGENT_TRIGGERS = _sweep("check-agent-triggers")
 POLL_PORTAL_GRANTS = _sweep("poll-portal-grants")
 DELIVER_NOTIFICATIONS = _sweep("deliver-notifications")
@@ -958,6 +959,7 @@ TASKS: dict[str, TaskKind] = {
         WATCH_SWEEP,
         WEEKLY_USAGE_REPORT,
         MONTHLY_USAGE_REPORT,
+        SWEEP_BROWSER_TEACHINGS,
         FAILURE_LEDGER_DIGEST,
     )
 }
