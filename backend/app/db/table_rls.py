@@ -168,9 +168,13 @@ async def table_rls_state(db: AsyncSession) -> TableRlsState:
 async def require_table_connection_role(db: AsyncSession, *, maintenance: bool = False) -> str:
     """Check the login and every role it can assume, not only inherited privileges.
 
-    Neither connection may own a protected table or assume an owner, superuser or
-    BYPASSRLS role. A maintenance login gains its explicit policy exception through
-    the NOLOGIN maintenance group. Runtime logins must have no path into that group.
+    Neither connection may own a protected table or assume an owner, superuser,
+    BYPASSRLS, CREATEROLE or REPLICATION role, belong to pg_database_owner or a
+    server program or server file role, or hold TRUNCATE, TRIGGER or REFERENCES (on
+    any column) on a protected object. CREATE on the schema stays allowed: the
+    vector store creates its collection tables there with the runtime login.
+    A maintenance login gains its explicit policy exception through the NOLOGIN
+    maintenance group. Runtime logins must have no path into that group.
     """
     row = (
         await db.execute(
@@ -181,6 +185,19 @@ async def require_table_connection_role(db: AsyncSession, *, maintenance: bool =
                 "AND (r.rolname = session_user OR "
                 "pg_catalog.pg_has_role(current_user, r.oid, 'MEMBER') OR "
                 "pg_catalog.pg_has_role(session_user, r.oid, 'MEMBER'))) AS unsafe_role, "
+                "EXISTS (SELECT 1 FROM pg_catalog.pg_roles AS r WHERE r.rolreplication "
+                "AND (pg_catalog.pg_has_role(current_user, r.oid, 'MEMBER') OR "
+                "pg_catalog.pg_has_role(session_user, r.oid, 'MEMBER'))) AS replication, "
+                "COALESCE(pg_catalog.pg_has_role(current_user, "
+                "pg_catalog.to_regrole('pg_database_owner'), 'MEMBER') OR "
+                "pg_catalog.pg_has_role(session_user, "
+                "pg_catalog.to_regrole('pg_database_owner'), 'MEMBER'), false) AS database_owner, "
+                "EXISTS (SELECT 1 FROM unnest(ARRAY['pg_execute_server_program', "
+                "'pg_read_server_files', 'pg_write_server_files']) AS s(name) "
+                "WHERE COALESCE(pg_catalog.pg_has_role(current_user, "
+                "pg_catalog.to_regrole(s.name), 'MEMBER') OR "
+                "pg_catalog.pg_has_role(session_user, "
+                "pg_catalog.to_regrole(s.name), 'MEMBER'), false)) AS server_files, "
                 "EXISTS (SELECT 1 FROM pg_catalog.pg_class AS c "
                 "JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace "
                 "WHERE n.nspname = 'public' AND c.relname = ANY(:objects) "
@@ -188,6 +205,8 @@ async def require_table_connection_role(db: AsyncSession, *, maintenance: bool =
                 "pg_catalog.pg_has_role(session_user, c.relowner, 'MEMBER'))) AS owns_tables, "
                 "COALESCE((SELECT r.rolcanlogin FROM pg_catalog.pg_roles AS r "
                 "WHERE r.rolname = :maintenance_group), true) AS unsafe_group, "
+                # TRUNCATE ignores row policies, TRIGGER runs code on every tenant's
+                # writes, and REFERENCES lets a foreign key probe other tenants' keys.
                 "EXISTS (SELECT 1 FROM pg_catalog.pg_class AS c "
                 "JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace "
                 "CROSS JOIN pg_catalog.pg_roles AS r "
@@ -195,6 +214,20 @@ async def require_table_connection_role(db: AsyncSession, *, maintenance: bool =
                 "AND (pg_catalog.pg_has_role(current_user, r.oid, 'MEMBER') OR "
                 "pg_catalog.pg_has_role(session_user, r.oid, 'MEMBER')) "
                 "AND pg_catalog.has_table_privilege(r.oid, c.oid, 'TRUNCATE')) AS can_truncate, "
+                "EXISTS (SELECT 1 FROM pg_catalog.pg_class AS c "
+                "JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace "
+                "CROSS JOIN pg_catalog.pg_roles AS r "
+                "WHERE n.nspname = 'public' AND c.relname = ANY(:objects) "
+                "AND (pg_catalog.pg_has_role(current_user, r.oid, 'MEMBER') OR "
+                "pg_catalog.pg_has_role(session_user, r.oid, 'MEMBER')) "
+                "AND pg_catalog.has_table_privilege(r.oid, c.oid, 'TRIGGER')) AS can_trigger, "
+                "EXISTS (SELECT 1 FROM pg_catalog.pg_class AS c "
+                "JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace "
+                "CROSS JOIN pg_catalog.pg_roles AS r "
+                "WHERE n.nspname = 'public' AND c.relname = ANY(:objects) "
+                "AND (pg_catalog.pg_has_role(current_user, r.oid, 'MEMBER') OR "
+                "pg_catalog.pg_has_role(session_user, r.oid, 'MEMBER')) "
+                "AND pg_catalog.has_any_column_privilege(r.oid, c.oid, 'REFERENCES')) AS can_references, "
                 "EXISTS (SELECT 1 FROM pg_catalog.pg_class AS c "
                 "JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace "
                 "WHERE n.nspname = 'public' AND c.relname = ANY(:objects) "
@@ -210,21 +243,28 @@ async def require_table_connection_role(db: AsyncSession, *, maintenance: bool =
             {"objects": list(TABLE_OBJECTS), "maintenance_group": MAINTENANCE_ROLE},
         )
     ).one()
-    if (
-        row.unsafe_role
-        or row.owns_tables
-        or row.can_truncate
-        or row.missing_dml
-        or bool(row.maintenance) != maintenance
-        or bool(row.login_maintenance) != maintenance
-        or (maintenance and row.unsafe_group)
-    ):
-        kind = "maintenance" if maintenance else "runtime"
-        raise UnsafeTableDatabaseRoleError(
-            f"Unsafe Tables {kind} role: require separate non-owner credentials without "
-            "SUPERUSER, BYPASSRLS, CREATEROLE, TRUNCATE or an assumable privileged role; "
-            "grant SELECT, INSERT, UPDATE and DELETE on the protected objects"
-        )
+    refusals = (
+        (row.unsafe_role, "it can assume a SUPERUSER, BYPASSRLS or CREATEROLE role"),
+        (row.replication, "it can assume a REPLICATION role"),
+        (row.database_owner, "it is a member of pg_database_owner"),
+        (row.server_files, "it can assume a server program or server file role"),
+        (row.owns_tables, "it can assume the owner of a protected object"),
+        (row.can_truncate, "it has TRUNCATE on a protected object"),
+        (row.can_trigger, "it has TRIGGER on a protected object"),
+        (row.can_references, "it has REFERENCES on a protected object"),
+        (row.missing_dml, "grant SELECT, INSERT, UPDATE and DELETE on every protected object"),
+        (
+            bool(row.maintenance) != maintenance or bool(row.login_maintenance) != maintenance,
+            "it is not a member of the maintenance group"
+            if maintenance
+            else "it can assume the maintenance group",
+        ),
+        (maintenance and row.unsafe_group, "the maintenance group must be NOLOGIN"),
+    )
+    kind = "maintenance" if maintenance else "runtime"
+    for refused, cause in refusals:
+        if refused:
+            raise UnsafeTableDatabaseRoleError(f"Unsafe Tables {kind} role: {cause}")
     return str(row.role_name)
 
 
