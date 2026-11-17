@@ -76,7 +76,7 @@ from app.services.attachments import AttachmentRouter
 from app.services.conversation import check_history_snapshot, model_context_check
 from app.services.device_hub import LocalTarget
 from app.services.mentions import MentionService, ResolvedMentions
-from app.services.message_history import ModelHistory
+from app.services.message_history import ModelHistory, history_for_storage
 from app.services.run_heartbeat import run_heartbeat
 from app.services.sandbox_workspace import SandboxWaitSink
 from app.services.screened_replay import screen_history, screened_copy
@@ -375,8 +375,8 @@ class ChatTurn:
     history_revision: int | None = None
     """The input snapshot's refusal revision; absent for unversioned caller histories."""
 
-    summarized_history: list[dict[str, Any]] | None = None
-    """The history a summary reduced this turn to, or `None` if none ran.
+    history_snapshot: list[dict[str, Any]] | None = None
+    """The bounded model history after a completed turn; absent while parked.
 
     Carried out rather than written here because the surface writes the turn's
     own rows *after* this returns, and what is recorded alongside it is how far
@@ -661,7 +661,7 @@ class ChatAgentRunner:
         budget_scope: BudgetScope | None = None
         budget: BudgetExceeded | None = None
         output = ""
-        summarized: list[dict[str, Any]] | None = None
+        history_snapshot: list[dict[str, Any]] | None = None
         # Set as the last statement of the `try`, so it is True only when this run
         # completed or parked without raising. It is what the terminal write below
         # reads to decide whether a persistence failure should surface or be
@@ -700,13 +700,16 @@ class ChatAgentRunner:
                 await stream(agent_run)
 
             result = _outcome(agent_run)
-            # Before the branch, so a turn that parked on an approval keeps its
-            # summary too: the resume replays the parked state, but the *next*
-            # turn reads the conversation and would otherwise summarise again.
-            if prepared.built.context.summarized:
-                summarized = await offloaded_history(
+            # Parked runs retain their separate resume state. Conversation history
+            # is checkpointed only after a completed turn, without replayable actions.
+            if not isinstance(result.output, DeferredToolRequests):
+                history_snapshot = await offloaded_history(
                     prepared.built.capabilities,
-                    dump_messages(result.all_messages()),
+                    dump_messages(
+                        history_for_storage(
+                            result.all_messages(), channel_authors=prepared.channel_authors
+                        )
+                    ),
                 )
             status, output, _structured, paused = _classify_output(
                 result,
@@ -810,7 +813,7 @@ class ChatAgentRunner:
             mcp_origins=prepared.mcp_origins,
             draft_tools=draft_tool_names(prepared.spec),
             usage=await self._usage(ctx, prepared),
-            summarized_history=summarized,
+            history_snapshot=history_snapshot,
             history_revision=message_history.revision
             if isinstance(message_history, ModelHistory)
             else None,

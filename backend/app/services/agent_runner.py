@@ -402,7 +402,7 @@ from app.services.mcp_connection import (
     build_toolsets_for_agent,
     connect_personal_toolset,
 )
-from app.services.message_history import ModelHistory
+from app.services.message_history import ModelHistory, history_for_storage
 from app.services.mirage_mounts import MirageMountService
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.model_profile import ModelProfileService, reaches_a_sign_in
@@ -8523,7 +8523,7 @@ class AgentRunnerService:
         budget: BudgetExceeded | None = None
         called: list[RecordedToolCall] = []
         settled: dict[str, str] = {}
-        summarized: list[dict[str, Any]] | None = None
+        history_snapshot: list[dict[str, Any]] | None = None
         message_id: UUID | None = None
         # True once this run reaches a terminal state here rather than unwinding -
         # a completion, a park, or a caught budget/guardrail stop. It is what the
@@ -8573,14 +8573,18 @@ class AgentRunnerService:
             # `new_messages`, not `all_messages`: a resumed run is handed
             # everything up to the park as history, and the wider list would
             # write the first attempt's calls again under the same run.
-            if prepared.built.context.summarized:
+            if not isinstance(result.output, DeferredToolRequests):
                 # Offloaded before it is stored, if the agent asked for it. The
                 # chat runner does the same with the same helper: hooking one of
                 # the two gave the capability to the WebSocket chat and to
                 # nothing else (#55).
-                summarized = await offloaded_history(
+                history_snapshot = await offloaded_history(
                     prepared.built.capabilities,
-                    dump_messages(result.all_messages()),
+                    dump_messages(
+                        history_for_storage(
+                            result.all_messages(), channel_authors=prepared.channel_authors
+                        )
+                    ),
                 )
             new_messages = result.new_messages()
             called = tool_calls_in(
@@ -8717,13 +8721,14 @@ class AgentRunnerService:
                     # buys its own summary of a history one turn longer (#49).
                     if prepared.run.conversation_id is not None:
                         conversations = ConversationService(self.db)
-                        if summarized is not None:
+                        if history_snapshot is not None and message_id is not None:
                             await conversations.keep_summary(
                                 prepared.run.conversation_id,
-                                summarized,
+                                history_snapshot,
                                 expected_revision=message_history.revision
                                 if isinstance(message_history, ModelHistory)
                                 else None,
+                                through_message_id=str(message_id),
                             )
                         # On every turn, not only a summarising one: it is what the
                         # *next* turn needs before it has a response of its own.

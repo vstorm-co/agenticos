@@ -297,7 +297,13 @@ class TestKeepingASummary:
             return_value=_Iteration(
                 _agent_run(
                     "the refund window is 30 days",
-                    messages=[ModelRequest(parts=[SystemPromptPart(content="Summary: …")])],
+                    messages=[
+                        ModelRequest(
+                            parts=[
+                                SystemPromptPart(content="Summary of previous conversation:\n\n…")
+                            ]
+                        )
+                    ],
                 )
             )
         )
@@ -309,8 +315,11 @@ class TestKeepingASummary:
                 db, conversation_id=uuid.uuid4(), history=ModelHistory([], revision=7)
             )
 
-        assert turn.summarized_history is not None
-        assert turn.summarized_history[0]["parts"][0]["content"] == "Summary: …"
+        assert turn.history_snapshot is not None
+        assert (
+            turn.history_snapshot[0]["parts"][0]["content"]
+            == "Summary of previous conversation:\n\n…"
+        )
 
         assert turn.history_revision == 7
 
@@ -329,7 +338,13 @@ class TestKeepingASummary:
             return_value=_Iteration(
                 _agent_run(
                     "the refund window is 30 days",
-                    messages=[ModelRequest(parts=[SystemPromptPart(content="Summary: …")])],
+                    messages=[
+                        ModelRequest(
+                            parts=[
+                                SystemPromptPart(content="Summary of previous conversation:\n\n…")
+                            ]
+                        )
+                    ],
                 )
             )
         )
@@ -337,7 +352,7 @@ class TestKeepingASummary:
         with _runner(prepared):
             turn = await _run(_db())
 
-        assert turn.summarized_history == [{"kind": "request", "parts": []}]
+        assert turn.history_snapshot == [{"kind": "request", "parts": []}]
         offload.externalize.assert_awaited_once()
 
     async def test_the_overhead_the_turn_measured_leaves_with_it(self):
@@ -361,15 +376,14 @@ class TestKeepingASummary:
 
         assert turn.overhead_tokens is None
 
-    async def test_a_turn_that_did_not_carries_nothing(self):
-        """Most turns. Writing one per turn would pin the thread to whatever the
-        last request happened to hold."""
+    async def test_a_turn_without_compaction_still_carries_its_history(self):
+        """Discovery and tool evidence survive ordinary turns too."""
         prepared = _prepared()
 
         with _runner(prepared):
             turn = await _run(_db())
 
-        assert turn.summarized_history is None
+        assert turn.history_snapshot == []
 
 
 class TestAddressingAnAgent:

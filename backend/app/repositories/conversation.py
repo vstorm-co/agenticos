@@ -2189,7 +2189,7 @@ async def set_summary(
     ordinal: int,
     expected_revision: int,
 ) -> bool:
-    """Record the history a summary reduced this conversation to.
+    """Replace the model-history checkpoint without moving its frontier backwards.
 
     One row per conversation rather than a log of them: the newest summary is
     written over the last, because it was produced *from* it and the older one
@@ -2200,6 +2200,7 @@ async def set_summary(
         .where(
             Conversation.id == db_conversation.id,
             Conversation.guardrail_revision == expected_revision,
+            or_(Conversation.summary_ordinal.is_(None), Conversation.summary_ordinal <= ordinal),
         )
         .values(summary_messages=messages, summary_ordinal=ordinal)
         .returning(Conversation.id)
