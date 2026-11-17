@@ -45,6 +45,7 @@ from app.agents.computer_on_use import (
 )
 from app.agents.isolation import RunIsolation
 from app.agents.manifest import RecordedRequest, RunRecorder
+from app.agents.model_resolver import ModelRequestSpec
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -77,6 +78,7 @@ from app.services.agent_runner import (
 )
 from app.services.device_hub import DeviceWorkspace
 from app.services.mcp_connection import ResolvedMcpToolsets, UnavailablePersonalService
+from tests.test_agent_runner import _resolved_model
 
 pytestmark = pytest.mark.anyio
 
@@ -374,8 +376,8 @@ async def _prepare(
     by_id = {profile.id: profile for profile in catalog}
 
     async def resolve_model(
-        _ctx: Any, *, profile_id: uuid.UUID | None, decision: bool = False
-    ) -> Any:
+        _ctx: AuthContext, *, profile_id: uuid.UUID | None, decision: bool = False
+    ) -> ModelRequestSpec:
         assert not decision
         profile = by_id.get(profile_id)
         if profile is not None and profile.label == UNUSABLE_PROFILE:
@@ -383,13 +385,8 @@ async def _prepare(
         if profile is not None and profile.label == REFUSED_PROFILE:
             raise AuthorizationError(message="That model runs on somebody's own sign-in")
         label = f"model-{profile_id}" if profile is None else profile.label
-        return MagicMock(
-            profile_id=profile_id,
-            label=label,
-            provider="openai",
-            secret_id=None,
-            params={},
-        )
+        model = _resolved_model(label)
+        return replace(model, profile_id=profile_id or model.profile_id)
 
     with (
         patch.object(
@@ -2281,9 +2278,11 @@ class TestResumingIntoADelegation:
             patch.object(
                 service.registry,
                 "get",
-                new=AsyncMock(return_value=MagicMock(system_key=None, kind="agent")),
+                new=AsyncMock(
+                    return_value=MagicMock(id=run.agent_id, system_key=None, kind="agent")
+                ),
             ),
-            patch.object(service.models, "resolve", new=AsyncMock(return_value=MagicMock())),
+            patch.object(service.models, "resolve", new=AsyncMock(return_value=_resolved_model())),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch.object(service.secrets, "resolve_for_bindings", new=AsyncMock(return_value={})),
             patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)),
