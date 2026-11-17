@@ -177,7 +177,7 @@ describe("OrgSystemAgents", () => {
     expect(card.getByRole("switch")).toBeDisabled();
   });
 
-  it("keeps service configuration collapsed while its usage stays visible", async () => {
+  it("keeps service configuration and activity hidden until expanded", async () => {
     render(<OrgSystemAgents org={ORG} />);
     expect(
       within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
@@ -185,7 +185,9 @@ describe("OrgSystemAgents", () => {
         hidden: true,
       }),
     ).not.toBeVisible();
-    expect(screen.getByTestId("system-agent-memory_maintenance")).toHaveTextContent("noRuns");
+    const card = within(screen.getByTestId("system-agent-memory_maintenance"));
+    expect(card.getByText("noRuns")).not.toBeVisible();
+    expect(card.getByText(/^spent:/)).not.toBeVisible();
     await userEvent.click(
       within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
         name: /^roles\./,
@@ -196,6 +198,11 @@ describe("OrgSystemAgents", () => {
         name: "pick",
       }),
     ).toBeVisible();
+    expect(card.getByText("noRuns")).toBeVisible();
+    expect(card.getByText(/^spent:/)).toBeVisible();
+    await userEvent.click(card.getByRole("button", { name: /^roles\./ }));
+    expect(card.getByText("noRuns")).not.toBeVisible();
+    expect(card.getByText(/^spent:/)).not.toBeVisible();
   });
 
   it("says when the briefing has no model yet, and when it is off", () => {

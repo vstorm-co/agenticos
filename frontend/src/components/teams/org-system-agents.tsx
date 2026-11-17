@@ -170,7 +170,6 @@ function Profile({ agent, org }: { agent: SystemAgent; org: Organization }) {
       onOpenChange={setOpen}
       id={`system-agent-${agent.role}-settings`}
       testId={`system-agent-${agent.role}`}
-      footer={<SystemAgentActivity agent={agent} />}
       status={
         <Badge variant={form.enabled ? "success" : "secondary"}>
           {form.enabled ? t("on") : t("off")}
@@ -234,6 +233,7 @@ function Profile({ agent, org }: { agent: SystemAgent; org: Organization }) {
         {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
         {t("save")}
       </Button>
+      <SystemAgentActivity agent={agent} />
     </ServiceCard>
   );
 }
