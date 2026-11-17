@@ -9146,7 +9146,7 @@
     "setupRequiredHint": "Zapisano i wstrzymano. Napraw źródła, sprawdź dostęp, a następnie włącz rutynę.",
     "setupOwnerRequired": "Zapisana i wstrzymana. Jej twórca musi naprawić i sprawdzić źródła.",
     "filteredEventTitle": "Ostatnie odfiltrowane zdarzenie GitHub",
-    "filteredEventHint": "Zachowujemy tylko ostatnie zweryfikowane zdarzenie odrzucone przez filtr. Nie uruchomiło runa. Treść payloadu nie jest zapisywana.",
+    "filteredEventHint": "Pokazujemy ostatnie zapisane odrzucenie przez filtr, aktualizowane najwyżej raz na minutę. Nie uruchomiło runa. Treść zdarzenia nie jest zapisywana.",
     "filteredEventEmpty": "Nie zapisano jeszcze odfiltrowanego zdarzenia. Nie potwierdza to otrzymania webhooka.",
     "filteredEventError": "Nie udało się odczytać diagnostyki filtrowania",
     "filteredEventPolicy": "Filtr autorów przy odbiorze: {policy}",

@@ -62,7 +62,7 @@ Two things are versioned separately from this file and worth knowing about:
   read it or a path into it from later steps. The value is set once per run and
   is never overwritten, and the step's panel says so.
 
-- Expose GitHub routine author filters, including a members-and-contributors option, while preserving existing defaults. Routine owners can inspect the latest verified event rejected by a filter without storing webhook content or creating a run (#3072).
+- Expose GitHub routine author filters, including a members-and-contributors option, while preserving existing defaults. Routine owners can inspect the latest retained sample of verified filter rejections without storing webhook content or creating a run. Diagnostic writes are limited to once per minute per routine using the database clock and do not spend run-admission quota (#3072).
 
 - Let shared agents require each signed-in web-chat user's own API key while keeping the model and endpoint fixed. Store keys privately in the vault, reuse them for the same provider and endpoint, and manage them without organization connection permissions. Refuse unsupported public surfaces, channels, automated runs and model overrides at configuration and run time; never fall back to an organization key. Refuse private-key saves when the model destination changed after the form opened (#2921).
 
@@ -74,7 +74,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Bind private model-history checkpoints to their agent and resolved model destinations, including fallback connections. Changing a recipient rebuilds visible transcript history instead of sending earlier hidden tool results to another endpoint.
+- Bind private model-history checkpoints to their agent and resolved model destinations, including fallback connections, and to the live MCP account, endpoint and authorization generation. Changing a recipient rebuilds visible transcript history instead of sending earlier hidden tool results to another endpoint.
 
 - Preserve concurrent aside and main-turn exchanges when updating private model history; an older snapshot cannot advance past a conversation turn it never saw.
 

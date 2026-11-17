@@ -1,5 +1,5 @@
 ---
-source_sha: "923d18e84884"
+source_sha: "ef824da65bb6"
 ---
 
 # Governance { #governance }
@@ -58,8 +58,9 @@ zachowują swoją politykę; brak `authors` w konfiguracji nadal oznacza `member
 W historii rutyny jej zalogowany właściciel widzi **Ostatnie odfiltrowane zdarzenie
 GitHub**: czas odrzucenia zweryfikowanego webhooka, przyczynę i politykę autorów
 obowiązującą przy odbiorze. Diagnostykę zapisują webhooki rutyn i dostawy GitHub App.
-Zachowujemy tylko ostatnie odrzucenie, bez payloadu, tekstu autora i sekretu; nie
-powstaje dla niego run. Brak diagnostyki oznacza brak zapisanego odrzucenia, a nie
+Zachowujemy ostatnie zapisane odrzucenie, aktualizowane najwyżej raz na minutę na
+rutynę według zegara bazy danych. Nie zapisujemy treści zdarzenia, tekstu autora
+ani sekretu. Nie powstaje run i nie zużywamy limitu uruchomień. Brak diagnostyki oznacza brak zapisanego odrzucenia, a nie
 potwierdzenie dostawy webhooka. Publiczne odpowiedzi webhooków pozostają bez zmian.
 
 ## Dostarczanie wyników rutyny { #routine-delivery }

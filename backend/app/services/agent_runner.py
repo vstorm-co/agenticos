@@ -2121,6 +2121,32 @@ class PreparedRun:
         return None if self.workspace is None else self.workspace.workspace
 
 
+def _mcp_destination_digest(sources: Mapping[UUID, McpSourceIdentity]) -> str:
+    material = [
+        (
+            str(identifier),
+            identity.endpoint_hash,
+            str(identity.authorization_generation),
+            identity.tool_prefix,
+        )
+        for identifier, identity in sorted(sources.items(), key=lambda item: str(item[0]))
+    ]
+    return hashlib.sha256(json.dumps(material, separators=(",", ":")).encode()).hexdigest()
+
+
+def _bind_mcp_provenance(
+    provenance: HistoryProvenance | None, sources: Mapping[UUID, McpSourceIdentity]
+) -> HistoryProvenance | None:
+    """Use the same immutable live connection identities that built this run's toolsets."""
+    return (
+        None
+        if provenance is None
+        else provenance.model_copy(
+            update={"mcp_destination_digest": _mcp_destination_digest(sources)}
+        )
+    )
+
+
 def _history_provenance(
     agent_id: UUID, spec: AgentSpec, model: ModelRequestSpec, user_id: UUID | None
 ) -> HistoryProvenance:
@@ -2150,6 +2176,7 @@ def _history_provenance(
     }
     return HistoryProvenance(
         agent_id=agent_id,
+        mcp_destination_digest=_mcp_destination_digest({}) if not spec.mcp_servers else None,
         configuration_digest=hashlib.sha256(
             json.dumps(configuration, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest(),
@@ -4266,8 +4293,12 @@ class AgentRunnerService:
             if model_spec is None
             else _history_provenance(agent.id, spec, model_spec, models_ctx.user_id)
         )
-        if model_spec is not None:
-            _require_history_provenance(expected_history_provenance, history_provenance)
+        if model_spec is not None and expected_history_provenance is not None:
+            assert history_provenance is not None
+            _require_history_provenance(
+                expected_history_provenance.model_copy(update={"mcp_destination_digest": None}),
+                history_provenance.model_copy(update={"mcp_destination_digest": None}),
+            )
 
         # The organization's ceiling is read here rather than passed in by the
         # surface, for the reason this module exists: a limit each caller has to
@@ -4534,6 +4565,9 @@ class AgentRunnerService:
                 ),
             ),
         )
+        history_provenance = _bind_mcp_provenance(history_provenance, resolved.sources)
+        if model_spec is not None:
+            _require_history_provenance(expected_history_provenance, history_provenance)
         spec_toolsets: list[AbstractToolset[object]] = resolved.toolsets
         if routine is not None and routine.routine_kind == "trigger":
             spec_toolsets = [
@@ -4874,8 +4908,9 @@ class AgentRunnerService:
                 service_id, profile_id = local_model_choice
                 service = await describe_service(session_id, service_id, "model")
                 model_spec = local_model_spec(profile_id, session_id, service)
-                history_provenance = _history_provenance(
-                    agent.id, spec, model_spec, models_ctx.user_id
+                history_provenance = _bind_mcp_provenance(
+                    _history_provenance(agent.id, spec, model_spec, models_ctx.user_id),
+                    resolved.sources,
                 )
                 _require_history_provenance(expected_history_provenance, history_provenance)
                 run.model_label = model_spec.label

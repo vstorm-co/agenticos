@@ -276,3 +276,43 @@ async def test_a_legacy_parked_private_history_is_refused_before_any_rebuild(
         "code": "HISTORY_DESTINATION_UNVERIFIED",
     }
     assemble.assert_not_awaited()
+
+
+@pytest.mark.parametrize("change", ["endpoint", "generation", "prefix", "account", "removed"])
+def test_live_mcp_connections_partition_checkpoint_provenance(change: str) -> None:
+    from app.agents.mcp import McpSourceIdentity
+    from app.services.agent_runner import _bind_mcp_provenance
+
+    identifier = uuid4()
+    identity = McpSourceIdentity(
+        endpoint_hash="a" * 64, authorization_generation=uuid4(), tool_prefix="records"
+    )
+    sources = {identifier: identity}
+    model = _history_provenance(_AGENT, _SPEC, _model(), _USER)
+    before = _bind_mcp_provenance(model, sources)
+    if change == "endpoint":
+        sources[identifier] = replace(identity, endpoint_hash="b" * 64)
+    elif change == "generation":
+        sources[identifier] = replace(identity, authorization_generation=uuid4())
+    elif change == "prefix":
+        sources[identifier] = replace(identity, tool_prefix="other_records")
+    elif change == "account":
+        sources = {uuid4(): identity}
+    else:
+        sources = {}
+    assert _bind_mcp_provenance(model, sources) != before
+    assert _bind_mcp_provenance(None, sources) is None
+
+
+def test_the_order_of_resolved_mcp_accounts_does_not_change_the_proof() -> None:
+    from app.agents.mcp import McpSourceIdentity
+    from app.services.agent_runner import _bind_mcp_provenance
+
+    sources = {
+        uuid4(): McpSourceIdentity(endpoint_hash=str(i) * 64, authorization_generation=uuid4())
+        for i in (1, 2)
+    }
+    model = _history_provenance(_AGENT, _SPEC, _model(), _USER)
+    assert _bind_mcp_provenance(model, sources) == _bind_mcp_provenance(
+        model, dict(reversed(list(sources.items())))
+    )
