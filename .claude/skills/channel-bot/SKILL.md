@@ -111,6 +111,24 @@ or `--token-file -` for stdin. Never put a real token in an example, shell histo
 or a process argument. These input options work for every platform; platform-specific
 webhook/app secrets still follow their existing configuration contract.
 
+Own-account setup commands are also available:
+
+```bash
+uv run agenticos cmd channel-add-email --name "Mail" --address agent@example.com --relay-config /private/path/relay.json --org <uuid>
+uv run agenticos cmd email-relay-send --config /private/path/relay.json --message received.json
+uv run agenticos cmd channel-add-sms --name "SMS" --account-sid <sid> --from-number <e164> --org <uuid>
+uv run agenticos cmd channel-configure-sms-webhook --bot-id <uuid> --org <uuid>
+```
+
+Email relay validation and SMS webhook planning are offline by default. Email
+submission requires `--send`; Twilio reads/writes require `--inspect` / `--apply`.
+Do not send messages as a configuration check. Email still needs a trusted DMARC
+receiver and a delivering deployment mail provider; it does not poll IMAP. Relay
+HMAC keys are created exclusively in a private file for the customer-owned receiver;
+the corresponding platform copy is sealed in Vault. Preserve Message-ID on retries.
+Twilio setup verifies the existing number, account and SMS capability before writing
+only its incoming URL/method. A request rate limit is not a spending cap.
+
 There is no `cmd channel` group — the commands are flat, hyphenated names.
 
 Access modes: `open`, `whitelist`, `jwt_linked`, `group_only`. `jwt_linked` refuses

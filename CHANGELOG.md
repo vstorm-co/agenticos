@@ -21,6 +21,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Set up an email bot and protected HMAC relay configuration from the terminal,
+  validate incoming receiver JSON without sending, and opt in to signed delivery.
+- Register an existing Twilio SMS number with hidden credentials; prepare its
+  webhook offline, inspect settings or explicitly apply the verified URL/method
+  without purchasing a number or sending a message.
+
+- Register a private GitHub App from a read-only manifest with a terminal wizard;
+  its one-time localhost callback sends generated credentials directly to the
+  chosen organization Vault.
+
 - Choose manual bot registration or the standalone
   [Mattermost plugin](https://github.com/vstorm-co/agenticos-mattermost) when adding
   a Mattermost channel. The plugin pairs a local bot with your own AgenticOS
@@ -85,6 +95,9 @@ Two things are versioned separately from this file and worth knowing about:
 - Update FastAPI, Logfire and Pydantic AI Skills, with refreshed third-party notices (#3043).
 
 ### Fixed
+
+- Prevent email reply loops from trusted automation/bounce metadata and the bot's
+  own sender address, and mark outbound bot replies as automatic responses.
 
 - Invalid channel-bot CLI configuration returns a credential-free validation
   error, with token lengths checked against the bot API limits before registration.

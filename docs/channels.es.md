@@ -1,5 +1,5 @@
 ---
-source_sha: "baff99887e82"
+source_sha: "a66402df9fdd"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1096,6 +1096,27 @@ organización — responde `404`, tanto la card como el endpoint.
 
 ## SMS { #sms }
 
+### Configuración desde terminal { #terminal-setup }
+
+Desde `backend/`, registra un número existente sin poner su token en los argumentos:
+
+```bash
+uv run agenticos cmd channel-add-sms --name "SMS assistant" \
+  --account-sid AC_REPLACE_WITH_YOUR_ACCOUNT_SID --from-number +15551234567 --org ORGANIZATION_UUID
+uv run agenticos cmd channel-configure-sms-webhook --bot-id BOT_UUID --org ORGANIZATION_UUID
+```
+
+El primer comando pide el token en privado (también admite `--auth-token-file`),
+lo sella en Vault y exige identidades vinculadas con tres solicitudes por minuto.
+El segundo muestra la URL POST sin consultar al proveedor. Más adelante, `--inspect`
+lee la configuración; `--apply` verifica cuenta, número y capacidad SMS antes de
+establecer solo la URL de recepción y el método del número existente. No compra
+números ni envía mensajes. Una escritura sin confirmación no se reintenta automáticamente.
+
+El límite de solicitudes no es un tope monetario. Configura por separado las
+restricciones y controles de facturación de Twilio; los presupuestos del modelo
+no limitan los cargos del operador. Firmas, proxy, entrega y pruebas de pago son pasos posteriores.
+
 Un SMS a un número de Twilio llega a un agent como un mensaje directo en cualquier otra
 plataforma: por el mismo router, la identidad vinculada, la política de acceso y los
 presupuestos (#2082). Solo el transporte es nuevo.
@@ -1145,6 +1166,38 @@ se devuelven al modelo. La aceptación de la API significa envío al proveedor,
 no entrega del operador. Consulta [formatos y límites de Twilio](https://www.twilio.com/docs/messaging/guides/accepted-mime-types).
 
 ## Correo electrónico { #email }
+
+### Terminal y relay de confianza { #terminal-setup-and-trusted-relay }
+
+Configura primero un proveedor saliente que entregue correo. La [plantilla SMTP](assets/setup/email-bot.env.example)
+solo contiene marcadores. Desde `backend/`, crea el bot y su configuración privada:
+
+```bash
+uv run agenticos cmd channel-add-email --name "Email assistant" \
+  --address agent@example.com --relay-config /private/path/relay.json --org ORGANIZATION_UUID
+uv run agenticos cmd email-relay-send --config /private/path/relay.json --message received.json
+```
+
+El archivo se crea sin sobrescribir con permisos `0600`. Contiene la clave HMAC del
+relay; AgenticOS guarda su copia en Vault. No lo incluyas en commits ni en el bridge
+compartido y mantenlo privado en tu receptor de correo. La creación rechaza el
+proveedor `log` y exige identidades vinculadas. No consulta IMAP, configura SMTP,
+registra dominios ni envía correo.
+
+Por defecto, el comando de relay solo valida el [formato JSON](assets/setup/email-relay-message.example.json).
+Para mensajes reales, obtiene la prueba DMARC del receptor de confianza, conserva
+el Message-ID original y añade `--send` para firmar y enviar. El `pass` sintético
+del ejemplo no es una verificación. El receptor necesita una cola duradera de
+reintentos con el mismo Message-ID. Un webhook aceptado no confirma la respuesta
+del agente ni la entrega del correo.
+
+Incluye `auto_submitted`, `precedence` y `envelope_from` cuando estén disponibles.
+Se ignoran autorespuestas, correo bulk/list/junk y rebotes con remitente vacío antes
+de procesar adjuntos; los mensajes del propio bot no se encolan. Las respuestas
+incluyen `Auto-Submitted: auto-replied` y `X-Auto-Response-Suppress: All`. Los relays
+anteriores siguen siendo compatibles, pero sin metadatos la detección es limitada.
+Consulta [RFC 3834](https://www.rfc-editor.org/rfc/rfc3834.html). La validación real
+de buzón y SMTP queda para después; es un relay, no otro proveedor de buzones.
 
 Un correo a una dirección llega a un agente como un mensaje directo en cualquier otra plataforma: por
 el mismo router, la misma identidad vinculada, la misma política de acceso y los mismos presupuestos
@@ -1512,8 +1565,9 @@ para un bot existente o **Usar plugin** para la instalación guiada. Tras conect
 en Mattermost, **Actualizar canales** vuelve a cargar los canales y los vínculos
 con agentes.
 
-
 ### Instalar el plugin de configuración { #install-the-setup-plugin }
+
+Descarga el [paquete publicado y sus sumas de verificación](https://github.com/vstorm-co/agenticos-mattermost/releases/latest) o compila desde el código fuente.
 
 El [plugin de servidor de Mattermost](https://github.com/vstorm-co/agenticos-mattermost)
 crea el bot local y lo conecta con un agente de tu propia instancia de AgenticOS.

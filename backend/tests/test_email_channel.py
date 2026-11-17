@@ -268,7 +268,12 @@ class TestSending:
         (sent,) = provider.sent
         assert sent.to == ["ada@acme.com"] and sent.from_email == BOT_ADDRESS
         assert sent.subject == "Re: Invoice"
-        assert sent.headers == {"In-Reply-To": "<2@acme>", "References": "<1@acme> <2@acme>"}
+        assert sent.headers == {
+            "In-Reply-To": "<2@acme>",
+            "References": "<1@acme> <2@acme>",
+            "Auto-Submitted": "auto-replied",
+            "X-Auto-Response-Suppress": "All",
+        }
         assert sent.html == "<p>Done.</p><p>Bye &lt;b&gt;</p>"
 
     async def test_a_first_message_has_no_thread_and_files_ride_along(
@@ -286,7 +291,10 @@ class TestSending:
         )
 
         (sent,) = provider.sent
-        assert sent.subject == "Message from your agent" and sent.headers == {}
+        assert sent.subject == "Message from your agent" and sent.headers == {
+            "Auto-Submitted": "auto-replied",
+            "X-Auto-Response-Suppress": "All",
+        }
         assert [(a.filename, a.content) for a in sent.attachments] == [("r.pdf", b"%PDF")]
 
     async def test_a_subject_already_a_reply_is_not_prefixed_twice(
@@ -300,7 +308,10 @@ class TestSending:
             BOT_ADDRESS, OutgoingMessage(platform_chat_id="a@b.co", text="x")
         )
 
-        assert provider.sent[0].subject == "RE: Hi" and provider.sent[0].headers == {}
+        assert provider.sent[0].subject == "RE: Hi" and provider.sent[0].headers == {
+            "Auto-Submitted": "auto-replied",
+            "X-Auto-Response-Suppress": "All",
+        }
 
     async def test_nothing_is_sent_for_nothing(self, redis: _Redis, provider: _Provider) -> None:
         await EmailAdapter().send_message(
@@ -923,3 +934,68 @@ async def test_a_chart_only_reply_is_sent_as_a_native_email_attachment() -> None
     assert len(sent.attachments) == 1
     assert sent.attachments[0].content == b"chart-png"
     assert sent.attachments[0].mime_type == "image/png"
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"auto_submitted": "auto-replied"},
+        {"auto_submitted": "auto-generated; owner-email=x@example.com"},
+        {"auto_submitted": True},
+        {"precedence": "bulk"},
+        {"precedence": "LIST"},
+        {"precedence": []},
+        {"envelope_from": "<>"},
+        {"envelope_from": ""},
+        {"envelope_from": False},
+    ],
+)
+def test_automatic_mail_is_ignored_before_attachments(metadata: dict[str, object]) -> None:
+    payload = {
+        "from": "ada@acme.com",
+        "text": "automatic message",
+        "message_id": "<auto@acme>",
+        "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
+        **metadata,
+    }
+    with patch.object(EmailAdapter, "_attachments") as attachments:
+        assert EmailAdapter().parse_incoming(payload, "bot") is None
+        attachments.assert_not_called()
+
+
+def test_explicit_human_mail_metadata_is_accepted() -> None:
+    payload = {
+        "from": "ada@acme.com",
+        "text": "Hello",
+        "message_id": "<human@acme>",
+        "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
+        "auto_submitted": "no",
+        "precedence": "normal",
+        "envelope_from": "ada@acme.com",
+    }
+    assert EmailAdapter().parse_incoming(payload, "bot") is not None
+
+
+async def test_mail_from_the_bot_is_not_queued() -> None:
+    from app.services.channels.email import queue_delivery
+
+    payload = {
+        "from": "agent@acme.com",
+        "text": "loop",
+        "message_id": "<loop@acme>",
+        "sender_authentication": {"dmarc": "pass", "from": "agent@acme.com"},
+    }
+    incoming = EmailAdapter().parse_incoming(payload, "bot")
+    assert incoming is not None
+    db = AsyncMock()
+    with patch("app.services.channels.email.enqueue", new_callable=AsyncMock) as enqueue:
+        assert await queue_delivery(
+            db,
+            organization_id=uuid4(),
+            bot_id=uuid4(),
+            bot_address="Agent@Acme.com",
+            body=json.dumps(payload),
+            incoming=incoming,
+        )
+        enqueue.assert_not_awaited()
+    assert not db.mock_calls

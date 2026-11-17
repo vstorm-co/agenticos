@@ -1,5 +1,5 @@
 ---
-source_sha: "6a539357937e"
+source_sha: "06143ef3cbd9"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -579,6 +579,30 @@ porque no existe; uno bajo **GitHub** tiene exactamente uno, añadido por la
 plataforma al crearlo.
 
 ### Configurar la App (una vez por organización) { #setting-up-the-app-once-per-organization }
+
+**Asistente de manifiesto (recomendado).** Desde `backend/`, ejecuta:
+
+```bash
+uv run agenticos cmd github-app-setup --base-url https://agents.example.com \
+  --org ORGANIZATION_UUID --name "AgenticOS triggers" --github-org YOUR_GITHUB_ORG
+```
+
+El comando pide un token temporal de AgenticOS con `secrets:view` y `secrets:edit` (entrada oculta
+o `--access-token-file`) y crea un formulario temporal de registro. Ábrelo en el
+navegador y aprueba la aplicación privada en GitHub. El callback vinculado al
+estado solo escucha en localhost; el PEM y el secreto del webhook van directamente
+al Vault de la organización seleccionada, nunca a un archivo. Limita los eventos
+con opciones `--event` repetidas; todos los permisos son de lectura. Instala la
+aplicación en los repositorios elegidos y conecta su ID de instalación como en
+los pasos 4–5. No se registra ninguna aplicación sin tu aprobación en GitHub.
+
+Ejecuta el asistente en el equipo del navegador. Para SSH usa `--callback-port 8765`,
+reenvía el puerto al localhost del servidor y copia el HTML temporal a tu equipo.
+El plazo predeterminado es de 15 minutos. Si no se confirma el registro o el guardado,
+revisa GitHub App y Vault antes de repetir; una escritura con resultado desconocido
+no se reintenta automáticamente.
+
+**Alternativa manual:**
 
 1. **Registra la App** en [github.com/settings/apps](https://github.com/settings/apps)
    (o el equivalente de tu organización).

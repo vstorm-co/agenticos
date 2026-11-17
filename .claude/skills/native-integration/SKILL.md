@@ -67,3 +67,16 @@ provider errors, pagination, reconnect and rotated-token persistence. Include re
 DB coverage when changing persistence or locking; mocked HTTP does not prove a
 real consent or app approval. Update `docs/integrations.md`, capability references
 and affected translations. Use scoped tests and CI; do not run every suite locally.
+
+
+## Customer-owned GitHub App setup
+
+GitHub trigger apps use `github-app-setup`, a separate manifest flow rather than
+native product OAuth. Read `docs/triggers.md` and
+`app/services/portals/github_app_manifest.py`. The CLI owns the one-time loopback
+listener; generated app credentials go straight to the selected organization Vault
+through its authenticated API. No bridge or app-secret file is involved. Preserve
+read-only selected-event permissions, state validation, credential-free errors,
+redirect refusal and the existing app preflight. Do not log the conversion code:
+GitHub's conversion endpoint puts it in the URL path. Installation/portal binding
+is a subsequent explicit step, not inferred from credential storage.

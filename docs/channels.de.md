@@ -1,5 +1,5 @@
 ---
-source_sha: "baff99887e82"
+source_sha: "a66402df9fdd"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1145,6 +1145,28 @@ anderen Organisation —, antwortet mit `404`, Karte wie Endpunkt.
 
 ## SMS { #sms }
 
+### Einrichtung im Terminal { #terminal-setup }
+
+Registrieren Sie in `backend/` eine vorhandene Nummer ohne Auth-Token im Shell-Aufruf:
+
+```bash
+uv run agenticos cmd channel-add-sms --name "SMS assistant" \
+  --account-sid AC_REPLACE_WITH_YOUR_ACCOUNT_SID --from-number +15551234567 --org ORGANIZATION_UUID
+uv run agenticos cmd channel-configure-sms-webhook --bot-id BOT_UUID --org ORGANIZATION_UUID
+```
+
+Der erste Befehl fragt verdeckt nach dem Token (auch `--auth-token-file` wird
+unterstützt), versiegelt es im Vault und verlangt standardmäßig verknüpfte Identitäten
+mit drei Anfragen pro Minute. Der zweite zeigt die POST-Adresse ohne Anbieteranfrage.
+Später liest `--inspect` die Nummerneinstellungen; `--apply` prüft Konto, Nummer und
+SMS-Fähigkeit und setzt nur Empfangsadresse und Methode der vorhandenen Nummer.
+Es wird weder eine Nummer gekauft noch eine Nachricht gesendet. Ein unbestätigter
+Schreibvorgang wird nicht automatisch wiederholt.
+
+Das Anfragelimit ist keine Geldobergrenze. Anbieterbeschränkungen und Twilio-Abrechnung
+werden separat eingerichtet; Modellbudgets begrenzen keine Mobilfunkkosten.
+Signaturen, Proxy-Routing, Zustellung und kostenpflichtige Tests bleiben eigene Schritte.
+
 Eine SMS an eine Twilio-Nummer erreicht einen Agent wie eine Direktnachricht auf jeder anderen
 Plattform: über denselben Router, die verknüpfte Identität, die Zugriffsrichtlinie und die
 Budgets (#2082). Neu ist nur der Transport.
@@ -1197,6 +1219,39 @@ bedeutet Übermittlung an den Anbieter, nicht Zustellung durch den Netzbetreiber
 Siehe [Twilios Formate und Limits](https://www.twilio.com/docs/messaging/guides/accepted-mime-types).
 
 ## E-Mail { #email }
+
+### Terminal und vertrauenswürdiges Relay { #terminal-setup-and-trusted-relay }
+
+Konfigurieren Sie zuerst einen zustellenden E-Mail-Anbieter. Die [SMTP-Vorlage](assets/setup/email-bot.env.example)
+enthält nur Platzhalter. Erstellen Sie in `backend/` Bot und private Relay-Konfiguration:
+
+```bash
+uv run agenticos cmd channel-add-email --name "Email assistant" \
+  --address agent@example.com --relay-config /private/path/relay.json --org ORGANIZATION_UUID
+uv run agenticos cmd email-relay-send --config /private/path/relay.json --message received.json
+```
+
+Die Datei wird ohne Überschreiben mit Modus `0600` angelegt. Sie enthält den
+HMAC-Schlüssel des Relays; AgenticOS speichert seine Kopie im Vault. Committen Sie
+die Datei nicht und legen Sie sie nicht in die gemeinsame Bridge. Halten Sie sie
+auch auf Ihrem Mailserver privat. Die Erstellung lehnt `log` als Anbieter ab und
+verlangt verknüpfte Identitäten. Sie fragt kein IMAP ab, richtet SMTP nicht ein,
+registriert keine Domain und versendet keine Nachricht.
+
+Der Relay-Befehl prüft standardmäßig nur das [JSON-Format](assets/setup/email-relay-message.example.json).
+Für echte Nachrichten stammt das DMARC-Ergebnis vom vertrauenswürdigen Empfänger;
+behalten Sie die ursprüngliche Message-ID und verwenden Sie `--send` zum Signieren
+und Übermitteln. Das synthetische `pass` im Beispiel ist kein Prüfergebnis. Der
+Empfänger benötigt eine dauerhafte Wiederholungswarteschlange mit derselben Message-ID.
+Ein angenommener Webhook bestätigt weder Agentenantwort noch E-Mail-Zustellung.
+
+Übergeben Sie nach Möglichkeit `auto_submitted`, `precedence` und `envelope_from`.
+Automatische Antworten, Bulk-/Listen-/Junk-Mail und Bounces mit leerem Absender
+werden vor Anhängen verworfen; Nachrichten des Bots selbst werden nicht eingereiht.
+Antworten setzen `Auto-Submitted: auto-replied` und `X-Auto-Response-Suppress: All`.
+Alte Relays bleiben kompatibel, fehlende Metadaten begrenzen aber die Erkennung.
+Siehe [RFC 3834](https://www.rfc-editor.org/rfc/rfc3834.html). Live-Postfach und SMTP
+bleiben später zu prüfen; dies ist ein Relay, kein neuer Postfachanbieter.
 
 Eine Mail an eine Adresse erreicht einen Agenten wie eine Direktnachricht auf jeder anderen Plattform:
 über denselben Router, dieselbe verknüpfte Identität, Zugriffsrichtlinie und Budgets (#2082). Neu ist
@@ -1581,8 +1636,9 @@ Einrichtung** für einen vorhandenen Bot oder **Plugin verwenden** für die
 geführte Installation. Nach der Verbindung in Mattermost lädt **Kanäle
 aktualisieren** die Kanal- und Agentenverknüpfungen neu.
 
-
 ### Das Einrichtungsplugin installieren { #install-the-setup-plugin }
+
+Laden Sie das fertige [Release-Paket mit Prüfsummen](https://github.com/vstorm-co/agenticos-mattermost/releases/latest) herunter oder bauen Sie aus dem Quellcode.
 
 Das [Mattermost-Serverplugin](https://github.com/vstorm-co/agenticos-mattermost)
 erstellt den lokalen Bot und verbindet ihn mit einem Agenten Ihrer eigenen

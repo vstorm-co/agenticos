@@ -544,6 +544,30 @@ platform when the trigger was created.
 
 ### Setting up the App (once per organization)
 
+**Manifest wizard (recommended).** From `backend/`, run:
+
+```bash
+uv run agenticos cmd github-app-setup --base-url https://agents.example.com \
+  --org ORGANIZATION_UUID --name "AgenticOS triggers" --github-org YOUR_GITHUB_ORG
+```
+
+The command asks for a short-lived AgenticOS access token with `secrets:view` and `secrets:edit`
+(hidden input, or `--access-token-file`), then creates a temporary registration
+form. Open that file in the browser and approve the private app on GitHub.
+The state-bound callback listens only on localhost; generated PEM/webhook
+credentials go straight to the selected organization's Vault, never a file.
+Choose fewer events with repeated `--event` flags; all permissions are read-only.
+Install the returned app URL on selected repositories, then connect its installation
+ID as in steps 4–5 below. No App is registered until you approve on GitHub.
+
+Run it on the browser's own machine. For SSH, use `--callback-port 8765`, forward
+that port to the server's localhost and copy the temporary HTML file to your own
+machine before opening it. The default timeout is 15 minutes. If registration or
+Vault storage is not confirmed, inspect GitHub App settings and Vault before
+starting again; an unknown write is not automatically repeated.
+
+**Manual alternative:**
+
 1. **Register the App** at [github.com/settings/apps](https://github.com/settings/apps)
    (or your organization's equivalent).
    - **Webhook URL**: `https://<your deployment>/api/v1/webhooks/github-app`. One

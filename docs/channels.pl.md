@@ -1,5 +1,5 @@
 ---
-source_sha: "baff99887e82"
+source_sha: "a66402df9fdd"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1073,6 +1073,28 @@ organizacji — odpowiada `404`, zarówno karta, jak i endpoint.
 
 ## SMS { #sms }
 
+### Konfiguracja z terminala { #terminal-setup }
+
+Z katalogu `backend/` zarejestruj istniejący numer bez tokenu w argumentach powłoki:
+
+```bash
+uv run agenticos cmd channel-add-sms --name "SMS assistant" \
+  --account-sid AC_REPLACE_WITH_YOUR_ACCOUNT_SID --from-number +15551234567 --org ORGANIZATION_UUID
+uv run agenticos cmd channel-configure-sms-webhook --bot-id BOT_UUID --org ORGANIZATION_UUID
+```
+
+Pierwsze polecenie pyta prywatnie o token (obsługuje też `--auth-token-file`),
+zapisuje go w Vault i domyślnie wymaga powiązania tożsamości oraz ogranicza każdą
+tożsamość do trzech żądań na minutę. Drugie pokazuje URL POST bez łączenia z dostawcą.
+Później `--inspect` odczytuje ustawienia numeru, a `--apply` sprawdza konto, numer i
+obsługę SMS, po czym ustawia wyłącznie URL i metodę odbioru dla istniejącego numeru.
+Żadne polecenie nie kupuje numeru ani nie wysyła wiadomości. Zapis o nieznanym
+wyniku nie jest powtarzany automatycznie.
+
+Limit żądań nie jest limitem pieniężnym. Ograniczenia dostawcy i kontrolę rozliczeń
+Twilio ustaw osobno; budżet modelu agenta nie ogranicza opłat operatora. Podpisy,
+proxy, dostarczenie do telefonu i płatne testy pozostają osobnymi krokami.
+
 SMS na numer Twilio trafia do agenta tak jak wiadomość prywatna na każdej innej platformie:
 przez ten sam router, powiązaną tożsamość, politykę dostępu i budżety (#2082). Nowy jest
 tylko transport.
@@ -1120,6 +1142,37 @@ Przyjęcie wiadomości przez API oznacza zgłoszenie do wysyłki, a nie doręcze
 operatora. Zobacz [formaty i limity Twilio](https://www.twilio.com/docs/messaging/guides/accepted-mime-types).
 
 ## E-mail { #email }
+
+### Terminal i zaufany przekaźnik { #terminal-setup-and-trusted-relay }
+
+Najpierw skonfiguruj działającą pocztę wychodzącą; [szablon SMTP](assets/setup/email-bot.env.example)
+zawiera wyłącznie placeholdery. Z katalogu `backend/` utwórz bota i prywatną konfigurację:
+
+```bash
+uv run agenticos cmd channel-add-email --name "Email assistant" \
+  --address agent@example.com --relay-config /private/path/relay.json --org ORGANIZATION_UUID
+uv run agenticos cmd email-relay-send --config /private/path/relay.json --message received.json
+```
+
+Plik powstaje bez nadpisywania istniejącego, z uprawnieniami `0600`. Zawiera klucz HMAC
+przekaźnika; kopia AgenticOS trafia przez Vault. Nie commituj pliku i nie umieszczaj
+go we wspólnym bridge'u. Zachowaj prywatność przy przenoszeniu na własny serwer poczty.
+Tworzenie odrzuca dostawcę `log` i domyślnie wymaga powiązanej tożsamości.
+Nie odpytuje IMAP, nie konfiguruje SMTP, nie rejestruje domeny i nie wysyła poczty.
+
+Polecenie przekaźnika domyślnie tylko sprawdza [format JSON](assets/setup/email-relay-message.example.json).
+Dla prawdziwej wiadomości pobierz wynik DMARC od zaufanego odbiorcy, zachowaj
+oryginalny Message-ID i dodaj `--send`, aby podpisać i przesłać. Przykładowe `pass`
+nie jest wynikiem weryfikacji. Odbiorca potrzebuje własnej trwałej kolejki ponowień;
+przy ponawianiu zachowaj Message-ID. Przyjęcie webhooka nie oznacza odpowiedzi
+agenta ani dostarczenia maila.
+
+Przekazuj `auto_submitted`, `precedence` i `envelope_from`, gdy odbiorca je udostępnia.
+Autorespondery, poczta bulk/list/junk i zwrotki z pustym nadawcą koperty są pomijane
+przed załącznikami; wiadomości od samego bota nie trafiają do kolejki. Odpowiedzi mają
+`Auto-Submitted: auto-replied` i `X-Auto-Response-Suppress: All`. Starsze przekaźniki
+pozostają zgodne, ale brak metadanych ogranicza wykrywanie. Zobacz [RFC 3834](https://www.rfc-editor.org/rfc/rfc3834.html).
+Odbiór na skrzynce i SMTP pozostaje do późniejszego sprawdzenia; to przekaźnik, nie nowy dostawca poczty.
 
 Mail na adres trafia do agenta tak jak wiadomość prywatna na każdej innej platformie: przez ten sam
 router, powiązaną tożsamość, politykę dostępu i budżety (#2082). Nowy jest tylko transport.
@@ -1479,8 +1532,9 @@ W **Kanały → Dodaj kanał → Mattermost** wybierz **Konfiguracja ręczna**, 
 istniejącego bota, lub **Użyj pluginu**, aby przejść przez instalację. Po połączeniu
 w Mattermoście przycisk **Odśwież kanały** wczyta listy kanałów i powiązań agentów.
 
-
 ### Zainstaluj plugin konfiguracji { #install-the-setup-plugin }
+
+Pobierz gotową [paczkę wydania i sumy kontrolne](https://github.com/vstorm-co/agenticos-mattermost/releases/latest) lub zbuduj plugin ze źródeł.
 
 [Plugin serwerowy Mattermost](https://github.com/vstorm-co/agenticos-mattermost)
 tworzy lokalnego bota i łączy go z agentem we własnej instancji AgenticOS.

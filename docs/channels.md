@@ -1039,6 +1039,29 @@ and endpoint alike.
 
 ## SMS { #sms }
 
+### Terminal setup
+
+From `backend/`, register your existing number without putting its Auth Token
+in shell arguments:
+
+```bash
+uv run agenticos cmd channel-add-sms --name "SMS assistant" \
+  --account-sid AC_REPLACE_WITH_YOUR_ACCOUNT_SID --from-number +15551234567 --org ORGANIZATION_UUID
+uv run agenticos cmd channel-configure-sms-webhook --bot-id BOT_UUID --org ORGANIZATION_UUID
+```
+
+The first command asks for the token privately (`--auth-token-file` is also
+supported), seals it in Vault and defaults to linked users and three requests
+per identity per minute. The second prints the expected POST URL without a
+provider request. Later, `--inspect` reads the number's settings; `--apply` verifies
+account/number ownership and SMS capability, then sets only the incoming-message
+URL and method on that existing number. Neither command buys a number or sends a
+message. Update requests with unconfirmed acceptance are not automatically retried.
+
+The request rate is not a monetary cap. Set provider restrictions and review
+Twilio billing controls separately; agent model budgets do not cap carrier charges.
+Live signing, proxy routing, carrier delivery and paid tests remain separate steps.
+
 A text to a Twilio number reaches an agent the way a direct message does on any other
 platform: through the same router, linked identity, access policy and budgets (#2082).
 Only the transport is new.
@@ -1089,6 +1112,40 @@ was submitted, not that the carrier delivered it. See [Twilio's accepted media
 and limits](https://www.twilio.com/docs/messaging/guides/accepted-mime-types).
 
 ## Email { #email }
+
+### Terminal setup and trusted relay
+
+Configure a delivering outbound provider first; the
+[outbound SMTP template](assets/setup/email-bot.env.example) contains placeholders.
+From `backend/`, create the bot and its new private relay configuration:
+
+```bash
+uv run agenticos cmd channel-add-email --name "Email assistant" \
+  --address agent@example.com --relay-config /private/path/relay.json --org ORGANIZATION_UUID
+uv run agenticos cmd email-relay-send --config /private/path/relay.json --message received.json
+```
+
+The file is created exclusively with mode `0600`; it holds the relay's HMAC key,
+while AgenticOS stores its copy through Vault. Do not commit the file or put it
+in the shared bridge. Keep it private when installing it on your own mail receiver.
+Creation refuses the `log` mail provider and defaults to linked identities.
+It does not poll IMAP, configure SMTP credentials, register a domain or send mail.
+
+The relay command validates a
+[sample JSON shape](assets/setup/email-relay-message.example.json) without a
+request by default. For a real message, derive DMARC proof from the trusted
+receiver, keep its original Message-ID, and pass `--send` to sign and submit.
+Do not turn the example's synthetic `pass` into an authentication verdict.
+The receiver needs its own durable retry queue; preserve Message-ID on retries.
+An accepted webhook is not confirmation of the agent's reply or email delivery.
+
+Pass `auto_submitted`, `precedence` and `envelope_from` from the receiver when
+available. Autoresponders, bulk/list/junk messages and null-envelope bounces are
+ignored before attachment processing; messages from the bot itself are not queued.
+Replies set `Auto-Submitted: auto-replied` and `X-Auto-Response-Suppress: All`.
+Existing relays remain compatible, but missing automation metadata limits detection.
+See [RFC 3834](https://www.rfc-editor.org/rfc/rfc3834.html). Live mailbox and SMTP
+acceptance are deferred; this command is a relay, not a new mailbox provider.
 
 A mail to an address reaches an agent the way a direct message does on any other platform:
 through the same router, linked identity, access policy and budgets (#2082). Only the transport
@@ -1443,8 +1500,9 @@ In **Channels → Add channel → Mattermost**, choose **Manual setup** to use a
 existing bot, or **Use plugin** for the guided installation path. After connecting
 in Mattermost, **Refresh channels** reloads the channel and agent-binding lists.
 
-
 ### Install the setup plugin
+
+Download the ready-made [release bundle and checksums](https://github.com/vstorm-co/agenticos-mattermost/releases/latest), or build from source.
 
 The [Mattermost server plugin](https://github.com/vstorm-co/agenticos-mattermost)
 creates the local bot and pairs it with an agent in your own AgenticOS instance.

@@ -1,5 +1,5 @@
 ---
-source_sha: "6a539357937e"
+source_sha: "06143ef3cbd9"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -570,6 +570,30 @@ nie ma; trigger pod **GitHub** ma dokładnie jeden, dodany przez platformę przy
 tworzeniu.
 
 ### Konfiguracja Appa (raz na organizację) { #setting-up-the-app-once-per-organization }
+
+**Kreator manifestu (zalecany).** Z katalogu `backend/` uruchom:
+
+```bash
+uv run agenticos cmd github-app-setup --base-url https://agents.example.com \
+  --org ORGANIZATION_UUID --name "AgenticOS triggers" --github-org YOUR_GITHUB_ORG
+```
+
+Polecenie pyta o krótkotrwały token dostępu AgenticOS z `secrets:view` i `secrets:edit` (ukryte
+wpisywanie lub `--access-token-file`) i tworzy tymczasowy formularz rejestracji.
+Otwórz plik w przeglądarce i zatwierdź prywatną aplikację w GitHubie. Callback ze
+sprawdzanym stanem nasłuchuje wyłącznie na localhost; wygenerowany PEM i sekret
+webhooka trafiają bezpośrednio do Vault wybranej organizacji, nigdy do pliku.
+Ogranicz zdarzenia powtarzanymi opcjami `--event`; uprawnienia są tylko do odczytu.
+Zainstaluj aplikację z otrzymanego URL-a na wybranych repozytoriach, a następnie
+podłącz ID instalacji jak w krokach 4–5 poniżej. Bez zgody w GitHubie nie powstaje aplikacja.
+
+Uruchom kreator na komputerze z przeglądarką. Przy SSH ustaw `--callback-port 8765`,
+przekieruj ten port do localhost serwera i skopiuj tymczasowy HTML na swój komputer.
+Domyślny czas oczekiwania to 15 minut. Jeśli nie potwierdzono rejestracji lub zapisu
+w Vault, sprawdź ustawienia GitHub App i Vault przed ponowieniem; zapis o nieznanym
+wyniku nie jest powtarzany automatycznie.
+
+**Alternatywa ręczna:**
 
 1. **Zarejestruj Appa** na [github.com/settings/apps](https://github.com/settings/apps)
    (albo w odpowiedniku twojej organizacji).
