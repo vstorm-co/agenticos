@@ -27,6 +27,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Count Improve’s source cards from the selected evidence sample, including positive feedback and reviewed test answers, and keep empty-state messages hidden while the preview refreshes or its test set is still loading (#2555).
 
+## [1.82.1] - 2026-11-17
+
+### Fixed
+
 - Repair the developer-section links in all four READMEs and name the existing `app` service in the data-protection Compose checks.
 
 - Check browser health through its resolved IP address so Chromium accepts Compose service hosts in `agenticos cmd doctor`; bound DNS resolution and the HTTP probe together.
@@ -22048,7 +22052,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.82.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.82.1...HEAD
+[1.82.1]: https://github.com/vstorm-co/agenticos/compare/v1.82.0...v1.82.1
 [1.82.0]: https://github.com/vstorm-co/agenticos/compare/v1.81.0...v1.82.0
 [1.81.0]: https://github.com/vstorm-co/agenticos/compare/v1.80.0...v1.81.0
 [1.80.0]: https://github.com/vstorm-co/agenticos/compare/v1.79.0...v1.80.0
