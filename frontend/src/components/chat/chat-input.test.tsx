@@ -50,10 +50,30 @@ const CHAT_MAX_UPLOAD_SIZE_MB = DEFAULT_PUBLIC_CONFIG.chatMaxUploadSizeMb;
 beforeEach(() => {
   state.upload.mockReset();
   state.upload.mockResolvedValue(uploaded());
+  useChatStore.getState().setReplyTo(null);
   // The toast mock is module-level, so without this a refusal asserted in one
   // test is still recorded in the next one that asserts none.
   vi.mocked(toast.error).mockClear();
   vi.mocked(toast.info).mockClear();
+});
+
+it("preserves transcript-link focus through arrival and completion while allowing an explicit reply", () => {
+  render(<button>Reading selected message</button>);
+  const reading = screen.getByRole("button", { name: "Reading selected message" });
+  reading.focus();
+  const props = { onSend: vi.fn(), autoFocus: true, preserveReadingFocus: true };
+  const view = render(<ChatInput {...props} />);
+  expect(reading).toHaveFocus();
+  view.rerender(<ChatInput {...props} isProcessing />);
+  view.rerender(<ChatInput {...props} isProcessing={false} />);
+  expect(reading).toHaveFocus();
+  act(() =>
+    useChatStore
+      .getState()
+      .setReplyTo({ messageId: "selected", role: "assistant", excerpt: "Chosen text" }),
+  );
+  expect(screen.getByRole("textbox")).toHaveFocus();
+  act(() => useChatStore.getState().setReplyTo(null));
 });
 
 describe("ChatInput replying", () => {
@@ -175,7 +195,12 @@ describe("ChatInput offline", () => {
     fireEvent.submit(editor.closest("form")!);
 
     expect(onSteer).not.toHaveBeenCalled();
-    expect(onSend).toHaveBeenCalledWith("Use this page as context", undefined, undefined, undefined);
+    expect(onSend).toHaveBeenCalledWith(
+      "Use this page as context",
+      undefined,
+      undefined,
+      undefined,
+    );
   });
 
   it("keeps a steer draft when the connection drops", async () => {

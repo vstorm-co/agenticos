@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -13,6 +14,7 @@ import { ArrowLeft } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { useRoomThread } from "@/hooks/use-room-thread";
+import { useMessageJump } from "@/hooks/use-message-jump";
 import { useRoomDraft } from "@/hooks/use-room-draft";
 import { useTenantId } from "@/hooks/use-organizations";
 import { useAgents } from "@/hooks/use-agents";
@@ -20,6 +22,7 @@ import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
 import { dockedPlan } from "@/lib/plan-state";
 import { useAuthStore, useChatStore, useConversationStore } from "@/stores";
 import { MessageList } from "./message-list";
+import { MessageJumpNotice } from "./message-jump-notice";
 import { MessageItem } from "./message-item";
 import { PlanStrip } from "./plan-strip";
 import { RoomComposer } from "./team-room-composer";
@@ -36,6 +39,8 @@ export function RoomThreadPanel({
   conversationId,
   projectId,
   rootId,
+  requestedMessageId = null,
+  messageJumpRevision = 0,
   readOnly,
   onClose,
   onTyping,
@@ -45,6 +50,8 @@ export function RoomThreadPanel({
   conversationId: string;
   projectId: string | null;
   rootId: string;
+  requestedMessageId?: string | null;
+  messageJumpRevision?: number;
   readOnly: boolean;
   onClose: () => void;
   onTyping: () => void;
@@ -107,6 +114,22 @@ export function RoomThreadPanel({
     () => false,
   );
   const last = messages.at(-1);
+  const holdMessageJump = useCallback(() => {
+    follow.current = false;
+  }, []);
+  const messageJump = useMessageJump({
+    messageId: requestedMessageId,
+    scope: JSON.stringify([accountId, tenantId, conversationId, selectionVersion, rootId]),
+    revision: messageJumpRevision,
+    ready: authorized && selected,
+    messageIds: [...messages.map((message) => message.id), ...(page?.root ? [page.root.id] : [])],
+    firstMessageId: history[0]?.id ?? null,
+    hasEarlier: query.hasNextPage,
+    loadingEarlier: query.isFetchingNextPage,
+    loadEarlier: query.fetchNextPage,
+    container: scroll,
+    beforeJump: holdMessageJump,
+  });
   useLayoutEffect(() => {
     if (follow.current && scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight;
   }, [last?.id, last?.content, messages.length]);
@@ -186,6 +209,7 @@ export function RoomThreadPanel({
             </p>
           ) : (
             <>
+              <MessageJumpNotice jump={messageJump} />
               <div
                 ref={scroll}
                 className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4"

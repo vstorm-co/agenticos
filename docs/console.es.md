@@ -1,5 +1,5 @@
 ---
-source_sha: "c7221d82e5b2"
+source_sha: "494af57c16d6"
 ---
 
 # La consola { #the-console }
@@ -965,6 +965,12 @@ Las bifurcaciones conservadas tienen una cuota separada de 100 MiB por miembro d
 El texto y los medios externalizados de un resumen válido se restauran dentro de la copia, por lo que eliminar el original no elimina ese contexto. El contenido restaurado cuenta para el límite de 20 MiB. La restauración admite hasta 100 referencias externas y diez segundos. Si falta contenido o se supera un límite, se rechaza la operación sin crear una copia parcial.
 
 Una conversación con una lista de tareas guardada solo puede bifurcarse en su último mensaje, que debe ser una respuesta del asistente. La copia conserva esa lista, incluidos los identificadores de tareas y las dependencias. No se guardan versiones anteriores de la lista, por lo que se rechaza una bifurcación anterior para evitar copiar tareas posteriores en un historial más antiguo.
+
+### Encontrar un mensaje { #chat-message-search }
+
+Usa **Search conversations** en la barra lateral del chat. **Message text** busca en las conversaciones que puedes leer en la organización activa y muestra el mejor mensaje coincidente de cada resultado, con un fragmento y su fecha. Acota la consulta si las primeras veinte conversaciones no incluyen la que necesitas. Elige **Conversation title** para buscar títulos, también de conversaciones archivadas.
+
+Seleccionar un mensaje abre su ubicación exacta, incluso una respuesta dentro de un hilo de sala. El historial anterior se carga página a página; **Cancel jump** detiene la navegación. Un fallo de lectura permite reintentar, mientras que un mensaje que ya no está disponible se indica por separado. El foco del teclado permanece en el mensaje seleccionado y el trabajo plegado se abre para mostrar el segmento guardado coincidente. Seguir un enlace sigue requiriendo acceso a la conversación.
 
 ### Buscar actividad dentro de un turno { #chat-trace-search }
 

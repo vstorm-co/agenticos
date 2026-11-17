@@ -158,6 +158,16 @@ export function coalesceActivity(messages: ChatMessage[]): ChatMessage[] {
     result[result.length - 1] = {
       ...message,
       renderKey: previous.renderKey ?? previous.id,
+      coalescedMessageIds: [
+        ...new Set(
+          [
+            ...(previous.coalescedMessageIds ?? [previous.id]),
+            previous.persistedId,
+            message.id,
+            message.persistedId,
+          ].filter((id): id is string => id !== undefined),
+        ),
+      ],
       timestamp: previous.timestamp,
       fileSource: message.fileSource ?? previous.fileSource,
       runStartedAt: previous.runStartedAt ?? message.runStartedAt,

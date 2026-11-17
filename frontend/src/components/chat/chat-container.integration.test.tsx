@@ -201,10 +201,14 @@ function receive(type: string, data: Record<string, unknown>): void {
 function mount(
   requestedConversationId?: string,
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  requestedMessageId?: string,
 ) {
   return render(
     <QueryClientProvider client={client}>
-      <ChatContainer requestedConversationId={requestedConversationId} />
+      <ChatContainer
+        requestedConversationId={requestedConversationId}
+        requestedMessageId={requestedMessageId}
+      />
     </QueryClientProvider>,
   );
 }
@@ -2273,6 +2277,73 @@ describe("the chat container - late transcript reconciliation", () => {
     });
     expect(await screen.findByText(/Could not persist this answer/)).toBeVisible();
   });
+});
+
+it("follows an exact main-chat link through older history and preserves the current page", async () => {
+  const current = {
+    id: "m-2",
+    role: "user" as const,
+    content: "Current page",
+    conversation_id: "paged",
+    created_at: "2026-10-01T12:00:00Z",
+  };
+  useConversationStore.getState().setCurrentConversationId("paged");
+  loadTranscript([current], null, true);
+  const fallback = get.getMockImplementation()!;
+  get.mockImplementation((path: string) =>
+    path.includes("before=m-2")
+      ? Promise.resolve({
+          items: [{ ...current, id: "m-1", content: "Linked earlier page" }],
+          total: 2,
+          cost: null,
+        })
+      : fallback(path),
+  );
+  mount("paged", undefined, "m-1");
+  await screen.findByText("Linked earlier page");
+  await waitFor(() => expect(document.querySelector('[data-message-id="m-1"]')).toHaveFocus());
+  expect(screen.getByText("Current page")).toBeVisible();
+  expect(get.mock.calls.filter(([path]) => String(path).includes("before=m-2"))).toHaveLength(1);
+});
+
+it("reveals a linked segment inside a combined saved turn", async () => {
+  const first = {
+    id: "segment-a",
+    role: "assistant" as const,
+    content: "Earlier saved segment",
+    conversation_id: "combined",
+    run_id: "shared-run",
+    created_at: "2026-10-01T12:00:00Z",
+  };
+  useConversationStore.getState().setCurrentConversationId("combined");
+  loadTranscript([first, { ...first, id: "segment-b", content: "Final saved answer" }]);
+  mount("combined", undefined, "segment-a");
+  await waitFor(() =>
+    expect(document.querySelector('[data-message-ids~="segment-a"]')).toHaveFocus(),
+  );
+  expect(await screen.findByText("Earlier saved segment")).toBeVisible();
+  expect(screen.getByText("Final saved answer")).toBeVisible();
+});
+
+it("does not load older linked history after the access read is refused", async () => {
+  const current = {
+    id: "m-2",
+    role: "user" as const,
+    content: "Cached page",
+    conversation_id: "denied",
+    created_at: "2026-10-01T12:00:00Z",
+  };
+  useConversationStore.getState().setCurrentConversationId("denied");
+  loadTranscript([current], null, true);
+  const fallback = get.getMockImplementation()!;
+  get.mockImplementation((path: string) =>
+    path === "/conversations/denied/metadata"
+      ? Promise.reject(new Error("Access changed"))
+      : fallback(path),
+  );
+  mount("denied", undefined, "old-message");
+  await screen.findByText("The selected message could not be loaded. Try again.");
+  expect(get.mock.calls.some(([path]) => String(path).includes("before="))).toBe(false);
 });
 
 it("loads earlier messages from the transcript control without losing the current page", async () => {

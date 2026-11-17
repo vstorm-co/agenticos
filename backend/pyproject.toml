@@ -1250,6 +1250,7 @@ include = [
     # (#789).
     "app/repositories/conversation_search.py",
     "app/services/conversation_search.py",
+    "app/schemas/conversation_search.py",
     "app/db/models/conversation_task.py",
     "app/schemas/conversation_task.py",
     "app/repositories/conversation_task.py",
@@ -2207,6 +2208,7 @@ include = [
     # (#789).
     "app/repositories/conversation_search.py",
     "app/services/conversation_search.py",
+    "app/schemas/conversation_search.py",
     "app/db/models/conversation_task.py",
     "app/schemas/conversation_task.py",
     "app/repositories/conversation_task.py",

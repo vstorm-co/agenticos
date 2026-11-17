@@ -909,6 +909,12 @@ An eligible summary's externalized text and media are restored into the copy, so
 
 A conversation with a saved checklist can be forked only at its latest message, which must be an assistant answer. The fork keeps that checklist, including task IDs and dependencies. Earlier checklist snapshots are not stored, so an earlier fork is refused rather than copying later tasks into an older history.
 
+### Finding a message { #chat-message-search }
+
+Use **Search conversations** in the chat sidebar. **Message text** searches conversations you can read in the active organization and shows the best matching message in each result, with an excerpt and its time. Narrow the query if the first twenty conversations do not include the one you need. Choose **Conversation title** to search titles, including archived conversations.
+
+Selecting a message opens that exact place, including a reply inside a room thread. Older history loads one page at a time; **Cancel jump** stops the navigation. A failed read offers **Retry**, while a message no longer available is reported separately. The selected message keeps keyboard focus and folded work opens so a matching saved segment is visible. Following a link still requires access to the conversation.
+
 ### Finding activity within a turn { #chat-trace-search }
 
 Open a turn's work history, then choose **Search and filter activity**. Search text, tool arguments and results within that turn, or show only **Tools**, **Reasoning**, **Errors** or **Messages**. Entries keep their original order and the final answer remains in place. Approvals, unanswered questions and model setup that need your attention stay visible even when they do not match. **Clear filters** or Escape restores the full activity; closing the filter controls also clears them.

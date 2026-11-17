@@ -675,6 +675,51 @@ describe("the conversation named in the address bar", () => {
 });
 
 describe("opening a conversation", () => {
+  it("clears a previous message and thread target when selecting another conversation", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/chat?id=old&thread=old-root&message=old-message&keep=yes",
+    );
+    const result = await hook();
+    await act(async () => {
+      await result.current.selectConversation("c-1");
+    });
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("id")).toBe("c-1");
+    expect(params.has("thread")).toBe(false);
+    expect(params.has("message")).toBe(false);
+    expect(params.get("keep")).toBe("yes");
+  });
+
+  it("preserves an incoming exact-message link while committing that conversation selection", async () => {
+    window.history.replaceState({}, "", "/chat?id=c-1&thread=target-root&message=target-message");
+    const result = await hook();
+    await act(async () => {
+      await result.current.selectConversation("c-1");
+    });
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("thread")).toBe("target-root");
+    expect(params.get("message")).toBe("target-message");
+  });
+
+  it("removes message and thread navigation when starting a new chat", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/chat?id=c-1&thread=target-root&message=target-message&keep=yes",
+    );
+    const result = await hook();
+    await act(async () => {
+      await result.current.startNewChat();
+    });
+    const params = new URLSearchParams(window.location.search);
+    expect(params.has("id")).toBe(false);
+    expect(params.has("thread")).toBe(false);
+    expect(params.has("message")).toBe(false);
+    expect(params.get("keep")).toBe("yes");
+  });
+
   it("reads its messages and puts it in the address bar", async () => {
     // So a refresh, or a link somebody copies, lands back on the same thread.
     const result = await hook();

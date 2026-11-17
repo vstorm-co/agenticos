@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useAgents, useConversations } from "@/hooks";
 import { ConversationSearchDialog } from "@/components/chat/conversation-search-dialog";
+import type { ConversationMessageSearchTarget } from "@/lib/conversation-message-search-api";
 import { Button, Skeleton } from "@/components/ui";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
 import { IconButton } from "@/components/ui";
@@ -966,6 +967,8 @@ function ConversationList({
 
 interface ConversationSidebarProps {
   className?: string;
+  /** Opens a specific search hit, paging to its message when necessary. */
+  onSelectSearchResult?: (target: ConversationMessageSearchTarget) => void;
 }
 
 /** Chats | Agents: how the list is laid out. A segmented control, one of two pressed. */
@@ -1007,7 +1010,7 @@ function ListModeToggle({
   );
 }
 
-export function ConversationSidebar({ className }: ConversationSidebarProps) {
+export function ConversationSidebar({ className, onSelectSearchResult }: ConversationSidebarProps) {
   const ts = useTranslations("chat.sidebar");
   const mode = useChatListModeStore((state) => state.mode);
   const setMode = useChatListModeStore((state) => state.setMode);
@@ -1167,6 +1170,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
       <IconButton
         size="icon"
         aria-label={ts("searchLabel")}
+        data-tour="chat-message-search"
         title={ts("searchLabel")}
         onClick={() => setSearchOpen(true)}
         className={HEADER_ICON}
@@ -1207,6 +1211,11 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
       onOpenChange={setSearchOpen}
       onSelect={(id) => {
         selectConversation(id);
+        close();
+      }}
+      onSelectResult={(target) => {
+        if (onSelectSearchResult) onSelectSearchResult(target);
+        else selectConversation(target.conversationId);
         close();
       }}
     />

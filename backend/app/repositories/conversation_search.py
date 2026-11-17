@@ -101,15 +101,17 @@ def _rank(tsquery: Any) -> Any:
     return func.ts_rank_cd(Message.search_vector, tsquery, _LENGTH_NORMALISATION)
 
 
-def _tsquery(query: str) -> Any:
-    """The query the model wrote, parsed.
+def _tsquery(query: str, *, literal: bool) -> Any:
+    """Parse either a literal console query or the search tool's operators.
 
-    `websearch_to_tsquery` rather than `plainto_tsquery` because quoted phrases,
-    `or` and a leading `-` all mean what somebody typing into a search box expects
-    - and rather than `to_tsquery` because nothing the model can write raises a
-    syntax error out of it. A query of nothing but stopwords parses to an empty
-    tsquery, which matches nothing rather than everything.
+    The console treats every token as search text; punctuation such as a leading
+    minus must not turn into a negation. The agent tool keeps web-search syntax,
+    including quoted phrases, `or` and a leading `-`. Neither path uses
+    `to_tsquery`, so user or model text cannot produce a syntax error. A query of
+    nothing but stopwords matches nothing rather than everything.
     """
+    if literal:
+        return func.plainto_tsquery(SEARCH_CONFIG, query)
     return func.websearch_to_tsquery(SEARCH_CONFIG, query)
 
 
@@ -135,6 +137,9 @@ class ConversationHit(NamedTuple):
     snippet: str
     speaker_role: str
     speaker_name: str | None
+    message_id: UUID
+    thread_root_message_id: UUID | None
+    matched_at: datetime
 
 
 async def search(
@@ -144,6 +149,7 @@ async def search(
     organization_id: UUID,
     readable: ColumnElement[bool],
     limit: int,
+    literal: bool = False,
 ) -> list[ConversationHit]:
     """The best-matching conversations, one row each, strongest first.
 
@@ -162,7 +168,7 @@ async def search(
     week" is a better guess than whichever order the planner returned. Without a
     total order the same search returns a different page each time it is run.
     """
-    tsquery = _tsquery(query)
+    tsquery = _tsquery(query, literal=literal)
     matches = (
         Message.search_vector.op("@@")(tsquery),
         Message.guardrail_refused.is_(False),
@@ -200,6 +206,9 @@ async def search(
     snippets = (
         select(
             Message.conversation_id,
+            Message.id.label("message_id"),
+            Message.thread_root_message_id,
+            Message.created_at.label("matched_at"),
             Message.role,
             func.ts_headline(SEARCH_CONFIG, Message.content, tsquery, _HEADLINE_OPTIONS).label(
                 "snippet"
@@ -233,6 +242,9 @@ async def search(
             speaker_name=(
                 row.platform_display_name or row.platform_username or row.full_name or row.email
             ),
+            message_id=row.message_id,
+            thread_root_message_id=row.thread_root_message_id,
+            matched_at=row.matched_at,
         )
         for row in (await db.execute(snippets)).all()
     ]

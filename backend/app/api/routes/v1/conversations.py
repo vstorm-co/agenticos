@@ -40,6 +40,10 @@ from app.schemas.conversation import (
     MessageList,
     MessageRead,
 )
+from app.schemas.conversation_search import (
+    MAX_MESSAGE_SEARCH_SNIPPET_LENGTH,
+    ConversationMessageSearchHitRead,
+)
 from app.schemas.conversation_share import (
     ConversationShareCreate,
     ConversationShareList,
@@ -65,6 +69,7 @@ from app.schemas.workspace import (
     WorkspaceFileRead,
     WorkspaceListing,
 )
+from app.services import conversation_search
 from app.services.sandbox_workspace import owner_label, stored_ceiling
 
 router = APIRouter()
@@ -198,6 +203,53 @@ async def get_shared_conversation(
 ) -> Any:
     """Access a shared conversation via public token (no auth required)."""
     return await share_service.get_by_token(token)
+
+
+@router.get(
+    "/search/messages",
+    response_model=list[ConversationMessageSearchHitRead],
+    dependencies=[PUBLIC, Depends(key_needs(Perm.RUNS_VIEW))],
+)
+async def search_message_content(
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    query: str = Query(
+        min_length=1,
+        max_length=120,
+        description="Literal text to find in readable conversation messages",
+    ),
+) -> Any:
+    """Search up to 20 matching messages in conversations the caller may read.
+
+    The shared transcript-search service resolves owner, share, project and
+    confirmed room membership access inside the active organization. Input uses
+    plain text search semantics; punctuation does not add query operators.
+    """
+    cleaned_query = query.strip()
+    if not cleaned_query:
+        return []
+    hits = await conversation_search.search(
+        query=cleaned_query,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        limit=20,
+        literal=True,
+    )
+    return [
+        ConversationMessageSearchHitRead(
+            conversation_id=hit.conversation_id,
+            message_id=hit.message_id,
+            thread_root_message_id=hit.thread_root_message_id,
+            title=hit.title,
+            updated_at=hit.updated_at,
+            matched_at=hit.matched_at,
+            hits=hit.hits,
+            snippet=hit.snippet[:MAX_MESSAGE_SEARCH_SNIPPET_LENGTH],
+            speaker_role=hit.speaker_role,
+            speaker_name=hit.speaker_name,
+        )
+        for hit in hits
+    ]
 
 
 @router.get(

@@ -286,6 +286,12 @@
     "title": "Profil"
   },
   "chat": {
+    "messageJump": {
+      "loading": "Wczytywanie wybranej wiadomości…",
+      "failed": "Nie udało się wczytać wybranej wiadomości. Spróbuj ponownie.",
+      "unavailable": "Ta wiadomość nie jest już dostępna w tej rozmowie.",
+      "cancel": "Anuluj przejście"
+    },
     "trace": {
       "toggle": "Wyszukaj i filtruj aktywność",
       "title": "Przeszukaj aktywność tej tury",
@@ -758,7 +764,14 @@
       "noSearchResults": "Żadna rozmowa nie pasuje.",
       "otherAgents": "Inne",
       "retryShared": "Wczytaj udostępnione rozmowy ponownie",
-      "searchHint": "Wpisz, aby wyszukać rozmowy po tytule.",
+      "searchHint": "Przeszukaj tekst wiadomości w rozmowach lub wybierz wyszukiwanie po tytule.",
+      "searchTitleHint": "Przeszukaj tytuły rozmów, także zarchiwizowanych.",
+      "searchModeLabel": "Szukaj według",
+      "searchModeMessages": "Tekst wiadomości",
+      "searchModeTitles": "Tytuł rozmowy",
+      "noMessageSearchResults": "Nie znaleziono pasujących wiadomości.",
+      "searchFailed": "Wyszukiwanie nie powiodło się. Spróbuj ponownie.",
+      "retrySearch": "Spróbuj ponownie",
       "searchLabel": "Szukaj rozmów",
       "searching": "Szukam…",
       "sharedFailed": "Nie udało się wczytać udostępnionych rozmów.",
@@ -6980,6 +6993,10 @@
       "chat-send-mode": {
         "title": "Kolejka lub kierowanie",
         "body": "Podczas pracy agenta dodaj następną wiadomość do kolejki albo przekaż wskazówki zwykłym tekstem. Pliki i pozostały kontekst pozostają w zwykłej kolejce."
+      },
+      "chat-message-search": {
+        "title": "Znajdź wiadomość w rozmowach",
+        "body": "Szukaj treści w dostępnych rozmowach albo wybierz wyszukiwanie tytułów. Wynik otwiera dokładną wiadomość, także w starszej historii lub wątku pokoju."
       },
       "chat-trace-filter": {
         "title": "Znajdź krok w tej turze",

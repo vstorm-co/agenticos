@@ -8159,6 +8159,10 @@
         "title": "Sıraya al veya yönlendir",
         "body": "Ajan çalışırken sonraki mesajını sıraya al veya geçerli turu düz metinle yönlendir. Dosyalar ve diğer bağlam normal sırada kalır."
       },
+      "chat-message-search": {
+        "title": "Sohbetler arasında mesaj bul",
+        "body": "Okuyabildiğin sohbetlerde mesaj metni ara veya başlık aramasını seç. Eski geçmiş ve oda yanıtları dahil, sonucu seçerek ilgili mesajı aç."
+      },
       "chat-trace-filter": {
         "title": "Bu turda bir adım bul",
         "body": "Açık etkinlik geçmişinde metin, araç argümanları veya sonuçları ara. Araçları, akıl yürütmeyi, hataları veya mesajları filtrele; yanıtını bekleyen adımlar görünür kalır."
@@ -8878,6 +8882,12 @@
     }
   },
   "chat": {
+    "messageJump": {
+      "loading": "Seçilen mesaj yükleniyor…",
+      "failed": "Seçilen mesaj yüklenemedi. Tekrar deneyin.",
+      "unavailable": "Bu mesaj artık bu sohbette kullanılamıyor.",
+      "cancel": "Mesaja gitmeyi iptal et"
+    },
     "trace": {
       "toggle": "Etkinliği ara ve filtrele",
       "title": "Bu turun etkinliğinde ara",
@@ -9345,7 +9355,14 @@
       "noSearchResults": "Eşleşen konuşma yok.",
       "otherAgents": "Diğer",
       "retryShared": "Paylaşılan konuşmaları yeniden yükle",
-      "searchHint": "Konuşmalarınızı başlığa göre aramak için yazın.",
+      "searchHint": "Konuşmalarındaki mesaj metinlerini ara veya konuşma başlığını seç.",
+      "searchTitleHint": "Arşivlenmiş konuşmalar dahil konuşma başlıklarını ara.",
+      "searchModeLabel": "Arama ölçütü",
+      "searchModeMessages": "Mesaj metni",
+      "searchModeTitles": "Konuşma başlığı",
+      "noMessageSearchResults": "Eşleşen mesaj yok.",
+      "searchFailed": "Arama başarısız oldu. Yeniden dene.",
+      "retrySearch": "Yeniden dene",
       "searchLabel": "Konuşmalarda ara",
       "searchPlaceholder": "Konuşmalarda ara",
       "searching": "Aranıyor…",
