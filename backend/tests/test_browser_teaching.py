@@ -9,12 +9,14 @@ deployment's own browser, for the run's own person, with the flag on.
 
 import uuid
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from pydantic import ValidationError
 
 from app.agents.browser_events import BrowserCommand
 from app.agents.capabilities.browser_use._loop import BrowseSession, held
+from app.agents.deps import AgentDeps
 from app.core.browser_teaching import CapturedStep, revision_from_if_match, teaching_origin
 from app.core.config import settings
 from app.schemas.browser_teaching import TeachingStart
@@ -193,6 +195,11 @@ def _deps(**changes: object) -> SimpleNamespace:
     return SimpleNamespace(**(values | changes))
 
 
+def _agent_deps(deps: SimpleNamespace) -> AgentDeps:
+    """The capture tests use only these AgentDeps fields, so keep a small fake."""
+    return cast(AgentDeps, deps)
+
+
 class _CdpLike:
     native_id = None
 
@@ -214,7 +221,7 @@ async def test_capture_attaches_for_the_runs_own_person_in_the_provisioned_brows
 ) -> None:
     deps = _deps()
     teaching_on.append(deps.organization_id)
-    capture = _capture.attach(deps, _CdpLike(), provisioned=True, tab_id=None)
+    capture = _capture.attach(_agent_deps(deps), _CdpLike(), provisioned=True, tab_id=None)
     assert (
         capture is not None
         and capture.user_id == deps.audience.user_id
@@ -255,20 +262,20 @@ async def test_capture_is_refused_outside_a_private_run_in_the_provisioned_brows
         deps.run_person = uuid.uuid4()
     else:
         teaching_on.clear()
-    assert _capture.attach(deps, page, provisioned=provisioned, tab_id="main") is None
+    assert _capture.attach(_agent_deps(deps), page, provisioned=provisioned, tab_id="main") is None
 
 
 async def test_capture_is_off_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(_capture.live_browse, "client", lambda: object())
     assert settings.BROWSER_TEACHING_ENABLED is False
     deps = _deps()
-    assert _capture.attach(deps, _CdpLike(), provisioned=True, tab_id="main") is None
+    assert _capture.attach(_agent_deps(deps), _CdpLike(), provisioned=True, tab_id="main") is None
 
 
 async def test_capture_ignores_a_hold_by_anyone_but_its_person(teaching_on) -> None:
     deps = _deps()
     teaching_on.append(deps.organization_id)
-    capture = _capture.attach(deps, _CdpLike(), provisioned=True, tab_id="main")
+    capture = _capture.attach(_agent_deps(deps), _CdpLike(), provisioned=True, tab_id="main")
     assert capture is not None
     await capture.begin("call", str(uuid.uuid4()))
     assert capture.hold is None

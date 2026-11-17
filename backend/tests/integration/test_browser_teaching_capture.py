@@ -11,6 +11,7 @@ import json
 import logging
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 import pytest
 from sqlalchemy import select, update
@@ -18,9 +19,11 @@ from sqlalchemy.exc import IntegrityError
 
 from app.agents.browser_events import BrowserCommand
 from app.agents.spec import AgentSpec
+from app.clients.redis import RedisClient
 from app.core.browser_teaching import (
     MAX_EVENTS,
     Observation,
+    Role,
     StructuralTarget,
     TeachingConflict,
     TeachingReason,
@@ -80,6 +83,11 @@ class FakeRedis:
         if "del" in script:
             del self.values[key]
         return 1
+
+
+def _redis(client: FakeRedis) -> RedisClient:
+    """Treat the test double as the subset of Redis used by browser teaching."""
+    return cast(RedisClient, client)
 
 
 @pytest.fixture(autouse=True)
@@ -162,7 +170,7 @@ async def _hold_for(
         tab_id=tab,
         hold_id=uuid.uuid4(),
     )
-    assert await _hold.claim(redis, hold)
+    assert await _hold.claim(_redis(redis), hold)
     return hold
 
 
@@ -172,7 +180,7 @@ def _start(run: AgentRun, call_id: str = "call-1") -> TeachingStart:
     )
 
 
-def _seen(role: str = "button", n: int = 1, *, auth: bool = False) -> Observation:
+def _seen(role: Role = "button", n: int = 1, *, auth: bool = False) -> Observation:
     return Observation(
         origin=ORIGIN,
         target=StructuralTarget(role=role, fingerprint="sha256:" + f"{n:064x}"),
@@ -184,7 +192,7 @@ async def _recording(db, redis: FakeRedis, enabled: list[uuid.UUID]):
     organization, owner, agent = await _world(db, enabled)
     run = await _run(db, agent, owner)
     hold = await _hold_for(redis, run, owner)
-    service = BrowserTeachingService(db, redis)
+    service = BrowserTeachingService(db, _redis(redis))
     started = await service.start(_ctx(owner, organization), _start(run), "key-1")
     return organization, owner, agent, run, hold, service, started
 
@@ -504,7 +512,9 @@ async def test_secrets_at_the_input_boundary_reach_no_row_audit_or_log(
         redis=redis,
         run_observer=_observer({"point": "button", "focus": "textbox"}),
     )
-    await _hold.release(redis, (await _hold.current(redis, run.id, "call-1")))
+    hold = await _hold.current(_redis(redis), run.id, "call-1")
+    assert hold is not None
+    await _hold.release(_redis(redis), hold)
     monkeypatch.setattr(_capture, "get_db_context", _contexts(db))
     caplog.set_level(logging.DEBUG)
     await capture.begin("call-1", str(owner.id))

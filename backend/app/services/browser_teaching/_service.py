@@ -292,13 +292,14 @@ class BrowserTeachingService:
         earlier = next(
             (item for item in row.sanitized_events if item.get("input_id") == str(input_id)), None
         )
-        if earlier is None and len(row.sanitized_events) >= MAX_EVENTS:
+        stored = None if earlier is None else CapturedStep.model_validate(earlier)
+        if stored is None and len(row.sanitized_events) >= MAX_EVENTS:
             pause(row, TeachingReason.EVENT_LIMIT)
             await audit(self.db, row, "browser_teaching.paused")
             return
         human = observation.authentication
         step = CapturedStep(
-            sequence=len(row.sanitized_events) + 1 if earlier is None else earlier["sequence"],
+            sequence=len(row.sanitized_events) + 1 if stored is None else stored.sequence,
             input_id=input_id,
             action="checkpoint" if human else action,
             origin=observation.origin,
@@ -306,9 +307,8 @@ class BrowserTeachingService:
             direction=None if human else direction,
             human_step=human,
         )
-        if earlier is not None:
+        if stored is not None:
             # A repeated input is a no-op; the same input id with another payload is a conflict.
-            stored = CapturedStep.model_validate(earlier)
             if stored != step:
                 pause(row, TeachingReason.EVENT_CONFLICT)
                 await audit(self.db, row, "browser_teaching.paused")

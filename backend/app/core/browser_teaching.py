@@ -13,7 +13,7 @@ from typing import Literal
 from urllib.parse import urlsplit
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
 from app.core.exceptions import BadRequestError, ConflictError
 
@@ -164,7 +164,7 @@ class CapturedStep(_Strict):
         return self
 
 
-def encoded_size(steps: list[dict[str, object]]) -> int:
+def encoded_size(steps: list[dict[str, JsonValue]]) -> int:
     """Bytes the stored step list takes, measured the way the database limit measures it."""
     return len(json.dumps(steps, separators=(", ", ": "), ensure_ascii=False).encode())
 
