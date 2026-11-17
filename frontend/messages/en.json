@@ -16558,10 +16558,10 @@
     "trainQuestion": "Used to write the changes",
     "holdoutQuestion": "Not used to write the changes",
     "sourceSignals": "Sources to learn from",
-    "signalWindow": "Feedback and failed runs from the last 30 days, plus failures from the latest test.",
+    "signalWindow": "{count, plural, one {# selected source example} other {# selected source examples}} from the last 30 days, up to {limit}. Includes earlier agent versions and reviewed test answers.",
     "ratedSignals": "Answers rated down",
-    "failedSignals": "Runs that failed",
-    "noLearningExamples": "Nothing to learn from yet: nobody rated an answer in the last 30 days. Rate an answer or write test questions first.",
+    "failedSignals": "Unrated runs that failed",
+    "noLearningExamples": "Nothing to learn from yet: no readable source examples in the last 30 days. Rate an answer or run and review test questions first.",
     "evidenceSample": "{count} selected examples, up to {limit}. Sources that were erased or are no longer readable are omitted.",
     "unknownCauses": "Some answers have no recorded cause. They remain unclassified and are shown with the agent examples for review.",
     "cause": {
@@ -16594,7 +16594,7 @@
     "baseline": "Test how the agent answers today",
     "estimate": "Estimate again",
     "estimating": "Estimating the time and cost…",
-    "sessionQuote": "Up to {cost} (estimate) to sort the {answers, plural, one {# answer} other {# answers}} with feedback. Each attempt after that takes about {minutes, plural, one {# minute} other {# minutes}} and costs roughly {perRound}, priced again before you press it; the limit of {limit} caps the whole session.",
+    "sessionQuote": "Up to {cost} (estimate) to sort {answers, plural, one {# selected source example} other {# selected source examples}}. Each attempt after that takes about {minutes, plural, one {# minute} other {# minutes}} and costs roughly {perRound}, priced again before you press it; the limit of {limit} caps the whole session.",
     "evidence": "Based on {count, plural, one {# answer} other {# answers}} with feedback.",
     "budget": "Session spending limit (USD)",
     "start": "Start improving",
@@ -17133,7 +17133,9 @@
     "evidenceOnly": {
       "body": "Every question of this dataset comes from the conversations this change learned from, so none of them can test it.",
       "addQuestions": "Add questions from other conversations"
-    }
+    },
+    "likedSignals": "Answers rated up",
+    "reviewedSignals": "Other reviewed test answers"
   },
   "unsaved": {
     "title": "You have unsaved changes",

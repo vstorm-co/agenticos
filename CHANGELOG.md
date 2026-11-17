@@ -25,6 +25,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Count Improve’s source cards from the selected evidence sample, including positive feedback and reviewed test answers, and keep empty-state messages hidden while the preview refreshes or its test set is still loading (#2555).
+
 - Repair the developer-section links in all four READMEs and name the existing `app` service in the data-protection Compose checks.
 
 - Check browser health through its resolved IP address so Chromium accepts Compose service hosts in `agenticos cmd doctor`; bound DNS resolution and the HTTP probe together.
