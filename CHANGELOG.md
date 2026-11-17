@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.81.0] - 2026-11-17
+
 ### Added
 
 - Configure organization text-to-speech defaults as a provider, model, voice and shared vault key. Agents explicitly opt in or retain their own override; waiting runs keep their chosen destination while key revocation and disabling the service still apply.
@@ -22004,7 +22006,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.80.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.81.0...HEAD
+[1.81.0]: https://github.com/vstorm-co/agenticos/compare/v1.80.0...v1.81.0
 [1.80.0]: https://github.com/vstorm-co/agenticos/compare/v1.79.0...v1.80.0
 [1.79.0]: https://github.com/vstorm-co/agenticos/compare/v1.78.1...v1.79.0
 [1.78.1]: https://github.com/vstorm-co/agenticos/compare/v1.78.0...v1.78.1
