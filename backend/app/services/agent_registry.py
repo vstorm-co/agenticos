@@ -4104,8 +4104,9 @@ class AgentRegistryService:
                 version = await agent_repo.get_version(
                     self.db, agent.current_version_id, organization_id=ctx.organization_id
                 )
-                if version is not None:
-                    require_organization_model(AgentSpec.model_validate(version.spec))
+                if version is None:
+                    raise NotFoundError(message="Agent version not found")
+                require_organization_model(AgentSpec.model_validate(version.spec))
         if enabled and agent.current_version_id is None:
             raise BadRequestError(
                 message="Publish the agent before serving it over A2A",

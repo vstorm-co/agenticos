@@ -6494,3 +6494,18 @@ async def test_pinned_delegates_cannot_borrow_a_web_chat_users_personal_key(pers
         assert resolved.problems == []
         assert [delegate.version_id for delegate in resolved.delegates] == [version.id]
         assert resolved.handles == [child.slug]
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_a2a_cannot_be_enabled_when_the_selected_version_cannot_be_read() -> None:
+    ctx, service = _ctx(), AgentRegistryService(_db())
+    row = _agent(ctx, current_version_id=uuid.uuid4())
+    with (
+        patch.object(service, "get", AsyncMock(return_value=row)),
+        patch(f"{REGISTRY_PATH}.agent_repo.get_version", AsyncMock(return_value=None)),
+        patch(f"{REGISTRY_PATH}.agent_repo.update", AsyncMock()) as update,
+        pytest.raises(NotFoundError, match="Agent version not found"),
+    ):
+        await service.set_a2a(ctx, row.id, enabled=True)
+    update.assert_not_awaited()
