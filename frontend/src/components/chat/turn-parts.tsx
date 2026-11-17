@@ -35,6 +35,7 @@ import { YouFace } from "./you-face";
 import { ReplyQuote } from "./reply-quote";
 import { STALLED_AFTER_MS, useTurnElapsed, WorkFold } from "./work-fold";
 import { formatElapsed } from "@/lib/elapsed";
+import { TurnTrace } from "./turn-trace";
 
 /**
  * A turn's body: its reasoning, its work and its words, in the order they arrived.
@@ -227,14 +228,17 @@ export function TurnParts({
         waiting={failed ? undefined : waiting}
         lastHeartbeatAt={lastHeartbeatAt}
       >
-        {split.folded.map((run, index) => {
-          const previous = split.folded[index - 1];
-          return render(
-            run,
-            false,
-            previous?.kind === "tools" || previous?.part.type === "thinking",
-          );
-        })}
+        <TurnTrace
+          runs={split.folded}
+          render={(run, index, visible) => {
+            const previous = visible[index - 1];
+            return render(
+              run,
+              false,
+              previous?.kind === "tools" || previous?.part.type === "thinking",
+            );
+          }}
+        />
       </WorkFold>
       <TurnBrowses calls={browseCalls(runs)} />
       <TurnCharts calls={chartCalls(runs)} />

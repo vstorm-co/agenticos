@@ -1270,6 +1270,21 @@
     "title": "Billing"
   },
   "chat": {
+    "trace": {
+      "toggle": "Search and filter activity",
+      "title": "Search this turn's activity",
+      "search": "Search text, tool arguments, and results",
+      "filter": "Show",
+      "all": "All activity",
+      "tools": "Tools",
+      "thinking": "Reasoning",
+      "errors": "Errors",
+      "messages": "Messages",
+      "clear": "Clear filters",
+      "count": "{shown} of {total} entries",
+      "attention": "Steps waiting for you stay visible.",
+      "noMatches": "No activity matches these filters."
+    },
     "sendMode": {
       "label": "Send while running",
       "queue": "Queue",
@@ -5349,6 +5364,10 @@
       "chat-send-mode": {
         "title": "Queue or steer",
         "body": "While an agent is working, queue your next message or steer the current turn with plain text. Files and other context keep the ordinary queued path."
+      },
+      "chat-trace-filter": {
+        "title": "Find a step in this turn",
+        "body": "Search the open activity history by text, tool arguments or results. Filter tools, reasoning, errors or messages; steps waiting for your input stay visible."
       },
       "chat-agent-reasoning": {
         "title": "Reasoning settings",

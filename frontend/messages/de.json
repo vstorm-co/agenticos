@@ -1269,6 +1269,21 @@
     "title": "Abrechnung"
   },
   "chat": {
+    "trace": {
+      "toggle": "Aktivität durchsuchen und filtern",
+      "title": "Aktivität dieses Durchlaufs durchsuchen",
+      "search": "Text, Werkzeugargumente und Ergebnisse durchsuchen",
+      "filter": "Anzeigen",
+      "all": "Alle Aktivitäten",
+      "tools": "Werkzeuge",
+      "thinking": "Denkaufwand",
+      "errors": "Fehler",
+      "messages": "Nachrichten",
+      "clear": "Filter löschen",
+      "count": "{shown} von {total} Einträgen",
+      "attention": "Schritte, die auf dich warten, bleiben sichtbar.",
+      "noMatches": "Keine Aktivität entspricht diesen Filtern."
+    },
     "sendMode": {
       "label": "Während der Ausführung senden",
       "queue": "Einreihen",
@@ -5173,6 +5188,10 @@
       "chat-send-mode": {
         "title": "Einreihen oder lenken",
         "body": "Während ein Agent arbeitet, kannst du die nächste Nachricht einreihen oder den laufenden Durchlauf mit einfachem Text lenken. Dateien und weiterer Kontext bleiben in der normalen Warteschlange."
+      },
+      "chat-trace-filter": {
+        "title": "Einen Schritt in diesem Durchlauf finden",
+        "body": "Durchsuche den geöffneten Verlauf nach Text, Werkzeugargumenten oder Ergebnissen. Filtere Werkzeuge, Denkprozesse, Fehler oder Nachrichten; Schritte, die auf deine Eingabe warten, bleiben sichtbar."
       },
       "chat-agent-reasoning": {
         "title": "Denkaufwand einstellen",

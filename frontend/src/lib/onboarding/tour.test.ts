@@ -320,6 +320,7 @@ describe("stepsForPage", () => {
       "chat-background-tasks",
       "chat-plan",
       "chat-visual",
+      "chat-trace-filter",
       "chat-model-selector",
       "chat-model-picker",
       "chat-voice-call",
