@@ -2358,7 +2358,7 @@ class AgentTriggerService:
                     routine_kind="trigger",
                     reason="run",
                     name=trigger.name or agent.name,
-                    detail="Three attempts to start on its computer failed before model admission. Review the failure before resuming.",
+                    detail="computer_start_failed",
                     observed_at=datetime.now(UTC),
                 )
                 continue
@@ -2417,8 +2417,8 @@ class AgentTriggerService:
                     routine_id=trigger.id,
                     routine_kind="trigger",
                     reason="run",
-                    name=trigger.name or "Routine",
-                    detail="Review this routine's sources in its settings before running it again.",
+                    name=trigger.name,
+                    detail="review_sources",
                     observed_at=datetime.now(UTC),
                 )
             if claimed_at is not None:
@@ -2815,7 +2815,7 @@ class AgentTriggerService:
             routine_kind="trigger",
             reason="run",
             name=name,
-            detail="Review its device, folder and operations in the desktop app, then resume it.",
+            detail="desktop_review",
             observed_at=datetime.now(UTC),
         )
 
@@ -2867,8 +2867,8 @@ class AgentTriggerService:
                 routine_id=trigger.id,
                 routine_kind="trigger",
                 reason="run",
-                name=trigger.name or "Routine",
-                detail="Review this routine's sources in its settings before running it again.",
+                name=trigger.name,
+                detail="review_sources",
                 observed_at=datetime.now(UTC),
             )
             return
@@ -2918,7 +2918,7 @@ class AgentTriggerService:
                 routine_kind="trigger",
                 reason="run",
                 name=trigger.name or agent.name,
-                detail="Waiting for its approved computer. Reconnect it or review this routine's folder permission in the desktop app.",
+                detail="computer_waiting",
                 observed_at=datetime.now(UTC),
             )
         if trigger.local_target is not None:
@@ -3070,7 +3070,7 @@ class AgentTriggerService:
                 routine_kind="trigger",
                 reason="run",
                 name=local_trigger_name,
-                detail="A reviewed source is unavailable or changed. Inspect its connection and the routine's sources.",
+                detail="source_changed",
                 observed_at=datetime.now(UTC),
             )
             return
@@ -3108,7 +3108,7 @@ class AgentTriggerService:
                 routine_kind="trigger",
                 reason="run",
                 name=local_trigger_name,
-                detail="The agent cannot run with its current configuration. Review its published version and routine settings.",
+                detail="agent_misconfigured",
                 observed_at=datetime.now(UTC),
             )
             return
@@ -3212,7 +3212,7 @@ class AgentTriggerService:
                 routine_kind="trigger",
                 reason="delivery",
                 name=trigger.name or agent.name,
-                detail="Its answer is in Activity, but its chosen chat is unavailable.",
+                detail="chat_unavailable",
                 observed_at=observation,
                 run=run,
             )
@@ -3370,7 +3370,7 @@ class AgentTriggerService:
                 routine_kind="trigger",
                 reason="delivery",
                 name=trigger.name or agent.name,
-                detail="Its answer is in Activity, but its chosen chat is unavailable.",
+                detail="chat_unavailable",
                 observed_at=observation,
                 run=run,
             )

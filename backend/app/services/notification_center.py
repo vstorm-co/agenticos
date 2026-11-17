@@ -568,7 +568,11 @@ class NotificationCenterService:
             occurrence_id=occurrence_id,
             summary=_COALESCED_SUMMARY[event_type],
             context_url=context_url,
-            render_context=render_context,
+            render_context={
+                **(render_context or {}),
+                "wording": "coalesced",
+                "coalesced": event_type.value,
+            },
             organization_id=organization_id,
             announcement_id=None,
             mandatory=True,

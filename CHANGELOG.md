@@ -33,6 +33,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Upgrading
 
 - Migration `0338_workflow_run_tested_step` adds a nullable `tested_step_node_id` column to `workflow_runs`. It rewrites no rows.
+- **Notifications in the reader's language.** The bell words every platform notification in the console's language: finished and failed runs and routines, routines that need attention or are waiting on their budget, ingestion and syncs, pages and shares, MCP servers, capability requests, suggestions and briefings, eval suites and promotions, shared changes, security and configuration notices, paused background jobs, usage reports, workflow log alerts and grouped notices. Each row keeps the values its sentence is built from and names its `wording`. A row written before the upgrade keeps its English sentence, and so does text a person or an agent wrote, such as a finding's title or a workflow step's message.
 
 ## [1.80.0] - 2026-11-16
 
