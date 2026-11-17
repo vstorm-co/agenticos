@@ -177,7 +177,9 @@ describe("@-mentions in the composer", () => {
     await userEvent.keyboard("{Enter}");
 
     expect(onSteer).not.toHaveBeenCalled();
-    expect(onSend).toHaveBeenCalledWith("@Contracts review this", undefined, undefined, [CONTRACTS]);
+    expect(onSend).toHaveBeenCalledWith("@Contracts review this", undefined, undefined, [
+      CONTRACTS,
+    ]);
   });
 
   it("drops what was picked for one agent when the thread switches to another", async () => {
