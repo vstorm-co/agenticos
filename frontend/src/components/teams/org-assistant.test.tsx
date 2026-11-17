@@ -83,24 +83,19 @@ describe("OrgAssistant", () => {
     expect(state.mutate).toHaveBeenCalledWith({ enabled: false });
   });
 
-  it("shows a switched-off assistant as off, with its greeting", () => {
+  it("shows the switched-off assistant without a greeting editor", () => {
     state.assistant = assistant({ status: "disabled", greeting: "Hej" });
     render(<OrgAssistant orgId="o1" />);
 
     expect(screen.getByRole("switch", { name: "Switched on" })).not.toBeChecked();
-    expect(screen.getByLabelText("Greeting")).toHaveValue("Hej");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("saves a greeting trimmed, an empty one as none, and only once it changed", () => {
-    state.assistant = assistant({ greeting: "Hello" });
-    render(<OrgAssistant orgId="o1" />);
-    const save = screen.getByRole("button", { name: "Save" });
-    expect(save).toBeDisabled();
-
-    fireEvent.change(screen.getByLabelText("Greeting"), { target: { value: "   " } });
-    fireEvent.click(save);
-
-    expect(state.mutate).toHaveBeenCalledWith({ greeting: null });
+  it("keeps its switch and Builder link visible without an expansion step", () => {
+    render(<OrgAssistant orgId="o1" collapsible />);
+    expect(screen.getByRole("switch", { name: "Switched on" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open in Agent Builder" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "AI Architect" })).not.toBeInTheDocument();
   });
 
   it("says where to give it a model when it has none", () => {

@@ -12897,12 +12897,7 @@
     "description": "Der Assistent in der Ecke jeder Seite, für alle, die Agents ausführen dürfen. Er ist ein Agent wie jeder andere: Name, Modell und Wissen bearbeiten Sie im Agent Builder, und seine Kosten zählen wie die jedes Agents.",
     "openBuilder": "Im Agent Builder öffnen",
     "enabled": "Eingeschaltet",
-    "enabledHint": "Ausgeschaltet verschwindet er für alle in der Organisation von jeder Seite, und niemand kann ihn ausführen.",
-    "needsModel": "Er hat noch kein Modell und kann daher nicht antworten. Wählen Sie eins unter Modell im Agent Builder.",
-    "greeting": "Begrüßung",
-    "greetingHint": "Was er sagt, wenn ihn jemand öffnet. Leer lassen für die Standardbegrüßung.",
-    "save": "Speichern",
-    "summary": "Assistent und Begrüßung dieses Arbeitsbereichs konfigurieren."
+    "needsModel": "Er hat noch kein Modell und kann daher nicht antworten. Wählen Sie eins unter Modell im Agent Builder."
   },
   "capabilityGuide": {
     "artifacts": {

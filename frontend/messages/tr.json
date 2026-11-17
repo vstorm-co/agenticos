@@ -12716,12 +12716,7 @@
     "description": "Agent çalıştırma izni olan herkesin her sayfada gördüğü köşe asistanı. Diğer agentlar gibi, adı, modeli ve bilgisi Agent Builder’da düzenlenir; maliyeti de diğer agentlar gibi hesaplanır.",
     "openBuilder": "Agent Builder’da aç",
     "enabled": "Açık",
-    "enabledHint": "Kapalıyken kuruluştaki herkes için tüm sayfalardan kaybolur ve hiç kimse çalıştıramaz.",
-    "needsModel": "Henüz modeli yok; bu nedenle yanıt veremez. Agent Builder’daki Model bölümünden bir model seçin.",
-    "greeting": "Karşılama mesajı",
-    "greetingHint": "Birisi açtığında söylediği. Varsayılanı kullanmak için boş bırakın.",
-    "save": "Kaydet",
-    "summary": "Çalışma alanı asistanını ve karşılamasını yapılandırın."
+    "needsModel": "Henüz modeli yok; bu nedenle yanıt veremez. Agent Builder’daki Model bölümünden bir model seçin."
   },
   "appearance": {
     "description": "Konsolun sizin için nasıl görünüp davrandığı. Bu tarayıcıda saklanır ve hemen uygulanır.",

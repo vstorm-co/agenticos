@@ -13211,12 +13211,7 @@
     "description": "The assistant in the corner of every page, for everyone who may run agents. It is an agent like any other: its name, model and knowledge are edited in the Agent Builder, and its cost counts like any agent's.",
     "openBuilder": "Open in Agent Builder",
     "enabled": "Switched on",
-    "enabledHint": "Off, it disappears from every page for everyone in the organization, and nobody can run it.",
-    "needsModel": "It has no model yet, so it cannot answer. Choose one under Model in the Agent Builder.",
-    "greeting": "Greeting",
-    "greetingHint": "What it says when somebody opens it. Leave empty for the default.",
-    "save": "Save",
-    "summary": "Configure the workspace assistant and its greeting."
+    "needsModel": "It has no model yet, so it cannot answer. Choose one under Model in the Agent Builder."
   },
   "capabilityGuide": {
     "artifacts": {

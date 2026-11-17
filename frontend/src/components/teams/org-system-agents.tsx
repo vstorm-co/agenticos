@@ -6,9 +6,6 @@ import { useFormatter, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
-import { SetupIndicator } from "@/components/settings/setup-indicator";
-import { systemAgentSetupHints } from "@/lib/setup-hints";
-import { SettingsSection } from "@/components/settings/settings-section";
 import { ErrorState } from "@/components/states";
 import { Badge, Button, Input, Label, Skeleton, Switch } from "@/components/ui";
 import { FormField } from "@/components/ui/form-field";
@@ -34,14 +31,7 @@ const BUDGET_FIELD = "monthly_budget_usd";
  * edited here through the organization setting, so it shares its model and limit
  * with suggestions. Memory maintenance has its own model and budget.
  */
-export function OrgSystemAgents({
-  org,
-  collapsible = false,
-}: {
-  org: Organization;
-  collapsible?: boolean;
-}) {
-  const t = useTranslations("teams.systemAgents");
+export function OrgSystemAgents({ org }: { org: Organization; collapsible?: boolean }) {
   const { can } = usePermissions();
   const tenantId = useTenantId();
   // The roles are the active organization's: this page can be opened for another one the
@@ -50,50 +40,35 @@ export function OrgSystemAgents({
   const allowed = can(Perm.budgetsManage) && tenantId === org.id;
   const { roles, isLoading, error } = useSystemAgents(allowed);
   if (!allowed) return null;
-  if (isLoading) return <RolesLoading collapsible={collapsible} />;
+  if (isLoading) return <RolesLoading />;
   // Said, not hidden: an operator must not read a failed request as a product with no
   // system-agent settings.
   if (error || !roles) return <ErrorState />;
   return (
-    <SettingsSection
-      title={t("title")}
-      description={t(collapsible ? "summary" : "description")}
-      collapsible={collapsible}
-      tour="org-system-agents"
-      status={<SetupIndicator hints={roles.flatMap(systemAgentSetupHints)} />}
-    >
-      <div className="grid items-stretch gap-3">
-        {roles.map((role) => (
-          <Role key={role.role} agent={role} org={org} />
-        ))}
-      </div>
-    </SettingsSection>
+    <div className="grid items-stretch gap-3" data-tour="org-system-agents">
+      {roles.map((role) => (
+        <Role key={role.role} agent={role} org={org} />
+      ))}
+    </div>
   );
 }
 
-function RolesLoading({ collapsible }: { collapsible: boolean }) {
-  const t = useTranslations("teams.systemAgents");
+function RolesLoading() {
   const states = useTranslations("states");
   return (
-    <SettingsSection
-      title={t("title")}
-      description={t(collapsible ? "summary" : "description")}
-      collapsible={collapsible}
-    >
-      <div role="status" aria-label={states("loading")} aria-busy="true" className="grid gap-3">
-        {[0, 1].map((item) => (
-          <div key={item} aria-hidden className="bg-background overflow-hidden rounded-xl border">
-            <div className="flex items-center gap-3 p-4">
-              <Skeleton className="size-9 shrink-0 rounded-lg" />
-              <div className="flex-1 space-y-2">
-                <Skeleton className="h-4 w-36" />
-                <Skeleton className="h-3 w-48" />
-              </div>
+    <div role="status" aria-label={states("loading")} aria-busy="true" className="grid gap-3">
+      {[0, 1].map((item) => (
+        <div key={item} aria-hidden className="bg-background overflow-hidden rounded-xl border">
+          <div className="flex items-center gap-3 p-4">
+            <Skeleton className="size-9 shrink-0 rounded-lg" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-36" />
+              <Skeleton className="h-3 w-48" />
             </div>
           </div>
-        ))}
-      </div>
-    </SettingsSection>
+        </div>
+      ))}
+    </div>
   );
 }
 

@@ -13406,12 +13406,7 @@
     "description": "Asystent w rogu każdej strony, dla każdego, kto może uruchamiać agentów. To agent jak każdy inny: nazwę, model i wiedzę edytujesz w Agent Builderze, a jego koszty liczą się jak każdego agenta.",
     "openBuilder": "Otwórz w Agent Builderze",
     "enabled": "Włączony",
-    "enabledHint": "Wyłączony znika z każdej strony dla wszystkich w organizacji i nikt nie może go uruchomić.",
-    "needsModel": "Nie ma jeszcze modelu, więc nie może odpowiadać. Wybierz go w sekcji Model w Agent Builderze.",
-    "greeting": "Powitanie",
-    "greetingHint": "Co mówi, gdy ktoś go otworzy. Zostaw puste, by użyć domyślnego.",
-    "save": "Zapisz",
-    "summary": "Asystent workspace i jego powitanie."
+    "needsModel": "Nie ma jeszcze modelu, więc nie może odpowiadać. Wybierz go w sekcji Model w Agent Builderze."
   },
   "capabilityGuide": {
     "artifacts": {
