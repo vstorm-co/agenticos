@@ -1191,10 +1191,12 @@ def _author_history_ids(user_id: UUID) -> Select[UUID]:
 
 
 async def lock_authored_histories(db: AsyncSession, *, user_id: UUID) -> None:
-    """Acquire affected history locks without waiting while deletion holds the user row."""
+    """Lock owned and authored histories without waiting while deletion holds the user row."""
     await db.execute(
         select(Conversation.id)
-        .where(Conversation.id.in_(_author_history_ids(user_id)))
+        .where(
+            or_(Conversation.user_id == user_id, Conversation.id.in_(_author_history_ids(user_id)))
+        )
         .order_by(Conversation.id)
         .with_for_update(nowait=True)
     )

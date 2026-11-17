@@ -957,7 +957,7 @@ class UserService:
            documents, the order `OrganizationService.purge` locks them in, and
            deleting the documents first inverted it (#2638);
         3. the user rows (`_lock_user_rows`), `NOWAIT`;
-        4. conversations the person authored, `NOWAIT`, before their checkpoints
+        4. conversations the person owns or authored, `NOWAIT`, before their checkpoints
            are invalidated and their author references disappear;
         5. the names of bases created while this waited (`_hold_late_names`).
 

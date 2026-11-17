@@ -238,9 +238,14 @@ async def test_account_erasure_fences_foreign_authored_checkpoints_before_author
 
 
 @pytest.mark.security
+@pytest.mark.parametrize(
+    "scope", ["foreign-authored", "empty-owned", "empty-owned-project", "assistant-only-owned"]
+)
 async def test_account_deletion_refuses_a_busy_history_before_cleanup_without_locking_cycle(
-    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, scope: str
 ) -> None:
+    from unittest.mock import AsyncMock
+
     from sqlalchemy import select
 
     from app.core.exceptions import ConcurrentChangeError
@@ -250,18 +255,35 @@ async def test_account_deletion_refuses_a_busy_history_before_cleanup_without_lo
 
     source = await _source(db)
     removed = await _user(db)
-    await _turn(db, source, "user", "My private event", author_user_id=removed.id)
-    answer = await _turn(db, source, "assistant", "You have an appointment.")
-    source.summary_messages = dump_messages(hidden_exchange())
-    source.summary_ordinal = answer.ordinal
+    if scope == "foreign-authored":
+        await _turn(db, source, "user", "My private event", author_user_id=removed.id)
+    else:
+        if scope == "empty-owned-project":
+            project = Project(
+                organization_id=source.organization_id,
+                owner_user_id=source.user_id,
+                name="Retained",
+            )
+            db.add(project)
+            await db.flush()
+            source.project_id = project.id
+        source.user_id = removed.id
+    if scope in {"foreign-authored", "assistant-only-owned"}:
+        answer = await _turn(db, source, "assistant", "You have an appointment.")
+        source.summary_messages = dump_messages(hidden_exchange())
+        source.summary_ordinal = answer.ordinal
+    original_summary = source.summary_messages
     source_id, removed_id = source.id, removed.id
     await db.commit()
     await db.execute(select(Conversation.id).where(Conversation.id == source_id).with_for_update())
     monkeypatch.setattr(user_service, "_ACCOUNT_LOCK_SECONDS", 0)
+    cleanup = AsyncMock()
+    monkeypatch.setattr(user_service.UserService, "_delete_locked", cleanup)
     async with AsyncSession(bind=db.bind) as deleting:
         with pytest.raises(ConcurrentChangeError, match="Nothing was deleted"):
             await user_service.UserService(deleting).delete(removed_id)
+    cleanup.assert_not_awaited()
     assert await db.get(User, removed_id) is not None
     await db.refresh(source)
-    assert source.guardrail_revision == 0 and source.summary_messages is not None
+    assert source.guardrail_revision == 0 and source.summary_messages == original_summary
     await db.rollback()
