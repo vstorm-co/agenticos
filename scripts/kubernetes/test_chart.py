@@ -49,6 +49,31 @@ def render(*arguments: str) -> list[dict[str, object]]:
 
 
 class ChartTest(unittest.TestCase):
+    def test_frontend_receives_oidc_display_settings_without_backend_secrets(
+        self,
+    ) -> None:
+        documents = render(
+            "--set-string",
+            "frontend.extraEnv.OAUTH_PROVIDERS=oidc",
+            "--set-string",
+            "frontend.extraEnv.OIDC_DISPLAY_NAME=Company SSO",
+            "--set-string",
+            "frontend.extraEnv.BACKEND_URL=https://wrong.example.com",
+        )
+        frontend = next(
+            doc
+            for doc in documents
+            if doc["kind"] == "Deployment"
+            and str(at(doc, "metadata", "name")).endswith("-frontend")
+        )
+        container = obj(array(at(frontend, "spec", "template", "spec", "containers"))[0])
+        env = {str(at(item, "name")): at(item, "value") for item in array(container["env"])}
+        self.assertEqual(env["OAUTH_PROVIDERS"], "oidc")
+        self.assertEqual(env["OIDC_DISPLAY_NAME"], "Company SSO")
+        self.assertEqual(env["BACKEND_URL"], "http://smoke-agenticos-api:8000")
+        self.assertNotIn("envFrom", container)
+        self.assertNotIn("OIDC_CLIENT_SECRET", env)
+
     def test_workloads_and_migration(self) -> None:
         documents = render()
         self.assertEqual([doc["kind"] for doc in documents].count("Deployment"), 3)

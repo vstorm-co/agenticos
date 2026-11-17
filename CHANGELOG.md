@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Let Helm deployments configure the console's SSO button through
+  `frontend.extraEnv`, separately from backend OIDC credentials, and report the
+  resolved backend and frontend images in Helm's installation notes. Clarify S3
+  credentials, OpenShift restrictions, Argo CD migration ordering and the
+  separate validation required for OIDC and sandbox services (discussion #2853).
+
 ## [1.80.0] - 2026-11-16
 
 ### Fixed
