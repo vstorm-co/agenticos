@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
@@ -11,6 +11,8 @@ import { useAuthStore, useChatStore, useConversationStore, useOrgStore } from "@
 import type { ChatMessage, MessageReply } from "@/types";
 import type { RoomThreadPage } from "@/types/room";
 import { RoomThreadPanel } from "./room-thread-panel";
+import type { MessagePinActions } from "./message-list";
+import type { PinnedMessageTarget } from "./pinned-messages";
 
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), post: vi.fn() } }));
 vi.mock("@/hooks/use-agents", () => ({
@@ -41,14 +43,17 @@ vi.mock("./message-item", () => ({
     threadRootPreview,
     allowReply,
     onReply,
+    onTogglePin,
   }: {
     message: ChatMessage;
     threadRootPreview: boolean;
     allowReply: boolean;
     onReply: (reply: MessageReply) => void;
+    onTogglePin?: (id: string, pinned: boolean) => void;
   }) => (
     <article data-thread-root={threadRootPreview ? message.id : undefined}>
       <p>{message.content}</p>
+      {onTogglePin && <button onClick={() => onTogglePin(message.id, true)}>Pin original</button>}
       {allowReply && (
         <button
           onClick={() =>
@@ -66,15 +71,25 @@ vi.mock("./message-list", () => ({
     messages,
     allowReply,
     onReply,
+    messagePinActions,
   }: {
     messages: ChatMessage[];
     allowReply: boolean;
     onReply: (reply: MessageReply) => void;
+    messagePinActions?: MessagePinActions;
   }) => (
     <div>
       {messages.map((message) => (
         <article key={message.id} data-message-id={message.id}>
           <p>{message.content}</p>
+          {messagePinActions && (
+            <button
+              disabled={messagePinActions.pendingMessageId === message.id}
+              onClick={() => messagePinActions.togglePin(message.id, true)}
+            >
+              Pin {message.id}
+            </button>
+          )}
           {allowReply && (
             <button
               onClick={() =>
@@ -119,6 +134,8 @@ function view(
     projectId?: string | null;
     requestedMessageId?: string | null;
     messageJumpRevision?: number;
+    messagePinActions?: MessagePinActions;
+    onOpenPinnedMessage?: (target: PinnedMessageTarget) => void;
   } = {},
 ) {
   return (
@@ -204,6 +221,76 @@ afterEach(() => {
 });
 
 describe("RoomThreadPanel", () => {
+  it("keeps private pin actions available for an authorized read-only root and its replies", async () => {
+    const togglePin = vi.fn();
+    const messagePinActions = { pendingMessageId: null, togglePin };
+    const mounted = render(view("root-a", { readOnly: true, messagePinActions }), { wrapper });
+    await screen.findByText("Saved reply A");
+    await userEvent.click(screen.getByRole("button", { name: "Pin original" }));
+    await userEvent.click(screen.getByRole("button", { name: "Pin reply-a" }));
+    expect(togglePin.mock.calls).toEqual([
+      ["root-a", true],
+      ["reply-a", true],
+    ]);
+    expect(screen.queryByRole("button", { name: "Quote original" })).not.toBeInTheDocument();
+    mounted.rerender(
+      view("root-a", {
+        readOnly: true,
+        messagePinActions: { ...messagePinActions, pendingMessageId: "reply-a" },
+      }),
+    );
+    expect(screen.getByRole("button", { name: "Pin reply-a" })).toBeDisabled();
+  });
+
+  it("lets a pin outside the thread own focus after the panel closes", async () => {
+    const fallback = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation((path, options) =>
+      String(path).endsWith("/message-pins")
+        ? Promise.resolve({
+            items: [
+              {
+                message_id: "main-pin",
+                thread_root_message_id: null,
+                preview: "Main bookmarked answer",
+                role: "assistant",
+                message_created_at: "2026-11-14T00:00:00Z",
+                pinned_at: "2026-11-17T00:00:00Z",
+              },
+            ],
+            total: 1,
+          })
+        : fallback(path, options),
+    );
+    const onOpen = vi.fn();
+    function ThreadWithDestination() {
+      const [opened, setOpened] = useState(false);
+      return (
+        <>
+          <button onClick={() => setOpened(true)}>Open this thread</button>
+          <button data-testid="pin-destination">Destination</button>
+          {opened &&
+            view("root-a", {
+              messagePinActions: { pendingMessageId: null, togglePin: vi.fn() },
+              onOpenPinnedMessage: (target) => {
+                onOpen(target);
+                setOpened(false);
+                screen.getByTestId("pin-destination").focus();
+              },
+            })}
+        </>
+      );
+    }
+    render(<ThreadWithDestination />, { wrapper });
+    await userEvent.click(screen.getByRole("button", { name: "Open this thread" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Pinned messages" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Main bookmarked answer" }));
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith({
+      messageId: "main-pin",
+      threadRootMessageId: null,
+    });
+    await waitFor(() => expect(screen.getByTestId("pin-destination")).toHaveFocus());
+  });
+
   it("focuses an exact linked reply after authorization without fetching main-chat history", async () => {
     const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
     render(view("root-a", { requestedMessageId: "reply-a" }), { wrapper });

@@ -292,6 +292,18 @@
       "unavailable": "Ta wiadomość nie jest już dostępna w tej rozmowie.",
       "cancel": "Anuluj przejście"
     },
+    "messagePins": {
+      "emptyPreview": "Wiadomość bez podglądu",
+      "open": "Przypięte wiadomości",
+      "title": "Przypięte wiadomości",
+      "empty": "Nie masz przypiętych wiadomości w tej rozmowie.",
+      "loading": "Wczytywanie przypiętych wiadomości…",
+      "loadMore": "Wczytaj więcej",
+      "retry": "Spróbuj ponownie",
+      "listFailed": "Nie udało się wczytać przypiętych wiadomości.",
+      "pin": "Przypnij wiadomość",
+      "unpin": "Odepnij wiadomość"
+    },
     "sideThreads": {
       "loadMore": "Wczytaj więcej",
       "untitledFork": "Wątek poboczny bez tytułu",
@@ -8169,6 +8181,10 @@
       "chat-room-thread-panel": {
         "title": "Odpowiedzi we własnym kontekście",
         "body": "Oryginalna wiadomość pozostaje nad odpowiedziami. Każdy w pokoju może przeczytać wątek. Wybierz agenta, gdy potrzebujesz pomocy, lub zamknij wątek, aby wrócić do pokoju."
+      },
+      "chat-message-pins": {
+        "title": "Zachowaj ważne wiadomości",
+        "body": "Przypnij wiadomość dla siebie, a następnie otwórz ją ponownie z listy przypiętych wiadomości tej rozmowy."
       }
     }
   },

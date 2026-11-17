@@ -59,6 +59,9 @@ from app.repositories import (
     personal_data_repo,
     project_repo,
 )
+from app.repositories import (
+    conversation_message_pin as conversation_message_pin_repo,
+)
 from app.schemas.conversation import (
     ChatPerson,
     ChatReader,
@@ -2081,6 +2084,16 @@ class ConversationService:
         if root is not None:
             items.insert(0, root)
             total += 1
+        pinned_message_ids = (
+            await conversation_message_pin_repo.message_pin_ids(
+                self.db,
+                user_id=user_id,
+                conversation_id=conversation_id,
+                message_ids=[item.id for item in items],
+            )
+            if user_id is not None and items and not for_model
+            else set()
+        )
         if top_level_only or thread_root_message_id is not None:
             summaries = await conversation_repo.thread_summaries(
                 self.db,
@@ -2121,6 +2134,8 @@ class ConversationService:
                 msg_schema = MessageRead.model_validate(msg)
                 msg_schema.user_rating = user_ratings.get(msg.id)
                 msg_schema.rating_count = rating_counts.get(msg.id)
+                if user_id is not None:
+                    msg_schema.is_pinned = msg.id in pinned_message_ids
                 # So a turn a run was stopped mid-way through can say so. Without
                 # it a cancelled run's half-written answer reads exactly like a
                 # complete one, and the reader believes the agent finished.

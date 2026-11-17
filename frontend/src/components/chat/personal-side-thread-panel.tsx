@@ -12,6 +12,7 @@ import { ChatScope } from "@/stores/chat-scope";
 import { useAuthStore, useConversationStore } from "@/stores";
 
 import { ChatContainer } from "./chat-container";
+import type { PinnedMessageTarget } from "./pinned-messages";
 
 interface ConversationParentTarget {
   conversationId: string;
@@ -51,9 +52,9 @@ export function PersonalSideThreadPanel({
   return (
     <Sheet
       open={open}
-      onOpenChange={() => {
-        setOpen(false);
-        onClose();
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen && pendingParentTarget.current === null) onClose();
       }}
     >
       <SheetContent
@@ -127,6 +128,8 @@ function ScopedSideThread({
   const { selectConversation } = useConversations();
   const currentConversationId = useConversationStore((state) => state.currentConversationId);
   const requested = useRef<string | null>(null);
+  const [jumpTarget, setJumpTarget] = useState<PinnedMessageTarget | null>(null);
+  const [messageJumpRevision, setMessageJumpRevision] = useState(0);
 
   useEffect(() => {
     if (currentConversationId === forkId || requested.current === forkId) return;
@@ -134,5 +137,23 @@ function ScopedSideThread({
     void selectConversation(forkId);
   }, [currentConversationId, forkId, selectConversation]);
 
-  return <ChatContainer requestedConversationId={forkId} onOpenParent={onOpenParent} />;
+  return (
+    <ChatContainer
+      requestedConversationId={forkId}
+      requestedMessageId={jumpTarget?.messageId ?? null}
+      requestedThreadRootId={jumpTarget?.threadRootMessageId ?? null}
+      messageJumpRevision={messageJumpRevision}
+      onOpenParent={onOpenParent}
+      onOpenMessage={(target) => {
+        if (target.conversationId !== forkId) return;
+        setJumpTarget(target);
+        setMessageJumpRevision((value) => value + 1);
+      }}
+      onOpenThread={(rootId) => {
+        setJumpTarget({ messageId: rootId, threadRootMessageId: rootId });
+        setMessageJumpRevision((value) => value + 1);
+      }}
+      onCloseThread={() => setJumpTarget(null)}
+    />
+  );
 }

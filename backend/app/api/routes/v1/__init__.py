@@ -21,6 +21,7 @@ from app.api.routes.v1 import oauth
 from app.api.routes.v1 import push
 from app.api.routes.v1 import sessions
 from app.api.routes.v1 import conversations
+from app.api.routes.v1 import conversation_message_pins
 from app.api.routes.v1 import admin_conversations
 from app.api.routes.v1 import me_channel_link
 from app.api.routes.v1 import me_connected_accounts
@@ -266,6 +267,11 @@ v1_router.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
 v1_router.include_router(push.router, prefix="/push", tags=["push"])
 
 v1_router.include_router(conversations.router, prefix="/conversations", tags=["conversations"])
+v1_router.include_router(
+    conversation_message_pins.router,
+    prefix="/conversations",
+    tags=["conversation-message-pins"],
+)
 
 v1_router.include_router(
     org_mcp_connections.router, prefix="/mcp-connections", tags=["mcp-connections"]

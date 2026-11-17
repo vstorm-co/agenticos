@@ -1,5 +1,5 @@
 ---
-source_sha: "4e14aeb9974b"
+source_sha: "4deab8cd6da5"
 ---
 
 # Die Konsole { #the-console }
@@ -1024,6 +1024,12 @@ Eine Unterhaltung mit einer gespeicherten Checkliste kann nur an ihrer neuesten 
 Bei einer abgeschlossenen Assistentenantwort in einer eigenen persönlichen Unterhaltung können Sie über **Nebenstränge** eine separate Unterhaltung ab diesem Punkt beginnen oder einen vorhandenen Zweig derselben Antwort öffnen. Der Zweig erscheint neben dem Ursprung mit einem eigenen Eingabefeld und weiteren Nachrichten. Verlauf, Entwurf und Warteschlange der ursprünglichen Unterhaltung bleiben erhalten; im Zweig gesendete Nachrichten gehören zum Zweig.
 
 **Zurück zur ursprünglichen Unterhaltung** schließt das Seitenpanel und öffnet die genaue Ausgangsantwort. Ältere Nachrichten werden bei Bedarf nachgeladen. Das Schließen löscht den Zweig nicht. Ein Wechsel der Ausgangsunterhaltung, des Kontos oder der Organisation entfernt das alte Panel. Archivierte Zweige öffnen sich schreibgeschützt. Die Liste kann weitere Zweige dieser Antwort laden; fehlgeschlagene Lese- oder Erstellungsvorgänge lassen sich ohne Wechsel der Hauptunterhaltung wiederholen.
+
+### Angeheftete Nachrichten { #chat-message-pins }
+
+Wähle **Nachricht anheften** an einer gespeicherten Nachricht, um ein persönliches Lesezeichen anzulegen. **Angeheftete Nachrichten** im Gesprächskopf öffnet deine Liste. Ein Auszug führt zur genauen Nachricht, auch auf einer älteren Seite oder in einem Raum-Thread. Du kannst eine Anheftung an der Nachricht oder in der Liste entfernen, weitere Einträge laden und einen fehlgeschlagenen Abruf wiederholen.
+
+Anheftungen gehören dir. Andere Leser eines geteilten Gesprächs sehen sie nicht; auch Empfänger mit reinem Lesezugriff können eigene Lesezeichen speichern. Das Öffnen erfordert weiterhin Zugriff auf das Gespräch. Die Liste verwendet den aktuellen Nachrichtenauszug und erstellt keine zusätzliche Kopie des Inhalts.
 
 ### Eine Nachricht finden { #chat-message-search }
 

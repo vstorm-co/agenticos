@@ -160,6 +160,8 @@ export interface ConversationMessage {
   tool_calls?: ConversationToolCall[];
   files?: ChatMessageFile[];
   user_rating?: UserRating;
+  /** Current reader's private pin status; absent on unpersonalized reads. */
+  is_pinned?: boolean | null;
   rating_count?: { likes: number; dislikes: number } | null;
 }
 

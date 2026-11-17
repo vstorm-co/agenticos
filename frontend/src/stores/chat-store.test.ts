@@ -566,6 +566,21 @@ it("retains late next-step buttons when an older history request finishes", () =
 });
 
 describe("a saved message arriving before its acknowledgement", () => {
+  it("updates the local bubble by its persisted id while the local id is retained", () => {
+    const local = message({
+      id: "live-local",
+      persistedId: "saved-message",
+      isTemporaryId: true,
+      isStreaming: true,
+      isPinned: false,
+    });
+    store().addMessage(local);
+
+    store().updateMessage("saved-message", (msg) => ({ ...msg, isPinned: true }));
+
+    expect(store().messages).toEqual([{ ...local, isPinned: true }]);
+  });
+
   it("keeps one answer and its tool results when the live id becomes the stored id", () => {
     const local = message({
       id: "live",
@@ -606,6 +621,61 @@ it("ignores a late update for a turn removed during navigation", () => {
   const updater = vi.fn();
   store().updateMessage("no-longer-present", updater);
   expect(updater).not.toHaveBeenCalled();
+});
+
+describe("reader-scoped transcript fields", () => {
+  const identity: TranscriptIdentity = {
+    conversationId: "conversation",
+    selectionVersion: 1,
+    accountId: "reader",
+    tenantId: "organization",
+  };
+
+  it("keeps a known pin status when a refresh omits it, but accepts an explicit unpin", () => {
+    const raw = {
+      id: "saved",
+      conversation_id: "conversation",
+      role: "assistant" as const,
+      content: "Saved answer",
+      created_at: "2026-11-17T00:00:00Z",
+    };
+    store().rereadMessages(
+      [message({ id: "saved", conversationId: "conversation", isPinned: true })],
+      identity,
+    );
+
+    store().rereadMessages([conversationMessageToChatMessage(raw)], identity);
+
+    expect(store().messages[0]?.isPinned).toBe(true);
+
+    store().rereadMessages(
+      [conversationMessageToChatMessage({ ...raw, is_pinned: false })],
+      identity,
+    );
+
+    expect(store().messages[0]?.isPinned).toBe(false);
+  });
+
+  it("does not carry a reader's pin status into a different transcript identity", () => {
+    const raw = {
+      id: "saved",
+      conversation_id: "conversation",
+      role: "assistant" as const,
+      content: "Saved answer",
+      created_at: "2026-11-17T00:00:00Z",
+    };
+    store().rereadMessages(
+      [message({ id: "saved", conversationId: "conversation", isPinned: true })],
+      identity,
+    );
+
+    store().rereadMessages([conversationMessageToChatMessage(raw)], {
+      ...identity,
+      accountId: "another-reader",
+    });
+
+    expect(store().messages[0]?.isPinned).toBeUndefined();
+  });
 });
 
 describe("HTTP continuation reconciliation", () => {

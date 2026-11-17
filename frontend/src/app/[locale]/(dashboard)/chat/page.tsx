@@ -43,6 +43,8 @@ export default function ChatPage() {
     messageId: string | null;
     threadRootMessageId?: string | null;
   }) => {
+    // The linked message takes focus; closing an old thread must not reclaim it.
+    trigger.current = null;
     const next = new URLSearchParams(params.toString());
     next.set("id", target.conversationId);
     if (target.messageId === null) next.delete("message");
@@ -73,6 +75,7 @@ export default function ChatPage() {
           requestedMessageId={requestedMessageId}
           messageJumpRevision={messageJumpRevision}
           onOpenParent={openMessage}
+          onOpenMessage={openMessage}
           onOpenThread={(root) => {
             const opener = document.activeElement;
             // A notice inside a thread disappears when its root changes. Keep

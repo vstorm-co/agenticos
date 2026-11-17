@@ -1276,6 +1276,18 @@
       "unavailable": "This message is no longer available in this conversation.",
       "cancel": "Cancel jump"
     },
+    "messagePins": {
+      "emptyPreview": "Message without a preview",
+      "open": "Pinned messages",
+      "title": "Pinned messages",
+      "empty": "You have no pinned messages in this conversation.",
+      "loading": "Loading pinned messages…",
+      "loadMore": "Load more",
+      "retry": "Try again",
+      "listFailed": "Pinned messages could not be loaded.",
+      "pin": "Pin message",
+      "unpin": "Unpin message"
+    },
     "sideThreads": {
       "loadMore": "Load more",
       "untitledFork": "Untitled side thread",
@@ -6565,6 +6577,10 @@
       "chat-room-thread-panel": {
         "title": "Replies with their own context",
         "body": "The original message stays above the replies. Everyone in the room can read the thread. Choose an agent when you want help here, or close the thread to return to the room."
+      },
+      "chat-message-pins": {
+        "title": "Keep important messages",
+        "body": "Pin a message for yourself, then reopen it from this conversation's pinned-message list."
       }
     }
   },

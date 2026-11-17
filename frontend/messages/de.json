@@ -1275,6 +1275,18 @@
       "unavailable": "Diese Nachricht ist in diesem Gespräch nicht mehr verfügbar.",
       "cancel": "Sprung abbrechen"
     },
+    "messagePins": {
+      "emptyPreview": "Nachricht ohne Vorschau",
+      "open": "Angeheftete Nachrichten",
+      "title": "Angeheftete Nachrichten",
+      "empty": "Du hast in diesem Gespräch keine Nachrichten angeheftet.",
+      "loading": "Angeheftete Nachrichten werden geladen…",
+      "loadMore": "Mehr laden",
+      "retry": "Erneut versuchen",
+      "listFailed": "Angeheftete Nachrichten konnten nicht geladen werden.",
+      "pin": "Nachricht anheften",
+      "unpin": "Nachricht lösen"
+    },
     "sideThreads": {
       "loadMore": "Mehr laden",
       "untitledFork": "Nebenstrang ohne Titel",
@@ -6377,6 +6389,10 @@
       "chat-room-thread-panel": {
         "title": "Antworten mit eigenem Kontext",
         "body": "Die ursprüngliche Nachricht bleibt über den Antworten. Alle im Raum können den Thread lesen. Wähle einen Agenten für Hilfe oder schließe den Thread, um zum Raum zurückzukehren."
+      },
+      "chat-message-pins": {
+        "title": "Wichtige Nachrichten merken",
+        "body": "Hefte eine Nachricht für dich an und öffne sie später über die Liste dieses Gesprächs."
       }
     }
   },

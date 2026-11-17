@@ -145,6 +145,8 @@ function item(
     endsTurn?: boolean;
     turnUsage?: TurnUsage;
     pins?: { pinned: readonly string[]; toggle: (prompt: string) => void };
+    onTogglePin?: (messageId: string, pinned: boolean) => void;
+    pinPending?: boolean;
     sideThreadActions?: ConversationSideThreadActions;
   } = {},
 ) {
@@ -269,6 +271,48 @@ describe("a turn in the transcript", () => {
   it("offers no pin outside the test panel, nor on an answer", () => {
     item({ role: "user", content: "Refunds?" });
     expect(screen.queryByRole("button", { name: /Pin to ask again/ })).toBeNull();
+  });
+
+  it("pins a saved turn for this reader and shows its current personal state", () => {
+    const toggle = vi.fn();
+    const { rerender } = item(
+      { id: "saved-1", conversationId: "c-1", isPinned: false },
+      { onTogglePin: toggle },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Pin message" }));
+    expect(toggle).toHaveBeenCalledExactlyOnceWith("saved-1", true);
+
+    rerender(
+      <MessageItem
+        message={message({ id: "saved-1", conversationId: "c-1", isPinned: true })}
+        onTogglePin={toggle}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Unpin message" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("uses the persisted id for a live bubble as soon as its save acknowledgement arrives", () => {
+    const toggle = vi.fn();
+    item(
+      { id: "live-local", persistedId: "saved-live", isTemporaryId: true },
+      { onTogglePin: toggle },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Pin message" }));
+
+    expect(toggle).toHaveBeenCalledExactlyOnceWith("saved-live", true);
+  });
+
+  it("offers no personal pin on a temporary message and disables a pending write", () => {
+    const toggle = vi.fn();
+    const { rerender } = item({ isTemporaryId: true }, { onTogglePin: toggle });
+    expect(screen.queryByRole("button", { name: "Pin message" })).toBeNull();
+
+    rerender(<MessageItem message={message()} onTogglePin={toggle} pinPending />);
+    expect(screen.getByRole("button", { name: "Pin message" })).toBeDisabled();
   });
 
   it("puts what the turn left under the answer and above its time and actions", () => {
