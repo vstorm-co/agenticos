@@ -35,6 +35,7 @@ jobs:
           chown builder:builder "$RUNNER_TEMP/arch"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           runuser -u builder -- bash scripts/build_arch_package.sh "$RUNNER_TEMP/arch"
+          (cd "$RUNNER_TEMP/arch" && sha256sum agenticos-*-1-x86_64.pkg.tar.zst > SHA256SUMS.arch)
       - name: Verify install, upgrade, X11 and Wayland rendering, and removal
         run: bash scripts/check_arch_package.sh "$RUNNER_TEMP/arch"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -47,10 +48,11 @@ jobs:
             ${{ runner.temp }}/arch/*-libraries.txt
             ${{ runner.temp }}/arch/tested-environment.txt
             ${{ runner.temp }}/arch/.SRCINFO
+            ${{ runner.temp }}/arch/SHA256SUMS.arch
       - name: Upload the verified pacman package to the release
         if: inputs.release_tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          gh release upload "$RELEASE_TAG" "$RUNNER_TEMP"/arch/agenticos-*-1-x86_64.pkg.tar.zst --repo "$GITHUB_REPOSITORY"
+          gh release upload "$RELEASE_TAG" "$RUNNER_TEMP"/arch/agenticos-*-1-x86_64.pkg.tar.zst "$RUNNER_TEMP/arch/SHA256SUMS.arch" --repo "$GITHUB_REPOSITORY"

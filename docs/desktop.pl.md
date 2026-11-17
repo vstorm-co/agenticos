@@ -1,5 +1,5 @@
 ---
-source_sha: "7b99fe39ab8c"
+source_sha: "e958989d6bcc"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -69,6 +69,8 @@ Gdy workflow wydania ma stały, samopodpisany certyfikat (tworzy go `scripts/cre
 ## Natywny pakiet Arch Linux { #native-arch-linux-package }
 
 Pobierz `agenticos-VERSION-1-x86_64.pkg.tar.zst` z wydania GitHub i zainstaluj go poleceniem `sudo pacman -U ./agenticos-VERSION-1-x86_64.pkg.tar.zst`. Zastąp `VERSION` numerem wydania. Pacman rozwiązuje zadeklarowane zależności systemowe, w tym WebKitGTK 4.1. Pakiet nie zawiera własnego WebKitGTK ani biblioteki klienta Wayland.
+
+Przed instalacją pobierz obok pakietu plik `SHA256SUMS.arch` i sprawdź go przez `sha256sum -c SHA256SUMS.arch`. Pakiety wydania nie są podpisane kluczami dystrybucji Arch Linux.
 
 Aby zaktualizować aplikację, pobierz nowszy pakiet i ponownie użyj `pacman -U`. Usuń go przez `sudo pacman -R agenticos`; ustawienia osobiste pozostają w katalogu domowym. **Check for Updates…** wyjaśnia aktualizowanie przez menedżer pakietów zamiast pobierać AppImage. Nie ma automatycznego repozytorium pacmana ani oficjalnej publikacji w AUR.
 

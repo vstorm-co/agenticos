@@ -1,5 +1,5 @@
 ---
-source_sha: "7b99fe39ab8c"
+source_sha: "e958989d6bcc"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -69,6 +69,8 @@ Cuando el workflow de versiones tiene un certificado autofirmado estable (`scrip
 ## Paquete nativo de Arch Linux { #native-arch-linux-package }
 
 Descarga `agenticos-VERSION-1-x86_64.pkg.tar.zst` de la versión de GitHub e instálalo con `sudo pacman -U ./agenticos-VERSION-1-x86_64.pkg.tar.zst`. Sustituye `VERSION` por el número de versión. Pacman resuelve las dependencias del sistema declaradas, incluido WebKitGTK 4.1. El paquete no incluye su propio WebKitGTK ni la biblioteca cliente de Wayland.
+
+Antes de instalar, descarga también `SHA256SUMS.arch` y compruébalo con `sha256sum -c SHA256SUMS.arch`. Estos paquetes no están firmados por el llavero de Arch Linux.
 
 Para actualizar, descarga el paquete más reciente y vuelve a ejecutar `pacman -U`. Elimínalo con `sudo pacman -R agenticos`; los ajustes personales permanecen en tu directorio de usuario. **Check for Updates…** explica esta política del gestor de paquetes en lugar de descargar un AppImage. No hay un repositorio automático de pacman ni una publicación oficial en AUR.
 

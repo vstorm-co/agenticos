@@ -65,6 +65,8 @@ When the release workflow has a stable self-signed certificate (`scripts/create_
 
 Download `agenticos-VERSION-1-x86_64.pkg.tar.zst` from the GitHub release and install it with `sudo pacman -U ./agenticos-VERSION-1-x86_64.pkg.tar.zst`. Replace `VERSION` with the release number. Pacman resolves the declared system dependencies, including WebKitGTK 4.1. This package does not bundle WebKitGTK or the Wayland client library.
 
+Download `SHA256SUMS.arch` beside the package and verify it with `sha256sum -c SHA256SUMS.arch` before installation. These release packages are not signed by the Arch Linux keyring.
+
 Upgrade by downloading the newer package and running the same `pacman -U` command. Remove it with `sudo pacman -R agenticos`; personal settings remain in your home directory. **Check for Updates…** explains this package-manager policy instead of downloading an AppImage. There is no automatic pacman repository or official AUR publication.
 
 The maintained recipe is `packaging/arch/PKGBUILD.in`. `scripts/build_arch_package.sh OUTPUT_DIRECTORY` generates a versioned recipe and checksummed archive from the current Git commit, then runs makepkg as an ordinary user. Build inside an updated Arch x86_64 environment with the recipe's build and runtime dependencies installed. The release workflow repeats this build for each platform release; rolling system dependencies are resolved at build time.
