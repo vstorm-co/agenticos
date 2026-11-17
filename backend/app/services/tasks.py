@@ -91,6 +91,9 @@ class TaskService:
             if table is None:
                 continue
             await TaskExecution(self.db).purge_board(board)
+            await self.tables.release_links_to(
+                organization_id=board.organization_id, table_id=board.table_id
+            )
             await resource_grant_repo.delete_for_resource(
                 self.db,
                 organization_id=board.organization_id,
