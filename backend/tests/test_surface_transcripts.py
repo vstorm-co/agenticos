@@ -54,6 +54,7 @@ from app.db.models.agent_run import RunStatus, RunSurface
 from app.repositories.conversation import Attributed
 from app.services.agent_runner import AgentRunnerService, PreparedRun
 from app.services.channels.mentions import ChannelAgentRouter
+from app.services.conversation import ConversationService
 from app.services.embed_session import EmbedSession
 from app.services.message_history import ModelHistory
 
@@ -624,6 +625,9 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
             _the_widgets_rows() as reader,
             patch("app.services.agent_runner.ConversationService") as service,
         ):
+            service.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(service.return_value)
+            )
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
             service.return_value.keep_plan = AsyncMock()
@@ -650,6 +654,9 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
             _the_widgets_rows(),
             patch("app.services.agent_runner.ConversationService") as service,
         ):
+            service.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(service.return_value)
+            )
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
             service.return_value.keep_plan = AsyncMock()
@@ -668,6 +675,9 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
             _the_widgets_rows(),
             patch("app.services.agent_runner.ConversationService") as service,
         ):
+            service.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(service.return_value)
+            )
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
             service.return_value.keep_plan = AsyncMock()
@@ -691,6 +701,9 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
             _the_widgets_rows(),
             patch("app.services.agent_runner.ConversationService") as service,
         ):
+            service.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(service.return_value)
+            )
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
             service.return_value.keep_plan = AsyncMock()
@@ -717,6 +730,9 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
             _the_widgets_rows(),
             patch("app.services.agent_runner.ConversationService") as service,
         ):
+            service.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(service.return_value)
+            )
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
             service.return_value.keep_plan = AsyncMock()
