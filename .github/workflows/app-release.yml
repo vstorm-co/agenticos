@@ -217,6 +217,14 @@ jobs:
           uploadUpdaterJson: false
           uploadUpdaterSignatures: true
 
+  arch:
+    needs: resolve
+    permissions: {contents: write}
+    uses: ./.github/workflows/arch-package.yml
+    with:
+      source_ref: ${{ needs.resolve.outputs.commit }}
+      release_tag: ${{ needs.resolve.outputs.tag }}
+
   updater:
     needs: [resolve, desktop]
     runs-on: ubuntu-latest

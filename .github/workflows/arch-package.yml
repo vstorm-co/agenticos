@@ -1,0 +1,56 @@
+name: Native Arch desktop package
+
+on:
+  workflow_call:
+    inputs:
+      source_ref:
+        type: string
+        default: ""
+      release_tag:
+        type: string
+        default: ""
+
+jobs:
+  arch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CARGO_BUILD_JOBS: "2"
+      CARGO_PROFILE_RELEASE_DEBUG: "0"
+    container:
+      image: archlinux:base-devel@sha256:fa2d4ce3310ddd90a4208e5168be8ad367da5129af1245f38fd2d803bcbe3239
+    steps:
+      - name: Install native build and display dependencies
+        run: |
+          pacman -Syu --noconfirm --needed git rust clang pkgconf python webkit2gtk-4.1 gtk3 libappindicator-gtk3 libxdo libxcb libpipewire dbus hicolor-icon-theme mesa weston xorg-server-xvfb xorg-xauth desktop-file-utils github-cli
+          useradd --create-home builder
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
+      - name: Build the native pacman package as an unprivileged user
+        run: |
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+          mkdir -p "$RUNNER_TEMP/arch"
+          chown builder:builder "$RUNNER_TEMP/arch"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          runuser -u builder -- bash scripts/build_arch_package.sh "$RUNNER_TEMP/arch"
+      - name: Verify install, upgrade, X11 and Wayland rendering, and removal
+        run: bash scripts/check_arch_package.sh "$RUNNER_TEMP/arch"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: arch-native
+          path: |
+            ${{ runner.temp }}/arch/agenticos-*-1-x86_64.pkg.tar.zst
+            ${{ runner.temp }}/arch/*.log
+            ${{ runner.temp }}/arch/*-libraries.txt
+            ${{ runner.temp }}/arch/tested-environment.txt
+            ${{ runner.temp }}/arch/.SRCINFO
+      - name: Upload the verified pacman package to the release
+        if: inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          gh release upload "$RELEASE_TAG" "$RUNNER_TEMP"/arch/agenticos-*-1-x86_64.pkg.tar.zst --repo "$GITHUB_REPOSITORY"

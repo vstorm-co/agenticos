@@ -1,5 +1,5 @@
 ---
-source_sha: "7e7a3aa5ce5f"
+source_sha: "7b99fe39ab8c"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -65,6 +65,16 @@ La CI de versiones crea paquetes nativos para Mac (Apple silicon e Intel), Windo
 Tras una actualización con firma ad-hoc, macOS puede volver a solicitar acceso al micrófono, grabación de pantalla, accesibilidad o llavero. Si se pierde el emparejamiento del dispositivo, vuelve a conectarlo. Las firmas de actualización verifican el paquete, pero no proporcionan una identidad de firma estable de Apple.
 
 Cuando el workflow de versiones tiene un certificado autofirmado estable (`scripts/create_macos_signing_cert.sh` crea uno), macOS conserva los permisos de grabación de pantalla y micrófono entre actualizaciones, porque están ligados a la identidad de firma. Créalo una vez y no lo sustituyas nunca: un certificado nuevo vuelve a preguntar a todos. Autofirmar no elimina la advertencia de Gatekeeper; solo lo hacen la firma Developer ID y la notarización.
+
+## Paquete nativo de Arch Linux { #native-arch-linux-package }
+
+Descarga `agenticos-VERSION-1-x86_64.pkg.tar.zst` de la versión de GitHub e instálalo con `sudo pacman -U ./agenticos-VERSION-1-x86_64.pkg.tar.zst`. Sustituye `VERSION` por el número de versión. Pacman resuelve las dependencias del sistema declaradas, incluido WebKitGTK 4.1. El paquete no incluye su propio WebKitGTK ni la biblioteca cliente de Wayland.
+
+Para actualizar, descarga el paquete más reciente y vuelve a ejecutar `pacman -U`. Elimínalo con `sudo pacman -R agenticos`; los ajustes personales permanecen en tu directorio de usuario. **Check for Updates…** explica esta política del gestor de paquetes en lugar de descargar un AppImage. No hay un repositorio automático de pacman ni una publicación oficial en AUR.
+
+La receta mantenida está en `packaging/arch/PKGBUILD.in`. `scripts/build_arch_package.sh OUTPUT_DIRECTORY` genera una receta con versión y un archivo con suma de comprobación desde el commit actual de Git y ejecuta makepkg como usuario normal. Compila en un entorno Arch x86_64 actualizado con las dependencias indicadas en la receta. El workflow de publicación repite la compilación para cada versión de la plataforma; las dependencias de la distribución continua se resuelven al compilar.
+
+El trabajo CI nativo de Arch instala el paquete, actualiza su revisión, comprueba la propiedad y eliminación de archivos y ejecuta la prueba aislada de renderizado WebKit del programa instalado bajo Xvfb/X11 y Weston/Wayland sin pantalla. El artefacto `arch-native` registra rutas de bibliotecas, versiones de paquetes y logs de renderizado. Estas pruebas con renderizado por software no demuestran compatibilidad con todas las GPU físicas, versiones de Mesa, compositores ni instalaciones de CachyOS.
 
 ## Ejecutarla { #running-it }
 

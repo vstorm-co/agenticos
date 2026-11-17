@@ -9,6 +9,13 @@ pub fn configured() -> bool {
 }
 
 pub async fn check(app: AppHandle) -> Result<(), String> {
+    if cfg!(all(target_os = "linux", feature = "arch-package")) {
+        app.dialog()
+            .message("This installation is managed by pacman. Download the latest Arch package from AgenticOS GitHub releases and upgrade it with sudo pacman -U. The app does not replace package-managed files.")
+            .title("Update with pacman")
+            .show(|_| {});
+        return Ok(());
+    }
     if !configured() {
         app.dialog()
             .message(
