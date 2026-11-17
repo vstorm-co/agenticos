@@ -23,6 +23,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Publish native Arch Linux x86_64 desktop packages using system WebKitGTK, with pacman-managed updates and CI checks for installation, package revision upgrades, removal and X11/Wayland rendering (#3104).
 
+### Fixed
+
+- Repair the developer-section links in all four READMEs and name the existing `app` service in the data-protection Compose checks.
+
+- Check browser health through its resolved IP address so Chromium accepts Compose service hosts in `agenticos cmd doctor`; bound DNS resolution and the HTTP probe together.
+
+## [1.82.0] - 2026-11-17
+
+### Added
+
 - Distinguish workflow **Test step** runs from whole-draft tests. Run history shows the tested step's name and offers a **Step test** filter. Run responses expose `tested_step`; `GET /workflow-runs` accepts `step_test`.
 
 ### Changed
@@ -32,10 +42,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Use shared figure cards, delta chips, panels and JSON editors in Evals and Improve. Sparse pass-rate trends show the available runs and keep series names instead of drawing a misleading line.
 
 ### Fixed
-
-- Repair the developer-section links in all four READMEs and name the existing `app` service in the data-protection Compose checks.
-
-- Check browser health through its resolved IP address so Chromium accepts Compose service hosts in `agenticos cmd doctor`; bound DNS resolution and the HTTP probe together.
 
 - Request structured outputs from eval judges, Improve helpers, case generators and knowledge-gap drafting/classification agents, with at most two schema-correction retries. Require one grade per criterion and preserve supported legacy classifier values, partial generated cases and normalized judge inputs. Record a safe validation diagnosis in Activity when retries are exhausted; tool and protocol failures retain their distinct errors (#3086).
 
@@ -22040,7 +22046,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.81.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.82.0...HEAD
+[1.82.0]: https://github.com/vstorm-co/agenticos/compare/v1.81.0...v1.82.0
 [1.81.0]: https://github.com/vstorm-co/agenticos/compare/v1.80.0...v1.81.0
 [1.80.0]: https://github.com/vstorm-co/agenticos/compare/v1.79.0...v1.80.0
 [1.79.0]: https://github.com/vstorm-co/agenticos/compare/v1.78.1...v1.79.0
