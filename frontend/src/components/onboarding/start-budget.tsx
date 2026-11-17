@@ -11,7 +11,16 @@ import { StartQuestion } from "./start-question";
 import styles from "./guided-start.module.css";
 
 /** No default is saved by visiting. The cap is committed only by Continue. */
-export function StartBudget({ org, onContinue }: { org: Organization; onContinue: () => void }) {
+export function StartBudget({
+  org,
+  onContinue,
+  onBack,
+}: {
+  org: Organization;
+  onContinue: () => void;
+  /** Back out of the step this question opens. */
+  onBack?: () => void;
+}) {
   const t = useTranslations("start.guided");
   const locale = useLocale();
   const errors = useTranslations("errors");
@@ -62,6 +71,7 @@ export function StartBudget({ org, onContinue }: { org: Organization; onContinue
       title={t("budgetTitle")}
       message={t("budgetGuide")}
       pending={pending}
+      onBack={onBack}
       onContinue={() => void submit()}
       onSkip={onContinue}
     >

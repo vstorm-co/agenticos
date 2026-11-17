@@ -4,6 +4,7 @@ import { useId } from "react";
 import { ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { CONTROL_FOCUS, SECONDARY_CONTROL } from "@/components/ui/control-styles";
 import { cn } from "@/lib/utils";
 
 export type MattermostSetup = "manual" | "plugin";
@@ -28,8 +29,9 @@ export function MattermostSetupChoice({
             key={option}
             htmlFor={`${name}-${option}`}
             className={cn(
-              "focus-within:ring-ring flex min-h-16 cursor-pointer items-start gap-3 rounded-lg border p-3 focus-within:ring-2",
-              value === option ? "border-foreground/40 bg-accent" : "hover:bg-accent/50",
+              SECONDARY_CONTROL,
+              "flex min-h-16 cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-colors",
+              value === option && "border-foreground/50 bg-control-active",
             )}
           >
             <input
@@ -39,7 +41,7 @@ export function MattermostSetupChoice({
               value={option}
               checked={value === option}
               onChange={() => onChange(option)}
-              className="mt-0.5 size-4 shrink-0"
+              className={cn(CONTROL_FOCUS, "accent-primary mt-0.5 size-4 shrink-0")}
             />
             <span className="space-y-1 text-sm font-medium">
               {t(option === "manual" ? "mattermostSetupManual" : "mattermostSetupPlugin")}

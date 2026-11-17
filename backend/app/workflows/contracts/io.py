@@ -182,6 +182,8 @@ class SourceRef(BaseModel):
     filename: str
     collection: str
     page: int | None = None
+    """The page or slide the passage is on, or `None` for a format without pages
+    (Markdown, plain text, HTML, `.docx`, spreadsheets, images)."""
     chunk: int | None = None
     score: float
     content: str

@@ -73,18 +73,27 @@ export function ChannelsWidget({ title, hint, seeAll, options }: DashboardWidget
             // has to be running. Which mode it is in is the difference between
             // "silent because nobody asked" and "silent because nothing is
             // listening", so the row says which.
-            pill: bot.is_active
-              ? // Only a live line answers anybody, so a paused one has nothing to flag.
-                bot.platform === "whatsapp" && bot.access_policy.answer_unlinked_direct === true
-                ? t("publicLinePill", {
-                    mode: bot.webhook_mode ? t("webhook") : t("polling"),
-                    flag: t("publicLine"),
-                  })
-                : bot.webhook_mode
-                  ? t("webhook")
-                  : t("polling")
-              : t("switchedOff"),
-            tone: bot.is_active ? "ok" : "neutral",
+            pill: !bot.is_active
+              ? t("switchedOff")
+              : bot.connection?.state === "down"
+                ? t("disconnected")
+                : bot.platform === "whatsapp" && bot.access_policy.answer_unlinked_direct === true
+                  ? t("publicLinePill", {
+                      mode: t("webhook"),
+                      flag: t("publicLine"),
+                    })
+                  : bot.webhook_mode
+                    ? t("webhook")
+                    : bot.connection?.state === "up"
+                      ? t("polling")
+                      : t("unknown"),
+            tone: !bot.is_active
+              ? "neutral"
+              : bot.connection?.state === "down"
+                ? "err"
+                : bot.webhook_mode || bot.connection?.state === "up"
+                  ? "ok"
+                  : "neutral",
           }))}
         />
       )}

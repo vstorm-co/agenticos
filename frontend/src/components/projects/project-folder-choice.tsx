@@ -1,5 +1,6 @@
 "use client";
 
+import { NativeSelect } from "@/components/ui/native-select";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { FolderOpen, Unlink } from "lucide-react";
@@ -50,7 +51,7 @@ export function ProjectFolderChoice({
       <div className="flex flex-wrap items-end gap-2">
         <label className="min-w-40 flex-1 space-y-1.5">
           <span className="text-sm font-medium">{tw("folderAccess")}</span>
-          <select
+          <NativeSelect
             aria-label={tw("folderAccess")}
             value={mode}
             onChange={(event) => {
@@ -58,14 +59,13 @@ export function ProjectFolderChoice({
               if (selected) setMode(selected);
             }}
             disabled={disabled || busy}
-            className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm"
           >
             {modes.map((entry) => (
               <option key={entry} value={entry}>
                 {tw(`mode.${entry}`)}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <Button
           type="button"

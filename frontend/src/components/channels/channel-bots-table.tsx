@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
-import { Pause, Pencil, Play, Trash2, Users } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Pause, Pencil, Play, Trash2, Users, Stethoscope } from "lucide-react";
 
+import { ChannelDiagnosticsDialog } from "./channel-diagnostics-dialog";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
 import { Badge, Button, DataTable, type Column } from "@/components/ui";
@@ -103,6 +104,7 @@ export function ChannelBotsTable({
 }: ChannelBotsTableProps) {
   const t = useTranslations("pages.channels");
 
+  const [diagnosticBot, setDiagnosticBot] = useState<ChannelBot | null>(null);
   const rows = useMemo(() => [...bots], [bots]);
 
   const columns = useMemo<Column<ChannelBot>[]>(
@@ -211,6 +213,16 @@ export function ChannelBotsTable({
               variant="ghost"
               size="icon"
               disabled={busy}
+              data-tour="channels-diagnostics"
+              aria-label={t("diagnostics.open", { bot: bot.name })}
+              onClick={() => setDiagnosticBot(bot)}
+            >
+              <Stethoscope className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={busy}
               aria-label={t("editBot", { bot: bot.name })}
               onClick={() => onEdit(bot)}
             >
@@ -256,14 +268,19 @@ export function ChannelBotsTable({
   );
 
   return (
-    <DataTable
-      columns={columns}
-      rows={rows}
-      loading={loading}
-      skeletonRows={3}
-      stackOnNarrow
-      getRowKey={(bot) => bot.id}
-      className="rounded-none border-0 bg-transparent"
-    />
+    <>
+      {diagnosticBot && (
+        <ChannelDiagnosticsDialog bot={diagnosticBot} onClose={() => setDiagnosticBot(null)} />
+      )}
+      <DataTable
+        columns={columns}
+        rows={rows}
+        loading={loading}
+        skeletonRows={3}
+        stackOnNarrow
+        getRowKey={(bot) => bot.id}
+        className="rounded-none border-0 bg-transparent"
+      />
+    </>
   );
 }

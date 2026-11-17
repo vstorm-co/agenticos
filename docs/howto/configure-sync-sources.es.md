@@ -1,5 +1,5 @@
 ---
-source_sha: "da255c277e13"
+source_sha: "0e3f3c6c82f8"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
@@ -700,6 +700,11 @@ curl -X PATCH http://localhost:8000/api/v1/rag/sync/sources/{source_id} \
 
 Campos modificables: `name`, `config`, `sync_mode`, `schedule_minutes`,
 `is_active`, `collection_name`.
+
+Un `collection_name` nuevo mueve la fuente a la base de conocimiento a la que ese
+nombre se resuelve para tu organización, sobre la que debes tener permiso de
+escritura; `null` la desvincula de cualquier base, y una fuente sin base no
+sincroniza.
 
 Pon `is_active` en `false` para pausar una fuente sin borrarla. Una fuente
 pausada no se ejecuta por programación ni se puede activar mediante la API o la

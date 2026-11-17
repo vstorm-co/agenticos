@@ -53,7 +53,7 @@ probe before the turn; failures log a warning and the turn proceeds without thos
 tools. Pydantic AI enters every toolset when a run starts, so raising would let one
 expired token abort every agent that names the connection. The trade is real: a
 skipped server means the model answers *without* the tools. It is briefed, though:
-`UnavailableUnreachableServer` for a failed probe, and `AnsweredRecently` for a
+`UnavailableUnreachableServer` for a failed probe, and `ResilientMcpToolset` for a
 server that answered within two minutes and fails on connect, both through
 `unreachable_briefing` in `app/agents/mcp.py`. `/test` and `last_status` are how you
 find out.
@@ -148,11 +148,10 @@ spec - and its keys are sorted, because the Builder compares drafts key by key
 and JSONB reorders them. The platform binding has no `tool_approval`: a `never`
 there would undercut its `writes` floor.
 
-Channel runs, including delegates and resumptions, enforce at least `writes` on
-all MCP bindings, and drop a tool's own `never`: there only `readOnlyHint` lets
-a tool run unasked. Read-only calls no longer acquire an extra approval merely by
-running in a chat app for a linked member. Unlinked room participants still
-require approval for every MCP call, including organization reads. Personal
+Channel runs, including delegates and resumptions, retain the binding and per-tool
+approval settings for linked and unlinked senders alike. The channel does not add
+an approval requirement or discard a tool's `never` override. The platform server
+keeps its platform-wide `writes` floor. Personal
 connections resolve for each message's linked sender, never the publisher or a
 different participant. A watch leaves out a read its binding asks before.
 

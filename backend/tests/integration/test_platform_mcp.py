@@ -5,6 +5,7 @@ asserted here is the join: the MCP handshake admits a key, the tools reach the
 API as that key, and the key's narrowing and revocation hold through it.
 """
 
+import asyncio
 import json
 import uuid
 from collections.abc import AsyncIterator
@@ -155,6 +156,7 @@ async def test_context_and_skill_resources_are_saved_and_bound_through_mcp(
 
 @pytest.fixture
 async def served(db: AsyncSession) -> AsyncIterator[None]:
+
     async def session() -> AsyncIterator[AsyncSession]:
         yield db
 
@@ -1078,3 +1080,38 @@ async def test_connection_discovery_is_compact_and_targeted_contracts_remain_ten
         contract = await session.call_tool("get_capability", {"capability_id": "clock"})
         assert not contract.is_error, contract
         assert isinstance(_content(contract)["config_schema"], dict)
+
+
+async def test_platform_initialization_outliving_remote_connect_deadline_still_lists_tools(
+    db: AsyncSession,
+    served: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.agents.mcp import CONNECT_TIMEOUT_SECS
+    from app.agents.spec import PlatformMcpServerRef
+    from app.services.mcp_connection import build_toolsets_for_agent
+    from app.services.platform_mcp._oauth import PlatformAccessToken, PlatformOAuthProvider
+
+    key, organization = await _owner_key(db, Perm.AGENTS_VIEW)
+    original = PlatformOAuthProvider.load_access_token
+    first = True
+
+    async def cold_auth(self: PlatformOAuthProvider, token: str) -> PlatformAccessToken | None:
+        nonlocal first
+        if first:
+            first = False
+            await asyncio.sleep(CONNECT_TIMEOUT_SECS + 0.1)
+        return await original(self, token)
+
+    monkeypatch.setattr(PlatformOAuthProvider, "load_access_token", cold_auth)
+    resolved = await build_toolsets_for_agent(
+        db,
+        organization_id=organization.id,
+        refs=[PlatformMcpServerRef(account="platform", approval="writes")],
+        platform_credential=key,
+    )
+    [toolset] = resolved.toolsets
+    async with toolset:
+        tools = await toolset.get_tools(_run_context())
+    assert "agenticos_whoami" in tools
+    assert not first

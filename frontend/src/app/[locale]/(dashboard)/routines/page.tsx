@@ -26,6 +26,11 @@ export default function RoutinesPage() {
   const [creatingEvent, setCreatingEvent] = useState(false);
   const canWatch = useCanWatch();
   const [creatingWatch, setCreatingWatch] = useState(false);
+  const emptyAction = canCreate
+    ? { label: t("scheduledTask"), onClick: () => setCreatingSchedule(true) }
+    : canWatch
+      ? { label: t("newWatch"), onClick: () => setCreatingWatch(true) }
+      : undefined;
 
   return (
     <div className="flex flex-1 flex-col space-y-4">
@@ -69,7 +74,7 @@ export default function RoutinesPage() {
       />
 
       <div data-tour="routines-list" className="flex flex-1 flex-col">
-        <RoutinesList />
+        <RoutinesList emptyAction={emptyAction} />
       </div>
 
       {creatingSchedule && (

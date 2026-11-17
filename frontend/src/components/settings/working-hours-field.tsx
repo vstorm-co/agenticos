@@ -1,8 +1,9 @@
 "use client";
 
+import { Check } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { Input } from "@/components/ui";
+import { Button, Input } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type { WorkingHours } from "@/types/auth";
 
@@ -55,21 +56,23 @@ export function WorkingHoursField({
         className="grid grid-cols-4 gap-1.5 sm:grid-cols-7"
       >
         {WEEKDAYS.map((day) => (
-          <button
+          <Button
             key={day}
             type="button"
+            variant="outline"
             disabled={disabled}
             aria-pressed={hours.days.includes(day)}
             onClick={() => toggle(day)}
             className={cn(
-              "min-h-11 min-w-11 rounded-lg px-2 py-2 text-xs font-medium transition-colors disabled:opacity-50",
+              "h-auto min-h-11 min-w-11 gap-1 px-2 py-2 text-xs [&_svg]:size-3",
               hours.days.includes(day)
-                ? "bg-foreground text-background"
-                : "bg-muted/60 hover:bg-muted text-foreground",
+                ? "border-foreground/35 bg-control-active hover:border-foreground/35 hover:bg-control-active font-semibold"
+                : "bg-field",
             )}
           >
+            {hours.days.includes(day) && <Check aria-hidden />}
             {dayName.format(new Date(MONDAY + (day - 1) * DAY_MS))}
-          </button>
+          </Button>
         ))}
       </div>
       {value && (

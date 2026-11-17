@@ -883,3 +883,17 @@ class PublicLineRead(BaseSchema):
     file_max_mb: int
     reaches: list[PublicLineReach]
     refused: list[PublicLineRefused]
+
+
+class ChannelDiagnosticCheck(BaseSchema):
+    code: Literal["active", "transport", "binding", "published", "identity", "personal_service"]
+    status: Literal["ok", "warning", "blocked", "unknown"]
+    detail: str | None = None
+
+
+class ChannelDiagnosticsRead(BaseSchema):
+    """Read-only readiness, evaluated for the signed-in caller, never another sender."""
+
+    checks: list[ChannelDiagnosticCheck]
+    account_scope: Literal["current_user"] = "current_user"
+    credentials_probed: bool = False

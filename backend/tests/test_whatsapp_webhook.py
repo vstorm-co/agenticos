@@ -428,7 +428,9 @@ class TestMessages:
             patch(f"{router}.ChannelPrompts.reply", AsyncMock(return_value=False)),
             patch(f"{router}.member_repo.get_active", AsyncMock(return_value=MagicMock())),
         ):
-            await ChannelMessageRouter()._route_inner(incoming, MagicMock(commit=AsyncMock()))
+            await ChannelMessageRouter()._route_inner(
+                incoming, MagicMock(commit=AsyncMock(), flush=AsyncMock(), refresh=AsyncMock())
+            )
         await adapter.aclose()
 
         texts = [c.kwargs["body"] for c in graph.send_text.await_args_list]

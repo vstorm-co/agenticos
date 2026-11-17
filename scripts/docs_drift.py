@@ -140,6 +140,7 @@ TRIGGERS: tuple[tuple[str, str], ...] = (
     ("frontend/src/lib/branding.ts", "docs/deployment.md"),
     ("backend/app/commands/", "docs/commands.md"),
     ("loadtest/", "docs/load-testing.md"),
+    ("evals/retrieval/", "docs/retrieval-eval.md"),
     ("Makefile", "docs/commands.md"),
     ("backend/app/api/routes/", "docs/architecture.md"),
     ("backend/alembic/versions/", "docs/architecture.md"),

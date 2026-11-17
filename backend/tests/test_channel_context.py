@@ -142,28 +142,6 @@ def test_runtime_facts_identify_the_surface_deployment_and_sender(platform, expe
     assert "without a slash" in CHANNEL_BEHAVIOR
 
 
-def test_a_stranger_is_not_given_the_console_address_or_told_of_linking():
-    context = runtime_context(
-        "whatsapp", console_url="https://console.example/", linked_sender=False, stranger=True
-    )
-
-    assert "WhatsApp" in context
-    assert "console.example" not in context
-    assert "link" not in context.lower()
-
-
-def test_the_strangers_guidance_keeps_the_rest_of_the_channel_guidance():
-    from app.services.channels.formatting import MCP_APPROVAL_GUIDANCE, STRANGER_CHANNEL_BEHAVIOR
-
-    assert STRANGER_CHANNEL_BEHAVIOR.startswith("Channel conversation guidance:")
-    assert "Answer the current sender's request" in STRANGER_CHANNEL_BEHAVIOR
-    assert "send_channel_file" in STRANGER_CHANNEL_BEHAVIOR
-    assert "link" not in STRANGER_CHANNEL_BEHAVIOR.lower()
-    assert MCP_APPROVAL_GUIDANCE not in STRANGER_CHANNEL_BEHAVIOR
-    assert "Personal services" not in STRANGER_CHANNEL_BEHAVIOR
-    assert len(STRANGER_CHANNEL_BEHAVIOR) < len(CHANNEL_BEHAVIOR)
-
-
 def test_other_surfaces_receive_no_channel_claims():
     assert runtime_context("web", console_url="https://console.example", linked_sender=True) == ""
 
@@ -219,84 +197,6 @@ async def test_untrusted_metadata_never_reaches_system_instructions_through_cust
     assert "{channel_name}" in result.instructions
 
 
-@pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram", "whatsapp"])
-@pytest.mark.security
-def test_linked_channel_mcp_preserves_the_authored_policy(surface):
-    from app.db.models.agent_run import RunSurface
-    from app.services.agent_runner import _with_channel_service_approval
-
-    spec = AgentSpec(
-        name="A",
-        mcp_servers=[
-            {"account": "personal", "catalog_key": "notion", "approval": "none"},
-        ],
-    )
-    result = _with_channel_service_approval(spec, RunSurface(surface), linked_sender=True)
-    assert result.mcp_servers[0].approval == "none"
-    assert spec.mcp_servers[0].approval == "none"
-    assert _with_channel_service_approval(spec, RunSurface.WEB) is spec
-
-
-@pytest.mark.security
-def test_channel_mcp_approval_includes_organization_and_platform_connections():
-    from uuid import uuid4
-
-    from app.db.models.agent_run import RunSurface
-    from app.services.agent_runner import _with_channel_service_approval
-
-    spec = AgentSpec(
-        name="A",
-        mcp_servers=[
-            {"connection_id": uuid4(), "approval": "writes"},
-            {"account": "platform", "approval": "none"},
-        ],
-    )
-    result = _with_channel_service_approval(spec, RunSurface.SLACK, linked_sender=True)
-    assert [ref.approval for ref in result.mcp_servers] == ["writes", "none"]
-    assert [ref.approval for ref in spec.mcp_servers] == ["writes", "none"]
-
-
-@pytest.mark.security
-@pytest.mark.parametrize("linked_sender", [True, False])
-def test_linked_senders_keep_tool_policy_and_unlinked_senders_cannot_bypass_approval(linked_sender):
-    """The linked member gets web chat policy; an unlinked sender cannot opt out."""
-    from uuid import uuid4
-
-    from pydantic_ai.tools import ToolDefinition
-
-    from app.agents.mcp import needs_approval
-    from app.db.models.agent_run import RunSurface
-    from app.services.agent_runner import _with_channel_service_approval
-
-    spec = AgentSpec(
-        name="A",
-        mcp_servers=[
-            {
-                "connection_id": uuid4(),
-                "approval": "writes",
-                "tool_approval": {"search": "never", "purge": "required"},
-            },
-            {"account": "personal", "catalog_key": "notion", "tool_approval": {"fetch": "never"}},
-            {"account": "platform"},
-        ],
-    )
-
-    result = _with_channel_service_approval(spec, RunSurface.SLACK, linked_sender=linked_sender)
-
-    org, personal, platform = result.mcp_servers
-    assert (org.tool_approval, personal.tool_approval) == (
-        ({"search": "never", "purge": "required"}, {"fetch": "never"})
-        if linked_sender
-        else ({"purge": "required"}, {})
-    )
-    unhinted = ToolDefinition(name="search", metadata={"annotations": None})
-    assert needs_approval(unhinted, org.approval, org.tool_approval.get("search", "default")) is (
-        not linked_sender
-    )
-    assert platform.approval == ("writes" if linked_sender else "all")
-    assert spec.mcp_servers[0].tool_approval == {"purge": "required", "search": "never"}
-
-
 @pytest.mark.parametrize(
     "granted",
     [["send_channel_file"], ["get_channel_info", "send_channel_file"], ["get_channel_info"], []],
@@ -313,25 +213,6 @@ def test_file_delivery_requires_approval_only_when_granted(granted):
     )
     assert "get_channel_info" not in approval_required_tools(result)
     assert spec.capabilities == []
-
-
-@pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram", "whatsapp"])
-def test_explicit_all_policy_is_preserved_in_channels(surface: str) -> None:
-    from app.db.models.agent_run import RunSurface
-    from app.services.agent_runner import _with_channel_service_approval
-
-    spec = AgentSpec(
-        name="A",
-        mcp_servers=[
-            {"account": "personal", "catalog_key": "notion", "approval": "all"},
-        ],
-    )
-    assert (
-        _with_channel_service_approval(spec, RunSurface(surface), linked_sender=True)
-        .mcp_servers[0]
-        .approval
-        == "all"
-    )
 
 
 @pytest.mark.security
@@ -370,45 +251,6 @@ def test_author_labels_are_quoted_as_data_and_missing_names_are_unknown() -> Non
     assert metadata["username"] is None
     assert result.count("\nMessage:\n") == 1
     assert authored_prompt("hi", None) == "hi"
-
-
-@pytest.mark.security
-def test_author_context_never_carries_the_message_id() -> None:
-    """A WhatsApp message id embeds the customer's number; none of it may reach the model."""
-    from app.services.channels.base import IncomingMessage
-    from app.services.channels.formatting import authored_prompt
-
-    wamid = "wamid.HBgLMTY1MDUwNzY1MjAVAgARGBI5QTNDQTVCM0Q0Q0Q2RTY3RTcA"
-    incoming = IncomingMessage(
-        platform="whatsapp",
-        bot_id="bot",
-        platform_user_id="US.13491208655302741918",
-        platform_chat_id="US.13491208655302741918",
-        chat_type="private",
-        text="hi",
-        message_id=wamid,
-    )
-    result = authored_prompt("hi", incoming)
-    assert wamid not in result
-    assert "16505076520" not in result
-    assert "message_id" not in result
-
-
-@pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram", "whatsapp"])
-@pytest.mark.security
-def test_unlinked_channel_senders_still_need_approval_for_mcp_reads(surface: str) -> None:
-    from uuid import uuid4
-
-    from app.db.models.agent_run import RunSurface
-    from app.services.agent_runner import _with_channel_service_approval
-
-    spec = AgentSpec(name="A", mcp_servers=[{"connection_id": uuid4(), "approval": "writes"}])
-    assert (
-        _with_channel_service_approval(spec, RunSurface(surface), linked_sender=False)
-        .mcp_servers[0]
-        .approval
-        == "all"
-    )
 
 
 async def test_surface_defaults_follow_code_updates_without_rewriting_custom_additions(
@@ -506,39 +348,6 @@ async def test_input_redaction_changes_text_values_without_rewriting_platform_id
     assert '"user_id": "1234567890"' in str(seen)
 
 
-@pytest.mark.security
-@pytest.mark.parametrize("surface", ["mattermost", "slack", "teams", "telegram", "web"])
-@pytest.mark.parametrize("linked", [False, True])
-def test_unlinked_channels_gate_all_mirage_tools_even_with_author_overrides(
-    surface: str, linked: bool
-) -> None:
-    from app.agents.capabilities import get
-    from app.agents.capabilities.approval import approval_required_tools
-    from app.db.models.agent_run import RunSurface
-    from app.services.agent_runner import _with_channel_service_approval
-
-    tools = get("mirage").tool_ids
-    spec = AgentSpec.model_validate(
-        {
-            "name": "A",
-            "capabilities": [
-                {
-                    "id": "mirage",
-                    "approval": "never",
-                    "tool_approval": dict.fromkeys(tools, "never"),
-                    "config": {"mounts": [{"path": "/data/", "backend": "ram"}]},
-                }
-            ],
-        }
-    )
-    original = spec.model_dump()
-    result = _with_channel_service_approval(spec, RunSurface(surface), linked_sender=linked)
-    assert approval_required_tools(result) == (
-        tools if not linked and surface != "web" else frozenset()
-    )
-    assert spec.model_dump() == original
-
-
 async def test_double_braces_and_legacy_placeholders_resolve_once_without_stray_braces():
     bound = directory()
     result = await resolve(
@@ -562,6 +371,57 @@ def test_runtime_marks_only_test_deployments_and_does_not_pretend_connected_serv
     )
     assert ("local test deployment" in context) is testing
     assert ("external effects can still be real" in context) is testing
+
+
+def test_channel_guidance_does_not_promise_service_access_after_linking_identity():
+    from app.services.channels.formatting import MCP_APPROVAL_GUIDANCE
+
+    assert "Linking a chat identity alone neither connects a service" in MCP_APPROVAL_GUIDANCE
+    assert "Confirm tool availability before promising access" in MCP_APPROVAL_GUIDANCE
+
+
+def test_a_stranger_is_not_given_the_console_address_or_told_of_linking():
+    context = runtime_context(
+        "whatsapp", console_url="https://console.example/", linked_sender=False, stranger=True
+    )
+
+    assert "WhatsApp" in context
+    assert "console.example" not in context
+    assert "link" not in context.lower()
+
+
+def test_the_strangers_guidance_keeps_the_rest_of_the_channel_guidance():
+    from app.services.channels.formatting import MCP_APPROVAL_GUIDANCE, STRANGER_CHANNEL_BEHAVIOR
+
+    assert STRANGER_CHANNEL_BEHAVIOR.startswith("Channel conversation guidance:")
+    assert "Answer the current sender's request" in STRANGER_CHANNEL_BEHAVIOR
+    assert "send_channel_file" in STRANGER_CHANNEL_BEHAVIOR
+    assert "link" not in STRANGER_CHANNEL_BEHAVIOR.lower()
+    assert MCP_APPROVAL_GUIDANCE not in STRANGER_CHANNEL_BEHAVIOR
+    assert "Personal services" not in STRANGER_CHANNEL_BEHAVIOR
+    assert len(STRANGER_CHANNEL_BEHAVIOR) < len(CHANNEL_BEHAVIOR)
+
+
+@pytest.mark.security
+def test_author_context_never_carries_the_message_id() -> None:
+    """A WhatsApp message id embeds the customer's number; none of it may reach the model."""
+    from app.services.channels.base import IncomingMessage
+    from app.services.channels.formatting import authored_prompt
+
+    wamid = "wamid.HBgLMTY1MDUwNzY1MjAVAgARGBI5QTNDQTVCM0Q0Q0Q2RTY3RTcA"
+    incoming = IncomingMessage(
+        platform="whatsapp",
+        bot_id="bot",
+        platform_user_id="US.13491208655302741918",
+        platform_chat_id="US.13491208655302741918",
+        chat_type="private",
+        text="hi",
+        message_id=wamid,
+    )
+    result = authored_prompt("hi", incoming)
+    assert wamid not in result
+    assert "16505076520" not in result
+    assert "message_id" not in result
 
 
 def test_whatsapp_house_style_describes_what_it_renders() -> None:

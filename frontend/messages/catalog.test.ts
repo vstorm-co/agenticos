@@ -204,6 +204,22 @@ describe.each([
     expect(offenders).toEqual([]);
   });
 
+  it("words workflow steps in plain text: no argument, tag or plural to trip a parse", () => {
+    // Written from the registry's English and translated as data, never by a component:
+    // a brace or a `<` in it is a parse error (or a lost word) at render, not here.
+    const offences = all
+      .filter(([key]) => key.startsWith("workflowNodes."))
+      .filter(([, value]) => {
+        try {
+          return parse(value).some((element) => element.type !== TYPE.literal);
+        } catch {
+          return true;
+        }
+      })
+      .map(([key]) => key);
+    expect(offences).toEqual([]);
+  });
+
   it("holds no value that opens on punctuation", () => {
     const offenders = all.filter(([, value]) => TAIL.test(value)).map(([key]) => key);
 

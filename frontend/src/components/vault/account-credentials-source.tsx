@@ -6,6 +6,7 @@ import { Check, KeyRound } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { LOGO_DATA_URI } from "@/lib/logo.generated";
+import { SECONDARY_CONTROL } from "@/components/ui/control-styles";
 import { cn } from "@/lib/utils";
 
 type Source = "own" | "agenticos";
@@ -58,9 +59,9 @@ export function AccountCredentialsSource({
             </span>
             <span
               className={cn(
-                "peer-focus-visible:ring-ring block min-h-16 rounded-xl border py-3 ps-14 pe-10 text-sm font-medium transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2",
-                selected ? "border-foreground/30 bg-muted/50" : "border-border",
-                !disabled && "hover:bg-muted/50 cursor-pointer",
+                "peer-focus-visible:outline-foreground/60 border-input bg-field block min-h-16 rounded-xl border-2 py-3 ps-14 pe-10 text-sm font-medium transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2",
+                !disabled && cn(SECONDARY_CONTROL, "cursor-pointer"),
+                selected && "border-foreground/50 bg-control-active",
                 disabled && !selected && "text-muted-foreground",
               )}
             >

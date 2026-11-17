@@ -2739,12 +2739,15 @@ class ApprovalFilters:
             publisher's user id, but the publisher did not trigger it.
         created_from: Inclusive lower bound on when the call was parked.
         created_to: Inclusive upper bound.
+        outside_live_calls: Leave out the calls parked by a run a voice call is
+            still on: the call decides those, and the console may not.
     """
 
     statuses: Sequence[str] | None = None
     triggered_by_user_id: UUID | None = None
     created_from: datetime | None = None
     created_to: datetime | None = None
+    outside_live_calls: bool = False
 
 
 async def list_approvals(
@@ -2798,6 +2801,12 @@ async def list_approvals(
         clauses.append(ToolApproval.created_at >= narrowing.created_from)
     if narrowing.created_to is not None:
         clauses.append(ToolApproval.created_at <= narrowing.created_to)
+    if narrowing.outside_live_calls:
+        clauses.append(
+            ~select(VoiceCall.id)
+            .where(VoiceCall.run_id == ToolApproval.run_id, VoiceCall.ended_at.is_(None))
+            .exists()
+        )
 
     ordering = ToolApproval.created_at.asc() if oldest_first else ToolApproval.created_at.desc()
     rows = await db.execute(
@@ -3321,6 +3330,42 @@ async def list_tool_consents(
         .order_by(ToolApproval.decided_at.desc())
     )
     return [(row[0], row[1]) for row in rows]
+
+
+async def latest_for_channel_sender(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    conversation_id: UUID | None,
+    identity_id: UUID,
+    prefer_running: bool = False,
+) -> AgentRun | None:
+    if conversation_id is None:
+        return None
+    result = await db.execute(
+        select(AgentRun)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.conversation_id == conversation_id,
+            AgentRun.channel_identity_id == identity_id,
+            AgentRun.parent_run_id.is_(None),
+        )
+        .order_by(
+            (AgentRun.status == RunStatus.RUNNING.value).desc()
+            if prefer_running
+            else AgentRun.created_at.desc(),
+            AgentRun.created_at.desc(),
+            AgentRun.id,
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def request_channel_stop(db: AsyncSession, *, run: AgentRun) -> None:
+    run.channel_stop_requested_at = datetime.now(UTC)
+    await db.flush()
+    await db.refresh(run)
 
 
 async def run_id_for_routine_activation(

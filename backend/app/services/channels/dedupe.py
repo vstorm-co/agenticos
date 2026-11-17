@@ -105,6 +105,21 @@ def delivery_ref(message_id: str | None) -> str | None:
     return hashlib.sha256(message_id.encode()).hexdigest()[:12]
 
 
+async def edited_delivery_is_eligible(incoming: IncomingMessage) -> bool:
+    """Authorize an edit while its original ignored-post receipt still exists.
+
+    Durable admission records this decision under its unique edit key. It does
+    not spend a Redis claim before the PostgreSQL transaction can commit.
+    """
+    if not _is_edited_mention(incoming) or incoming.message_id is None or _redis is None:
+        return False
+    try:
+        return await _redis.get(_key(incoming, incoming.message_id)) == "ignored"
+    except Exception:
+        logger.warning("channel_edited_eligibility_unavailable", exc_info=True)
+        return False
+
+
 async def claim_delivery(incoming: IncomingMessage) -> bool:
     """Claim this delivery. True means it is ours to process; False means an
     earlier delivery of the same message already was.

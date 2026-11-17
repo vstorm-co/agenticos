@@ -643,6 +643,77 @@ describe("ChatInput listening in the browser", () => {
   });
 });
 
+describe("ChatInput when the browser's recognition fails", () => {
+  function failingWith(error: string) {
+    return class FailingRecognition {
+      onerror: ((event: { error: string }) => void) | null = null;
+      start = vi.fn(() => this.onerror?.({ error }));
+      stop = vi.fn();
+    };
+  }
+
+  async function dictateAndFail(error: string, { secure = true } = {}) {
+    vi.stubGlobal("SpeechRecognition", failingWith(error));
+    vi.stubGlobal("isSecureContext", secure);
+    render(<ChatInput onSend={vi.fn()} dictation={serverDictation({ engine: "browser" })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Voice input" }));
+    vi.unstubAllGlobals();
+  }
+
+  it.each([
+    [
+      "not-allowed",
+      "Microphone blocked for this site",
+      "Click the icon left of the address bar, set Microphone to Allow, then try again.",
+    ],
+    [
+      "audio-capture",
+      "No microphone found",
+      "Connect a microphone, or check that your system lets the browser use it, then try again.",
+    ],
+    [
+      "service-not-allowed",
+      "Your browser's speech recognition isn't available",
+      "This agent has no speech-to-text provider for dictation, so the browser transcribes, and its service refused. Ask an admin to set up Dictation for this agent, or try another browser.",
+    ],
+    [
+      "network",
+      "Couldn't reach the speech service",
+      "Your browser sends what you say to its speech service, and the connection failed. Check your connection, then try again.",
+    ],
+  ])("says what to do about %s", async (error, title, description) => {
+    await dictateAndFail(error);
+    expect(toast.error).toHaveBeenCalledWith(title, { description });
+  });
+
+  it("names HTTPS when the page may not ask for the microphone at all", async () => {
+    await dictateAndFail("not-allowed", { secure: false });
+    expect(toast.error).toHaveBeenCalledWith("This page can't use the microphone", {
+      description:
+        "Browsers open the microphone only on HTTPS or on localhost. Ask your administrator to serve the console over HTTPS.",
+    });
+  });
+
+  it("says nothing was heard rather than that something broke", async () => {
+    await dictateAndFail("no-speech");
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(toast.info).toHaveBeenCalledWith("No speech heard", {
+      description: "Check the microphone isn't muted, then try again.",
+    });
+  });
+
+  it("stays quiet when the recognition was stopped", async () => {
+    await dictateAndFail("aborted");
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it("keeps the general error for anything else", async () => {
+    await dictateAndFail("language-not-supported");
+    expect(toast.error).toHaveBeenCalledWith("Speech recognition error");
+  });
+});
+
 describe("ChatInput while dictating", () => {
   it.each(["recording", "transcribing"] as const)(
     "while %s the box is read-only and nothing can be sent",

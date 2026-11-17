@@ -1,5 +1,5 @@
 ---
-source_sha: "33c4b5347c7d"
+source_sha: "774a82d93b5e"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -170,6 +170,19 @@ Ein Wert, der sich nicht ermitteln lässt - eine Division durch null, Text in ei
 Summe, eine leere Zelle - lässt die Zelle dieses Datensatzes leer. Eine Formel
 wird beim Lesen ermittelt und nie gespeichert, geschrieben, gefiltert oder
 sortiert.
+
+Dezimalzahlen werden in jeder Sprache mit Punkt geschrieben, `{Price} * 1.23`: Ein
+Komma trennt die Argumente einer Funktion, deshalb wird `{Price} * 1,23` mit diesem
+Hinweis abgelehnt, statt als Zahl gelesen zu werden; ebenso ein Aufruf, dem das Komma einen Wert zu viel
+gibt, etwa `IF({Price} > 0,5, "yes", "no")`.
+
+Die Zahl der Werte eines Aufrufs wird geprüft, wenn
+seine Formel gespeichert wird: Eine früher gespeicherte funktioniert weiter, und die übrigen
+Spalten der Tabelle lassen sich ändern, bis jemand diese Formel bearbeitet. Eine Ablehnung nennt einen
+festen Grund in `details.formula.reason`, etwa `decimal_comma` oder `not_a_column`,
+mit dem die Konsole ihn in der Sprache der lesenden Person sagt. Die Konsole zeigt
+Zahlen, auch das Ergebnis einer Formel, mit dem Dezimaltrennzeichen der lesenden
+Person - `12,177` auf Deutsch - und gruppiert eine vierstellige Zahl nicht.
 
 ## Ein Schema ändern { #changing-a-schema }
 

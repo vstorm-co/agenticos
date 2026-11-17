@@ -107,7 +107,10 @@ export function ModelCombobox({
           aria-invalid={invalid}
           aria-describedby={describedBy}
           disabled={disabled}
-          className={cn(FORM_CONTROL, "flex h-10 w-full items-center gap-2 px-3 text-left text-sm")}
+          className={cn(
+            FORM_CONTROL,
+            "touch:min-h-11 flex h-10 w-full items-center gap-2 px-3 text-left text-sm",
+          )}
         >
           <span className={cn("min-w-0 flex-1 truncate font-mono", value === "" && "font-sans")}>
             {value === "" ? <span className="text-muted-foreground">{placeholder}</span> : value}

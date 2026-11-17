@@ -1,5 +1,5 @@
 ---
-source_sha: "573ee75921f0"
+source_sha: "ae118943abf0"
 ---
 
 # Governance { #governance }
@@ -1861,6 +1861,12 @@ definitiva y queda en el registro de auditoría junto con lo que se preguntó, y
 las llamadas a herramientas. Un
 paso que nombra a quienes aprueban solo puede decidirlo esa gente. Una solicitud
 que nadie decide a tiempo caduca, y un run cancelado cancela sus solicitudes.
+
+Un paso que nombra a quienes aprueban o [grupos de aprobación](#approval-groups)
+avisa a esas personas y a los miembros de los grupos que tienen
+`approvals:decide`. Un paso que no nombra ni a unos ni a otros avisa a todos los
+que tienen `approvals:decide`. El aviso llega en la campana, y la solicitud
+encabeza el Inbox de quien puede decidirla.
 
 Un paso `editable` también muestra a quien aprueba una propuesta, como una
 respuesta redactada, que puede cambiar antes de aprobarla. La entrada de auditoría

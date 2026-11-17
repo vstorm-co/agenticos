@@ -467,3 +467,13 @@ export interface CustomerErasure {
   delivery_jobs: number;
   delivery_jobs_running: number;
 }
+
+export interface ChannelDiagnostics {
+  checks: {
+    code: "active" | "transport" | "binding" | "published" | "identity" | "personal_service";
+    status: "ok" | "warning" | "blocked" | "unknown";
+    detail: string | null;
+  }[];
+  account_scope: "current_user";
+  credentials_probed: boolean;
+}

@@ -1,5 +1,5 @@
 ---
-source_sha: "573ee75921f0"
+source_sha: "ae118943abf0"
 ---
 
 # Governance { #governance }
@@ -1855,6 +1855,12 @@ z tym, o co pytano, i zostaje na liście **Decided** razem z zapisem wywołań
 narzędzi. Krok, który wskazuje zatwierdzających, mogą rozstrzygnąć tylko
 oni. Prośba, której nikt nie rozstrzygnie na czas, wygasa, a anulowany run anuluje
 swoje prośby.
+
+Krok, który wskazuje zatwierdzających lub [grupy akceptujące](#approval-groups),
+powiadamia tych zatwierdzających i członków grup z `approvals:decide`. Krok, który
+nie wskazuje ani jednych, ani drugich, powiadamia każdego z `approvals:decide`.
+Powiadomienie przychodzi przy dzwonku, a prośba trafia na początek Inboxu
+każdego, kto może ją rozstrzygnąć.
 
 Krok `editable` pokazuje też zatwierdzającemu propozycję, na przykład przygotowaną
 odpowiedź, którą może zmienić przed zatwierdzeniem. Wpis audytu zapisuje, czy krok

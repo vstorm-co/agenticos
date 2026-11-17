@@ -566,13 +566,15 @@ async def _rag_document(
     return doc
 
 
-async def _sync_source_row(db, *, tenant: Tenant, collection_name: str) -> SyncSource:
+async def _sync_source_row(db, *, tenant: Tenant, kb: KnowledgeBase) -> SyncSource:
+    """A source on `kb`, which it records as the base it syncs into (#2551)."""
     source = SyncSource(
         id=uuid.uuid4(),
         organization_id=tenant.organization.id,
         name="Drive",
         connector_type="gdrive",
-        collection_name=collection_name,
+        collection_name=kb.collection_name,
+        knowledge_base_id=kb.id,
         config={"folder_id": "abc"},
     )
     db.add(source)
@@ -633,12 +635,8 @@ async def rag_estate(db, estate: TwoTenants) -> RagEstate:
             collection_name=other_collection.collection_name,
             filename="theirs.txt",
         ),
-        home_source=await _sync_source_row(
-            db, tenant=home, collection_name=home_collection.collection_name
-        ),
-        other_source=await _sync_source_row(
-            db, tenant=other, collection_name=other_collection.collection_name
-        ),
+        home_source=await _sync_source_row(db, tenant=home, kb=home_collection),
+        other_source=await _sync_source_row(db, tenant=other, kb=other_collection),
         home_sync=await _sync_log_row(
             db,
             collection_name=home_collection.collection_name,
@@ -1349,9 +1347,7 @@ class TestReadingOneSyncSourcesHistory:
         should have failed. Every other per-resource read on this surface reports a
         row it may not have as missing.
         """
-        elsewhere = await _sync_source_row(
-            db, tenant=rag_estate.home, collection_name=rag_estate.home_private.collection_name
-        )
+        elsewhere = await _sync_source_row(db, tenant=rag_estate.home, kb=rag_estate.home_private)
         await _sync_log_row(
             db,
             collection_name=rag_estate.home_private.collection_name,
@@ -1370,20 +1366,27 @@ class TestReadingOneSyncSourcesHistory:
     ) -> None:
         """`limit` and `total` have to describe the same set of rows.
 
-        This source ran twice against this base and once, before it was moved,
-        against another. Asking for three runs used to answer with two and call it
-        the whole history.
+        Three runs in this base are interleaved with private-base history. Scope
+        filtering must happen before SQL pagination rather than thinning a page.
         """
-        for collection_name in (
-            rag_estate.home_collection.collection_name,
-            rag_estate.home_private.collection_name,
-            rag_estate.home_collection.collection_name,
+        now = datetime.now(UTC)
+        for index, kb in enumerate(
+            (
+                rag_estate.home_collection,
+                rag_estate.home_private,
+                rag_estate.home_collection,
+                rag_estate.home_private,
+                rag_estate.home_collection,
+            )
         ):
-            await _sync_log_row(
+            log = await _sync_log_row(
                 db,
-                collection_name=collection_name,
+                collection_name=kb.collection_name,
+                organization_id=rag_estate.home.organization.id,
+                knowledge_base_id=kb.id,
                 sync_source_id=rag_estate.home_source.id,
             )
+            log.started_at = now + timedelta(seconds=index)
 
         response = await kb_api(rag_estate.home).get(
             f"{settings.API_V1_STR}/kb/{rag_estate.home_collection.id}"
@@ -1443,9 +1446,7 @@ class TestSyncSourcesStayWithTheirAudience:
         `collections:view`; without `connections:manage` it now lists the sources
         of bases the caller reads - not another member's personal base, nor a
         template."""
-        personal = await _sync_source_row(
-            db, tenant=rag_estate.home, collection_name=rag_estate.home_private.collection_name
-        )
+        personal = await _sync_source_row(db, tenant=rag_estate.home, kb=rag_estate.home_private)
         template = SyncSource(
             id=uuid.uuid4(),
             organization_id=rag_estate.home.organization.id,
@@ -1492,9 +1493,7 @@ class TestSyncSourcesStayWithTheirAudience:
         )
         db.add(app_kb)
         await db.flush()
-        theirs = await _sync_source_row(
-            db, tenant=rag_estate.other, collection_name=app_kb.collection_name
-        )
+        theirs = await _sync_source_row(db, tenant=rag_estate.other, kb=app_kb)
         run = await _sync_log_row(
             db, collection_name=app_kb.collection_name, sync_source_id=theirs.id
         )

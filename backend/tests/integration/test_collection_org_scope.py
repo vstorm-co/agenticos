@@ -337,8 +337,7 @@ class TestAnAppCollectionKeepsApartFromASameNamedTenantBase:
 
     @pytest.mark.security
     async def test_a_tenants_sync_source_is_not_reachable_through_the_app_base(self, db) -> None:
-        """A source carries an organization and no base: it belongs to the base its
-        sync writes under, which is its organization's own before an app one."""
+        """A source belongs to the base it records, whoever else holds its name (#2551)."""
         seeded = await self._seed(db)
         access = CollectionAccessService(db)
         kb_app, kb_a = seeded["kb_app"], seeded["kb_a"]
@@ -347,6 +346,7 @@ class TestAnAppCollectionKeepsApartFromASameNamedTenantBase:
             name="Alpha drive",
             connector_type="gdrive",
             collection_name="both",
+            knowledge_base_id=kb_a.id,
             config={},
         )
         # An app admin's source for the app base, filed under an organization
@@ -356,6 +356,7 @@ class TestAnAppCollectionKeepsApartFromASameNamedTenantBase:
             name="App drive",
             connector_type="gdrive",
             collection_name="both",
+            knowledge_base_id=kb_app.id,
             config={},
         )
         db.add_all([tenants, apps])
@@ -511,15 +512,16 @@ class TestWhatABaseReportsStaysItsOwn:
             name="Alpha drive",
             connector_type="gdrive",
             collection_name="both",
+            knowledge_base_id=kb_a.id,
             config={"folder_id": "alpha-private"},
         )
-        # Org B holds no base by the name, so its source's sync writes under the
-        # app base.
+        # Org B holds no base by the name; its source is on the app base.
         apps = SyncSource(
             organization_id=org_b.id,
             name="App drive",
             connector_type="gdrive",
             collection_name="both",
+            knowledge_base_id=kb_app.id,
             config={},
         )
         db.add_all([tenants, apps])

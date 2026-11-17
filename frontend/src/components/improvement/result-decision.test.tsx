@@ -117,7 +117,10 @@ it("says no attempt helped and which broke, and leads to the missing topics", ()
   const topics = screen.getByRole("link", { name: "Draft the ones you need" });
   expect(topics).toHaveAttribute("href", "#improvement-documents");
   expect(topics).toHaveClass("bg-action");
-  expect(screen.getByRole("button", { name: "End without changes" })).toHaveClass("border");
+  expect(screen.getByRole("button", { name: "End without changes" })).toHaveClass(
+    "border-2",
+    "border-input",
+  );
   expect(screen.queryByRole("button", { name: /Try again|Improve again/ })).toBeNull();
   expect(screen.getByText("Topic list").parentElement).toHaveAttribute(
     "id",

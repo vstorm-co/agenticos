@@ -16,6 +16,7 @@ import re
 from collections import defaultdict
 from collections.abc import Iterable
 from datetime import datetime
+from itertools import batched
 from typing import Any
 from uuid import UUID
 
@@ -48,6 +49,7 @@ from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.api_key import ApiKey
 from app.db.models.authoring import AuthoringRequest, SpecProposalHunk
+from app.db.models.background_job import BackgroundJob
 from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.case_generation import CaseProposal
 from app.db.models.case_score import CaseScore
@@ -86,7 +88,8 @@ from app.db.models.run_manifest import RunManifest
 from app.db.models.session import Session
 from app.db.models.skill_improvement import SkillImprovementRun
 from app.db.models.skill_proposal import SkillProposal
-from app.db.models.suggestion import Suggestion
+from app.db.models.suggestion import Suggestion, SuggestionKind
+from app.db.models.system_agent_profile import SYSTEM_ROLES
 from app.db.models.task_board import TaskBoard
 from app.db.models.telephony import PhoneCall, PhoneContact
 from app.db.models.user import User
@@ -545,6 +548,29 @@ async def purge_identities_of(db: AsyncSession, user_id: UUID) -> int:
     Returns:
         How many identities were removed, for the audit entry.
     """
+    # Durable ingress retains the native author, not a publisher fallback user.
+    # Clear it while the personal link can still resolve that native identity.
+    authored = exists(
+        select(ChannelIdentity.id).where(
+            ChannelIdentity.user_id == user_id,
+            ChannelIdentity.platform == BackgroundJob.payload["platform"].astext,
+            ChannelIdentity.platform_user_id == BackgroundJob.payload["platform_user_id"].astext,
+        )
+    )
+    own_run = BackgroundJob.payload["run_id"].astext.in_(
+        select(cast(AgentRun.id, Text)).where(AgentRun.id.in_(_runs_they_asked(user_id)))
+    )
+    await db.execute(
+        sa_delete(BackgroundJob).where(
+            or_(
+                and_(
+                    BackgroundJob.kind.in_(("process-channel-message", "process-channel-control")),
+                    authored,
+                ),
+                and_(BackgroundJob.kind == "deliver-channel-reply", own_run),
+            )
+        )
+    )
     result = await db.execute(sa_delete(ChannelIdentity).where(ChannelIdentity.user_id == user_id))
     await db.flush()
     return result.rowcount or 0  # ty: ignore[missing-attribute]
@@ -803,6 +829,11 @@ _SPEC_PARTS = frozenset({"instructions", "system_prompts", "tools", "settings", 
 cost, never the messages, reviews or code that carried what was asked."""
 
 
+def forgotten_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """What a manifest keeps once the person it was about is erased."""
+    return {key: value for key, value in payload.items() if key in _SPEC_PARTS}
+
+
 def judge_runs_of(score: CaseScore) -> set[UUID]:
     """The runs a judge made to grade one score."""
     return {
@@ -825,9 +856,7 @@ async def forget_runs(db: AsyncSession, run_ids: Iterable[UUID]) -> None:
         return
     manifests = await db.execute(select(RunManifest).where(RunManifest.run_id.in_(wanted)))
     for manifest in manifests.scalars():
-        manifest.payload = {
-            key: value for key, value in manifest.payload.items() if key in _SPEC_PARTS
-        }
+        manifest.payload = forgotten_payload(manifest.payload)
         manifest.truncated = True
     await db.execute(
         update(InterceptedToolCall).where(InterceptedToolCall.run_id.in_(wanted)).values(args={})
@@ -836,6 +865,81 @@ async def forget_runs(db: AsyncSession, run_ids: Iterable[UUID]) -> None:
         update(ToolApproval).where(ToolApproval.run_id.in_(wanted)).values(tool_args={})
     )
     await db.flush()
+
+
+def _system_runs_of(user_id: UUID) -> Select[UUID]:
+    return select(AgentRun.id).where(
+        AgentRun.user_id == user_id, AgentRun.system_role.in_(SYSTEM_ROLES)
+    )
+
+
+async def forget_system_runs_of(db: AsyncSession, user_id: UUID, *, organization_id: UUID) -> None:
+    """Trim the manifests of the system-role runs made for this person in one organization.
+
+    Memory maintenance and the daily briefing are attributed to the person they read
+    about: a maintenance manifest keeps the transcript and the facts drawn from it, a
+    briefing's the person's notes and requests - the same personal data as the notes
+    and claims an erasure deletes.
+    """
+    await _forget_in_batches(
+        db, _system_runs_of(user_id).where(AgentRun.organization_id == organization_id)
+    )
+
+
+BRIEFING_SUGGESTION_KINDS = (
+    SuggestionKind.ROUTINE,
+    SuggestionKind.AGENT,
+    SuggestionKind.PROFILE,
+    SuggestionKind.ROLE_PACK,
+)
+"""What a daily briefing proposes, each drawn from the person's requests and notes."""
+
+
+async def forget_briefings_of(db: AsyncSession, user_id: UUID, *, organization_id: UUID) -> int:
+    """Remove what daily briefings kept for this person in one organization.
+
+    The first messages written for them on their membership, and the proposals the
+    briefings made, which quote their requests and what was learned about them. A
+    watch's findings stay: they come from a connection, not from the person's memory.
+
+    Returns:
+        How many proposals were removed.
+    """
+    await db.execute(
+        sql_update(OrganizationMember)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+        )
+        .values(personal_starters=None, personal_starters_at=None)
+    )
+    removed = await db.execute(
+        sa_delete(Suggestion).where(
+            Suggestion.organization_id == organization_id,
+            Suggestion.user_id == user_id,
+            Suggestion.kind.in_([kind.value for kind in BRIEFING_SUGGESTION_KINDS]),
+        )
+    )
+    await db.flush()
+    return int(getattr(removed, "rowcount", 0) or 0)
+
+
+async def forget_all_system_runs_of(db: AsyncSession, user_id: UUID) -> None:
+    """`forget_system_runs_of` in every organization, for a deleted account.
+
+    Unscoped by organization on purpose: the account is going, so nothing it was
+    told in any organization may stay in a manifest.
+    """
+    await _forget_in_batches(db, _system_runs_of(user_id))
+
+
+_RUN_BATCH = 1000
+"""Run ids per `forget_runs` call: one statement binds every id it is handed."""
+
+
+async def _forget_in_batches(db: AsyncSession, runs: Select[UUID]) -> None:
+    for batch in batched(await db.scalars(runs.order_by(AgentRun.id)), _RUN_BATCH, strict=False):
+        await forget_runs(db, batch)
 
 
 async def scrub_history_turns_of(

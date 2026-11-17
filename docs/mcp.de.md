@@ -1,5 +1,5 @@
 ---
-source_sha: "f4b488628347"
+source_sha: "be25e917d548"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -258,10 +258,12 @@ des Tools auf dem Server. Eine Gruppe, deren Tools sich unterscheiden, zeigt
 **Pro Tool**, und eine Wahl für die Gruppe stellt wieder alle ihre Tools ein. Ein
 Tool, das der Server später hinzufügt, folgt seiner Gruppe.
 
-An zwei Stellen gilt stattdessen der Hinweis des Servers. In einer Chat-App fragt
-ein Tool, das der Server nicht als nur lesend markiert, erst, auch wenn es ohne
-Rückfrage laufen soll, und eine Beobachtung liest nie ein Tool, vor dem ihr Binding
-fragt, weil niemand da ist, um zu antworten.
+Kanalausführungen folgen für jeden zugelassenen Absender den Genehmigungseinstellungen
+der Bindung und der einzelnen Werkzeuge, auch ohne verknüpftes Chat-Konto. Der Kanal
+fügt keine zusätzliche Genehmigung hinzu. Persönliche Konten benötigen weiterhin
+die verknüpfte Identität des Absenders und dessen autorisierte Verbindung;
+Plattformverbindungen behalten mindestens `writes`. Eine Beobachtung liest kein
+Werkzeug, das eine Genehmigung verlangt, da niemand antworten kann.
 
 ### Durch wessen Konto ein Binding spricht { #whose-account-a-binding-speaks-through }
 
@@ -599,6 +601,8 @@ Hex-Ziffern eines Hashs angehängt, sodass zwei lange Namen zwei Tools bleiben. 
 Server wird weiterhin unter seinem echten Namen aufgerufen.
 
 !!! warning "Ein nicht erreichbarer Server wird mit einer Warnung übersprungen, nicht ausgelöst"
+
+    Die Initialisierung wird einmal wiederholt, bevor ein Tool ausgeführt wird. Dieser Schutz gilt für frisch geprüfte Server, zwischengespeicherte Connections und das integrierte Plattform-MCP. Bei einem Fehler der Tool-Erkennung bleiben die übrigen Tools verfügbar. Ein Transportfehler während eines Tool-Aufrufs wird dem Modell als fehlgeschlagene Anfrage mit unbekanntem Ergebnis gemeldet; Schreibzugriffe werden nie automatisch wiederholt. Die lokale Plattforminitialisierung hat für Authentifizierung und Kaltstart ein Zeitlimit von 15 Sekunden; entfernte Verbindungen behalten ihr Limit von 3 Sekunden.
 
     Pydantic AI betritt beim Start eines Runs jedes Toolset, ein toter Server würde
     sonst also den ganzen Zug abbrechen: Ein abgelaufenes Token auf einer

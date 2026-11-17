@@ -213,6 +213,8 @@ from app.agents.connect_on_use import (
     ConnectionRequest,
     ConnectOnUse,
     PendingService,
+    ServiceAccessStatus,
+    UnavailableServices,
 )
 from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink, QuestionsCallback
 from app.agents.ephemeral_media import dump_messages
@@ -253,7 +255,7 @@ from app.agents.spec import (
     TraceContent,
     trace_content_block,
 )
-from app.agents.steering import SteeringInbox
+from app.agents.steering import ChannelTurnStopped, SteeringInbox
 from app.agents.subagent_events import SubagentEvent
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
@@ -2841,6 +2843,40 @@ def _personal_gap_briefing(
     )
 
 
+def _service_access_status(gap: PersonalServiceGap, surface: RunSurface) -> ServiceAccessStatus:
+    if gap.gap == "nobody_to_speak_as":
+        steps = (
+            (
+                "Open a direct message with this bot and send plain `link` without a slash.",
+                "Sign in to AgenticOS and confirm the private identity link. Never post that link in a room.",
+                f"Connect or authorize your own {gap.name} account on the MCP servers page under You.",
+                "Return to the original thread and ask again.",
+            )
+            if surface in _CHANNEL_SURFACES
+            else (
+                "Use a signed-in personal conversation; this surface does not act as your personal account.",
+            )
+        )
+        return ServiceAccessStatus(
+            service=gap.catalog_key,
+            name=gap.name,
+            reason="identity_not_linked",
+            required_steps=steps,
+        )
+    return ServiceAccessStatus(
+        service=gap.catalog_key,
+        name=gap.name,
+        reason=gap.gap,
+        required_steps=(
+            f"Authorize your existing {gap.name} connection again under You."
+            if gap.gap == "unauthorized"
+            else f"Connect your own {gap.name} account under You.",
+            "Return to the original thread and ask again.",
+        ),
+        settings_url=mcp_servers_link(gap.catalog_key if gap.gap == "not_connected" else None),
+    )
+
+
 ASIDE_PREFIX = (
     "A side question about this conversation, asked while you are still working on "
     "the task. Answer it briefly from what has been said so far. Do not continue, "
@@ -2880,52 +2916,6 @@ def _organization_mcp_only(spec: AgentSpec) -> AgentSpec:
             "mcp_servers": [ref for ref in spec.mcp_servers if isinstance(ref, OrgMcpServerRef)]
         }
     )
-
-
-def _with_channel_service_approval(
-    spec: AgentSpec, surface: RunSurface, *, linked_sender: bool = False
-) -> AgentSpec:
-    """Keep linked members' authored policy; hold every unlinked MCP call.
-
-    A linked channel sender uses the same approval settings as web chat.
-    Unlinked participants still need approval for all MCP and Mirage calls.
-    The factory applies this to delegates and resumed runs as well.
-    """
-    if surface not in _CHANNEL_SURFACES or linked_sender:
-        return spec
-    return spec.model_copy(
-        update={
-            "capabilities": [
-                binding.model_copy(
-                    update={
-                        "approval": "required",
-                        "tool_approval": {
-                            **binding.tool_approval,
-                            **dict.fromkeys(
-                                capability_def(MIRAGE_CAPABILITY_ID).tool_ids, "required"
-                            ),
-                        },
-                    }
-                )
-                if binding.id == MIRAGE_CAPABILITY_ID
-                else binding
-                for binding in spec.capabilities
-            ],
-            "mcp_servers": [_held_to_channel_approval(ref) for ref in spec.mcp_servers],
-        }
-    )
-
-
-def _held_to_channel_approval(ref: McpServerRef) -> McpServerRef:
-    """One MCP binding, held to what a chat app requires.
-
-    See :func:`_with_channel_service_approval` for the rule.
-    """
-    approval = "all"
-    if isinstance(ref, PlatformMcpServerRef):
-        return ref.model_copy(update={"approval": approval})
-    asked = {tool: mode for tool, mode in ref.tool_approval.items() if mode == "required"}
-    return ref.model_copy(update={"approval": approval, "tool_approval": asked})
 
 
 def _with_channel_tools(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
@@ -3427,6 +3417,7 @@ class RunSegment:
     generated_files: frozenset[str] = frozenset()
     """Leaf names actually stored by this run, never inferred from tool result text."""
     message_id: UUID | None = None
+    outbound: tuple[OutgoingAttachment, ...] = ()
 
 
 def failed_run_error(run: AgentRun, exc: Exception) -> RunFailedError:
@@ -4450,9 +4441,6 @@ class AgentRunnerService:
             if acts_for_sender and not subject_is_publisher_fallback
             else None
         )
-        spec = _with_channel_service_approval(
-            spec, surface, linked_sender=personal_mcp_user_id is not None
-        )
         # Whether a signed-in person is behind this run even where a personal
         # binding may not speak through their account - true on the API, where a
         # bearer token identifies the caller but their own connections are
@@ -4565,6 +4553,12 @@ class AgentRunnerService:
         spec = _with_personal_service_gaps(
             spec, briefed, surface, sender_present=sender_present, stranger=runs_as_agent
         )
+        missing_services = [
+            _service_access_status(personal_service_gap(gap), surface)
+            for gap in briefed
+            if isinstance(gap, UnavailablePersonalService)
+        ]
+        unavailable_services = UnavailableServices(missing_services) if missing_services else None
         spec = _with_account_notes(spec, resolved.accounts)
         if routine is not None and routine.routine_kind == "trigger":
             assert routine.source_policy is not None
@@ -5300,6 +5294,14 @@ class AgentRunnerService:
             ],
             extra_capabilities=(
                 *(() if on_use is None else (on_use,)),
+                *(
+                    ()
+                    if unavailable_services is None
+                    or answer_only
+                    or organization_mcp_only
+                    or runs_as_agent
+                    else (unavailable_services,)
+                ),
                 *(() if computer_on_use is None else (computer_on_use,)),
                 *guard_for(routine_check, agent_id=agent.id),
             ),
@@ -5867,9 +5869,6 @@ class AgentRunnerService:
                 shared,
             )
         )
-        spec = _with_channel_service_approval(
-            spec, delegation.surface, linked_sender=delegation.personal_mcp_user_id is not None
-        )
         own_resources = await self._delegate_resources(
             ctx,
             spec,
@@ -6070,9 +6069,6 @@ class AgentRunnerService:
                 # other.
                 runnable = _without_delegation(pinned)
 
-        runnable = _with_channel_service_approval(
-            runnable, delegation.surface, linked_sender=delegation.personal_mcp_user_id is not None
-        )
         model = await self.models.resolve(
             delegation.models_ctx, profile_id=runnable.model_profile_id
         )
@@ -8671,6 +8667,7 @@ class AgentRunnerService:
         # of this run (#235). `sys.exc_info()` cannot answer that: it also reports
         # a caller's handled exception when `execute` is awaited from inside one.
         finished_cleanly = False
+        terminal_owned = True
         # The opening commit: the row is visible mid-run and no connection is
         # held across the model call - the docstring carries the whole of it
         # (#12, #3).
@@ -8748,6 +8745,13 @@ class AgentRunnerService:
                     "Run %s parked on %d approval(s)", prepared.run.id, len(paused.tool_call_ids)
                 )
             finished_cleanly = True
+        except ChannelTurnStopped as exc:
+            if exc.reason == "lease_lost":
+                terminal_owned = False
+                raise asyncio.CancelledError("Channel execution lease lost") from exc
+            status = RunStatus.CANCELLED
+            error = str(exc)
+            finished_cleanly = True
         except ConversationTaskStopped:
             status = RunStatus.CANCELLED
             error = "This background topic is no longer active."
@@ -8800,103 +8804,109 @@ class AgentRunnerService:
             # on any exception and is skipped entirely by a cancellation, so a run
             # that failed, was stopped or ran out of budget would otherwise vanish
             # from the history somebody opens.
-            try:
-                await self.finish(
-                    prepared,
-                    status=status,
-                    error=error,
-                    paused_state=paused,
-                    budget_scope=budget_scope,
-                    budget=budget,
-                )
-                if prepared.run.status == RunStatus.FAILED.value:
-                    status = RunStatus.FAILED
-                    paused = None
-                # So a run that failed, parked or was stopped still says what was
-                # asked and what it managed to do.
-                message_id = await self.transcript.record(
-                    prepared.run,
-                    prompt=said,
-                    model_content=model_content,
-                    answer=output,
-                    attachments=attachments,
-                    # Replayed after the prompt on every later turn, where the input
-                    # edge no longer looks: a refused turn keeps none of it (#2578).
-                    attachment_context=(
-                        None if status is RunStatus.GUARDRAIL_BLOCKED else attachment_context
-                    ),
-                    tool_calls=called,
-                    settled=settled,
-                    # So the step the run stopped on reads "awaiting approval" when
-                    # the conversation is read back, not as a call that ran (#601).
-                    parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),
-                    question_tool_call_ids=paused.questions if paused else (),
-                    model_label=prepared.built.model_label,
-                    mcp_origins=prepared.mcp_origins,
-                    draft_tools=draft_tool_names(prepared.spec),
-                    # The last request's own size, for the anchor a replayed history
-                    # is measured against - see `build_message_history`.
-                    context_used_tokens=prepared.built.context.latest,
-                )
-                # After the rows, because what is stored beside a summary is how
-                # far it reaches: recorded before them it would stop short of this
-                # turn and replay it twice. A channel thread is long-lived and
-                # never rolls over, so without this every message past the window
-                # buys its own summary of a history one turn longer (#49).
-                if prepared.run.conversation_id is not None:
-                    conversations = ConversationService(self.db)
-                    if summarized is not None:
-                        await conversations.keep_summary(
-                            prepared.run.conversation_id,
-                            summarized,
-                            expected_revision=message_history.revision
-                            if isinstance(message_history, ModelHistory)
-                            else None,
-                        )
-                    # On every turn, not only a summarising one: it is what the
-                    # *next* turn needs before it has a response of its own.
-                    if prepared.built.context.overhead is not None:
-                        await conversations.keep_overhead(
-                            prepared.run.conversation_id, prepared.built.context.overhead
-                        )
-                    # How far the reminder cadence advanced this turn, so the next
-                    # one resumes it. Only when the counter has moved off zero,
-                    # which it does exactly when a reminders capability ran this
-                    # turn or a previous one recorded it - so an agent that has
-                    # none never writes an empty blob, and `keep_reminder_state`
-                    # skips a value unchanged since it was seeded.
-                    if prepared.built.reminder_state.request_count:
-                        await conversations.keep_reminder_state(
-                            prepared.run.conversation_id,
-                            prepared.built.reminder_state.snapshot(),
-                        )
-                    await self.keep_plan(prepared, status=status)
-                if deferred_tool_results is not None:
-                    from app.services.routine_delivery import RoutineDeliveryService
-
-                    await RoutineDeliveryService(self.db).queue(prepared.run, answer=output)
-
-                # Persist required handback in the same transaction as this segment,
-                # including failures and cancellations. Delivery never replays tools.
-                if on_segment is not None:
-                    await on_segment(
-                        RunSegment(
-                            output=output or error or "",
-                            channel_destination=prepared.channel_destination,
-                            run=prepared.run,
-                            tool_calls=called,
-                            settled=settled,
-                            structured=structured,
-                            delegations=tuple(prepared.delegations),
-                            generated_files=frozenset(prepared.built.deps.generated_files),
-                        )
+            if not terminal_owned:
+                await self.db.rollback()
+            else:
+                try:
+                    await self.finish(
+                        prepared,
+                        status=status,
+                        error=error,
+                        paused_state=paused,
+                        budget_scope=budget_scope,
+                        budget=budget,
                     )
-                await self.db.commit()
-                await change_feed.publish_run(prepared.run, "updated")
-            except Exception:
-                if finished_cleanly:
-                    raise
-                logger.exception("Could not persist the terminal state of run %s", prepared.run.id)
+                    if prepared.run.status == RunStatus.FAILED.value:
+                        status = RunStatus.FAILED
+                        paused = None
+                    # So a run that failed, parked or was stopped still says what was
+                    # asked and what it managed to do.
+                    message_id = await self.transcript.record(
+                        prepared.run,
+                        prompt=said,
+                        model_content=model_content,
+                        answer=output,
+                        attachments=attachments,
+                        # Replayed after the prompt on every later turn, where the input
+                        # edge no longer looks: a refused turn keeps none of it (#2578).
+                        attachment_context=(
+                            None if status is RunStatus.GUARDRAIL_BLOCKED else attachment_context
+                        ),
+                        tool_calls=called,
+                        settled=settled,
+                        # So the step the run stopped on reads "awaiting approval" when
+                        # the conversation is read back, not as a call that ran (#601).
+                        parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),
+                        question_tool_call_ids=paused.questions if paused else (),
+                        model_label=prepared.built.model_label,
+                        mcp_origins=prepared.mcp_origins,
+                        draft_tools=draft_tool_names(prepared.spec),
+                        # The last request's own size, for the anchor a replayed history
+                        # is measured against - see `build_message_history`.
+                        context_used_tokens=prepared.built.context.latest,
+                    )
+                    # After the rows, because what is stored beside a summary is how
+                    # far it reaches: recorded before them it would stop short of this
+                    # turn and replay it twice. A channel thread is long-lived and
+                    # never rolls over, so without this every message past the window
+                    # buys its own summary of a history one turn longer (#49).
+                    if prepared.run.conversation_id is not None:
+                        conversations = ConversationService(self.db)
+                        if summarized is not None:
+                            await conversations.keep_summary(
+                                prepared.run.conversation_id,
+                                summarized,
+                                expected_revision=message_history.revision
+                                if isinstance(message_history, ModelHistory)
+                                else None,
+                            )
+                        # On every turn, not only a summarising one: it is what the
+                        # *next* turn needs before it has a response of its own.
+                        if prepared.built.context.overhead is not None:
+                            await conversations.keep_overhead(
+                                prepared.run.conversation_id, prepared.built.context.overhead
+                            )
+                        # How far the reminder cadence advanced this turn, so the next
+                        # one resumes it. Only when the counter has moved off zero,
+                        # which it does exactly when a reminders capability ran this
+                        # turn or a previous one recorded it - so an agent that has
+                        # none never writes an empty blob, and `keep_reminder_state`
+                        # skips a value unchanged since it was seeded.
+                        if prepared.built.reminder_state.request_count:
+                            await conversations.keep_reminder_state(
+                                prepared.run.conversation_id,
+                                prepared.built.reminder_state.snapshot(),
+                            )
+                        await self.keep_plan(prepared, status=status)
+                    if deferred_tool_results is not None:
+                        from app.services.routine_delivery import RoutineDeliveryService
+
+                        await RoutineDeliveryService(self.db).queue(prepared.run, answer=output)
+
+                    # Persist required handback in the same transaction as this segment,
+                    # including failures and cancellations. Delivery never replays tools.
+                    if on_segment is not None:
+                        await on_segment(
+                            RunSegment(
+                                output=output,
+                                channel_destination=prepared.channel_destination,
+                                run=prepared.run,
+                                tool_calls=called,
+                                settled=settled,
+                                structured=structured,
+                                delegations=tuple(prepared.delegations),
+                                generated_files=frozenset(prepared.built.deps.generated_files),
+                                outbound=tuple(prepared.outbound),
+                            )
+                        )
+                    await self.db.commit()
+                    await change_feed.publish_run(prepared.run, "updated")
+                except Exception:
+                    if finished_cleanly:
+                        raise
+                    logger.exception(
+                        "Could not persist the terminal state of run %s", prepared.run.id
+                    )
 
         return RunSegment(
             output=output,
@@ -8908,6 +8918,7 @@ class AgentRunnerService:
             delegations=tuple(prepared.delegations),
             generated_files=frozenset(prepared.built.deps.generated_files),
             message_id=message_id,
+            outbound=tuple(prepared.outbound),
         )
 
     async def run_chat_askers(

@@ -652,21 +652,43 @@ class TestPrepare:
         ]
 
     @pytest.mark.anyio
-    async def test_the_mcp_servers_the_spec_binds_reach_the_agent_that_is_built(self):
+    @pytest.mark.parametrize("linked", [False, True])
+    @pytest.mark.parametrize("resumed", [False, True])
+    @pytest.mark.parametrize(
+        "surface",
+        [
+            RunSurface.API,
+            RunSurface.WEB,
+            RunSurface.MATTERMOST,
+            RunSurface.SLACK,
+            RunSurface.TEAMS,
+            RunSurface.TELEGRAM,
+            RunSurface.DISCORD,
+        ],
+    )
+    async def test_mcp_policy_reaches_the_agent_without_channel_overrides(
+        self, surface: RunSurface, linked: bool, resumed: bool
+    ) -> None:
         """`mcp_servers` is part of the published contract, so it has to act.
 
         Resolved here, in the one place every surface goes through, and against
         the run's own organization - an agent's reach is a property of the agent,
         not of whichever session happens to run it.
         """
-        ctx = _ctx()
+        ctx = replace(_ctx(), subject_is_publisher_fallback=not linked)
         service = AgentRunnerService(_db())
         agent = MagicMock(
             id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
         )
         refs = [
-            OrgMcpServerRef(connection_id=uuid.uuid4()),
-            OrgMcpServerRef(connection_id=uuid.uuid4()),
+            OrgMcpServerRef(connection_id=uuid.uuid4(), approval="none"),
+            OrgMcpServerRef(
+                connection_id=uuid.uuid4(),
+                approval="writes",
+                tool_approval={"search": "never", "delete": "required"},
+            ),
+            OrgMcpServerRef(connection_id=uuid.uuid4(), approval="all"),
+            PersonalMcpServerRef(account="personal", catalog_key="notion", approval="none"),
         ]
         spec = AgentSpec(name="Support", mcp_servers=refs)
 
@@ -690,14 +712,40 @@ class TestPrepare:
             ) as toolsets,
             patch("app.services.agent_runner.build_agent") as build,
         ):
-            await service.prepare(ctx, agent.id, extra_toolsets=["surface-toolset"])
+            if resumed:
+                await service._assemble(
+                    ctx,
+                    agent=agent,
+                    spec=spec,
+                    existing_run=_parked_run(
+                        user_id=ctx.user_id,
+                        initiated_by_publisher_fallback=not linked,
+                        surface=surface.value,
+                    ),
+                    surface=surface,
+                    conversation_id=None,
+                    user_name=None,
+                    acts_for_sender=True,
+                    extra_toolsets=["surface-toolset"],
+                    exposure=None,
+                    decided={},
+                    resuming={},
+                    already_spent={},
+                    already_started={},
+                )
+            else:
+                await service.prepare(
+                    ctx,
+                    agent.id,
+                    surface=surface,
+                    acts_for_sender=True,
+                    extra_toolsets=["surface-toolset"],
+                )
 
         assert toolsets.await_args.kwargs == {
             "organization_id": ctx.organization_id,
             "refs": refs,
-            # An API run has no person at the keyboard - the context is the key
-            # holder's - so no personal binding may reach for anybody's account.
-            "sender_user_id": None,
+            "sender_user_id": ctx.user_id if linked else None,
             # A run naming no environment is production, which swaps nothing.
             "test_connections": {},
             # Nothing in this spec binds the platform's own server.
@@ -711,6 +759,8 @@ class TestPrepare:
         # chat still attaches its own, and dropping either half would leave an
         # agent silently short of tools.
         assert build.call_args.kwargs["extra_toolsets"] == ["surface-toolset", "linear-toolset"]
+
+        assert build.call_args.args[0].mcp_servers == refs
 
     @pytest.mark.anyio
     async def test_a_publisher_fallback_guest_does_not_borrow_the_publishers_mcp(self):
@@ -7074,8 +7124,14 @@ class TestTellingTheAgentWhatItCannotReach:
     is wrong advice to somebody whose chat account is simply not linked.
     """
 
-    _SERVERS = "http://localhost:3000/mcp-servers"
-    _CONNECT = "http://localhost:3000/mcp-servers?connect=notion"
+    _SERVERS = "https://console.test/mcp-servers"
+    _CONNECT = "https://console.test/mcp-servers?connect=notion"
+
+    @pytest.fixture(autouse=True)
+    def _console_origin(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "app.services.agent_runner.settings.FRONTEND_URL", "https://console.test"
+        )
 
     @staticmethod
     def _briefed(
@@ -8371,6 +8427,23 @@ class TestARunActingAsItsAgent:
 
         assert "console.example.test" not in built_with["spec"].instructions
         assert "WhatsApp" in built_with["spec"].instructions
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_stranger_cannot_query_personal_service_setup_steps(self):
+        from app.agents.connect_on_use import UnavailableServices
+
+        _prepared, built_with, _opened = await self._prepare(
+            self._agent_ctx(),
+            surface=RunSurface.WHATSAPP,
+            unavailable=[UnavailablePersonalService("notion", "nobody_to_speak_as")],
+        )
+
+        assert not any(
+            isinstance(capability, UnavailableServices)
+            for capability in built_with["extra_capabilities"]
+        )
+        _assert_no_member_guidance(built_with["spec"].instructions)
 
     @pytest.mark.security
     @pytest.mark.anyio
@@ -11272,6 +11345,8 @@ async def test_required_segment_handback_is_persisted_before_the_terminal_commit
     assert "provider secret" not in seen[0].output
     if ending == "answer":
         assert seen[0].output == "Saved"
+    else:
+        assert seen[0].output == ""
 
 
 @pytest.mark.anyio
@@ -12055,3 +12130,35 @@ def test_native_approval_catalogs_do_not_confuse_ids_reused_by_another_owner(
         owner: frozenset({name}) if owner in owners else frozenset()
         for owner, name in names.items()
     }
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("reason", ["sender", "lease_lost"])
+async def test_channel_stop_finishes_as_cancelled_without_replaying_the_run(reason):
+    from app.agents.steering import ChannelTurnStopped
+
+    db = _db()
+    db.rollback = AsyncMock()
+    service = AgentRunnerService(db)
+    prepared = _prepared()
+    stop = ChannelTurnStopped(reason)
+    prepared.built.agent.run = AsyncMock(side_effect=stop)
+    with (
+        patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+        patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+    ):
+        if reason == "lease_lost":
+            sink = AsyncMock()
+            with pytest.raises(asyncio.CancelledError, match="lease"):
+                await service.execute(_ctx(), uuid.uuid4(), "hello", on_segment=sink)
+            sink.assert_not_awaited()
+        else:
+            await service.execute(_ctx(), uuid.uuid4(), "hello")
+    if reason == "lease_lost":
+        finish.assert_not_awaited()
+        assert db.commit.await_count == 1
+        db.rollback.assert_awaited_once()
+    else:
+        assert finish.await_args.kwargs["status"] == RunStatus.CANCELLED.value
+        assert finish.await_args.kwargs["error"] == str(stop)
+        assert db.commit.await_count == 2

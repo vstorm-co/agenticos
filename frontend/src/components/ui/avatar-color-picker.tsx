@@ -4,6 +4,7 @@ import { useId } from "react";
 import { Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { CONTROL_DISABLED, CONTROL_FOCUS } from "./control-styles";
 import { AVATAR_COLORS } from "@/lib/avatar-color";
 import { cn } from "@/lib/utils";
 
@@ -15,8 +16,7 @@ export interface AvatarColorPickerProps {
   className?: string;
 }
 
-const SWATCH =
-  "h-7 w-7 touch:h-11 touch:w-11 touch-manipulation rounded-full border border-border/60 transition-shadow appearance-none forced-colors:appearance-auto focus-visible:ring-2 focus-visible:ring-foreground/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background outline-none";
+const SWATCH = `${CONTROL_DISABLED} ${CONTROL_FOCUS} h-7 w-7 touch:h-11 touch:w-11 touch-manipulation rounded-full border border-border/60 transition-shadow appearance-none forced-colors:appearance-auto`;
 const SELECTED = "ring-ring ring-offset-background ring-2 ring-offset-2";
 
 /**
@@ -51,7 +51,7 @@ export function AvatarColorPicker({
           aria-label={t("auto")}
           disabled={disabled}
           onChange={() => onChange(null)}
-          className={cn(SWATCH, "bg-muted disabled:opacity-50", value == null && SELECTED)}
+          className={cn(SWATCH, "bg-muted", value == null && SELECTED)}
         />
         <Sparkles
           className="text-muted-foreground pointer-events-none absolute size-3.5 forced-colors:hidden"
@@ -68,7 +68,7 @@ export function AvatarColorPicker({
           aria-label={t("option", { n: slot })}
           disabled={disabled}
           onChange={() => onChange(slot)}
-          className={cn(SWATCH, palette.bg, "disabled:opacity-50", value === slot && SELECTED)}
+          className={cn(SWATCH, palette.bg, value === slot && SELECTED)}
         />
       ))}
     </div>

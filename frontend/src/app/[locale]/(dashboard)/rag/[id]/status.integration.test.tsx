@@ -97,6 +97,7 @@ function source(id: string, status: string, error: string | null): SyncSourceRea
     name: `${id} drive`,
     connector_type: "gdrive",
     collection_name: "org_handbook",
+    knowledge_base_id: "kb-1",
     config: {},
     secret_id: null,
     organizational_unit: null,

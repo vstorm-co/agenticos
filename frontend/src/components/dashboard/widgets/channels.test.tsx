@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChannelsWidget } from "./channels";
@@ -107,5 +107,48 @@ describe("the channels card", () => {
     show([], 1);
 
     expect(screen.getByRole("link", { name: "1 binding request" })).toBeInTheDocument();
+  });
+});
+
+describe("channel connection health", () => {
+  it("keeps disconnected and unknown states alongside the public-line flag", () => {
+    show([
+      bot({
+        id: "down",
+        name: "Disconnected bot",
+        connection: { state: "down", reason: "Reconnect" },
+      }),
+      bot({ id: "unknown", name: "Unknown bot", platform: "slack", webhook_mode: false }),
+      bot({
+        id: "up",
+        name: "Connected bot",
+        platform: "slack",
+        webhook_mode: false,
+        connection: { state: "up", reason: null },
+      }),
+      bot({ id: "webhook", name: "Webhook bot" }),
+      bot({ id: "paused", name: "Paused bot", is_active: false }),
+    ]);
+    for (const [name, label] of [
+      ["Disconnected bot", "disconnected"],
+      ["Unknown bot", "connection unknown"],
+      ["Connected bot", "polling"],
+      ["Webhook bot", "listening"],
+      ["Paused bot", "switched off"],
+    ] as const) {
+      const row = screen.getByText(name).closest("li");
+      expect(row).not.toBeNull();
+      if (row) expect(within(row).getByText(label)).toBeVisible();
+    }
+  });
+  it("shows a disconnected public line as disconnected", () => {
+    show([
+      bot({
+        connection: { state: "down", reason: "Reconnect" },
+        access_policy: { ...bot().access_policy, answer_unlinked_direct: true },
+      }),
+    ]);
+    expect(screen.getByText("disconnected")).toBeVisible();
+    expect(screen.queryByText("listening · public line")).not.toBeInTheDocument();
   });
 });

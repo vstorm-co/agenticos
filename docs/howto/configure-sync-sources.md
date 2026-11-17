@@ -671,6 +671,10 @@ curl -X PATCH http://localhost:8000/api/v1/rag/sync/sources/{source_id} \
 Updatable fields: `name`, `config`, `sync_mode`, `schedule_minutes`,
 `is_active`, `collection_name`.
 
+A new `collection_name` moves the source to the knowledge base that name resolves
+to for your organization, which you must be able to write; `null` detaches it from
+any base, and a source with no base does not sync.
+
 Set `is_active` to `false` to pause a source without deleting it. A paused
 source cannot run on a schedule or be triggered through the API or CLI. The
 console disables its sync button. A queued job checks again before downloading

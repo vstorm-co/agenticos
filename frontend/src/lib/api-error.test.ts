@@ -14,6 +14,7 @@ import {
   parseErrorMessage,
   problemList,
   schemaDependents,
+  formulaRefusal,
   submitFailure,
 } from "./api-error";
 import { BFF_ERROR_KEYS } from "./bff-errors";
@@ -594,5 +595,33 @@ describe("schemaDependents", () => {
     expect(schemaDependents(new ApiError(403, "Insufficient permissions", null))).toBeNull();
     expect(schemaDependents(refusal("not a list"))).toBeNull();
     expect(schemaDependents(refusal([{ kind: 1, id: "x", name: null }]))).toBeNull();
+  });
+});
+
+describe("formulaRefusal", () => {
+  const refusal = (
+    formula: unknown,
+    fields: unknown = [{ field: "columns.2.formula", message: "…" }],
+  ) =>
+    new ApiError(422, "…", {
+      error: { code: "INVALID_SCHEMA", message: "…", details: { fields, formula } },
+    });
+
+  it("returns the reason, the formula's field and the values its sentence names", () => {
+    expect(
+      formulaRefusal(refusal({ reason: "not_a_column", params: { label: "Cena", odd: [1] } })),
+    ).toEqual({ field: "columns.2.formula", reason: "not_a_column", params: { label: "Cena" } });
+    expect(formulaRefusal(refusal({ reason: "decimal_comma" }))).toEqual({
+      field: "columns.2.formula",
+      reason: "decimal_comma",
+      params: {},
+    });
+  });
+
+  it("is null for any other failure", () => {
+    expect(formulaRefusal(new Error("boom"))).toBeNull();
+    expect(formulaRefusal(refusal(undefined))).toBeNull();
+    expect(formulaRefusal(refusal({ reason: 3 }))).toBeNull();
+    expect(formulaRefusal(refusal({ reason: "syntax" }, []))).toBeNull();
   });
 });

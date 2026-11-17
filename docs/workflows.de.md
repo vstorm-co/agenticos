@@ -1,5 +1,5 @@
 ---
-source_sha: "3dcf65276140"
+source_sha: "37be6df188e7"
 ---
 
 # Workflows { #workflows }
@@ -159,7 +159,10 @@ fügen einen Schritt auf vier Wegen hinzu:
   Schritt oder ans Ende des sichtbaren Ablaufs und wird verbunden, wenn die Ports
   passen. Ein Startschritt kommt stattdessen vor den aktuellen Start und wird zu ihm.
 - **+** neben dem Ausgang eines Schritts öffnet die Auswahl für den Schritt, der nach
-  diesem Ausgang kommt.
+  diesem Ausgang kommt. Führt der Ausgang schon zu einem Schritt, fragt die Auswahl, wohin
+  der neue gehört: **Insert before** setzt ihn in die Verbindung, **Add a parallel
+  branch** behält die Verbindung und lässt den neuen Schritt daneben laufen. Ein Ausgang,
+  der schon zu mehreren Schritten führt, nimmt nur einen weiteren Zweig auf.
 - **Rechtsklick** auf die Zeichenfläche: dieselbe Auswahl öffnet sich dort, wo Sie
   geklickt haben, und der Schritt landet dort. Darunter **Notiz hinzufügen** (Add a note) und, sobald
   etwas kopiert ist, **Einfügen** (Paste).
@@ -306,7 +309,9 @@ Version, ein Run und ein Vergleich zeigen die gespeicherte Größe ohne Anfasser
 ## Einen Knoten konfigurieren { #configuring-a-node }
 
 Was jeder Knoten tut, womit er konfiguriert wird und was seine Fehler bedeuten, steht
-in der [Knotenreferenz](reference/workflow-nodes.md).
+in der [Knotenreferenz](reference/workflow-nodes.md). Die Konsole benennt jeden Schritt, seine
+Ports und Einstellungen in der Sprache der lesenden Person; die Referenz, die API und ein
+exportierter Workflow behalten die englischen Namen.
 
 Ein Klick wählt einen Schritt aus, ein Doppelklick öffnet ihn über der Zeichenfläche. In einer veröffentlichten Version oder **View only** genügt ein Klick. Der Kopf zeigt den Namen und eine aufklappbare Zusammenfassung der fehlenden Einrichtung. Klappen Sie sie auf, um die Angaben zu prüfen; ein Feldname führt direkt zur Eingabe. Nach einem Test- oder Veröffentlichungsversuch öffnen sich die Validierungsdetails automatisch.
 
@@ -741,6 +746,12 @@ sich der Draft seit der Live-Version nicht geändert, sagt er das zuerst. Hat de
 Graph noch Probleme, wird das Veröffentlichen mit **Fix the problems below before
 publishing** blockiert, sodass eine Version, die nicht validieren würde, nie
 entsteht.
+
+Manches ist einen Blick wert, ohne falsch zu sein, und ein bernsteinfarbenes Zeichen am
+Schritt markiert es: ein Ergebnis von **Ask for approval**, das ins Leere führt, oder ein
+Schritt, der zwischen Ausgängen entscheidet, von denen keiner weiterführt. Der Run endet
+dort einfach. Der Veröffentlichungsdialog listet sie ebenfalls auf, aber sie blockieren
+nie einen Testlauf oder eine Veröffentlichung.
 
 Das Veröffentlichen beendet Ihr Bearbeiten nicht. Der Draft existiert weiter
 unabhängig von jeder veröffentlichten Version, sodass Sie ihn sofort weiter

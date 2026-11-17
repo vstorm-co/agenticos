@@ -99,11 +99,123 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Align integration connection choices with the console control styles and retain
+  actual disconnected/unknown channel states alongside public WhatsApp line labels.
+- Keep personal-service setup tools out of runs acting as a public-line agent.
+
 - Prevent email reply loops from trusted automation/bounce metadata and the bot's
   own sender address, and mark outbound bot replies as automatic responses.
 
 - Invalid channel-bot CLI configuration returns a credential-free validation
   error, with token lengths checked against the bot API limits before registration.
+
+- Routine access reviews refresh their sources and action inventories after a personal or organization MCP connection is changed, checked or connected through OAuth, including live updates, without reloading the console (#3061).
+- Routine history clears the starting placeholder when the requested run appears, including runs already waiting for approval or finished before the first refresh. Older runs do not hide a new dispatch, and the exact queued activation keeps polling independent of concurrent fires, paginated history and browser/server clock differences (#3063). Waiting-for-answer runs have a translated status in every console language (#3064).
+- Run now returns an explicit conflict when no job or durable refusal can be recorded, instead of acknowledging work that will never run (#3069).
+- Preserve the cadence and run estimates of stored cron schedules by keeping croniter below 7 until its changed expression semantics can be migrated (#3067).
+- Choosing an improvement helper requires view access as well as run access. Missing or inaccessible helpers return 404 before their settings are read (#2685).
+
+### Upgrading
+
+- Apply `0339_merge_channel_runtime.py` to join the existing WhatsApp history with
+  main's channel, sync-source and memory revisions. Both histories retain their
+  revision IDs; no manual stamping or renumbering is needed.
+
+- `0332_routine_activation_lookup.py` builds a partial index for exact routine-fire polling. Existing runs are preserved; writes to `agent_runs` wait briefly while the transactional index builds.
+
+
+## [1.80.0] - 2026-11-16
+
+### Fixed
+
+- Keep a run alive when an MCP server fails during initialization, discovery or a tool request. Retry initialization once, report unavailable services and uncertain tool outcomes explicitly, and never replay tool writes. Give the built-in platform MCP its own bounded initialization deadline so cold worker startup does not abort Mattermost turns before the model runs (#3077).
+
+- Pin each sync source to its knowledge base instead of resolving its collection name again. Sources, logs and ingested documents stay with the selected base, including same-named personal, organization and deployment bases. Deleting or clearing a base detaches and deactivates exactly its sources; another base does not inherit them. Deleting a base archives its historical source links so its logs cannot fall back to a reassigned source (#2551).
+
+- **Deleting an account.** Deleting a person whose runs belong to their own conversations no longer fails on `agent_runs_conversation_id_fkey`, whichever order the database runs the delete cascades in.
+- **Memory writes after "forget me".** A run that began before a person's memory or an agent's memory was erased, one waiting for an approval included, saves nothing more to that memory and tells the model why. Memory extraction holds off clearing an agent's memory while it writes.
+- **Memory-maintenance and daily-briefing manifests.** Erasing a person's memory, or deleting their account, trims the conversation text, facts, notes and requests these runs kept to what the spec decided, including a run that finishes after the erasure.
+- **Task board receipts.** Removing a group, a project or an account purges its task board's table together with every idempotency receipt that holds its records, expired receipts included.
+- **Decision episodes sent to Improve.** **Add as an Improve case** adds the reviewed episode to a dataset you choose, as a case that records who asked it and links its run and conversation, so erasing that person anonymises it like any other case.
+
+- **Workflow approvals reach the people who decide them.** A workflow step asking for approval now notifies its named approvers and the members of its approver groups who hold `approvals:decide`, or, when it names neither, every member of the run's organization holding `approvals:decide`. The notification opens the approvals queue. Pending workflow steps and tool calls the reader may decide lead the Inbox among urgent items, counted with the rest. Approval previews show the action context and requester in compact rows, and a populated Inbox fits its contents instead of stretching an empty panel across the page.
+- **Onboarding offers an owner a model to connect.** An owner who may prepare an agent sees **Connect a model** on the first-task step instead of being told an administrator must finish setting up AI. Onboarding calls the tenant an organization throughout, and a step asked as questions shows one Back, also while it loads or when it fails to.
+- **Dates in the reader's time zone.** Apps, their public pages and every other date the console formats through next-intl follow the browser's time zone, as Chat and Tables do, instead of the server's UTC.
+- **Public link settings appear with the link.** An app's Share dialog shows the link's expiry, version, embedding and password settings only once the link exists, and its address sits in a labelled read-only field.
+- **Forks and the conversation menu.** A forked conversation carries a mark naming its source in the chat list, and the conversation actions are a menu with roles, arrow keys and Escape; Rename keeps the focus in the title field.
+- **Dictation says why it failed.** With the browser's own speech recognition, a blocked microphone, a page that may not ask for one, a missing microphone, a refusing or unreachable speech service and silence each get the step that fixes them, in the console and on hosted chat pages.
+- **One Polish name per concept, and actions in empty lists.** Polish calls a run a run throughout, the skills gallery and the Apps capability read as the product names them, and the Apps filter says apps in every locale. Empty Workflows and Routines lists offer their create action, and a table made from a workflow template takes the workflow's name, with a number when the name is taken, instead of an id suffix.
+
+- Let the "+" on a workflow output that already leads to a step insert the new step before it or add a parallel branch, keeping the connection when the step cannot carry it on, and mark an approval outcome or a deciding step that leads nowhere with a non-blocking warning.
+- Explain a decimal comma in a Virtual Table formula with a translated error that shows the dot, translate every formula refusal by a stable `details.formula.reason`, and show numbers in tables with the reader's decimal separator. A function given the wrong number of values is refused when its formula is saved; one saved before keeps working until it is edited.
+- Translate workflow step settings - labels, help text and placeholders, including fields inside lists - into the console's language, checked against the registry by a guard.
+
+- Workflow **knowledge.search** citations omit page numbers for formats without
+  pages, including Markdown, text, HTML and `.docx`. PDF pages and presentation
+  slides keep their locations (#2482).
+
+### Added
+
+- Select an organization knowledge base explicitly with `rag-source-add --knowledge-base <id>` when several bases share a collection name. Sync source responses include `knowledge_base_id`.
+
+- A retrieval benchmark over 34 documentation questions, including negative and
+  cross-language answers. `make eval-retrieval` compares retrieval depth, query
+  expansion and chunk settings, with per-question results and reproducible run
+  metadata. [Retrieval evaluation](docs/retrieval-eval.md) records the measured
+  comparison and the decision on knowledge-agent defaults (#2482).
+
+### Upgrading
+
+- After a PostgreSQL restart or restore, start a new run before writing memory. Memory erasure fences use transaction visibility on unprivileged database accounts too; runs without a recorded snapshot cannot write after a relevant erasure.
+
+- **Breaking:** Apply `0334_sync_source_knowledge_base.py` before starting the API and worker. The migration preserves the current resolver's target, including its ID tie-break for equal creation times. Sources with no eligible base are deactivated and listed in migration logs; configuration is retained, and no separate console notification is created. Reassign these sources to a knowledge base and reactivate them before syncing again.
+- Review migration log entries for sources kept on a member's personal base beside an organization base of the same name. They keep their previous target; move them explicitly if they belong to the organization base.
+- Add `--knowledge-base <id>` to `rag-source-add` scripts when the organization has several bases with that collection name. A source with no assigned base cannot sync.
+- Downgrade deactivates and logs sources whose pinned target would change under the older name resolver. It retains existing pauses; reassign and reactivate affected sources before syncing again.
+
+`POST /api/v1/memory/claims/mine/{claim_id}/improve-case` now adds the reviewed decision episode to a dataset instead of returning a JSONL record to download. Send the target `dataset_id` with `confirmed`, `input` and `reference_answer`; the caller needs `datasets:edit` on that dataset, and the response is `201` with the created dataset case. A script that saved the old response to a file and imported it should call the endpoint with the dataset instead. The migrations make one foreign key on `agent_runs` deferrable and add a nullable `agent_runs.memory_snapshot` column without rewriting the table; every row is kept.
+
+## [1.79.0] - 2026-11-16
+
+### Upgrading
+
+- Apply `0333_channel_thread_context.py` before starting the new API and workers. Ordinary Slack, Mattermost, Telegram, Teams and Discord messages require the background worker. Legacy thread cursors are preserved so compacted conversations are not imported again. Queued runs are attempted once; after a lost worker or an unconfirmed reply, inspect existing actions before asking again.
+
+- Unlinked channel senders no longer trigger an automatic approval for every MCP or Mirage call. Review agents exposed to unlinked participants: select Ask first for tools needing confirmation, or require linked accounts in the bot's access policy. Existing pending approvals still need a decision or a stopped run; this change does not approve them automatically.
+
+### Added
+
+- Channel thread refresh shares web-chat history and compaction, with native-post deduplication, bounded imports and explicit missing-context notices. Durable message admission, same-sender queued additions, own-run status/stop commands and final-response receipts work across workers. Personal-service feedback names missing requirements; channel readiness and dashboard connection states distinguish configuration from confirmed access.
+
+### Changed
+
+- Channel runs now respect the agent's MCP and Mirage approval settings for unlinked senders too, including delegates and resumed calls. Personal MCP accounts still require the sender's linked identity and authorized connection; bot access controls and platform MCP write approvals remain enforced.
+
+### Fixed
+
+- Resolve Telegram addressing before same-sender steering, keep slashless help as a command, preserve admitted Mattermost edits across queue delays, and target recovered replies at their original message. Readiness blocks disabled assistants and Telegram webhooks missing their required secret. Compact terminal reply snapshots across success, failure, cancellation and lost-worker recovery; pending replies share retained message quotas.
+
+- Bound retained channel job counts and payload bytes, including terminal jobs, independently of active queue capacity. Completed work cannot reset its storage quota before cleanup.
+
+- Bound channel admission before enqueueing, encrypt attachment handles through the vault, keep `/btw` tool-free across workers, and preserve rendered answers and native delivery receipts. Stale workers cannot persist terminal replies; delayed turns do not import future thread messages. Publication diagnostics no longer require the channel manager to run the agent.
+
+- Admit Slack Socket Mode commands and message shortcuts durably before acknowledgement, preserve Telegram updates when job admission fails, and keep Discord metadata lookups off its Gateway receive loop.
+
+- Standardize fields, native and custom selects, buttons and switches across the console and authentication screens. Respect the chosen look at sign-in, stack connected accounts before appearance, restore fallback avatar colours and make working-day selection clear.
+
+
+## [1.78.1] - 2026-11-16
+
+### Added
+
+- Configure API webhook signature formats and headers in the routine editor, and find Linear webhooks from the event picker.
+
+### Changed
+
+- Update compatible backend runtime, sandbox, parsing, documentation and test dependencies from #3058, and refresh their third-party notices.
+- Update FastAPI, Logfire and Pydantic AI Skills, with refreshed third-party notices (#3043).
+
+### Fixed
 
 - Routine access reviews refresh their sources and action inventories after a personal or organization MCP connection is changed, checked or connected through OAuth, including live updates, without reloading the console (#3061).
 - Routine history clears the starting placeholder when the requested run appears, including runs already waiting for approval or finished before the first refresh. Older runs do not hide a new dispatch, and the exact queued activation keeps polling independent of concurrent fires, paginated history and browser/server clock differences (#3063). Waiting-for-answer runs have a translated status in every console language (#3064).
@@ -119,19 +231,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Native integration capabilities can use several organization or personal accounts in one request. Personal accounts can be connected and repaired from chat settings; agents receive account choices and setup guidance when access is missing. Routine source reviews retain the exact approved accounts.
-
-- Odoo 19+ JSON-2 integration for contacts, CRM, sales, invoicing, inventory and projects, with named accounts, approval-gated tools, shared workflow operations, record-change routines and explicitly selected knowledge fields. Exchange Online mail and calendar use the Microsoft Graph connection.
-
-- Built-in Google Workspace, Microsoft Graph, Slack and read-only IMAP integrations with provider setup wizards, named personal and organization accounts, OAuth and application/token alternatives, individual Toolbox tools with mandatory approval for writes, and shared workflow operations. Drive, SharePoint/OneDrive and selected Slack channels reuse organization accounts for knowledge sync. Native-account triggers and watches persist independent change cursors; delegated Teams chats use modification timestamps and application/channel feeds use Graph delta (#2797).
-
 - Add ElevenLabs Scribe v3/v2 transcription and Eleven Realtime Mini/Max voice conversations with explicit vault keys. Realtime audio costs remain a floor because token charges are unreported; calls with spending budgets are refused before connecting.
 
 - Select an accessible project's workspace for the current agent run from chat or channels, without moving conversation history. Access is rechecked for each operation; approval continuations retain the selection and routines keep their reviewed source ceiling.
 
 ### Changed
-
-- **API action required:** creating a native integration trigger now requires an explicit `connection_id`. Clients that used an implicit organization default for Gmail, Outlook, file or calendar presets must select and send the account ID; the console already supplies it.
 
 - Add varied editorial slide compositions, an evidence-led report with reconciled filtering, and a detailed procedural product studio to the bundled Apps and Visuals skills.
 - Simplify the default Me dashboard, align Briefing rows, place Discover directly below Briefing and center visual previews. Settle answered questions when the server starts their continuation, and dismiss clicked toasts with a shorter exit.
@@ -153,10 +257,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Make evaluation optional when reviewing skill proposals: apply a reviewed update directly, or run a check before deciding. Edit permissions and proposal/version conflict checks still apply.
 
 ### Fixed
-
-- Separate organization OAuth setup from personal account sign-in. Members can manage multiple connected accounts from their profile; capability settings no longer ask agent authors for user account names.
-
-- Connected-product capability illustrations show real product logos, and account settings clarify that personal accounts belong to each user talking to the agent.
 
 - Prevent App deletion from deadlocking with workflow event writes. Release partial source locks before bounded retries, return a retryable 409 when busy, and preserve run history and commit-only file cleanup (#3021).
 
@@ -323,12 +423,6 @@ Two things are versioned separately from this file and worth knowing about:
 - **Favicons for ordinary web links.** Unknown HTTP(S) sites use a hostname-only, credential-free icon proxy even without an MCP connection, with a globe if unavailable. Model-supplied links never make the reader’s browser contact the target site to load an icon. Inert transcript views make no remote icon requests, and a missing icon on one site does not suppress another site's icon.
 - Unify Vault keys and personal/organization connected accounts in one table,
   preserving per-entry authority and removing separate empty cards/count strips.
-- Show Google and Microsoft services separately in the account picker, with each
-  product's logo and only that product preselected for consent.
-- Preserve the private-chat audience for agents with native integrations alone,
-  so personal accounts work without an unrelated memory or browser capability.
-- Apply native-account source reviews only to actual routine runs, retaining
-  refusal for routines whose reviewed policy is missing or outdated.
 - Restore wheel scrolling in resource-sharing member/group pickers inside modals,
   bound the list to the available viewport and correct project access descriptions.
 - Keep the Skill editor frame mounted across skeleton, metadata and module loading
@@ -2051,11 +2145,6 @@ environment without a person's decision.
 
 ### Changed
 
-- **Binding, rebinding or resuming an agent on a public-line WhatsApp bot needs `channels:manage` or an approved request.** The exposure routes answer `202` with a `request_id` for a request, and take `request_note`.
-- **A public line refuses to open, bind, change environment, resume, reactivate or delete an environment without a spending ceiling,** and a publish, rollback or promotion that would leave a stranger-answering binding without one.
-- Schema: `agent_runs.runs_as_agent`, `whatsapp_customers.phone` and a new `channel_binding_requests` table; two notification types. No backfill.
-- A conversation a Microsoft Teams bot starts is now titled "Microsoft Teams Chat"
-  instead of "Teams Chat". Existing conversations keep their title.
 - **A session API client that decides a chat run no longer resumes it.** Read `continues_in_chat` and skip `POST /runs/{id}/resume` when it is true; a late resume answers 400 with the run's status. (#2656)
 - Chat runs whose approvals were all decided but never continued are now ended about an hour after the last decision. (#2656)
 - On the first sweep after upgrading, such runs decided more than 7 days ago are ended without a chat message. (#2656)
@@ -2068,7 +2157,6 @@ environment without a person's decision.
 - A chat button pressed at the moment the request is decided elsewhere is now closed instead of staying open. (#2656)
 - The question sweep no longer overwrites an answer pressed at the last moment. (#2656)
 - The approvals queue, the dashboard widget, the CSV export, the approval email and the in-app approval notification name the chat account instead of the publisher for an unlinked asker, and filtering the queue by the publisher no longer lists those calls. Who receives the email is unchanged. (#2656)
-- Moving a channel binding to a named environment no longer fails with a server error.
 
 ## [1.43.0] - 2026-11-04
 
@@ -21954,7 +22042,10 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.78.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.80.0...HEAD
+[1.80.0]: https://github.com/vstorm-co/agenticos/compare/v1.79.0...v1.80.0
+[1.79.0]: https://github.com/vstorm-co/agenticos/compare/v1.78.1...v1.79.0
+[1.78.1]: https://github.com/vstorm-co/agenticos/compare/v1.78.0...v1.78.1
 [1.78.0]: https://github.com/vstorm-co/agenticos/compare/v1.77.0...v1.78.0
 [1.77.0]: https://github.com/vstorm-co/agenticos/compare/v1.76.2...v1.77.0
 [1.76.2]: https://github.com/vstorm-co/agenticos/compare/v1.76.1...v1.76.2

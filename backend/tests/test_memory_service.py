@@ -27,6 +27,14 @@ PERSON = uuid.uuid4()
 ADMIN = uuid.uuid4()
 
 
+@pytest.fixture(autouse=True)
+def _erasure_marks():
+    """What an erasure records of its transaction; the database here is a mock."""
+    marks = {"transaction": "1/100", "finished_at": "2026-11-13 12:00:00+00"}
+    with patch(f"{FACADE}.audit_log_repo.erasure_marks", new=AsyncMock(return_value=marks)):
+        yield
+
+
 def _ctx(user_id: uuid.UUID, *, role: OrgRoleName = OrgRoleName.MEMBER) -> AuthContext:
     return AuthContext(user_id=user_id, organization_id=ORG, role=role)
 

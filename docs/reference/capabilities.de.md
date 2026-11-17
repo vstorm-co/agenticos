@@ -1,5 +1,5 @@
 ---
-source_sha: "3baaf4709d53"
+source_sha: "57cc44416764"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -357,7 +357,9 @@ tauschen so Latenz und ein wenig Ausgabe gegen bessere Trefferquote bei
 unscharfen Fragen. `multi_query` ruft außerdem einmal je Abfrage ab, eine nach
 der anderen, und jeder Abruf bettet seine eigene Abfrage ein — die Varianten
 werden nicht in einem Embedding-Aufruf gebündelt —, also halte
-`query_analysis_max_variants` niedrig, um die Auffächerung zu begrenzen.
+`query_analysis_max_variants` niedrig, um die Auffächerung zu begrenzen. Ob sich
+ein Modus für einen Korpus lohnt, entscheidet eine Messung, kein Standardwert: die
+[Retrieval-Evaluierung](../retrieval-eval.md) vergleicht beide auf dieser Dokumentation.
 
 Beide Modi nutzen das eigene Modell des Agents — es gibt kein separates Modell zu
 konfigurieren — und ihre Kosten werden gegen das Budget des Runs gemessen wie
@@ -1517,7 +1519,7 @@ Lesezugriffe und Text-grep; modellgestützte semantische Suche ist nicht aktivie
 Die Kontoverknüpfung muss im selben Browser und mit derselben angemeldeten
 Identität abgeschlossen werden, mit der sie begonnen wurde.
 
-Vault-Secrets müssen zum Zweck des Backends passen; `custom` erlaubt ausdrücklich eine eigene Integration. OneDrive und SharePoint akzeptieren eine Entra-App mit dem Zweck `sharepoint`, Hugging-Face-Dienste den Zweck `huggingface`. Veröffentlichung und Ausführung prüfen dieselbe Regel. Jeder Host einer PostgreSQL-Seed-Liste muss auf der Allowlist des Deployments stehen. MongoDB und GridFS benötigen genau einen `mongodb://`-Host: Die Plattform erzwingt `directConnection=true` und lehnt SRV-Erkennung ab. Nicht verknüpfte Kanalabsender benötigen für jedes Mirage-Werkzeug eine Genehmigung, auch zum Lesen; nach der Kontoverknüpfung gilt die normale Ordnerregel des Autors.
+Vault-Secrets müssen zum Zweck des Backends passen; `custom` erlaubt ausdrücklich eine eigene Integration. OneDrive und SharePoint akzeptieren eine Entra-App mit dem Zweck `sharepoint`, Hugging-Face-Dienste den Zweck `huggingface`. Veröffentlichung und Ausführung prüfen dieselbe Regel. Jeder Host einer PostgreSQL-Seed-Liste muss auf der Allowlist des Deployments stehen. MongoDB und GridFS benötigen genau einen `mongodb://`-Host: Die Plattform erzwingt `directConnection=true` und lehnt SRV-Erkennung ab. Kanalausführungen verwenden die gewöhnlichen Genehmigungseinstellungen des Autors für die Mirage-Bindung und einzelne Werkzeuge, auch bei Absendern ohne verknüpftes Konto.
 
 PostgreSQL-Mounts benötigen ein nicht leeres Passwort im Vault-DSN; leere Passwörter und passwortlose Anmeldung werden nicht unterstützt. Sie greifen nicht auf `PGPASSWORD` oder `.pgpass` zurück. DSN-Parameter für Zugangsdaten- oder TLS-Dateien auf dem Host (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`) werden abgelehnt.
 
@@ -3698,7 +3700,7 @@ Eine Entscheidung kann strukturierte Belege enthalten: Situation, Wahl, Alternat
 
 Unter **Einstellungen → Gedächtnis** liest du Belege und erfasst mit der Korrektur ein beobachtetes Ergebnis. Eine Korrektur fügt einen neuen Eintrag hinzu; die bisherige Episode und ihre Herkunft bleiben im Verlauf. Die deterministische Konsolidierung macht aus Episoden keine allgemeinen Regeln. Löschung entfernt ihre Inhalte zusammen mit den Einträgen; der persönliche Datenexport enthält sie.
 
-**Improve-Fall vorbereiten** öffnet eine bearbeitbare Eingabe und erwartete Antwort. Prüfe den Text, entferne private Angaben und bestätige ausdrücklich den Download eines JSONL-Datensatzes. Die Felder `input`, `reference_answer`, `tags` und `note` entsprechen dem Importer in [Improve PR #2172](https://github.com/vstorm-co/agenticos/pull/2172). Importiere die Datei nach Installation dieser Funktion in einen Improve-Datensatz, evaluiere sie und akzeptiere/veröffentliche Änderungen dort. Dieser Export erstellt keinen Datensatz, startet keinen Optimierer und veröffentlicht keine Anweisungen automatisch.
+**Als Improve-Fall hinzufügen** öffnet eine bearbeitbare Eingabe und erwartete Antwort und fragt, zu welchem Dataset sie hinzugefügt werden; angeboten wird es einem Mitglied, das Datasets bearbeiten darf. Prüfe den Text, entferne, was privat bleiben muss, und stimme dem Hinzufügen ausdrücklich zu. Der Fall erhält das Tag `decision-episode`, hält dich als die Person fest, die gefragt hat, und verknüpft Run und Conversation, aus denen die Episode stammt, solange sie existieren. Wenn du gelöscht wirst, wird er deshalb anonymisiert wie jeder Fall aus deinen Conversations. Bewerte ihn und nimm Änderungen in Improve an oder veröffentliche sie dort. Das Hinzufügen startet keinen Optimierer und veröffentlicht keine Anweisungen automatisch.
 
 Die Auswahl des lokalen Zugriffs gehört zum gewählten Agenten, nicht zu einer globalen Vorgabe für andere Agenten. Das Widerrufen eines Ordners entfernt auch gespeicherte Auswahlen und Coding-Zustimmungen für seine Unterordner. Ältere Desktop-Apps behalten den Zugriff auf den ganzen Computer nur für ein Gespräch; ein Update ermöglicht die Wiederverwendung für weitere Gespräche desselben Agenten.
 

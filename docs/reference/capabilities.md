@@ -328,7 +328,9 @@ default, `query_analysis_mode` optionally expands the query *before* retrieval:
 latency and a little spend for recall on fuzzy questions. `multi_query` also
 retrieves once per query, one after another, and each retrieval embeds its own
 query — the variants are not batched into one embedding call — so keep
-`query_analysis_max_variants` low to bound the fan-out.
+`query_analysis_max_variants` low to bound the fan-out. Whether either mode pays
+for itself on a corpus is a measurement rather than a default: the
+[retrieval evaluation](../retrieval-eval.md) compares them on these docs.
 
 Both modes use the agent's own model — there is no separate model to configure —
 and their cost is metered against the run's budget like any other model call. An
@@ -1372,7 +1374,7 @@ reading and text grep; model-backed semantic search is not enabled. Connected-ac
 consent must finish in the same browser and signed-in account that started it.
 
 
-Vault secrets must match the backend’s purpose; `custom` is the explicit escape hatch. OneDrive and SharePoint accept the `sharepoint` Entra-app purpose, and Hugging Face services accept `huggingface`. Publish and runtime enforce the same rule. Every host in a PostgreSQL seed list must be on the deployment allowlist. MongoDB and GridFS require one `mongodb://` host: the platform forces `directConnection=true` and refuses SRV discovery. Unlinked channel senders require approval for every Mirage tool, including reads; linking an account restores the author’s ordinary folder policy.
+Vault secrets must match the backend’s purpose; `custom` is the explicit escape hatch. OneDrive and SharePoint accept the `sharepoint` Entra-app purpose, and Hugging Face services accept `huggingface`. Publish and runtime enforce the same rule. Every host in a PostgreSQL seed list must be on the deployment allowlist. MongoDB and GridFS require one `mongodb://` host: the platform forces `directConnection=true` and refuses SRV discovery. Channel runs use the author’s ordinary Mirage binding and per-tool approval settings, including for senders without a linked account.
 
 PostgreSQL mounts require a nonempty password in the vault DSN; empty passwords and passwordless authentication are not supported. They do not fall back to `PGPASSWORD` or `.pgpass`. DSN parameters naming host credential or TLS files (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`) are refused.
 
@@ -3319,7 +3321,7 @@ A decision claim can carry structured evidence: the situation, choice, alternati
 
 In **Settings → Memory**, read the evidence and record an observed outcome with **Correct**. A correction appends a new claim; the previous episode and its provenance remain in history. Deterministic consolidation does not fold episodes into general rules. Erasure removes their payload along with the claims; personal data export includes it.
 
-**Prepare Improve case** opens an editable input and expected answer. Review the text, remove anything that must stay private, and explicitly approve downloading one JSONL record. Its flat `input`, `reference_answer`, `tags` and `note` fields match the dataset importer in [Improve PR #2172](https://github.com/vstorm-co/agenticos/pull/2172). Import that file into an Improve dataset when that feature is installed, evaluate it and accept/publish changes there. This handoff does not create a dataset, run an optimizer or publish instructions automatically.
+**Add as an Improve case** opens an editable input and expected answer and asks which dataset to add them to; it is offered to a member who may edit datasets. Review the text, remove anything that must stay private, and explicitly approve adding it. The case is tagged `decision-episode`, records you as the person who asked it and links the run and conversation the episode came from while they exist, so erasing you anonymises it like any case taken from your conversations. Evaluate it and accept or publish changes in Improve. Adding it does not run an optimizer or publish instructions automatically.
 
 Local access choices belong to the selected agent, not to a global default inherited by other agents. Revoking a folder also removes its remembered choices and coding consents for folders inside it. Older desktop apps keep whole-computer consent within one conversation; upgrade the app to remember it across an agent’s conversations.
 

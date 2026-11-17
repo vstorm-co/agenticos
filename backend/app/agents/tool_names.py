@@ -11,7 +11,7 @@ keep off from here.
 from app.agents.capabilities import FRAMEWORK_TOOL_NAMES, all_capabilities
 from app.agents.capabilities.channel_tools import CHANNEL_TOOLS_CAPABILITY_ID
 from app.agents.computer_on_use import REQUEST_COMPUTER_ACCESS
-from app.agents.connect_on_use import CONNECT_ACCOUNT
+from app.agents.connect_on_use import CHECK_SERVICE_ACCESS, CONNECT_ACCOUNT
 from app.agents.hand_off import HAND_OFF_TOOL
 from app.agents.setup_briefing import REQUEST_CAPABILITY
 from app.agents.spec import AgentSpec
@@ -26,6 +26,7 @@ PLATFORM_TOOL_NAMES = frozenset(
         # the spec's `output_schema` or by the request itself.
         "final_result",
         CONNECT_ACCOUNT,
+        CHECK_SERVICE_ACCESS,
         REQUEST_COMPUTER_ACCESS,
         HAND_OFF_TOOL,
     }

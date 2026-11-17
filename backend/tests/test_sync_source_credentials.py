@@ -81,6 +81,7 @@ def _service(
                 name=kwargs["name"],
                 connector_type=kwargs["connector_type"],
                 collection_name=kwargs["collection_name"],
+                knowledge_base_id=kwargs["knowledge_base_id"],
                 config=kwargs["config"],
                 secret_id=kwargs["secret_id"],
                 organizational_unit=kwargs["organizational_unit"],
@@ -111,7 +112,6 @@ def _drive(**overrides) -> SyncSourceCreate:
     return SyncSourceCreate(
         name="Legal docs",
         connector_type="gdrive",
-        collection_name="legal",
         config={"folder_id": "1AbC_-def"},
         **overrides,
     )
@@ -186,7 +186,12 @@ class TestTheCredentialIsReferencedNotCarried:
 
         with pytest.raises(BadRequestError):
             await service.clone_source(
-                str(source.id), SyncSourceClone(collection_name="mine"), ctx=_ctx(_ORG)
+                str(source.id),
+                SyncSourceClone(collection_name="mine"),
+                ctx=_ctx(_ORG),
+                knowledge_base=MagicMock(
+                    id=uuid.uuid4(), collection_name="mine", scope="org", organization_id=_ORG
+                ),
             )
 
         sync_source_module.sync_source_repo.create.assert_not_awaited()

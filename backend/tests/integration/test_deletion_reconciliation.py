@@ -2063,11 +2063,13 @@ async def test_removing_a_source_target_never_reassigns_it_by_name(
     other_base = _org_collection(other_org.id, name)
     selected.is_default = operation == "keep_default"
     db.add_all([selected, same_org_fallback, other_base])
+    await db.flush()
     source = SyncSource(
         organization_id=org.id,
         name="Private connector",
         connector_type="web",
         collection_name=name,
+        knowledge_base_id=selected.id,
         config={},
         is_active=True,
     )
@@ -2076,6 +2078,7 @@ async def test_removing_a_source_target_never_reassigns_it_by_name(
         name="Other connector",
         connector_type="web",
         collection_name=name,
+        knowledge_base_id=other_base.id,
         config={},
         is_active=True,
     )
@@ -2091,11 +2094,15 @@ async def test_removing_a_source_target_never_reassigns_it_by_name(
         await service.delete_for_rag_collection(selected)
     await db.refresh(source)
     await db.refresh(other_source)
-    if operation in {"keep_default", "delete_other"}:
+    # A cleared default keeps its row but not its sources (#2551).
+    if operation == "delete_other":
         assert source.collection_name == name and source.is_active
+        assert source.knowledge_base_id == selected.id
     else:
         assert source.collection_name is None and not source.is_active
+        assert source.knowledge_base_id is None
     assert other_source.collection_name == name and other_source.is_active
+    assert other_source.knowledge_base_id == other_base.id
 
 
 @pytest.mark.security
@@ -2126,6 +2133,7 @@ async def test_a_queued_sync_refreshes_its_target_after_waiting_for_deletion(
             name="Queued connector",
             connector_type="web",
             collection_name=name,
+            knowledge_base_id=selected.id,
             config={},
             is_active=True,
         )
@@ -2155,7 +2163,7 @@ async def test_a_queued_sync_refreshes_its_target_after_waiting_for_deletion(
     resolve = AsyncMock()
     monkeypatch.setattr(rag_tasks, "get_worker_db_context", worker_db)
     monkeypatch.setattr(rag_tasks, "hold_name", delete_before_lock)
-    monkeypatch.setattr(rag_tasks, "_knowledge_base_for", resolve)
+    monkeypatch.setattr(rag_tasks, "_source_knowledge_base", resolve)
     monkeypatch.setattr(rag_tasks, "_notify_sync_start_failure", AsyncMock())
     answer = await rag_tasks._sync_source(source_id, None)
     assert answer == {
@@ -2185,15 +2193,18 @@ async def test_personal_purge_locks_all_names_before_detaching_sources(
         org = await _org(db, owner)
         first = _personal_kb(org.id, owner.id, prefix + "a")
         second = _personal_kb(org.id, owner.id, prefix + "b")
+        db.add_all([first, second])
+        await db.flush()
         source = SyncSource(
             organization_id=org.id,
             name="Moving source",
             connector_type="web",
             collection_name=first.collection_name,
+            knowledge_base_id=first.id,
             config={},
             is_active=True,
         )
-        db.add_all([first, second, source])
+        db.add(source)
         await db.commit()
         owner_id, source_id = owner.id, source.id
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "da255c277e13"
+source_sha: "0e3f3c6c82f8"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
@@ -698,6 +698,10 @@ curl -X PATCH http://localhost:8000/api/v1/rag/sync/sources/{source_id} \
 
 Pola, które można zmienić: `name`, `config`, `sync_mode`, `schedule_minutes`,
 `is_active`, `collection_name`.
+
+Nowa wartość `collection_name` przenosi źródło do bazy wiedzy, do której ta nazwa
+rozwiązuje się dla twojej organizacji i do której musisz mieć prawo zapisu; `null`
+odłącza je od każdej bazy, a źródło bez bazy nie synchronizuje.
 
 Ustaw `is_active` na `false`, aby wstrzymać źródło bez usuwania go.
 Wstrzymane źródło nie uruchamia się według harmonogramu ani na żądanie przez

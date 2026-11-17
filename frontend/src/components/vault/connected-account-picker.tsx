@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { ChevronRight, Mail } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
+  Button,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -76,7 +77,7 @@ export function ConnectedAccountPicker({
                   checked={owner === value}
                   onChange={() => setOwner(value)}
                 />
-                <span className="peer-checked:bg-background peer-focus-visible:ring-ring touch:min-h-11 flex items-center justify-center rounded-md px-3 py-2 text-center text-sm peer-checked:shadow-sm peer-focus-visible:ring-2">
+                <span className="peer-checked:bg-background peer-focus-visible:outline-foreground/60 touch:min-h-11 flex items-center justify-center rounded-xl px-3 py-2 text-center text-sm peer-checked:shadow-sm peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2">
                   {t(`picker.${value}`)}
                 </span>
               </label>
@@ -91,8 +92,9 @@ export function ConnectedAccountPicker({
                   ? productName(`${product.id}.name`)
                   : t(`setup.provider.${provider}`);
                 return (
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
                     key={product.id ?? provider}
                     aria-labelledby={`${id}-${product.id ?? provider}-name`}
                     aria-describedby={`${id}-${product.id ?? provider}-hint`}
@@ -103,7 +105,7 @@ export function ConnectedAccountPicker({
                         ...(product.id ? { products: [product.id] } : {}),
                       })
                     }
-                    className="hover:bg-muted/50 focus-visible:outline-ring flex min-h-14 items-center gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+                    className="h-auto min-h-14 justify-start gap-3 p-3 text-left whitespace-normal"
                   >
                     {provider === "imap" ? (
                       <Mail className="size-6 shrink-0" aria-hidden />
@@ -131,7 +133,7 @@ export function ConnectedAccountPicker({
                       </span>
                     </span>
                     <ChevronRight className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-                  </button>
+                  </Button>
                 );
               }),
             )}

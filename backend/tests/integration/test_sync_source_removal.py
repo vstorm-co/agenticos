@@ -23,6 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.db.locks import LockScope, try_hold_subject_on_connection
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.rag_document_claim import RAGDocumentClaim
@@ -30,6 +31,7 @@ from app.db.models.sync_source import SyncSource
 from app.db.models.user import User
 from app.repositories import rag_document_repo
 from app.repositories import sync_source as sync_source_repo
+from app.repositories.rag_document import CollectionScope
 from app.services.rag_document import RAGDocumentService
 
 pytestmark = pytest.mark.anyio
@@ -61,6 +63,25 @@ async def _org(db: AsyncSession) -> Organization:
 async def _source(
     db: AsyncSession, organization: Organization, *, collection_name: str = COLLECTION
 ) -> SyncSource:
+    base = await db.scalar(
+        select(KnowledgeBase).where(
+            KnowledgeBase.organization_id == organization.id,
+            KnowledgeBase.collection_name == collection_name,
+        )
+    )
+    if base is None:
+        base = KnowledgeBase(
+            id=uuid.uuid4(),
+            name=collection_name,
+            collection_name=collection_name,
+            scope=KBScope.ORG.value,
+            organization_id=organization.id,
+            embedding_model="text-embedding-3-small",
+            embedding_dim=1536,
+            visibility="org",
+        )
+        db.add(base)
+        await db.flush()
     source = SyncSource(
         id=uuid.uuid4(),
         organization_id=organization.id,
@@ -68,10 +89,21 @@ async def _source(
         connector_type="git",
         config={},
         collection_name=collection_name,
+        knowledge_base_id=base.id,
     )
     db.add(source)
     await db.flush()
     return source
+
+
+def _legacy_scope(organization_id: uuid.UUID) -> CollectionScope:
+    """These fixtures model unfiled rows retained by their tenant's base."""
+    return CollectionScope(
+        knowledge_base_id=uuid.uuid4(),
+        collection_name=COLLECTION,
+        tenant=organization_id,
+        takes_unfiled=True,
+    )
 
 
 async def _row(
@@ -150,7 +182,7 @@ class TestWhatASyncMayDeleteAsUnlisted:
         )
 
         rows = await rag_document_repo.get_settled_for_sync_source(
-            db, sync_source_id=mine.id, collection_name=COLLECTION
+            db, sync_source_id=mine.id, scope=_legacy_scope(org.id)
         )
 
         assert {row.id for row in rows} == {done.id, failed.id}
@@ -183,7 +215,7 @@ class TestWhatASyncMayDeleteAsUnlisted:
         )
 
         rows = await rag_document_repo.get_stale_for_sync_source(
-            db, sync_source_id=mine.id, collection_name=COLLECTION
+            db, sync_source_id=mine.id, scope=_legacy_scope(org.id)
         )
 
         assert [row.id for row in rows] == [stale.id]
@@ -203,13 +235,13 @@ class TestWhatASyncMayDeleteAsUnlisted:
         )
 
         tracked = await rag_document_repo.get_tracked_vector_ids(
-            db, collection_name=COLLECTION, vector_document_ids={"vec", "orphan"}
+            db, scope=_legacy_scope(org.id), vector_document_ids={"vec", "orphan"}
         )
 
         assert tracked == {"vec"}
         assert (
             await rag_document_repo.get_tracked_vector_ids(
-                db, collection_name=COLLECTION, vector_document_ids=set()
+                db, scope=_legacy_scope(org.id), vector_document_ids=set()
             )
             == set()
         )
@@ -332,14 +364,14 @@ class TestTwoSourcesClaimingOneDocument:
         documents = RAGDocumentService(db)
 
         await documents.claim_listed(
-            sync_source_id=mine.id, collection_name=COLLECTION, documents=pairs
+            sync_source_id=mine.id, scope=_legacy_scope(org.id), documents=pairs
         )
         # Claiming again is a no-op, not a conflict.
         await documents.claim_listed(
-            sync_source_id=mine.id, collection_name=COLLECTION, documents=pairs
+            sync_source_id=mine.id, scope=_legacy_scope(org.id), documents=pairs
         )
         await documents.claim_listed(
-            sync_source_id=mine.id, collection_name=COLLECTION, documents=set()
+            sync_source_id=mine.id, scope=_legacy_scope(org.id), documents=set()
         )
 
         assert await _claimants(db, compared) == {other.id, mine.id}
@@ -368,7 +400,7 @@ class TestTwoSourcesClaimingOneDocument:
 
         await RAGDocumentService(db).claim_listed(
             sync_source_id=mine.id,
-            collection_name=COLLECTION,
+            scope=_legacy_scope(org.id),
             documents={(f"{ROOT}{n}.md", f"vec-{n}") for n in range(5)},
         )
 
@@ -497,7 +529,7 @@ class TestTwoSourcesAtOnce:
             claiming = asyncio.create_task(
                 RAGDocumentService(claimer).claim_listed(
                     sync_source_id=second.id,
-                    collection_name=COLLECTION,
+                    scope=_legacy_scope(second.organization_id),
                     documents={(f"{ROOT}a.md", "vec")},
                 )
             )
@@ -516,7 +548,7 @@ class TestTwoSourcesAtOnce:
         async with sessions() as claimer, sessions() as remover:
             await RAGDocumentService(claimer).claim_listed(
                 sync_source_id=second.id,
-                collection_name=COLLECTION,
+                scope=_legacy_scope(second.organization_id),
                 documents={(f"{ROOT}a.md", "vec")},
             )
             releasing = asyncio.create_task(
@@ -578,10 +610,20 @@ class TestTheStoredSyncState:
         await db.flush()
         state = {"version": "abc123", "fingerprint": "f" * 64}
         await sync_source_repo.update_sync_status(
-            db, source.id, last_sync_at=datetime.now(UTC), last_sync_status="done", sync_state=state
+            db,
+            source.id,
+            expected_knowledge_base_id=None,
+            last_sync_at=datetime.now(UTC),
+            last_sync_status="done",
+            sync_state=state,
         )
         await sync_source_repo.update_sync_status(
-            db, source.id, last_sync_at=datetime.now(UTC), last_sync_status="error", last_error="x"
+            db,
+            source.id,
+            expected_knowledge_base_id=None,
+            last_sync_at=datetime.now(UTC),
+            last_sync_status="error",
+            last_error="x",
         )
         await db.refresh(source)
 
