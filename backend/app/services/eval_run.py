@@ -92,6 +92,7 @@ from app.schemas.eval_run import (
     ArmSummaryRead,
     CaseFlipRead,
     ComparisonSide,
+    CriterionMoveRead,
     EfficiencyRead,
     EvalAttemptRead,
     EvalCallRead,
@@ -128,11 +129,15 @@ from app.services.eval_comparison import (
     ArmSummary,
     Attempt,
     CaseState,
+    Criterion,
     Flip,
     Outcome,
     PairedCase,
+    PairedGrades,
+    criterion_moves,
     efficiency,
     flips_by_tag,
+    grades,
     quality_verdict,
     settle,
     summarize,
@@ -2566,6 +2571,24 @@ class EvalRunService:
             for case_id, first in firsts.items()
         }
 
+    async def criterion_outcomes(
+        self, ctx: AuthContext, arm: EvalRunArm, attempts: Sequence[EvalRunCase]
+    ) -> dict[UUID, tuple[dict[Criterion, Outcome], tuple[dict[Criterion, Outcome], ...]]]:
+        """Each case's first criterion outcomes on an arm, and its reruns' - the scorers'
+        own grades, which a person's verdict on the whole case leaves as they were."""
+        own = await self._arm_attempts(ctx, arm, attempts)
+        scores = await self._scores(ctx, own)
+        firsts: dict[UUID, dict[Criterion, Outcome]] = {}
+        reruns: dict[UUID, list[dict[Criterion, Outcome]]] = defaultdict(list)
+        for attempt in sorted(own, key=lambda a: a.attempt):
+            score = scores.get(attempt.case_score_id)
+            graded = grades(score.results) if score is not None else {}
+            if attempt.attempt == 0:
+                firsts[attempt.case_id] = graded
+            else:
+                reruns[attempt.case_id].append(graded)
+        return {case_id: (first, tuple(reruns[case_id])) for case_id, first in firsts.items()}
+
     async def compare(
         self,
         ctx: AuthContext,
@@ -2712,19 +2735,16 @@ class EvalRunService:
                 cases=[],
                 flips_by_tag={},
             )
-        theirs = (
-            await self.outcomes(ctx, baseline.here, attempts, overturned_by_majority=by_majority)
-            if baseline.here is not None
-            else await self.outcomes(
-                ctx,
-                baseline.arm,
-                attempts
-                if baseline.run.id == run.id
-                else await eval_run_repo.list_cases(
-                    self.db, baseline.run.id, organization_id=ctx.organization_id
-                ),
-                overturned_by_majority=by_majority,
+        their_arm = baseline.here or baseline.arm
+        their_attempts = (
+            attempts
+            if baseline.here is not None or baseline.run.id == run.id
+            else await eval_run_repo.list_cases(
+                self.db, baseline.run.id, organization_id=ctx.organization_id
             )
+        )
+        theirs = await self.outcomes(
+            ctx, their_arm, their_attempts, overturned_by_majority=by_majority
         )
         drift = drifts(run, candidate, baseline)
         confirmed_here = baseline.paired or (baseline.here is not None and not drift)
@@ -2745,6 +2765,19 @@ class EvalRunService:
             )
             for case_id in common
         ]
+        my_grades = await self.criterion_outcomes(ctx, candidate, attempts)
+        their_grades = await self.criterion_outcomes(ctx, their_arm, their_attempts)
+        moves = criterion_moves(
+            PairedGrades(
+                baseline=their_grades[case_id][0],
+                candidate=my_grades[case_id][0],
+                baseline_reruns=their_grades[case_id][1] if confirmed_here else (),
+                candidate_reruns=my_grades[case_id][1],
+                drift=drift,
+            )
+            for case_id in common
+            if case_id in my_grades and case_id in their_grades
+        )
         invalid_reason = await self._incomparable(ctx, run, candidate, baseline, attempts)
         invalid_reason_code: Literal["knowledge_not_retrieved", "too_few_held_out"] | None = None
         if run.proposal_check is not None:
@@ -2860,6 +2893,20 @@ class EvalRunService:
                 tag: {flip.value: n for flip, n in counts.items()}
                 for tag, counts in flips_by_tag(paired_cases).items()
             },
+            criteria=[
+                CriterionMoveRead(
+                    scorer=move.scorer,
+                    name=move.name,
+                    graded=move.graded,
+                    baseline_passed=move.baseline_passed,
+                    candidate_passed=move.candidate_passed,
+                    fixed_confirmed=move.fixed_confirmed,
+                    broken_confirmed=move.broken_confirmed,
+                    fixed_unconfirmed=move.fixed_unconfirmed,
+                    broken_unconfirmed=move.broken_unconfirmed,
+                )
+                for move in moves
+            ],
         )
 
     async def _first_attempts(

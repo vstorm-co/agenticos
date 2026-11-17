@@ -588,6 +588,26 @@ class CaseFlipRead(BaseSchema):
     )
 
 
+class CriterionMoveRead(BaseSchema):
+    """One criterion over the cases both sides graded on it, first answers counted.
+
+    A criterion is one check, judge criterion, expected-call check or reference
+    grade, named as the scores name it. A flip on it is confirmed as a case's is:
+    every rerun on both sides repeated it. A case that kept failing can still
+    have criteria that moved.
+    """
+
+    scorer: str = Field(description="The scorer kind: check, judge, trajectory or reference")
+    name: str
+    graded: int = Field(description="Cases both sides' first answers were graded on it")
+    baseline_passed: int
+    candidate_passed: int
+    fixed_confirmed: int
+    broken_confirmed: int
+    fixed_unconfirmed: int
+    broken_unconfirmed: int
+
+
 class EfficiencyRead(BaseSchema):
     cost_per_pass: TrendLiteral
     avg_tokens: TrendLiteral
@@ -648,3 +668,7 @@ class EvalComparisonRead(BaseSchema):
     efficiency: EfficiencyRead | None
     cases: list[CaseFlipRead]
     flips_by_tag: dict[str, dict[FlipLiteral, int]]
+    criteria: list[CriterionMoveRead] = Field(
+        default_factory=list,
+        description="Each criterion graded on both sides, by scorer and name",
+    )

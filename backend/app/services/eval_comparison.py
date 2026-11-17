@@ -15,6 +15,11 @@ The rules are the ones a gate can trust:
   on. A baseline nobody reran confirms nothing, however it came out once -
   unless it is the candidate itself at an earlier time, the same spec on the
   same model, whose reruns would only be the candidate's again.
+* **A criterion moves as a case flips.** Each check, judge criterion, expected
+  call and reference grade is compared on its own over the same cases, and a
+  case where one of them flipped is asked again as a flipped case is: a moved
+  criterion counts only when the reruns repeat it on both sides. A case that
+  still fails can so show what a change fixed in it.
 * **A verdict rests on confirmed flips.** One confirmed regression makes the
   candidate worse, confirmed fixes alone make it better, both make it mixed.
   An exact McNemar test over the confirmed flips says separately whether the
@@ -30,7 +35,8 @@ The rules are the ones a gate can trust:
 
 import enum
 import math
-from collections.abc import Iterable, Sequence
+from collections import Counter
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Literal
@@ -123,13 +129,35 @@ class PairedCase:
 
         A flip either side was not rerun on is unconfirmed, whatever it looks like.
         """
-        if self.flip not in (Flip.REGRESSION, Flip.FIXED):
-            return False
-        if not self.candidate_reruns or not (self.baseline_reruns or self.drift):
-            return False
-        return all(run is self.candidate for run in self.candidate_reruns) and all(
-            run is self.baseline for run in self.baseline_reruns
+        return reproduced(
+            self.baseline,
+            self.candidate,
+            self.baseline_reruns,
+            self.candidate_reruns,
+            drift=self.drift,
         )
+
+
+def reproduced(
+    baseline: Outcome,
+    candidate: Outcome,
+    baseline_reruns: Sequence[Outcome],
+    candidate_reruns: Sequence[Outcome],
+    *,
+    drift: bool,
+) -> bool:
+    """Whether a flip between two outcomes held on every rerun of the side it was rerun on.
+
+    A flip either side was not rerun on is unconfirmed; `drift` stands in for a
+    baseline that is the candidate itself at an earlier time.
+    """
+    if classify(baseline, candidate) not in (Flip.REGRESSION, Flip.FIXED):
+        return False
+    if not candidate_reruns or not (baseline_reruns or drift):
+        return False
+    return all(run is candidate for run in candidate_reruns) and all(
+        run is baseline for run in baseline_reruns
+    )
 
 
 def mcnemar_p(regressions: int, fixed: int) -> float:
@@ -365,3 +393,129 @@ def flips_by_tag(cases: Iterable[PairedCase]) -> dict[str, dict[Flip, int]]:
             per_tag = counts.setdefault(tag, dict.fromkeys(Flip, 0))
             per_tag[case.flip] += 1
     return counts
+
+
+type Criterion = tuple[str, str]
+"""A graded criterion: the scorer kind and the name it grades under."""
+
+type Grades = Mapping[Criterion, Outcome]
+"""How one attempt came out on each criterion that graded it."""
+
+
+_STATUS_OUTCOME: dict[object, bool] = {"pass": True, "fail": False}
+
+
+def grades(results: Iterable[Mapping[str, object]]) -> dict[Criterion, Outcome]:
+    """A stored score's results as criterion outcomes; a skipped or failed scorer decides none."""
+    return {
+        (str(result["scorer"]), str(result["name"])): _STATUS_OUTCOME.get(result.get("status"))
+        for result in results
+    }
+
+
+@dataclass(frozen=True)
+class PairedGrades:
+    """One case's criterion outcomes on both sides, its reruns included.
+
+    Confirmed as `PairedCase` is: the reruns of each side repeat the criterion's flip.
+    """
+
+    baseline: Grades
+    candidate: Grades
+    baseline_reruns: tuple[Grades, ...] = ()
+    candidate_reruns: tuple[Grades, ...] = ()
+    drift: bool = False
+
+    def flip(self, criterion: Criterion) -> Flip:
+        return classify(self.baseline.get(criterion), self.candidate.get(criterion))
+
+    def confirmed(self, criterion: Criterion) -> bool:
+        return reproduced(
+            self.baseline.get(criterion),
+            self.candidate.get(criterion),
+            tuple(run.get(criterion) for run in self.baseline_reruns),
+            tuple(run.get(criterion) for run in self.candidate_reruns),
+            drift=self.drift,
+        )
+
+
+def criterion_flipped(baseline: Grades, candidate: Grades) -> bool:
+    """Whether any criterion graded on both sides came out the other way."""
+    return any(
+        classify(outcome, candidate.get(criterion)) in (Flip.REGRESSION, Flip.FIXED)
+        for criterion, outcome in baseline.items()
+    )
+
+
+@dataclass(frozen=True)
+class CriterionMove:
+    """How one criterion came out on the cases both sides graded on it.
+
+    Attributes:
+        scorer: The scorer kind grading it.
+        name: The name it is graded under.
+        graded: Cases whose first answer it graded on both sides.
+        baseline_passed: Of those, how many the baseline's first answer passed.
+        candidate_passed: Of those, how many the candidate's first answer passed.
+        fixed_confirmed: Cases it went from fail to pass on, repeated by every rerun.
+        broken_confirmed: Cases it went from pass to fail on, repeated by every rerun.
+        fixed_unconfirmed: Cases it looked fixed on once, and the reruns did not repeat.
+        broken_unconfirmed: Cases it looked broken on once, and the reruns did not repeat.
+    """
+
+    scorer: str
+    name: str
+    graded: int
+    baseline_passed: int
+    candidate_passed: int
+    fixed_confirmed: int
+    broken_confirmed: int
+    fixed_unconfirmed: int = 0
+    broken_unconfirmed: int = 0
+
+    @property
+    def worse(self) -> bool:
+        """A confirmed break, as one confirmed regression makes a candidate worse."""
+        return self.broken_confirmed > 0
+
+    @property
+    def better(self) -> bool:
+        """Confirmed fixes alone, and no fewer passes than before."""
+        return (
+            not self.worse
+            and self.fixed_confirmed > 0
+            and self.candidate_passed >= self.baseline_passed
+        )
+
+
+def criterion_moves(cases: Iterable[PairedGrades]) -> list[CriterionMove]:
+    """Every criterion graded on both sides of some case, by scorer and then name."""
+    counts: dict[Criterion, Counter[str]] = {}
+    for case in cases:
+        for criterion, before in case.baseline.items():
+            after = case.candidate.get(criterion)
+            if before is None or after is None:
+                continue
+            row = counts.setdefault(criterion, Counter())
+            row["graded"] += 1
+            row["baseline_passed"] += int(before)
+            row["candidate_passed"] += int(after)
+            flip = case.flip(criterion)
+            if flip in (Flip.FIXED, Flip.REGRESSION):
+                which = "fixed" if flip is Flip.FIXED else "broken"
+                state = "confirmed" if case.confirmed(criterion) else "unconfirmed"
+                row[f"{which}_{state}"] += 1
+    return [
+        CriterionMove(
+            scorer=scorer,
+            name=name,
+            graded=row["graded"],
+            baseline_passed=row["baseline_passed"],
+            candidate_passed=row["candidate_passed"],
+            fixed_confirmed=row["fixed_confirmed"],
+            broken_confirmed=row["broken_confirmed"],
+            fixed_unconfirmed=row["fixed_unconfirmed"],
+            broken_unconfirmed=row["broken_unconfirmed"],
+        )
+        for (scorer, name), row in sorted(counts.items())
+    ]

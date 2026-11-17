@@ -12,8 +12,8 @@ tool runs without a test connection, and attributed to no version when it runs
 a draft. What it answered and called is copied onto the attempt, because a run
 without a conversation keeps no transcript.
 
-After the first answer of every case, the cases whose outcome flipped against
-the baseline are rerun, and the run ends.
+After the first answer of every case, the cases whose outcome, or any one of
+whose criteria, flipped against the baseline are rerun, and the run ends.
 """
 
 import asyncio
@@ -73,7 +73,7 @@ from app.services.access import AGENT, DATASET, resolve_access
 from app.services.agent_registry import Candidate, PublishedCandidate, UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import job_context
-from app.services.eval_comparison import Flip, classify
+from app.services.eval_comparison import Flip, classify, criterion_flipped
 from app.services.eval_run import EvalRunService, drifts, skill_body_from_json
 from app.services.message_history import HistoryMessage, build_message_history
 from app.services.notifications import NotificationService
@@ -891,6 +891,10 @@ class EvalRunWorker:
     async def _queue_reruns(self, ctx: AuthContext) -> bool:
         """Queue the confirmation reruns of every flipped case. True if any were queued.
 
+        A case flipped when its outcome did, or when any criterion graded on both
+        sides did: a case that kept failing for one reason may pass another now,
+        and only the reruns can confirm that.
+
         A stability run compares nothing: every first answer is asked again.
 
         A case is rerun on each candidate arm it flipped on, and on this run's
@@ -925,14 +929,15 @@ class EvalRunWorker:
                     if baseline is None:
                         continue
                     mine = await service.outcomes(ctx, arm, attempts)
-                    theirs = await service.outcomes(
-                        ctx,
-                        baseline.here or baseline.arm,
+                    their_attempts = (
                         attempts
                         if baseline.here is not None or baseline.run.id == run.id
                         else await eval_run_repo.list_cases(
                             db, baseline.run.id, organization_id=org
-                        ),
+                        )
+                    )
+                    theirs = await service.outcomes(
+                        ctx, baseline.here or baseline.arm, their_attempts
                     )
                     rerun_on = (
                         None
@@ -944,6 +949,10 @@ class EvalRunWorker:
                         else None
                     )
                     same, _ = await service.pairing(ctx, run, arm, baseline, attempts)
+                    my_grades = await service.criterion_outcomes(ctx, arm, attempts)
+                    their_grades = await service.criterion_outcomes(
+                        ctx, baseline.here or baseline.arm, their_attempts
+                    )
                     for case_id, (outcome, _, _) in mine.items():
                         first = firsts.get((arm.id, case_id))
                         if case_id not in same or first is None:
@@ -951,6 +960,9 @@ class EvalRunWorker:
                         if classify(theirs[case_id][0], outcome) not in (
                             Flip.REGRESSION,
                             Flip.FIXED,
+                        ) and not criterion_flipped(
+                            their_grades.get(case_id, ({}, ()))[0],
+                            my_grades.get(case_id, ({}, ()))[0],
                         ):
                             continue
                         queued[(arm.id, case_id)] = first

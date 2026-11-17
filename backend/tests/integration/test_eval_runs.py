@@ -1522,6 +1522,48 @@ async def test_a_flip_against_a_baseline_in_the_same_run_reruns_both_sides(db) -
     assert "judge changed while" in (mixed.invalid_reason or "")
 
 
+async def test_a_criterion_that_flipped_in_a_case_still_failing_is_asked_again(db) -> None:
+    """The case fails on both sides, so no case flips; one of its two checks does, and
+    the reruns are what confirm it."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    case = (await DatasetService(db).list_cases(ctx, dataset.id)).items[0]
+    await DatasetService(db).update_case(
+        ctx,
+        dataset.id,
+        case.case_id,
+        DatasetCaseUpdate(
+            checks=[
+                {"type": "contains", "value": "30 days"},
+                {"type": "contains", "value": "receipt"},
+            ]
+        ),
+    )
+    service = EvalRunService(db)
+    started = await service.start(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, paired_baseline=True, reruns=1)
+    )
+
+    def answer(prompt: str, call: int) -> str:
+        current = model.calls[call]["candidate"]
+        return _PASS if current.version_id == agent.current_version_id else _FAIL
+
+    model = Model(db, answer=answer)
+    await _run_to_end(db, model, started.id, ctx)
+
+    comparison = await service.compare(ctx, started.id)
+    assert comparison.fixed_confirmed == 0 and comparison.regressions_confirmed == 0
+    # One case on two arms, then once more on each arm for the criterion that moved.
+    assert len(model.calls) == 4
+    moved = {item.name: item for item in comparison.criteria}
+    days = moved["contains '30 days'"]
+    assert (days.graded, days.baseline_passed, days.candidate_passed) == (1, 0, 1)
+    assert (days.fixed_confirmed, days.broken_confirmed) == (1, 0)
+    receipt = moved["contains 'receipt'"]
+    assert (receipt.candidate_passed, receipt.fixed_confirmed) == (0, 0)
+
+
 async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
     ctx = await _owner(db)
     await _assist(db, ctx, on=True)
