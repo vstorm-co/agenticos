@@ -5735,3 +5735,9 @@ class TestGithubFilteredEventDiagnostics:
             pytest.raises(NotFoundError),
         ):
             await _service(agent).filtered_event(ctx, agent.id, uuid.uuid4())
+
+
+@pytest.fixture(autouse=True)
+def organization_model_surface(monkeypatch: pytest.MonkeyPatch) -> None:
+    """This suite's fake registry represents an organization-key agent."""
+    monkeypatch.setattr("app.services.agent_trigger.require_organization_agent", AsyncMock())

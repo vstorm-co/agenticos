@@ -6027,6 +6027,10 @@
       "channels-diagnostics": {
         "title": "Bereitschaft prüfen",
         "body": "Prüfen Sie Bot-Verbindung, Agent-Veröffentlichung und Ihre verknüpften Konten, ohne eine Aufgabe zu starten."
+      },
+      "agent-model-credentials": {
+        "title": "Wer den Modellschlüssel bereitstellt",
+        "body": "Nutze den Organisationsschlüssel oder verlange von jedem angemeldeten Chat-Nutzer einen privaten Tresorschlüssel. Modell und Endpunkt bleiben fest; Kanäle und automatische Läufe benötigen den Organisationsschlüssel."
       }
     },
     "chooseLanguage": "Sprache",
@@ -6515,7 +6519,11 @@
       "setBaseline": "Ausgangswert festlegen",
       "improveFromGaps": "Diesen Agent anhand dieser Lücken verbessern",
       "systemAgentReadOnly": "Nur ein Administrator der Organisation kann einen Systemagent ändern. Hier können Sie nachlesen, wie er arbeitet.",
-      "continueConversation": "Meine Unterhaltung fortsetzen"
+      "continueConversation": "Meine Unterhaltung fortsetzen",
+      "modelCredentialMode": "Modellzugriff",
+      "organizationModelKey": "Organisationsschlüssel verwenden",
+      "personalModelKey": "Jeder Nutzer verbindet seinen eigenen Schlüssel",
+      "personalModelLimits": "Modell und Endpunkt bleiben fest. Nur Web-Chat für angemeldete Nutzer. Deaktiviere vor der Veröffentlichung aktive Kanäle, Widgets, öffentliche Seiten und Routinen. HTTP-API-Läufe, Hintergrundthemen, Sprache, Delegation, Reviewer, separate Schrittmodelle und Ersatzmodelle werden nicht unterstützt."
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",
@@ -20496,5 +20504,19 @@
         }
       }
     }
+  },
+  "personalModelKeys": {
+    "title": "Deine Modellverbindung",
+    "fixed": "Modell: {model}. Ziel: {endpoint}.",
+    "connected": "Dein Schlüssel ist gespeichert. Ersetze ihn hier, wenn die Anmeldung fehlschlägt.",
+    "required": "Verbinde deinen eigenen API-Schlüssel, bevor du eine Nachricht sendest.",
+    "key": "Dein API-Schlüssel",
+    "replace": "Schlüssel ersetzen",
+    "connect": "Schlüssel verbinden",
+    "privacy": "Privat im Tresor gespeichert. Nie im Chat gesendet. Kein Ausweichen auf den Organisationsschlüssel.",
+    "vaultHelp": "Diese Schlüssel gehören nur dir. Verbinde oder ersetze sie in den Chat-Einstellungen des Agenten. Nach dem Entfernen sind neue Läufe bis zur erneuten Verbindung gesperrt.",
+    "remove": "Verbindung entfernen",
+    "loading": "Verbindungen werden geladen…",
+    "defaultEndpoint": "Standardadresse des Anbieters"
   }
 }

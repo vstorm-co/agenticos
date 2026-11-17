@@ -2005,3 +2005,9 @@ class TestTheWidgetsPicture:
         service.find_public = AsyncMock(return_value=_embed(is_active=True))
         with patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_faced_agent())):
             assert await service.widget_avatar_path("key-123") is None
+
+
+@pytest.fixture(autouse=True)
+def organization_model_surface(monkeypatch: pytest.MonkeyPatch) -> None:
+    """This suite's fake registry represents an organization-key agent."""
+    monkeypatch.setattr("app.services.agent_embed.require_organization_agent", AsyncMock())

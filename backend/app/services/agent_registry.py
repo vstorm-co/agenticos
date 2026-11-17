@@ -185,6 +185,8 @@ from app.services.model_profile import (
     usable_for_agents,
 )
 from app.services.notifications import NotificationService
+from app.services.personal_model_key import personal_profile_problem
+from app.services.personal_model_policy import PERSONAL_MODEL_LIMITS, personal_model_problems
 from app.services.resource_usage import groups_sharing
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_runtimes import DESKTOP_RUNTIME
@@ -1525,6 +1527,9 @@ class AgentRegistryService:
         local_workspaces = await agent_repo.published_local_workspaces(
             self.db, version_ids=version_ids
         )
+        personal_model_keys = await agent_repo.published_personal_model_keys(
+            self.db, version_ids=version_ids
+        )
         profile_ids = await agent_repo.published_model_profiles(self.db, version_ids=version_ids)
         profiles = (
             await credential_repo.get_profiles_by_ids(
@@ -1617,6 +1622,7 @@ class AgentRegistryService:
                     else None
                 ),
                 local_workspace=agent.current_version_id in local_workspaces,
+                personal_model_key=agent.current_version_id in personal_model_keys,
                 published_model=(
                     published_models.get(agent.current_version_id)
                     if agent.current_version_id
@@ -2246,6 +2252,22 @@ class AgentRegistryService:
         """
         await skill_repo.hold(self.db, bound_skill_ids(spec), organization_id=ctx.organization_id)
         problems = _SpecProblems()
+        if spec.model_credential_mode == "personal":
+            problems.add(personal_model_problems(spec))
+            if agent_id is not None:
+                from app.repositories import agent_embed_repo
+
+                exposures = await agent_exposure_repo.list_for_agent(
+                    self.db, agent_id=agent_id, organization_id=ctx.organization_id
+                )
+                embeds = await agent_embed_repo.list_for_agent(
+                    self.db, agent_id=agent_id, organization_id=ctx.organization_id
+                )
+                triggers = await agent_trigger_repo.list_for_agent(
+                    self.db, agent_id=agent_id, organization_id=ctx.organization_id
+                )
+                if any(row.is_active for row in [*exposures, *embeds, *triggers]):
+                    problems.merge(_SpecProblems.at("model_credential_mode", PERSONAL_MODEL_LIMITS))
         for kind in ("budget", "approvals", "usage"):
             alert = getattr(spec.notifications, kind)
             if not alert.group_ids:
@@ -2277,7 +2299,10 @@ class AgentRegistryService:
         else:
             problems.add(
                 await self.model_profile_problems(
-                    ctx, spec.model_profile_id, decision=decision_model
+                    ctx,
+                    spec.model_profile_id,
+                    decision=decision_model,
+                    personal=spec.model_credential_mode == "personal",
                 )
             )
         # And each reviewer's, refused here rather than when a run first reaches
@@ -2516,7 +2541,7 @@ class AgentRegistryService:
         return problems
 
     async def model_profile_problems(
-        self, ctx: AuthContext, profile_id: UUID, *, decision: bool = False
+        self, ctx: AuthContext, profile_id: UUID, *, decision: bool = False, personal: bool = False
     ) -> list[str]:
         """Whether a named model profile is still this organization's to run on.
 
@@ -2534,6 +2559,9 @@ class AgentRegistryService:
         )
         if profile is None:
             return ["The selected model profile no longer exists"]
+        if personal:
+            problem = personal_profile_problem(profile)
+            return [] if problem is None else [problem]
         if is_decision_api(profile.provider, profile.api) and not decision:
             return ["The selected profile serves decisions, not conversation. Pick a chat model."]
         outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
@@ -2610,6 +2638,8 @@ class AgentRegistryService:
         agent at no sign-in, because a run under it may spend none
         (`sign_in_person`).
         """
+        if spec.model_credential_mode == "personal":
+            return _SpecProblems()
         refs = [*_model_refs(spec), *await self._pinned_model_refs(ctx, spec)]
         if not refs:
             return _SpecProblems()
@@ -2747,7 +2777,12 @@ class AgentRegistryService:
         Raises:
             BadRequestError: With a `problems` list, one per model on such a sign-in.
         """
-        problems = await self._sign_in_problems(ctx, AgentSpec.model_validate(version.spec))
+        spec = AgentSpec.model_validate(version.spec)
+        if spec.model_credential_mode == "personal":
+            await self.get(ctx, version.agent_id, perm=Perm.AGENTS_PUBLISH, for_update=True)
+            await self.validate_spec(ctx, spec, agent_id=version.agent_id)
+            return
+        problems = await self._sign_in_problems(ctx, spec)
         if problems.messages:
             raise BadRequestError(
                 message=(
@@ -3467,6 +3502,9 @@ class AgentRegistryService:
                 )
                 continue
             resolved = await self._resolve_pin(ctx, ref)
+            if resolved is not None and resolved.spec.model_credential_mode == "personal":
+                problems.append("Agents using personal model keys cannot be delegated to")
+                continue
             if resolved is None:
                 problems.append(
                     f"Agent '{delegate.name}' has no published version "

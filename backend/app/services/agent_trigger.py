@@ -132,6 +132,7 @@ from app.services.conversation import ConversationService
 from app.services.mcp_connection import McpConnectionService
 from app.services.notifications import NotificationService
 from app.services.outcome import OutcomeService
+from app.services.personal_model_surfaces import require_organization_agent
 from app.services.portal_catalog import DeliveryMode
 from app.services.portals.github_app import GitHubAppPortalAdapter
 from app.services.primary_conversation import PrimaryConversationService
@@ -885,6 +886,14 @@ class AgentTriggerService:
                 }
             )
         agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        await require_organization_agent(
+            self.db,
+            ctx,
+            agent_id,
+            perm=Perm.AGENTS_RUN,
+            environment_id=data.environment_id,
+            version_id=data.pinned_version_id,
+        )
         refuse_system_agent(agent, action="a schedule or a trigger")
         # A trigger on a never-published agent is guaranteed to disable itself:
         # its first fire reaches for the runnable spec, finds no version, and
@@ -1323,6 +1332,15 @@ class AgentTriggerService:
         """
         trigger = await self._owned(ctx, agent_id, trigger_id, for_update=True)
         changes = writable(data, over=AgentTrigger)
+        if changes.get("is_active", trigger.is_active):
+            await require_organization_agent(
+                self.db,
+                ctx,
+                agent_id,
+                perm=Perm.AGENTS_RUN,
+                environment_id=changes.get("environment_id", trigger.environment_id),
+                version_id=changes.get("pinned_version_id", trigger.pinned_version_id),
+            )
         if "max_failures" in changes or changes.get("is_active") is True:
             changes["health_reset_at"] = datetime.now(UTC)
             changes["consecutive_failures"] = 0

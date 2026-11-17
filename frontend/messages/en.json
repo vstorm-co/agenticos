@@ -6148,6 +6148,10 @@
       "channels-diagnostics": {
         "title": "Check readiness",
         "body": "Inspect the bot connection, agent publication and your own linked accounts without running a task."
+      },
+      "agent-model-credentials": {
+        "title": "Who supplies the model key",
+        "body": "Use the organization key, or require each signed-in chat user to connect a private vault key. The model and endpoint stay fixed; channels and automatic runs require the organization key."
       }
     },
     "chooseLanguage": "Language",
@@ -7242,7 +7246,11 @@
       "setBaseline": "Set a baseline",
       "improveFromGaps": "Improve this agent from these gaps",
       "systemAgentReadOnly": "Only an organization administrator can change a system agent. You can read how it works here.",
-      "continueConversation": "Continue my conversation"
+      "continueConversation": "Continue my conversation",
+      "modelCredentialMode": "Model access",
+      "organizationModelKey": "Use the organization’s key",
+      "personalModelKey": "Each user connects their own key",
+      "personalModelLimits": "The model and endpoint stay fixed. Signed-in web chat only. Disable active channels, widgets, hosted pages and routines before publishing. HTTP API runs, background topics, voice, delegation, reviewers, separate step models and model fallbacks are not supported."
     },
     "auth": {
       "backSign": "Back to sign in",
@@ -20810,5 +20818,19 @@
         }
       }
     }
+  },
+  "personalModelKeys": {
+    "title": "Your model connection",
+    "fixed": "Model: {model}. Destination: {endpoint}.",
+    "connected": "Your key is saved. Replace it here if authentication fails.",
+    "required": "Connect your own API key before sending a message.",
+    "key": "Your API key",
+    "replace": "Replace key",
+    "connect": "Connect key",
+    "privacy": "Saved privately in the vault. Never sent in chat. No organization-key fallback.",
+    "vaultHelp": "These keys belong only to you. Connect or replace them in the agent’s chat settings. Removing a key blocks future runs until you reconnect.",
+    "remove": "Remove connection",
+    "loading": "Loading connections…",
+    "defaultEndpoint": "Provider default"
   }
 }

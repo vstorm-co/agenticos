@@ -2531,7 +2531,11 @@
       "setBaseline": "Wyznacz punkt odniesienia",
       "improveFromGaps": "Popraw tego agenta na podstawie tych braków",
       "systemAgentReadOnly": "Agenta systemowego może zmienić tylko administrator organizacji. Tutaj możesz sprawdzić, jak działa.",
-      "continueConversation": "Kontynuuj moją rozmowę"
+      "continueConversation": "Kontynuuj moją rozmowę",
+      "modelCredentialMode": "Dostęp do modelu",
+      "organizationModelKey": "Użyj klucza organizacji",
+      "personalModelKey": "Każdy użytkownik podłącza własny klucz",
+      "personalModelLimits": "Model i endpoint pozostają stałe. Tylko czat zalogowanego użytkownika. Przed publikacją wyłącz aktywne kanały, widgety, strony publiczne i rutyny. Uruchomienia przez HTTP API, tematy w tle, głos, delegowanie, recenzenci, osobne modele kroków i modele zapasowe nie są obsługiwane."
     },
     "auth": {
       "backSign": "Wróć do logowania",
@@ -7761,6 +7765,10 @@
       "channels-diagnostics": {
         "title": "Sprawdź gotowość",
         "body": "Sprawdź połączenie bota, publikację agenta i własne powiązane konta bez uruchamiania zadania."
+      },
+      "agent-model-credentials": {
+        "title": "Kto podaje klucz do modelu",
+        "body": "Użyj klucza organizacji lub wymagaj prywatnego klucza w vaulcie od każdego zalogowanego użytkownika czatu. Model i endpoint pozostają stałe; kanały i automatyczne uruchomienia wymagają klucza organizacji."
       }
     },
     "chooseLanguage": "Język",
@@ -20583,5 +20591,19 @@
         }
       }
     }
+  },
+  "personalModelKeys": {
+    "title": "Twoje połączenie z modelem",
+    "fixed": "Model: {model}. Adres: {endpoint}.",
+    "connected": "Twój klucz jest zapisany. Wymień go tutaj, jeśli uwierzytelnienie się nie powiedzie.",
+    "required": "Podłącz własny klucz API przed wysłaniem wiadomości.",
+    "key": "Twój klucz API",
+    "replace": "Wymień klucz",
+    "connect": "Podłącz klucz",
+    "privacy": "Zapisany prywatnie w vaulcie. Nigdy nie trafia do czatu. Bez przejścia na klucz organizacji.",
+    "vaultHelp": "Te klucze należą tylko do Ciebie. Podłącz lub wymień je w ustawieniach czatu agenta. Usunięcie blokuje kolejne uruchomienia do czasu ponownego podłączenia.",
+    "remove": "Usuń połączenie",
+    "loading": "Wczytywanie połączeń…",
+    "defaultEndpoint": "Domyślny adres dostawcy"
   }
 }

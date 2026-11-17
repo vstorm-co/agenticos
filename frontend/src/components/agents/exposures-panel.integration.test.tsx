@@ -493,3 +493,12 @@ it("persists participation changes for the selected bot only", async () => {
     }),
   );
 });
+
+it("does not offer channel connections for an agent requiring personal model keys", async () => {
+  serve([], []);
+  render(<ExposuresPanel agentId={AGENT_ID} canManage hasWorkspace={false} personalModel />, {
+    wrapper,
+  });
+  expect(await screen.findByText("Chat apps")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Connect a .* bot/ })).not.toBeInTheDocument();
+});

@@ -42,6 +42,7 @@ from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.diagnostics import DiagnosticsIdentity
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.personal_model_key import PersonalModelKey
 from app.db.models.workflow_exposure import WorkflowExposure
 from app.db.session import get_db_context
 from app.services.mcp_connection import connection_scope
@@ -54,7 +55,7 @@ def _org_scope(
     return VaultScope.organization(row.organization_id)
 
 
-def _person_scope(row: BrowserSignIn | CodingAccount) -> VaultScope:
+def _person_scope(row: BrowserSignIn | CodingAccount | PersonalModelKey) -> VaultScope:
     return VaultScope.user(row.user_id)
 
 
@@ -87,6 +88,7 @@ class SealedTable:
         | WorkflowExposure
         | BrowserSignIn
         | CodingAccount
+        | PersonalModelKey
         | DeploymentSettings
         | DiagnosticsIdentity
     ]
@@ -143,6 +145,13 @@ SEALED_TABLES: tuple[SealedTable, ...] = (
         columns=("secret_encrypted",),
         version_attr="secret_key_version",
         scope=_org_scope,
+    ),
+    SealedTable(
+        label="personal_model_keys",
+        model=PersonalModelKey,
+        columns=("sealed_secret",),
+        version_attr="key_version",
+        scope=_person_scope,
     ),
     SealedTable(
         label="coding_accounts",

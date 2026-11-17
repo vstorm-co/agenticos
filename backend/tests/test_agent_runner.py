@@ -11192,3 +11192,35 @@ async def test_channel_stop_finishes_as_cancelled_without_replaying_the_run(reas
         assert finish.await_args.kwargs["status"] == RunStatus.CANCELLED.value
         assert finish.await_args.kwargs["error"] == str(stop)
         assert db.commit.await_count == 2
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_personal_model_key_is_required_before_run_creation_or_shared_key_resolution():
+    ctx = _ctx()
+    service = AgentRunnerService(_db())
+    agent = MagicMock(
+        id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+    )
+    spec = AgentSpec(
+        name="Personal", model_profile_id=uuid.uuid4(), model_credential_mode="personal"
+    )
+    with (
+        patch.object(
+            service.registry,
+            "get_runnable_spec",
+            AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+        ),
+        patch.object(service.models, "resolve", AsyncMock()) as organization,
+        patch.object(service.models, "profile_for_organization", AsyncMock()) as profile,
+        patch(
+            "app.services.agent_runner.PersonalModelKeyService.resolve",
+            AsyncMock(side_effect=AuthorizationError(message="Connect your own key")),
+        ) as personal,
+        patch("app.services.agent_runner.agent_run_repo.create_run", AsyncMock()) as create,
+    ):
+        with pytest.raises(AuthorizationError, match="own key"):
+            await service.prepare(ctx, agent.id, surface=RunSurface.WEB)
+        personal.assert_awaited_once_with(ctx, profile.return_value)
+        organization.assert_not_awaited()
+        create.assert_not_awaited()

@@ -37,6 +37,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Expose GitHub routine author filters, including a members-and-contributors option, while preserving existing defaults. Routine owners can inspect the latest verified event rejected by a filter without storing webhook content or creating a run (#3072).
 
+- Let shared agents require each signed-in web-chat user's own API key while keeping the model and endpoint fixed. Store keys privately in the vault, reuse them for the same provider and endpoint, and manage them without organization connection permissions. Refuse unsupported public surfaces, channels, automated runs and model overrides at configuration and run time; never fall back to an organization key (#2921).
+
 ### Changed
 
 - Workflow record filters choose their column by name from the step's table instead of asking for a column id, and a single or multi select column's value from its options, so Record exists? no longer refuses an option typed by its label. The Record exists? and List records steps no longer offer a column list they never read; a stored narrowing stays visible so it can be cleared.
