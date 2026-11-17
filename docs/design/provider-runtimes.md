@@ -18,13 +18,22 @@ MCP access; delegation support alone does not meet that requirement.
 
 ## Delivery order and commits
 
-Each issue owns one implementation commit, including its regression coverage and
-behavior documentation. Shared work belongs to the parent issue; provider commits
-build on it. Do not create empty commits to count an unsupported integration as
+All integrations are tracked in #3108. The former provider issues are closed
+for consolidation, not as evidence of delivery. Their full scope and acceptance
+criteria are preserved in four comments:
+
+- [Model providers](https://github.com/vstorm-co/agenticos/issues/3108#issuecomment-6964065769)
+- [ACP runtimes](https://github.com/vstorm-co/agenticos/issues/3108#issuecomment-6964066361)
+- [Primary runtimes](https://github.com/vstorm-co/agenticos/issues/3108#issuecomment-6964067016)
+- [Pi and Muse runtimes](https://github.com/vstorm-co/agenticos/issues/3108#issuecomment-6964067647)
+
+Keep a separate implementation commit for each integration or shared component,
+including its regression coverage and behavior documentation. New commits refer
+to #3108; the single PR closes only #3108. Shared work precedes provider commits. Do not create empty commits to count an unsupported integration as
 implemented. The single pull request remains a draft until accepted scopes and
 verification are complete.
 
-| Issue | Integration | Delivery boundary |
+| Archived issue | Integration | Delivery boundary |
 |---|---|---|
 | #3130 | Custom ACP agents | Extend the current Desktop executor with trusted configuration |
 | #3109 | Google Antigravity | ACP runtime and vendor-owned Google sign-in |
@@ -78,7 +87,9 @@ External requirements may block an individual provider. Official ChatGPT plan
 sharing distinguishes local/OSS use from paid or remotely hosted use. Copilot must
 accept our application's OAuth token, not merely authenticate it with GitHub.
 Claude product integration has vendor-specific authentication requirements.
-Unconfirmed eligibility remains a blocker in the issue and draft PR.
+Unconfirmed eligibility and account smoke tests remain explicit acceptance
+follow-ups in #3108 and PR comments. Continue independent implementation while
+external requirements are pending; do not report those requirements as verified.
 
 ## References
 
