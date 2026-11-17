@@ -269,3 +269,26 @@ async def test_resolving_a_custom_voice_preserves_it_without_a_shared_snapshot()
     resolved, snapshot = await TextToSpeechSettingsService(MagicMock()).resolve_spec(ORG, original)
     assert resolved.capabilities[0] is binding
     assert snapshot is None
+
+
+async def test_inherited_configuration_validates_the_resolved_group_instead_of_old_agent_choices() -> (
+    None
+):
+    from app.agents.capabilities.text_to_speech import TextToSpeechConfig
+
+    pending = TextToSpeechConfig(
+        use_organization_defaults=True, provider="retired", model="retired", voice="retired"
+    )
+    binding = CapabilityBindingSpec(id="text_to_speech", config=pending.model_dump(mode="json"))
+    org = Organization(id=ORG, text_to_speech=defaults().model_dump(mode="json"))
+    with (
+        patch(f"{MODULE}.organization_repo.get_by_id", AsyncMock(return_value=org)),
+        patch(f"{MODULE}.provider_keys.key_problem", AsyncMock(return_value=None)),
+    ):
+        resolved = await TextToSpeechSettingsService(MagicMock()).resolve_binding(ORG, binding)
+    effective = TextToSpeechConfig.model_validate(resolved.config)
+    assert effective.provider == "openai"
+    assert effective.model == "gpt-4o-mini-tts"
+    assert effective.voice == "coral"
+    assert effective.use_organization_defaults is False
+    assert resolved.secret_id == KEY

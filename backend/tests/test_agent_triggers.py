@@ -5741,3 +5741,17 @@ class TestGithubFilteredEventDiagnostics:
 def organization_model_surface(monkeypatch: pytest.MonkeyPatch) -> None:
     """This suite's fake registry represents an organization-key agent."""
     monkeypatch.setattr("app.services.agent_trigger.require_organization_agent", AsyncMock())
+
+
+async def test_github_filter_diagnostics_never_inspect_a_different_event_source() -> None:
+    service = _service()
+    trigger = _trigger(event_source="webhook")
+    with (
+        patch("app.services.agent_trigger.trigger_events.github_filter_reason") as reason,
+        patch(
+            "app.services.agent_trigger.agent_trigger_repo.record_filtered_event", AsyncMock()
+        ) as store,
+    ):
+        await service._record_filtered_event(trigger, {}, {})
+    reason.assert_not_called()
+    store.assert_not_awaited()
