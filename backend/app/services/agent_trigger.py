@@ -587,10 +587,8 @@ class AgentTriggerService:
             reason=reason,
             authors=GithubTriggerConfig.model_validate(trigger.event_config).authors,
         )
-        await agent_trigger_repo.update(
-            self.db,
-            trigger=trigger,
-            update_data={"last_filtered_event": diagnostic.model_dump(mode="json")},
+        await agent_trigger_repo.record_filtered_event(
+            self.db, trigger=trigger, diagnostic=diagnostic
         )
 
     async def attempts(
@@ -1953,6 +1951,8 @@ class AgentTriggerService:
                 details={"trigger_id": str(trigger_id)},
             )
         payload = _parse_json(body, source=source)
+        if not await self._polled_source_current(trigger):
+            return None
         if not trigger_events.event_matches(
             source, headers=headers, payload=payload, config=trigger.event_config
         ):
@@ -1964,8 +1964,6 @@ class AgentTriggerService:
         # open and fires, and a duplicate answers the same nothing-to-do `None` an
         # unmatched delivery does, so it stays unprobeable. A transaction that
         # then rolls back queued nothing and gives the claim back (`_claim`).
-        if not await self._polled_source_current(trigger):
-            return None
         delivery = trigger_events.delivery_id(source, headers, payload)
         if delivery is not None and not await self._claim(trigger.id, delivery):
             return None

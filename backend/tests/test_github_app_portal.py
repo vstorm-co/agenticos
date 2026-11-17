@@ -927,10 +927,10 @@ class TestAppFilteredEventDiagnostics:
         service = _service()
         with (
             _wired(grants=[_grant()], triggers=[trigger]),
-            patch(f"{SERVICE}.agent_trigger_repo.update", AsyncMock()) as update,
+            patch(f"{SERVICE}.agent_trigger_repo.record_filtered_event", AsyncMock()) as update,
         ):
             assert await service.prepare_app_fires(body=body, headers=_headers(body)) == []
-        diagnostic = update.await_args.kwargs["update_data"]["last_filtered_event"]
+        diagnostic = update.await_args.kwargs["diagnostic"].model_dump(mode="json")
         assert diagnostic["reason"] == "author"
         assert diagnostic["authors"] == "members"
         assert set(diagnostic) == {"received_at", "reason", "authors"}

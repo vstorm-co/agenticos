@@ -5633,18 +5633,43 @@ class TestGithubFilteredEventDiagnostics:
             patch("app.services.agent_trigger.unseal", return_value="secret"),
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
-            repo.update = AsyncMock()
+            repo.record_filtered_event = AsyncMock()
             assert (
                 await service.prepare_event_fire("github", trigger.id, body=body, headers=headers)
                 is None
             )
-        diagnostic = repo.update.await_args.kwargs["update_data"]["last_filtered_event"]
+        diagnostic = repo.record_filtered_event.await_args.kwargs["diagnostic"].model_dump(
+            mode="json"
+        )
         assert set(diagnostic) == {"received_at", "reason", "authors"}
         assert diagnostic["reason"] == "author"
         assert diagnostic["authors"] == policy
         assert datetime.fromisoformat(diagnostic["received_at"]).tzinfo is not None
         assert "private issue text" not in json.dumps(diagnostic)
         assert trigger.last_fired_at is None
+
+    @pytest.mark.security
+    async def test_a_stale_source_cannot_record_a_filtered_delivery(self) -> None:
+        service = _service()
+        service._polled_source_current = AsyncMock(return_value=False)
+        trigger = _event_trigger(event_config={"authors": "members"})
+        body = json.dumps({"action": "opened", "issue": {"author_association": "NONE"}}).encode()
+        headers = {
+            "x-github-event": "issues",
+            "x-hub-signature-256": "sha256="
+            + hmac.new(b"secret", body, hashlib.sha256).hexdigest(),
+        }
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            repo.record_filtered_event = AsyncMock()
+            assert (
+                await service.prepare_event_fire("github", trigger.id, body=body, headers=headers)
+                is None
+            )
+            repo.record_filtered_event.assert_not_awaited()
 
     @pytest.mark.security
     async def test_a_forged_delivery_cannot_write_diagnostics(self) -> None:
