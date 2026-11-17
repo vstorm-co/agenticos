@@ -11,17 +11,6 @@ import { OG_LOCALE, SITE, pageMetadata, siteOrigin } from "./seo";
  * two locales claiming the same URL.
  */
 describe("pageMetadata", () => {
-  it("uses the Turkish Open Graph locale for Turkish pages", () => {
-    const meta = pageMetadata({
-      title: "Koşullar",
-      description: "…",
-      path: "/legal/terms",
-      locale: "tr",
-    });
-    expect(meta.openGraph?.locale).toBe("tr_TR");
-    expect(meta.alternates?.canonical).toBe(`${siteOrigin()}/tr/legal/terms`);
-  });
-
   it("puts the locale in the canonical URL, because every public page has one", () => {
     const meta = pageMetadata({ title: "Terms", description: "…", path: "/legal/terms" });
 
@@ -35,9 +24,6 @@ describe("pageMetadata", () => {
 
     expect(meta.alternates?.languages).toEqual({
       en: `${siteOrigin()}/en/legal/terms`,
-      pl: `${siteOrigin()}/pl/legal/terms`,
-      de: `${siteOrigin()}/de/legal/terms`,
-      tr: `${siteOrigin()}/tr/legal/terms`,
     });
   });
 
@@ -47,9 +33,6 @@ describe("pageMetadata", () => {
     expect(meta.alternates?.canonical).toBe(`${siteOrigin()}/en`);
     expect(meta.alternates?.languages).toEqual({
       en: `${siteOrigin()}/en`,
-      pl: `${siteOrigin()}/pl`,
-      de: `${siteOrigin()}/de`,
-      tr: `${siteOrigin()}/tr`,
     });
   });
 
@@ -108,11 +91,11 @@ describe("pageMetadata", () => {
     ).toBe(`${siteOrigin()}/en/legal`);
   });
 
-  it("says which locale a page is in, and which others exist", () => {
-    const meta = pageMetadata({ title: "Regulamin", description: "…", locale: "pl" });
+  it("says which locale a page is in, and that no other exists", () => {
+    const meta = pageMetadata({ title: "Terms", description: "…", locale: "en" });
 
-    expect(meta.openGraph?.locale).toBe(OG_LOCALE.pl);
-    expect(meta.openGraph?.alternateLocale).toEqual([OG_LOCALE.en, OG_LOCALE.de, OG_LOCALE.tr]);
+    expect(meta.openGraph?.locale).toBe(OG_LOCALE.en);
+    expect(meta.openGraph?.alternateLocale).toEqual([]);
   });
 
   it("falls back to the dynamic OG image, and takes an override", () => {

@@ -1,10 +1,6 @@
 /**
- * Body of /legal/terms in EN + PL. Both rendered as JSX (not JSON messages)
- * because legal text is paragraph/list/inline-link heavy and would be unwieldy
- * to translate via ICU strings.
- *
- * Switch by locale at the page level. To add another locale, add a new export
- * here with the same shape and update the dispatch in the page.
+ * Body of /legal/terms. Rendered as JSX (not one JSON message) because legal
+ * text is paragraph/list/inline-link heavy and would be unwieldy as ICU strings.
  */
 import { useTranslations } from "next-intl";
 
@@ -78,80 +74,6 @@ export function TermsBodyEn({ appName }: LegalBodyProps) {
       <p>{t("theseTermsAreGoverned")}</p>
 
       <h2>{t("n13Contact")}</h2>
-      <p>
-        {t.rich("contactQuestions", {
-          mail: (chunks) => <a href="mailto:legal@example.com">{chunks}</a>,
-        })}
-      </p>
-    </>
-  );
-}
-
-export function TermsBodyPl({ appName }: LegalBodyProps) {
-  const t = useTranslations("legal.pl");
-  return (
-    <>
-      <p>{t("termsIntro", { appName })}</p>
-      <p>{t("jeLiKorzystaszZ")}</p>
-
-      <h2>{t("n1UsUga")}</h2>
-      <p>{t("serviceDescription", { appName })}</p>
-
-      <h2>{t("n2TwojeKonto")}</h2>
-      <p>
-        {t.rich("accountResponsibility", {
-          mail: (chunks) => <a href="mailto:security@example.com">{chunks}</a>,
-        })}
-      </p>
-
-      <h2>{t("n3AkceptowalneUYcie")}</h2>
-      <p>{t("nieBDzieszKorzysta")}</p>
-      <ul>
-        <li>{t("amaPrawoLubNarusza")}</li>
-        <li>{t("generowaTreCiNielegalnych")}</li>
-        <li>{t("sondowaSkanowaLubTestowa")}</li>
-        <li>{t("reverseEngineerowaUsUgi")}</li>
-        <li>{t("zakCaKorzystaniaZ")}</li>
-      </ul>
-
-      <h2>{t("n4TwojeTreCi")}</h2>
-      <p>{t("jesteWCicielemTego")}</p>
-      <p>
-        <strong>{t("nieTrenujemyNaTwoich")}</strong>
-        {t("kropka")}
-      </p>
-
-      <h2>{t("n5SubskrypcjeIP")}</h2>
-      <p>{t("planyPAtneOdnawiaj")}</p>
-      <p>{t("kredytyWygasajNaKo")}</p>
-
-      <h2>{t("n6UsUgiStron")}</h2>
-      <p>{t("usUgaPolegaNa")}</p>
-
-      <h2>{t("n7WAsnoIntelektualna")}</h2>
-      <p>{t("zachowujemyWszystkiePrawaDo")}</p>
-
-      <h2>{t("n8Wypowiedzenie")}</h2>
-      <p>{t("moEszPrzestaKorzysta")}</p>
-
-      <h2>{t("n9WyCzeniaOdpowiedzialno")}</h2>
-      <p>{t("usUgaJestDostarczana")}</p>
-      <p>
-        {t.rich("aiOutputDisclaimer", {
-          strong: (chunks) => <strong>{chunks}</strong>,
-        })}
-      </p>
-
-      <h2>{t("n10OgraniczenieOdpowiedzialnoCi")}</h2>
-      <p>{t("wZakresieDozwolonymPrawem")}</p>
-
-      <h2>{t("n11ZmianyRegulaminu")}</h2>
-      <p>{t("moEmyAktualizowaTen")}</p>
-
-      <h2>{t("n12PrawoWCiwe")}</h2>
-      <p>{t("niniejszyRegulaminPodlegaPrawu")}</p>
-
-      <h2>{t("n13Kontakt")}</h2>
       <p>
         {t.rich("contactQuestions", {
           mail: (chunks) => <a href="mailto:legal@example.com">{chunks}</a>,

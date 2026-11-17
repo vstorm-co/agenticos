@@ -36,8 +36,8 @@ describe("consoleLink", () => {
   });
 
   it("keeps a locale prefix, the rest of the query and the hash", () => {
-    expect(consoleLink("/pl/agents?highlight=agents-new", ORIGIN)).toEqual({
-      path: "/pl/agents",
+    expect(consoleLink("/en/agents?highlight=agents-new", ORIGIN)).toEqual({
+      path: "/en/agents",
       anchor: "agents-new",
     });
     expect(consoleLink("/en/runs?tab=spend&highlight=runs-filter#top", ORIGIN)).toEqual({
@@ -198,78 +198,28 @@ describe("pointAt", () => {
 
   it("rings a control that is on the page, then lets it go", async () => {
     // The router may have prefixed the locale; the page is the same page.
-    window.history.replaceState(null, "", "/pl/agents");
+    window.history.replaceState(null, "", "/en/agents");
     document.body.innerHTML = `<button data-tour="agents-new">New</button>`;
     const button = document.querySelector("button")!;
 
     await expect(pointAt("agents-new", "/agents")).resolves.toBe(true);
     expect(button).toHaveClass("assistant-highlight");
     // And a link an agent copied from the address bar, prefix and all.
-    await expect(pointAt("agents-new", "/pl/agents")).resolves.toBe(true);
+    await expect(pointAt("agents-new", "/en/agents")).resolves.toBe(true);
 
     vi.advanceTimersByTime(3000);
     expect(button).not.toHaveClass("assistant-highlight");
   });
 
   it("reads a locale prefix in any case, as the middleware does", async () => {
-    // `/PL/agents` is redirected to `/pl/agents`; the page is the same page.
-    window.history.replaceState(null, "", "/pl/agents");
+    // `/EN/agents` names the English page; the page is the same page.
+    window.history.replaceState(null, "", "/en/agents");
     document.body.innerHTML = `<button data-tour="agents-new">New</button>`;
 
-    await expect(pointAt("agents-new", "/PL/agents")).resolves.toBe(true);
+    await expect(pointAt("agents-new", "/EN/agents")).resolves.toBe(true);
     // And a locale's home, which is the console's root.
-    window.history.replaceState(null, "", "/pl");
+    window.history.replaceState(null, "", "/en");
     await expect(pointAt("agents-new", "/")).resolves.toBe(true);
-  });
-
-  it("waits for a locale the link names before pointing", async () => {
-    // From the Polish page to the German one: the same page in another locale,
-    // with the same control on it.
-    window.history.replaceState(null, "", "/pl/agents");
-    document.body.innerHTML = `<button data-tour="agents-new">Nowy</button>`;
-
-    const pointing = pointAt("agents-new", "/de/agents");
-    await vi.advanceTimersByTimeAsync(200);
-
-    await expect(settled(pointing)).resolves.toBe("waiting");
-    expect(ringed("agents-new")).toBe(false);
-
-    window.history.pushState(null, "", "/de/agents");
-    document.body.innerHTML = `<button data-tour="agents-new">Neu</button>`;
-    await vi.advanceTimersByTimeAsync(200);
-
-    await expect(settled(pointing)).resolves.toBe(true);
-    expect(ringed("agents-new")).toBe(true);
-  });
-
-  it("points on the page the locale cookie sent a link to", async () => {
-    // A reader who chose Polish clicks `/en/...`; the middleware serves `/pl/...`.
-    window.history.replaceState(null, "", "/pl/agents/a");
-    document.body.innerHTML = `<button data-tour="agent-history">Historia</button>`;
-
-    const pointing = pointAt("agent-history", "/en/agents/b");
-    await vi.advanceTimersByTimeAsync(200);
-    await expect(settled(pointing)).resolves.toBe("waiting");
-
-    window.history.pushState(null, "", "/pl/agents/b");
-    await vi.advanceTimersByTimeAsync(200);
-
-    await expect(settled(pointing)).resolves.toBe(true);
-    expect(ringed("agent-history")).toBe(true);
-  });
-
-  it("stops waiting for a link's locale the cookie keeps it out of", async () => {
-    // `/en/agents` from `/pl/agents` is redirected back to `/pl/agents`.
-    window.history.replaceState(null, "", "/pl/agents");
-    document.body.innerHTML = `<button data-tour="agents-new">Nowy</button>`;
-
-    const pointing = pointAt("agents-new", "/en/agents");
-    await vi.advanceTimersByTimeAsync(1000);
-    await expect(settled(pointing)).resolves.toBe("waiting");
-
-    await vi.advanceTimersByTimeAsync(600);
-    await expect(settled(pointing)).resolves.toBe(true);
-    expect(ringed("agents-new")).toBe(true);
   });
 
   it("takes the default locale's prefix to mean no prefix", async () => {

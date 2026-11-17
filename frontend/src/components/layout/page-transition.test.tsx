@@ -104,7 +104,7 @@ describe("the page transition wrapper", () => {
     expect(rootClasses("/en/workflows")).not.toContain("min-h-0");
   });
 
-  it.each(["/workflows/runs", "/pl/workflows/wf-1/runs", "/en/workflows/wf-1/runs/run-1"])(
+  it.each(["/workflows/runs", "/en/workflows/wf-1/runs", "/en/workflows/wf-1/runs/run-1"])(
     "keeps workflow run content clear of floating controls: %s",
     (path) => {
       expect(rootClasses(path)).toContain(PAGE_CLEARANCE);
@@ -150,13 +150,13 @@ describe("the page transition wrapper", () => {
 
 it("bounds paged admin lists without constraining organization detail pages", () => {
   expect(rootClasses("/en/admin/users")).toContain("min-h-0");
-  expect(rootClasses("/pl/admin/organizations")).toContain("min-h-0");
+  expect(rootClasses("/en/admin/organizations")).toContain("min-h-0");
   expect(rootClasses("/en/admin/organizations/org-id")).not.toContain("min-h-0");
 });
 
 it("bounds the permission matrix while keeping other organization forms scrollable", () => {
   expect(rootClasses("/orgs/org-id/roles")).toContain("min-h-0");
-  expect(rootClasses("/pl/orgs/org-id/roles")).toContain("min-h-0");
+  expect(rootClasses("/en/orgs/org-id/roles")).toContain("min-h-0");
   expect(rootClasses("/orgs/org-id/retention")).not.toContain("min-h-0");
   expect(rootClasses("/orgs/org-id/directory")).not.toContain("min-h-0");
 });

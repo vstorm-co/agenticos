@@ -73,7 +73,7 @@ it("still offers repair when a required connection fact is missing", async () =>
 it("lets an invitation finish before offering connection repair", () => {
   env.reviewed = undefined;
   env.key = "device";
-  env.path = "/pl/invitations/pending";
+  env.path = "/en/invitations/pending";
   render(<DesktopSetupGate />);
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });

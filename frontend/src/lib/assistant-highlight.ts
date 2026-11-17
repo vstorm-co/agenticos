@@ -12,7 +12,6 @@
 
 import { activateTab } from "@/lib/activate-tab";
 import { localePrefixOf } from "@/lib/locale-routing";
-import { defaultLocale } from "@/lib/locales";
 import { glideOrJump } from "@/lib/motion";
 import { TOUR_STEPS } from "@/lib/onboarding/tour";
 import { isRendered } from "@/lib/rendered";
@@ -22,11 +21,6 @@ const HIGHLIGHT_CLASS = "assistant-highlight";
 /** How long a page is given to draw the control before the pointer gives up. */
 const WAIT_MS = 4000;
 const POLL_MS = 100;
-/**
- * How long a link's locale is waited for while the browser stays where it was.
- * The locale cookie can send a link naming one locale to the page in another.
- */
-const LOCALE_WAIT_MS = 1500;
 /** How long the ring stays: three pulses of the CSS animation. */
 const RING_MS = 3000;
 
@@ -94,21 +88,14 @@ function withoutLocale(pathname: string): string {
 }
 
 /**
- * Whether the browser is on `page` yet. The router may have added a locale, so
- * a link naming none matches the page in any; a link naming one - an agent's
- * copy of the address bar, or the same page in another language - is waited
- * for in that locale while the browser is still on `left`, the page it was on.
- * The locale is not insisted on once the browser has moved or `localeWaited`:
- * the `NEXT_LOCALE` cookie redirects `/en/agents` to `/pl/agents` for a reader
- * who chose Polish, and that page is never in the locale the link named.
+ * Whether the browser is on `page` yet. The router may have added or dropped
+ * the locale prefix - an agent may also copy `/en/...` from the address bar -
+ * so the two paths are compared without it. The T3 fork serves one locale, so
+ * a link cannot name a page in a language other than the one the reader is in.
  */
-function arrivedAt(page: string, left: string, localeWaited: boolean): boolean {
+function arrivedAt(page: string): boolean {
   const pushed = new URL(page, window.location.origin).pathname;
-  const here = window.location.pathname;
-  const named = localePrefixOf(pushed);
-  const inNamedLocale = named === null || named === (localePrefixOf(here) ?? defaultLocale);
-  if (!inNamedLocale && here === left && !localeWaited) return false;
-  return withoutLocale(here) === withoutLocale(pushed);
+  return withoutLocale(window.location.pathname) === withoutLocale(pushed);
 }
 
 /**
@@ -125,11 +112,10 @@ export async function pointAt(anchor: string, page: string): Promise<boolean> {
   // By the step's id as well: a step may light its card's header while the
   // Architect names the card, and both sit behind the same tab.
   const tab = TOUR_STEPS.find((step) => step.target === anchor || step.id === anchor)?.activate;
-  const left = window.location.pathname;
   const activations = typeof tab === "string" ? [tab] : (tab ?? []);
   let revealIndex = 0;
   for (let waited = 0; waited <= WAIT_MS; waited += POLL_MS) {
-    const arrived = arrivedAt(page, left, waited >= LOCALE_WAIT_MS);
+    const arrived = arrivedAt(page);
     const element = arrived ? findShown(anchor) : null;
     if (element) {
       element.scrollIntoView({ block: "center", behavior: glideOrJump() });

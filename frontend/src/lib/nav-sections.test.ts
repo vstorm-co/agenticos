@@ -29,12 +29,12 @@ describe("navSectionFor", () => {
     // The admin page is its tabs, each a path of its own; it lost its icon
     // because none of them was exactly `/admin`.
     expect(navSectionFor("/admin/users")).toMatchObject({ domain: "admin", isRoot: true });
-    expect(navSectionFor("/pl/admin/system")).toMatchObject({ isRoot: true });
+    expect(navSectionFor("/en/admin/system")).toMatchObject({ isRoot: true });
     expect(navSectionFor("/admin/users/u-1")).toMatchObject({ isRoot: false });
   });
 
   it("strips a locale prefix before it decides", () => {
-    expect(navSectionFor("/pl/skills")).toMatchObject({ domain: "knowledge", isRoot: true });
+    expect(navSectionFor("/en/skills")).toMatchObject({ domain: "knowledge", isRoot: true });
   });
 
   it("answers null outside every section", () => {

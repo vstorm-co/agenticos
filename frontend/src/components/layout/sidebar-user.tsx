@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import { AppearanceMenu, LanguageMenu } from "@/components/layout/account-preferences";
+import { hasLocaleChoice } from "@/lib/locales";
 import { useAuthStore } from "@/stores";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 
@@ -104,7 +105,7 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
             each showing its current value, in the menu that already answers
             "who am I and how do I want this". */}
         <AppearanceMenu />
-        <LanguageMenu />
+        {hasLocaleChoice ? <LanguageMenu /> : null}
         <DropdownMenuSeparator />
         {/* One entry, not two. `/profile` redirects to `/settings/profile` and
             `/settings` opens on the same tab, so the menu offered a choice

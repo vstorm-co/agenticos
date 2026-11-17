@@ -14,9 +14,9 @@ afterEach(() => {
 
 describe("assistantPagePath", () => {
   it.each([
-    ["/pl/apps/scheduler?api_key=private#selected", "/apps/scheduler"],
-    ["/DE/agents/agent-1", "/agents/agent-1"],
-    ["/de", "/"],
+    ["/en/apps/scheduler?api_key=private#selected", "/apps/scheduler"],
+    ["/EN/agents/agent-1", "/agents/agent-1"],
+    ["/en", "/"],
     ["/apps/scheduler#record-1", "/apps/scheduler"],
     ["/apps/scheduler", "/apps/scheduler"],
     ["/", "/"],
@@ -33,7 +33,7 @@ describe("assistantPagePath", () => {
     "/apps\nprivate",
     "/apps\u0000private",
     "/apps\u007fprivate",
-    "/pl//example.com",
+    "/en//example.com",
   ])("does not attach an unsafe route: %j", (input) => {
     expect(assistantPagePath(input)).toBe("/");
   });
@@ -165,7 +165,7 @@ describe("assistantPageSnapshot", () => {
     vi.setSystemTime(new Date("2026-11-09T01:30:00.000Z"));
 
     expect(
-      assistantPageSnapshot("/pl/apps/scheduler?token=private#record", "Dashboard", {
+      assistantPageSnapshot("/en/apps/scheduler?token=private#record", "Dashboard", {
         title: "Dispatch",
         resource: { kind: "app", id: "scheduler" },
         view: "week",

@@ -218,7 +218,7 @@ describe("WatchDialog", () => {
   });
 
   it("names each account by its server, and offers no way to Routines from Routines", async () => {
-    state.path = "/pl/routines";
+    state.path = "/en/routines";
     render(<WatchDialog agentId="a-monitor" open onOpenChange={vi.fn()} />);
     await userEvent.click(screen.getByRole("combobox", { name: "Account" }));
     expect(await screen.findByRole("option", { name: "GitHub" })).toBeInTheDocument();

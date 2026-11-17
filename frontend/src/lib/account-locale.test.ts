@@ -15,7 +15,6 @@ const ADA: User = {
   email: "ada@example.com",
   is_active: true,
   created_at: "2026-10-21T00:00:00Z",
-  locale: "pl",
 };
 
 beforeEach(() => {
@@ -40,6 +39,7 @@ describe("sharedAccountLocale", () => {
     '"en"',
     '{"locale":"en"}',
     '{"userId":"u-1","locale":"es"}',
+    '{"userId":"u-1","locale":"pl"}',
   ])("ignores an absent or malformed choice: %s", (raw) =>
     expect(sharedAccountLocale(raw, "u-1")).toBeNull(),
   );
@@ -61,6 +61,7 @@ describe("localeChosenBy", () => {
     expect(localeChosenBy("web_search", '{"locale": "en"}')).toBeNull();
     expect(localeChosenBy("agenticos_set_my_language", "403 FORBIDDEN: no")).toBeNull();
     expect(localeChosenBy("agenticos_set_my_language", '{"locale": "es"}')).toBeNull();
+    expect(localeChosenBy("agenticos_set_my_language", '{"locale": "de"}')).toBeNull();
     expect(localeChosenBy("agenticos_set_my_language", '"en"')).toBeNull();
     expect(localeChosenBy("agenticos_set_my_language", "null")).toBeNull();
   });
@@ -78,9 +79,10 @@ describe("adoptAccountLocale", () => {
   });
 
   it("leaves the account as it is when nothing changes", () => {
+    useAuthStore.setState({ user: { ...ADA, locale: "en" } });
     const before = useAuthStore.getState().user;
 
-    adoptAccountLocale("pl");
+    adoptAccountLocale("en");
 
     expect(useAuthStore.getState().user).toBe(before);
     expect(window.localStorage.getItem(ACCOUNT_LOCALE_STORAGE_KEY)).toBeNull();
@@ -102,8 +104,8 @@ describe("adoptAccountLocale", () => {
       write(key, value);
     });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    adoptAccountLocale("de");
-    expect(useAuthStore.getState().user?.locale).toBe("de");
+    adoptAccountLocale("en");
+    expect(useAuthStore.getState().user?.locale).toBe("en");
     expect(warn).toHaveBeenCalledOnce();
   });
 });

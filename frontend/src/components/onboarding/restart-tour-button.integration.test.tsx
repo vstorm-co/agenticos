@@ -60,8 +60,8 @@ describe("RestartTourButton", () => {
 
   it("still offers itself on a locale-prefixed covered page", () => {
     // The registry is keyed on unprefixed paths, so the locale has to come off
-    // before the lookup or every page under `/pl` would lose its help.
-    nav.pathname = "/pl/agents";
+    // before the lookup or every page under `/en` would lose its help.
+    nav.pathname = "/en/agents";
     renderButton();
     expect(screen.getByLabelText("Show tips for this page")).toBeVisible();
   });

@@ -1,17 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { parse, TYPE, type MessageFormatElement } from "@formatjs/icu-messageformat-parser";
+import { parse } from "@formatjs/icu-messageformat-parser";
 
 import { CHAT_NOTIFICATION_CHANNELS } from "../src/lib/notification-preferences-api";
 
-import de from "./de.json";
 import en from "./en.json";
-import pl from "./pl.json";
-import tr from "./tr.json";
 
 /**
  * That the catalog holds copy, and only copy.
  *
- * A translator opening `pl.json` translates whatever is in `en.json`, and until
+ * A translator opening a locale's catalog translates whatever is in `en.json`, and until
  * this test existed 166 of those values were not sentences: 18 Tailwind class
  * lists read back through `cn(t("flexItemsStartGap"))`, and 148 fragments of
  * JavaScript source that nothing read at all - `"; case \"stats\": return"`,
@@ -131,20 +128,6 @@ function entries(catalog: unknown, prefix = ""): [string, string][] {
   );
 }
 
-/**
- * Both catalogues, and they are not equal evidence.
- *
- * **`en.json` is what proves the fix.** All 166 bad values were in it, and
- * reverting it alone fails these three with 18 class lists, 150 source fragments
- * and 8 `{noun}` messages named.
- *
- * **A translation is a forward guard and passes on `main` too.** Every value in
- * `pl.json` and `de.json` is a translation somebody wrote by hand, and neither
- * ever held any of the three shapes - so the same assertions over them assert
- * nothing about this change. They are here because a locale is added by copying
- * `en.json` and translating downwards, which is exactly how a class list would
- * arrive in a second file having been fixed in the first.
- */
 /** Tags a message opens without closing - see the assertion that uses it. */
 function unclosedTags(value: string): string[] {
   return [...value.matchAll(/<([a-zA-Z][a-zA-Z0-9]*)>/g)]
@@ -152,13 +135,8 @@ function unclosedTags(value: string): string[] {
     .filter((tag) => !value.includes(`</${tag}>`));
 }
 
-describe.each([
-  ["en.json", en],
-  ["pl.json", pl],
-  ["de.json", de],
-  ["tr.json", tr],
-])("%s", (_name, catalog) => {
-  const all = entries(catalog);
+describe("en.json", () => {
+  const all = entries(en);
 
   it("holds no Tailwind class list", () => {
     const offenders = all.filter(([, value]) => isClassList(value)).map(([key]) => key);
@@ -268,95 +246,24 @@ describe("the rules themselves", () => {
   });
 });
 
-interface IcuContract {
-  arguments: string[];
-  tags: string[];
-  selectors: string[];
-  plurals: string[];
-}
-
-function icuContract(message: string): IcuContract {
-  const args = new Set<string>();
-  const tags = new Set<string>();
-  const selectors = new Set<string>();
-  const plurals = new Set<string>();
-  function visit(nodes: MessageFormatElement[]): void {
-    for (const node of nodes) {
-      switch (node.type) {
-        case TYPE.literal:
-        case TYPE.pound:
-          continue;
-        case TYPE.tag:
-          tags.add(node.value);
-          visit(node.children);
-          continue;
-        default:
-          args.add(node.value);
+describe("every message", () => {
+  it("parses as ICU, so next-intl renders it rather than its key", () => {
+    // The fork ships English only, so no translation's ICU contract is left to
+    // compare. A message that fails to parse still renders as its key path.
+    const broken = entries(en).flatMap(([key, message]) => {
+      try {
+        parse(message);
+        return [];
+      } catch {
+        return [key];
       }
-      if (node.type === TYPE.select || node.type === TYPE.plural) {
-        if (node.type === TYPE.select) {
-          for (const key of Object.keys(node.options))
-            selectors.add(JSON.stringify([node.value, key]));
-        } else {
-          plurals.add(
-            JSON.stringify([
-              node.value,
-              node.pluralType,
-              node.offset,
-              Object.keys(node.options)
-                .filter((key) => key.startsWith("="))
-                .sort(),
-            ]),
-          );
-        }
-        for (const option of Object.values(node.options)) visit(option.value);
-      }
-    }
-  }
-  visit(parse(message));
-  return {
-    arguments: [...args].sort(),
-    tags: [...tags].sort(),
-    selectors: [...selectors].sort(),
-    plurals: [...plurals].sort(),
-  };
-}
-
-describe("Turkish ICU contracts", () => {
-  it("preserves the arguments, rich-text links and selector values supplied by callers", () => {
-    const translated = new Map(entries(tr));
-    const mismatches = entries(en).flatMap(([key, message]) => {
-      const value = translated.get(key);
-      if (value === undefined) return [];
-      return JSON.stringify(icuContract(message)) === JSON.stringify(icuContract(value))
-        ? []
-        : [key];
     });
-    expect(mismatches).toEqual([]);
-  });
-
-  it("detects changed argument and link names or selector values", () => {
-    expect(icuContract("<terms>{name}</terms>")).not.toEqual(
-      icuContract("<privacy>{name}</privacy>"),
-    );
-    expect(icuContract("{count}")).not.toEqual(icuContract("{sayi}"));
-    expect(icuContract("{role, select, owner {Owner} other {Other}}")).not.toEqual(
-      icuContract("{role, select, admin {Admin} other {Other}}"),
-    );
-  });
-
-  it("allows locale-specific plural categories while preserving exact counts and offsets", () => {
-    expect(icuContract("{count, plural, =0 {None} one {# item} other {# items}}")).toEqual(
-      icuContract("{count, plural, =0 {Yok} other {# öğe}}"),
-    );
-    expect(icuContract("{count, plural, =0 {None} other {# items}}")).not.toEqual(
-      icuContract("{count, plural, other {# öğe}}"),
-    );
+    expect(broken).toEqual([]);
   });
 });
 
-it.each([en, pl, de])("names every selectable private notification platform", (catalog) => {
-  const messages = new Map(entries(catalog));
+it("names every selectable private notification platform", () => {
+  const messages = new Map(entries(en));
   for (const channel of CHAT_NOTIFICATION_CHANNELS) {
     expect(messages.get(`notificationRoutes.${channel}`), channel).toBeTruthy();
   }

@@ -5,7 +5,6 @@ import { createTranslator } from "next-intl";
 import { describe, expect, it } from "vitest";
 
 import en from "../../messages/en.json";
-import pl from "../../messages/pl.json";
 import type { Translate } from "./agent-step-captions";
 import {
   ApiError,
@@ -20,12 +19,11 @@ import { BFF_ERROR_KEYS } from "./bff-errors";
 import { INGESTION_FORM_FIELDS } from "./ingestion-config";
 
 /**
- * The real `errors` messages, in both locales: what a refusal shows is what these
+ * The real `errors` messages: what a refusal shows is what these
  * tests are about, and resolving them here also proves every code in
  * `BFF_ERROR_KEYS` has its copy. Cast for the reason `tool-steps.test.ts` casts.
  */
 const tEn = createTranslator({ locale: "en", messages: en, namespace: "errors" }) as Translate;
-const tPl = createTranslator({ locale: "pl", messages: pl, namespace: "errors" }) as Translate;
 
 /** A domain refusal, exactly as `app_exception_handler` writes it. */
 function envelope(code: string, message: string, details: Record<string, unknown> | null = null) {
@@ -425,23 +423,21 @@ describe("getErrorMessage", () => {
     const refusal = apiError(401, { code: "NOT_AUTHENTICATED" });
     expect(refusal.code).toBe("NOT_AUTHENTICATED");
     expect(getErrorMessage(refusal, tEn)).toBe("Not authenticated");
-    expect(getErrorMessage(refusal, tPl)).toBe("Nie jesteś zalogowany");
   });
 
   it("shows the backend's own message as written, whatever its code", () => {
     const refused = apiError(409, CONFLICT);
-    expect(getErrorMessage(refused, tPl)).toBe("An agent with the handle 'support' already exists");
+    expect(getErrorMessage(refused, tEn)).toBe("An agent with the handle 'support' already exists");
   });
 
   it("does not mistake an unmapped top-level code for a BFF refusal", () => {
     const stranger = apiError(500, { code: "SOMETHING_ELSE" });
     expect(stranger.code).toBe("UNKNOWN");
-    expect(getErrorMessage(stranger, tPl)).toBe("Żądanie nie powiodło się");
+    expect(getErrorMessage(stranger, tEn)).toBe("Request failed");
   });
 
   it("translates the fallback sentinel a body that named nothing gets", () => {
     expect(getErrorMessage(apiError(502, null), tEn)).toBe("Request failed");
-    expect(getErrorMessage(apiError(502, null), tPl)).toBe("Żądanie nie powiodło się");
   });
 
   it("uses the error's own sentence, which is the server's refusal", () => {
@@ -453,18 +449,16 @@ describe("getErrorMessage", () => {
   it("falls back for something thrown that is not an error", () => {
     // A rejected fetch can throw a string or an event; neither is worth showing.
     expect(getErrorMessage("boom", tEn)).toBe("An unexpected error occurred");
-    expect(getErrorMessage("boom", tPl)).toBe("Wystąpił nieoczekiwany błąd");
     expect(getErrorMessage(undefined, tEn, "Could not save")).toBe("Could not save");
   });
 });
 
 describe("BFF_ERROR_KEYS", () => {
-  it("holds copy for every code, in both catalogs", () => {
+  it("holds copy for every code", () => {
     // A code without a message would reach the toast as raw English fallback -
     // exactly the defect the table exists to end.
     for (const key of Object.values(BFF_ERROR_KEYS)) {
       expect(en.errors[key as keyof typeof en.errors]).toBeTruthy();
-      expect(pl.errors[key as keyof typeof pl.errors]).toBeTruthy();
     }
   });
 
@@ -472,9 +466,9 @@ describe("BFF_ERROR_KEYS", () => {
     const failure = submitFailure(
       apiError(500, { code: "INTERNAL_SERVER_ERROR" }),
       { fields: ["name"] },
-      tPl,
+      tEn,
     );
-    expect(failure.toast).toBe("Wewnętrzny błąd serwera");
+    expect(failure.toast).toBe("Internal server error");
   });
 });
 

@@ -113,13 +113,13 @@ describe("AppearanceMenu", () => {
 });
 
 describe("LanguageMenu", () => {
-  it("switches the language through the locale-aware router", async () => {
+  it("lists only the locales the deployment serves", async () => {
     inMenu(<LanguageMenu />);
     expect(screen.getByRole("menuitem", { name: /Language/ })).toHaveTextContent("English");
     await openSubmenu(/Language/);
 
-    await userEvent.click(await screen.findByRole("menuitemradio", { name: /Polski/ }));
-
-    expect(env.push).toHaveBeenCalledWith("/agents", { locale: "pl" });
+    const options = await screen.findAllByRole("menuitemradio");
+    expect(options.map((option) => option.textContent)).toEqual(["🇬🇧English"]);
+    expect(options[0]).toHaveAttribute("aria-checked", "true");
   });
 });

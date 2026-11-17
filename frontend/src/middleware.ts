@@ -7,6 +7,7 @@ import {
   localePrefixOf,
   pickedLocale,
   routing,
+  withoutRetiredPrefix,
 } from "./lib/locale-routing";
 import { readPublicConfig } from "./lib/public-config";
 import { contentSecurityPolicyHeader } from "./lib/security-headers";
@@ -37,6 +38,21 @@ function restorePickedLocale(request: NextRequest): NextResponse | null {
   const url = request.nextUrl.clone();
   url.pathname = `/${picked}${pathname === "/" ? "" : pathname}`;
   return NextResponse.redirect(url);
+}
+
+/**
+ * Send a path under a locale this fork no longer serves to the English page.
+ *
+ * Permanent, because the locale will not come back: a client may cache it and
+ * rewrite the bookmark. The query string rides along on the cloned URL.
+ */
+function redirectRetiredLocale(request: NextRequest): NextResponse | null {
+  const english = withoutRetiredPrefix(request.nextUrl.pathname);
+  if (english === null) return null;
+
+  const url = request.nextUrl.clone();
+  url.pathname = english;
+  return NextResponse.redirect(url, 308);
 }
 
 /**
@@ -96,6 +112,9 @@ function withContentSecurityPolicy(response: NextResponse, csp: string): NextRes
 export default function middleware(request: NextRequest): NextResponse {
   const nonce = generateNonce();
   const { value: csp } = contentSecurityPolicyHeader(readPublicConfig(process.env), nonce);
+
+  const retired = redirectRetiredLocale(request);
+  if (retired) return withContentSecurityPolicy(retired, csp);
 
   const restored = restorePickedLocale(request);
   if (restored) return withContentSecurityPolicy(restored, csp);

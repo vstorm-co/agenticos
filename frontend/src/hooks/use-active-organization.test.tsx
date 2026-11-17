@@ -124,9 +124,9 @@ describe("organizationInPath", () => {
   });
 
   it("reads one through a locale prefix", () => {
-    // `next/navigation` keeps the prefix, and `/pl/orgs/{id}` names the same
+    // `next/navigation` keeps the prefix, and `/en/orgs/{id}` names the same
     // organization as `/orgs/{id}`.
-    expect(organizationInPath(`/pl/orgs/${ORG}/members`)).toBe(ORG);
+    expect(organizationInPath(`/en/orgs/${ORG}/members`)).toBe(ORG);
   });
 
   it("names none where the path names none", () => {

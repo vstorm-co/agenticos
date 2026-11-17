@@ -138,7 +138,7 @@ it("offers all invitations and joins only the selected one", async () => {
     expect(apiClient.post).toHaveBeenCalledWith("/invitations/received/second/accept"),
   );
 });
-it.each(["/login", "/pl/invitations/pending", "/shared/chat"])(
+it.each(["/login", "/en/invitations/pending", "/shared/chat"])(
   "leaves explicit authentication/invitation/public paths alone: %s",
   (path) => {
     env.path = path;

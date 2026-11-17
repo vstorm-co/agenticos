@@ -65,13 +65,20 @@ remaining source files. It downloads missing files and does not install software
 4. Create `sync/upstream-<version>` from current `origin/t3` and merge the selected
    release tag. Resolve conflicts on this branch. Do not merge an unreviewed
    moving branch into a deployment.
-5. Update `integrations/upstream.json` with the selected release and full commit.
+5. Keep the console English-only. Delete `frontend/messages/pl.json`,
+   `frontend/messages/de.json` and `frontend/messages/tr.json` again, along with
+   any other non-English catalog the release adds. Keep `locales = ["en"]` in
+   `frontend/src/lib/locales.ts`, and add any new upstream locale to
+   `retiredLocales` there so its old URLs redirect to English. Remove imports of
+   the deleted catalogs from upstream tests. Do not change backend voice or
+   speech-to-text language settings.
+6. Update `integrations/upstream.json` with the selected release and full commit.
    Leave compatibility as `not_tested` until actual adapter checks have passed;
    record their commands, results and exact code revisions in the PR.
-6. Run the relevant contract tests and the upstream checks required for the
+7. Run the relevant contract tests and the upstream checks required for the
    changed code. Include permission denial, stale data, unavailable services and
    retry behavior. Use deterministic fixtures for model-dependent tests.
-7. Open the update PR explicitly against `t3grp/agenticos`, base `t3`. After
+8. Open the update PR explicitly against `t3grp/agenticos`, base `t3`. After
    review and passing checks, merge with upstream ancestry intact. Promotion to
    any running deployment is a separate step with its own acceptance evidence.
 

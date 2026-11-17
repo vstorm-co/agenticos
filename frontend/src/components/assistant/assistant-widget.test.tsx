@@ -810,7 +810,7 @@ describe("the Architect widget", () => {
 
   it("steps out of the chat's composer on any screen, and stays on every other page", () => {
     // The corner it sits in is the composer's send controls there (#2075).
-    state.pathname = "/pl/chat";
+    state.pathname = "/en/chat";
     const { unmount } = render(<AssistantWidget />);
     expect(screen.getByRole("button", { name: "Open Architect" })).toHaveClass("hidden");
     unmount();

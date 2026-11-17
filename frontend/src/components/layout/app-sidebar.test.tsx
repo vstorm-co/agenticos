@@ -83,10 +83,10 @@ describe("isActive", () => {
 
   it("ignores the locale prefix", () => {
     // `/en/agents` and `/agents` are the same page; without this every entry
-    // goes dark for anyone not on the default locale.
+    // goes dark for anyone whose URL carries the prefix.
     expect(isActive("/en/agents", "/agents")).toBe(true);
-    expect(isActive("/pl/agents/abc", "/agents")).toBe(true);
-    expect(isActive("/pl/kb/abc", "/kb")).toBe(true);
+    expect(isActive("/en/agents/abc", "/agents")).toBe(true);
+    expect(isActive("/en/kb/abc", "/kb")).toBe(true);
   });
 
   it("does not light a section on a route that merely starts the same way", () => {
