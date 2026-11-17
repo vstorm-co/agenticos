@@ -365,6 +365,11 @@ export const TOUR_STEPS: readonly TourStep[] = [
 
   { id: "workspace-background", page: ROUTES.WORK, target: "workspace-background" },
   { id: "chat-start", page: ROUTES.CHAT, target: "chat-start", inTour: true },
+  { id: "chat-message-search", page: ROUTES.CHAT, target: "chat-message-search", optional: true },
+  { id: "chat-side-threads", page: ROUTES.CHAT, target: "chat-side-threads", optional: true },
+  { id: "chat-message-pins", page: ROUTES.CHAT, target: "chat-message-pins", optional: true },
+  { id: "chat-selected-quote", page: ROUTES.CHAT, target: "chat-selected-quote", optional: true },
+  { id: "chat-compact-now", page: ROUTES.CHAT, target: "chat-compact-now", optional: true },
   {
     id: "chat-agent-picker",
     page: ROUTES.CHAT,
@@ -373,8 +378,17 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   { id: "chat-composer", page: ROUTES.CHAT, target: "chat-composer", optional: true },
+  { id: "chat-send-mode", page: ROUTES.CHAT, target: "chat-send-mode", optional: true },
   { id: "chat-workspace", page: ROUTES.CHAT, target: "chat-workspace" },
+  { id: "chat-workspace-tasks", page: ROUTES.CHAT, target: "chat-workspace-tasks", optional: true },
   { id: "chat-agent-settings", page: ROUTES.CHAT, target: "chat-agent-settings", optional: true },
+  {
+    id: "chat-agent-reasoning",
+    page: ROUTES.CHAT,
+    target: "chat-agent-reasoning",
+    activate: "chat-agent-settings",
+    optional: true,
+  },
   { id: "chat-team-room", page: ROUTES.CHAT, target: "chat-team-room", optional: true },
   { id: "chat-team-composer", page: ROUTES.CHAT, target: "chat-team-composer", optional: true },
   { id: "chat-room-thread", page: ROUTES.CHAT, target: "chat-room-thread", optional: true },
@@ -430,6 +444,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "chat-plan", page: ROUTES.CHAT, target: "chat-plan", optional: true },
   // Only where an agent has drawn something in the conversation on screen.
   { id: "chat-visual", page: ROUTES.CHAT, target: "chat-visual", optional: true },
+  { id: "chat-trace-filter", page: ROUTES.CHAT, target: "chat-trace-filter", optional: true },
   {
     id: "chat-model-selector",
     page: ROUTES.CHAT,

@@ -38,6 +38,7 @@ import type {
   AskUserAnswer,
   AskUserQuestion,
   BrowserFrame,
+  ChatCompactionStatus,
   ChatMessageFile,
   ChatPerson,
   Compaction,
@@ -95,6 +96,11 @@ export type { QueuedMessage } from "@/types/chat";
 /** One conversation, including the one a first question has not named yet. */
 interface ConversationRef {
   id: string | null;
+}
+
+interface PendingCompactionRequest {
+  requestId: string;
+  scopeKey: string;
 }
 
 interface UseChatOptions {
@@ -210,6 +216,7 @@ export function useChat(options: UseChatOptions = {}) {
   const chatApi = useChatStore.useApi();
   const conversationApi = useConversationStore.useApi();
   const selectionApi = useAgentSelectionStore.useApi();
+  const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
   const scoped = useInChatScope();
   const tenantId = useTenantId();
   const captureSubmission = useCallback((): ChatSubmissionContext | undefined => {
@@ -499,6 +506,14 @@ export function useChat(options: UseChatOptions = {}) {
   // it outlives a turn: it describes what is configured, and clearing it when the
   // turn ends would flash the one message that explains why nothing happened.
   const [compactionImpossible, setCompactionImpossible] = useState<Compaction | null>(null);
+  const [compactionAvailability, setCompactionAvailability] = useState<{
+    scopeKey: string;
+    available: boolean;
+  } | null>(null);
+  const [compactionStatus, setCompactionStatus] = useState<ChatCompactionStatus>("idle");
+  const [compactionProgress, setCompactionProgress] = useState<Compaction | null>(null);
+  const compactionRequestRef = useRef<PendingCompactionRequest | null>(null);
+  const compactionScopeKeyRef = useRef<string | null>(null);
   // Whether the run's sandbox is still being opened. The first session after an
   // update builds the runtime's image on the host, which is minutes during which no
   // token and no tool step arrives (#2222). Cleared by the next tool result and by
@@ -1100,6 +1115,7 @@ export function useChat(options: UseChatOptions = {}) {
               ...msg,
               id: message_id,
               isTemporaryId: false,
+              guardrailRefused: run_status === "guardrail_blocked" || msg.guardrailRefused,
               renderKey: msg.renderKey ?? msg.id,
               threadRootMessageId: turnThreadRootRef.current ?? undefined,
             }));
@@ -1126,6 +1142,7 @@ export function useChat(options: UseChatOptions = {}) {
                 ...msg,
                 id: message_id,
                 isTemporaryId: false,
+                guardrailRefused: run_status === "guardrail_blocked" || msg.guardrailRefused,
                 renderKey: msg.renderKey ?? msg.id,
                 threadRootMessageId: turnThreadRootRef.current ?? undefined,
               }));
@@ -1399,26 +1416,79 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "compaction_impossible": {
+          const progress = wsEvent.data as Compaction;
+          if (typeof progress.request_id === "string") {
+            const pending = compactionRequestRef.current;
+            if (
+              pending === null ||
+              pending.requestId !== progress.request_id ||
+              pending.scopeKey !== compactionScopeKeyRef.current
+            )
+              break;
+            setCompactionProgress(progress);
+            break;
+          }
           // Not a state - a setting. The fixed overhead is already past the
           // trigger, so no summary can get under it and the platform refuses to
           // buy one on every request for ever. It does nothing, which on screen
           // is indistinguishable from a setting that works, so it says so.
-          setCompactionImpossible(wsEvent.data as Compaction);
+          setCompactionImpossible(progress);
           break;
         }
 
         case "compaction_started":
         case "compaction_finished": {
+          const progress = wsEvent.data as Compaction;
+          if (typeof progress.request_id === "string") {
+            const pending = compactionRequestRef.current;
+            if (
+              pending === null ||
+              pending.requestId !== progress.request_id ||
+              pending.scopeKey !== compactionScopeKeyRef.current
+            )
+              break;
+            setCompactionProgress(progress);
+            break;
+          }
           // Between two of the turn's own model requests, where nothing else
           // streams: summarising a long history is a whole request of its own, and
           // without this the chat stops dead for the length of it. Only the
           // summarising strategy sends these - the ones that edit a list and
           // return would be a spinner that appeared and vanished within a frame.
-          setCompacting(
-            wsEvent.type === "compaction_started" ? (wsEvent.data as Compaction) : null,
-          );
+          setCompacting(wsEvent.type === "compaction_started" ? progress : null);
           // A summary that ran is the answer to the warning above it.
           setCompactionImpossible(null);
+          break;
+        }
+
+        case "compact_now_result": {
+          const result = wsEvent.data as {
+            request_id?: string;
+            conversation_id?: string;
+            status?: string;
+          };
+          const pending = compactionRequestRef.current;
+          if (
+            pending === null ||
+            result.request_id !== pending.requestId ||
+            result.conversation_id !== activeConversationId ||
+            pending.scopeKey !== compactionScopeKeyRef.current
+          )
+            break;
+          const terminal = result.status;
+          const accepted: readonly ChatCompactionStatus[] = [
+            "compacted",
+            "unchanged",
+            "busy",
+            "unavailable",
+            "failed",
+          ];
+          setCompactionStatus(
+            accepted.includes(terminal as ChatCompactionStatus)
+              ? (terminal as ChatCompactionStatus)
+              : "failed",
+          );
+          compactionRequestRef.current = null;
           break;
         }
 
@@ -2020,6 +2090,8 @@ export function useChat(options: UseChatOptions = {}) {
       submission?: ChatSubmissionContext,
       agentOverride?: string | null,
     ): string => {
+      setCompactionStatus("idle");
+      setCompactionProgress(null);
       stoppedMessageIdRef.current = null;
       resumedRunIdRef.current = undefined;
       stopRequestedRef.current = false;
@@ -2102,7 +2174,10 @@ export function useChat(options: UseChatOptions = {}) {
       };
       if (submission?.pageContext) payload.page_context = submission.pageContext;
       if (fileIds?.length) payload.file_ids = fileIds;
-      if (replyTo) payload.reply_to = replyTo.messageId;
+      if (replyTo) {
+        payload.reply_to = replyTo.messageId;
+        if (replyTo.selectedText) payload.reply_to_excerpt = replyTo.selectedText;
+      }
       // Only on the turn that starts the conversation: the server files a new
       // chat into the project and ignores the field on every turn after.
       const localContext = submission?.local ?? readLocalContext();
@@ -2186,6 +2261,7 @@ export function useChat(options: UseChatOptions = {}) {
         decidingApprovalRef.current !== null ||
         answeringQuestionRef.current !== null ||
         parkedQuestionRunRef.current !== null ||
+        compactionStatus === "running" ||
         !sessionReadyRef.current ||
         !isConnected ||
         (messageQueueRef.current.length > 0 && interruptedForRef.current === null)
@@ -2199,7 +2275,20 @@ export function useChat(options: UseChatOptions = {}) {
       }
       setSentTurnId(doSend(content, fileIds, files, mentions, submission));
     },
-    [isConnected, doSend, setQueue, captureSubmission, readLocalContext],
+    [isConnected, doSend, setQueue, captureSubmission, readLocalContext, compactionStatus],
+  );
+
+  /** Send plain text into the active run; a closed socket leaves no pending steer behind. */
+  const sendSteerMessage = useCallback(
+    (content: string): boolean => {
+      const text = content.trim();
+      if (!text || !isProcessing || !processingRef.current || !isConnected) return false;
+      const id = clientId();
+      if (!sendMessage({ type: "steer", text })) return false;
+      setSteers((waiting) => [...waiting, { id, text }]);
+      return true;
+    },
+    [isProcessing, isConnected, sendMessage],
   );
 
   /**
@@ -2219,15 +2308,15 @@ export function useChat(options: UseChatOptions = {}) {
         !isProcessing ||
         !isConnected ||
         queued.fileIds?.length ||
+        queued.files?.length ||
         queued.mentions?.length ||
         queued.submission !== undefined
       )
         return;
+      if (!sendSteerMessage(queued.content)) return;
       setQueue(messageQueueRef.current.filter((q) => q.id !== id));
-      setSteers((waiting) => [...waiting, { id: clientId(), text: queued.content }]);
-      sendMessage({ type: "steer", text: queued.content });
     },
-    [isProcessing, isConnected, sendMessage, setQueue],
+    [isProcessing, isConnected, sendSteerMessage, setQueue],
   );
 
   /** Move one queued message to another place in the queue, which is the order it is sent in. */
@@ -2485,6 +2574,160 @@ export function useChat(options: UseChatOptions = {}) {
     modelProfileRef.current = savedControls.modelProfileId;
     approvalModeRef.current = savedControls.approvalMode;
   }, [savedControls.modelProfileId, savedControls.approvalMode]);
+
+  const compactionScopeKey = JSON.stringify([
+    queueAccountId ?? null,
+    tenantId ?? null,
+    activeOrgId ?? null,
+    activeConversationId,
+    selectedAgentId ?? null,
+    savedControls.modelProfileId,
+  ]);
+  const compactionAvailable =
+    compactionAvailability !== null &&
+    compactionAvailability.scopeKey === compactionScopeKey &&
+    compactionAvailability.available;
+  useLayoutEffect(() => {
+    const previous = compactionScopeKeyRef.current;
+    compactionScopeKeyRef.current = compactionScopeKey;
+    if (previous === compactionScopeKey) return;
+    compactionRequestRef.current = null;
+    setCompactionStatus("idle");
+    setCompactionProgress(null);
+  }, [compactionScopeKey]);
+
+  useEffect(() => {
+    if (
+      !queueAccountId ||
+      !activeOrgId ||
+      !activeConversationId ||
+      !selectedAgentId ||
+      testingRef.current
+    )
+      return;
+
+    const controller = new AbortController();
+    let current = true;
+    void apiClient
+      .get<{ available?: boolean }>(
+        `/conversations/${activeConversationId}/compaction-availability?agent_id=${encodeURIComponent(selectedAgentId)}`,
+        { signal: controller.signal },
+      )
+      .then((result) => {
+        if (current && compactionScopeKeyRef.current === compactionScopeKey) {
+          setCompactionAvailability({
+            scopeKey: compactionScopeKey,
+            available: result.available === true,
+          });
+        }
+      })
+      .catch(() => {
+        if (current && compactionScopeKeyRef.current === compactionScopeKey) {
+          setCompactionAvailability({ scopeKey: compactionScopeKey, available: false });
+        }
+      });
+
+    return () => {
+      current = false;
+      controller.abort();
+    };
+  }, [compactionScopeKey, queueAccountId, activeOrgId, activeConversationId, selectedAgentId]);
+
+  const compactConversation = useCallback((): boolean => {
+    const loadedHere =
+      activeConversationId !== null &&
+      loadedTranscript?.conversationId === activeConversationId &&
+      loadedTranscript.selectionVersion === selectionVersion &&
+      loadedTranscript.accountId === (queueAccountId ?? null) &&
+      loadedTranscript.tenantId === tenantId;
+    if (
+      !compactionAvailable ||
+      compactionRequestRef.current !== null ||
+      !isConnected ||
+      !sessionReadyRef.current ||
+      !loadedHere ||
+      !queueAccountId ||
+      !activeOrgId ||
+      !activeConversationId ||
+      !selectedAgentId ||
+      testingRef.current ||
+      compactionStatus === "running" ||
+      processingRef.current ||
+      followingRef.current !== null ||
+      interruptedForRef.current !== null ||
+      interrupted ||
+      leftTurnPending ||
+      detachedTurnPending ||
+      chatApi.getState().messages.length === 0 ||
+      turnThreadRootRef.current !== null ||
+      currentMessageIdRef.current !== null ||
+      messageQueueRef.current.length > 0 ||
+      queuedMessages.length > 0 ||
+      pendingApproval !== null ||
+      pendingQuestions !== null ||
+      pendingSecretRequests !== null ||
+      pendingConnection !== null ||
+      pendingComputerAccess !== null ||
+      chatApi
+        .getState()
+        .messages.some(
+          (message) =>
+            (message.conversationId ?? activeConversationId) === activeConversationId &&
+            message.toolCalls?.some((call) =>
+              ["pending", "running", "awaiting_approval", "awaiting_answer"].includes(call.status),
+            ),
+        )
+    )
+      return false;
+
+    const requestId = clientId();
+    compactionRequestRef.current = { requestId, scopeKey: compactionScopeKey };
+    setCompactionStatus("running");
+    setCompactionProgress(null);
+    sessionReadyRef.current = false;
+    setSessionReady(false);
+    const payload: Record<string, unknown> = {
+      type: "compact_now",
+      request_id: requestId,
+      conversation_id: activeConversationId,
+      agent_id: selectedAgentId,
+    };
+    if (savedControls.modelProfileId) {
+      payload.model_profile_id = savedControls.modelProfileId;
+    }
+    if (!sendMessage(payload)) {
+      compactionRequestRef.current = null;
+      setCompactionStatus("failed");
+      sessionReadyRef.current = true;
+      setSessionReady(true);
+      return false;
+    }
+    return true;
+  }, [
+    compactionAvailable,
+    compactionStatus,
+    isConnected,
+    loadedTranscript,
+    activeConversationId,
+    selectionVersion,
+    queueAccountId,
+    tenantId,
+    activeOrgId,
+    selectedAgentId,
+    queuedMessages.length,
+    pendingApproval,
+    pendingQuestions,
+    pendingSecretRequests,
+    pendingConnection,
+    pendingComputerAccess,
+    interrupted,
+    leftTurnPending,
+    detachedTurnPending,
+    chatApi,
+    compactionScopeKey,
+    savedControls.modelProfileId,
+    sendMessage,
+  ]);
 
   const canDecide = can(Perm.approvalsDecide);
 
@@ -3710,6 +3953,13 @@ export function useChat(options: UseChatOptions = {}) {
     const dropped = wasConnected.current && !isConnected;
     const returned = !wasConnected.current && isConnected;
     wasConnected.current = isConnected;
+    if (dropped && compactionRequestRef.current !== null) {
+      compactionRequestRef.current = null;
+      setCompactionStatus("failed");
+      setCompactionProgress(null);
+      sessionReadyRef.current = true;
+      setSessionReady(true);
+    }
     if (returned) {
       stoppedMessageIdRef.current = null;
       stopRequestedRef.current = false;
@@ -3832,6 +4082,7 @@ export function useChat(options: UseChatOptions = {}) {
     if (
       !isConnected ||
       isProcessing ||
+      compactionStatus === "running" ||
       !sessionReady ||
       decidingApprovalRef.current ||
       answeringQuestionRef.current !== null ||
@@ -3854,6 +4105,7 @@ export function useChat(options: UseChatOptions = {}) {
         decidingApprovalRef.current !== null ||
         answeringQuestionRef.current !== null ||
         parkedQuestionRunRef.current !== null ||
+        compactionRequestRef.current !== null ||
         !sessionReadyRef.current
       )
         return;
@@ -3875,6 +4127,7 @@ export function useChat(options: UseChatOptions = {}) {
     };
   }, [
     isProcessing,
+    compactionStatus,
     isConnected,
     sessionReady,
     interruptedFor,
@@ -3975,6 +4228,11 @@ export function useChat(options: UseChatOptions = {}) {
     canStopParked: cancellableParked !== null,
     compacting,
     compactionImpossible,
+    compactionAvailable,
+    compactionStatus,
+    compactionProgress,
+    compactConversation,
+    compactionReady: compactionAvailable && isConnected && sessionReady,
     /** Whether the run's sandbox is still being opened - see `SandboxPreparingNotice`. */
     sandboxPreparing,
     /** A turn whose socket went away. The answer is still being written; see `onTurnInterrupted`. */
@@ -4000,6 +4258,7 @@ export function useChat(options: UseChatOptions = {}) {
     connect,
     disconnect,
     sendMessage: sendChatMessage,
+    sendSteerMessage,
     captureSubmission,
     /** Tell the running turn how one of its drawings rendered. */
     reportVisual,
@@ -4017,6 +4276,7 @@ export function useChat(options: UseChatOptions = {}) {
     /** Questions asked beside the running turn, with their answers as they come. */
     setModelProfile: (profileId: string | null) => {
       modelProfileRef.current = profileId;
+      savedControls.update({ modelProfileId: profileId });
     },
     setApprovalMode: (mode: ApprovalMode) => {
       approvalModeRef.current = mode;

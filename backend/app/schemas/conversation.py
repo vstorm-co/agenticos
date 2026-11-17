@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, ValidationInfo, field_validator
 
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.mention import MentionKind
@@ -315,6 +315,11 @@ class MessageCreate(MessageBase):
             "replied to one; refused when it is in another conversation."
         ),
     )
+    reply_to_excerpt: str | None = Field(
+        default=None,
+        max_length=280,
+        description="The normalized selected text quoted from the linked message, when selected",
+    )
     parts: list[MessagePart] | None = Field(
         default=None,
         description=(
@@ -363,6 +368,14 @@ class MessageCreate(MessageBase):
     agent_version_id: UUID | None = Field(
         default=None, description="The frozen spec that produced the answer"
     )
+
+    @field_validator("reply_to_excerpt")
+    @classmethod
+    def excerpt_requires_reply(cls, value: str | None, info: ValidationInfo) -> str | None:
+        """An excerpt is meaningful only with the message it was selected from."""
+        if value is not None and info.data.get("reply_to_message_id") is None:
+            raise ValueError("reply_to_excerpt requires reply_to_message_id")
+        return value
 
 
 class MessageFileRead(BaseSchema):
@@ -567,6 +580,10 @@ class MessageRead(MessageBase, TimestampSchema):
         default=None,
         description="Current user's rating (1 or -1)",
     )
+    is_pinned: bool | None = Field(
+        default=None,
+        description="Whether the authenticated reader pinned this message; absent without a reader",
+    )
     rating_count: dict[str, int] | None = Field(
         default=None,
         description="Aggregate counts {likes: N, dislikes: N}",
@@ -636,6 +653,30 @@ class ConversationForkOrigin(BaseSchema):
         default=None, description="The answer the fork was made from; null once it is gone"
     )
     title: str | None = None
+
+
+class ConversationForkRead(BaseSchema):
+    """A child conversation the source owner may open beside its anchor."""
+
+    id: UUID
+    title: str | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+    is_archived: bool
+    forked_from: ConversationForkOrigin
+
+
+class ConversationForkList(BaseSchema):
+    """A bounded page of personal forks from one conversation."""
+
+    items: list[ConversationForkRead]
+    total: int
+
+
+class ConversationCompactionAvailability(BaseSchema):
+    """Whether the requested published agent supports a paid summary action."""
+
+    available: bool
 
 
 class ConversationRead(ConversationBase, TimestampSchema):

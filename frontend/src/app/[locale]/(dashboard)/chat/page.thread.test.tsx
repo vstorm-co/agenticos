@@ -18,16 +18,51 @@ vi.mock("@/lib/locale-navigation", () => ({
   useRouter: () => ({ push }),
 }));
 vi.mock("@/components/chat", () => ({
-  ConversationSidebar: () => <aside>Chats</aside>,
+  ConversationSidebar: ({
+    onSelectSearchResult,
+  }: {
+    onSelectSearchResult: (target: {
+      conversationId: string;
+      messageId: string;
+      threadRootMessageId?: string | null;
+    }) => void;
+  }) => (
+    <aside>
+      <button
+        onClick={() =>
+          onSelectSearchResult({ conversationId: "found-chat", messageId: "found-message" })
+        }
+      >
+        Open message result
+      </button>
+      <button
+        onClick={() =>
+          onSelectSearchResult({
+            conversationId: "found-room",
+            messageId: "found-reply",
+            threadRootMessageId: "found-root",
+          })
+        }
+      >
+        Open thread result
+      </button>
+    </aside>
+  ),
   ChatContainer: ({
     requestedConversationId,
     requestedThreadRootId,
+    requestedMessageId,
+    messageJumpRevision,
+    onOpenParent,
     onOpenThread,
     onCloseThread,
     emptyState,
   }: {
     requestedConversationId: string | null;
     requestedThreadRootId: string | null;
+    requestedMessageId: string | null;
+    messageJumpRevision: number;
+    onOpenParent: (target: { conversationId: string; messageId: string | null }) => void;
     onOpenThread: (root: string) => void;
     onCloseThread: () => void;
     emptyState?: (onPick: (prompt: string) => void) => ReactNode;
@@ -35,6 +70,16 @@ vi.mock("@/components/chat", () => ({
     <main>
       <output aria-label="Requested room">{requestedConversationId ?? "none"}</output>
       <output aria-label="Requested thread">{requestedThreadRootId ?? "none"}</output>
+      <output aria-label="Requested message">{requestedMessageId ?? "none"}</output>
+      <output aria-label="Jump revision">{messageJumpRevision}</output>
+      <button
+        onClick={() => onOpenParent({ conversationId: "parent-chat", messageId: "fork-origin" })}
+      >
+        Back to parent
+      </button>
+      <button onClick={() => onOpenParent({ conversationId: "parent-chat", messageId: null })}>
+        Back to parent without origin
+      </button>
       {emptyState?.(runExample)}
       <button type="button" onClick={() => onOpenThread("root-b")}>
         Open thread B
@@ -77,6 +122,43 @@ beforeEach(() => {
 });
 
 describe("thread URLs on the chat page", () => {
+  it("restores an exact message link and clears it when the user chooses another thread", async () => {
+    queryString = "id=room-a&thread=root-a&message=reply-a&keep=present";
+    render(<ChatPage />);
+    expect(screen.getByLabelText("Requested message")).toHaveTextContent("reply-a");
+    await userEvent.click(screen.getByRole("button", { name: "Open thread B" }));
+    expect(destination().searchParams.has("message")).toBe(false);
+  });
+
+  it("opens body-search results at the exact message and repeats an explicit same-result jump", async () => {
+    queryString = "id=room-a&thread=root-a&message=old&keep=present";
+    render(<ChatPage />);
+    const result = screen.getByRole("button", { name: "Open message result" });
+    await userEvent.click(result);
+    const target = destination();
+    expect(target.searchParams.get("id")).toBe("found-chat");
+    expect(target.searchParams.get("message")).toBe("found-message");
+    expect(target.searchParams.has("thread")).toBe(false);
+    expect(target.searchParams.get("keep")).toBe("present");
+    expect(screen.getByLabelText("Jump revision")).toHaveTextContent("1");
+    await userEvent.click(result);
+    expect(screen.getByLabelText("Jump revision")).toHaveTextContent("2");
+    await userEvent.click(screen.getByRole("button", { name: "Open thread result" }));
+    expect(destination().searchParams.get("thread")).toBe("found-root");
+    expect(destination().searchParams.get("message")).toBe("found-reply");
+  });
+
+  it("returns a side thread to its parent message and removes stale roots or missing origins", async () => {
+    queryString = "id=room-a&thread=root-a&message=old";
+    render(<ChatPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Back to parent" }));
+    expect(destination().searchParams.get("id")).toBe("parent-chat");
+    expect(destination().searchParams.get("message")).toBe("fork-origin");
+    expect(destination().searchParams.has("thread")).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Back to parent without origin" }));
+    expect(destination().searchParams.has("message")).toBe(false);
+  });
+
   it("keeps the selected onboarding example and its send callback alongside thread navigation", async () => {
     queryString = "id=room-a&example=meeting&thread=root-a";
     render(<ChatPage />);

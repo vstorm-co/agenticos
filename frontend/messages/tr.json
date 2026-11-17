@@ -8155,6 +8155,30 @@
         "body": "Slack, Telegram veya Mattermost gibi bir sohbet platformu kaydedin; ardından yanıt vermesi için herhangi bir agent’ı bağlayabilirsiniz. Bot token’ı vault’ta korunur. Buradan bir kanal ekleyin.",
         "title": "Agent’lara insanların bulunduğu yerden ulaşın"
       },
+      "chat-send-mode": {
+        "title": "Sıraya al veya yönlendir",
+        "body": "Ajan çalışırken sonraki mesajını sıraya al veya geçerli turu düz metinle yönlendir. Dosyalar ve diğer bağlam normal sırada kalır."
+      },
+      "chat-side-threads": {
+        "title": "Bir yan konuşma açın",
+        "body": "Bu yanıttan ayrı bir konuşma başlatın veya mevcut bir dalı ana konuşmanın yanında açın. Ana konuşmaya dön seçeneği tam kaynak mesaja götürür."
+      },
+      "chat-message-search": {
+        "title": "Sohbetler arasında mesaj bul",
+        "body": "Okuyabildiğin sohbetlerde mesaj metni ara veya başlık aramasını seç. Eski geçmiş ve oda yanıtları dahil, sonucu seçerek ilgili mesajı aç."
+      },
+      "chat-trace-filter": {
+        "title": "Bu turda bir adım bul",
+        "body": "Açık etkinlik geçmişinde metin, araç argümanları veya sonuçları ara. Araçları, akıl yürütmeyi, hataları veya mesajları filtrele; yanıtını bekleyen adımlar görünür kalır."
+      },
+      "chat-agent-reasoning": {
+        "title": "Akıl yürütme ayarları",
+        "body": "Ajan taslağında Thinking ayarını düzenle. Taslağı kaydet, ardından sonraki çalıştırmalar için gözden geçir ve yayımla."
+      },
+      "chat-workspace-tasks": {
+        "title": "Konuşmanın yanındaki görevler",
+        "body": "Bu sohbetin veya tüm agent'larınızın arka plan görevlerini açın. İlginizi gerektiren işleri inceleyin, konuşmasını açın veya etkin bir görevi durdurun."
+      },
       "chat-workspace": {
         "title": "Workspace'inizi açın",
         "body": "Chat'in yanında Tarayıcı, Bilgisayar veya Dosyalar'ı açın. Yapılandırılmış bir barındırılan aracı başlatmasını seçili Agent'tan isteyin. Yalnızca bir paneli açmak oturum başlatmaz."
@@ -8858,10 +8882,116 @@
       "chat-room-thread-panel": {
         "title": "Kendi bağlamında yanıtlar",
         "body": "İlk mesaj yanıtların üstünde kalır. Odadaki herkes konuyu okuyabilir. Yardım istediğinizde bir ajan seçin veya odaya dönmek için konuyu kapatın."
+      },
+      "chat-message-pins": {
+        "title": "Önemli mesajları saklayın",
+        "body": "Bir mesajı kendiniz için sabitleyin, ardından bu konuşmanın sabitlenmiş mesajlar listesinden yeniden açın."
+      },
+      "chat-selected-quote": {
+        "title": "Seçili metne yanıt verin",
+        "body": "Kaydedilmiş bir mesajdan bir bölüm seçin ve bu alıntıyı yanıtınıza eklemek için Yanıtla'yı seçin."
+      },
+      "chat-compact-now": {
+        "title": "Önceki bağlamı özetleyin",
+        "body": "Boştaki bir konuşmanın bağlamını, kayıtlı mesajları ve mevcut taslağınızı koruyarak sıkıştırın."
       }
     }
   },
   "chat": {
+    "messageJump": {
+      "loading": "Seçilen mesaj yükleniyor…",
+      "failed": "Seçilen mesaj yüklenemedi. Tekrar deneyin.",
+      "unavailable": "Bu mesaj artık bu sohbette kullanılamıyor.",
+      "cancel": "Mesaja gitmeyi iptal et"
+    },
+    "manualCompaction": {
+      "action": "Şimdi sıkıştır",
+      "description": "Sonraki tur için önceki bağlamı özetleyin. Kaydedilen mesajlar erişilebilir kalır.",
+      "busyHint": "Bu konuşma boşta olduğunda kullanılabilir.",
+      "running": "Önceki bağlam özetleniyor…",
+      "runningCount": "Önceki {count} mesaj özetleniyor…",
+      "compacted": "Bağlam sıkıştırıldı. Kaydedilen mesajlarınıza hâlâ erişebilirsiniz.",
+      "unchanged": "Daha fazla bağlam sıkıştırılamadı.",
+      "busy": "Bu konuşma meşgul. Etkin çalışma tamamlandıktan sonra tekrar deneyin.",
+      "unavailable": "Bu ajan bu konuşmanın bağlamını sıkıştıramaz.",
+      "failed": "Bağlam sıkıştırılamadı. Tekrar deneyin."
+    },
+    "messagePins": {
+      "emptyPreview": "Önizlemesi olmayan mesaj",
+      "open": "Sabitlenen mesajlar",
+      "title": "Sabitlenen mesajlar",
+      "empty": "Bu sohbette sabitlenmiş mesajınız yok.",
+      "loading": "Sabitlenen mesajlar yükleniyor…",
+      "loadMore": "Daha fazla yükle",
+      "retry": "Tekrar dene",
+      "listFailed": "Sabitlenen mesajlar yüklenemedi.",
+      "pin": "Mesajı sabitle",
+      "unpin": "Mesajın sabitlemesini kaldır"
+    },
+    "sideThreads": {
+      "loadMore": "Daha fazla yükle",
+      "untitledFork": "Başlıksız yan sohbet",
+      "title": "Yan sohbetler",
+      "start": "Yan sohbet başlat",
+      "open": "Yan sohbeti aç",
+      "backToParent": "Ana sohbete dön",
+      "loading": "Yan sohbet yükleniyor…",
+      "empty": "Bu mesaj için henüz yan sohbet yok.",
+      "error": "Yan sohbetler yüklenemedi.",
+      "retry": "Tekrar dene",
+      "archived": "Arşivlendi",
+      "close": "Yan sohbeti kapat",
+      "createFailed": "Yan sohbet başlatılamadı."
+    },
+    "trace": {
+      "toggle": "Etkinliği ara ve filtrele",
+      "title": "Bu turun etkinliğinde ara",
+      "search": "Metin, araç girdileri ve sonuçlarda ara",
+      "filter": "Göster",
+      "all": "Tüm etkinlik",
+      "tools": "Araçlar",
+      "thinking": "Akıl yürütme",
+      "errors": "Hatalar",
+      "messages": "Mesajlar",
+      "clear": "Filtreleri temizle",
+      "count": "{total} kaydın {shown} tanesi",
+      "attention": "Seni bekleyen adımlar görünür kalır.",
+      "noMatches": "Bu filtrelerle eşleşen etkinlik yok."
+    },
+    "sendMode": {
+      "label": "Çalışırken gönder",
+      "queue": "Sıraya al",
+      "steer": "Yönlendir",
+      "queueDescription": "Geçerli turdan sonra gönder.",
+      "steerDescription": "Geçerli tura yönlendirme gönder.",
+      "steerUnavailable": "Yönlendirme düz metni destekler. Dosya, bahsetme, yanıt, sayfa bağlamı veya iş akışı girdisi içeren mesajlar sırada kalır.",
+      "steerDisconnected": "Geçerli turu yönlendirmek için yeniden bağlan. Taslağın hâlâ mesaj alanında.",
+      "steerFailed": "Yönlendirme gönderilemedi. Taslağın hâlâ burada."
+    },
+    "agentSettings": {
+      "reasoning": "Akıl yürütme"
+    },
+    "workspaceTasks": {
+      "title": "Görevler",
+      "open": "Görevleri aç",
+      "close": "Görevleri kapat",
+      "expand": "Görevleri genişlet",
+      "restore": "Görevleri geri yükle",
+      "scopeHint": "Bu kuruluştaki arka plan görevleriniz. Konuşmasına devam etmek için bir görevi açın.",
+      "scope": "Görev kapsamı",
+      "thisChat": "Bu sohbet",
+      "allMine": "Tüm görevlerim",
+      "search": "Görev ara",
+      "loadFailed": "Görevler yüklenemedi.",
+      "empty": "Henüz arka plan görevi yok. Başlamak için bir agent'tan arka planda bir konu üzerinde çalışmasını isteyin.",
+      "noMatches": "Aramanızla eşleşen görev yok.",
+      "groups": {
+        "needsYou": "Size ihtiyaç var ({count})",
+        "working": "Çalışıyor ({count})",
+        "waiting": "Bekliyor ({count})",
+        "finished": "Tamamlandı ({count})"
+      }
+    },
     "loadEarlierMessages": "Önceki mesajları yükle",
     "accessLevel": "Erişim düzeyi",
     "accessRevoked": "Erişim iptal edildi",
@@ -9280,7 +9410,14 @@
       "noSearchResults": "Eşleşen konuşma yok.",
       "otherAgents": "Diğer",
       "retryShared": "Paylaşılan konuşmaları yeniden yükle",
-      "searchHint": "Konuşmalarınızı başlığa göre aramak için yazın.",
+      "searchHint": "Konuşmalarındaki mesaj metinlerini ara veya konuşma başlığını seç.",
+      "searchTitleHint": "Arşivlenmiş konuşmalar dahil konuşma başlıklarını ara.",
+      "searchModeLabel": "Arama ölçütü",
+      "searchModeMessages": "Mesaj metni",
+      "searchModeTitles": "Konuşma başlığı",
+      "noMessageSearchResults": "Eşleşen mesaj yok.",
+      "searchFailed": "Arama başarısız oldu. Yeniden dene.",
+      "retrySearch": "Yeniden dene",
       "searchLabel": "Konuşmalarda ara",
       "searchPlaceholder": "Konuşmalarda ara",
       "searching": "Aranıyor…",
@@ -10220,7 +10357,9 @@
       "unavailable": "Model kullanılamıyor",
       "useDefault": "Agent’ın modelini kullan",
       "scope": "Sonraki mesajın için kayıtlı bir model seç. Bu sohbet tercihi, bu kuruluştaki hesabın için hatırlanır.",
-      "afterTurn": "Devam eden run kendi modelini kullanmaya devam eder. Seçimin sonraki mesaj için geçerlidir ve sohbet tercihin olarak hatırlanır.",
+      "afterTurn": "Bu turdan sonra: Devam eden tur mevcut modelini kullanmaya devam eder. Seçimin sonraki mesaj için geçerlidir ve sohbet tercihin olarak hatırlanır.",
+      "afterTurnBadge": "Bu turdan sonra",
+      "editReasoning": "Ajan ayarlarında akıl yürütmeyi düzenle",
       "providers": "Model providerları",
       "search": "Kayıtlı modellerde veya hesaplarda ara…",
       "account": "Provider hesabı",

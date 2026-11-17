@@ -67,7 +67,7 @@ export function BackgroundTaskList({
 }: {
   tasks: ConversationTask[];
   stopping: boolean;
-  onStop: (id: string) => void;
+  onStop?: (id: string) => void;
 }) {
   const t = useTranslations("chat.backgroundTasks");
   return (
@@ -88,7 +88,7 @@ export function BackgroundTaskList({
               {task.delivery === "interrupted" ? ` · ${t("returnInterrupted")}` : ""}
             </span>
           </Link>
-          {taskIsActive(task) && (
+          {onStop && taskIsActive(task) && (
             <Button
               size="icon"
               variant="ghost"

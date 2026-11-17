@@ -1,5 +1,5 @@
 ---
-source_sha: "22b67b0bc732"
+source_sha: "da2b712157b6"
 ---
 
 # Konsola { #the-console }
@@ -940,7 +940,49 @@ Tekst i media zapisane poza bazą w kopiowanym podsumowaniu są odtwarzane w roz
 
 Rozmowę z zapisaną checklistą można rozgałęzić tylko przy jej najnowszej wiadomości, jeśli jest odpowiedzią agenta. Kopia zachowuje checklistę, w tym identyfikatory zadań i zależności. Wcześniejsze wersje checklisty nie są przechowywane, dlatego wcześniejsze rozgałęzienie jest odrzucane, aby nie kopiować późniejszych zadań do starszej historii.
 
+### Wątki poboczne { #chat-side-threads }
+
+Przy zakończonej odpowiedzi asystenta w należącej do Ciebie prywatnej rozmowie opcja **Wątki poboczne** pozwala rozpocząć osobną rozmowę od tego miejsca lub ponownie otworzyć odgałęzienie tej samej odpowiedzi. Nowa rozmowa otwiera się obok głównej, z własnym polem wpisywania i kolejnymi wiadomościami. Historia, szkic i kolejka rozmowy głównej pozostają na miejscu; wiadomości wysłane w odgałęzieniu należą do niego.
+
+**Powrót do rozmowy nadrzędnej** zamyka panel i otwiera dokładną odpowiedź źródłową, wczytując starszą historię w razie potrzeby. Zamknięcie panelu nie usuwa rozmowy. Zmiana rozmowy źródłowej, konta lub organizacji usuwa stary panel. Zarchiwizowane odgałęzienia są tylko do odczytu. Lista pozwala wczytać więcej odgałęzień tej odpowiedzi, a błąd odczytu lub tworzenia umożliwia ponowienie bez przełączania głównej rozmowy.
+
+### Skracanie kontekstu rozmowy { #chat-compact-now }
+
+W bezczynnej rozmowie osobistej, której jesteś właścicielem, **Skróć kontekst teraz** w nagłówku prosi opublikowanego agenta o podsumowanie wcześniejszego kontekstu. Działanie pojawia się, gdy agent ma obsługiwaną strategię kompakcji przez podsumowanie. Zapisane wiadomości i szkic w edytorze pozostają dostępne. Funkcja nie jest dostępna w dyskusjach pokojów, rozmowach zarchiwizowanych lub tylko do odczytu, workflowach ani panelach testowania wersji roboczych.
+
+Komunikat nad edytorem pokazuje postęp i wynik: skrócono kontekst, nie ma dalszej redukcji, rozmowa jest zajęta, funkcja jest niedostępna albo wystąpił błąd. Podczas kompakcji wysyłanie i rozpoczynanie połączenia głosowego są wstrzymane; **Zatrzymaj** anuluje żądanie. Zmiana rozmowy go nie powtarza. Działanie korzysta z wybranego modelu czatu, gdy ma to zastosowanie, i podlega zwykłym budżetom użycia. Wskaźnik kontekstu zachowuje ostatni pomiar do kolejnego żądania modelu.
+
+### Odpowiadanie na zaznaczony tekst { #chat-selected-quote }
+
+Zaznacz fragment zapisanej wiadomości i wybierz **Odpowiedz**. Edytor zachowuje cytat o długości do 280 znaków wraz z wiadomością źródłową. Po wysłaniu zaznaczony fragment pozostaje dostępny po ponownym otwarciu rozmowy i w kontekście czytanym przez agenta. Działa to w czatach osobistych oraz w dyskusjach pokojów, w których możesz pisać. Bez zaznaczenia **Odpowiedz** zachowuje dotychczasowe działanie dla całej wiadomości.
+
+Zaznaczenia obejmujące różne wiadomości lub interaktywne elementy nie są używane jako cytaty. Fragment połączonej wypowiedzi asystenta pozostaje powiązany z zapisaną częścią, z której pochodzi. Niezapisana część nie może stać się cytowaną odpowiedzią.
+
+### Przypięte wiadomości { #chat-message-pins }
+
+Wybierz **Przypnij wiadomość** przy zapisanej wiadomości, aby zachować prywatną zakładkę. **Przypięte wiadomości** w nagłówku rozmowy otwierają Twoją listę. Wybierz fragment, aby wrócić dokładnie do tej wiadomości, także na starszej stronie lub w wątku pokoju. Przypięcie można usunąć przy wiadomości albo na liście, wczytać kolejne pozycje i ponowić nieudany odczyt.
+
+Przypięcia należą do Ciebie. Inni czytelnicy udostępnionej rozmowy ich nie widzą, a odbiorca z dostępem tylko do odczytu może zachowywać własne zakładki. Otwarcie przypięcia nadal wymaga dostępu do rozmowy. Lista pokazuje bieżący fragment wiadomości i nie tworzy dodatkowej kopii treści.
+
+### Znajdowanie wiadomości { #chat-message-search }
+
+Użyj wyszukiwania rozmów na pasku bocznym czatu. **Treść wiadomości** przeszukuje rozmowy dostępne w aktywnej organizacji i pokazuje najlepiej dopasowaną wiadomość w każdym wyniku wraz z fragmentem i czasem. Zawęź zapytanie, jeśli pierwsze dwadzieścia rozmów nie zawiera szukanej. Wybierz **Tytuł rozmowy**, aby przeszukać tytuły, także rozmów zarchiwizowanych.
+
+Wybranie wiadomości otwiera dokładnie to miejsce, także odpowiedź w wątku pokoju. Starsza historia wczytuje się strona po stronie; **Anuluj przejście** zatrzymuje nawigację. Błąd odczytu pozwala ponowić próbę, a niedostępna wiadomość jest oznaczana osobno. Wybrana wiadomość zachowuje fokus klawiatury, a zwinięta historia pracy otwiera się, aby pokazać dopasowany zapisany fragment. Link nadal wymaga dostępu do rozmowy.
+
+### Wyszukiwanie aktywności w turze { #chat-trace-search }
+
+Otwórz historię pracy tury i wybierz **Szukaj i filtruj aktywność**. Wyszukuj tekst, argumenty i wyniki narzędzi w tej turze albo wyświetlaj tylko narzędzia, rozumowanie, błędy lub wiadomości. Wpisy zachowują kolejność, a końcowa odpowiedź pozostaje na miejscu. Zgody, pytania bez odpowiedzi i konfiguracja modelu wymagające twojej uwagi pozostają widoczne także bez dopasowania. **Wyczyść filtry** lub Escape przywraca pełną aktywność; zamknięcie filtrów również je czyści.
+
+### Sterowanie podczas tury { #chat-live-controls }
+
+Gdy agent pracuje, **Do kolejki** wysyła następną wiadomość po bieżącej turze. **Pokieruj** przekazuje zwykły tekst jako wskazówki dla trwającej tury, z których agent korzysta przy kontynuacji. Wybór jest zapamiętywany dla konta, organizacji i wybranego agenta, także asystenta ogólnego. Pliki, wzmianki, odpowiedzi, kontekst strony i dane przepływów pracy pozostają w zwykłej kolejce. Jeśli wskazówek nie da się wysłać, szkic pozostaje w polu wiadomości.
+
+Zmiana modelu podczas pracy pokazuje **Po tej turze**: wybór dotyczy późniejszej wiadomości. **Edytuj rozumowanie w ustawieniach agenta** otwiera ustawienie myślenia w szkicu agenta dla osób z prawem edycji. Zapisz szkic, a następnie skorzystaj z przeglądu i publikacji, aby zastosować konfigurację w przyszłych uruchomieniach.
+
 ### Tematy w tle { #background-topics }
+
+W pełnym czacie na komputerze **Zadania** po prawej otwierają pracę w tle obok rozmowy. Wybierz **Ten czat** albo **Wszystkie moje zadania**, wyszukaj tytuł i otwórz zadanie z grupy **Wymaga uwagi**, **W toku**, **Oczekujące** lub **Zakończone**. Nowy czat pokazuje twoje zadania wszystkich agentów w aktywnej organizacji. Panel można rozszerzyć lub zmienić jego szerokość. Otwarcie nie uruchamia pracy; czat tylko do odczytu zachowuje linki i ukrywa **Zatrzymaj**. Błąd odczytu udostępnia ponowienie próby.
 
 Włącz **Tematy w tle** u opublikowanego agenta i poproś np.: „Zbadaj błąd eksportu w nowym temacie, a my kontynuujmy plan wydania” albo „Niech agent finansowy sprawdzi te liczby, gdy omawiamy ofertę”. Agent może użyć swojej przypiętej wersji albo opublikowanego delegata przypiętego w specyfikacji. Zacznij z rozmowy, której jesteś właścicielem; nowy temat należy do tego samego projektu i zawiera brief agenta oraz odnośnik do źródła, bez kopiowania pierwotnego transkryptu.
 

@@ -35,6 +35,7 @@ import { YouFace } from "./you-face";
 import { ReplyQuote } from "./reply-quote";
 import { STALLED_AFTER_MS, useTurnElapsed, WorkFold } from "./work-fold";
 import { formatElapsed } from "@/lib/elapsed";
+import { TurnTrace } from "./turn-trace";
 
 /**
  * A turn's body: its reasoning, its work and its words, in the order they arrived.
@@ -73,9 +74,12 @@ export function TurnParts({
   waitingFor,
   lastHeartbeatAt,
   allowSetupActions = false,
+  allowQuotes = true,
 }: {
   /** Private configuration actions are opt-in; shared transcripts remain read-only. */
   allowSetupActions?: boolean;
+  /** Refused assistant text is visible, but is never a selected-quote source. */
+  allowQuotes?: boolean;
   parts: MessagePart[];
   isStreaming: boolean;
   isUser: boolean;
@@ -191,6 +195,8 @@ export function TurnParts({
         text={run.content}
         showCursor={isStreaming && run.isLast}
         isUser={isUser}
+        quoteable={allowQuotes && !isStreaming && run.part.type === "text"}
+        quoteSourceMessageId={run.part.sourceMessageId}
         onCiteClick={onCiteClick}
         afterWork={afterWork}
       />
@@ -227,14 +233,17 @@ export function TurnParts({
         waiting={failed ? undefined : waiting}
         lastHeartbeatAt={lastHeartbeatAt}
       >
-        {split.folded.map((run, index) => {
-          const previous = split.folded[index - 1];
-          return render(
-            run,
-            false,
-            previous?.kind === "tools" || previous?.part.type === "thinking",
-          );
-        })}
+        <TurnTrace
+          runs={split.folded}
+          render={(run, index, visible) => {
+            const previous = visible[index - 1];
+            return render(
+              run,
+              false,
+              previous?.kind === "tools" || previous?.part.type === "thinking",
+            );
+          }}
+        />
       </WorkFold>
       <TurnBrowses calls={browseCalls(runs)} />
       <TurnCharts calls={chartCalls(runs)} />
@@ -388,10 +397,16 @@ export function TextBubble({
   afterWork = false,
   replyTo,
   replyAgents = [],
+  quoteable = false,
+  quoteSourceMessageId,
 }: {
   text: string;
   replyTo?: MessageReply;
   replyAgents?: readonly DelegateRef[];
+  /** Only this visible text block may supply a selected quote. */
+  quoteable?: boolean;
+  /** The saved transcript row behind this part; null deliberately cannot be quoted. */
+  quoteSourceMessageId?: string | null;
   showCursor: boolean;
   isUser: boolean;
   onCiteClick?: (index: number) => void;
@@ -423,6 +438,12 @@ export function TextBubble({
       >
         {replyTo && <ReplyQuote reply={replyTo} agents={replyAgents} embedded />}
         <p
+          data-quoteable-content={quoteable ? "" : undefined}
+          data-quote-source-message-id={
+            quoteable && quoteSourceMessageId !== undefined
+              ? (quoteSourceMessageId ?? "")
+              : undefined
+          }
           className={cn(
             "[overflow-wrap:anywhere] break-words whitespace-pre-wrap",
             compact ? "text-[13px]" : "text-sm",
@@ -439,6 +460,10 @@ export function TextBubble({
     // into place and each new word fades in, instead of appearing; both come off
     // when the turn ends, so nothing already read ever animates again.
     <div
+      data-quoteable-content={quoteable ? "" : undefined}
+      data-quote-source-message-id={
+        quoteable && quoteSourceMessageId !== undefined ? (quoteSourceMessageId ?? "") : undefined
+      }
       className={cn(
         "prose-sm max-w-full min-w-0 leading-relaxed [overflow-wrap:anywhere]",
         compact ? "text-[13.5px]" : "text-[15px]",

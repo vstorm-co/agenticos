@@ -241,6 +241,10 @@ class Message(Base, TimestampMixin):
             ondelete="CASCADE",
         ),
         CheckConstraint("thread_root_message_id <> id", name="thread_root_not_self"),
+        CheckConstraint(
+            "reply_to_excerpt IS NULL OR reply_to_message_id IS NOT NULL",
+            name="messages_reply_excerpt_requires_message_check",
+        ),
         Index("messages_conversation_id_ordinal_idx", "conversation_id", "ordinal"),
         Index(
             "messages_thread_ordinal_idx",
@@ -342,6 +346,9 @@ class Message(Base, TimestampMixin):
         # Every message deletion looks its replies up through this column.
         index=True,
     )
+    # A normalized selection from the quoted message, retained separately from
+    # the answer's own content so the model and transcript can preserve it.
+    reply_to_excerpt: Mapped[str | None] = mapped_column(String(280), nullable=True)
     # A side discussion belongs to a top-level message, independently of the
     # quote above. Deleting its root deletes the discussion rather than silently
     # promoting its replies into the room's main transcript.

@@ -2,7 +2,7 @@
 
 import type { Delegation } from "@/types";
 
-import { memo, useId, useState } from "react";
+import { memo, useId, useRef, useState } from "react";
 
 import { ModelSetupReply } from "./model-setup-reply";
 import { MentionChip } from "./mention-chip";
@@ -19,6 +19,10 @@ import { foldWork, runsOf, TextBubble, ThinkingBlock, TurnParts } from "./turn-p
 import { STALLED_AFTER_MS, useTurnElapsed } from "./work-fold";
 import { formatElapsed } from "@/lib/elapsed";
 import type { PinnedPrompts } from "./chat-container";
+import {
+  ConversationSideThreads,
+  type ConversationSideThreadActions,
+} from "./conversation-side-threads";
 import { CopyButton } from "./copy-button";
 import { MessageSources } from "./message-sources";
 import { TurnDelegations } from "./turn-delegations";
@@ -63,6 +67,11 @@ import type { AskedBefore } from "@/components/datasets/follows-on";
 import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
 import { writtenRoutines, RoutineResult } from "./tool-results/routine";
 import { writtenWatches, WatchResult } from "./tool-results/watch";
+import {
+  selectedMessageQuote,
+  type SelectedMessageQuote,
+  type UnquotableMessageSelection,
+} from "@/lib/selected-message-quote";
 
 import { PlatformObjects } from "./tool-results/platform-objects";
 
@@ -114,12 +123,16 @@ interface MessageItemProps {
    */
   turnUsage?: TurnUsage;
   onRegenerate?: () => void;
+  sideThreadActions?: ConversationSideThreadActions;
   /** Fork the conversation at a message, given its id; absent where the reader may not (#2762). */
   onFork?: (messageId: string) => void;
   onOpenThread?: (messageId: string) => void;
   canStartThread?: boolean;
   onReply?: (reply: MessageReply) => void;
   allowReply?: boolean;
+  /** Personal message pin action; only supplied on authenticated transcript surfaces. */
+  onTogglePin?: (messageId: string, pinned: boolean) => void;
+  pinPending?: boolean;
   threadRootPreview?: boolean;
   forkingMessageId?: string | null;
   /** In the test panel: a question can be pinned to ask again after each change (#2075). */
@@ -142,11 +155,14 @@ export const MessageItem = memo(function MessageItem({
   turnUsage,
   openLastStep = false,
   onRegenerate,
+  sideThreadActions,
   onFork,
   onOpenThread,
   canStartThread = false,
   onReply,
   allowReply = true,
+  onTogglePin,
+  pinPending = false,
   threadRootPreview = false,
   forkingMessageId = null,
   pins,
@@ -158,8 +174,11 @@ export const MessageItem = memo(function MessageItem({
   const tInput = useTranslations("chat.input");
   const tc = useTranslations("common");
   const [actionsOpen, setActionsOpen] = useState(false);
+  const messageElementRef = useRef<HTMLDivElement>(null);
+  const replySelectionRef = useRef<SelectedMessageQuote | UnquotableMessageSelection | null>(null);
   const actionsId = useId();
   const isUser = message.role === "user";
+  const savedMessageId = message.persistedId ?? (message.isTemporaryId ? null : message.id);
   // A mention sits in the text it was typed into; only one the text does not
   // carry - a turn sent before that was so - is shown as a chip beside it.
   const unplaced = (message.mentions ?? []).filter(
@@ -168,6 +187,7 @@ export const MessageItem = memo(function MessageItem({
   const updateMessage = useChatStore((state) => state.updateMessage);
   const setReplyTo = useChatStore((state) => state.setReplyTo);
   const tReply = useTranslations("chat.reply");
+  const tPins = useTranslations("chat.messagePins");
   const openPreview = useFilePreviewStore((s) => s.open);
   const openSources = useSourcesPanelStore((s) => s.open);
   const { user: authUser } = useAuthStore();
@@ -246,10 +266,18 @@ export const MessageItem = memo(function MessageItem({
 
   return (
     <div
+      ref={messageElementRef}
       // The anchor the turn rail scrolls to. On the row rather than on a wrapper
       // of its own, so the rail lands on the top of the turn and not on a box
       // drawn around it.
       data-message-id={threadRootPreview ? undefined : message.id}
+      data-message-ids={
+        threadRootPreview
+          ? undefined
+          : [message.persistedId, ...(message.coalescedMessageIds ?? [])]
+              .filter(Boolean)
+              .join(" ") || undefined
+      }
       data-thread-root={threadRootPreview ? message.id : undefined}
       className={cn(
         // The face and the name on one line over the message, as in the
@@ -550,6 +578,30 @@ export const MessageItem = memo(function MessageItem({
                 className={cn(TURN_ACTION, "p-0 sm:opacity-0 sm:group-hover:opacity-100")}
               />
             )}
+            {onTogglePin && savedMessageId !== null && (
+              <button
+                type="button"
+                onClick={() => onTogglePin(savedMessageId, !message.isPinned)}
+                title={tPins(message.isPinned ? "unpin" : "pin")}
+                aria-label={tPins(message.isPinned ? "unpin" : "pin")}
+                aria-pressed={message.isPinned === true}
+                aria-busy={pinPending}
+                disabled={pinPending}
+                className={cn(
+                  TURN_ACTION,
+                  "focus-visible:opacity-100 disabled:cursor-wait sm:opacity-0 sm:group-hover:opacity-100",
+                  (message.isPinned || pinPending) && "sm:opacity-100",
+                )}
+              >
+                {pinPending ? (
+                  <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden />
+                ) : message.isPinned ? (
+                  <PinOff aria-hidden />
+                ) : (
+                  <Pin aria-hidden />
+                )}
+              </button>
+            )}
             {isUser && pins && message.content && (
               <PinButton pins={pins} prompt={message.content} />
             )}
@@ -563,21 +615,40 @@ export const MessageItem = memo(function MessageItem({
             )}
             {/* Stored messages only: a reply names the row it answers, and a
                 message still on this tab's own id has none yet. */}
-            {allowReply && !message.isTemporaryId && !message.isStreaming && message.content && (
+            {allowReply && savedMessageId !== null && !message.isStreaming && message.content && (
               <button
                 type="button"
-                onClick={() =>
+                onPointerDown={() => {
+                  replySelectionRef.current =
+                    typeof window === "undefined"
+                      ? null
+                      : selectedMessageQuote(window.getSelection(), messageElementRef.current);
+                }}
+                onClick={() => {
+                  const selectedQuote =
+                    replySelectionRef.current ??
+                    (typeof window === "undefined"
+                      ? null
+                      : selectedMessageQuote(window.getSelection(), messageElementRef.current));
+                  replySelectionRef.current = null;
+                  // A selection from an unsaved coalesced segment has no stable
+                  // reply target yet. Keep it separate from the ordinary reply
+                  // fallback so it can never be attributed to the combined row.
+                  if (selectedQuote?.kind === "unquotable") return;
+                  const quote = selectedQuote?.kind === "quote" ? selectedQuote : null;
                   (onReply ?? setReplyTo)({
-                    messageId: message.id,
+                    messageId: quote?.sourceMessageId ?? savedMessageId,
                     role: message.role,
-                    excerpt: replyExcerpt(message.content),
+                    excerpt: quote?.text ?? replyExcerpt(message.content),
+                    ...(quote ? { selectedText: quote.text } : {}),
                     sender: isUser ? message.sender : undefined,
                     agentId: isUser ? undefined : agent?.id,
                     agentName: isUser ? undefined : agent?.name,
-                  })
-                }
+                  });
+                }}
                 title={tReply("reply")}
                 aria-label={tReply("reply")}
+                data-tour="chat-selected-quote"
                 className={cn(TURN_ACTION, "sm:opacity-0 sm:group-hover:opacity-100")}
               >
                 <CornerUpLeft />
@@ -627,6 +698,18 @@ export const MessageItem = memo(function MessageItem({
                 )}
               </button>
             )}
+            {message.role === "assistant" &&
+              savedMessageId !== null &&
+              !message.isStreaming &&
+              sideThreadActions && (
+                <ConversationSideThreads
+                  sourceConversationId={sideThreadActions.sourceConversationId}
+                  messageId={savedMessageId}
+                  creatingMessageId={sideThreadActions.creatingMessageId}
+                  onCreate={sideThreadActions.onCreate}
+                  onOpen={(fork) => sideThreadActions.onOpen(savedMessageId, fork)}
+                />
+              )}
             {/* A rating is stored against the saved message; a turn that failed
                 before the server saved it has only a client id, which the
                 rating endpoint answers with "Message not found". */}
@@ -737,6 +820,7 @@ function MessageBody({
            calls on one rail. The same component the hosted page renders. */
         <TurnParts
           allowSetupActions
+          allowQuotes={!message.guardrailRefused}
           parts={parts}
           isStreaming={Boolean(message.isStreaming)}
           isUser={isUser}
@@ -771,6 +855,7 @@ function MessageBody({
               isUser={isUser}
               onCiteClick={onCiteClick}
               mentions={isUser ? message.mentions : undefined}
+              quoteable={!message.isStreaming && !message.guardrailRefused}
             />
           )}
           {legacyCalls.length > 0 && (

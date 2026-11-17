@@ -850,7 +850,9 @@ async def held(
                             kept = await remember(page, command)
                         break
                     try:
-                        prepared = None if teaching is None else await teaching.before_input(command)
+                        prepared = (
+                            None if teaching is None else await teaching.before_input(command)
+                        )
                         await _person_input(page, command)
                         if teaching is not None:
                             await teaching.after_input(prepared)

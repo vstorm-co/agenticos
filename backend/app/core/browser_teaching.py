@@ -25,7 +25,16 @@ MAX_ORIGINS = 10
 
 Action = Literal["navigate", "click", "select", "input_parameter", "scroll", "checkpoint"]
 Role = Literal[
-    "button", "link", "textbox", "combobox", "checkbox", "radio", "tab", "menuitem", "option", "switch"
+    "button",
+    "link",
+    "textbox",
+    "combobox",
+    "checkbox",
+    "radio",
+    "tab",
+    "menuitem",
+    "option",
+    "switch",
 ]
 CONTROL_ACTIONS = frozenset({"click", "select", "input_parameter"})
 
@@ -94,7 +103,12 @@ def teaching_origin(value: str) -> str:
         host = (parts.hostname or "").encode("idna").decode("ascii").lower()
     except ValueError, UnicodeError:
         raise ValueError(refused) from None
-    if parts.scheme != "https" or not host or parts.path not in ("", "/") or "." not in host.strip("[]"):
+    if (
+        parts.scheme != "https"
+        or not host
+        or parts.path not in ("", "/")
+        or "." not in host.strip("[]")
+    ):
         raise ValueError(refused)
     return f"https://{host}" + ("" if port in (None, 443) else f":{port}")
 

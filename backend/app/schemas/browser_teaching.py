@@ -6,7 +6,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.core.browser_teaching import MAX_ORIGINS, CapturedStep, TeachingReason, TeachingState, teaching_origin
+from app.core.browser_teaching import (
+    MAX_ORIGINS,
+    CapturedStep,
+    TeachingReason,
+    TeachingState,
+    teaching_origin,
+)
 
 
 class _Request(BaseModel):

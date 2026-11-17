@@ -1269,6 +1269,100 @@
     "title": "Abrechnung"
   },
   "chat": {
+    "messageJump": {
+      "loading": "Ausgewählte Nachricht wird geladen…",
+      "failed": "Die ausgewählte Nachricht konnte nicht geladen werden. Versuche es erneut.",
+      "unavailable": "Diese Nachricht ist in diesem Gespräch nicht mehr verfügbar.",
+      "cancel": "Sprung abbrechen"
+    },
+    "manualCompaction": {
+      "action": "Jetzt komprimieren",
+      "description": "Früheren Kontext für die nächste Runde zusammenfassen. Gespeicherte Nachrichten bleiben verfügbar.",
+      "busyHint": "Verfügbar, wenn diese Unterhaltung inaktiv ist.",
+      "running": "Früherer Kontext wird zusammengefasst…",
+      "runningCount": "{count} frühere Nachrichten werden zusammengefasst…",
+      "compacted": "Kontext komprimiert. Ihre gespeicherten Nachrichten bleiben verfügbar.",
+      "unchanged": "Es konnte kein weiterer Kontext komprimiert werden.",
+      "busy": "Diese Unterhaltung ist beschäftigt. Versuchen Sie es nach Abschluss der laufenden Arbeit erneut.",
+      "unavailable": "Dieser Agent kann diese Unterhaltung nicht komprimieren.",
+      "failed": "Der Kontext konnte nicht komprimiert werden. Versuchen Sie es erneut."
+    },
+    "messagePins": {
+      "emptyPreview": "Nachricht ohne Vorschau",
+      "open": "Angeheftete Nachrichten",
+      "title": "Angeheftete Nachrichten",
+      "empty": "Du hast in diesem Gespräch keine Nachrichten angeheftet.",
+      "loading": "Angeheftete Nachrichten werden geladen…",
+      "loadMore": "Mehr laden",
+      "retry": "Erneut versuchen",
+      "listFailed": "Angeheftete Nachrichten konnten nicht geladen werden.",
+      "pin": "Nachricht anheften",
+      "unpin": "Nachricht lösen"
+    },
+    "sideThreads": {
+      "loadMore": "Mehr laden",
+      "untitledFork": "Nebenstrang ohne Titel",
+      "title": "Nebenstränge",
+      "start": "Nebenstrang starten",
+      "open": "Nebenstrang öffnen",
+      "backToParent": "Zurück zum ursprünglichen Gespräch",
+      "loading": "Nebenstrang wird geladen…",
+      "empty": "Für diese Nachricht gibt es noch keine Nebenstränge.",
+      "error": "Nebenstränge konnten nicht geladen werden.",
+      "retry": "Erneut versuchen",
+      "archived": "Archiviert",
+      "close": "Nebenstrang schließen",
+      "createFailed": "Nebenstrang konnte nicht gestartet werden."
+    },
+    "trace": {
+      "toggle": "Aktivität durchsuchen und filtern",
+      "title": "Aktivität dieses Durchlaufs durchsuchen",
+      "search": "Text, Werkzeugargumente und Ergebnisse durchsuchen",
+      "filter": "Anzeigen",
+      "all": "Alle Aktivitäten",
+      "tools": "Werkzeuge",
+      "thinking": "Denkaufwand",
+      "errors": "Fehler",
+      "messages": "Nachrichten",
+      "clear": "Filter löschen",
+      "count": "{shown} von {total} Einträgen",
+      "attention": "Schritte, die auf dich warten, bleiben sichtbar.",
+      "noMatches": "Keine Aktivität entspricht diesen Filtern."
+    },
+    "sendMode": {
+      "label": "Während der Ausführung senden",
+      "queue": "Einreihen",
+      "steer": "Lenken",
+      "queueDescription": "Nach dem aktuellen Durchlauf senden.",
+      "steerDescription": "Hinweise in den aktuellen Durchlauf senden.",
+      "steerUnavailable": "Lenken unterstützt einfachen Text. Nachrichten mit Dateien, Erwähnungen, Antworten, Seitenkontext oder Workflow-Eingaben bleiben in der Warteschlange.",
+      "steerDisconnected": "Verbinde dich erneut, um den aktuellen Durchlauf zu lenken. Dein Entwurf bleibt im Eingabefeld.",
+      "steerFailed": "Die Hinweise konnten nicht gesendet werden. Dein Entwurf ist noch vorhanden."
+    },
+    "agentSettings": {
+      "reasoning": "Denkaufwand"
+    },
+    "workspaceTasks": {
+      "title": "Aufgaben",
+      "open": "Aufgaben öffnen",
+      "close": "Aufgaben schließen",
+      "expand": "Aufgaben vergrößern",
+      "restore": "Aufgaben wiederherstellen",
+      "scopeHint": "Deine Hintergrundaufgaben in dieser Organisation. Öffne eine Aufgabe, um ihre Unterhaltung fortzusetzen.",
+      "scope": "Aufgabenbereich",
+      "thisChat": "Dieser Chat",
+      "allMine": "Alle meine Aufgaben",
+      "search": "Aufgaben suchen",
+      "loadFailed": "Aufgaben konnten nicht geladen werden.",
+      "empty": "Noch keine Hintergrundaufgaben. Bitte einen Agenten, ein Thema im Hintergrund zu bearbeiten.",
+      "noMatches": "Keine Aufgaben entsprechen deiner Suche.",
+      "groups": {
+        "needsYou": "Benötigt dich ({count})",
+        "working": "In Arbeit ({count})",
+        "waiting": "Wartend ({count})",
+        "finished": "Beendet ({count})"
+      }
+    },
     "loadEarlierMessages": "Ältere Nachrichten laden",
     "accessLevel": "Zugriffsstufe",
     "accessRevoked": "Zugriff widerrufen",
@@ -1692,7 +1786,14 @@
       "noSearchResults": "Keine Unterhaltung passt.",
       "otherAgents": "Sonstige",
       "retryShared": "Geteilte Unterhaltungen erneut laden",
-      "searchHint": "Tippen, um Unterhaltungen nach Titel zu suchen.",
+      "searchHint": "Durchsuche den Nachrichtentext deiner Unterhaltungen oder wähle die Titelsuche.",
+      "searchTitleHint": "Durchsuche Unterhaltungstitel, einschließlich archivierter Unterhaltungen.",
+      "searchModeLabel": "Suchen nach",
+      "searchModeMessages": "Nachrichtentext",
+      "searchModeTitles": "Unterhaltungstitel",
+      "noMessageSearchResults": "Keine passenden Nachrichten.",
+      "searchFailed": "Suche fehlgeschlagen. Versuche es erneut.",
+      "retrySearch": "Erneut versuchen",
       "searchLabel": "Unterhaltungen durchsuchen",
       "searchPlaceholder": "Unterhaltungen durchsuchen",
       "searching": "Suche…",
@@ -2741,7 +2842,9 @@
       "unavailable": "Modell nicht verfügbar",
       "useDefault": "Modell des Agents verwenden",
       "scope": "Wähle ein gespeichertes Modell für deine nächste Nachricht. Diese Chat-Auswahl wird für dein Konto in dieser Organisation gespeichert.",
-      "afterTurn": "Der laufende Run behält sein Modell. Deine Auswahl gilt für die nächste Nachricht und wird als Chat-Einstellung gespeichert.",
+      "afterTurn": "Nach diesem Durchlauf: Der laufende Durchlauf behält sein Modell. Deine Auswahl gilt für die nächste Nachricht und wird als Chat-Einstellung gespeichert.",
+      "afterTurnBadge": "Nach diesem Durchlauf",
+      "editReasoning": "Denkaufwand in den Agenteneinstellungen bearbeiten",
       "providers": "Modell-Provider",
       "search": "Gespeicherte Modelle oder Konten suchen…",
       "account": "Provider-Konto",
@@ -5134,6 +5237,30 @@
         "body": "Wähle einen Twilio-SMS-Bot, eine öffentliche Sprachoberfläche für eingehende Anrufe, Grenzen und erlaubte Weiterleitungskontakte. Kopiere die Webhook-URLs nach Twilio. Mitglieder stimmen separat zu.",
         "title": "Telefonrouting einrichten"
       },
+      "chat-send-mode": {
+        "title": "Einreihen oder lenken",
+        "body": "Während ein Agent arbeitet, kannst du die nächste Nachricht einreihen oder den laufenden Durchlauf mit einfachem Text lenken. Dateien und weiterer Kontext bleiben in der normalen Warteschlange."
+      },
+      "chat-side-threads": {
+        "title": "Einen Nebenstrang erkunden",
+        "body": "Starten Sie aus dieser Antwort eine eigene Unterhaltung oder öffnen Sie einen vorhandenen Zweig neben dem Ursprung. Zurück führt zur genauen Ausgangsnachricht."
+      },
+      "chat-message-search": {
+        "title": "Nachrichten in Gesprächen finden",
+        "body": "Suche Nachrichtentext in lesbaren Gesprächen oder wähle die Titelsuche. Ein Ergebnis öffnet die genaue Nachricht, auch in älterem Verlauf und Raum-Threads."
+      },
+      "chat-trace-filter": {
+        "title": "Einen Schritt in diesem Durchlauf finden",
+        "body": "Durchsuche den geöffneten Verlauf nach Text, Werkzeugargumenten oder Ergebnissen. Filtere Werkzeuge, Denkprozesse, Fehler oder Nachrichten; Schritte, die auf deine Eingabe warten, bleiben sichtbar."
+      },
+      "chat-agent-reasoning": {
+        "title": "Denkaufwand einstellen",
+        "body": "Passe Thinking im Agentenentwurf an. Speichere den Entwurf und prüfe und veröffentliche ihn anschließend für künftige Durchläufe."
+      },
+      "chat-workspace-tasks": {
+        "title": "Aufgaben neben der Unterhaltung",
+        "body": "Öffne Hintergrundaufgaben dieses Chats oder aller deiner Agenten. Prüfe Arbeit, die dich benötigt, öffne ihre Unterhaltung oder stoppe eine aktive Aufgabe."
+      },
       "chat-workspace": {
         "title": "Ihren Workspace öffnen",
         "body": "Öffnen Sie Browser, Computer oder Dateien neben dem Chat. Bitten Sie den ausgewählten Agent, ein konfiguriertes gehostetes Werkzeug zu starten. Das Öffnen eines Panels allein startet keine Sitzung."
@@ -6274,6 +6401,18 @@
       "chat-room-thread-panel": {
         "title": "Antworten mit eigenem Kontext",
         "body": "Die ursprüngliche Nachricht bleibt über den Antworten. Alle im Raum können den Thread lesen. Wähle einen Agenten für Hilfe oder schließe den Thread, um zum Raum zurückzukehren."
+      },
+      "chat-message-pins": {
+        "title": "Wichtige Nachrichten merken",
+        "body": "Hefte eine Nachricht für dich an und öffne sie später über die Liste dieses Gesprächs."
+      },
+      "chat-selected-quote": {
+        "title": "Auf markierten Text antworten",
+        "body": "Markiere eine Passage in einer gespeicherten Nachricht und wähle Antworten, um diesen Auszug mit deiner Antwort zu behalten."
+      },
+      "chat-compact-now": {
+        "title": "Früheren Kontext zusammenfassen",
+        "body": "Verdichte den Kontext eines ruhenden Gesprächs. Gespeicherte Nachrichten und dein aktueller Entwurf bleiben erhalten."
       }
     }
   },

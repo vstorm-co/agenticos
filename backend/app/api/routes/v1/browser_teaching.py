@@ -71,6 +71,8 @@ async def stop_browser_teaching(session_id: UUID, ctx: Auth, service: BrowserTea
 
 
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
-async def discard_browser_teaching(session_id: UUID, ctx: Auth, service: BrowserTeachingSvc) -> None:
+async def discard_browser_teaching(
+    session_id: UUID, ctx: Auth, service: BrowserTeachingSvc
+) -> None:
     """Erase the recording. It does not undo anything done in the browser."""
     await service.discard(ctx, session_id)

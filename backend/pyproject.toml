@@ -1244,12 +1244,20 @@ include = [
     "app/api/routes/v1/outcomes.py",
     "app/api/routes/v1/system_agents.py",
     "app/worker/tasks/memory_tasks.py",
+    # A reader's saved message ids, with live metadata read only through that
+    # reader's existing conversation access.
+    "app/db/models/conversation_message_pin.py",
+    "app/repositories/conversation_message_pin.py",
+    "app/schemas/conversation_message_pin.py",
+    "app/services/conversation_message_pin.py",
+    "app/api/routes/v1/conversation_message_pins.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
     # every agent at once - so it is held to the same bar as the permission code
     # (#789).
     "app/repositories/conversation_search.py",
     "app/services/conversation_search.py",
+    "app/schemas/conversation_search.py",
     "app/db/models/conversation_task.py",
     "app/schemas/conversation_task.py",
     "app/repositories/conversation_task.py",
@@ -2201,12 +2209,20 @@ include = [
     "app/api/routes/v1/outcomes.py",
     "app/api/routes/v1/system_agents.py",
     "app/worker/tasks/memory_tasks.py",
+    # A reader's saved message ids, with live metadata read only through that
+    # reader's existing conversation access.
+    "app/db/models/conversation_message_pin.py",
+    "app/repositories/conversation_message_pin.py",
+    "app/schemas/conversation_message_pin.py",
+    "app/services/conversation_message_pin.py",
+    "app/api/routes/v1/conversation_message_pins.py",
     # Which past conversations an agent may search, and the full-text query over
     # them. The predicate is the whole of it - a way in added here is a way in for
     # every agent at once - so it is held to the same bar as the permission code
     # (#789).
     "app/repositories/conversation_search.py",
     "app/services/conversation_search.py",
+    "app/schemas/conversation_search.py",
     "app/db/models/conversation_task.py",
     "app/schemas/conversation_task.py",
     "app/repositories/conversation_task.py",

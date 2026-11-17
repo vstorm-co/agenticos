@@ -1,5 +1,5 @@
 ---
-source_sha: "22b67b0bc732"
+source_sha: "da2b712157b6"
 ---
 
 # Die Konsole { #the-console }
@@ -1019,7 +1019,49 @@ Ausgelagerter Text und Medien einer übernommenen Zusammenfassung werden in die 
 
 Eine Unterhaltung mit einer gespeicherten Checkliste kann nur an ihrer neuesten Nachricht abgezweigt werden, wenn diese eine Antwort des Assistenten ist. Die Kopie behält diese Checkliste einschließlich Aufgaben-IDs und Abhängigkeiten. Frühere Checklistenstände werden nicht gespeichert; eine frühere Abzweigung wird daher abgelehnt, statt spätere Aufgaben in einen älteren Verlauf zu kopieren.
 
+### Nebenstränge { #chat-side-threads }
+
+Bei einer abgeschlossenen Assistentenantwort in einer eigenen persönlichen Unterhaltung können Sie über **Nebenstränge** eine separate Unterhaltung ab diesem Punkt beginnen oder einen vorhandenen Zweig derselben Antwort öffnen. Der Zweig erscheint neben dem Ursprung mit einem eigenen Eingabefeld und weiteren Nachrichten. Verlauf, Entwurf und Warteschlange der ursprünglichen Unterhaltung bleiben erhalten; im Zweig gesendete Nachrichten gehören zum Zweig.
+
+**Zurück zur ursprünglichen Unterhaltung** schließt das Seitenpanel und öffnet die genaue Ausgangsantwort. Ältere Nachrichten werden bei Bedarf nachgeladen. Das Schließen löscht den Zweig nicht. Ein Wechsel der Ausgangsunterhaltung, des Kontos oder der Organisation entfernt das alte Panel. Archivierte Zweige öffnen sich schreibgeschützt. Die Liste kann weitere Zweige dieser Antwort laden; fehlgeschlagene Lese- oder Erstellungsvorgänge lassen sich ohne Wechsel der Hauptunterhaltung wiederholen.
+
+### Gesprächskontext verdichten { #chat-compact-now }
+
+In einem ruhenden persönlichen Gespräch, das dir gehört, lässt **Jetzt komprimieren** im Kopfbereich den veröffentlichten Agenten früheren Kontext zusammenfassen. Die Aktion erscheint bei einer unterstützten zusammenfassenden Kompaktierungsstrategie. Gespeicherte Nachrichten und dein Entwurf bleiben verfügbar. Die Funktion wird in Raumdiskussionen, archivierten oder schreibgeschützten Chats, Workflows und Testfenstern für Entwürfe nicht angeboten.
+
+Ein Hinweis über dem Editor zeigt Fortschritt und Ergebnis: Kontext verdichtet, keine weitere Kürzung, beschäftigt, nicht verfügbar oder fehlgeschlagen. Senden und das Starten eines Sprachanrufs pausieren währenddessen; **Stopp** bricht die Anfrage ab. Ein Gesprächswechsel wiederholt sie nicht. Die Aktion verwendet gegebenenfalls das ausgewählte Chatmodell und unterliegt den üblichen Nutzungsbudgets. Die Kontextanzeige behält den letzten gemessenen Stand bis zu einer späteren Modellanfrage.
+
+### Auf ausgewählten Text antworten { #chat-selected-quote }
+
+Markiere eine Passage in einer gespeicherten Nachricht und wähle **Antworten**. Der Editor behält den Auszug mit bis zu 280 Zeichen samt Quellnachricht. Nach dem Senden bleibt die ausgewählte Passage beim erneuten Öffnen und im Kontext des Agenten erhalten. Das funktioniert in persönlichen Chats und Raumdiskussionen mit Schreibzugriff. Ohne Textauswahl bezieht sich **Antworten** weiterhin auf die ganze Nachricht.
+
+Eine Auswahl über verschiedene Nachrichten oder interaktive Bedienelemente hinweg wird nicht als Auszug verwendet. Text in einer zusammengefassten Assistentenantwort bleibt mit dem gespeicherten Abschnitt verknüpft, aus dem er stammt. Ein noch nicht gespeicherter Abschnitt kann nicht als zitierte Antwort verwendet werden.
+
+### Angeheftete Nachrichten { #chat-message-pins }
+
+Wähle **Nachricht anheften** an einer gespeicherten Nachricht, um ein persönliches Lesezeichen anzulegen. **Angeheftete Nachrichten** im Gesprächskopf öffnet deine Liste. Ein Auszug führt zur genauen Nachricht, auch auf einer älteren Seite oder in einem Raum-Thread. Du kannst eine Anheftung an der Nachricht oder in der Liste entfernen, weitere Einträge laden und einen fehlgeschlagenen Abruf wiederholen.
+
+Anheftungen gehören dir. Andere Leser eines geteilten Gesprächs sehen sie nicht; auch Empfänger mit reinem Lesezugriff können eigene Lesezeichen speichern. Das Öffnen erfordert weiterhin Zugriff auf das Gespräch. Die Liste verwendet den aktuellen Nachrichtenauszug und erstellt keine zusätzliche Kopie des Inhalts.
+
+### Eine Nachricht finden { #chat-message-search }
+
+Verwende die Gesprächssuche in der Chat-Seitenleiste. **Nachrichtentext** durchsucht Gespräche, die du in der aktiven Organisation lesen darfst, und zeigt pro Ergebnis die passendste Nachricht mit Ausschnitt und Zeitpunkt. Grenze die Suche ein, wenn die ersten zwanzig Gespräche das gesuchte nicht enthalten. Wähle **Gesprächstitel**, um auch die Titel archivierter Gespräche zu durchsuchen.
+
+Die Auswahl öffnet die genaue Nachricht, auch eine Antwort in einem Raum-Thread. Ältere Seiten werden nacheinander geladen; **Sprung abbrechen** beendet die Navigation. Bei Lesefehlern kannst du es erneut versuchen; eine nicht mehr verfügbare Nachricht wird gesondert gemeldet. Der Tastaturfokus bleibt auf der ausgewählten Nachricht und eingeklappte Arbeit wird geöffnet, damit passende gespeicherte Abschnitte sichtbar sind. Auch ein direkter Link erfordert Zugriff auf das Gespräch.
+
+### Aktivitäten eines Durchlaufs durchsuchen { #chat-trace-search }
+
+Öffne den Arbeitsverlauf eines Durchlaufs und wähle **Aktivität durchsuchen und filtern**. Suche innerhalb dieses Durchlaufs nach Text, Werkzeugargumenten und Ergebnissen oder zeige nur Werkzeuge, Denkprozesse, Fehler oder Nachrichten. Die Reihenfolge bleibt erhalten und die abschließende Antwort bleibt an ihrem Platz. Freigaben, unbeantwortete Fragen und Modelleinrichtung, die deine Aufmerksamkeit brauchen, bleiben auch ohne Treffer sichtbar. **Filter zurücksetzen** oder Escape zeigt wieder alle Aktivitäten; das Schließen der Filter setzt sie ebenfalls zurück.
+
+### Steuerung während eines Durchlaufs { #chat-live-controls }
+
+Während ein Agent arbeitet, sendet **Einreihen** deine nächste Nachricht nach dem aktuellen Durchlauf. **Lenken** sendet einfachen Text als Hinweis an den laufenden Durchlauf; der Agent berücksichtigt ihn bei der Fortsetzung. Die Auswahl wird für dein Konto, deine Organisation und den gewählten Agenten einschließlich des allgemeinen Assistenten gespeichert. Dateien, Erwähnungen, Antworten, Seitenkontext und Workflow-Eingaben bleiben in der normalen Warteschlange. Kann ein Hinweis nicht gesendet werden, bleibt der Entwurf im Eingabefeld.
+
+Eine Modellwahl während der Ausführung zeigt **Nach diesem Durchlauf**: Die Einstellung gilt für eine spätere Nachricht. **Denkaufwand in den Agenteneinstellungen bearbeiten** öffnet für Mitglieder mit Bearbeitungsrecht die Thinking-Einstellung im Agentenentwurf. Speichere den Entwurf und verwende anschließend die vorhandene Prüfung und Veröffentlichung, damit die Konfiguration für künftige Durchläufe gilt.
+
 ### Hintergrundthemen { #background-topics }
+
+Im vollständigen Desktop-Chat öffnet **Aufgaben** rechts die Hintergrundarbeit neben der Unterhaltung. Wählen Sie **Dieser Chat** oder **Alle meine Aufgaben**, suchen Sie nach Titeln und öffnen Sie Aufgaben unter **Benötigt dich**, **In Arbeit**, **Wartend** oder **Beendet**. Ein neuer Chat zeigt Ihre Aufgaben aller Agents in der aktiven Organisation. Sie können die Breite ändern oder das Panel vergrößern. Das Öffnen startet keine Arbeit; schreibgeschützte Chats behalten Links und blenden **Stoppen** aus. Bei einem Lesefehler können Sie es erneut versuchen.
 
 Aktiviere **Hintergrundthemen** bei einem veröffentlichten Agenten und bitte etwa: „Untersuche den Exportfehler in einem neuen Thema, während wir den Release planen“ oder „Lass den Finanzagenten diese Zahlen prüfen, während wir das Angebot besprechen“. Der Agent verwendet seine eigene festgelegte Version oder einen im Spec festgelegten veröffentlichten Delegaten. Starte aus einem eigenen Gespräch; das neue Thema gehört zum selben Projekt und enthält den Auftrag des Agenten und einen Rücklink, ohne das ursprüngliche Protokoll zu kopieren.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "22b67b0bc732"
+source_sha: "da2b712157b6"
 ---
 
 # La consola { #the-console }
@@ -966,7 +966,49 @@ El texto y los medios externalizados de un resumen válido se restauran dentro d
 
 Una conversación con una lista de tareas guardada solo puede bifurcarse en su último mensaje, que debe ser una respuesta del asistente. La copia conserva esa lista, incluidos los identificadores de tareas y las dependencias. No se guardan versiones anteriores de la lista, por lo que se rechaza una bifurcación anterior para evitar copiar tareas posteriores en un historial más antiguo.
 
+### Conversaciones paralelas { #chat-side-threads }
+
+En una respuesta completada del asistente dentro de una conversación personal de tu propiedad, **Conversaciones paralelas** permite iniciar otra conversación desde ese punto o reabrir una rama de la misma respuesta. La rama se abre junto a la original con su propio cuadro de escritura y sus mensajes posteriores. El historial, el borrador y la cola de la conversación original se conservan; los mensajes enviados en la rama pertenecen a ella.
+
+**Volver a la conversación original** cierra el panel lateral y abre la respuesta de origen exacta, cargando mensajes anteriores cuando hace falta. Cerrar el panel no elimina la rama. Cambiar la conversación de origen, la cuenta o la organización retira el panel anterior. Las ramas archivadas se abren en modo de solo lectura. La lista permite cargar más ramas de esta respuesta; los errores de lectura o creación se pueden reintentar sin cambiar la conversación principal.
+
+### Compactar el contexto de la conversación { #chat-compact-now }
+
+En una conversación personal inactiva de tu propiedad, **Compactar ahora** en la cabecera pide al agente publicado que resuma el contexto anterior. La acción aparece cuando el agente tiene una estrategia de compactación por resumen compatible. Los mensajes guardados y tu borrador siguen disponibles. No se ofrece en discusiones de sala, chats archivados o de solo lectura, flujos de trabajo ni paneles de prueba de borradores.
+
+Un aviso sobre el editor muestra el progreso y el resultado: contexto compactado, sin reducción adicional, ocupado, no disponible o fallido. El envío y el inicio de llamadas de voz se pausan durante la compactación; **Detener** cancela la solicitud. Cambiar de conversación no la repite. La acción utiliza el modelo seleccionado para el chat cuando corresponde y respeta los presupuestos habituales de uso. El indicador de contexto conserva la última medición hasta una solicitud posterior al modelo.
+
+### Responder a texto seleccionado { #chat-selected-quote }
+
+Selecciona un pasaje de un mensaje guardado y elige **Responder**. El editor conserva el fragmento, de hasta 280 caracteres, junto con el mensaje de origen. Al enviarlo, el texto seleccionado se mantiene al volver a abrir la conversación y en el contexto que lee el agente. Funciona en chats personales y discusiones de sala donde puedes escribir. Sin texto seleccionado, **Responder** mantiene su comportamiento para el mensaje completo.
+
+Las selecciones que abarcan distintos mensajes o controles interactivos no se usan como citas. Un pasaje de una respuesta combinada del asistente conserva el vínculo con el segmento guardado del que procede. Un segmento que todavía no se ha guardado no puede convertirse en una respuesta citada.
+
+### Mensajes fijados { #chat-message-pins }
+
+Elige **Fijar mensaje** en un mensaje guardado para conservar un marcador personal. **Mensajes fijados** en la cabecera de la conversación abre tu lista. Selecciona un fragmento para volver al mensaje exacto, incluso en una página anterior o en un hilo de sala. Puedes quitar un marcador desde el mensaje o la lista, cargar más entradas y reintentar una lectura fallida.
+
+Los marcadores son tuyos. Otros lectores de una conversación compartida no los ven; un destinatario con acceso de solo lectura también puede guardar sus propios marcadores. Abrir uno sigue requiriendo acceso a la conversación. La lista muestra el fragmento actual del mensaje y no crea otra copia de su contenido.
+
+### Encontrar un mensaje { #chat-message-search }
+
+Usa **Search conversations** en la barra lateral del chat. **Message text** busca en las conversaciones que puedes leer en la organización activa y muestra el mejor mensaje coincidente de cada resultado, con un fragmento y su fecha. Acota la consulta si las primeras veinte conversaciones no incluyen la que necesitas. Elige **Conversation title** para buscar títulos, también de conversaciones archivadas.
+
+Seleccionar un mensaje abre su ubicación exacta, incluso una respuesta dentro de un hilo de sala. El historial anterior se carga página a página; **Cancel jump** detiene la navegación. Un fallo de lectura permite reintentar, mientras que un mensaje que ya no está disponible se indica por separado. El foco del teclado permanece en el mensaje seleccionado y el trabajo plegado se abre para mostrar el segmento guardado coincidente. Seguir un enlace sigue requiriendo acceso a la conversación.
+
+### Buscar actividad dentro de un turno { #chat-trace-search }
+
+Abre el historial de trabajo de un turno y elige **Search and filter activity**. Busca texto, argumentos y resultados de herramientas dentro de ese turno, o muestra solo herramientas, razonamiento, errores o mensajes. Las entradas conservan su orden y la respuesta final permanece en su sitio. Las aprobaciones, preguntas sin responder y la configuración del modelo que necesitan tu atención siguen visibles aunque no coincidan. **Clear filters** o Escape restaura toda la actividad; cerrar los filtros también los borra.
+
+### Controles durante un turno { #chat-live-controls }
+
+Mientras un agente trabaja, **Queue** envía el siguiente mensaje después del turno actual. **Steer** envía indicaciones de texto al turno en curso, que las utiliza al continuar. La elección se recuerda para tu cuenta, organización y agente seleccionado, incluido el asistente general. Los archivos, las menciones, las respuestas, el contexto de página y las entradas de flujos de trabajo siguen la cola habitual. Si no se pueden enviar las indicaciones, el borrador permanece en el cuadro de mensaje.
+
+Elegir un modelo durante un turno muestra **After this turn**: la preferencia se aplica a un mensaje posterior. **Edit reasoning in agent settings** abre el control Thinking del borrador del agente para quienes pueden editarlo. Guarda el borrador y utiliza la revisión y publicación existentes para aplicar la configuración a futuras ejecuciones.
+
 ### Temas en segundo plano { #background-topics }
+
+En el chat completo de escritorio, **Tasks** a la derecha abre el trabajo en segundo plano junto a la conversación. Elige **This chat** o **All my tasks**, busca títulos y abre una tarea de **Needs you**, **Working**, **Waiting** o **Finished**. Un chat nuevo muestra tus tareas de todos los agents en la organización activa. Puedes cambiar el ancho o ampliar el panel. Abrirlo no inicia trabajo; los chats de solo lectura conservan los enlaces y ocultan **Stop**. Un error de lectura ofrece **Retry**.
 
 Activa **Temas en segundo plano** en un agente publicado y pide, por ejemplo: «Investiga el error de exportación en otro tema mientras seguimos planificando la versión» o «Que el agente financiero revise estas cifras mientras comentamos la propuesta». Puede usar su propia versión fijada o un delegado publicado fijado en su especificación. Empieza desde una conversación propia; el tema nuevo pertenece al mismo proyecto e incluye el encargo del agente y un enlace al origen, sin copiar la transcripción original.
 

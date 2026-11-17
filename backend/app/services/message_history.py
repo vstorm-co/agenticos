@@ -40,9 +40,19 @@ again - where a refused one kept would undo the refusal."""
 class ModelHistory(list[ModelMessage]):
     """A transcript snapshot with the refusal revision its summary may replace."""
 
-    def __init__(self, messages: Sequence[ModelMessage], *, revision: int | None) -> None:
+    def __init__(
+        self,
+        messages: Sequence[ModelMessage],
+        *,
+        revision: int | None,
+        ordinal: int | None = None,
+    ) -> None:
         super().__init__(messages)
         self.revision = revision
+        # Manual compaction snapshots are fenced to the transcript high-water
+        # mark. Normal foreground histories leave this unset because their own
+        # turn writes must remain eligible for the active-run summary path.
+        self.ordinal = ordinal
 
 
 class HistoryMessage(TypedDict):

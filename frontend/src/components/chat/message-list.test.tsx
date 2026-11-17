@@ -86,6 +86,50 @@ function message(overrides: Partial<ChatMessage> = {}): ChatMessage {
 
 const rendered = (id: string) => state.rendered.find((entry) => entry.id === id);
 
+it("keeps local and saved identities for every merged segment without duplicate anchors", () => {
+  const merged = coalesceActivity([
+    message({ id: "local-a", persistedId: "saved-a", runId: "run" }),
+    message({ id: "local-b", persistedId: "saved-b", runId: "run" }),
+    message({ id: "local-c", runId: "run" }),
+  ]);
+  expect(merged).toHaveLength(1);
+  expect(merged[0]?.coalescedMessageIds).toEqual([
+    "local-a",
+    "saved-a",
+    "local-b",
+    "saved-b",
+    "local-c",
+  ]);
+});
+
+it("keeps each quoted part tied to its saved source across repeated coalescing", () => {
+  const merged = coalesceActivity([
+    message({
+      id: "local-a",
+      persistedId: "saved-a",
+      isTemporaryId: true,
+      content: "First saved part",
+      runId: "run",
+    }),
+    message({ id: "unsaved", isTemporaryId: true, content: "Still unsaved", runId: "run" }),
+    message({ id: "saved-b", content: "Second saved part", runId: "run" }),
+  ]);
+
+  expect(merged).toHaveLength(1);
+  expect(
+    merged[0]?.parts
+      ?.filter((part) => part.type === "text")
+      .map((part) => ({
+        content: part.content,
+        sourceMessageId: part.sourceMessageId,
+      })),
+  ).toEqual([
+    { content: "First saved part", sourceMessageId: "saved-a" },
+    { content: "Still unsaved", sourceMessageId: null },
+    { content: "Second saved part", sourceMessageId: "saved-b" },
+  ]);
+});
+
 const TOOL = {
   id: "tc-1",
   name: "write_file",
@@ -650,6 +694,7 @@ describe("chronological run segments", () => {
     expect(result[0]?.content).toBe("Finished.");
     expect(result[0]?.renderKey).toBe("segment-1");
     expect(result[0]?.id).toBe("segment-3");
+    expect(result[0]?.coalescedMessageIds).toEqual(["segment-1", "segment-2", "segment-3"]);
     expect(first.toolCalls).toEqual([task]);
   });
   it("retains intermediate prose inside its run and separates different runs", () => {

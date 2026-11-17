@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, ValidationInfo, field_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.conversation import MessageRead
@@ -33,8 +33,21 @@ class RoomMessageCreate(BaseSchema):
     client_message_id: str = Field(min_length=1, max_length=128)
     content: str = Field(min_length=1, max_length=20_000)
     reply_to_message_id: UUID | None = None
+    reply_to_excerpt: str | None = Field(default=None, max_length=280)
     thread_root_message_id: UUID | None = None
     agent_id: UUID | None = None
+
+    @field_validator("reply_to_excerpt")
+    @classmethod
+    def excerpt_requires_reply(cls, value: str | None, info: ValidationInfo) -> str | None:
+        if value is not None and info.data.get("reply_to_message_id") is None:
+            raise ValueError("reply_to_excerpt requires reply_to_message_id")
+        if value is None:
+            return None
+        normalized = " ".join(value.replace("\u00a0", " ").split())
+        if not normalized:
+            raise ValueError("reply_to_excerpt must contain visible text")
+        return normalized
 
 
 class RoomAgentRequestRead(BaseSchema):

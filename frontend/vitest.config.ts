@@ -247,6 +247,7 @@ export default defineConfig({
         "src/components/chat/tool-results/**/*.tsx",
         "src/components/chat/chart-message.tsx",
         "src/components/chat/chat-controls.tsx",
+        "src/components/chat/chat-send-mode-control.tsx",
         // A phone's `+` sheet for attaching and dictating (#2066).
         "src/components/chat/composer-sheet.tsx",
         // `@`-mentions in the composer and the transcript (#2189).
@@ -279,6 +280,7 @@ export default defineConfig({
         "src/components/chat/message-cost.tsx",
         "src/components/chat/turn-action.ts",
         "src/components/chat/turn-parts.tsx",
+        "src/components/chat/turn-trace.tsx",
         "src/components/chat/shared-visuals.tsx",
         "src/components/chat/visual-actions.ts",
         "src/components/chat/visual-frame.tsx",
@@ -289,6 +291,12 @@ export default defineConfig({
         "src/components/chat/you-face.tsx",
         "src/components/chat/message-item.tsx",
         "src/components/chat/message-list.tsx",
+        "src/components/chat/message-jump-notice.tsx",
+        "src/components/chat/conversation-search-dialog.tsx",
+        "src/components/chat/conversation-side-threads.tsx",
+        "src/components/chat/personal-side-thread-panel.tsx",
+        "src/components/chat/pinned-messages.tsx",
+        "src/components/chat/chat-compaction-control.tsx",
         "src/components/chat/pending-messages.tsx",
         "src/components/chat/plan-checklist.tsx",
         "src/components/chat/plan-strip.tsx",
@@ -309,6 +317,7 @@ export default defineConfig({
         "src/components/chat/agent-draft-proposal.tsx",
         "src/components/chat/workspace-files.tsx",
         "src/components/chat/workspace-panels.tsx",
+        "src/components/chat/workspace-tasks-panel.tsx",
         "src/components/chat/workspace-rail.tsx",
         "src/components/chat/workspace-empty.tsx",
         // `.ts` too: the grant-subject helpers the panel's rows share live beside it.

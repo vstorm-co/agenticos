@@ -65,6 +65,8 @@ export interface MessageReply {
   agentId?: string;
   /** Its name, where the reply was chosen on screen and the name was at hand. */
   agentName?: string;
+  /** The exact words selected on its message, sent with the linked source id. */
+  selectedText?: string;
 }
 
 /** The workspace selected for a turn, retained after Work on changes. */
@@ -91,6 +93,8 @@ export interface ChatMessage {
   runWaitingFor?: "approval" | "answer";
   runStartedAt?: Date;
   runFailed?: boolean;
+  /** The run refused this turn; its displayed text must not be quoted onward. */
+  guardrailRefused?: boolean;
   /** Safe run failure explanation, shown separately from the assistant's words. */
   runError?: string;
   /** Group ID for related messages in a multi-agent chain. */
@@ -165,6 +169,10 @@ export interface ChatMessage {
    * and a remount at the end of a turn cut the reveal off mid-sentence.
    */
   renderKey?: string;
+  /** Saved segments represented by one visible assistant turn, for exact message links. */
+  coalescedMessageIds?: string[];
+  /** Whether the signed-in reader pinned this message; absent on unpersonalized reads. */
+  isPinned?: boolean;
   /** Current user's rating */
   user_rating?: UserRating;
   /** Aggregate rating counts */
@@ -245,6 +253,8 @@ export interface MessagePart {
   type: MessagePartType;
   /** Text for "thinking"/"text" parts, and what the person added for a "steer" (#2087). */
   content?: string;
+  /** Saved message the words came from when a visible turn coalesces several rows. */
+  sourceMessageId?: string | null;
   /** Tool invocation for "tool" parts. */
   toolCall?: ToolCall;
   /** What the agent asked, for an "ask_user" part. */
@@ -335,6 +345,7 @@ export type WSEventType =
   | "compaction_started"
   | "compaction_finished"
   | "compaction_impossible"
+  | "compact_now_result"
   | "personal_services_unavailable"
   // The run's sandbox is still being opened - usually its runtime image being built
   // after an update (#2222) - and then that it is open, or failed to open.
@@ -775,6 +786,8 @@ export interface SubagentCompleteFrame extends SubagentFrameBase {
  */
 export interface Compaction {
   kind: "compaction_started" | "compaction_finished" | "compaction_impossible";
+  /** The manual maintenance request that owns this progress event, when present. */
+  request_id?: string;
   /** How many messages the history held when it started. */
   messages_before: number | null;
   /** How many it holds now. Null while it is running, and null if it failed. */
@@ -784,6 +797,10 @@ export interface Compaction {
   /** On `compaction_impossible`: the window the trigger was measured against. */
   window_tokens?: number | null;
 }
+
+/** Outcome of an explicit conversation maintenance command. */
+export type ChatCompactionStatus =
+  "idle" | "running" | "compacted" | "unchanged" | "busy" | "unavailable" | "failed";
 
 /** What a whole conversation has cost, as `GET /conversations/{id}/messages` totals it. */
 export interface ConversationCost {

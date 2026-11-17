@@ -103,6 +103,13 @@ describe("conversationMessageToChatMessage", () => {
     expect(message.timestamp).toEqual(new Date("2026-07-31T12:00:00Z"));
   });
 
+  it("preserves authenticated pin status but leaves unpersonalized status absent", () => {
+    expect(conversationMessageToChatMessage(raw({ is_pinned: true })).isPinned).toBe(true);
+    expect(conversationMessageToChatMessage(raw({ is_pinned: false })).isPinned).toBe(false);
+    expect(conversationMessageToChatMessage(raw({ is_pinned: null })).isPinned).toBeUndefined();
+    expect(conversationMessageToChatMessage(raw()).isPinned).toBeUndefined();
+  });
+
   it("carries who typed a user turn, and nothing where nobody is named", () => {
     const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
 
@@ -590,3 +597,11 @@ for (const status of ["budget_exceeded", "guardrail_blocked", "loop_stopped"]) {
     expect(message.wasStopped).toBe(false);
   });
 }
+
+it("marks a wire-loaded guardrail refusal so its text cannot become a selected quote", () => {
+  const refused = conversationMessageToChatMessage(raw({ run_status: "guardrail_blocked" }));
+  const completed = conversationMessageToChatMessage(raw({ run_status: "completed" }));
+
+  expect(refused.guardrailRefused).toBe(true);
+  expect(completed.guardrailRefused).toBeUndefined();
+});

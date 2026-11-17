@@ -286,6 +286,100 @@
     "title": "Profil"
   },
   "chat": {
+    "messageJump": {
+      "loading": "Wczytywanie wybranej wiadomości…",
+      "failed": "Nie udało się wczytać wybranej wiadomości. Spróbuj ponownie.",
+      "unavailable": "Ta wiadomość nie jest już dostępna w tej rozmowie.",
+      "cancel": "Anuluj przejście"
+    },
+    "manualCompaction": {
+      "action": "Skróć kontekst teraz",
+      "description": "Podsumuj wcześniejszy kontekst przed kolejną turą. Zapisane wiadomości pozostaną dostępne.",
+      "busyHint": "Dostępne, gdy rozmowa jest bezczynna.",
+      "running": "Podsumowywanie wcześniejszego kontekstu…",
+      "runningCount": "Podsumowywanie wcześniejszych wiadomości: {count}…",
+      "compacted": "Kontekst został skrócony. Zapisane wiadomości są nadal dostępne.",
+      "unchanged": "Nie można było skrócić kontekstu bardziej.",
+      "busy": "Rozmowa jest zajęta. Spróbuj ponownie po zakończeniu aktywnej pracy.",
+      "unavailable": "Ten agent nie może skrócić kontekstu tej rozmowy.",
+      "failed": "Nie udało się skrócić kontekstu. Spróbuj ponownie."
+    },
+    "messagePins": {
+      "emptyPreview": "Wiadomość bez podglądu",
+      "open": "Przypięte wiadomości",
+      "title": "Przypięte wiadomości",
+      "empty": "Nie masz przypiętych wiadomości w tej rozmowie.",
+      "loading": "Wczytywanie przypiętych wiadomości…",
+      "loadMore": "Wczytaj więcej",
+      "retry": "Spróbuj ponownie",
+      "listFailed": "Nie udało się wczytać przypiętych wiadomości.",
+      "pin": "Przypnij wiadomość",
+      "unpin": "Odepnij wiadomość"
+    },
+    "sideThreads": {
+      "loadMore": "Wczytaj więcej",
+      "untitledFork": "Wątek poboczny bez tytułu",
+      "title": "Wątki poboczne",
+      "start": "Rozpocznij wątek poboczny",
+      "open": "Otwórz wątek poboczny",
+      "backToParent": "Wróć do rozmowy nadrzędnej",
+      "loading": "Wczytywanie wątku pobocznego…",
+      "empty": "Ta wiadomość nie ma jeszcze wątków pobocznych.",
+      "error": "Nie udało się wczytać wątków pobocznych.",
+      "retry": "Spróbuj ponownie",
+      "archived": "Zarchiwizowany",
+      "close": "Zamknij wątek poboczny",
+      "createFailed": "Nie udało się rozpocząć wątku pobocznego."
+    },
+    "trace": {
+      "toggle": "Wyszukaj i filtruj aktywność",
+      "title": "Przeszukaj aktywność tej tury",
+      "search": "Szukaj w tekście, argumentach narzędzi i wynikach",
+      "filter": "Pokaż",
+      "all": "Cała aktywność",
+      "tools": "Narzędzia",
+      "thinking": "Rozumowanie",
+      "errors": "Błędy",
+      "messages": "Wiadomości",
+      "clear": "Wyczyść filtry",
+      "count": "{shown} z {total} wpisów",
+      "attention": "Kroki czekające na Ciebie pozostają widoczne.",
+      "noMatches": "Żadna aktywność nie pasuje do tych filtrów."
+    },
+    "sendMode": {
+      "label": "Wysyłanie podczas pracy",
+      "queue": "Do kolejki",
+      "steer": "Pokieruj",
+      "queueDescription": "Wyślij po bieżącej turze.",
+      "steerDescription": "Przekaż wskazówki w bieżącej turze.",
+      "steerUnavailable": "Kierowanie obsługuje zwykły tekst. Wiadomości z plikami, wzmiankami, odpowiedziami, kontekstem strony lub danymi przepływu pracy pozostają w kolejce.",
+      "steerDisconnected": "Połącz się ponownie, aby pokierować bieżącą turą. Twój szkic nadal jest w polu wiadomości.",
+      "steerFailed": "Nie udało się wysłać wskazówek. Twój szkic nadal tu jest."
+    },
+    "agentSettings": {
+      "reasoning": "Rozumowanie"
+    },
+    "workspaceTasks": {
+      "title": "Zadania",
+      "open": "Otwórz zadania",
+      "close": "Zamknij zadania",
+      "expand": "Rozwiń zadania",
+      "restore": "Przywróć zadania",
+      "scopeHint": "Twoje zadania w tle w tej organizacji. Otwórz zadanie, aby kontynuować jego rozmowę.",
+      "scope": "Zakres zadań",
+      "thisChat": "Ten czat",
+      "allMine": "Wszystkie moje zadania",
+      "search": "Szukaj zadań",
+      "loadFailed": "Nie udało się wczytać zadań.",
+      "empty": "Nie ma jeszcze zadań w tle. Poproś agenta o pracę nad tematem w tle.",
+      "noMatches": "Brak zadań pasujących do wyszukiwania.",
+      "groups": {
+        "needsYou": "Wymaga uwagi ({count})",
+        "working": "W toku ({count})",
+        "waiting": "Oczekujące ({count})",
+        "finished": "Zakończone ({count})"
+      }
+    },
     "loadEarlierMessages": "Wczytaj wcześniejsze wiadomości",
     "accessLevel": "Poziom dostępu",
     "accessRevoked": "Dostęp cofnięty",
@@ -709,7 +803,14 @@
       "noSearchResults": "Żadna rozmowa nie pasuje.",
       "otherAgents": "Inne",
       "retryShared": "Wczytaj udostępnione rozmowy ponownie",
-      "searchHint": "Wpisz, aby wyszukać rozmowy po tytule.",
+      "searchHint": "Przeszukaj tekst wiadomości w rozmowach lub wybierz wyszukiwanie po tytule.",
+      "searchTitleHint": "Przeszukaj tytuły rozmów, także zarchiwizowanych.",
+      "searchModeLabel": "Szukaj według",
+      "searchModeMessages": "Tekst wiadomości",
+      "searchModeTitles": "Tytuł rozmowy",
+      "noMessageSearchResults": "Nie znaleziono pasujących wiadomości.",
+      "searchFailed": "Wyszukiwanie nie powiodło się. Spróbuj ponownie.",
+      "retrySearch": "Spróbuj ponownie",
       "searchLabel": "Szukaj rozmów",
       "searching": "Szukam…",
       "sharedFailed": "Nie udało się wczytać udostępnionych rozmów.",
@@ -1757,7 +1858,9 @@
       "unavailable": "Model niedostępny",
       "useDefault": "Użyj modelu agenta",
       "scope": "Wybierz zapisany model dla następnej wiadomości. Ten wybór jest zapamiętywany dla Twojego konta w tej organizacji.",
-      "afterTurn": "Trwający run zachowuje swój model. Twój wybór dotyczy następnej wiadomości i jest zapamiętywany jako ustawienie czatu.",
+      "afterTurn": "Po tej turze: bieżąca tura zachowuje swój model. Twój wybór dotyczy następnej wiadomości i jest zapamiętywany jako ustawienie czatu.",
+      "afterTurnBadge": "Po tej turze",
+      "editReasoning": "Edytuj rozumowanie w ustawieniach agenta",
       "providers": "Providerzy modeli",
       "search": "Szukaj zapisanych modeli lub kont…",
       "account": "Konto providera",
@@ -6926,6 +7029,30 @@
         "body": "Wybierz bota SMS Twilio, publiczną rozmowę głosową dla połączeń przychodzących, limity i dozwolone kontakty przekierowań. Skopiuj adresy webhooków do Twilio. Zgody członków są osobne.",
         "title": "Skonfiguruj telefonię"
       },
+      "chat-send-mode": {
+        "title": "Kolejka lub kierowanie",
+        "body": "Podczas pracy agenta dodaj następną wiadomość do kolejki albo przekaż wskazówki zwykłym tekstem. Pliki i pozostały kontekst pozostają w zwykłej kolejce."
+      },
+      "chat-side-threads": {
+        "title": "Rozwiń wątek poboczny",
+        "body": "Rozpocznij osobną rozmowę od tej odpowiedzi lub otwórz istniejące odgałęzienie obok rozmowy głównej. Powrót prowadzi do dokładnej wiadomości źródłowej."
+      },
+      "chat-message-search": {
+        "title": "Znajdź wiadomość w rozmowach",
+        "body": "Szukaj treści w dostępnych rozmowach albo wybierz wyszukiwanie tytułów. Wynik otwiera dokładną wiadomość, także w starszej historii lub wątku pokoju."
+      },
+      "chat-trace-filter": {
+        "title": "Znajdź krok w tej turze",
+        "body": "Przeszukuj otwartą historię aktywności według tekstu, argumentów lub wyników narzędzi. Filtruj narzędzia, rozumowanie, błędy lub wiadomości; kroki czekające na ciebie pozostają widoczne."
+      },
+      "chat-agent-reasoning": {
+        "title": "Ustawienia rozumowania",
+        "body": "Dostosuj myślenie w szkicu agenta. Zapisz szkic, a następnie sprawdź i opublikuj go dla przyszłych uruchomień."
+      },
+      "chat-workspace-tasks": {
+        "title": "Zadania obok rozmowy",
+        "body": "Otwórz zadania w tle tego czatu lub wszystkich swoich agentów. Sprawdź pracę wymagającą uwagi, otwórz jej rozmowę lub zatrzymaj aktywne zadanie."
+      },
       "chat-workspace": {
         "title": "Otwórz swój workspace",
         "body": "Otwórz Przeglądarkę, Komputer lub Pliki obok chatu. Poproś wybranego agenta o uruchomienie skonfigurowanego hostowanego narzędzia. Samo otwarcie panelu nie rozpoczyna sesji."
@@ -8066,6 +8193,18 @@
       "chat-room-thread-panel": {
         "title": "Odpowiedzi we własnym kontekście",
         "body": "Oryginalna wiadomość pozostaje nad odpowiedziami. Każdy w pokoju może przeczytać wątek. Wybierz agenta, gdy potrzebujesz pomocy, lub zamknij wątek, aby wrócić do pokoju."
+      },
+      "chat-message-pins": {
+        "title": "Zachowaj ważne wiadomości",
+        "body": "Przypnij wiadomość dla siebie, a następnie otwórz ją ponownie z listy przypiętych wiadomości tej rozmowy."
+      },
+      "chat-selected-quote": {
+        "title": "Odpowiedz na zaznaczony tekst",
+        "body": "Zaznacz fragment zapisanej wiadomości i wybierz Odpowiedz, aby zachować ten cytat przy swojej odpowiedzi."
+      },
+      "chat-compact-now": {
+        "title": "Podsumuj wcześniejszy kontekst",
+        "body": "Skróć kontekst bezczynnej rozmowy, zachowując zapisane wiadomości i bieżący szkic."
       }
     }
   },

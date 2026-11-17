@@ -28,7 +28,9 @@ BODY = {
 
 
 @pytest.fixture
-def as_role(mock_redis: MagicMock, mock_db_session: AsyncMock) -> Iterator[Callable[[OrgRoleName], None]]:
+def as_role(
+    mock_redis: MagicMock, mock_db_session: AsyncMock
+) -> Iterator[Callable[[OrgRoleName], None]]:
     def use(role: OrgRoleName) -> None:
         context = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=role)
         app.dependency_overrides[deps.get_auth_context] = lambda: context
@@ -64,7 +66,10 @@ async def test_teaching_is_disabled_by_default(as_role) -> None:
 async def test_no_route_accepts_recorder_events(as_role) -> None:
     as_role(OrgRoleName.BUILDER)
     paths = {path for path in app.openapi()["paths"] if "browser-teachings" in path}
-    assert paths == {"/api/v1/browser-teachings", "/api/v1/browser-teachings/{session_id}",
-                     "/api/v1/browser-teachings/{session_id}/stop"}
+    assert paths == {
+        "/api/v1/browser-teachings",
+        "/api/v1/browser-teachings/{session_id}",
+        "/api/v1/browser-teachings/{session_id}/stop",
+    }
     status, _ = await _post(f"/{uuid.uuid4()}/events", {"action": "click"})
     assert status in (404, 405)

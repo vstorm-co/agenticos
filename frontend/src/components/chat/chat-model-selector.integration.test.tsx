@@ -6,6 +6,7 @@ import { ChatModelHeader } from "./chat-model-header";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { useChatControlsStore, chatControlScope } from "@/stores/chat-controls-store";
+import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useOrgStore } from "@/stores/org-store";
 import { Perm, type Permission } from "@/types/permissions";
@@ -82,36 +83,44 @@ function serve(
 async function mount({
   readOnly = false,
   isProcessing = false,
+  canEditAgent = false,
   home = false,
   agentModel = DEFAULT_MODEL,
 }: {
   readOnly?: boolean;
   isProcessing?: boolean;
+  canEditAgent?: boolean;
   home?: boolean;
   agentModel?: PublishedModel | null;
 } = {}) {
   const onChange = vi.fn();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(
+  const props = { readOnly, isProcessing, canEditAgent, home, agentModel };
+  const view = render(
     <QueryClientProvider client={client}>
-      <ChatModelHeader
-        name="Workspace assistant"
-        home={home}
-        agentModel={agentModel}
-        readOnly={readOnly}
-        isProcessing={isProcessing}
-        onChange={onChange}
-      />
+      <ChatModelHeader name="Workspace assistant" {...props} onChange={onChange} />
     </QueryClientProvider>,
   );
   await waitFor(() =>
     expect(client.getQueryData(qk.organizations.permissions("org-1"))).toBeDefined(),
   );
-  return { client, onChange };
+  return {
+    client,
+    onChange,
+    rerender: (changes: Partial<typeof props>) => {
+      Object.assign(props, changes);
+      view.rerender(
+        <QueryClientProvider client={client}>
+          <ChatModelHeader name="Workspace assistant" {...props} onChange={onChange} />
+        </QueryClientProvider>,
+      );
+    },
+  };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useBrowserPanelStore.getState().close();
   useAuthStore.setState({ user: { id: "person" } as never });
   useOrgStore.setState({ activeOrgId: "org-1" });
   useChatControlsStore.setState({ byScope: {} });
@@ -156,6 +165,27 @@ describe("the chat header's saved model selector", () => {
     expect(screen.getByText("Claude Sonnet")).toBeVisible();
     expect(screen.queryByRole("button", { name: /^Choose chat model:/ })).toBeNull();
     expect(apiClient.get).not.toHaveBeenCalledWith("/secrets");
+  });
+
+  it("opens agent reasoning settings from the compact selector without granting model access", async () => {
+    serve([Perm.agentsView, Perm.agentsRun]);
+    await mount({ canEditAgent: true });
+
+    expect(screen.queryByRole("button", { name: /^Choose chat model:/ })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Edit reasoning in agent settings" }));
+
+    expect(useBrowserPanelStore.getState().surface).toBe("settings");
+    expect(apiClient.get).not.toHaveBeenCalledWith("/secrets");
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  it("offers the reasoning settings entry beside model choices when both are editable", async () => {
+    await mount({ canEditAgent: true });
+    await userEvent.click(trigger());
+    await userEvent.click(screen.getByRole("button", { name: "Edit reasoning in agent settings" }));
+
+    expect(useBrowserPanelStore.getState().surface).toBe("settings");
+    expect(apiClient.post).not.toHaveBeenCalled();
   });
 
   it("keeps a read-only conversation's model visible even for a connection manager", async () => {
@@ -231,7 +261,9 @@ describe("the chat header's saved model selector", () => {
     await userEvent.keyboard("{ArrowUp}");
     expect(screen.queryByRole("dialog")).toBeNull();
     await userEvent.keyboard("{ArrowDown}");
-    expect(screen.getByText(/The running turn keeps its model/)).toBeVisible();
+    expect(
+      screen.getByText(/After this turn: the running turn keeps its current model/i),
+    ).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "OpenAI" }));
     const group = screen.getByRole("radiogroup", { name: "Saved models" });
     act(() => group.focus());
@@ -254,6 +286,35 @@ describe("the chat header's saved model selector", () => {
     await userEvent.keyboard("{Escape}");
     expect(trigger()).toHaveFocus();
     expect(choice()).toBeNull();
+  });
+
+  it("marks model choices made during a turn and clears the badge when the turn ends", async () => {
+    const mounted = await mount();
+    await userEvent.click(trigger());
+    await userEvent.click(screen.getByRole("button", { name: "OpenAI" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Team GPT" }));
+    expect(screen.queryByText("After this turn")).toBeNull();
+
+    mounted.rerender({ isProcessing: true });
+    await userEvent.click(trigger());
+    await userEvent.click(screen.getByRole("button", { name: /Use agent's model/ }));
+    expect(screen.getByText("After this turn", { selector: "span" })).toBeVisible();
+
+    mounted.rerender({ isProcessing: false });
+    await waitFor(() =>
+      expect(screen.queryByText("After this turn", { selector: "span" })).toBeNull(),
+    );
+  });
+
+  it("marks a changed preference made after saved controls hydrate during a turn", async () => {
+    await mount({ isProcessing: true });
+    act(() => useChatControlsStore.getState().update(scope, { modelProfileId: "team" }));
+    await waitFor(() => expect(trigger()).toHaveTextContent("Team GPT"));
+
+    await userEvent.click(trigger());
+    await userEvent.click(screen.getByRole("button", { name: /Use agent's model/ }));
+
+    expect(screen.getByText("After this turn", { selector: "span" })).toBeVisible();
   });
 
   it("keeps search empty states separate from having no saved models", async () => {

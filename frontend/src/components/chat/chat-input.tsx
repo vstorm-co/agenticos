@@ -74,6 +74,8 @@ import { wordCount, type DictationActions, type DictationState } from "@/hooks/u
 import type { ComposerDictation as DictationEngine } from "@/lib/dictation-api";
 
 import { movesOn } from "./dictation-strip";
+import { ChatSendModeControl } from "./chat-send-mode-control";
+import type { ChatSendMode } from "@/lib/chat-send-mode";
 
 /**
  * Dictation for the selected agent, as the composer needs it.
@@ -135,6 +137,8 @@ const ACCEPTED =
 interface ChatInputProps {
   /** Focus once the composer becomes writable on entry to the main chat. */
   autoFocus?: boolean;
+  /** A transcript link owns focus until the reader explicitly returns to the composer. */
+  preserveReadingFocus?: boolean;
   /** Re-arm entry focus for an explicit New chat without remounting the editor. */
   focusRequest?: number;
   onSend: (
@@ -143,6 +147,13 @@ interface ChatInputProps {
     files?: FileUploadResponse[],
     mentions?: Mentionable[],
   ) => void;
+  /** What to do with plain text while a turn is running. */
+  sendMode?: ChatSendMode;
+  onSendModeChange?: (mode: ChatSendMode) => void;
+  /** Send plain text into the current run; false leaves the draft untouched. */
+  onSteer?: (message: string) => boolean;
+  /** Context owned by the page or another recipient must keep the queue path. */
+  steerContextAvailable?: boolean;
   /**
    * The agent this turn is addressed to, whose servers, delegates and knowledge
    * `@` offers (#2189). Absent where the composer offers no mentions.
@@ -260,8 +271,13 @@ function touchKeyboard(): boolean {
 
 export function ChatInput({
   autoFocus = false,
+  preserveReadingFocus = false,
   focusRequest = 0,
   onSend,
+  sendMode,
+  onSendModeChange,
+  onSteer,
+  steerContextAvailable = true,
   disabled,
   isProcessing,
   canStop = isProcessing,
@@ -292,6 +308,7 @@ export function ChatInput({
 }: ChatInputProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
+  const tSendMode = useTranslations("chat.sendMode");
   // The message this turn will answer, chosen with Reply on it.
   const replyTo = useChatStore((state) => state.replyTo);
   const setReplyTo = useChatStore((state) => state.setReplyTo);
@@ -341,7 +358,13 @@ export function ChatInput({
     };
   }, [disabled, focusRequest]);
   useEffect(() => {
-    if (!entryFocusRequested.current || disabled || initialFocusAttempted.current) return;
+    if (
+      preserveReadingFocus ||
+      !entryFocusRequested.current ||
+      disabled ||
+      initialFocusAttempted.current
+    )
+      return;
     initialFocusAttempted.current = true;
     // A phone must not open its keyboard or switch the composer's layout while
     // the person is reaching for an action after navigation.
@@ -357,7 +380,7 @@ export function ChatInput({
     )
       return;
     editorRef.current?.focus();
-  }, [disabled, focusRequest]);
+  }, [disabled, focusRequest, preserveReadingFocus]);
   // Reply was just chosen on a message: the person goes on to type the answer.
   useEffect(() => {
     if (replyTo) editorRef.current?.focus();
@@ -503,8 +526,9 @@ export function ChatInput({
   useEffect(() => {
     // Phones enter writing deliberately, rather than reopening the keyboard
     // on arrival or when a reply finishes while the person is reading.
-    if (!isProcessing && !isUploading && !touchKeyboard()) editorRef.current?.focus();
-  }, [isProcessing, isUploading]);
+    if (!preserveReadingFocus && !isProcessing && !isUploading && !touchKeyboard())
+      editorRef.current?.focus();
+  }, [isProcessing, isUploading, preserveReadingFocus]);
 
   const runSlashCommand = useCallback(
     (cmd: SlashCommand) => {
@@ -539,16 +563,41 @@ export function ChatInput({
     if (disabled || isUploading) return;
 
     const files = attachedFiles.length > 0 ? attachedFiles.map((a) => a.file) : undefined;
-    onSend(
-      trimmed || t("analyzeFiles"),
-      files?.map((f) => f.id),
-      files,
-      mentions.length > 0 ? mentions : undefined,
-    );
-    setMessage("");
-    setAttachedFiles([]);
-    setPicked([]);
-    setMentionQuery(null);
+    const content = trimmed || t("analyzeFiles");
+    const fileIds = files?.map((f) => f.id);
+    const selectedMentions = mentions.length > 0 ? mentions : undefined;
+    const clearDraft = () => {
+      setMessage("");
+      setAttachedFiles([]);
+      setPicked([]);
+      setMentionQuery(null);
+    };
+
+    if (isProcessing && sendMode === "steer") {
+      // A disconnected run cannot accept a correction. Keep every part of the
+      // draft here; the user can reconnect or explicitly choose Queue.
+      if (offline) {
+        setAnnouncement(tSendMode("steerDisconnected"));
+        return;
+      }
+      // Corrections carry text only. Full turns keep their files, mentions,
+      // reply and frozen page submission by following the ordinary send path.
+      if (files?.length || selectedMentions?.length || replyTo !== null || !steerContextAvailable) {
+        onSend(content, fileIds, files, selectedMentions);
+        clearDraft();
+        return;
+      }
+      if (!onSteer?.(content)) {
+        setAnnouncement(tSendMode("steerFailed"));
+        return;
+      }
+      setAnnouncement("");
+      clearDraft();
+      return;
+    }
+
+    onSend(content, fileIds, files, selectedMentions);
+    clearDraft();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -1035,6 +1084,23 @@ export function ChatInput({
           disabled={disabled || isUploading}
         />
         {isUploading && <Spinner className="text-muted-foreground h-4 w-4 shrink-0" />}
+        {isProcessing && sendMode !== undefined && onSendModeChange ? (
+          <ChatSendModeControl
+            value={sendMode}
+            onChange={onSendModeChange}
+            unavailableReason={
+              offline
+                ? "disconnected"
+                : attachedFiles.length > 0 ||
+                    pending.length > 0 ||
+                    mentions.length > 0 ||
+                    replyTo !== null ||
+                    !steerContextAvailable
+                  ? "context"
+                  : undefined
+            }
+          />
+        ) : null}
         {controlsSlot ? (
           <div className="chat-input-selection flex min-w-0 flex-[1_1_8rem] items-center gap-2">
             {controlsSlot}

@@ -1270,6 +1270,97 @@
     "title": "Billing"
   },
   "chat": {
+    "messageJump": {
+      "loading": "Loading the selected message…",
+      "failed": "The selected message could not be loaded. Try again.",
+      "unavailable": "This message is no longer available in this conversation.",
+      "cancel": "Cancel jump"
+    },
+    "manualCompaction": {
+      "action": "Compact now",
+      "description": "Summarize earlier context for the next turn. Saved messages remain available.",
+      "busyHint": "Available when this conversation is idle.",
+      "running": "Summarizing earlier context…",
+      "runningCount": "Summarizing {count} earlier messages…",
+      "compacted": "Context compacted. Your saved messages are still available.",
+      "unchanged": "No additional context could be compacted.",
+      "busy": "This conversation is busy. Try again after its active work finishes.",
+      "unavailable": "This agent cannot compact this conversation.",
+      "failed": "Context could not be compacted. Try again."
+    },
+    "messagePins": {
+      "emptyPreview": "Message without a preview",
+      "open": "Pinned messages",
+      "title": "Pinned messages",
+      "empty": "You have no pinned messages in this conversation.",
+      "loading": "Loading pinned messages…",
+      "loadMore": "Load more",
+      "retry": "Try again",
+      "listFailed": "Pinned messages could not be loaded.",
+      "pin": "Pin message",
+      "unpin": "Unpin message"
+    },
+    "sideThreads": {
+      "loadMore": "Load more",
+      "untitledFork": "Untitled side thread",
+      "title": "Side threads",
+      "start": "Start a side thread",
+      "open": "Open side thread",
+      "backToParent": "Back to parent conversation",
+      "loading": "Loading side thread…",
+      "empty": "No side threads for this message yet.",
+      "error": "Couldn’t load side threads.",
+      "retry": "Try again",
+      "archived": "Archived",
+      "close": "Close side thread",
+      "createFailed": "Couldn’t start a side thread."
+    },
+    "trace": {
+      "toggle": "Search and filter activity",
+      "title": "Search this turn's activity",
+      "search": "Search text, tool arguments, and results",
+      "filter": "Show",
+      "all": "All activity",
+      "tools": "Tools",
+      "thinking": "Reasoning",
+      "errors": "Errors",
+      "messages": "Messages",
+      "clear": "Clear filters",
+      "count": "{shown} of {total} entries",
+      "attention": "Steps waiting for you stay visible.",
+      "noMatches": "No activity matches these filters."
+    },
+    "sendMode": {
+      "label": "Send while running",
+      "queue": "Queue",
+      "steer": "Steer",
+      "queueDescription": "Send after the current turn.",
+      "steerDescription": "Send guidance into the current turn.",
+      "steerUnavailable": "Steering supports plain text. Messages with files, mentions, replies, page context, or workflow inputs stay queued.",
+      "steerDisconnected": "Reconnect to steer the current turn. Your draft is still in the composer.",
+      "steerFailed": "Steering could not be sent. Your draft is still here."
+    },
+    "workspaceTasks": {
+      "title": "Tasks",
+      "open": "Open tasks",
+      "close": "Close tasks",
+      "expand": "Expand tasks",
+      "restore": "Restore tasks",
+      "scopeHint": "Your background tasks in this organization. Open a task to continue its conversation.",
+      "scope": "Task scope",
+      "thisChat": "This chat",
+      "allMine": "All my tasks",
+      "search": "Search tasks",
+      "loadFailed": "Tasks could not be loaded.",
+      "empty": "No background tasks yet. Ask an agent to work on a background topic to get started.",
+      "noMatches": "No tasks match your search.",
+      "groups": {
+        "needsYou": "Needs you ({count})",
+        "working": "Working ({count})",
+        "waiting": "Waiting ({count})",
+        "finished": "Finished ({count})"
+      }
+    },
     "loadEarlierMessages": "Load earlier messages",
     "accessLevel": "Access level",
     "accessRevoked": "Access revoked",
@@ -1693,7 +1784,14 @@
       "noSearchResults": "No conversation matches.",
       "otherAgents": "Other",
       "retryShared": "Retry shared conversations",
-      "searchHint": "Type to search your conversations by title.",
+      "searchHint": "Search message text across your conversations, or choose conversation title.",
+      "searchTitleHint": "Search conversation titles, including archived conversations.",
+      "searchModeLabel": "Search by",
+      "searchModeMessages": "Message text",
+      "searchModeTitles": "Conversation title",
+      "noMessageSearchResults": "No messages match.",
+      "searchFailed": "Search failed. Try again.",
+      "retrySearch": "Try again",
       "searchLabel": "Search conversations",
       "searchPlaceholder": "Search conversations",
       "searching": "Searching…",
@@ -2748,7 +2846,9 @@
       "unavailable": "Model unavailable",
       "useDefault": "Use agent's model",
       "scope": "Choose a saved model for your next message. This chat preference is remembered for your account in this organization.",
-      "afterTurn": "The running turn keeps its model. Your selection applies to the next message and is remembered as your chat preference.",
+      "afterTurn": "After this turn: the running turn keeps its current model. Your selection applies to the next message and is remembered as your chat preference.",
+      "afterTurnBadge": "After this turn",
+      "editReasoning": "Edit reasoning in agent settings",
       "providers": "Model providers",
       "search": "Search saved models or accounts…",
       "account": "Provider account",
@@ -2762,6 +2862,7 @@
       "notChatModel": "Unavailable for chat"
     },
     "agentSettings": {
+      "reasoning": "Reasoning",
       "close": "Close agent settings",
       "draftHint": "These settings belong to the agent. Save the draft, then publish a version to make it available. Running turns keep their current configuration.",
       "expand": "Expand agent settings",
@@ -5312,6 +5413,30 @@
         "body": "Choose a Twilio SMS bot, a public voice exposure for inbound calls, limits and authorized transfer contacts. Copy the webhook URLs into Twilio. Member phone consent is separate.",
         "title": "Set up telephone routing"
       },
+      "chat-send-mode": {
+        "title": "Queue or steer",
+        "body": "While an agent is working, queue your next message or steer the current turn with plain text. Files and other context keep the ordinary queued path."
+      },
+      "chat-side-threads": {
+        "title": "Explore a side thread",
+        "body": "Start a separate conversation from this answer, or reopen an existing branch beside the parent. Back to parent returns to the exact source message."
+      },
+      "chat-message-search": {
+        "title": "Find a message across conversations",
+        "body": "Search message text in conversations you can read, or choose title search. Pick a result to open the exact message, including older history and room-thread replies."
+      },
+      "chat-trace-filter": {
+        "title": "Find a step in this turn",
+        "body": "Search the open activity history by text, tool arguments or results. Filter tools, reasoning, errors or messages; steps waiting for your input stay visible."
+      },
+      "chat-agent-reasoning": {
+        "title": "Reasoning settings",
+        "body": "Adjust Thinking in the agent draft. Save the draft, then review and publish when it is ready for future runs."
+      },
+      "chat-workspace-tasks": {
+        "title": "Tasks beside the conversation",
+        "body": "Open background tasks for this chat or all your agents. Review work that needs you, open its conversation, or stop an active task."
+      },
       "chat-workspace": {
         "title": "Open your workspace",
         "body": "Open Browser, Computer or Files beside the chat. Ask the selected agent to start a hosted tool when it is configured; opening a panel alone starts no session."
@@ -6464,6 +6589,18 @@
       "chat-room-thread-panel": {
         "title": "Replies with their own context",
         "body": "The original message stays above the replies. Everyone in the room can read the thread. Choose an agent when you want help here, or close the thread to return to the room."
+      },
+      "chat-message-pins": {
+        "title": "Keep important messages",
+        "body": "Pin a message for yourself, then reopen it from this conversation's pinned-message list."
+      },
+      "chat-selected-quote": {
+        "title": "Reply to selected text",
+        "body": "Select a passage in a saved message, then choose Reply to keep that excerpt with your response."
+      },
+      "chat-compact-now": {
+        "title": "Summarize earlier context",
+        "body": "Compact an idle conversation's context while keeping its saved messages and your current draft."
       }
     }
   },

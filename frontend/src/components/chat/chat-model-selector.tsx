@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, Check, ChevronDown } from "lucide-react";
+import { AlertCircle, Check, ChevronDown, Settings2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ProviderIcon } from "@/components/vault/provider-icon";
@@ -9,6 +9,7 @@ import { useModelProviders } from "@/hooks/use-model-providers";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { modelShortName, usableForAgents } from "@/lib/model-profiles";
+import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import type { PublishedModel } from "@/types/agents";
 import { Perm } from "@/types/permissions";
 import { ChatModelMenu } from "./chat-model-menu";
@@ -17,18 +18,27 @@ interface Props {
   agentModel: PublishedModel | null;
   readOnly: boolean;
   isProcessing: boolean;
+  canEditAgent: boolean;
   onChange: (profileId: string | null) => void;
 }
 
 /** A saved chat preference, never a write to the agent or its published spec. */
-export function ChatModelSelector({ agentModel, readOnly, isProcessing, onChange }: Props) {
+export function ChatModelSelector({
+  agentModel,
+  readOnly,
+  isProcessing,
+  canEditAgent,
+  onChange,
+}: Props) {
   const t = useTranslations("chat.modelSelector");
   const tm = useTranslations("chat.modelPicker");
   const tc = useTranslations("common");
   const [open, setOpen] = useState(false);
+  const [pendingModelChange, setPendingModelChange] = useState(false);
   const { can } = usePermissions();
   const { modelProfileId, update } = useSavedChatControls();
   const { profiles, catalog, profilesStatus, refetchProfiles } = useModelProviders();
+
   const profile = profiles.find((item) => item.id === (modelProfileId ?? agentModel?.profile_id));
   const current = modelProfileId === null ? agentModel : profile;
   const unavailable =
@@ -42,6 +52,7 @@ export function ChatModelSelector({ agentModel, readOnly, isProcessing, onChange
         : t("unavailable")
       : tm("agentModel");
   const mayChoose = !readOnly && can(Perm.connectionsManage);
+  const mayOpenSettings = !readOnly && canEditAgent;
   const summary = (
     <>
       {current && <ProviderIcon provider={current.provider} className="size-4 shrink-0" />}
@@ -52,21 +63,44 @@ export function ChatModelSelector({ agentModel, readOnly, isProcessing, onChange
       <span className="text-muted-foreground hidden text-[10px] sm:inline">
         {modelProfileId === null ? t("default") : t("override")}
       </span>
+      {isProcessing && pendingModelChange && (
+        <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:text-amber-300">
+          {t("afterTurnBadge")}
+        </span>
+      )}
     </>
   );
   const choose = (id: string | null) => {
+    if (isProcessing && id !== modelProfileId) setPendingModelChange(true);
     update({ modelProfileId: id });
     onChange(id);
     setOpen(false);
   };
+  const openSettings = () => {
+    setOpen(false);
+    useBrowserPanelStore.getState().openSurface("settings");
+  };
   if (!mayChoose) {
     return (
-      <span
-        className="bg-foreground/5 inline-flex max-w-64 min-w-0 items-center gap-2 rounded-full px-3 py-2 text-xs"
-        title={readOnly ? label : tm("needsConnectionsManage")}
-      >
-        {summary}
-      </span>
+      <div className="flex min-w-0 items-center gap-2">
+        <span
+          className="bg-foreground/5 inline-flex max-w-64 min-w-0 items-center gap-2 rounded-full px-3 py-2 text-xs"
+          title={readOnly ? label : tm("needsConnectionsManage")}
+        >
+          {summary}
+        </span>
+        {mayOpenSettings && (
+          <button
+            type="button"
+            aria-label={t("editReasoning")}
+            title={t("editReasoning")}
+            onClick={openSettings}
+            className="text-muted-foreground hover:text-foreground hover:bg-foreground/5 inline-flex size-9 shrink-0 items-center justify-center rounded-full transition-colors"
+          >
+            <Settings2 aria-hidden className="size-4" />
+          </button>
+        )}
+      </div>
     );
   }
   return (
@@ -132,6 +166,18 @@ export function ChatModelSelector({ agentModel, readOnly, isProcessing, onChange
             currentProvider={current?.provider}
             onChange={choose}
           />
+        )}
+        {mayOpenSettings && (
+          <div className="border-t p-2">
+            <button
+              type="button"
+              onClick={openSettings}
+              className="hover:bg-accent flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs"
+            >
+              <Settings2 aria-hidden className="text-muted-foreground size-3.5 shrink-0" />
+              {t("editReasoning")}
+            </button>
+          </div>
         )}
       </PopoverContent>
     </Popover>

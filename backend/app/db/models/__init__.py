@@ -12,6 +12,7 @@ from app.db.models.routine_delivery import RoutineDelivery
 from app.db.models.user import User
 from app.db.models.session import Session
 from app.db.models.conversation import Conversation, Message, ToolCall
+from app.db.models.conversation_message_pin import ConversationMessagePin
 from app.db.models.conversation_task import ConversationTask, ConversationTurnClaim
 from app.db.models.room_submission import RoomSubmission
 from app.db.models.coding_task_change import CodingTaskChange
@@ -284,6 +285,7 @@ __all__ = [
     "User",
     "Session",
     "Conversation",
+    "ConversationMessagePin",
     "CodingTaskChange",
     "ConversationTask",
     "ConversationTurnClaim",

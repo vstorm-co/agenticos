@@ -190,6 +190,7 @@ export function WorkFold({
       <button
         type="button"
         id={toggleId}
+        data-message-disclosure
         aria-controls={open ? historyId : undefined}
         aria-expanded={open}
         onClick={() => setChosenOpen(!open)}

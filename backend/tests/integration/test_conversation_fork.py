@@ -139,6 +139,66 @@ class TestTheCopy:
         copied_question, copied_answer = await _messages(db, fork.id)
         assert copied_answer.reply_to_message_id == copied_question.id
 
+    async def test_a_selected_excerpt_is_copied_and_charged_when_its_target_is_copied(
+        self, db: AsyncSession
+    ) -> None:
+        source = await _source(db)
+        question = await _turn(db, source, "user", "Which plan?")
+        answer = await _turn(
+            db,
+            source,
+            "assistant",
+            "Pro.",
+            reply_to_message_id=question.id,
+            reply_to_excerpt="the selected phrase",
+        )
+
+        with_excerpt = await conversation_repo.fork_payload_bytes(
+            db, source_id=source.id, ordinal=answer.ordinal
+        )
+        answer.reply_to_excerpt = None
+        await db.flush()
+        without_excerpt = await conversation_repo.fork_payload_bytes(
+            db, source_id=source.id, ordinal=answer.ordinal
+        )
+        answer.reply_to_excerpt = "the selected phrase"
+        await db.flush()
+
+        assert with_excerpt - without_excerpt == len(b"the selected phrase")
+
+        fork = await conversation_repo.fork_conversation(
+            db, source=source, through=answer, copy_bytes=with_excerpt
+        )
+
+        copied_question, copied_answer = await _messages(db, fork.id)
+        assert copied_answer.reply_to_message_id == copied_question.id
+        assert copied_answer.reply_to_excerpt == "the selected phrase"
+
+    async def test_a_selected_excerpt_is_dropped_when_its_target_is_outside_the_copy(
+        self, db: AsyncSession
+    ) -> None:
+        source = await _source(db)
+        answer = await _turn(db, source, "assistant", "Earlier answer")
+        later_target = await _turn(db, source, "assistant", "Later answer")
+        before_excerpt = await conversation_repo.fork_payload_bytes(
+            db, source_id=source.id, ordinal=answer.ordinal
+        )
+        answer.reply_to_message_id = later_target.id
+        answer.reply_to_excerpt = "Later answer"
+        await db.flush()
+
+        after_excerpt = await conversation_repo.fork_payload_bytes(
+            db, source_id=source.id, ordinal=answer.ordinal
+        )
+        fork = await conversation_repo.fork_conversation(
+            db, source=source, through=answer, copy_bytes=after_excerpt
+        )
+
+        (copied_answer,) = await _messages(db, fork.id)
+        assert after_excerpt == before_excerpt
+        assert copied_answer.reply_to_message_id is None
+        assert copied_answer.reply_to_excerpt is None
+
     async def test_the_fork_carries_no_cost_and_no_run(self, db: AsyncSession) -> None:
         """The source's spend stays the source's: the fork's total starts empty."""
         source = await _source(db)
@@ -221,6 +281,92 @@ class TestTheSidebarListsForks:
         by_id = {item.id: item for item in items}
         assert by_id[fork.id].forked_from.conversation_id == source.id
         assert by_id[source.id].forked_from is None
+
+    async def test_fork_pages_are_tenant_owner_and_source_scoped_and_keep_archives(
+        self, db: AsyncSession
+    ) -> None:
+        source = await _source(db)
+        answer = await _turn(db, source, "assistant", "Continue here.")
+        first = await conversation_repo.fork_conversation(
+            db, source=source, through=answer, copy_bytes=0
+        )
+        second = await conversation_repo.fork_conversation(
+            db, source=source, through=answer, copy_bytes=0
+        )
+        other_answer = await _turn(db, source, "assistant", "A different branch.")
+        other_anchor = await conversation_repo.fork_conversation(
+            db, source=source, through=other_answer, copy_bytes=0
+        )
+        first.is_archived = True
+        first.forked_from_message_id = None
+
+        other_owner = await _user(db)
+        wrong_owner = Conversation(
+            user_id=other_owner.id,
+            organization_id=source.organization_id,
+            title="Someone else's child",
+            forked_from_conversation_id=source.id,
+        )
+        other_source = Conversation(
+            user_id=source.user_id,
+            organization_id=source.organization_id,
+            title="Another source",
+        )
+        db.add_all([wrong_owner, other_source])
+        await db.flush()
+        wrong_source = Conversation(
+            user_id=source.user_id,
+            organization_id=source.organization_id,
+            title="Other branch",
+            forked_from_conversation_id=other_source.id,
+        )
+        db.add(wrong_source)
+
+        other_tenant_source = await _source(db)
+        wrong_tenant = Conversation(
+            user_id=source.user_id,
+            organization_id=other_tenant_source.organization_id,
+            title="Wrong tenant",
+            forked_from_conversation_id=source.id,
+        )
+        db.add(wrong_tenant)
+        await db.flush()
+
+        page, total = await conversation_repo.list_conversation_forks(
+            db,
+            organization_id=source.organization_id,
+            owner_id=source.user_id,
+            source_id=source.id,
+            message_id=answer.id,
+            skip=0,
+            limit=1,
+        )
+        second_page, second_total = await conversation_repo.list_conversation_forks(
+            db,
+            organization_id=source.organization_id,
+            owner_id=source.user_id,
+            source_id=source.id,
+            message_id=answer.id,
+            skip=1,
+            limit=1,
+        )
+        other_page, other_total = await conversation_repo.list_conversation_forks(
+            db,
+            organization_id=source.organization_id,
+            owner_id=source.user_id,
+            source_id=source.id,
+            message_id=other_answer.id,
+            skip=0,
+            limit=1,
+        )
+
+        assert total == second_total == 2
+        assert len(page) == len(second_page) == 1
+        assert {page[0].id, second_page[0].id} == {first.id, second.id}
+        assert next(child for child in [*page, *second_page] if child.id == first.id).is_archived
+        assert next(child for child in [*page, *second_page] if child.id == first.id).forked_from_message_id is None
+        assert other_total == 1
+        assert [child.id for child in other_page] == [other_anchor.id]
 
 
 class TestASummarisedSource:

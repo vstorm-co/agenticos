@@ -10,13 +10,41 @@ import { useAuthStore, useChatStore, useFilePreviewStore } from "@/stores";
 import { ChatScope } from "@/stores/chat-scope";
 import { useWorkingStore } from "@/stores/working-store";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
+import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
 import type { Agent } from "@/types/agents";
-import type { ChatMessage, ChatMessageFile, MessagePart, ToolCall, TurnUsage } from "@/types";
+import type {
+  ChatMessage,
+  ChatMessageFile,
+  MessagePart,
+  MessageReply,
+  ToolCall,
+  TurnUsage,
+} from "@/types";
+import type { ConversationForkRead } from "@/lib/conversation-forks-api";
+import type { ConversationSideThreadActions } from "./conversation-side-threads";
+
+type SideThreadComponentProps = {
+  sourceConversationId: string;
+  messageId: string;
+  creatingMessageId?: string | null;
+  onCreate: ConversationSideThreadActions["onCreate"];
+  onOpen: (fork: ConversationForkRead) => void;
+};
+
+const sideThreadRender = vi.hoisted(() => ({
+  render: vi.fn<(props: SideThreadComponentProps) => void>(),
+}));
 
 // The MCP connections a step is named from. `MessageItem` reads them once per turn
 // and hands them to each step, so a public surface can render the same step without
 // a session - the fetch would need one, and a query client to run it in.
 vi.mock("@/hooks", () => ({ useMcpToolServers: () => [] }));
+vi.mock("./conversation-side-threads", () => ({
+  ConversationSideThreads: (props: SideThreadComponentProps) => {
+    sideThreadRender.render(props);
+    return null;
+  },
+}));
 vi.mock("@/components/artifacts/artifact-thumbnail", () => ({
   ArtifactThumbnail: ({ title }: { title: string }) => <span>thumbnail of {title}</span>,
 }));
@@ -124,7 +152,11 @@ function item(
     continuesTurn?: boolean;
     endsTurn?: boolean;
     turnUsage?: TurnUsage;
+    onReply?: (reply: MessageReply) => void;
     pins?: { pinned: readonly string[]; toggle: (prompt: string) => void };
+    onTogglePin?: (messageId: string, pinned: boolean) => void;
+    pinPending?: boolean;
+    sideThreadActions?: ConversationSideThreadActions;
   } = {},
 ) {
   return render(<MessageItem message={message(overrides)} {...props} />);
@@ -248,6 +280,48 @@ describe("a turn in the transcript", () => {
   it("offers no pin outside the test panel, nor on an answer", () => {
     item({ role: "user", content: "Refunds?" });
     expect(screen.queryByRole("button", { name: /Pin to ask again/ })).toBeNull();
+  });
+
+  it("pins a saved turn for this reader and shows its current personal state", () => {
+    const toggle = vi.fn();
+    const { rerender } = item(
+      { id: "saved-1", conversationId: "c-1", isPinned: false },
+      { onTogglePin: toggle },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Pin message" }));
+    expect(toggle).toHaveBeenCalledExactlyOnceWith("saved-1", true);
+
+    rerender(
+      <MessageItem
+        message={message({ id: "saved-1", conversationId: "c-1", isPinned: true })}
+        onTogglePin={toggle}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Unpin message" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("uses the persisted id for a live bubble as soon as its save acknowledgement arrives", () => {
+    const toggle = vi.fn();
+    item(
+      { id: "live-local", persistedId: "saved-live", isTemporaryId: true },
+      { onTogglePin: toggle },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Pin message" }));
+
+    expect(toggle).toHaveBeenCalledExactlyOnceWith("saved-live", true);
+  });
+
+  it("offers no personal pin on a temporary message and disables a pending write", () => {
+    const toggle = vi.fn();
+    const { rerender } = item({ isTemporaryId: true }, { onTogglePin: toggle });
+    expect(screen.queryByRole("button", { name: "Pin message" })).toBeNull();
+
+    rerender(<MessageItem message={message()} onTogglePin={toggle} pinPending />);
+    expect(screen.getByRole("button", { name: "Pin message" })).toBeDisabled();
   });
 
   it("puts what the turn left under the answer and above its time and actions", () => {
@@ -946,6 +1020,151 @@ describe("what a person attached", () => {
     expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
   });
 
+  it("uses the selected rendered excerpt when replying to a message", async () => {
+    const view = item({
+      id: "local-source",
+      persistedId: "selected-source",
+      isTemporaryId: true,
+      role: "assistant",
+      content: "Plan:\n step one",
+      conversationId: "c-1",
+    });
+    const text = view.container.querySelector("[data-testid=markdown]")!.firstChild!;
+    const range = document.createRange();
+    range.setStart(text, 7);
+    range.setEnd(text, 15);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    const reply = screen.getByRole("button", { name: "Reply" });
+    expect(reply).toHaveAttribute("data-tour", "chat-selected-quote");
+    await userEvent.click(reply);
+
+    expect(useChatStore.getState().replyTo).toEqual({
+      messageId: "selected-source",
+      role: "assistant",
+      excerpt: "step one",
+      selectedText: "step one",
+      sender: undefined,
+      agentId: undefined,
+      agentName: undefined,
+    });
+  });
+
+  it("replies to the saved segment that supplied a selected coalesced excerpt", async () => {
+    const view = item({
+      id: "latest-local",
+      persistedId: "latest-saved",
+      isTemporaryId: true,
+      role: "assistant",
+      content: "Earlier words. Latest words.",
+      conversationId: "c-1",
+      parts: [
+        {
+          id: "earlier",
+          sourceMessageId: "earlier-saved",
+          type: "text",
+          content: "Earlier words.",
+        },
+        { id: "latest", sourceMessageId: "latest-saved", type: "text", content: "Latest words." },
+      ],
+    });
+    const earlierBlock = view.container.querySelectorAll<HTMLElement>(
+      "[data-quoteable-content]",
+    )[0]!;
+    const text = earlierBlock.querySelector("[data-testid=markdown]")!.firstChild!;
+    const range = document.createRange();
+    range.setStart(text, 0);
+    range.setEnd(text, 13);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    await userEvent.click(screen.getByRole("button", { name: "Reply" }));
+
+    expect(useChatStore.getState().replyTo).toMatchObject({
+      messageId: "earlier-saved",
+      excerpt: "Earlier words",
+      selectedText: "Earlier words",
+    });
+  });
+
+  it("does not reply to the combined row when selection came from an unsaved segment", async () => {
+    const onReply = vi.fn();
+    const view = item(
+      {
+        id: "latest-local",
+        persistedId: "latest-saved",
+        isTemporaryId: true,
+        role: "assistant",
+        content: "Unsaved words. Latest words.",
+        conversationId: "c-1",
+        parts: [
+          { id: "unsaved", sourceMessageId: null, type: "text", content: "Unsaved words." },
+          { id: "latest", sourceMessageId: "latest-saved", type: "text", content: "Latest words." },
+        ],
+      },
+      { onReply },
+    );
+    const unsavedBlock = view.container.querySelectorAll<HTMLElement>(
+      "[data-quoteable-content]",
+    )[0]!;
+    expect(unsavedBlock).toHaveAttribute("data-quote-source-message-id", "");
+    const text = unsavedBlock.querySelector("[data-testid=markdown]")!.firstChild!;
+    const range = document.createRange();
+    range.setStart(text, 0);
+    range.setEnd(text, 13);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    await userEvent.click(screen.getByRole("button", { name: "Reply" }));
+
+    expect(onReply).not.toHaveBeenCalled();
+  });
+
+  it("marks only settled prose blocks as quote sources", () => {
+    const settled = item({
+      parts: [
+        { id: "thought", type: "thinking", content: "Private reasoning." },
+        { id: "words", type: "text", content: "The answer." },
+      ],
+    });
+    const blocks = settled.container.querySelectorAll("[data-quoteable-content]");
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toHaveTextContent("The answer.");
+
+    settled.unmount();
+    const live = item({
+      parts: [{ id: "live-words", type: "text", content: "Still streaming." }],
+      isStreaming: true,
+    });
+    expect(live.container.querySelector("[data-quoteable-content]")).toBeNull();
+  });
+
+  it("keeps ordinary Reply for a wire-loaded refusal but exposes no quoteable text", async () => {
+    const refused = conversationMessageToChatMessage({
+      id: "refused-answer",
+      conversation_id: "c-1",
+      role: "assistant",
+      content: "That request is not allowed.",
+      created_at: "2026-11-17T00:00:00Z",
+      run_status: "guardrail_blocked",
+    });
+    const view = item(refused);
+
+    expect(refused.guardrailRefused).toBe(true);
+    expect(view.container.querySelector("[data-quoteable-content]")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Reply" }));
+
+    expect(useChatStore.getState().replyTo).toMatchObject({
+      messageId: "refused-answer",
+      excerpt: "That request is not allowed.",
+    });
+    expect(useChatStore.getState().replyTo?.selectedText).toBeUndefined();
+  });
+
   it("keeps the quote on a file-only reply with no message text", () => {
     item({
       role: "user",
@@ -1043,6 +1262,55 @@ describe("the footer", () => {
     // Not the owner's thread: the container passes no handler.
     item();
     expect(screen.queryByRole("button", { name: "Fork into a new conversation" })).toBeNull();
+  });
+
+  it("anchors a side thread to the persisted row after a streamed id alias", async () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    const onOpen = vi.fn();
+    const actions: ConversationSideThreadActions = {
+      sourceConversationId: "source-1",
+      creatingMessageId: null,
+      onCreate,
+      onOpen,
+    };
+    const child: ConversationForkRead = {
+      id: "side-1",
+      title: "Alternate path",
+      created_at: "2026-11-17T12:00:00Z",
+      updated_at: null,
+      is_archived: false,
+      forked_from: {
+        conversation_id: "source-1",
+        message_id: "saved-answer",
+        title: "Main",
+      },
+    };
+
+    const { unmount } = item(
+      {
+        id: "local-stream-id",
+        persistedId: "saved-answer",
+        isTemporaryId: true,
+        isStreaming: false,
+      },
+      { sideThreadActions: actions },
+    );
+
+    expect(sideThreadRender.render).toHaveBeenCalledOnce();
+    const sideThreadProps = sideThreadRender.render.mock.calls[0]![0];
+    expect(sideThreadProps.messageId).toBe("saved-answer");
+    await sideThreadProps.onCreate(sideThreadProps.messageId);
+    sideThreadProps.onOpen(child);
+    expect(onCreate).toHaveBeenCalledWith("saved-answer");
+    expect(onOpen).toHaveBeenCalledWith("saved-answer", child);
+    unmount();
+
+    sideThreadRender.render.mockClear();
+    item(
+      { id: "unsaved-stream-id", isTemporaryId: true, isStreaming: false },
+      { sideThreadActions: actions },
+    );
+    expect(sideThreadRender.render).not.toHaveBeenCalled();
   });
 
   it("never offers a fork of a person's message, a system note or an answer not yet saved", () => {

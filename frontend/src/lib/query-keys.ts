@@ -720,6 +720,21 @@ export const qk = {
      */
     list: (params?: string) =>
       params ? (["conversations", "list", params] as const) : (["conversations", "list"] as const),
+    /** Message snippets are private to the signed-in person and active tenant. */
+    messageSearch: (tenant: string | null, user: string | null, query: string) =>
+      ["conversations", "message-search", tenant, user, query] as const,
+    /** A source owner's bounded child page, private to reader and tenant. */
+    forks: (
+      source: string | null,
+      message: string | null,
+      tenant: string | null,
+      user: string | null,
+      skip: number,
+      limit: number,
+    ) => ["conversations", source, "forks", message, tenant, user, skip, limit] as const,
+    /** Personal pins on one readable transcript; each reader has a separate cache. */
+    messagePins: (tenant: string | null, user: string | null, conversation: string | null) =>
+      ["conversations", "message-pins", tenant, user, conversation] as const,
     /**
      * The newest few, for the dashboard. Its own key because `list()` is owned
      * by the chat sidebar, which caches a different page under a different

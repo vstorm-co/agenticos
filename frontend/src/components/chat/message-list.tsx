@@ -12,11 +12,19 @@ import { dayLabel, startsADay } from "@/lib/day-separator";
 import type { AskedBefore } from "@/components/datasets/follows-on";
 import type { ChatMessage, TurnUsage, Delegation, MessageReply } from "@/types";
 import type { PinnedPrompts } from "./chat-container";
+import type { ConversationSideThreadActions } from "./conversation-side-threads";
 import { MessageItem } from "./message-item";
+
+export interface MessagePinActions {
+  pendingMessageId: string | null;
+  togglePin: (messageId: string, pinned: boolean) => void;
+}
 
 interface MessageListProps {
   messages: ChatMessage[];
   delegations?: Delegation[];
+  sideThreadActions?: ConversationSideThreadActions;
+  messagePinActions?: MessagePinActions;
   onRegenerate?: (messageId: string) => void;
   /** Fork the conversation at this answer; absent where the reader may not (#2762). */
   onFork?: (messageId: string) => void;
@@ -112,6 +120,13 @@ export function endsTurn(messages: ChatMessage[], index: number): boolean {
  */
 export function coalesceActivity(messages: ChatMessage[]): ChatMessage[] {
   const result: ChatMessage[] = [];
+  const sourcedParts = (message: ChatMessage) => {
+    const sourceMessageId = message.persistedId ?? (message.isTemporaryId ? null : message.id);
+    return (
+      message.parts ??
+      buildAssistantParts(message.toolCalls ?? [], message.content, message.id, message.thinking)
+    ).map((part) => (part.sourceMessageId !== undefined ? part : { ...part, sourceMessageId }));
+  };
   for (const message of messages) {
     const previous = result.at(-1);
     const sameRun =
@@ -138,26 +153,21 @@ export function coalesceActivity(messages: ChatMessage[]): ChatMessage[] {
       [...(previous.toolCalls ?? []), ...(message.toolCalls ?? [])].map((call) => [call.id, call]),
     );
     const parts = new Map(
-      [
-        ...(previous.parts ??
-          buildAssistantParts(
-            previous.toolCalls ?? [],
-            previous.content,
-            previous.id,
-            previous.thinking,
-          )),
-        ...(message.parts ??
-          buildAssistantParts(
-            message.toolCalls ?? [],
-            message.content,
-            message.id,
-            message.thinking,
-          )),
-      ].map((part) => [part.id, part]),
+      [...sourcedParts(previous), ...sourcedParts(message)].map((part) => [part.id, part]),
     );
     result[result.length - 1] = {
       ...message,
       renderKey: previous.renderKey ?? previous.id,
+      coalescedMessageIds: [
+        ...new Set(
+          [
+            ...(previous.coalescedMessageIds ?? [previous.id]),
+            previous.persistedId,
+            message.id,
+            message.persistedId,
+          ].filter((id): id is string => id !== undefined),
+        ),
+      ],
       timestamp: previous.timestamp,
       fileSource: message.fileSource ?? previous.fileSource,
       runStartedAt: previous.runStartedAt ?? message.runStartedAt,
@@ -231,6 +241,8 @@ export function layoutMessages(messages: ChatMessage[]): MessageLayout[] {
 export function MessageList({
   messages: sourceMessages,
   delegations,
+  sideThreadActions,
+  messagePinActions,
   onRegenerate,
   onFork,
   forkingMessageId = null,
@@ -312,6 +324,9 @@ export function MessageList({
             agents={agents}
             asked={askedBefore(messages, index)}
             request={pins ? undefined : row.request}
+            sideThreadActions={sideThreadActions}
+            onTogglePin={messagePinActions?.togglePin}
+            pinPending={messagePinActions?.pendingMessageId === (message.persistedId ?? message.id)}
             onFork={onFork}
             onOpenThread={onOpenThread}
             canStartThread={canStartThread}

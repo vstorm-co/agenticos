@@ -909,7 +909,49 @@ An eligible summary's externalized text and media are restored into the copy, so
 
 A conversation with a saved checklist can be forked only at its latest message, which must be an assistant answer. The fork keeps that checklist, including task IDs and dependencies. Earlier checklist snapshots are not stored, so an earlier fork is refused rather than copying later tasks into an older history.
 
+### Side threads { #chat-side-threads }
+
+On a completed assistant answer in a personal conversation you own, **Side threads** lets you start a separate conversation from that point or reopen an existing branch from the same answer. The child opens beside the parent with its own composer and subsequent messages. The parent's transcript, draft and queued messages stay in place; messages sent in the child belong to the child.
+
+**Back to parent conversation** closes the side panel and opens the exact source answer, loading older history if necessary. Closing the panel keeps the child saved. Switching the source conversation, account or organization removes the old panel. Archived children open read-only. The list can load more branches from this answer, and a failed read or creation offers another attempt without switching the main conversation.
+
+### Compacting conversation context { #chat-compact-now }
+
+In an idle personal conversation you own, **Compact now** in the header asks the published agent to summarize earlier context. The action appears when the agent has a supported summarizing compaction strategy. Saved messages and your composer draft remain available. It is unavailable in room discussions, archived or read-only chats, workflows and draft test panels.
+
+A notice above the composer reports progress and the result: context compacted, no further reduction, busy, unavailable or failed. Sending and starting a voice call pause while compaction runs; **Stop** cancels the request. Switching conversations does not repeat it. The action uses the chat's selected model when applicable and follows the normal usage budgets. The context gauge keeps the last measured turn until a later model request updates it.
+
+### Replying to selected text { #chat-selected-quote }
+
+Select a passage in a saved message, then choose **Reply**. The composer keeps that excerpt, up to 280 characters, with the source message. Sending the reply preserves the selected passage when the conversation is reopened and when the agent reads the reply. This works in personal chats and writable room discussions. With no text selected, **Reply** keeps its existing whole-message behavior.
+
+Selections spanning separate messages or interactive controls are not used as excerpts. A passage in a combined assistant turn remains linked to the saved segment it came from; a segment that has not been saved cannot become a quoted reply.
+
+### Pinned messages { #chat-message-pins }
+
+Choose **Pin message** on a saved message to keep a personal bookmark. **Pinned messages** in the conversation header opens your list; choose an excerpt to return to its exact message, including an older page or a room reply. You can remove a pin from either the message or the list, load more pins, and retry a failed read.
+
+Pins belong to you. Other readers of a shared conversation do not see your pins, and a read-only recipient can keep their own bookmarks. Opening a pin still requires access to its conversation. A pin uses the current message excerpt and does not create another copy of its content.
+
+### Finding a message { #chat-message-search }
+
+Use **Search conversations** in the chat sidebar. **Message text** searches conversations you can read in the active organization and shows the best matching message in each result, with an excerpt and its time. Narrow the query if the first twenty conversations do not include the one you need. Choose **Conversation title** to search titles, including archived conversations.
+
+Selecting a message opens that exact place, including a reply inside a room thread. Older history loads one page at a time; **Cancel jump** stops the navigation. A failed read offers **Retry**, while a message no longer available is reported separately. The selected message keeps keyboard focus and folded work opens so a matching saved segment is visible. Following a link still requires access to the conversation.
+
+### Finding activity within a turn { #chat-trace-search }
+
+Open a turn's work history, then choose **Search and filter activity**. Search text, tool arguments and results within that turn, or show only **Tools**, **Reasoning**, **Errors** or **Messages**. Entries keep their original order and the final answer remains in place. Approvals, unanswered questions and model setup that need your attention stay visible even when they do not match. **Clear filters** or Escape restores the full activity; closing the filter controls also clears them.
+
+### Controls during a turn { #chat-live-controls }
+
+While an agent is working, **Queue** sends your next message after the current turn. **Steer** sends plain-text guidance to the running turn, which uses it when it next continues. The choice is remembered for your account, organization and selected agent, including the general assistant. Files, mentions, replies, page context and workflow inputs keep the ordinary queued path. If steering cannot be sent, the draft stays in the composer.
+
+Choosing a model while a turn is running shows **After this turn**: the preference applies to a later message. **Edit reasoning in agent settings** opens the agent draft's Thinking control for members who can edit it. Save the draft, then use the existing review and publish flow to apply that agent configuration to future runs.
+
 ### Background topics { #background-topics }
+
+In full desktop chat, **Tasks** on the right opens background work beside the conversation. Choose **This chat** or **All my tasks**, search titles, and open a task from **Needs you**, **Working**, **Waiting** or **Finished**. A new chat starts with your tasks across agents in the active organization. You can resize or expand the panel. Opening it starts no work; read-only chats keep links and hide **Stop**. A failed read offers **Retry**.
 
 Enable **Background topics** on a published agent to ask, for example: “Investigate the export bug in a new topic while we continue the release plan”, or “Have the finance agent check these figures while we discuss the proposal”. It can use its own pinned version or a published delegate pinned in its spec. Start from a conversation you own; the fresh topic belongs to the same project and carries the agent's brief and a link back, without copying the original transcript.
 

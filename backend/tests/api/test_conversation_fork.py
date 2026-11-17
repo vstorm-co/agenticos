@@ -32,6 +32,7 @@ pytestmark = pytest.mark.anyio
 SOURCE_ID = uuid4()
 ANSWER_ID = uuid4()
 ENDPOINT = f"{settings.API_V1_STR}/conversations/{SOURCE_ID}/fork"
+FORKS_ENDPOINT = f"{settings.API_V1_STR}/conversations/{SOURCE_ID}/forks"
 CALLER = SimpleNamespace(
     id=uuid4(),
     email="kacper@example.com",
@@ -152,3 +153,75 @@ async def test_forking_is_rationed_per_member(
 
     assert [answer.status_code for answer in answers] == [201, 201, 429]
     assert service.fork.await_count == 2
+
+
+async def test_personal_forks_are_listed_with_anchor_and_scope(service: AsyncMock) -> None:
+    fork_id = uuid4()
+    created_at = datetime.now(UTC)
+    fork = SimpleNamespace(
+        id=fork_id,
+        title="Pricing follow-up",
+        created_at=created_at,
+        updated_at=None,
+        is_archived=True,
+        forked_from=ConversationForkOrigin(
+            conversation_id=SOURCE_ID, message_id=ANSWER_ID, title="Pricing"
+        ),
+    )
+    service.list_forks = AsyncMock(return_value=([fork], 3))
+
+    async with _client() as client:
+        response = await client.get(
+            FORKS_ENDPOINT, params={"message_id": str(ANSWER_ID), "skip": 2, "limit": 4}
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [
+            {
+                "id": str(fork_id),
+                "title": "Pricing follow-up",
+                "created_at": created_at.isoformat(),
+                "updated_at": None,
+                "is_archived": True,
+                "forked_from": {
+                    "conversation_id": str(SOURCE_ID),
+                    "message_id": str(ANSWER_ID),
+                    "title": "Pricing",
+                },
+            }
+        ],
+        "total": 3,
+    }
+    assert service.list_forks.await_args.args == (SOURCE_ID,)
+    assert service.list_forks.await_args.kwargs == {
+        "organization_id": ORGANIZATION.id,
+        "user_id": CALLER.id,
+        "ctx": AuthContext(
+            user_id=CALLER.id, organization_id=ORGANIZATION.id, role=str(OrgRoleName.MEMBER)
+        ),
+        "message_id": ANSWER_ID,
+        "skip": 2,
+        "limit": 4,
+    }
+
+
+async def test_personal_forks_refuse_an_unowned_or_wrong_tenant_source(service: AsyncMock) -> None:
+    service.list_forks = AsyncMock(side_effect=NotFoundError(message="Conversation not found"))
+
+    async with _client() as client:
+        response = await client.get(FORKS_ENDPOINT)
+
+    assert response.status_code == 404
+
+
+async def test_personal_fork_paging_is_bounded_before_service(service: AsyncMock) -> None:
+    service.list_forks = AsyncMock(return_value=([], 0))
+
+    async with _client() as client:
+        too_many = await client.get(FORKS_ENDPOINT, params={"limit": 101})
+        negative = await client.get(FORKS_ENDPOINT, params={"skip": -1})
+
+    assert too_many.status_code == 422
+    assert negative.status_code == 422
+    service.list_forks.assert_not_awaited()

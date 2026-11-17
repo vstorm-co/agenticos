@@ -98,6 +98,7 @@ from app.services.ws_auth import authenticate_socket_key, authenticate_socket_to
 from app.services.device_pairing import DevicePairingService
 from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
+from app.services.conversation_message_pin import ConversationMessagePinService
 from app.services.coding_task_changes import CodingTaskChangeService
 from app.services.conversation_tasks import ConversationTaskService
 from app.services.room_submission import RoomSubmissionService
@@ -221,6 +222,16 @@ def get_conversation_service(db: DBSession) -> ConversationService:
 
 
 ConversationSvc = Annotated[ConversationService, Depends(get_conversation_service)]
+
+
+def get_conversation_message_pin_service(db: DBSession) -> ConversationMessagePinService:
+    """Create personal message pin service with the request session."""
+    return ConversationMessagePinService(db)
+
+
+ConversationMessagePinSvc = Annotated[
+    ConversationMessagePinService, Depends(get_conversation_message_pin_service)
+]
 
 
 def get_visual_service(db: DBSession) -> VisualService:

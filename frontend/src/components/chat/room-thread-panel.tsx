@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -13,13 +14,16 @@ import { ArrowLeft } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { useRoomThread } from "@/hooks/use-room-thread";
+import { useMessageJump } from "@/hooks/use-message-jump";
 import { useRoomDraft } from "@/hooks/use-room-draft";
 import { useTenantId } from "@/hooks/use-organizations";
 import { useAgents } from "@/hooks/use-agents";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
 import { dockedPlan } from "@/lib/plan-state";
 import { useAuthStore, useChatStore, useConversationStore } from "@/stores";
-import { MessageList } from "./message-list";
+import { MessageList, type MessagePinActions } from "./message-list";
+import { PinnedMessages, type PinnedMessageTarget } from "./pinned-messages";
+import { MessageJumpNotice } from "./message-jump-notice";
 import { MessageItem } from "./message-item";
 import { PlanStrip } from "./plan-strip";
 import { RoomComposer } from "./team-room-composer";
@@ -36,20 +40,28 @@ export function RoomThreadPanel({
   conversationId,
   projectId,
   rootId,
+  requestedMessageId = null,
+  messageJumpRevision = 0,
   readOnly,
   onClose,
   onTyping,
   actions,
   isProcessing,
+  messagePinActions,
+  onOpenPinnedMessage,
 }: {
   conversationId: string;
   projectId: string | null;
   rootId: string;
+  requestedMessageId?: string | null;
+  messageJumpRevision?: number;
   readOnly: boolean;
   onClose: () => void;
   onTyping: () => void;
   actions?: (readOnly: boolean) => ReactNode;
   isProcessing: boolean;
+  messagePinActions?: MessagePinActions;
+  onOpenPinnedMessage?: (target: PinnedMessageTarget) => void;
 }) {
   const t = useTranslations("chat.roomThread");
   const { agents } = useAgents({ includeArchived: true });
@@ -101,12 +113,29 @@ export function RoomThreadPanel({
   const close = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLElement>(null);
   const returnFocus = useRef<Element | null>(null);
+  const jumpingAway = useRef(false);
   const overlay = useSyncExternalStore(
     subscribeOverlay,
     () => window.matchMedia(OVERLAY_QUERY).matches,
     () => false,
   );
   const last = messages.at(-1);
+  const holdMessageJump = useCallback(() => {
+    follow.current = false;
+  }, []);
+  const messageJump = useMessageJump({
+    messageId: requestedMessageId,
+    scope: JSON.stringify([accountId, tenantId, conversationId, selectionVersion, rootId]),
+    revision: messageJumpRevision,
+    ready: authorized && selected,
+    messageIds: [...messages.map((message) => message.id), ...(page?.root ? [page.root.id] : [])],
+    firstMessageId: history[0]?.id ?? null,
+    hasEarlier: query.hasNextPage,
+    loadingEarlier: query.isFetchingNextPage,
+    loadEarlier: query.fetchNextPage,
+    container: scroll,
+    beforeJump: holdMessageJump,
+  });
   useLayoutEffect(() => {
     if (follow.current && scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight;
   }, [last?.id, last?.content, messages.length]);
@@ -134,6 +163,7 @@ export function RoomThreadPanel({
         }}
         onCloseAutoFocus={(event) => {
           event.preventDefault();
+          if (jumpingAway.current) return;
           if (returnFocus.current instanceof HTMLElement && returnFocus.current.isConnected)
             returnFocus.current.focus();
         }}
@@ -162,7 +192,7 @@ export function RoomThreadPanel({
             >
               <ArrowLeft className="size-4" aria-hidden />
             </Button>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <DialogPrimitive.Title asChild>
                 <h2 className="text-sm font-semibold">{t("title")}</h2>
               </DialogPrimitive.Title>
@@ -172,6 +202,15 @@ export function RoomThreadPanel({
                 </p>
               </DialogPrimitive.Description>
             </div>
+            {authorized && selected && messagePinActions && onOpenPinnedMessage && (
+              <PinnedMessages
+                conversationId={conversationId}
+                onJumpToMessage={(target) => {
+                  jumpingAway.current = target.threadRootMessageId !== rootId;
+                  onOpenPinnedMessage(target);
+                }}
+              />
+            )}
           </header>
           {query.isError ? (
             <div role="alert" className="space-y-3 p-4 text-sm">
@@ -186,6 +225,7 @@ export function RoomThreadPanel({
             </p>
           ) : (
             <>
+              <MessageJumpNotice jump={messageJump} />
               <div
                 ref={scroll}
                 className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4"
@@ -202,6 +242,8 @@ export function RoomThreadPanel({
                       threadRootPreview
                       allowReply={canPost}
                       onReply={draft.setReply}
+                      onTogglePin={messagePinActions?.togglePin}
+                      pinPending={messagePinActions?.pendingMessageId === preview.id}
                       agent={agents.find((agent) => agent.id === preview.agentId)}
                       agents={agents}
                     />
@@ -221,7 +263,12 @@ export function RoomThreadPanel({
                     {t("earlier")}
                   </Button>
                 )}
-                <MessageList messages={messages} onReply={draft.setReply} allowReply={canPost} />
+                <MessageList
+                  messages={messages}
+                  onReply={draft.setReply}
+                  allowReply={canPost}
+                  messagePinActions={messagePinActions}
+                />
                 {messages.length === 0 && (
                   <p className="text-muted-foreground py-6 text-center text-sm">{t("empty")}</p>
                 )}

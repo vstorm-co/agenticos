@@ -107,9 +107,18 @@ def test_an_origin_has_one_spelling() -> None:
 
 @pytest.mark.security
 def test_a_step_has_no_field_for_a_value_url_or_text() -> None:
-    base = {"sequence": 1, "input_id": str(uuid.uuid4()), "action": "navigate", "origin": "https://a.example.test"}
+    base = {
+        "sequence": 1,
+        "input_id": str(uuid.uuid4()),
+        "action": "navigate",
+        "origin": "https://a.example.test",
+    }
     CapturedStep.model_validate(base)
-    for extra in ({"value": SECRET}, {"url": f"https://a.example.test/?t={SECRET}"}, {"text": SECRET}):
+    for extra in (
+        {"value": SECRET},
+        {"url": f"https://a.example.test/?t={SECRET}"},
+        {"text": SECRET},
+    ):
         with pytest.raises(ValidationError) as refused:
             CapturedStep.model_validate(base | extra)
         assert SECRET not in str(refused.value)
@@ -147,7 +156,12 @@ def test_if_match_names_a_revision() -> None:
 @pytest.mark.security
 async def test_the_observer_keeps_a_hash_and_never_a_page_detail() -> None:
     async def page(_function: str, _mode: str, _x: float, _y: float) -> object:
-        return {"origin": "https://a.example.test", "role": "button", "path": [["button", 3], ["form", 0]], "auth": False}
+        return {
+            "origin": "https://a.example.test",
+            "role": "button",
+            "path": [["button", 3], ["form", 0]],
+            "auth": False,
+        }
 
     seen = await _observe.observe(page, "point", 1, 2)
     assert seen.target is not None and seen.target.fingerprint.startswith("sha256:")
@@ -195,19 +209,36 @@ def teaching_on(monkeypatch: pytest.MonkeyPatch) -> list[uuid.UUID]:
     return allowed
 
 
-async def test_capture_attaches_for_the_runs_own_person_in_the_provisioned_browser(teaching_on) -> None:
+async def test_capture_attaches_for_the_runs_own_person_in_the_provisioned_browser(
+    teaching_on,
+) -> None:
     deps = _deps()
     teaching_on.append(deps.organization_id)
     capture = _capture.attach(deps, _CdpLike(), provisioned=True, tab_id=None)
-    assert capture is not None and capture.user_id == deps.audience.user_id and capture.tab_id == "main"
+    assert (
+        capture is not None
+        and capture.user_id == deps.audience.user_id
+        and capture.tab_id == "main"
+    )
 
 
 @pytest.mark.security
 @pytest.mark.parametrize(
     "case",
-    ["unprovisioned", "native", "not_a_cdp_page", "delegated", "impersonated", "shared", "other_person", "org_off"],
+    [
+        "unprovisioned",
+        "native",
+        "not_a_cdp_page",
+        "delegated",
+        "impersonated",
+        "shared",
+        "other_person",
+        "org_off",
+    ],
 )
-async def test_capture_is_refused_outside_a_private_run_in_the_provisioned_browser(teaching_on, case: str) -> None:
+async def test_capture_is_refused_outside_a_private_run_in_the_provisioned_browser(
+    teaching_on, case: str
+) -> None:
     deps = _deps()
     teaching_on.append(deps.organization_id)
     page: object = _CdpLike()
@@ -241,4 +272,9 @@ async def test_capture_ignores_a_hold_by_anyone_but_its_person(teaching_on) -> N
     assert capture is not None
     await capture.begin("call", str(uuid.uuid4()))
     assert capture.hold is None
-    assert await capture.before_input(BrowserCommand(type="type", text=SECRET, by_user_id=deps.user_id)) is None
+    assert (
+        await capture.before_input(
+            BrowserCommand(type="type", text=SECRET, by_user_id=deps.user_id)
+        )
+        is None
+    )

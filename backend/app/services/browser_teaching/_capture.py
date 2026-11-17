@@ -165,7 +165,9 @@ class HoldCapture:
             logger.warning("Browser teaching pause deferred (%s)", type(exc).__name__)
 
 
-def attach(deps: AgentDeps, page: object, *, provisioned: bool, tab_id: str | None) -> HoldCapture | None:
+def attach(
+    deps: AgentDeps, page: object, *, provisioned: bool, tab_id: str | None
+) -> HoldCapture | None:
     """A capture for this tab, or `None` when this run may not be taught from.
 
     `provisioned` is true only for the deployment's own server browser. The page

@@ -18,13 +18,33 @@ import { announceChange } from "@/lib/live-updates";
 import { qk } from "@/lib/query-keys";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import { useChatAgentSettings } from "@/hooks/use-chat-agent-settings";
-import type { AgentDetail, AgentSpec } from "@/types/agents";
+import type { AgentDetail, AgentSpec, CapabilityCatalogEntry } from "@/types/agents";
 
 vi.mock("@/lib/api-client", async () => ({
   ...(await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client")),
   apiClient: { get: vi.fn(), put: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+const THINKING_CAPABILITY: CapabilityCatalogEntry = {
+  id: "thinking",
+  name: "Reasoning",
+  category: "model",
+  description: "How hard the model thinks before answering.",
+  side_effecting: false,
+  voice: "live",
+  scopes: [],
+  tools: [],
+  contracts: [],
+  config_schema: {
+    type: "object",
+    properties: {
+      effort: { type: "string", enum: ["low", "medium", "high"], default: "medium" },
+    },
+  },
+  requires_secret: null,
+  recommended: null,
+};
 
 function agent(id = "agent-a", changes: Partial<AgentDetail> = {}): AgentDetail {
   return {
@@ -68,12 +88,14 @@ function agent(id = "agent-a", changes: Partial<AgentDetail> = {}): AgentDetail 
 let records: Record<string, AgentDetail>;
 let readFailure = false;
 let validateProblems = false;
+let thinkingCatalogAvailable = true;
 
 beforeEach(() => {
   vi.clearAllMocks();
   records = { "agent-a": agent(), "agent-b": agent("agent-b") };
   readFailure = false;
   validateProblems = false;
+  thinkingCatalogAvailable = true;
   useBrowserPanelStore.getState().close();
   vi.mocked(apiClient.get).mockImplementation(async (path) => {
     if (path === "/providers/model-profiles")
@@ -90,6 +112,11 @@ beforeEach(() => {
         total: 2,
       };
     if (path === "/providers/catalog") return { items: [], total: 0 };
+    if (path === "/agents/capabilities")
+      return {
+        items: thinkingCatalogAvailable ? [THINKING_CAPABILITY] : [],
+        total: thinkingCatalogAvailable ? 1 : 0,
+      };
     if (path.endsWith("/versions")) return { items: [{ id: "v1", version: 1 }], total: 1 };
     if (path.endsWith("/environments")) return { items: [], total: 0 };
     const match = /^\/agents\/([^/]+)$/.exec(path);
@@ -202,7 +229,12 @@ describe("agent settings beside the chat", () => {
       <WorkspaceRail
         filesSlot={() => undefined}
         hasAgent
-        panelIds={{ browser: "browser", computer: "computer", settings: "settings" }}
+        panelIds={{
+          browser: "browser",
+          computer: "computer",
+          settings: "settings",
+          tasks: "tasks",
+        }}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Open agent settings" }));
@@ -243,7 +275,7 @@ describe("agent settings beside the chat", () => {
     await userEvent.click(screen.getByText("Default model", { selector: "summary" }));
     await userEvent.click(await screen.findByRole("radio", { name: "Model b" }));
     await userEvent.click(screen.getByText("Tools and capabilities", { selector: "summary" }));
-    await userEvent.click(screen.getByRole("switch"));
+    await userEvent.click(screen.getByRole("switch", { name: "Web browser" }));
     await userEvent.click(screen.getByRole("button", { name: "Save draft" }));
     await waitFor(() => expect(apiClient.put).toHaveBeenCalled());
     expect(records["agent-a"]!.draft_spec).toMatchObject({
@@ -257,6 +289,101 @@ describe("agent settings beside the chat", () => {
         },
       ],
     });
+  });
+
+  it("saves Thinking effort to the draft and preserves its binding when switched off", async () => {
+    records["agent-a"] = agent("agent-a", {
+      draft_spec: {
+        ...agent("agent-a").draft_spec,
+        capabilities: [
+          {
+            id: "browser_use",
+            config: { target: "hosted" },
+            approval: "required",
+            tool_approval: { navigate: "never" },
+            tool_overrides: {},
+            secret_id: null,
+            enabled: true,
+          },
+          {
+            id: "thinking",
+            config: { effort: "medium" },
+            approval: "default",
+            tool_approval: {},
+            tool_overrides: {},
+            secret_id: null,
+            enabled: true,
+          },
+        ],
+      },
+    });
+    mount();
+    await screen.findByRole("textbox", { name: "Name" });
+
+    const reasoning = await screen.findByRole("region", { name: "Reasoning" });
+    expect(screen.getByRole("switch", { name: "Thinking" })).toBeChecked();
+    await userEvent.click(within(reasoning).getByLabelText(/effort/i));
+    await userEvent.click(screen.getByRole("option", { name: "high" }));
+    expect(apiClient.put).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("switch", { name: "Thinking" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save draft" }));
+
+    await waitFor(() => expect(apiClient.put).toHaveBeenCalledTimes(1));
+    expect(records["agent-a"]!.draft_spec.capabilities).toEqual([
+      expect.objectContaining({
+        id: "browser_use",
+        config: { target: "hosted" },
+        approval: "required",
+        tool_approval: { navigate: "never" },
+        enabled: true,
+      }),
+      expect.objectContaining({
+        id: "thinking",
+        config: { effort: "high" },
+        approval: "default",
+        tool_approval: {},
+        enabled: false,
+      }),
+    ]);
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  it("keeps Thinking's ordinary capability control when the catalog has no schema", async () => {
+    thinkingCatalogAvailable = false;
+    records["agent-a"] = agent("agent-a", {
+      draft_spec: {
+        ...agent("agent-a").draft_spec,
+        capabilities: [
+          {
+            id: "thinking",
+            config: { effort: "high" },
+            approval: "default",
+            tool_approval: {},
+            tool_overrides: {},
+            secret_id: null,
+            enabled: true,
+          },
+        ],
+      },
+    });
+    mount();
+    await screen.findByRole("textbox", { name: "Name" });
+    await userEvent.click(screen.getByText("Tools and capabilities", { selector: "summary" }));
+
+    expect(screen.queryByRole("region", { name: "Reasoning" })).toBeNull();
+    expect(screen.getByRole("switch", { name: "Thinking" })).toBeChecked();
+    await userEvent.click(screen.getByRole("switch", { name: "Thinking" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save draft" }));
+
+    await waitFor(() => expect(apiClient.put).toHaveBeenCalledTimes(1));
+    expect(records["agent-a"]!.draft_spec.capabilities).toEqual([
+      expect.objectContaining({
+        id: "thinking",
+        config: { effort: "high" },
+        enabled: false,
+      }),
+    ]);
+    expect(apiClient.post).not.toHaveBeenCalled();
   });
 
   it.each([

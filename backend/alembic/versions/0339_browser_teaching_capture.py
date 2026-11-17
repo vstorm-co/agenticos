@@ -1,7 +1,7 @@
 """Add owner-bound structural browser teaching sessions (#113, slice 1).
 
-Revision ID: 0337_browser_teaching_capture
-Revises: 0336_merge_core_v1761
+Revision ID: 0339_browser_teaching_capture
+Revises: 0338_message_reply_excerpt
 
 A teaching session records one person's demonstration in one held browser tab
 of one run. It stores only structural steps: an exact HTTPS origin, a role and
@@ -24,8 +24,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0337_browser_teaching_capture"
-down_revision: str | None = "0336_merge_core_v1761"
+revision: str = "0339_browser_teaching_capture"
+down_revision: str | None = "0338_message_reply_excerpt"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -57,16 +57,17 @@ def upgrade() -> None:
         sa.Column("capture_ends_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.CheckConstraint(
             "status IN ('recording', 'paused', 'review', 'discarded', 'expired')",
             name=op.f("browser_teaching_sessions_state_check"),
         ),
-        sa.CheckConstraint(
-            "revision >= 1", name=op.f("browser_teaching_sessions_revision_check")
-        ),
+        sa.CheckConstraint("revision >= 1", name=op.f("browser_teaching_sessions_revision_check")),
         sa.CheckConstraint(
             "jsonb_typeof(sanitized_events) = 'array' AND jsonb_array_length(sanitized_events) <= 500 "
             "AND octet_length(sanitized_events::text) <= 131072",
@@ -82,7 +83,10 @@ def upgrade() -> None:
             name=op.f("browser_teaching_sessions_erased_check"),
         ),
         sa.ForeignKeyConstraint(
-            ["agent_id"], ["agents.id"], name=op.f("browser_teaching_sessions_agent_id_fkey"), ondelete="CASCADE"
+            ["agent_id"],
+            ["agents.id"],
+            name=op.f("browser_teaching_sessions_agent_id_fkey"),
+            ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
             ["organization_id"],
@@ -97,7 +101,10 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
-            ["run_id"], ["agent_runs.id"], name=op.f("browser_teaching_sessions_run_id_fkey"), ondelete="CASCADE"
+            ["run_id"],
+            ["agent_runs.id"],
+            name=op.f("browser_teaching_sessions_run_id_fkey"),
+            ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("browser_teaching_sessions_pkey")),
         sa.UniqueConstraint(

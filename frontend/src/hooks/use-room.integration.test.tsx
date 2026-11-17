@@ -481,6 +481,7 @@ describe("room thread drafts", () => {
         messageId: "reply-in-a",
         role: "assistant",
         excerpt: "Earlier answer",
+        selectedText: "Earlier answer",
       });
     });
     await act(async () => result.current.submit());
@@ -490,6 +491,7 @@ describe("room thread drafts", () => {
       agent_id: "writer",
       thread_root_message_id: "root-a",
       reply_to_message_id: "reply-in-a",
+      reply_to_excerpt: "Earlier answer",
     });
     expect(result.current.reply).toBeNull();
     expect(useChatStore.getState().replyTo?.messageId).toBe("main-quote");

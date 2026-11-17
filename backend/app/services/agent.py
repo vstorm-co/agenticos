@@ -211,6 +211,7 @@ async def persist_user_turn(
     organization_id: UUID,
     project_id: str | None = None,
     reply_to: str | None = None,
+    reply_to_excerpt: str | None = None,
     mentions: Sequence[Mentionable] = (),
     client_message_id: str | None = None,
 ) -> PersistedPrompt:
@@ -314,6 +315,7 @@ async def persist_user_turn(
                     content=content,
                     client_message_id=client_message_id,
                     reply_to_message_id=replied,
+                    reply_to_excerpt=reply_to_excerpt,
                     parts=[
                         MessagePart(
                             type="mention",

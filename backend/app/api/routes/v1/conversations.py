@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import (
     ActiveOrg,
+    AgentRegistrySvc,
     Auth,
     CodingTaskChangeSvc,
     ConversationShareSvc,
@@ -26,12 +27,15 @@ from app.api.public_api import PUBLIC
 from app.api.responses import content_disposition
 from app.api.routes.v1._artifact_bytes import visual_image_response
 from app.api.routes.v1._workspace_bytes import file_response
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import Perm
 from app.schemas.coding_task_change import CodingTaskChangeRead
 from app.schemas.conversation import (
+    ConversationCompactionAvailability,
     ConversationCreate,
     ConversationForkCreate,
+    ConversationForkList,
+    ConversationForkRead,
     ConversationList,
     ConversationRead,
     ConversationReadWithMessages,
@@ -39,6 +43,10 @@ from app.schemas.conversation import (
     MessageCreate,
     MessageList,
     MessageRead,
+)
+from app.schemas.conversation_search import (
+    MAX_MESSAGE_SEARCH_SNIPPET_LENGTH,
+    ConversationMessageSearchHitRead,
 )
 from app.schemas.conversation_share import (
     ConversationShareCreate,
@@ -65,9 +73,54 @@ from app.schemas.workspace import (
     WorkspaceFileRead,
     WorkspaceListing,
 )
+from app.services import conversation_search
 from app.services.sandbox_workspace import owner_label, stored_ceiling
 
 router = APIRouter()
+
+
+@router.get(
+    "/{conversation_id}/compaction-availability",
+    response_model=ConversationCompactionAvailability,
+)
+async def compaction_availability(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    registry: AgentRegistrySvc,
+    ctx: Auth,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    agent_id: UUID = Query(...),
+) -> ConversationCompactionAvailability:
+    """Read whether this owned personal chat can run a summarising maintenance pass."""
+    conversation = await conversation_service.get_conversation(
+        conversation_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        for_write=True,
+        turn=True,
+        include_favourite=False,
+        ctx=ctx,
+    )
+    if (
+        conversation.user_id != current_user.id
+        or conversation.project_id is not None
+        or conversation.workflow_id is not None
+        or conversation.origin is not None
+        or conversation.is_archived
+    ):
+        return ConversationCompactionAvailability(available=False)
+    try:
+        _, spec, _ = await registry.get_runnable_spec(ctx, agent_id)
+    except (AuthorizationError, BadRequestError, NotFoundError):
+        return ConversationCompactionAvailability(available=False)
+    available = any(
+        binding.id == "compaction"
+        and binding.enabled
+        and binding.config.get("strategy", "summarize") in {"summarize", "tiered"}
+        for binding in spec.capabilities
+    )
+    return ConversationCompactionAvailability(available=available)
 
 
 @router.post("/{conversation_id}/room-messages", response_model=RoomMessageRead)
@@ -201,6 +254,53 @@ async def get_shared_conversation(
 
 
 @router.get(
+    "/search/messages",
+    response_model=list[ConversationMessageSearchHitRead],
+    dependencies=[PUBLIC, Depends(key_needs(Perm.RUNS_VIEW))],
+)
+async def search_message_content(
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    query: str = Query(
+        min_length=1,
+        max_length=120,
+        description="Literal text to find in readable conversation messages",
+    ),
+) -> Any:
+    """Search up to 20 matching messages in conversations the caller may read.
+
+    The shared transcript-search service resolves owner, share, project and
+    confirmed room membership access inside the active organization. Input uses
+    plain text search semantics; punctuation does not add query operators.
+    """
+    cleaned_query = query.strip()
+    if not cleaned_query:
+        return []
+    hits = await conversation_search.search(
+        query=cleaned_query,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        limit=20,
+        literal=True,
+    )
+    return [
+        ConversationMessageSearchHitRead(
+            conversation_id=hit.conversation_id,
+            message_id=hit.message_id,
+            thread_root_message_id=hit.thread_root_message_id,
+            title=hit.title,
+            updated_at=hit.updated_at,
+            matched_at=hit.matched_at,
+            hits=hit.hits,
+            snippet=hit.snippet[:MAX_MESSAGE_SEARCH_SNIPPET_LENGTH],
+            speaker_role=hit.speaker_role,
+            speaker_name=hit.speaker_name,
+        )
+        for hit in hits
+    ]
+
+
+@router.get(
     "",
     response_model=ConversationList,
     dependencies=[PUBLIC, Depends(key_needs(Perm.RUNS_VIEW))],
@@ -325,6 +425,32 @@ async def get_conversation(
     )
 
     return conversation if include_messages else ConversationRead.model_validate(conversation)
+
+
+@router.get("/{conversation_id}/forks", response_model=ConversationForkList)
+async def list_conversation_forks(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+    message_id: UUID | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+) -> Any:
+    """List the caller's personal child conversations, including archived ones."""
+    items, total = await conversation_service.list_forks(
+        conversation_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        ctx=ctx,
+        message_id=message_id,
+        skip=skip,
+        limit=limit,
+    )
+    return ConversationForkList(
+        items=[ConversationForkRead.model_validate(item) for item in items], total=total
+    )
 
 
 @router.post(
