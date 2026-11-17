@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **The sign-in page sends somebody already signed in on into the app.** It
+  showed the form even when the session check had found an account, so a second
+  tab opened on `/login` (or `/`) asked for the password again. It now goes where
+  a sign-in would, honouring `returnTo`, and a tab left on the form moves on by
+  itself once another tab signs in.
+
 ## [1.80.0] - 2026-11-16
 
 ### Fixed
